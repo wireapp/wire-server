@@ -22,6 +22,13 @@ module Data.Range
     , rinc
     , rappend
     , rsingleton
+
+#ifdef WITH_ARBITRARY
+    -- * 'Arbitrary' generators
+    , genRangeList
+    , genRangeText
+    , genRange
+#endif
     ) where
 
 import Imports
@@ -40,6 +47,9 @@ import Data.Text.Ascii (AsciiText)
 import Database.CQL.Protocol hiding (Set, Map)
 #endif
 import Numeric.Natural
+#ifdef WITH_ARBITRARY
+import Test.QuickCheck (Gen, choose)
+#endif
 
 import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.ByteString            as B
@@ -104,7 +114,7 @@ errorMsg n m = showString "outside range ["
 
 checkedEitherMsg :: forall a n m.  Within a n m => String -> a -> Either String (Range n m a)
 checkedEitherMsg msg x = do
-    let sn = sing :: SNat n 
+    let sn = sing :: SNat n
         sm = sing :: SNat m
     case mk x sn sm of
         Nothing -> Left $ showString msg . showString ": " . errorMsg (fromSing sn) (fromSing sm) $ ""
@@ -236,3 +246,29 @@ instance (Within a n m, FromByteString a) => FromByteString (Range n m a) where
 
 instance ToByteString a => ToByteString (Range n m a) where
     builder = builder . fromRange
+
+#ifdef WITH_ARBITRARY
+
+----------------------------------------------------------------------------
+-- Arbitrary generators
+
+genRangeList :: forall (n :: Nat) (m :: Nat) (a :: *).
+                (Show a, KnownNat n, KnownNat m, LTE n m)
+             => Gen a -> Gen (Range n m [a])
+genRangeList = genRange id
+
+genRangeText :: forall (n :: Nat) (m :: Nat). (KnownNat n, KnownNat m, LTE n m)
+             => Gen Char -> Gen (Range n m Text)
+genRangeText = genRange fromString
+
+genRange :: forall (n :: Nat) (m :: Nat) (a :: *) (b :: *).
+            (Show b, Bounds b, KnownNat n, KnownNat m, LTE n m)
+         => ([a] -> b) -> Gen a -> Gen (Range n m b)
+genRange pack_ gc = unsafeRange @b @n @m . pack_
+    <$> grange (fromIntegral (natVal (Proxy @n)))
+               (fromIntegral (natVal (Proxy @m)))
+               gc
+  where
+    grange mi ma gelem = (`replicateM` gelem) =<< choose (mi, ma)
+
+#endif

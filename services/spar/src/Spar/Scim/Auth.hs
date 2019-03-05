@@ -73,6 +73,7 @@ createScimToken
 createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescr
     teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+    Intra.Brig.ensureReAuthorised zusr createScimTokenPassword
     tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
     maxTokens <- asks (maxScimTokens . sparCtxOpts)
     unless (tokenNumber < maxTokens) $
