@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Gundeck.API.Error where
 
 import Data.Text.Lazy (Text)

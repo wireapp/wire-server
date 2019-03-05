@@ -1,9 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
 module Brig.API.Connection
@@ -20,6 +15,7 @@ module Brig.API.Connection
     , onboarding
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Options (setUserMaxConnections)
@@ -29,18 +25,10 @@ import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
-import Control.Monad.Trans.Class
-import Data.ByteString (ByteString)
 import Data.Id
-import Data.Int (Int32)
-import Data.Foldable (for_)
 import Data.List.Split (chunksOf)
 import Data.Range
-import Data.Set (Set, fromList)
-import Data.Traversable (for)
+import Data.Set (fromList)
 import Galley.Types (cnvType, ConvType (..))
 import System.Logger.Message
 

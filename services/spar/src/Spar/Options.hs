@@ -1,71 +1,75 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE RecordWildCards            #-}
 
+-- | Reading the Spar config.
+--
+-- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
-  ( Opts(..)
-  , TTL(..), TTLError(..)
-  , getOpts
+  ( getOpts
+  , deriveOpts
   , readOptsFile
-  , ttlToNominalDiffTime
-  , maxttlAuthreqDiffTime
   ) where
 
+import Imports
+import Control.Lens
 import Control.Exception
-import Data.Aeson
-import Data.Int
-import Data.Monoid
-import Data.Text (Text)
-import Data.Time
-import GHC.Generics (Generic)
-import GHC.Types (Symbol)
-import Lens.Micro
+import Control.Monad.Catch
 import Options.Applicative
-import Util.Options
-import Spar.Types (IdPExtra, SPInfo)
+import Spar.API.Types
+import Spar.Types
+import Text.Ascii (ascii)
+import URI.ByteString as URI
 
+import qualified Data.ByteString as SBS
 import qualified Data.Yaml as Yaml
-import qualified SAML2.WebSSO.Config as SAML
+import qualified SAML2.WebSSO as SAML
 
 
-data Opts = Opts
-    { saml           :: !(SAML.Config IdPExtra)
-    , spInfo         :: !SPInfo
-    , brig           :: !Endpoint
-    , cassandra      :: !CassandraOpts
-    , maxttlAuthreq  :: !(TTL "authreq")
-    , maxttlAuthresp :: !(TTL "authresp")
-    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
-    , logNetStrings  :: !Bool
-    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
-    }
-  deriving (Show, Generic)
-
-instance FromJSON Opts
-
--- | (seconds)
-newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
-  deriving (Eq, Ord, Show, Num)
-
-instance FromJSON (TTL a) where
-  parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
-
-data TTLError = TTLTooLong | TTLNegative
-  deriving (Eq, Show)
-
-ttlToNominalDiffTime :: TTL a -> NominalDiffTime
-ttlToNominalDiffTime (TTL i32) = fromIntegral i32
-
-maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
-maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
-
+type OptsRaw = Opts' (Maybe ())
 
 -- | Throws an exception if no config file is found.
 getOpts :: IO Opts
 getOpts = do
   let desc = "Spar - SSO Service"
-  readOptsFile =<< execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+  deriveOpts
+    =<< readOptsFile
+    =<< execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+
+deriveOpts :: OptsRaw -> IO Opts
+deriveOpts raw = do
+  derived <- do
+    let respuri = runWithConfig raw sparResponseURI
+        derivedOptsBindCookiePath = URI.uriPath respuri
+        unwrap = maybe (throwM $ ErrorCall "Bad server config: no domain in response URI") pure
+    derivedOptsBindCookieDomain <- URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
+
+    -- We could also make this selectable in the config file, but it seems easier to derive it from
+    -- the SAML base uri.
+    let derivedOptsScimBaseURI = (saml raw ^. SAML.cfgSPSsoURI) & pathL %~ derive
+          where
+            derive path = case reverse .
+                               filter (not . SBS.null) .
+                               SBS.split (ascii '/') $
+                               path of
+              ("sso" : path') -> compile path'
+              path'           -> compile path'
+
+            compile path = "/" <> SBS.intercalate "/" (reverse ("v2" : "scim" : path))
+
+    pure DerivedOpts {..}
+  pure $ derived <$ raw
+
+-- | This should not leave this module.  It is only for callling 'sparResponseURI' before the 'Spar'
+-- monad is fully initialized.
+newtype WithConfig a = WithConfig (Reader OptsRaw a)
+  deriving (Functor, Applicative, Monad)
+
+instance SAML.HasConfig WithConfig where
+  getConfig = WithConfig $ asks saml
+
+runWithConfig :: OptsRaw -> WithConfig a -> a
+runWithConfig opts (WithConfig act) = act `runReader` opts
+
 
 -- | Accept config file location as cli option.
 --
@@ -81,13 +85,8 @@ cliOptsParser = strOption $
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 
-readOptsFile :: FilePath -> IO Opts
+readOptsFile :: FilePath -> IO OptsRaw
 readOptsFile path =
-  either err1 (\opts -> if hasNoIdPs opts then pure opts else err2)
-    =<< Yaml.decodeFileEither path
+  either err1 pure =<< Yaml.decodeFileEither path
   where
     err1 = throwIO . ErrorCall . ("no or bad config file: " <>) . show
-    err2 = throwIO $ ErrorCall "idps field is not supported by spar."
-
-    hasNoIdPs :: Opts -> Bool
-    hasNoIdPs = null . (^. to saml . SAML.cfgIdps)

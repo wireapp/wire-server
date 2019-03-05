@@ -5,17 +5,9 @@
 
 module Network.Wire.Simulations.SmokeTest (mainBotNet) where
 
-import Control.Concurrent.Async.Lifted.Safe
-import Control.Monad (void)
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
+import Imports
 import Data.Id (ConvId)
 import Data.List1
-import Data.Maybe (isNothing, fromMaybe)
-import Data.Monoid ((<>))
-import Data.String (fromString)
-import Data.Text (Text)
-import Data.Traversable (for)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -26,6 +18,7 @@ import Network.Wire.Client.API.Push
 import Network.Wire.Client.API.Search
 import Network.Wire.Client.API.User
 import System.Logger.Class
+import UnliftIO (mapConcurrently)
 
 import qualified Codec.MIME.Type          as MIME
 import qualified Data.ByteString.Lazy     as LBS
@@ -88,6 +81,7 @@ mainBotNet n = do
     runBotSession bill $ do
         let update = MemberUpdateData
                    { misOtrMuted       = Nothing
+                   , misOtrMutedStatus = Nothing
                    , misOtrMutedRef    = Nothing
                    , misOtrArchived    = Just True
                    , misOtrArchivedRef = Nothing
@@ -261,4 +255,3 @@ awaitOtrMsg cnv from to = do
 
 decryptTextMsg :: BotClient -> ConvEvent OtrMessage -> BotSession Text
 decryptTextMsg cl bs = decryptMessage cl bs >>= requireTextMsg
-

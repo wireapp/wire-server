@@ -1,10 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module CargoHold.API.Error where
 
+import Imports
 import CargoHold.Types.V3.Resumable (Offset, TotalSize)
-import Data.Monoid
-import Data.Text.Lazy (Text)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 import Network.HTTP.Types.Status
@@ -51,9 +48,8 @@ uploadIncomplete expected actual = Error status403 "client-error" $ toLazyText $
     "expected size: " <> decimal expected <> ", " <>
     "current size: " <> decimal actual <> "."
 
-clientError :: Text -> Error
+clientError :: LText -> Error
 clientError = Error status400 "client-error"
 
 serverError :: Error
 serverError = Error status500 "server-error" "Server Error."
-

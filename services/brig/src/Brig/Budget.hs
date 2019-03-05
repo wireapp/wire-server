@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 module Brig.Budget
     ( Budget (..)
@@ -10,12 +9,9 @@ module Brig.Budget
     , insertBudget
     ) where
 
+import Imports
 import Brig.Data.Instances ()
 import Cassandra
-import Control.Error
-import Control.Lens
-import Data.Int
-import Data.Text (Text)
 import Data.Time.Clock
 
 data Budget = Budget
@@ -58,4 +54,3 @@ budgetInsert = "INSERT INTO budget (key, budget) VALUES (?, ?) USING TTL ?"
 
 budgetSelect :: PrepQuery R (Identity BudgetKey) (Int32, Int32)
 budgetSelect = "SELECT budget, ttl(budget) FROM budget where key = ?"
-

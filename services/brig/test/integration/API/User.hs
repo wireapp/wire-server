@@ -1,13 +1,8 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TupleSections       #-}
-
 module API.User (tests, ConnectionLimit (..)) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
-import Control.Monad (join)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Test.Tasty hiding (Timeout)
 import Util
@@ -21,6 +16,7 @@ import qualified API.User.Handles
 import qualified API.User.Onboarding
 import qualified API.User.PasswordReset
 import qualified API.User.Property
+import qualified API.User.RichInfo
 
 import qualified Brig.AWS     as AWS
 import qualified Brig.Options as Opt
@@ -40,6 +36,7 @@ tests conf p b c ch g aws = do
         , API.User.Onboarding.tests    cl at conf p b c g
         , API.User.PasswordReset.tests cl at conf p b c g
         , API.User.Property.tests      cl at conf p b c g
+        , API.User.RichInfo.tests      cl at conf p b c g
         ]
 
 mkZAuthEnv :: Maybe Opt.Opts -> IO ZAuth.Env

@@ -1,16 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric     #-}
-
 module Main (main) where
 
+import Imports hiding (local)
 import Bilge hiding (header, body)
-import Data.Monoid
 import Data.Proxy
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
-import Data.Typeable
 import Data.Yaml hiding (Parser)
-import GHC.Generics
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL

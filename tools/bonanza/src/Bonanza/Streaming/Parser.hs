@@ -8,6 +8,7 @@ module Bonanza.Streaming.Parser
     )
 where
 
+import           Imports
 import           Bonanza.Parser.CommonLog
 import           Bonanza.Parser.Journald
 import           Bonanza.Parser.Nginz
@@ -16,16 +17,12 @@ import           Bonanza.Parser.Socklog
 import           Bonanza.Parser.Svlogd
 import           Bonanza.Parser.Tinylog
 import           Bonanza.Types
-import           Control.Monad                    (unless)
 import           Data.Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as AB
 import qualified Data.Attoparsec.Types            as A
-import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString.Char8            as BC
-import           Data.Char
-import           Data.Conduit                     (Conduit)
+import           Data.Conduit                     (ConduitT)
 import qualified Data.Conduit                     as Conduit
-import           Data.Maybe
 
 
 data Parser where
@@ -57,7 +54,7 @@ jsonParser = do
         Error   e -> fail e
         Success a -> return a
 
-stream :: Monad m => Parser -> Conduit ByteString m LogEvent
+stream :: Monad m => Parser -> ConduitT ByteString LogEvent m ()
 stream (MkParser p) = next
   where
     next = Conduit.await >>= go

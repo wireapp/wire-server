@@ -1,13 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 module Proxy.Proxy (Proxy, runProxy)  where
 
+import Imports
 import Bilge.Request (requestIdName)
+import Data.Default (def)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Id (RequestId (..))
 import Proxy.Env
 import Network.Wai
@@ -38,4 +37,4 @@ reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
+lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders

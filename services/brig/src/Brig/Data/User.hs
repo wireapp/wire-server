@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}  -- for Show UserRowInsert
 
@@ -14,10 +7,13 @@ module Brig.Data.User
     ( AuthError (..)
     , ReAuthError (..)
     , newAccount
+    , insertAccount
     , authenticate
     , reauthenticate
     , filterActive
     , isActivated
+
+    -- * Lookups
     , lookupAccount
     , lookupAccounts
     , lookupUser
@@ -26,25 +22,33 @@ module Brig.Data.User
     , lookupLocale
     , lookupPassword
     , lookupStatus
+    , lookupRichInfo
     , lookupUserTeam
-    , insertAccount
+    , lookupServiceUsers
+    , lookupServiceUsersForTeam
+
+    -- * Updates
     , updateUser
     , updateEmail
     , updatePhone
+    , updateSSOId
+    , updateManagedBy
     , activateUser
     , deactivateUser
     , updateLocale
     , updatePassword
     , updateStatus
     , updateSearchableStatus
+    , updateHandle
+    , updateRichInfo
+
+    -- * Deletions
     , deleteEmail
     , deletePhone
     , deleteServiceUser
-    , lookupServiceUsers
-    , lookupServiceUsersForTeam
-    , updateHandle
     ) where
 
+import Imports
 import Brig.App (AppIO, settings, zauthEnv, currentTime)
 import Brig.Data.Instances ()
 import Brig.Options
@@ -55,10 +59,6 @@ import Brig.Types.User (newUserExpiresIn)
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Foldable (for_)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
@@ -114,7 +114,8 @@ newAccount u inv tid = do
                         Just _  -> Active
     colour        = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
-    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid
+    managedBy     = fromMaybe defaultManagedBy (newUserManagedBy u)
+    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
@@ -167,6 +168,7 @@ insertAccount (UserAccount u status) mbConv password activated searchable = retr
         , userHandle u
         , searchable
         , userTeam u
+        , userManagedBy u
         )
     for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
         let pid = sref ^. serviceRefProvider
@@ -200,6 +202,18 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
 updatePhone :: UserId -> Phone -> AppIO ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params Quorum (p, u))
 
+updateSSOId :: UserId -> UserSSOId -> AppIO Bool
+updateSSOId u ssoid = do
+  mteamid <- lookupUserTeam u
+  case mteamid of
+    Just _ -> do
+      retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
+      pure True
+    Nothing -> pure False
+
+updateManagedBy :: UserId -> ManagedBy -> AppIO ()
+updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u))
+
 updateHandle :: UserId -> Handle -> AppIO ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
 
@@ -207,6 +221,9 @@ updatePassword :: UserId -> PlainTextPassword -> AppIO ()
 updatePassword u t = do
     p <- liftIO $ mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))
+
+updateRichInfo :: UserId -> RichInfo -> AppIO ()
+updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
 
 deleteEmail :: UserId -> AppIO ()
 deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
@@ -283,6 +300,10 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
+lookupRichInfo :: UserId -> AppIO (Maybe RichInfo)
+lookupRichInfo u = fmap runIdentity <$>
+    retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
+
 lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u = join . fmap runIdentity <$>
     retry x1 (query1 teamSelect (params Quorum (Identity u)))
@@ -292,6 +313,9 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
   where
     f (pw, st) = (pw, fromMaybe Active st)
 
+-- | Return users with given IDs.
+--
+-- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: [UserId] -> AppIO [User]
 lookupUsers usrs = do
     loc <- setDefaultLocale  <$> view settings
@@ -343,23 +367,26 @@ type Activated = Bool
 
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
                 Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTimeMillis, Maybe Language,
-                Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
+                Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId, Maybe ManagedBy)
 
 type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
-                      Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
-                      Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
+                      Maybe Password, Activated, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
+                      Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId, ManagedBy)
 
 deriving instance Show UserRowInsert
 
+-- Represents a 'UserAccount'
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
-                   ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
+                   ColourId, Maybe [Asset], Activated, Maybe AccountStatus,
                    Maybe UTCTimeMillis, Maybe Language, Maybe Country,
-                   Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
+                   Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId,
+                   Maybe ManagedBy)
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
-              \activated, status, expires, language, country, provider, service, handle, team \
+              \activated, status, expires, language, country, provider, service, \
+              \handle, team, managed_by \
               \FROM user where id IN ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
@@ -383,20 +410,23 @@ accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
+richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfo)
+richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
+
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
-                 \service, handle, team \
+                 \service, handle, team, managed_by \
                  \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
-                               \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \country, provider, service, handle, searchable, team, managed_by) \
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -415,6 +445,12 @@ userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
+
+userSSOIdUpdate :: PrepQuery W (UserSSOId, UserId) ()
+userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+
+userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
+userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
@@ -443,27 +479,31 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
+userRichInfoUpdate :: PrepQuery W (RichInfo, UserId) ()
+userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+
 -------------------------------------------------------------------------------
 -- Conversions
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
-                             handle, tid) =
+                             handle, tid, managed_by) =
     let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
     in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid)
+                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid
+                         (fromMaybe ManagedByWire managed_by))
                    (fromMaybe Active status)
 
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
     mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
-        expires, lan, con, pid, sid, handle, tid) =
+        expires, lan, con, pid, sid, handle, tid, managed_by) =
         let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
@@ -471,6 +511,7 @@ toUsers defaultLocale = fmap mk
             svc = newServiceRef <$> sid <*> pid
         in User uid ident name (fromMaybe noPict pict) (fromMaybe [] assets)
                 accent deleted loc svc handle expiration tid
+                (fromMaybe ManagedByWire managed_by)
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

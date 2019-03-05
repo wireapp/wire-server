@@ -1,0 +1,29 @@
+gundeck:
+  host: gundeck
+  port: 8086
+
+cassandra:
+  endpoint:
+    host: cassandra
+    port: 9042
+  keyspace: gundeck_test
+
+redis:
+  host: redis
+  port: 6379
+
+aws:
+  queueName: integration-gundeck-events
+  region: eu-west-1
+  account: "123456789012" # Default account nr used by localstack
+  arnEnv: integration
+  sqsEndpoint: http://sqs:4568 # https://sqs.eu-west-1.amazonaws.com
+  snsEndpoint: http://sns:4575 # https://sns.eu-west-1.amazonaws.com
+
+settings:
+  httpPoolSize: 1024
+  notificationTTL: 24192200
+  bulkPush: false
+
+logLevel: Info
+logNetStrings: false

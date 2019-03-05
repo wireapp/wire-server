@@ -3,14 +3,7 @@
 ARG prebuilder=quay.io/wire/alpine-prebuilder
 
 FROM ${prebuilder}
-WORKDIR /src/wire-server
-
-# Get newer Stack
-
-# later versions don't have static binaries (temporarily)
-ARG STACK_VERSION=1.6.5
-RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_VERSION}/stack-${STACK_VERSION}-linux-x86_64-static.tar.gz \
-    | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack
+WORKDIR /
 
 # Download stack indices and compile/cache dependencies to speed up subsequent
 # container creation.
@@ -18,12 +11,18 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 # We also build profiling versions of all libraries. Due to a bug in Stack,
 # they have to be built in a separate directory. See this issue:
 # https://github.com/commercialhaskell/stack/issues/4032
+#
+# Finally, we build docs for haskell-src-exts without hyperlinking enabled
+# to avoid a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
 RUN apk add --no-cache git ncurses && \
-    mkdir -p /src && cd /src && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
-    cd wire-server && \
+    cd /wire-server && \
     stack update && \
-    echo -e "allow-different-user: true\n" >> /root/.stack/config.yaml && \
-    stack --work-dir .stack-docker-profile build --pedantic --haddock --test --dependencies-only --no-run-tests --profile && \
-    stack --work-dir .stack-docker         build --pedantic --haddock --test --dependencies-only --no-run-tests
+    echo "allow-different-user: true" >> /root/.stack/config.yaml && \
+    stack build --haddock --dependencies-only --profile haskell-src-exts && \
+    stack build --haddock --no-haddock-hyperlink-source --profile haskell-src-exts && \
+    stack build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only --profile && \
+    cd / && \
+    # we run the build only to cache the built source in /root/.stack, we can remove the source code itself
+    rm -rf /wire-server

@@ -1,9 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Galley.Intra.Client
     ( lookupClients
     ) where
 
+import Imports
 import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra

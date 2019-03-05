@@ -8,20 +8,17 @@
 -- Brig.Types.Account?
 module Brig.Types.Common where
 
-import Control.Applicative
-import Control.Error (hush, readMay)
+import Imports
+import Control.Applicative (optional)
+import Control.Error (hush)
 import Data.Aeson
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import Data.Char (isLower, toUpper, isUpper)
 import Data.Hashable (Hashable)
-import Data.Int (Int32)
 import Data.Json.Util ((#))
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
-import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text, toLower)
 import Data.Time.Clock
 
 import qualified Data.Aeson.Types as Json
@@ -106,8 +103,8 @@ fromEmail (Email loc dom) = loc <> "@" <> dom
 -- | Parses an email address of the form <local-part>@<domain>.
 parseEmail :: Text -> Maybe Email
 parseEmail t = case Text.split (=='@') t of
-    [local, domain] -> Just $! Email local domain
-    _               -> Nothing
+    [localPart, domain] -> Just $! Email localPart domain
+    _                   -> Nothing
 
 -----------------------------------------------------------------------------
 -- Phone
@@ -152,6 +149,55 @@ instance FromJSON PhoneBudgetTimeout where
 
 instance ToJSON PhoneBudgetTimeout where
     toJSON (PhoneBudgetTimeout t) = object [ "expires_in" .= t ]
+
+-----------------------------------------------------------------------------
+-- PhonePrefix (for excluding from SMS/calling)
+
+newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show, ToJSON)
+
+-- | Parses a phone number prefix with a mandatory leading '+'.
+parsePhonePrefix :: Text -> Maybe PhonePrefix
+parsePhonePrefix p
+    | isValidPhonePrefix p  = Just $ PhonePrefix p
+    | otherwise             = Nothing
+
+-- | Checks whether a phone number prefix is valid,
+-- i.e. it is like a E.164 format phone number, but shorter
+-- (with a mandatory leading '+', followed by 1-15 digits.)
+isValidPhonePrefix :: Text -> Bool
+isValidPhonePrefix = isRight . parseOnly e164Prefix
+  where
+    e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
+
+-- | get all valid prefixes of a phone number or phone number prefix
+-- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
+allPrefixes :: Text -> [PhonePrefix]
+allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
+
+instance FromJSON PhonePrefix where
+    parseJSON = withText "PhonePrefix" $ \s ->
+        case parsePhonePrefix s of
+            Just p  -> return p
+            Nothing -> fail $ "Invalid phone number prefix: [" ++ show s
+                            ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
+
+instance FromByteString PhonePrefix where
+    parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix
+
+instance ToByteString PhonePrefix where
+    builder = builder . fromPhonePrefix
+
+data ExcludedPrefix = ExcludedPrefix { phonePrefix :: PhonePrefix
+                                     , comment :: Text
+                                     } deriving (Eq, Show)
+
+instance FromJSON ExcludedPrefix where
+    parseJSON = withObject "ExcludedPrefix" $ \o -> ExcludedPrefix
+        <$> o .: "phone_prefix"
+        <*> o .: "comment"
+
+instance ToJSON ExcludedPrefix where
+    toJSON (ExcludedPrefix p c) = object ["phone_prefix" .= p, "comment" .= c]
 
 -----------------------------------------------------------------------------
 -- UserIdentity
@@ -209,10 +255,22 @@ ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
 ssoIdentity _ = Nothing
 
--- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
+-- | User's external identity.
+--
+-- Morally this is the same thing as 'SAML.UserRef', but we forget the
+-- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
+-- of those blobs changes, Brig won't have to deal with it, only Spar will.
+--
+-- TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
 -- move there.
-data UserSSOId = UserSSOId { userSSOIdTenant :: Text, userSSOIdSubject :: Text }
-    deriving (Eq, Show)
+data UserSSOId = UserSSOId
+    {
+    -- | An XML blob pointing to the identity provider that can confirm
+    -- user's identity.
+      userSSOIdTenant :: Text
+    -- | An XML blob specifying the user's ID on the identity provider's side.
+    , userSSOIdSubject :: Text
+    } deriving (Eq, Show)
 
 instance FromJSON UserSSOId where
     parseJSON = withObject "UserSSOId" $ \obj -> UserSSOId
@@ -270,7 +328,7 @@ languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
 
 lan2Text :: Language -> Text
-lan2Text = toLower . Text.pack . show . fromLanguage
+lan2Text = Text.toLower . Text.pack . show . fromLanguage
 
 parseLanguage :: Text -> Maybe Language
 parseLanguage = hush . parseOnly languageParser
@@ -321,10 +379,51 @@ parseLocale = hush . parseOnly localeParser
 -- Common language / country functions
 checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
 checkAndConvert f t = if all f t
-    then readMay (map toUpper t)
+    then readMaybe (map toUpper t)
     else fail "Format not supported."
 
 codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
     code <- count 2 anyChar
     maybe (fail err) return (conv code)
+
+-----------------------------------------------------------------------------
+-- ManagedBy
+
+-- | Who controls changes to the user profile (where the profile is defined as "all
+-- user-editable, user-visible attributes").
+data ManagedBy
+      -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
+    = ManagedByWire
+      -- | The profile can only be changed via SCIM, with several exceptions:
+      --
+      --   1. User properties can still be set (because they are used internally by clients
+      --      and none of them can be modified via SCIM now or in the future).
+      --
+      --   2. Password can be changed by the user (SCIM doesn't support setting passwords yet,
+      --      but currently SCIM only works with SSO-users who don't even have passwords).
+      --
+      --   3. The user can still be deleted normally (SCIM doesn't support deleting users yet;
+      --      but it's questionable whether this should even count as a /change/ of a user
+      --      profile).
+      --
+      -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
+      -- are not essential, unlike e.g. passwords.
+    | ManagedByScim
+    deriving (Eq, Show, Bounded, Enum)
+
+instance FromJSON ManagedBy where
+    parseJSON = withText "ManagedBy" $ \case
+        "wire" -> pure ManagedByWire
+        "scim" -> pure ManagedByScim
+        other  -> fail $ "Invalid ManagedBy: " ++ show other
+
+instance ToJSON ManagedBy where
+    toJSON = String . \case
+        ManagedByWire -> "wire"
+        ManagedByScim -> "scim"
+
+defaultManagedBy :: ManagedBy
+defaultManagedBy = ManagedByWire
+
+-- NB: when adding new types, please add a roundtrip test to "Test.Brig.Types.Common"

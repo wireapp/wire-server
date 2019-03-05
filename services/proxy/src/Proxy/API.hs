@@ -1,23 +1,13 @@
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
-
 module Proxy.API (Proxy.API.run) where
 
-import Control.Monad
+import Imports hiding (head)
 import Control.Monad.Catch
-import Control.Monad.IO.Class (liftIO, MonadIO)
-import Control.Concurrent (threadDelay)
 import Control.Lens hiding ((.=))
 import Control.Retry
-import Data.ByteString (ByteString, breakSubstring)
+import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
-import Data.Monoid
-import Data.Text (Text)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
@@ -27,7 +17,6 @@ import Network.Wai.Predicate.Request (getRequest)
 import Network.Wai.Routing hiding (path, route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Prelude hiding (head)
 import Proxy.Env
 import Proxy.Proxy
 import Proxy.Options
@@ -50,7 +39,7 @@ run o = do
     e <- createEnv m o
     s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
     let rtree    = compile (sitemap e)
-    let measured = measureRequests m rtree
+    let measured = measureRequests m (treeToPaths rtree)
     let app r k  = runProxy e r (route rtree r k)
     let start    = measured . catchErrors (e^.applog) m $ app
     runSettings s start `finally` destroyEnv e

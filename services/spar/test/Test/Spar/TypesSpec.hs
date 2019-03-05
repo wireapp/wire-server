@@ -1,16 +1,8 @@
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module Test.Spar.TypesSpec where
 
+import Imports
 import Data.Id
 import Data.UUID
 import Spar.Types

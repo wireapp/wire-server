@@ -20,14 +20,10 @@ aws:
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
-fallback:
-  skipFallbacks: true
-  preferNotice: true
-  queueDelay: 300
-  queueLimit: 30000
-  queueBurst: 100
-
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
-  bulkPush: false
+  bulkPush: true
+
+logLevel: Info
+logNetStrings: false

@@ -1,9 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Galley.API.Error where
 
-import Data.Monoid
-import Data.Text.Lazy
+import Imports
+import Data.Text.Lazy (pack)
 import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -32,10 +30,10 @@ invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
 invalidTargetAccess :: Error
 invalidTargetAccess = invalidOp "invalid target access"
 
-invalidOp :: Text -> Error
+invalidOp :: LText -> Error
 invalidOp = Error status403 "invalid-op"
 
-invalidPayload :: Text -> Error
+invalidPayload :: LText -> Error
 invalidPayload = Error status400 "invalid-payload"
 
 notConnected :: Error
@@ -56,7 +54,7 @@ invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
 unknownClient :: Error
 unknownClient = Error status403 "unknown-client" "Sending client not known"
 
-invalidRange :: Text -> Error
+invalidRange :: LText -> Error
 invalidRange = Error status400 "client-error"
 
 operationDenied :: Perm -> Error

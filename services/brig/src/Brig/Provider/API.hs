@@ -1,13 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Brig.Provider.API
     ( -- * Main stuff
       routes
@@ -15,6 +5,7 @@ module Brig.Provider.API
     , finishDeleteService
     ) where
 
+import Imports
 import Brig.App (settings, AppIO, internalEvents)
 import Brig.API.Error
 import Brig.API.Handler
@@ -30,32 +21,22 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (join, when, unless, (>=>), liftM2)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Functor (void)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
-import Data.Int
 import Data.List1 (List1 (..))
 import Data.List.NonEmpty (nonEmpty)
-import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
-import Data.String (fromString)
-import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
-import Data.Traversable (forM)
 import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -88,7 +69,7 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
 import qualified OpenSSL.EVP.PKey             as SSL
-import qualified Network.HTTP.Client.OpenSSL  as SSL
+import qualified Ssl.Util                     as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
@@ -323,8 +304,8 @@ newAccount req = do
     new <- parseJsonBody req
 
     email <- case validateEmail (newProviderEmail new) of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let name  = newProviderName new
     let pass  = newProviderPassword new
@@ -382,8 +363,8 @@ activateAccountKey (key ::: val) = do
 getActivationCode :: Email -> Handler Response
 getActivationCode e = do
     email <- case validateEmail e of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
     gen  <- Code.mkGen (Code.ForEmail email)
     code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
     maybe (throwStd activationKeyNotFound) (return . found) code
@@ -464,8 +445,8 @@ updateAccountEmail :: ProviderId ::: Request -> Handler Response
 updateAccountEmail (pid ::: req) = do
     EmailUpdate new <- parseJsonBody req
     email <- case validateEmail new of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let emailKey = mkEmailKey email
     DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
@@ -608,7 +589,7 @@ finishDeleteService pid sid = do
         let tags = unsafeRange (serviceTags svc)
             name = serviceName svc
         runConduit $ User.lookupServiceUsers pid sid
-                  .| C.mapM_ (void . mapMPooled 16 kick)
+                  .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
         RPC.removeServiceConn pid sid
         DB.deleteService pid sid name tags
   where
@@ -708,7 +689,7 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
             -- conversations
             lift $ runConduit
                    $ User.lookupServiceUsersForTeam pid sid tid
-                  .| C.mapM_ (void . mapMPooled 16 (\(bid, cid) ->
+                  .| C.mapM_ (pooledMapConcurrentlyN_ 16 (\(bid, cid) ->
                                 deleteBot uid (Just con) bid cid))
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)
@@ -770,8 +751,8 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let colour = fromMaybe defaultAccentId            (Ext.rsNewBotColour rs)
     let pict   = Pict [] -- Legacy
     let sref   = newServiceRef sid pid
-    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing
-    let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
+    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire
+    let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs))
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
     lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)

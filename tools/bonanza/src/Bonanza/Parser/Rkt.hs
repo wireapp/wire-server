@@ -6,6 +6,7 @@ module Bonanza.Parser.Rkt
     )
 where
 
+import Imports
 import Bonanza.Parser.Internal
 import Bonanza.Parser.Svlogd
 import Bonanza.Types
@@ -14,7 +15,7 @@ import Data.Bifunctor
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.HashMap.Strict              (fromList)
-import Data.Text                        (Text, strip)
+import Data.Text                        (strip)
 
 -- [<uptime_in_seconds>] <service_name>[<id>]: <opt_tags><message>
 

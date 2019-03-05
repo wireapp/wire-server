@@ -1,16 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 module Brig.AWS.Types
     ( -- * SES Notification
       SESNotification (..)
     , SESBounceType (..)
     ) where
 
+import Imports
 import Brig.Types (Email (..))
 import Data.Aeson
-import Data.Monoid ((<>))
-import Data.Text (Text)
 
 -------------------------------------------------------------------------------
 -- Notifications

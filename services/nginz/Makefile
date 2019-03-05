@@ -1,16 +1,19 @@
-LANG := en_US.UTF-8
+LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.2
+NGINX_VERSION   = 1.14.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
+ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
 SHELL          := /usr/bin/env bash
 DIST           := build
 BIN            := src/objs/nginx
-DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
+DEB            := $(NAME)_$(NGINZ_VERSION)_$(ARCH).deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 DEST_PATH      ?= /opt/nginz
 # Use a folder that can be written to since errors during startup do not respect
@@ -18,9 +21,18 @@ DEST_PATH      ?= /opt/nginz
 LOG_PATH       ?= /var/log/nginz
 CONF_PATH      ?= /etc/nginz
 PID_PATH       ?= /var/run
-# You may need to use this if you have some dependencies in non-standard locations
-EXTRA_CC_INC   ?=
-EXTRA_CC_LIB   ?=
+
+# You may need to use this if you have some dependencies in non-standard
+# locations. For macOS, we use Brew default directories for OpenSSL (if they
+# exist). These variables can be always overridden when running the
+# Makefile, though.
+ifeq ($(wildcard /usr/local/opt/openssl/.),)
+    EXTRA_CC_INC ?=
+    EXTRA_CC_LIB ?=
+else
+    EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
+    EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
+endif
 
 # Where should we look for packages, locally or globally?
 EXTRA_PKG_PATH := $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")/lib/pkgconfig
@@ -56,10 +68,12 @@ default: compile
 clean:
 	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
+.PHONY: compile
 compile: $(BIN)
 	mkdir -p dist ../../dist
 	cp src/objs/nginx ../../dist/
 
+.PHONY: dist
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
 $(BIN): src zwagger-ui/swagger-ui
@@ -68,11 +82,11 @@ $(BIN): src zwagger-ui/swagger-ui
 	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
 
-%.deb: $(BIN) $(DIST)
+%.deb: $(BIN) $(DIST) guard-ARCH
 	makedeb --name=$(NAME) \
 	 --version=$(NGINZ_VERSION) \
 	 --debian-dir=deb \
-	 --architecture=amd64 \
+	 --architecture=$(ARCH) \
 	 --output-dir=$(DIST)
 
 $(DIST):
@@ -95,12 +109,10 @@ zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 $(SWAGGER_BUNDLE):
 	curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE)
 
-src: $(NGINX_BUNDLE) gcc8.patch
+src: $(NGINX_BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
 	gpg --verify $(NGINX_BUNDLE).asc $(NGINX_BUNDLE)
 	tar zxf $(NGINX_BUNDLE)
-	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
-	(cd nginx-$(NGINX_VERSION); patch -p1 -i ../gcc8.patch)
 	rm -rf src && mv nginx-$(NGINX_VERSION) src
 
 $(NGINX_BUNDLE):
@@ -110,7 +122,9 @@ $(NGINX_BUNDLE):
 .PHONY: docker
 docker:
 	git submodule update --init
-	docker build -f Dockerfile -t nginz ../..
+	docker build -t $(DOCKER_USER)/nginz:$(DOCKER_TAG) -f Dockerfile ../..
+	docker tag $(DOCKER_USER)/nginz:$(DOCKER_TAG) $(DOCKER_USER)/nginz:latest
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
 
 .PHONY: libzauth
 libzauth:

@@ -1,10 +1,10 @@
 module Main (main) where
 
+import Imports
 import Data.ByteString.Char8 (pack)
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Ropes.Aws
-import System.Environment
 import Test.Tasty
 
 import qualified System.Logger as Logger

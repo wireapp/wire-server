@@ -1,12 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE UndecidableInstances       #-}
 
 module Galley.Aws
     ( Env
@@ -22,20 +14,14 @@ module Galley.Aws
     , Error (..)
     ) where
 
+import Imports
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
-import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
-import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)
-import Data.Typeable
 import Data.UUID.V4
 import Data.UUID (toText)
 import Galley.Options
@@ -78,7 +64,6 @@ newtype Amazon a = Amazon
                , Applicative
                , Monad
                , MonadIO
-               , MonadBase IO
                , MonadThrow
                , MonadCatch
                , MonadMask
@@ -86,13 +71,13 @@ newtype Amazon a = Amazon
                , MonadResource
                )
 
+instance MonadUnliftIO Amazon where
+    askUnliftIO = Amazon $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
+
 instance MonadLogger Amazon where
     log l m = view logger >>= \g -> Logger.log g l m
-
-instance MonadBaseControl IO Amazon where
-    type StM Amazon a = StM (ReaderT Env (ResourceT IO)) a
-    liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
-    restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
     liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws

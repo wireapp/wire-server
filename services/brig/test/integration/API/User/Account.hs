@@ -1,12 +1,8 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-
 module API.User.Account (tests) where
 
+import Imports
 import API.Search.Util (assertSearchable)
+import API.Team.Util (createUserWithTeam, createTeamMember)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -15,41 +11,35 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Control.Arrow ((&&&))
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
 import Control.Lens ((^?), (^.))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.ByteString.Char8 (pack, intercalate)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
-import Data.Foldable (for_)
 import Data.List1 (singleton)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid ((<>))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
-import Data.Text (Text)
 import Data.Vector (Vector)
+import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
-import System.Random (randomIO)
 import Web.Cookie (parseSetCookie)
 import Util as Util
 import Util.AWS as Util
+import UnliftIO (mapConcurrently_)
 
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Brig.Types.User.Auth        as Auth
 import qualified CargoHold.Types.V3          as CHV3
+import qualified Data.ByteString.Char8       as C8
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
 import qualified Data.Text                   as T
@@ -61,7 +51,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _cl at _conf p b c ch g aws = testGroup "account"
+tests _ at _ p b c ch g aws = testGroup "account"
     [ test' aws p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b aws
     , test' aws p "post /register - 201"                     $ testCreateUser b g
     , test' aws p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
@@ -84,6 +74,8 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
     , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
+    , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
+    , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
@@ -92,6 +84,7 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
     , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
+    , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b g
     ]
 
 testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
@@ -237,9 +230,11 @@ testCreateUserNoEmailNoPassword brig = do
     put (brig . path "/self/email" . contentJson . zUser uid . zConn "conn" . body setEmail) !!!
         const 202 === statusCode
 
+-- | email address must not be taken on @/register@.
 testCreateUserConflict :: Brig -> Http ()
 testCreateUserConflict brig = do
-    u <- createUser "conflict" "test@simulator.amazonses.com" brig
+    -- trusted email domains
+    u <- createUser "conflict" brig
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= ("conflict1" :: Text)
             , "email"    .= (fromEmail <$> userEmail u) -- dup. email
@@ -249,12 +244,8 @@ testCreateUserConflict brig = do
         const 409 === statusCode
         const (Just "key-exists") === fmap Error.label . decodeBody
 
-    -- Untrusted domain and thus "<anything>@zinfra.io" considered equal
-    -- to "<anything>+<uuid>@zinfra.io"
-    -- NOTE: local part cannot be longer than 64 octets
-    rd <- liftIO (randomIO :: IO Integer)
-    let email = (T.pack $ show rd) <> "@zinfra.io"
-    u2 <- createUser "conflict" email brig
+    -- untrusted email domains
+    u2 <- createUserUntrustedEmail "conflict" brig
     let Just (Email loc dom) = userEmail u2
     let p2 = RequestBodyLBS . encode $ object
             [ "name"     .= ("conflict2" :: Text)
@@ -282,7 +273,7 @@ testCreateUserBlacklist brig aws =
     mapM_ ensureBlacklist ["bounce", "complaint"]
   where
     ensureBlacklist typ = do
-        e <- mkSimulatorEmail typ
+        e <- randomEmail
         flip finally (removeBlacklist brig e) $ do
             post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
             -- If we are using a local env, we need to fake this bounce
@@ -337,7 +328,7 @@ testCreateUserExternalSSO brig = do
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
-    u <- decodeBody =<< registerUser "dilbert" "success@simulator.amazonses.com" brig
+    u <- decodeBody =<< registerUser "dilbert" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
     case act of
@@ -381,7 +372,7 @@ testMultipleUsers brig = do
     u1 <- randomUser brig
     u2 <- randomUser brig
     u3 <- createAnonUser "a" brig
-    let uids = intercalate "," $ map (toByteString' . userId) [u1, u2, u3]
+    let uids = C8.intercalate "," $ map (toByteString' . userId) [u1, u2, u3]
         -- n.b. email addresses and phone numbers are never returned
         -- on this endpoint, only from the self profile (/self).
         expected = Set.fromList
@@ -514,7 +505,7 @@ testEmailUpdate brig aws = do
     initiateEmailUpdate brig eml uid !!! const 204 === statusCode
 
     -- ensure no other user has "test+<uuid>@example.com"
-    -- if there is such a user, let's delete it first otherwise
+    -- if there is such a user, let's delete it first.  otherwise
     -- this test fails since there can be only one user with "test+...@example.com"
     ensureNoOtherUserWithEmail (Email "test" "example.com")
 
@@ -542,17 +533,7 @@ testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
     uid <- userId <$> randomUser brig
     phn <- randomPhone
-    -- update phone
-    let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-    put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
-        (const 202 === statusCode)
-    -- activate
-    act <- getActivationCode brig (Right phn)
-    case act of
-        Nothing -> liftIO $ assertFailure "missing activation key/code"
-        Just kc -> activate brig kc !!! do
-            const 200 === statusCode
-            const (Just False) === fmap activatedFirst . decodeBody
+    updatePhone brig uid phn
     -- check new phone
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
@@ -713,14 +694,66 @@ testPasswordChange brig = do
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
     -- Code for phone pre-verification
-    requestActivationCode brig . Right =<< randomPhone
+    requestActivationCode brig 200 . Right =<< randomPhone
     -- Code for email pre-verification
-    requestActivationCode brig . Left =<< randomEmail
+    requestActivationCode brig 200 . Left =<< randomEmail
     -- Standard email registration flow
-    r <- registerUser "Alice" "success@simulator.amazonses.com" brig <!! const 201 === statusCode
+    r <- registerUser "Alice" brig <!! const 201 === statusCode
     let Just email = userEmail =<< decodeBody r
     -- Re-request existing activation code
-    requestActivationCode brig (Left email)
+    requestActivationCode brig 200 (Left email)
+
+testSendActivationCodePrefixExcluded :: Brig -> Http ()
+testSendActivationCodePrefixExcluded brig = do
+    p <- randomPhone
+    let prefix = mkPrefix $ T.take 5 (fromPhone p)
+
+    -- expect activation to fail after it was excluded
+    insertPrefix brig prefix
+    requestActivationCode brig 403 (Right p)
+
+    -- expect activation to work again after removing block
+    deletePrefix brig (phonePrefix prefix)
+    requestActivationCode brig 200 (Right p)
+
+testInternalPhonePrefixes :: Brig -> Http ()
+testInternalPhonePrefixes brig = do
+    -- prefix1 is a prefix of prefix2
+    let prefix1 = mkPrefix "+5678"
+        prefix2 = mkPrefix "+56789"
+
+    insertPrefix brig prefix1
+    insertPrefix brig prefix2
+
+    -- test getting prefixs
+    res <- getPrefixes prefix1
+    liftIO $ assertEqual "prefix match prefix" res [prefix1]
+
+    -- we expect both prefixes returned when searching for the longer one
+    res2 <- getPrefixes prefix2
+    liftIO $ assertEqual "prefix match phone number" res2 [prefix1, prefix2]
+
+    deletePrefix brig (phonePrefix prefix1)
+    deletePrefix brig (phonePrefix prefix2)
+
+    getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
+  where
+    getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
+    getPrefixes prefix = decodeBody =<< getPrefix (phonePrefix prefix)
+
+    getPrefix :: PhonePrefix -> Http ResponseLBS
+    getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
+
+mkPrefix :: Text -> ExcludedPrefix
+mkPrefix t = ExcludedPrefix (PhonePrefix t) "comment"
+
+insertPrefix :: Brig -> ExcludedPrefix -> Http ()
+insertPrefix brig prefix = do
+    let payload = body $ RequestBodyLBS (encode prefix)
+    post ( brig . path "/i/users/phone-prefixes" . contentJson . payload ) !!! const 200 === statusCode
+
+deletePrefix :: Brig -> PhonePrefix -> Http ()
+deletePrefix brig prefix = delete ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do
@@ -911,6 +944,58 @@ testDeleteWithProfilePic brig cargohold = do
 
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
+
+testUpdateSSOId :: Brig -> Galley -> Http ()
+testUpdateSSOId brig galley = do
+    noSuchUserId <- Id <$> liftIO UUID.nextRandom
+    put ( brig
+        . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
+        . Bilge.json (UserSSOId "1" "1")
+        )
+        !!! const 404 === statusCode
+
+    let go :: HasCallStack => User -> UserSSOId -> Http ()
+        go user ssoid = do
+            let uid = userId user
+            put ( brig
+                . paths ["i", "users", toByteString' uid, "sso-id"]
+                . Bilge.json ssoid
+                )
+                !!! const 200 === statusCode
+            profile :: SelfProfile <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
+            liftIO $ do
+                assertEqual "updateSSOId/ssoid" ssoid ssoid'
+                assertEqual "updateSSOId/email" (userEmail user) mEmail
+                assertEqual "updateSSOId/phone" (userPhone user) mPhone
+
+    (owner, teamid) <- createUserWithTeam brig galley
+
+    let mkMember :: Bool -> Bool -> Http User
+        mkMember hasEmail hasPhone = do
+            member <- createTeamMember brig galley owner teamid noPermissions
+            when hasPhone $ do
+                updatePhone brig (userId member) =<< randomPhone
+            when (not hasEmail) $ do
+                error "not implemented"
+            selfUser <$> (decodeBody =<< get (brig . path "/self" . zUser (userId member)))
+
+    let ssoids1 = [ UserSSOId "1" "1", UserSSOId "1" "2" ]
+        ssoids2 = [ UserSSOId "2" "1", UserSSOId "2" "2" ]
+
+    users <- sequence
+        [ mkMember True  False
+        , mkMember True  True
+        -- the following two could be implemented by creating the user implicitly via SSO login.
+        -- , mkMember False  False
+        -- , mkMember False  True
+        ]
+
+    sequence_ $ zipWith go users ssoids1
+    sequence_ $ zipWith go users ssoids2
+
+
+-- helpers
 
 setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
 setHandleAndDeleteUser brig cannon u others aws execDelete = do

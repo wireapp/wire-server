@@ -1,9 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Galley.API.Create
     ( createGroupConversation
     , internalCreateManagedConversation
@@ -12,19 +6,14 @@ module Galley.API.Create
     , createConnectConversation
     ) where
 
+import Imports hiding ((\\))
 import Control.Lens hiding ((??))
-import Control.Monad (when, void, unless)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Data.Foldable (for_, toList)
 import Data.Id
-import Data.List1
-import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
+import Data.List1 (list1)
 import Data.Range
 import Data.Set ((\\))
 import Data.Time
-import Data.Traversable (mapM)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -37,9 +26,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Prelude hiding (head, mapM)
 
-import qualified Data.List          as List
 import qualified Data.Set           as Set
 import qualified Data.UUID.Tagged   as U
 import qualified Galley.Data        as Data
@@ -74,7 +61,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
     name <- rangeCheckedMaybe (newConvName body)
     uids <- checkedConvSize (newConvUsers body)
     ensureConnected zusr (fromConvSize uids)
-    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
+    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
     notifyCreatedConversation Nothing zusr (Just zcon) c
     conversationResponse status201 zusr c
 
@@ -83,23 +70,29 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamGroupConv zusr zcon tinfo body = do
     name <- rangeCheckedMaybe (newConvName body)
-    mems <- Data.teamMembers (cnvTeamId tinfo)
-    ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
-    void $ permissionCheck zusr CreateConversation mems
-    uids <-
+    teamMems <- Data.teamMembers (cnvTeamId tinfo)
+    ensureAccessRole (accessRole body) (newConvUsers body) (Just teamMems)
+    void $ permissionCheck zusr CreateConversation teamMems
+    otherConvMems <-
         if cnvManaged tinfo then do
-            let uu = filter (/= zusr) $ map (view userId) mems
-            checkedConvSize uu
+            let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
+            checkedConvSize otherConvMems
         else do
-            void $ permissionCheck zusr AddConversationMember mems
-            uu <- checkedConvSize (newConvUsers body)
-            ensureConnected zusr (notTeamMember (fromConvSize uu) mems)
-            pure uu
-    conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
+            otherConvMems <- checkedConvSize (newConvUsers body)
+            -- In teams we don't have 1:1 conversations, only regular
+            -- conversations. We want users without the 'AddRemoveConvMember'
+            -- permission to still be able to create regular conversations,
+            -- therefore we check for 'AddRemoveConvMember' only if there are
+            -- going to be more than two users in the conversation.
+            when (length (fromConvSize otherConvMems) > 1) $ do
+                void $ permissionCheck zusr AddRemoveConvMember teamMems
+            ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
+            pure otherConvMems
+    conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
     now  <- liftIO getCurrentTime
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvSize uids)
+    let notInConv = Set.fromList (map (view userId) teamMems) \\ Set.fromList (zusr : fromConvSize otherConvMems)
     for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
     conversationResponse status201 zusr conv
@@ -119,7 +112,7 @@ createSelfConversation zusr = do
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
     NewConvUnmanaged j <- fromBody req invalidPayload
-    other  <- List.head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+    other  <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
     (x, y) <- toUUIDs zusr other
     when (x == y) $
         throwM $ invalidOp "Cannot create a 1-1 with yourself"
@@ -168,7 +161,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }
-                if List.null mems then
+                if null mems then
                     connect n j conv'
                 else do
                     conv'' <- acceptOne2One usr conv' conn

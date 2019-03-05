@@ -1,10 +1,8 @@
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 -- | 'zauth' token signing and verification.
+--
+-- REFACTOR: should this be moved to @/libs/zauth@?
 module Brig.ZAuth
     ( -- * Monad
       ZAuth
@@ -61,9 +59,8 @@ module Brig.ZAuth
     , PublicKey
     ) where
 
+import Imports
 import Control.Lens ((^.), makeLenses, over)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Aeson
 import Data.Bits
 import Data.ByteString.Conversion.To
@@ -71,9 +68,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Data.Word
 import Data.ZAuth.Token
-import GHC.Generics
 import OpenSSL.Random
 import Sodium.Crypto.Sign
 
@@ -95,11 +90,12 @@ runZAuth :: MonadIO m => Env -> ZAuth a -> m a
 runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
 data Settings = Settings
-    { _keyIndex             :: !Int
-    , _userTokenTimeout     :: !UserTokenTimeout
-    , _sessionTokenTimeout  :: !SessionTokenTimeout
-    , _accessTokenTimeout   :: !AccessTokenTimeout
-    , _providerTokenTimeout :: !ProviderTokenTimeout
+    { _keyIndex             :: !Int                   -- ^ Secret key index to use
+                                                      --   for token creation
+    , _userTokenTimeout     :: !UserTokenTimeout      -- ^ User token validity timeout
+    , _sessionTokenTimeout  :: !SessionTokenTimeout   -- ^ Session token validity timeout
+    , _accessTokenTimeout   :: !AccessTokenTimeout    -- ^ Access token validity timeout
+    , _providerTokenTimeout :: !ProviderTokenTimeout  -- ^ Access token validity timeout
     } deriving (Show, Generic)
 
 defSettings :: Settings
@@ -243,4 +239,3 @@ randomValue :: IO Word32
 randomValue = BS.foldl' f 0 <$> randBytes 4
   where
     f r w = shiftL r 8 .|. fromIntegral w
-

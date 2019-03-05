@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-
 -- | Persistent storage for login codes.
 -- TODO: Use Brig.Data.Codes
 -- TODO: Move to Brig.User.Auth.DB.LoginCode
@@ -11,6 +8,7 @@ module Brig.Data.LoginCode
     , lookupLoginCode
     ) where
 
+import Imports
 import Brig.App (AppIO, currentTime)
 import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
@@ -18,10 +16,7 @@ import Brig.Types.User.Auth
 import Brig.Types.Code (Timeout (..))
 import Cassandra
 import Control.Lens (view)
-import Control.Monad.IO.Class
-import Data.Functor.Identity
 import Data.Id
-import Data.Int (Int32)
 import Data.Time.Clock
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Text.Printf (printf)

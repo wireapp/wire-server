@@ -12,11 +12,9 @@ module Brig.Types.Client.Prekey
     , ClientPrekey (..)
     ) where
 
-import Control.Monad ((>=>))
+import Imports
 import Data.Aeson
 import Data.Id
-import Data.Text (Text)
-import Data.Word
 
 newtype PrekeyId = PrekeyId { keyId :: Word16 }
     deriving (Eq, Ord, Show, ToJSON, FromJSON)

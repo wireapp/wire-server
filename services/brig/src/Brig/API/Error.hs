@@ -1,13 +1,9 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Brig.API.Error where
 
+import Imports
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Text.Lazy (Text)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 
@@ -49,15 +45,15 @@ connError NotConnected{}                = StdError notConnected
 connError InvalidUser{}                 = StdError invalidUser
 connError ConnectNoIdentity{}           = StdError noIdentity
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
-connError ConnectInvalidEmail{}         = StdError invalidEmail
+connError (ConnectInvalidEmail _ _)     = StdError invalidEmail
 connError ConnectInvalidPhone{}         = StdError invalidPhone
 connError ConnectSameBindingTeamUsers   = StdError sameBindingTeamUsers
 
 actError :: ActivationError -> Error
-actError (UserKeyExists          _) = StdError userKeyExists
-actError (InvalidActivationCode  e) = StdError (invalidActivationCode e)
-actError (InvalidActivationEmail _) = StdError invalidEmail
-actError (InvalidActivationPhone _) = StdError invalidPhone
+actError (UserKeyExists          _)   = StdError userKeyExists
+actError (InvalidActivationCode  e)   = StdError (invalidActivationCode e)
+actError (InvalidActivationEmail _ _) = StdError invalidEmail
+actError (InvalidActivationPhone _)   = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
 pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
@@ -69,7 +65,7 @@ pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode
 newUserError MissingIdentity          = StdError missingIdentity
-newUserError (InvalidEmail _)         = StdError invalidEmail
+newUserError (InvalidEmail _ _)       = StdError invalidEmail
 newUserError (InvalidPhone _)         = StdError invalidPhone
 newUserError (DuplicateUserKey _)     = StdError userKeyExists
 newUserError (EmailActivationError e) = actError e
@@ -87,7 +83,7 @@ sendActCodeError (UserKeyInUse     _)             = StdError userKeyExists
 sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 
 changeEmailError :: ChangeEmailError -> Error
-changeEmailError (InvalidNewEmail        _) = StdError invalidEmail
+changeEmailError (InvalidNewEmail      _ _) = StdError invalidEmail
 changeEmailError (EmailExists            _) = StdError userKeyExists
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 
@@ -242,7 +238,7 @@ handleExists = Wai.Error status409 "handle-exists" "The given handle is already 
 invalidHandle :: Wai.Error
 invalidHandle = Wai.Error status400 "invalid-handle" "The given handle is invalid."
 
-badRequest :: Text -> Wai.Error
+badRequest :: LText -> Wai.Error
 badRequest = Wai.Error status400 "bad-request"
 
 loginCodePending :: Wai.Error
@@ -263,7 +259,7 @@ accountEphemeral = Wai.Error status403 "ephemeral" "Account is ephemeral."
 badCredentials :: Wai.Error
 badCredentials = Wai.Error status403 "invalid-credentials" "Authentication failed."
 
-notFound :: Text -> Wai.Error
+notFound :: LText -> Wai.Error
 notFound = Wai.Error status404 "not-found"
 
 userNotFound :: Wai.Error
@@ -281,7 +277,7 @@ invalidAccountStatus = Wai.Error status400 "invalid-status" "The specified accou
 activationKeyNotFound :: Wai.Error
 activationKeyNotFound = notFound "Activation key not found."
 
-invalidActivationCode :: Text -> Wai.Error
+invalidActivationCode :: LText -> Wai.Error
 invalidActivationCode = Wai.Error status404 "invalid-code"
 
 activationCodeNotFound :: Wai.Error
@@ -341,6 +337,14 @@ authTokenInvalid = Wai.Error status403 "invalid-credentials" "Invalid token"
 incorrectPermissions :: Wai.Error
 incorrectPermissions = Wai.Error status403 "invalid-permissions" "Copy permissions must be a subset of self permissions"
 
+-- | User's relation to the team is not what we expect it to be. Examples:
+--
+-- * Requested action requires the user to be a team member, but the user doesn't belong to
+--   the team.
+--
+-- * Requested action requires the user to be a team owner.
+--
+-- * Requested action can't be performed if the user is the only team owner left in the team.
 insufficientTeamPermissions :: Wai.Error
 insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "Insufficient team permissions"
 
@@ -363,8 +367,11 @@ tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many membe
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
 
+tooLargeRichInfo :: Wai.Error
+tooLargeRichInfo = Wai.Error status413 "too-large-rich-info" "Rich info has exceeded the limit"
+
 internalServerError :: Wai.Error
 internalServerError = Wai.Error status500 "internal-server-error" "Internal Server Error"
 
-invalidRange :: Text -> Wai.Error
+invalidRange :: LText -> Wai.Error
 invalidRange = Wai.Error status400 "client-error"

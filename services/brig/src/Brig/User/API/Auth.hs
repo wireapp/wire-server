@@ -1,18 +1,11 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Brig.User.API.Auth (routes) where
 
+import Imports
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.Phone
 import Brig.Types.Intra (reAuthPassword)
 import Brig.Types.User.Auth
-import Control.Monad.Except
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate
@@ -177,7 +170,7 @@ getLoginCode (_ ::: phone) = do
 reAuthUser :: JSON ::: UserId ::: Request -> Handler Response
 reAuthUser (_ ::: uid ::: req) = do
     body <- parseJsonBody req
-    User.reauthenticate uid (Just $ reAuthPassword body) !>> reauthError
+    User.reauthenticate uid (reAuthPassword body) !>> reauthError
     return empty
 
 login :: Request ::: Bool ::: JSON ::: JSON -> Handler Response

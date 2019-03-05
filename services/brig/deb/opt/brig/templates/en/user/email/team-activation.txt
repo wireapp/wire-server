@@ -1,16 +1,19 @@
-YOUR NEW ACCOUNT ON WIRE
-A new Wire team was created with ${email}. Please verify your email.
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Please verify your email.
 
 Verify [${url}]If you can’t click the button, copy and paste this link to your
 browser:
 
 ${url}
 
-If you have any questions, please contact us
-[https://support.wire.com/hc/en-us/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
-© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
+-- Network.BSD got deprecated in network-2.7; this line won't be needed once we
+-- move to network-3.0 because then we can use the network-bsd package
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Bonanza.Metrics
     ( Stats (..)
     , debugCollectd
@@ -11,20 +15,17 @@ module Bonanza.Metrics
     )
 where
 
+import Imports
 import Control.Exception              (bracket)
-import Control.Monad                  (void)
 import Data.Collectd.PlainText
-import Data.Int                       (Int64)
-import Data.List                      (foldl', intercalate)
-import Data.Monoid
-import Data.Text                      (Text, pack)
+import Data.Text                      (pack)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Encoding
 import Data.Time
 import Network.BSD                    (getHostName)
 import Network.Socket                 hiding (recv)
 import Network.Socket.ByteString.Lazy
-import System.IO                      (hPutStrLn, stderr)
+import System.IO
 
 import qualified Data.Text.Lazy.IO as TIO
 

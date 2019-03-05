@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 module Proxy.Env
     ( Env
     , createEnv
@@ -13,10 +10,11 @@ module Proxy.Env
     , secrets
     ) where
 
-import Control.Concurrent (killThread, ThreadId)
+import Imports
 import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types
+import Data.Default (def)
 import Data.Id (RequestId)
 import Data.Metrics.Middleware (Metrics)
 import Proxy.Options
@@ -48,7 +46,7 @@ createEnv m o = do
             }
     let ac = AutoConfig 60 (reloadError g)
     (c, t) <- autoReload ac [Required $ o^.secretsConfig]
-    return $! Env mempty m o g n c t
+    return $! Env def m o g n c t
   where
     reloadError g x =
         Logger.err g (msg $ val "Failed reloading config: " +++ show x)

@@ -1,13 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 module Gundeck.Env where
 
+import Imports
 import Bilge
 import Cassandra (ClientState, Keyspace (..))
 import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
-import Data.Int (Int32)
+import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -16,8 +14,6 @@ import Util.Options
 import Gundeck.Options as Opt
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
-import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import System.Logger.Class hiding (Error, info)
 
 import qualified Cassandra as C
@@ -25,7 +21,6 @@ import qualified Cassandra.Settings as C
 import qualified Database.Redis.IO as Redis
 import qualified Data.List.NonEmpty as NE
 import qualified Gundeck.Aws as Aws
-import qualified Gundeck.Push.Native.Fallback.Queue as Fallback
 import qualified System.Logger as Logger
 
 data Env = Env
@@ -37,9 +32,6 @@ data Env = Env
     , _cstate  :: !ClientState
     , _rstate  :: !Redis.Pool
     , _awsEnv  :: !Aws.Env
-    , _digest  :: !Digest
-    , _cipher  :: !Cipher
-    , _fbQueue :: !Fallback.Queue
     , _time    :: !(IO Milliseconds)
     }
 
@@ -48,10 +40,17 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Logger.new $ Logger.defSettings
+    & Logger.setLogLevel (opts ^. optLogLevel)
+    & Logger.setOutput Logger.StdOut
+    & Logger.setFormat Nothing
+    & Logger.setNetStrings (opts ^. optLogNetStrings)
+
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    l <- mkLogger o
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings
@@ -79,20 +78,10 @@ createEnv m o = do
             . C.setProtocolVersion C.V3
             $ C.defSettings
     a <- Aws.mkEnv l o n
-    dg <- getDigestByName "SHA256" >>= maybe (error "OpenSSL: SHA256 digest not found") return
-    ci <- getCipherByName "AES-256-CBC" >>= maybe (error "OpenSSL: AES-256-CBC cipher not found") return
-    qu <- initFallbackQueue o
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    return $! Env mempty m o l n p r a dg ci qu io
-
-initFallbackQueue :: Opts -> IO Fallback.Queue
-initFallbackQueue o =
-    let delay = Fallback.Delay (o^.optFallback.fbQueueDelay)
-        limit = Fallback.Limit (o^.optFallback.fbQueueLimit)
-        burst = Fallback.Burst (o^.optFallback.fbQueueBurst)
-    in Fallback.newQueue delay limit burst
+    return $! Env def m o l n p r a io
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

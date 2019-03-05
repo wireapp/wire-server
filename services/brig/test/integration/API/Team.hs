@@ -1,11 +1,6 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE ViewPatterns      #-}
-
 module API.Team (tests) where
 
+import Imports
 import API.Search.Util
 import API.Team.Util
 import Bilge hiding (accept, timeout, head)
@@ -15,20 +10,14 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted.Safe.Extended
-    (mapConcurrently_, replicateConcurrently, forPooled, replicatePooled)
+import UnliftIO.Async
+    (mapConcurrently_, replicateConcurrently, pooledForConcurrentlyN_)
 import Control.Lens ((^.), view)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy.Internal (ByteString)
 import Data.Id hiding (client)
-import Data.Maybe
-import Data.Monoid ((<>))
-import Data.Text (Text)
-import Data.Word (Word16)
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Time (getCurrentTime, addUTCTime)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -51,12 +40,13 @@ newtype TeamSizeLimit = TeamSizeLimit Word16
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
     tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "TEAM_MAX_SIZE"
-    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
+    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings) conf read "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
             , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
             , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
+            , test m "post /teams/:tid/invitations - roles"                $ testInvitationRoles b g
             , test' aws m "post /register - 201 accepted"                  $ testInvitationEmailAccepted b g
             , test' aws m "post /register user & team - 201 accepted"      $ testCreateTeam b g aws
             , test' aws m "post /register user & team - 201 preverified"   $ testCreateTeamPreverified b g aws
@@ -76,7 +66,7 @@ tests conf m b c g aws = do
             , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
             ]
         , testGroup "search"
-            [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
+            [ test m "post /register members are unsearchable" $ testNonSearchableDefault b g
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
@@ -94,7 +84,7 @@ testUpdateEvents brig galley cannon = do
     inviteeEmail <- randomEmail
 
     -- invite and register Bob
-    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid alice invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
@@ -125,15 +115,15 @@ testInvitationEmail :: Brig -> Galley -> Http ()
 testInvitationEmail brig galley = do
     (inviter, tid) <- createUserWithTeam brig galley
     invitee <- randomEmail
-    let invite = InvitationRequest invitee (Name "Bob") Nothing
+    let invite = InvitationRequest invitee (Name "Bob") Nothing Nothing
     void $ postInvitation brig tid inviter invite
 
 testInvitationTooManyPending :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
     (inviter, tid) <- createUserWithTeam brig galley
     emails <- replicateConcurrently (fromIntegral limit) randomEmail
-    let invite e = InvitationRequest e (Name "Bob") Nothing
-    void $ forPooled 16 emails $ \email ->
+    let invite e = InvitationRequest e (Name "Bob") Nothing Nothing
+    pooledForConcurrentlyN_ 16 emails $ \email ->
         postInvitation brig tid inviter (invite email)
     e <- randomEmail
     -- TODO: If this test takes longer to run than `team-invitation-timeout`, then some of the
@@ -142,12 +132,55 @@ testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
         const 403 === statusCode
         const (Just "too-many-team-invitations") === fmap Error.label . decodeBody
 
+-- | Admins can invite external partners, but not owners.
+testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
+testInvitationRoles brig galley = do
+    (owner, tid) <- createUserWithTeam brig galley
+
+    let registerInvite :: Invitation -> Email -> Http UserId
+        registerInvite inv invemail = do
+            Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+            rsp <- post (brig . path "/register"
+                               . contentJson
+                               . body (accept invemail inviteeCode))
+                          <!! const 201 === statusCode
+            let Just invitee = userId <$> decodeBody rsp
+            pure invitee
+
+    -- owner creates a member alice.
+    alice :: UserId <- do
+        aliceEmail <- randomEmail
+        let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
+        inv :: Invitation <- decodeBody =<< postInvitation brig tid owner invite
+        registerInvite inv aliceEmail
+
+    -- alice creates a external partner bob.  success!  bob only has externalPartner perms.
+    do
+        bobEmail <- randomEmail
+        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleExternalPartner)
+        inv :: Invitation <- decodeBody =<< (postInvitation brig tid alice invite <!! do
+            const 201 === statusCode)
+        uid <- registerInvite inv bobEmail
+        let memreq = galley . zUser owner . zConn "c" .
+              paths ["teams", toByteString' tid, "members", toByteString' uid]
+        mem :: Team.TeamMember <- decodeBody =<< (get memreq <!! const 200 === statusCode)
+        liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleExternalPartner) (mem ^. Team.permissions)
+
+    -- alice creates an owner charly.  failure!
+    do
+        charlyEmail <- randomEmail
+        let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just Team.RoleOwner)
+        postInvitation brig tid alice invite !!! do
+            const 403 === statusCode
+            const (Just "insufficient-permissions") === fmap Error.label . decodeBody
+
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
     (inviter, tid) <- createUserWithTeam brig galley
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid inviter invite
+    let invmeta = Just (inviter, inCreatedAt inv)
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
                        . contentJson
@@ -160,7 +193,8 @@ testInvitationEmailAccepted brig galley = do
     login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
     -- Verify that the user is part of the team
     mem <- getTeamMember invitee tid galley
-    liftIO $ assertBool "Member not part of the team" (invitee == mem ^. Team.userId)
+    liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
+    liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
     conns <- listConnections invitee brig
     liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
@@ -178,7 +212,7 @@ testCreateTeam brig galley aws = do
     liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
     -- Verify that the user cannot send invitations before activating their account
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     postInvitation brig (team^.Team.teamId) uid invite !!! const 403 === statusCode
     -- Verify that the team is still in status "pending"
     team2 <- getTeam galley (team^.Team.teamId)
@@ -196,7 +230,7 @@ testCreateTeam brig galley aws = do
 testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeamPreverified brig galley aws = do
     email <- randomEmail
-    requestActivationCode brig (Left email)
+    requestActivationCode brig 200 (Left email)
     act <- getActivationCode brig (Left email)
     case act of
         Nothing     -> liftIO $ assertFailure "activation key/code not found"
@@ -214,7 +248,7 @@ testCreateTeamPreverified brig galley aws = do
             liftIO $ assertEqual "Team should already be active" Team.Active (Team.tdStatus team2)
             -- Verify that the user can already send invitations before activating their account
             inviteeEmail <- randomEmail
-            let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+            let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
             postInvitation brig (team^.Team.teamId) uid invite !!! const 201 === statusCode
 
 testInvitationNoPermission :: Brig -> Galley -> Http ()
@@ -222,7 +256,7 @@ testInvitationNoPermission brig galley = do
     (_, tid) <- createUserWithTeam brig galley
     alice <- userId <$> randomUser brig
     email <- randomEmail
-    let invite = InvitationRequest email (Name "Bob") Nothing
+    let invite = InvitationRequest email (Name "Bob") Nothing Nothing
     postInvitation brig tid alice invite !!! do
         const 403 === statusCode
         const (Just "insufficient-permissions") === fmap Error.label . decodeBody
@@ -252,6 +286,7 @@ testInvitationCodeExists :: Brig -> Galley -> Http ()
 testInvitationCodeExists brig galley = do
     email <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
+    let invite email_ = InvitationRequest email_ (Name "Bob") Nothing Nothing
     rsp   <- postInvitation brig tid uid (invite email) <!! const 201 === statusCode
 
     let Just invId = inInvitation <$> decodeBody rsp
@@ -268,8 +303,6 @@ testInvitationCodeExists brig galley = do
     post (brig . path "/register" . contentJson . body (accept email2 invCode)) !!! do
         const 400 === statusCode
         const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
- where
-    invite email = InvitationRequest email (Name "Bob") Nothing
 
 testInvitationInvalidCode :: Brig -> Http ()
 testInvitationInvalidCode brig = do
@@ -308,7 +341,7 @@ testInvitationMutuallyExclusive brig = do
     req email (Just code) (Just newTeam) (Just code)  !!! const 400 === statusCode
   where
     req :: Email -> Maybe InvitationCode -> Maybe Team.BindingNewTeam -> Maybe InvitationCode
-        -> HttpT IO (Response (Maybe ByteString))
+        -> HttpT IO (Response (Maybe LByteString))
     req e c t i = post (brig . path "/register" . contentJson . body (
         RequestBodyLBS . encode  $ object
             [ "name"            .= ("Bob" :: Text)
@@ -323,11 +356,11 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
     (creator, tid) <- createUserWithTeam brig galley
-    void $ replicatePooled 16 (fromIntegral limit - 1) $
+    pooledForConcurrentlyN_ 16 [1..limit-1] $ \_ ->
         createTeamMember brig galley creator tid Team.fullPermissions
 
     em <- randomEmail
-    let invite = InvitationRequest em (Name "Bob") Nothing
+    let invite = InvitationRequest em (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid creator invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     post (brig . path "/register"
@@ -336,35 +369,51 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
         const 403 === statusCode
         const (Just "too-many-team-members") === fmap Error.label . decodeBody
 
-testInvitationPaging :: Brig -> Galley -> Http ()
+testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
-    (u, tid) <- createUserWithTeam brig galley
-    replicateM_ total $ do
+    before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
+    (uid, tid) <- createUserWithTeam brig galley
+
+    let total = 5
+        invite email = InvitationRequest email (Name "Bob") Nothing Nothing
+
+    emails <- replicateM total $ do
         email <- randomEmail
-        postInvitation brig tid u (invite email) !!! const 201 === statusCode
-    foldM_ (next u tid 2) (0, Nothing) [2,2,1,0]
-    foldM_ (next u tid total) (0, Nothing) [total,0]
-  where
-    total = 5
+        postInvitation brig tid uid (invite email) !!! const 201 === statusCode
+        pure email
+    after <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
 
-    next :: UserId -> TeamId -> Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-    next u t step (count, start) n = do
-        let count' = count + step
-        let range = queryRange (toByteString' <$> start) (Just step)
-        r <- get (brig . paths ["teams", toByteString' t, "invitations"] . zUser u . range) <!!
-            const 200 === statusCode
-        let (invs, more) = (fmap ilInvitations &&& fmap ilHasMore) $ decodeBody r
-        liftIO $ assertEqual "page size" (Just n) (length <$> invs)
-        liftIO $ assertEqual "has more" (Just (count' < total)) more
-        return . (count',) $ invs >>= fmap inInvitation . listToMaybe . reverse
+    let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
+        next step (count, start) actualPageLen = do
+            let count' = count + step
+            let range = queryRange (toByteString' <$> start) (Just step)
+            r <- get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range) <!!
+                const 200 === statusCode
+            let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
+            liftIO $ assertEqual "page size" actualPageLen (length invs)
+            liftIO $ assertEqual "has more" (count' < total) more
+            liftIO $ validateInv `mapM_` invs
+            return (count', fmap inInvitation . listToMaybe . reverse $ invs)
 
-    invite email = InvitationRequest email (Name "Bob") Nothing
+        validateInv :: Invitation -> Assertion
+        validateInv inv = do
+            assertEqual "tid" tid (inTeam inv)
+            assertBool  "email" (inIdentity inv `elem` emails)
+                -- (the output list is not ordered chronologically and emails are unique, so we just
+                -- check whether the email is one of the valid ones.)
+            assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after)
+            assertEqual "uid" (Just uid) (inCreatedBy inv)
+            -- not checked: @inInvitation inv :: InvitationId@
+
+    foldM_ (next 2) (0, Nothing) [2,2,1,0]
+    foldM_ (next total) (0, Nothing) [total,0]
+    foldM_ (next (total + 1)) (0, Nothing) [total,0]
 
 testInvitationInfo :: Brig -> Galley -> Http ()
 testInvitationInfo brig galley = do
     email    <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
-    let invite = InvitationRequest email (Name "Bob") Nothing
+    let invite = InvitationRequest email (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid uid invite
 
     Just invCode    <- getInvitationCode brig tid (inInvitation inv)
@@ -383,7 +432,7 @@ testInvitationInfoExpired :: Brig -> Galley -> Opt.Timeout -> Http ()
 testInvitationInfoExpired brig galley timeout = do
     email      <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
-    let invite = InvitationRequest email (Name "Bob") Nothing
+    let invite = InvitationRequest email (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid uid invite
     -- Note: This value must be larger than the option passed as `team-invitation-timeout`
     awaitExpiry (round timeout + 5) tid (inInvitation inv)
@@ -410,7 +459,7 @@ testSuspendTeam brig galley = do
     (inviter, tid) <- createUserWithTeam brig galley
 
     -- invite and register invitee
-    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
@@ -420,7 +469,7 @@ testSuspendTeam brig galley = do
     let Just (invitee, Just email) = (userId &&& userEmail) <$> decodeBody rsp2
 
     -- invite invitee2 (don't register)
-    let invite2 = InvitationRequest inviteeEmail2 (Name "Bob") Nothing
+    let invite2 = InvitationRequest inviteeEmail2 (Name "Bob") Nothing Nothing
     inv2 <- decodeBody =<< postInvitation brig tid inviter invite2
     Just _ <- getInvitationCode brig tid (inInvitation inv2)
 
@@ -561,27 +610,23 @@ testCreateUserInternalSSO brig galley = do
     teamid <- snd <$> createUserWithTeam brig galley
     let ssoid = UserSSOId "nil" "nil"
 
-        getUserSSOId :: UserIdentity -> Maybe UserSSOId
-        getUserSSOId (SSOIdentity i _ _) = Just i
-        getUserSSOId _ = Nothing
-
     -- creating users requires both sso_id and team_id
-    postUser "dummy" (Just "success@simulator.amazonses.com") (Just ssoid) Nothing brig
+    postUser' True False "dummy" True False (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just teamid) brig
+    postUser' True False "dummy" True False Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok
-    resp <- postUser "dummy" (Just "success@simulator.amazonses.com") (Just ssoid) (Just teamid) brig <!! do
+    resp <- postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
-        const (Just ssoid) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
+        const (Just ssoid) === (userSSOId . selfUser <=< decodeBody)
 
     -- self profile contains sso id
     let Just uid = userId <$> decodeBody resp
     profile <- getSelfProfile brig uid
     liftIO $ assertEqual "self profile user identity mismatch"
         (Just ssoid)
-        (getUserSSOId =<< userIdentity (selfUser profile))
+        (userSSOId $ selfUser profile)
 
     -- sso-managed users must have team id.
     let Just teamid' = userTeam $ selfUser profile
@@ -599,10 +644,8 @@ testDeleteUserSSO brig galley = do
     let ssoid = UserSSOId "nil" "nil"
         mkuser :: Bool -> Http (Maybe User)
         mkuser withemail = decodeBody <$>
-            (postUser "dummy" email (Just ssoid) (Just tid) brig
+            (postUser "dummy" withemail False (Just ssoid) (Just tid) brig
              <!! const 201 === statusCode)
-          where
-            email = if withemail then Just "success@simulator.amazonses.com" else Nothing
 
     -- create and delete sso user (with email)
     Just (userId -> user1) <- mkuser True

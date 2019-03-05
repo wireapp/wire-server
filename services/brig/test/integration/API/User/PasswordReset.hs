@@ -1,10 +1,6 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TupleSections       #-}
-
 module API.User.PasswordReset (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert

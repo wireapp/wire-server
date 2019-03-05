@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE StrictData            #-}
-{-# LANGUAGE TemplateHaskell       #-}
 
 module Options
     ( Command (..)
@@ -23,14 +20,11 @@ module Options
     )
 where
 
+import           Imports
 import qualified Cassandra              as C
 import           Control.Lens
-import           Data.Bifunctor
 import           Data.ByteString.Lens
-import           Data.Monoid
-import           Data.Text              (Text)
 import           Data.Text.Strict.Lens
-import           Data.Word
 import qualified Database.V5.Bloodhound as ES
 import           Options.Applicative
 import           URI.ByteString
@@ -84,7 +78,7 @@ elasticServerParser = option url
         )
   where
     url = eitherReader
-        (first show . parseURI strictURIParserOptions . view packedChars)
+        (over _Left show . parseURI strictURIParserOptions . view packedChars)
 
 restrictedElasticSettingsParser :: Parser ElasticSettings
 restrictedElasticSettingsParser = ElasticSettings

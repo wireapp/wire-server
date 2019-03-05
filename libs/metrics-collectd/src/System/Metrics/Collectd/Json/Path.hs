@@ -11,10 +11,10 @@ module System.Metrics.Collectd.Json.Path
     , toText
     ) where
 
+import Imports hiding (stripPrefix)
 import Control.Applicative
 import Data.Attoparsec.Text
-import Data.List (intersperse)
-import Data.Text (Text, stripPrefix)
+import Data.Text (stripPrefix)
 
 newtype Path = Path
     { path :: [Segment]

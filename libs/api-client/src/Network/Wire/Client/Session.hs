@@ -10,12 +10,10 @@ module Network.Wire.Client.Session
     , sessionRequest
     ) where
 
+import Imports hiding (log)
 import Bilge
-import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throwIO)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.List.NonEmpty
 import Network.HTTP.Types.Status
@@ -23,7 +21,6 @@ import Network.Wire.Client.API.Auth
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad
 import System.Logger.Class
-import Prelude hiding (log)
 
 import qualified Control.Monad.Trans.State.Strict as State
 
@@ -50,7 +47,8 @@ instance MonadLogger Session where
 
 -- | Perform an HTTP request against the API in the context of a session,
 -- i.e. including an 'Authorization' header.
-sessionRequest :: MonadSession m
+sessionRequest :: forall m a
+                . MonadSession m
                => Request                       -- ^ The request to send.
                -> NonEmpty Status               -- ^ Expected response codes.
                -> (Response BodyReader -> IO a) -- ^ Handler function.
@@ -61,10 +59,12 @@ sessionRequest rq expected f =
             then Left  <$> mkErrorResponse rs
             else Right <$> f rs)
   where
+    exec :: (Response BodyReader -> IO b) -> m b
     exec h = do
         Auth _ t <- getAuth
         clientRequest (token t rq) (status401 <| expected) h
 
+    retry :: ClientException -> m a
     retry e = do
         a  <- getAuth >>= refreshAuth
         maybe (liftIO $ throwIO e) setAuth a

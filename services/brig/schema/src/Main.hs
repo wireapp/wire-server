@@ -1,7 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
+import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
 import System.Logger hiding (info)
@@ -49,6 +48,11 @@ import qualified V50
 import qualified V51
 import qualified V52
 import qualified V53
+import qualified V54
+import qualified V55
+import qualified V56
+import qualified V57
+import qualified V58
 
 main :: IO ()
 main = do
@@ -99,4 +103,9 @@ main = do
         , V51.migration
         , V52.migration
         , V53.migration
+        , V54.migration
+        , V55.migration
+        , V56.migration
+        , V57.migration
+        , V58.migration
         ] `finally` close l

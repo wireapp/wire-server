@@ -1,13 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Galley.API.Mapping where
 
+import Imports
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (toList)
-import Data.Maybe (listToMaybe)
 import Galley.App
 import Galley.Types
 import Network.HTTP.Types.Status
@@ -24,7 +22,7 @@ conversationView u Data.Conversation{..} = do
     let (me, them) = List.partition ((u ==) . memId) mm
     m <- maybe memberNotFound return (listToMaybe me)
     let (name, mems) = (convName, ConvMembers m (map toOther them))
-    return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer
+    return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer convReceiptMode
   where
     toOther x = OtherMember (memId x) (memService x)
 

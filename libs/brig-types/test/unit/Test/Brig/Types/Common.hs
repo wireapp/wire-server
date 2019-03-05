@@ -6,10 +6,12 @@
 
 module Test.Brig.Types.Common where
 
+import Imports
 import Brig.Types.Common
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Typeable
+import Data.Proxy
+import Data.Typeable (typeOf)
 import Test.Brig.Types.Arbitrary ()
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -26,6 +28,8 @@ tests = testGroup "Common (types vs. aeson)"
     , run @UserSSOId Proxy
     , run @AssetSize Proxy
     , run @Asset Proxy
+    , run @ExcludedPrefix Proxy
+    , run @ManagedBy Proxy
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)

@@ -8,13 +8,17 @@
 
 module Test.Brig.Types.User where
 
+import Imports
 import Brig.Types.Activation
+import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist)
+import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Monoid
-import Data.Typeable
+import Data.Proxy
+import Data.Typeable (typeOf)
+import Galley.Types.Teams
 import Test.Brig.Types.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty
@@ -74,19 +78,27 @@ roundtripTests =
     , run @EmailRemove Proxy
     , run @EmailUpdate Proxy
     , run @HandleUpdate Proxy
+    , run @InvitationList Proxy
+    , run @Invitation Proxy
+    , run @InvitationRequest Proxy
     , run @LocaleUpdate Proxy
     , run @NewPasswordReset Proxy
-    , run @UserIdentity Proxy
     , run @NewUser Proxy
     , run @PasswordChange Proxy
     , run @PhoneRemove Proxy
     , run @PhoneUpdate Proxy
+    , run @ManagedByUpdate Proxy
+    , run @ReAuthUser Proxy
     , run @SelfProfile Proxy
+    , run @TeamMember Proxy
     , run @UpdateServiceWhitelist Proxy
     , run @UserHandleInfo Proxy
+    , run @UserIdentity Proxy
     , run @UserProfile Proxy
     , run @User Proxy
+    , run @RichInfo Proxy
     , run @UserUpdate Proxy
+    , run @RichInfoUpdate Proxy
     , run @VerifyDeleteUser Proxy
     ]
   where

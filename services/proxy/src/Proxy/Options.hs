@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 module Proxy.Options
     ( Opts
     , host
@@ -12,13 +8,11 @@ module Proxy.Options
     , optsParser
     ) where
 
+import Imports
 import Control.Lens
-import Data.Monoid
-import Data.Word
 import Options.Applicative
 import Data.Aeson
 import Data.Aeson.TH
-import GHC.Generics
 
 data Opts = Opts
     { _host          :: !String

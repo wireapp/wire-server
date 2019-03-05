@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-
 module V39 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -20,4 +18,3 @@ migration = Migration 39 "Add user_cookies table" $
             , primary key (user, expires, id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-

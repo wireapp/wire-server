@@ -5,12 +5,10 @@ module Bonanza.Parser.Netstrings
     )
 where
 
-import           Control.Applicative
+import           Imports
 import           Data.Attoparsec.ByteString.Char8
 import qualified Data.Attoparsec.ByteString.Char8 as A
-import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString.Char8            as B
-import           Data.List
 
 
 netstring :: Parser ByteString

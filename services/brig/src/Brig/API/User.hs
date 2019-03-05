@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
@@ -17,6 +10,7 @@ module Brig.API.User
     , changePhone
     , changeHandle
     , lookupHandle
+    , changeManagedBy
     , changeAccountStatus
     , Data.lookupAccounts
     , Data.lookupAccount
@@ -28,6 +22,7 @@ module Brig.API.User
     , Data.lookupName
     , Data.lookupLocale
     , Data.lookupUser
+    , Data.lookupRichInfo
     , removeEmail
     , removePhone
     , revokeIdentity
@@ -58,10 +53,16 @@ module Brig.API.User
     , blacklistDelete
     , blacklistInsert
 
+      -- * Phone Prefix blocking
+    , phonePrefixGet
+    , phonePrefixDelete
+    , phonePrefixInsert
+
       -- * Utilities
     , fetchUserIdentity
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Data.Activation (ActivationEvent (..))
@@ -72,30 +73,24 @@ import Brig.Password
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
+import Brig.Types.Team.Invitation (inCreatedAt, inCreatedBy)
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Event
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (when, unless, void, join)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.ByteString.Conversion
-import Data.Foldable
 import Data.Id
 import Data.Json.Util
-import Data.List (nub)
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
-import Data.Traversable (for)
 import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
 import System.Logger.Message
@@ -128,9 +123,9 @@ createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
     email <- for (newUserEmail new) $ \e ->
-        maybe (throwE (InvalidEmail e))
-              return
-              (validateEmail e)
+        either (throwE . InvalidEmail e)
+               return
+               (validateEmail e)
 
     -- Validate phone
     phone <- for (newUserPhone new) $ \p ->
@@ -262,7 +257,9 @@ createUser new@NewUser{..} = do
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
-        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii)
+        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+            minvmeta = ((, inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
+        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
         unless added $
             throwE TooManyTeamMembers
         lift $ do
@@ -276,7 +273,7 @@ createUser new@NewUser{..} = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
         let uid = userId (accountUser account)
-        added <- lift $ Intra.addTeamMember uid tid
+        added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
         unless added $
             throwE TooManyTeamMembers
         lift $ do
@@ -303,6 +300,14 @@ changeLocale :: UserId -> ConnId -> LocaleUpdate -> AppIO ()
 changeLocale uid conn (LocaleUpdate loc) = do
     Data.updateLocale uid loc
     Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+
+-------------------------------------------------------------------------------
+-- Update ManagedBy
+
+changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> AppIO ()
+changeManagedBy uid conn (ManagedByUpdate mb) = do
+    Data.updateManagedBy uid mb
+    Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
@@ -346,9 +351,9 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
 changeEmail u email = do
-    em <- maybe (throwE $ InvalidNewEmail email)
-                return
-                (validateEmail email)
+    em <- either (throwE . InvalidNewEmail email)
+                 return
+                 (validateEmail email)
     let ek = userEmailKey em
     blacklisted <- lift $ Blacklist.exists ek
     when blacklisted $
@@ -511,9 +516,9 @@ onActivated (PhoneActivated uid phone) = do
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do
-        ek <- maybe (throwE $ InvalidRecipient (userEmailKey email))
-                    (return . userEmailKey)
-                    (validateEmail email)
+        ek <- either (const . throwE . InvalidRecipient $ userEmailKey email)
+                     (return . userEmailKey)
+                     (validateEmail email)
         exists <- lift $ isJust <$> Data.lookupKey ek
         when exists $
             throwE $ UserKeyInUse ek
@@ -527,15 +532,23 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
             Just (Just uid, c) -> sendActivationEmail   ek c        uid -- User re-requesting activation
 
     Right phone -> do
-        pk <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
-                    (return . userPhoneKey)
+        -- validatePhone returns the canonical E.164 phone number format
+        canonical <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
+                    return
                     =<< lift (validatePhone phone)
+        let pk = userPhoneKey canonical
         exists <- lift $ isJust <$> Data.lookupKey pk
         when exists $
             throwE $ UserKeyInUse pk
         blacklisted <- lift $ Blacklist.exists pk
         when blacklisted $
             throwE (ActivationBlacklistedUserKey pk)
+
+        -- check if any prefixes of this phone number are blocked
+        prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+        when prefixExcluded $
+            throwE (ActivationBlacklistedUserKey pk)
+
         c <- lift $ fmap snd <$> Data.lookupActivationCode pk
         p <- mkPair pk c Nothing
         void . forPhoneKey pk $ \ph -> lift $
@@ -579,9 +592,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
 mkActivationKey :: ActivationTarget -> ExceptT ActivationError AppIO ActivationKey
 mkActivationKey (ActivateKey   k) = return k
 mkActivationKey (ActivateEmail e) = do
-    ek <- maybe (throwE $ InvalidActivationEmail e)
-                (return . userEmailKey)
-                (validateEmail e)
+    ek <- either (throwE . InvalidActivationEmail e)
+                 (return . userEmailKey)
+                 (validateEmail e)
     liftIO $ Data.mkActivationKey ek
 mkActivationKey (ActivatePhone p) = do
     pk <- maybe (throwE $ InvalidActivationPhone p)
@@ -637,6 +650,7 @@ mkPasswordResetKey ident = case ident of
     PasswordResetPhoneIdentity p -> user (userPhoneKey p) >>= liftIO . Data.mkPasswordResetKey
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
+
 
 -------------------------------------------------------------------------------
 -- User Deletion
@@ -861,6 +875,15 @@ blacklistDelete :: Either Email Phone -> AppIO ()
 blacklistDelete emailOrPhone = do
     let uk = either userEmailKey userPhoneKey emailOrPhone
     Blacklist.delete uk
+
+phonePrefixGet :: PhonePrefix -> AppIO [ExcludedPrefix]
+phonePrefixGet prefix = Blacklist.getAllPrefixes prefix
+
+phonePrefixDelete :: PhonePrefix -> AppIO ()
+phonePrefixDelete = Blacklist.deletePrefix
+
+phonePrefixInsert :: ExcludedPrefix -> AppIO ()
+phonePrefixInsert = Blacklist.insertPrefix
 
 -------------------------------------------------------------------------------
 -- Utilities

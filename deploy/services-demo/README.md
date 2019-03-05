@@ -5,13 +5,15 @@ This document assumes that you have already compiled all services (i.e., you rea
 Use 2 different terminals and run:
 
 ```
-# On terminal 1, start the dependencies
+# On terminal 1, start the dependencies. Note that you should turn up the max memory
+# limit of docker. More on https://github.com/wireapp/wire-server/issues/326
 deploy/docker-ephemeral/run.sh
 ```
 
 ```
 # On terminal 2, start the services
-deploy/services-demo/demo.sh
+deploy/services-demo/demo.sh  # if all services have been compiled natively
+deploy/services-demo/demo.sh docker # in case Docker images were built instead
 ```
 
 ### Structure of the services-demo folder
@@ -37,7 +39,7 @@ resources                            <- folder which contains secrets or other r
 
 ### Why do you describe this as a _demo_?
 
-* **no optimal performance; not highly-available**: The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). 
+* **no optimal performance; not highly-available**: The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management).
 * **missing functionality**: Some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, the fake SES doesn't actually send emails) nor do they have the same reliability and availability.
 * :warning: **insecure by default** :warning: :
     * **no private network**: Not only is `nginz` reachable on port 8080 from the outside world, but all other services and databases are also reachable from localhost, which, if you run this from e.g. your laptop, allows any other concurrently running process (or exploits thereof) to

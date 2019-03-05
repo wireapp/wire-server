@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Galley.Data.Services
     ( -- * BotMember
       BotMember
@@ -15,10 +13,10 @@ module Galley.Data.Services
     , deleteService
     ) where
 
+import Imports
 import Cassandra
 import Control.Lens
 import Data.Id
-import Data.Maybe (fromJust)
 import Data.Time.Clock
 import Galley.App
 import Galley.Data (newMember)
@@ -74,4 +72,3 @@ lookupService s = fmap toService <$>
 
 deleteService :: MonadClient m => ServiceRef -> m ()
 deleteService s = retry x5 (write rmSrv (params Quorum (s^.serviceRefProvider, s^.serviceRefId)))
-

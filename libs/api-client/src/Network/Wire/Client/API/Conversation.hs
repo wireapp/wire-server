@@ -11,12 +11,12 @@ module Network.Wire.Client.API.Conversation
     , module M
     ) where
 
+import Imports
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
-import Data.Text (Text)
 import Galley.Types as M hiding (Event, EventType)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -106,6 +106,6 @@ createConv users name = sessionRequest req rsc readBody
     req = method POST
         . path "conversations"
         . acceptJson
-        . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing))
+        . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing Nothing))
         $ empty
     rsc = status201 :| []

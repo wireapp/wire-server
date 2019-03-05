@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.Intra.Journal
     ( teamActivate
     , teamUpdate
@@ -10,15 +6,14 @@ module Galley.Intra.Journal
     , evData
     ) where
 
+import Imports hiding (head)
 import Control.Lens
-import Data.Foldable (for_)
 import Data.Id
 import Data.Text (pack)
 import Galley.Types.Teams
 import Data.Proto
 import Data.Proto.Id
 import Galley.App
-import Prelude hiding (head, mapM)
 import Proto.TeamEvents
 
 import qualified Data.Currency as Currency
@@ -44,14 +39,14 @@ journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Ma
 journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
     -- writetime is in microseconds in cassandra 3.11
     ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-    let ev = TeamEvent typ (toBytes tid) ts dat
+    let ev = TeamEvent typ (toBytes tid) ts dat []
     Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
 -- utils
 
 evData :: [TeamMember] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur)
+evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur) []
   where
     uids  = view userId <$> filter (`hasPermission` SetBilling) mems
     count = fromIntegral $ length mems

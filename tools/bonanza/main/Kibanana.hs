@@ -4,31 +4,23 @@
 
 module Main (main) where
 
-import           Control.Applicative
-import           Control.Concurrent          (threadDelay)
+import           Imports
 import           Control.Concurrent.Async
-import           Control.Concurrent.STM
+import           Control.Concurrent.STM      (retry)
 import           Control.Error               (runExceptT, syncIO)
-import           Control.Monad               (replicateM, unless)
-import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Lazy.Char8  as BLC
 import           Data.Conduit
 import qualified Data.Conduit.Binary         as CB
 import qualified Data.Conduit.List           as CL
-import           Data.Foldable               (mapM_)
-import           Data.Monoid
 import           Data.Sequence               ((|>))
 import qualified Data.Sequence               as Seq
 import           Data.Version                (showVersion)
-import           Data.Word
 import           Network.HTTP.Client
 import           Network.HTTP.Client.Conduit (requestBodySourceChunked)
 import           Network.HTTP.Client.TLS
 import           Options.Applicative
 import           Paths_bonanza               (version)
-import           Prelude                     hiding (mapM_)
-import           System.IO                   (stdin)
 
 data Opts = Opts
     { url           :: String
@@ -90,9 +82,9 @@ main = execParser optInfo >>= \ Opts{..} -> do
     cs <- replicateM concurrency $
         async $ consume buffer req signal mgr maxBulkSize
     -- Setup producer pipeline
-    CB.sourceHandle stdin
-        $$ breakByte 0
-        =$ CL.mapM_ (produce buffer maxBufferSize)
+    runConduit $ CB.sourceHandle stdin
+        .| breakByte 0
+        .| CL.mapM_ (produce buffer maxBufferSize)
     -- Graceful stop
     drain buffer >> atomically (writeTVar signal Stop) >> mapM_ wait cs
   where
@@ -127,7 +119,7 @@ main = execParser optInfo >>= \ Opts{..} -> do
             drain b
 
 -- | Like 'Data.Conduit.Binary.lines', but split on an arbitrary delimiter
-breakByte :: Monad m => Word8 -> Conduit ByteString m ByteString
+breakByte :: Monad m => Word8 -> ConduitT ByteString ByteString m ()
 breakByte delim = loop id
   where
     loop front = await >>= maybe (finish front) (go front)

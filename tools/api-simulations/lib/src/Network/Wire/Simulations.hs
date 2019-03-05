@@ -25,17 +25,12 @@ module Network.Wire.Simulations
     , decode
     ) where
 
+import Imports
 import Control.Lens ((^.))
-import Control.Monad
 import Control.Monad.Catch
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
-import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.Serialize
-import Data.Text (Text)
-import GHC.Stack (HasCallStack)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -193,4 +188,3 @@ assertClientMissing u d cm =
     assertEqual (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
                 (missingClients cm)
                 "Missing Clients"
-

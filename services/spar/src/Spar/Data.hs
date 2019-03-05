@@ -1,79 +1,107 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiWayIf                 #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE ViewPatterns               #-}
 
-module Spar.Data where
+-- | Manipulating Spar records in the database.
+module Spar.Data
+  ( schemaVersion
+  , Env(..)
+  , mkEnv
+  , mkTTLAssertions
+  , storeAReqID, unStoreAReqID, isAliveAReqID
+  , storeAssID, unStoreAssID, isAliveAssID
+  , storeVerdictFormat
+  , getVerdictFormat
+  , insertUser
+  , getUser
+  , deleteUsersByIssuer
+  , insertBindCookie
+  , lookupBindCookie
+  , storeIdPConfig
+  , getIdPConfig
+  , getIdPConfigByIssuer
+  , getIdPIdByIssuer
+  , getIdPConfigsByTeam
+  , deleteIdPConfig
+  , deleteTeam
 
+  -- * SCIM auth
+  , insertScimToken
+  , lookupScimToken
+  , getScimTokens
+  , deleteScimToken
+  , deleteTeamScimTokens
+
+  -- * SCIM user records
+  , insertScimUser
+  , getScimUser
+  , getScimUsers
+  ) where
+
+import Imports
 import Cassandra as Cas
-import Control.Exception
-import Control.Monad.Catch
+import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Identity
-import Control.Monad.Reader
 import Data.Id
-import Data.Int
-import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)
-import GHC.Stack
-import Lens.Micro
+import GHC.TypeLits (KnownSymbol)
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
-import Spar.Options as Options
 import Spar.Types
+import Spar.Scim.Types
 import URI.ByteString
 
-import qualified Data.UUID as UUID
+import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
-import qualified Data.ByteString.Char8 as BSC
+import qualified Web.Cookie as Cky
+import qualified Web.Scim.Class.User as ScimC.User
+
+
+-- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
+schemaVersion :: Int32
+schemaVersion = 5
 
 
 ----------------------------------------------------------------------
 -- helpers
 
+-- | Carry some time constants we do not want to pull from Options, IO, respectively.  This way the
+-- functions in this module need fewer effects.  See 'wrapMonadClientWithEnv' (as opposed to
+-- 'wrapMonadClient' where we don't need an 'Env').
 data Env = Env
   { dataEnvNow                :: UTCTime
-  , dataEnvSPInfo             :: SPInfo
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
   deriving (Eq, Show)
 
-mkEnv :: Options.Opts -> UTCTime -> Env
+mkEnv :: Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvSPInfo             = Options.spInfo opts
-      , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
-      , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
+      , dataEnvMaxTTLAuthRequests = maxttlAuthreq opts
+      , dataEnvMaxTTLAssertions   = maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
-mkTTLAuthnRequests (Env now _ maxttl _) = mkTTL now maxttl
+mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
+
+mkTTLAuthnRequestsNDT :: MonadError TTLError m => Env -> NominalDiffTime -> m (TTL "authreq")
+mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
 
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
-mkTTLAssertions (Env now _ _ maxttl) = mkTTL now maxttl
+mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
-mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
-mkTTL now maxttl endOfLife = if
-  | actualttl > maxttl -> throwError TTLTooLong
-  | actualttl <= 0     -> throwError TTLNegative
+mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
+mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
+
+mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
+mkTTLNDT maxttl ttlNDT = if
+  | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+  | actualttl <= 0     -> throwError $ TTLNegative (showTTL actualttl)
   | otherwise          -> pure actualttl
   where
-    actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
-
-err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
-err2err = either (throwM . ErrorCall . show) pure
+    actualttl = TTL . nominalDiffToSeconds $ ttlNDT
 
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
@@ -82,46 +110,62 @@ nominalDiffToSeconds = round @Double . realToFrac
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-             => AReqId -> SAML.Time -> m ()
-storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
+storeAReqID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AReqId -> SAML.Time -> m ()
+storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
-    retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
+    TTL ttl <- mkTTLAuthnRequests env endOfLife
+    retry x5 . write ins $ params Quorum (rid, ttl)
   where
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-                    => AReqId -> m Bool
-checkAgainstRequest (SAML.ID rid) = do
+unStoreAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m ()
+unStoreAReqID (SAML.ID rid) = retry x5 . write del . params Quorum $ Identity rid
+  where
+    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del = "DELETE FROM authreq WHERE req = ?"
+
+isAliveAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m Bool
+isAliveAReqID (SAML.ID rid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
+
+
+storeAssID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AssId -> SAML.Time -> m ()
+storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
     env <- ask
-    (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
-        maybe False ((>= dataEnvNow env) . runIdentity)
+    TTL ttl <- mkTTLAssertions env endOfLife
+    retry x5 . write ins $ params Quorum (aid, ttl)
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authreq WHERE req = ?"
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
--- FUTUREWORK: is there a guarantee in cassandra that records are not returned once their TTL has
--- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
--- the end_of_life comparison into the database, rather than retrieving the value and comparing it
--- in haskell.  (also check the other functions in this module.)
-storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
-               => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
-storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
-    env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
-    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
-        maybe True ((< dataEnvNow env) . runIdentity)
-    when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
-    pure notAReplay
+unStoreAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m ()
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params Quorum $ Identity aid
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
+    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del = "DELETE FROM authresp WHERE resp = ?"
 
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?) USING TTL ?"
+isAliveAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m Bool
+isAliveAssID (SAML.ID aid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
 
 
 ----------------------------------------------------------------------
@@ -159,41 +203,75 @@ insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quo
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
+getUser (SAML.UserRef tenant subject) = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
+deleteUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+  where
+    del :: PrepQuery W (Identity SAML.Issuer) ()
+    del = "DELETE FROM user WHERE issuer = ?"
+
+----------------------------------------------------------------------
+-- bind cookies
+
+-- | Associate the value of a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the
+-- same as the one of the 'AuthnRequest' sent with the cookie.
+insertBindCookie :: (HasCallStack, MonadClient m, MonadReader Env m, MonadError TTLError m)
+                 => SetBindCookie -> UserId -> NominalDiffTime -> m ()
+insertBindCookie cky uid ttlNDT = do
+  env <- ask
+  TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
+  where
+    ins :: PrepQuery W (ST, UserId, Int32) ()
+    ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
+
+-- | The counter-part of 'insertBindCookie'.
+lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
+  (retry x1 . query1 sel $ params Quorum (Identity ckyval))
+  where
+    sel :: PrepQuery R (Identity ST) (Identity UserId)
+    sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
+
 
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
+-- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
+storeIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPConfig TeamId -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery ins
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpMetadata
-    , idp ^. SAML.idpIssuer
-    , idp ^. SAML.idpRequestUri
-    , idp ^. SAML.idpPublicKey
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
+    , idp ^. SAML.idpMetadata . SAML.edRequestURI
+    , NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+    , NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+      -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
+    , idp ^. SAML.idpExtraInfo
     )
   addPrepQuery byIssuer
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpIssuer
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
     )
   addPrepQuery byTeam
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpExtraInfo
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
 
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
@@ -201,35 +279,31 @@ storeIdPConfig idp = retry x5 . batch $ do
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
-getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
-getSPInfo (SAML.IdPId idp) = do
-  env <- ask
-  pure $ dataEnvSPInfo env & spiLoginURI . pathL %~ (<> BSC.pack (UUID.toString idp))
-
 getIdPConfig
-  :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
+  :: forall m. (HasCallStack, MonadClient m)
   => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid =
   traverse toIdp =<< retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
     toIdp :: IdPConfigRow -> m IdP
     toIdp ( _idpId
-          , _idpMetadata
-          , _idpIssuer
-          , _idpRequestUri
-          , _idpPublicKey
+          -- metadata
+          , _edIssuer
+          , _edRequestURI
+          , certsHead
+          , certsTail
           -- extras
-          , _idpeTeam
+          , _idpExtraInfo
           ) = do
-      _idpeSPInfo <- getSPInfo _idpId
-      let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
+      let _edCertAuthnResponse = certsHead NL.:| certsTail
+          _idpMetadata = SAML.IdPMetadata {..}
       pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
   getIdPIdByIssuer issuer >>= \case
@@ -248,7 +322,7 @@ getIdPIdByIssuer issuer = do
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
 
 getIdPConfigsByTeam
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => TeamId -> m [IdP]
 getIdPConfigsByTeam team = do
     idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
@@ -257,7 +331,9 @@ getIdPConfigsByTeam team = do
     sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM team_idp WHERE team = ?"
 
-deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
+deleteIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
@@ -273,3 +349,159 @@ deleteIdPConfig idp issuer team = retry x5 $ batch $ do
 
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
+
+-- | Delete all tokens belonging to a team.
+deleteTeam
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m ()
+deleteTeam team = do
+    deleteTeamScimTokens team
+    -- Since IdPs are not shared between teams, we can look at the set of IdPs
+    -- used by the team, and remove everything related to those IdPs, too.
+    idps <- getIdPConfigsByTeam team
+    for_ idps $ \idp -> do
+      let idpid = idp ^. SAML.idpId
+          issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      deleteUsersByIssuer issuer
+      deleteIdPConfig idpid issuer team
+
+----------------------------------------------------------------------
+-- SCIM auth
+
+type ScimTokenRow = (ScimToken, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text)
+
+fromScimTokenRow :: ScimTokenRow -> ScimTokenInfo
+fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr) =
+    ScimTokenInfo{..}
+
+-- | Add a new SCIM provisioning token. The token should be random and
+-- generated by the backend, not by the user.
+insertScimToken
+  :: (HasCallStack, MonadClient m)
+  => ScimToken -> ScimTokenInfo -> m ()
+insertScimToken token ScimTokenInfo{..} = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery insByToken (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+    addPrepQuery insByTeam  (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  where
+    insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
+    insByToken = "INSERT INTO team_provisioning_by_token \
+                 \(token_, team, id, created_at, idp, descr) \
+                 \VALUES (?, ?, ?, ?, ?, ?)"
+    insByTeam  = "INSERT INTO team_provisioning_by_team \
+                 \(token_, team, id, created_at, idp, descr) \
+                 \VALUES (?, ?, ?, ?, ?, ?)"
+
+-- | Check whether a token exists and if yes, what team and IdP are
+-- associated with it.
+lookupScimToken
+  :: (HasCallStack, MonadClient m)
+  => ScimToken -> m (Maybe ScimTokenInfo)
+lookupScimToken token = do
+    mbRow <- retry x1 . query1 sel $ params Quorum (Identity token)
+    pure $ fmap fromScimTokenRow mbRow
+  where
+    sel :: PrepQuery R (Identity ScimToken) ScimTokenRow
+    sel = "SELECT token_, team, id, created_at, idp, descr \
+          \FROM team_provisioning_by_token WHERE token_ = ?"
+
+-- | List all tokens associated with a team, in the order of their creation.
+getScimTokens
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m [ScimTokenInfo]
+getScimTokens team = do
+    -- We don't need pagination here because the limit should be pretty low
+    -- (e.g. 16). If the limit grows, we might have to introduce pagination.
+    rows <- retry x1 . query sel $ params Quorum (Identity team)
+    pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
+  where
+    sel :: PrepQuery R (Identity TeamId) ScimTokenRow
+    sel = "SELECT token_, team, id, created_at, idp, descr \
+          \FROM team_provisioning_by_team WHERE team = ?"
+
+-- | Delete a token.
+deleteScimToken
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> ScimTokenId -> m ()
+deleteScimToken team tokenid = do
+    mbToken <- retry x1 . query1 selById $ params Quorum (team, tokenid)
+    retry x5 $ batch $ do
+        setType BatchLogged
+        setConsistency Quorum
+        addPrepQuery delById (team, tokenid)
+        for_ mbToken $ \(Identity token) ->
+            addPrepQuery delByToken (Identity token)
+  where
+    selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimToken)
+    selById = "SELECT token_ FROM team_provisioning_by_team \
+              \WHERE team = ? AND id = ?"
+
+    delById :: PrepQuery W (TeamId, ScimTokenId) ()
+    delById = "DELETE FROM team_provisioning_by_team \
+              \WHERE team = ? AND id = ?"
+
+    delByToken :: PrepQuery W (Identity ScimToken) ()
+    delByToken = "DELETE FROM team_provisioning_by_token \
+                 \WHERE token_ = ?"
+
+-- | Delete all tokens belonging to a team.
+deleteTeamScimTokens
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m ()
+deleteTeamScimTokens team = do
+  tokens <- retry x5 $ query sel $ params Quorum (Identity team)
+  retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery delByTeam (Identity team)
+    mapM_ (addPrepQuery delByToken) tokens
+  where
+    sel :: PrepQuery R (Identity TeamId) (Identity ScimToken)
+    sel = "SELECT token_ FROM team_provisioning_by_team WHERE team = ?"
+
+    delByTeam :: PrepQuery W (Identity TeamId) ()
+    delByTeam = "DELETE FROM team_provisioning_by_team WHERE team = ?"
+
+    delByToken :: PrepQuery W (Identity ScimToken) ()
+    delByToken = "DELETE FROM team_provisioning_by_token WHERE token_ = ?"
+
+----------------------------------------------------------------------
+-- SCIM user records
+
+-- | Store the scim user in its entirety and return the 'Scim.StoredUser'.
+--
+-- NB: we can add optional columns in the future and extract parts of the json blob should the need
+-- arise.  For instance, if we want to support different versions of SCIM, we could extract
+-- @schemas@ and, throw an exception if the list of values is not supported, and store it
+-- in a separate column otherwise, allowing for fast version filtering on the database.
+insertScimUser
+  :: (HasCallStack, MonadClient m)
+  => UserId -> ScimC.User.StoredUser ScimUserExtra -> m ()
+insertScimUser uid usr = retry x5 . write ins $
+  params Quorum (uid, usr)
+  where
+    ins :: PrepQuery W (UserId, ScimC.User.StoredUser ScimUserExtra) ()
+    ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
+
+getScimUser
+  :: (HasCallStack, MonadClient m)
+  => UserId -> m (Maybe (ScimC.User.StoredUser ScimUserExtra))
+getScimUser uid = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum (Identity uid))
+  where
+    sel :: PrepQuery R (Identity UserId)
+                       (Identity (ScimC.User.StoredUser ScimUserExtra))
+    sel = "SELECT json FROM scim_user WHERE id = ?"
+
+-- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
+-- the output list will just be shorter (no errors).
+getScimUsers
+  :: (HasCallStack, MonadClient m)
+  => [UserId] -> m [ScimC.User.StoredUser ScimUserExtra]
+getScimUsers uids = runIdentity <$$>
+  retry x1 (query sel (params Quorum (Identity uids)))
+  where
+    sel :: PrepQuery R (Identity [UserId])
+                       (Identity (ScimC.User.StoredUser ScimUserExtra))
+    sel = "SELECT json FROM scim_user WHERE id in ?"

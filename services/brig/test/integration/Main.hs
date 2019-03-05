@@ -1,26 +1,18 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main (main) where
 
+import Imports hiding (local)
 import Bilge hiding (header)
 import Cassandra.Util
 import Control.Lens
-import Control.Monad (join)
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Maybe (fromMaybe)
-import Data.Monoid
-import Data.List (foldl', (\\))
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import System.Environment (getArgs, getEnv, withArgs)
+import System.Environment (withArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common
@@ -31,6 +23,7 @@ import qualified API.Search            as Search
 import qualified API.Team              as Team
 import qualified API.TURN              as TURN
 import qualified API.User              as User
+import qualified API.Metrics           as Metrics
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
@@ -73,6 +66,7 @@ runTests iConf bConf otherArgs = do
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
+    metricsApi  <- Metrics.tests mg b
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi
@@ -80,6 +74,7 @@ runTests iConf bConf otherArgs = do
         , searchApis
         , teamApis
         , turnApi
+        , metricsApi
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Ownership of unique user handles.
 module Brig.User.Handle
     ( claimHandle
@@ -8,19 +6,14 @@ module Brig.User.Handle
     , glimpseHandle
     ) where
 
+import Imports
 import Brig.App
 import Brig.Data.Instances ()
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Unique
 import Cassandra
-import Control.Monad
-import Control.Monad.Reader.Class
 import Data.Id
-import Data.Foldable (for_)
-import Data.Functor.Identity
-import Data.Maybe
-import Data.Monoid
 
 import qualified Brig.Data.User as User
 
@@ -69,4 +62,3 @@ handleSelect = "SELECT user FROM user_handle WHERE handle = ?"
 
 handleDelete :: PrepQuery W (Identity Handle) ()
 handleDelete = "DELETE FROM user_handle WHERE handle = ?"
-

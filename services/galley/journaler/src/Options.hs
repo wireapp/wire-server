@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TemplateHaskell       #-}
-
 module Options
     ( Settings (..)
 
@@ -17,14 +14,13 @@ module Options
     )
 where
 
+import Imports
 import Control.Lens
 import Data.Id
-import Data.Monoid
 import Data.Text.Strict.Lens
-import Data.Word
-import Data.Maybe
 import Galley.Options
 import Options.Applicative
+import Util.Options
 
 import qualified Data.UUID as UUID
 import qualified Cassandra as C
@@ -78,6 +74,19 @@ cassandraSettingsParser = CassandraSettings
          <> showDefault
           )
         )
+
+journalOptsParser :: Parser JournalOpts
+journalOptsParser = JournalOpts
+    <$> (fmap (view packed) $ strOption $
+            long "team-events-queue-name"
+            <> metavar "STRING"
+            <> help "sqs queue name to send team events")
+    <*> (option parseAWSEndpoint $
+            long "aws-sqs-endpoint"
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
+            <> metavar "STRING"
+            <> showDefault
+            <> help "aws endpoint")
 
 teamIdOption :: Mod OptionFields String -> Parser TeamId
 teamIdOption = fmap (Id . fromMaybe (error "invalid teamId") . UUID.fromString) . strOption

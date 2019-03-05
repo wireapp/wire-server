@@ -6,14 +6,13 @@ module Bonanza.Parser.Journald
     )
 where
 
+import Imports
 import Bonanza.Parser.Internal
 import Bonanza.Parser.Svlogd
 import Bonanza.Types
-import Control.Applicative
-import Control.Lens                     ((&), (.~))
+import Control.Applicative              (optional)
+import Control.Lens                     ((.~))
 import Data.Attoparsec.ByteString.Char8
-import Data.Monoid
-import Data.Text                        (Text)
 import Data.Time                        (UTCTime (..))
 
 -- <timestamp> <syslog_identifier>[<pid>]: <... message ...>

@@ -14,38 +14,37 @@
 
 module Test.Brig.Types.Arbitrary where
 
+import Imports
 import Brig.Types.Activation
 import Brig.Types.Code
+import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
-import Control.Monad
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
-import Data.Maybe
+import Data.List.Extra (nubOn)
 import Data.Misc
-import Data.Monoid
+import Data.Proxy
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.Typeable
 import Data.UUID (nil)
-import Data.Word
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
-import GHC.Stack
 import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 
-
+import qualified Data.Set as Set
 import qualified Data.Text as ST
 import qualified System.Random
 
@@ -107,9 +106,9 @@ instance Arbitrary ColourId where
 
 instance Arbitrary Email where
   arbitrary = do
-      local  <- ST.filter (/= '@') <$> arbitrary
+      localPart <- ST.filter (/= '@') <$> arbitrary
       domain <- ST.filter (/= '@') <$> arbitrary
-      pure $ Email local domain
+      pure $ Email localPart domain
 
 instance Arbitrary Phone where
   arbitrary = Phone . ST.pack <$> do
@@ -117,6 +116,16 @@ instance Arbitrary Phone where
       mini <- mkdigits 8
       maxi <- mkdigits =<< choose (0, 7)
       pure $ '+' : mini <> maxi
+
+instance Arbitrary PhonePrefix where
+  arbitrary = PhonePrefix . ST.pack <$> do
+      let mkdigits n = replicateM n (elements ['0'..'9'])
+      mini <- mkdigits 1
+      maxi <- mkdigits =<< choose (0, 14)
+      pure $ '+' : mini <> maxi
+
+instance Arbitrary ExcludedPrefix where
+    arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
 
 instance Arbitrary UserIdentity where
   arbitrary = oneof
@@ -174,6 +183,9 @@ instance Arbitrary AsciiBase64Url where
 instance Arbitrary PlainTextPassword where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 
+instance Arbitrary ReAuthUser where
+    arbitrary = ReAuthUser <$> arbitrary
+
 instance Arbitrary DeleteUser where
     arbitrary = DeleteUser <$> arbitrary
 
@@ -194,6 +206,9 @@ instance Arbitrary HandleUpdate where
 
 instance Arbitrary LocaleUpdate where
     arbitrary = LocaleUpdate <$> arbitrary
+
+instance Arbitrary ManagedByUpdate where
+    arbitrary = ManagedByUpdate <$> arbitrary
 
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
@@ -223,6 +238,7 @@ instance Arbitrary NewUser where
         newUserLocale     <- arbitrary
         newUserPassword   <- if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
         newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
+        newUserManagedBy  <- arbitrary
         pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
@@ -256,6 +272,9 @@ instance Arbitrary NewTeamUser where
         , NewTeamMemberSSO <$> arbitrary
         ]
 
+instance Arbitrary TeamMember where
+    arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
+
 instance Arbitrary PasswordChange where
     arbitrary = PasswordChange <$> arbitrary <*> arbitrary
 
@@ -285,6 +304,17 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
 
+instance Arbitrary RichField where
+    arbitrary = RichField <$> arbitrary <*> arbitrary
+
+instance Arbitrary RichInfo where
+    arbitrary = do
+        richInfoFields <- nubOn richFieldType <$> arbitrary
+        pure RichInfo{..}
+
+instance Arbitrary RichInfoUpdate where
+    arbitrary = RichInfoUpdate <$> arbitrary
+
 instance Arbitrary ServiceRef where
     arbitrary = ServiceRef <$> arbitrary <*> arbitrary
 
@@ -298,6 +328,7 @@ instance Arbitrary UserUpdate where
 instance Arbitrary User where
     arbitrary = User
         <$> arbitrary
+        <*> arbitrary
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
@@ -334,6 +365,29 @@ instance Arbitrary Country where
 instance Arbitrary UpdateServiceWhitelist where
     arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary InvitationList where
+    arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
+
+instance Arbitrary Invitation where
+    arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Permissions where
+    arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
+        selfperms <- arbitrary
+        copyperms <- Set.intersection selfperms <$> arbitrary
+        pure $ newPermissions selfperms copyperms
+
+instance Arbitrary Perm where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary InvitationRequest where
+    arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Role where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary ManagedBy where
+    arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------
 -- utilities

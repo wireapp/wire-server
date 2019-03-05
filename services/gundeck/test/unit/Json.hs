@@ -1,19 +1,16 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Json where
+
+import Imports
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.Tasty.HUnit
 
-import Control.Lens (set, view, (&))
+import Control.Lens (set, view)
 import Data.Aeson
 import Data.HashMap.Strict (fromList)
 import Data.Id
 import Data.List1
-import Data.Monoid
-import Data.String
 import Gundeck.Types.BulkPush
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
@@ -51,7 +48,6 @@ serialiseOkProp r = property $
         in   (view recipientId       <$> r') == Just (view recipientId r)
           && (view recipientRoute    <$> r') == Just (view recipientRoute r)
           && (view recipientClients  <$> r') == Just (view recipientClients r)
-          && (view recipientFallback <$> r') == Just (view recipientFallback r)
 
 -----------------------------------------------------------------------------
 -- Randomness
@@ -62,9 +58,14 @@ serialiseOkProp r = property $
 genRecipient :: Gen Recipient
 genRecipient = do
     r <- recipient <$> arbitrary <*> elements [ RouteAny, RouteDirect, RouteNative ]
-    c <- arbitrary
-    f <- arbitrary
-    return $ r & set recipientFallback f & set recipientClients c
+    c <- genRecipientClients
+    return $ r & set recipientClients c
+
+genRecipientClients :: Gen RecipientClients
+genRecipientClients =
+    oneof [ pure RecipientClientsAll
+          , RecipientClientsSome . List1 <$> arbitrary
+          ]
 
 genBulkPushRequest :: Gen BulkPushRequest
 genBulkPushRequest = BulkPushRequest <$>

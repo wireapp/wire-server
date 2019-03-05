@@ -2,6 +2,7 @@
 
 module Test.Bonanza.Streaming (tests) where
 
+import           Imports
 import           Bonanza.Parser.Nginz
 import           Bonanza.Parser.Socklog
 import           Bonanza.Parser.Svlogd
@@ -11,10 +12,9 @@ import           Bonanza.Types
 import           Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8            as B
 import qualified Data.ByteString.Lazy             as BL
-import           Data.Conduit                     (($$), (=$))
+import           Data.Conduit                     (runConduit, (.|))
 import qualified Data.Conduit.Binary              as Conduit
 import qualified Data.Conduit.List                as Conduit
-import           Data.Text                        (Text)
 import           Test.Bonanza.Arbitrary
 import           Test.Tasty
 import           Test.Tasty.QuickCheck
@@ -86,9 +86,9 @@ run_prop :: (SecondsPrecision a, ToLogEvent a)
          -> [ParseInput a]
          -> Property
 run_prop p i = ioProperty $
-        Conduit.sourceLbs inp
-            =$ P.stream (P.MkParser p)
-            $$ Conduit.consume
+        runConduit $ Conduit.sourceLbs inp
+            .| P.stream (P.MkParser p)
+            .| Conduit.consume
     >>= pure . (=== out) . map secs
   where
     inp = BL.fromStrict . B.intercalate "\n" $ map (snd . parseInput) i

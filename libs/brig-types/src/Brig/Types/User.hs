@@ -12,28 +12,26 @@ module Brig.Types.User
     , module C
     ) where
 
+import Imports
 import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
-import Control.Applicative
-import Control.Monad ((<=<), when)
 import Data.Aeson
-import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
-import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Text.Ascii
-import Data.Text (Text)
 import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
+import qualified Data.Aeson.Types    as Aeson
 import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text           as Text
 
 -----------------------------------------------------------------------------
 -- User Attributes
@@ -43,7 +41,7 @@ newtype Pict = Pict { fromPict :: [Object] }
     deriving (Eq, Show, ToJSON)
 
 instance FromJSON Pict where
-    parseJSON x = Pict . fromRange <$> (parseJSON x :: Parser (Range 0 10 [Object]))
+    parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
 
 noPict :: Pict
 noPict = Pict []
@@ -116,7 +114,7 @@ publicProfile u = (connectedProfile u)
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
-    , userName     :: !Name
+    , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]
     , userAccentId :: !ColourId
@@ -125,11 +123,14 @@ data User = User
     , userService  :: !(Maybe ServiceRef)
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
-    , userHandle   :: !(Maybe Handle)
+    , userHandle   :: !(Maybe Handle)  -- ^ not required; must be unique if present
     , userExpire   :: !(Maybe UTCTimeMillis)
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
+    , userManagedBy :: !ManagedBy
+        -- ^ How is the user profile managed (e.g. if it's via SCIM then the user profile
+        -- can't be edited via normal means)
     }
     deriving (Eq, Show)
 
@@ -142,8 +143,9 @@ userPhone = phoneIdentity <=< userIdentity
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
--- | A subset of the data of an existing 'User'
--- that is returned on the API.
+-- | A subset of the data of an existing 'User' that is returned on the API and is visible to
+-- other users. Each user also has access to their own profile in a richer format --
+-- 'SelfProfile'.
 data UserProfile = UserProfile
     { profileId       :: !UserId
     , profileName     :: !Name
@@ -173,11 +175,12 @@ instance ToJSON User where
         # "accent_id"  .= userAccentId u
         # "deleted"    .= (if userDeleted u then Just True else Nothing)
         # "locale"     .= userLocale u
-        # "service"    .= userService u
-        # "handle"     .= userHandle u
+        # "service"    .= userService u
+        # "handle"     .= userHandle u
         # "expires_at" .= userExpire u
         # "team"       .= userTeam u
         # "sso_id"     .= userSSOId u
+        # "managed_by" .= userManagedBy u
         # []
 
 instance FromJSON User where
@@ -195,6 +198,7 @@ instance FromJSON User where
              <*> o .:? "handle"
              <*> o .:? "expires_at"
              <*> o .:? "team"
+             <*> o .:? "managed_by" .!= ManagedByWire
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -218,8 +222,8 @@ instance ToJSON UserProfile where
         # "assets"     .= profileAssets u
         # "accent_id"  .= profileAccentId u
         # "deleted"    .= (if profileDeleted u then Just True else Nothing)
-        # "service"    .= profileService u
-        # "handle"     .= profileHandle u
+        # "service"    .= profileService u
+        # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
@@ -231,6 +235,79 @@ instance FromJSON SelfProfile where
 
 instance ToJSON SelfProfile where
     toJSON (SelfProfile u) = toJSON u
+
+----------------------------------------------------------------------------
+-- Rich info
+
+data RichInfo = RichInfo
+    { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichInfo where
+    toJSON u = object
+        [ "fields" .= richInfoFields u
+        , "version" .= (0 :: Int)
+        ]
+
+instance FromJSON RichInfo where
+    parseJSON = withObject "RichInfo" $ \o -> do
+        version :: Int <- o .: "version"
+        case version of
+            0 -> do
+                fields <- o .: "fields"
+                checkDuplicates (map richFieldType fields)
+                pure (RichInfo fields)
+            _ -> fail ("unknown version: " <> show version)
+      where
+        checkDuplicates :: [Text] -> Aeson.Parser ()
+        checkDuplicates xs =
+            case filter ((> 1) . length) . group . sort $ xs of
+                [] -> pure ()
+                ds -> fail ("duplicate fields: " <> show (map head ds))
+
+data RichField = RichField
+    { richFieldType  :: !Text
+    , richFieldValue :: !Text
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichField where
+    -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
+    -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
+    -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
+    -- that some provisioning agent would support "type" but not "name".
+    toJSON u = object
+        [ "type" .= richFieldType u
+        , "value" .= richFieldValue u
+        ]
+
+instance FromJSON RichField where
+    parseJSON = withObject "RichField" $ \o -> do
+        RichField
+            <$> o .: "type"
+            <*> o .: "value"
+
+-- | Empty rich info, returned for users who don't have rich info set.
+emptyRichInfo :: RichInfo
+emptyRichInfo = RichInfo
+    { richInfoFields = []
+    }
+
+-- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
+-- 'setRichInfoLimit'
+--
+-- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
+-- if our JSON encoding changes, existing payloads might become unacceptable.
+richInfoSize :: RichInfo -> Int
+richInfoSize (RichInfo fields) =
+    sum [Text.length t + Text.length v | RichField t v <- fields]
+
+-- | Remove fields with @""@ values.
+normalizeRichInfo :: RichInfo -> RichInfo
+normalizeRichInfo RichInfo{..} = RichInfo
+    { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+    }
 
 -----------------------------------------------------------------------------
 -- New Users
@@ -249,6 +326,7 @@ data NewUser = NewUser
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
     , newUserExpiresIn      :: !(Maybe ExpiresIn)
+    , newUserManagedBy      :: !(Maybe ManagedBy)
     }
     deriving (Eq, Show)
 
@@ -261,7 +339,7 @@ data NewUserOrigin =
   deriving (Eq, Show)
 
 parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
-                   -> Object -> Parser (Maybe NewUserOrigin)
+                   -> Object -> Aeson.Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
     invcode  <- o .:? "invitation_code"
     teamcode <- o .:? "team_code"
@@ -280,7 +358,7 @@ parseNewUserOrigin pass uid ssoid o = do
         (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
         _ -> pure result
 
-jsonNewUserOrigin :: NewUserOrigin -> [Pair]
+jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
 jsonNewUserOrigin = \case
     NewUserOriginInvitationCode inv             -> ["invitation_code" .= inv]
     NewUserOriginTeamUser (NewTeamMember tc)    -> ["team_code" .= tc]
@@ -325,6 +403,7 @@ instance FromJSON NewUser where
           newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
                 (Just _, Just _) -> fail "Only users without an identity can expire"
                 _                -> return newUserExpires
+          newUserManagedBy <- o .:? "managed_by"
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -344,10 +423,11 @@ instance ToJSON NewUser where
         # "password"        .= newUserPassword u
         # "expires_in"      .= newUserExpiresIn u
         # "sso_id"          .= newUserSSOId u
+        # "managed_by"      .= newUserManagedBy u
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
-parseIdentity :: Maybe UserSSOId -> Object -> Parser (Maybe UserIdentity)
+parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
 parseIdentity ssoid o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
     then Just <$> parseJSON (Object o)
     else pure Nothing
@@ -382,19 +462,32 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
                  | NewTeamMemberSSO !TeamId
     deriving (Eq, Show)
 
--- | newtype for using in external end-points where setting 'SSOIdentity', 'UUID' is not allowed.
--- ('UUID' is only needed by spar for creating users that it can find again later, after a crash.
--- if there another use case arises, this newtype and the 'FromJSON' instance would have to be
--- refactored.)
-newtype NewUserNoSSO = NewUserNoSSO NewUser
+-- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
+-- newtype is used as request body type for the public @\/register@ endpoint, where only a
+-- subset of the 'NewUser' functionality should be allowed.
+--
+-- Specifically, we forbid the following:
+--
+--   * Setting 'SSOIdentity' (SSO users are created by Spar)
+--
+--   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
+--     finishes creating the user).
+--
+--   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
+--     SCIM-managed user)
+newtype NewUserPublic = NewUserPublic NewUser
     deriving (Eq, Show)
 
-instance FromJSON NewUserNoSSO where
+instance FromJSON NewUserPublic where
     parseJSON val = do
         nu <- parseJSON val
-        when (isJust $ newUserSSOId nu) $ fail "SSO-managed users are not allowed here."
-        when (isJust $ newUserUUID nu)  $ fail "it is not allowed to provide a UUID for the users here."
-        pure $ NewUserNoSSO nu
+        when (isJust $ newUserSSOId nu) $
+            fail "SSO-managed users are not allowed here."
+        when (isJust $ newUserUUID nu) $
+            fail "it is not allowed to provide a UUID for the users here."
+        when (newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire]) $
+            fail "only managed-by-Wire users can be created here."
+        pure $ NewUserPublic nu
 
 
 -----------------------------------------------------------------------------
@@ -408,12 +501,17 @@ data UserUpdate = UserUpdate
     } deriving (Eq, Show)
 
 newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show)
+newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
+newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
+newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
+newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show)
 
-newtype EmailUpdate  = EmailUpdate  { euEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneUpdate  = PhoneUpdate  { puPhone  :: Phone  } deriving (Eq, Show)
-newtype HandleUpdate = HandleUpdate { huHandle :: Text   } deriving (Eq, Show)
-newtype EmailRemove  = EmailRemove  { erEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneRemove  = PhoneRemove  { prPhone  :: Phone  } deriving (Eq, Show)
+newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
+newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
+
+-- NB: when adding new types, please also add roundtrip tests to
+-- 'Test.Brig.Types.User.roundtripTests'
 
 instance FromJSON UserUpdate where
     parseJSON = withObject "UserUpdate" $ \o ->
@@ -457,6 +555,20 @@ instance FromJSON HandleUpdate where
 
 instance ToJSON HandleUpdate where
     toJSON h = object ["handle" .= huHandle h]
+
+instance FromJSON ManagedByUpdate where
+    parseJSON = withObject "managed-by-update" $ \o ->
+        ManagedByUpdate <$> o .: "managed_by"
+
+instance ToJSON ManagedByUpdate where
+    toJSON m = object ["managed_by" .= mbuManagedBy m]
+
+instance FromJSON RichInfoUpdate where
+    parseJSON = withObject "rich-info-update" $ \o ->
+        RichInfoUpdate <$> o .: "rich_info"
+
+instance ToJSON RichInfoUpdate where
+    toJSON m = object ["rich_info" .= riuRichInfo m]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

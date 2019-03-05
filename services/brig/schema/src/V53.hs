@@ -1,9 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-
 module V53 (migration) where
 
-import Data.Functor (void)
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 

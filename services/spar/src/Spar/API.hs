@@ -1,27 +1,17 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE ViewPatterns               #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
+-- | The API types, handlers, and WAI 'Application' for whole Spar.
+--
+-- Note: handlers are defined here, but API types are reexported from "Spar.API.Types". The
+-- SCIM branch of the API is fully defined in "Spar.Scim".
 module Spar.API
-  ( app, api
-  , API
+  ( -- * Server
+    app, api
+
+    -- * API types
+  , API, OutsideWorldAPI
+    -- ** Individual API pieces
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq
@@ -32,115 +22,106 @@ module Spar.API
   , IdpDelete
   ) where
 
-import Bilge
-import Brig.Types.User as Brig
-import Control.Exception
+import Imports
+import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
-import Data.Either
-import Data.EitherR (fmapL)
 import Data.Id
-import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
-import "swagger2" Data.Swagger hiding (Header(..))
-  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
-  -- clash other than -XPackageImports.
 import Data.Time
-import GHC.Stack
-import Lens.Micro
+import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.API.Swagger ()
-import Spar.API.Test
+import Spar.API.Types
 import Spar.App
 import Spar.Error
-import Spar.Options
 import Spar.Types
+import Spar.Scim
+import Spar.Scim.Swagger ()
 
 import qualified Data.ByteString as SBS
-import qualified Network.HTTP.Client as Rq
+import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import qualified Text.XML as XML
-import qualified Text.XML.DSig as SAML
-import qualified Text.XML.Util as SAML
 import qualified URI.ByteString as URI
+import qualified Web.Cookie as Cky
 
-
--- FUTUREWORK: use servant-generic?
 
 app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
-        $ serve (Proxy @API) (enter (NT (SAML.nt @SparError @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
-
-type API = "i" :> "status" :> Get '[JSON] NoContent
-      :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
-      :<|> APIMeta
-      :<|> APIAuthReqPrecheck
-      :<|> APIAuthReq
-      :<|> APIAuthResp
-      :<|> IdpGet
-      :<|> IdpGetAll
-      :<|> IdpCreate
-      :<|> IdpDelete
-      :<|> "i" :> "integration-tests" :> IntegrationTests
-      -- NB. If you add endpoints here, also update Test.Spar.APISpec
-
-type CheckOK = Verb 'HEAD 200
-
-type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
-type APIAuthReqPrecheck
-                 = "sso" :> "initiate-login"
-                :> QueryParam "success_redirect" URI.URI
-                :> QueryParam "error_redirect" URI.URI
-                :> Capture "idp" SAML.IdPId
-                :> CheckOK '[PlainText] NoContent
-type APIAuthReq  = "sso" :> "initiate-login"
-                :> QueryParam "success_redirect" URI.URI
-                :> QueryParam "error_redirect" URI.URI
-                :> SAML.APIAuthReq
-type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
-
-type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
-type IdpGetAll  = Header "Z-User" UserId :> "identity-providers" :> Get '[JSON] IdPList
-type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] SAML.NewIdP :> PostCreated '[JSON] IdP
-type IdpDelete  = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
-
--- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
--- an option, removing the need for the Maybe and the extra checks. Probably once
--- https://github.com/wireapp/wire-server/pull/373 is merged this can be done.
+        $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
 api :: Opts -> ServerT API Spar
-api opts =
-       pure NoContent
-  :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
-  :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
+api opts
+     = apiSSO opts
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
+  :<|> apiIDP
+  :<|> apiScim
+  :<|> apiINTERNAL
+
+apiSSO :: Opts -> ServerT APISSO Spar
+apiSSO opts
+     = pure (toSwagger (Proxy @OutsideWorldAPI))
+  :<|> SAML.meta appName sparSPIssuer sparResponseURI
   :<|> authreqPrecheck
-  :<|> authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
-  :<|> idpGet
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
+  :<|> authresp
+
+apiIDP :: ServerT APIIDP Spar
+apiIDP
+     = idpGet
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
-  :<|> integrationTests
+
+apiINTERNAL :: ServerT APIINTERNAL Spar
+apiINTERNAL
+     = internalStatus
+  :<|> internalDeleteTeam
+
 
 appName :: ST
 appName = "spar"
+
+----------------------------------------------------------------------------
+-- SSO API
 
 authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
 authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid = do
+authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
+        -> Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
+authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
+authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
-  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  pure form
+  cky <- initializeBindCookie zusr authreqttl
+  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
+  pure $ addHeader cky form
+
+-- | If the user is already authenticated, create bind cookie with a given life expectancy and our
+-- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
+-- value that deletes any bind cookies on the client.
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
+initializeBindCookie zusr authreqttl = do
+  DerivedOpts { derivedOptsBindCookiePath, derivedOptsBindCookieDomain }
+    <- asks (derivedOpts . sparCtxOpts)
+  msecret <- if isJust zusr
+             then liftIO $ Just . cs . ES.encode <$> randBytes 32
+             else pure Nothing
+  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw
+        { Cky.setCookieDomain = Just derivedOptsBindCookieDomain }
+  cky <- updSetCkyDom <$> (SAML.toggleCookie derivedOptsBindCookiePath $
+                            (, authreqttl) <$> msecret :: Spar SetBindCookie)
+  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
+  pure cky
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -160,33 +141,48 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-type ZUsr = Maybe UserId
 
-idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
+authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
+authresp ((>>= bindCookieFromHeader) -> cky) = SAML.authresp sparSPIssuer sparResponseURI $
+  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
+
+----------------------------------------------------------------------------
+-- IdP API
+
+idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   authorizeIdP zusr idp
   pure idp
 
-idpGetAll :: ZUsr -> Spar IdPList
+idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- getZUsrOwnedTeam zusr
+  teamid <- Intra.getZUsrOwnedTeam zusr
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList{..}
 
-idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
+idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
-    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo . idpeTeam)
+    wrapMonadClient $ do
+        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            team = idp ^. SAML.idpExtraInfo
+        -- Delete tokens associated with given IdP (we rely on the fact that
+        -- each IdP has exactly one team so we can look up all tokens
+        -- associated with the team and then filter them)
+        tokens <- Data.getScimTokens team
+        for_ tokens $ \ScimTokenInfo{..} ->
+            when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
+        -- Delete IdP config
+        Data.deleteIdPConfig idpid issuer team
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ZUsr -> SAML.NewIdP -> Spar IdP
-idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- getZUsrOwnedTeam zusr
-  validateNewIdP newIdP
-  idp <- initializeIdP newIdP teamid
+idpCreate :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
+idpCreate zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+  teamid <- Intra.getZUsrOwnedTeam zusr
+  idp <- validateNewIdP idpmeta teamid
   SAML.storeIdPConfig idp
   pure idp
 
@@ -200,34 +196,26 @@ withDebugLog msg showval action = do
 
 -- | Called by get, put, delete handlers.
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-             => ZUsr -> IdP -> m ()
+             => Maybe UserId -> IdP -> m ()
 authorizeIdP zusr idp = do
-  teamid <- getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo . idpeTeam) $ throwSpar SparNotInTeam
-
--- | Called by post handler, and by 'authorizeIdP'.
-getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-            => ZUsr -> m TeamId
-getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
-getZUsrOwnedTeam (Just uid) = do
-  usr <- Intra.getUser uid
-  case Brig.userTeam =<< usr of
-    Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
-
-initializeIdP :: SAML.NewIdP -> TeamId -> Spar IdP
-initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
-  _idpId <- SAML.IdPId <$> SAML.createUUID
-  _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
-  let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
-  pure SAML.IdPConfig {..}
+  teamid <- Intra.getZUsrOwnedTeam zusr
+  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 
--- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
+-- | Check that issuer is fresh (see longer comment in source) and request URI is https.
+--
+-- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
+-- update, delete of idps.)
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
-               => SAML.NewIdP -> m ()
-validateNewIdP newidp = do
-  wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
+               => SAML.IdPMetadata -> TeamId -> m IdP
+validateNewIdP _idpMetadata _idpExtraInfo = do
+  _idpId <- SAML.IdPId <$> SAML.createUUID
+
+  let requri = _idpMetadata ^. SAML.edRequestURI
+  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
+    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
+
+  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
     -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
@@ -241,61 +229,17 @@ validateNewIdP newidp = do
     -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
     -- creating users in victim teams.
 
-  let uri2req :: URI.URI -> m Request
-      uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
-              . Rq.parseRequest . cs . SAML.renderURI
+  pure SAML.IdPConfig {..}
 
-      fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
-      fetch uri modify = do
-        req <- uri2req uri
-        ntm (httpLbs req modify)
+----------------------------------------------------------------------------
+-- Internal API
 
-      -- natural transformation into 'm'.  needed for the http client that fetches the metadata url.
-      -- if 'IO' throws an exception, we capture it with 'try' and re-throw it inside 'm', which
-      -- yields much nicer client errors and logs.
-      ntm :: forall a. Http a -> m a
-      ntm (HttpT action) = do
-        mgr :: Manager <- getManager
-        result :: Either SomeException a <- liftIO . try $ runReaderT action mgr
-        either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure result
+internalStatus :: Spar NoContent
+internalStatus = pure NoContent
 
-  metaResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
-  metaBody :: LBS
-    <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
-  when (isLeft $ do
-           creds <- SAML.certToCreds $ newidp ^. SAML.nidpPublicKey
-           SAML.verifyRoot creds metaBody) $ do
-    throwSpar SparNewIdPBadMetaSig
-  meta :: SAML.IdPDesc
-    <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
-         XML.Document _ el _ <- fmapL show $ XML.parseLBS XML.def metaBody
-         SAML.parseIdPDesc el
-  when (newidp ^. SAML.nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
-    throwSpar SparNewIdPPubkeyMismatch
-
-
--- | Type families to convert spar's 'API' type into an "outside-world-view" API type
--- to expose as swagger docs intended to be used by client developers.
--- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
---   * does not expose routes prefixed with /i/
---   * handles authorization (adding a Z-User header if requests are authorized)
---   * does not show the swagger end-point itself
-type OutsideWorldAPI = StripSwagger (StripInternal (StripAuth API))
-
--- | Strip the nginz-set, internal-only Z-User header
-type family StripAuth api where
-    StripAuth (Header "Z-User" a :> b) = b
-    StripAuth (a :<|> b) = (StripAuth a) :<|> (StripAuth b)
-    StripAuth x = x
-
--- | Strip internal endpoints (prefixed with /i/)
-type family StripInternal api where
-    StripInternal ("i" :> b) = EmptyAPI
-    StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
-    StripInternal x = x
-
-type family StripSwagger api where
-    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = StripSwagger b
-    StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
-    StripSwagger x = x
+-- | Cleanup handler that is called by Galley whenever a team is about to
+-- get deleted.
+internalDeleteTeam :: TeamId -> Spar NoContent
+internalDeleteTeam team = do
+  wrapMonadClient $ Data.deleteTeam team
+  pure NoContent

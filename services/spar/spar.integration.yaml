@@ -14,13 +14,13 @@ saml:
       surname: Girlfriend
       email: email:president@evil.corp
 
-spInfo:
-  metaURI:  http://localhost:8088/sso/metadata         # corresponds to 'APIMeta'
-  loginURI: http://localhost:8088/sso/initiate-login/  # corresponds to 'APIAuthReq' (without the idp id)
-
 brig:
   host: 127.0.0.1
   port: 8082
+
+galley:
+  host: 127.0.0.1
+  port: 8085
 
 cassandra:
   endpoint:
@@ -33,5 +33,8 @@ cassandra:
 
 maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time of one TTL test.
 maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
+
+maxScimTokens: 2
+richInfoLimit: 5000  # should be in sync with Brig
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

@@ -1,32 +1,22 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TupleSections       #-}
-
 module API.User.Client (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Lens ((^?), preview)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Function (on)
 import Data.Id hiding (client)
-import Data.List (sort, sortBy, nub)
-import Data.Maybe
 import Gundeck.Types.Notification
-import Gundeck.Types.Push.V2
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Util
+import UnliftIO (mapConcurrently)
 
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
@@ -38,20 +28,22 @@ tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> 
 tests _cl _at _conf p b c g = testGroup "client"
     [ test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
     , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
-    , test p "post /clients - 201"                    $ testAddGetClient b c
+    , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
+    , test p "post /clients - 201 (no pwd)"           $ testAddGetClient False b c
     , test p "post /clients - 403"                    $ testClientReauthentication b
     , test p "get /clients - 200"                     $ testListClients b
     , test p "get /clients/:client/prekeys - 200"     $ testListPrekeyIds b
     , test p "post /clients - 400"                    $ testTooManyClients b
-    , test p "delete /clients/:client - 200"          $ testRemoveClient b c
+    , test p "delete /clients/:client - 200 (pwd)"    $ testRemoveClient True b c
+    , test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c
     , test p "put /clients/:client - 200"             $ testUpdateClient b
     , test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g
     , test p "client/prekeys/race"                    $ testPreKeyRace b
     ]
 
-testAddGetClient :: Brig -> Cannon -> Http ()
-testAddGetClient brig cannon = do
-    uid <- userId <$> randomUser brig
+testAddGetClient :: Bool -> Brig -> Cannon -> Http ()
+testAddGetClient hasPwd brig cannon = do
+    uid <- userId <$> randomUser' hasPwd brig
     let rq = addClientReq brig uid (defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0))
            . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
     c <- WS.bracketR cannon uid $ \ws -> do
@@ -182,24 +174,28 @@ testTooManyClients brig = do
         const 403 === statusCode
         const (Just "too-many-clients") === fmap Error.label . decodeBody
 
-testRemoveClient :: Brig -> Cannon -> Http ()
-testRemoveClient brig cannon = do
-    u <- randomUser brig
+testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
+testRemoveClient hasPwd brig cannon = do
+    u <- randomUser' hasPwd brig
     let uid = userId u
     let Just email = userEmail u
 
     -- Permanent client with attached cookie
-    login brig (defEmailLogin email) PersistentCookie
-        !!! const 200 === statusCode
-    numCookies <- countCookies brig uid defCookieLabel
-    liftIO $ Just 1 @=? numCookies
+    when hasPwd $ do
+        login brig (defEmailLogin email) PersistentCookie
+            !!! const 200 === statusCode
+        numCookies <- countCookies brig uid defCookieLabel
+        liftIO $ Just 1 @=? numCookies
+
     c <- decodeBody =<< addClient brig uid (client PermanentClient (someLastPrekeys !! 10))
-    -- Missing password
-    deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
+
+    when hasPwd $ do
+        -- Missing password
+        deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
 
     -- Success
     WS.bracketR cannon uid $ \ws -> do
-        deleteClient brig uid (clientId c) (Just defPassword)
+        deleteClient brig uid (clientId c) (if hasPwd then Just defPassword else Nothing)
             !!! const 200 === statusCode
         void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
             let j = Object $ List1.head (ntfPayload n)
@@ -242,7 +238,7 @@ testUpdateClient brig = do
         const (Just "featurephone") === (clientModel <=< decodeBody)
 
     let newPrekey = somePrekeys !! 2
-    let update    = UpdateClient [newPrekey] Nothing (Nothing :: Maybe SignalingKeys) (Just "label")
+    let update    = UpdateClient [newPrekey] Nothing (Just "label")
 
     put ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -267,7 +263,7 @@ testUpdateClient brig = do
         const (Just PhoneClient)  === (pubClientClass <=< decodeBody)
         const Nothing             === (preview (key "label") <=< asValue)
 
-    let update' = UpdateClient [] Nothing (Nothing :: Maybe SignalingKeys) Nothing
+    let update' = UpdateClient [] Nothing Nothing
 
     -- empty update should be a no-op
     put ( brig

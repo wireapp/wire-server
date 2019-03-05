@@ -23,25 +23,15 @@ module Network.Wai.Utilities.Server
     , flushRequestBody
     ) where
 
-import Control.Applicative
-import Control.Concurrent (threadDelay)
+import Imports
 import Control.Concurrent.Async
-import Control.Concurrent.MVar
 import Control.Exception (throw, throwIO)
-import Control.Monad (when, unless, void)
-import Control.Monad.Catch hiding (onException)
-import Control.Monad.IO.Class
+import Control.Monad.Catch hiding (onException, onError)
 import Data.Aeson (encode)
 import Data.ByteString.Builder
-import Data.Foldable (for_)
-import Data.Functor.Identity
-import Data.Maybe (fromMaybe, catMaybes)
 import Data.Metrics.Middleware
-import Data.Monoid
 import Data.Streaming.Zlib (ZlibException (..))
-import Data.String (fromString)
 import Data.Text.Encoding.Error (lenientDecode)
-import Data.Word (Word16)
 import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -51,7 +41,6 @@ import Network.Wai.Routing.Route (Routes, Tree, App, Continue)
 import Network.Wai.Utilities.Error (Error (Error))
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
-import Prelude
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
@@ -190,7 +179,7 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 --
 -- Note: For accurate metrics on error responses, this middleware
 -- should be combined with the 'catchErrors' middleware.
-measureRequests :: Monad m => Metrics -> Tree (App m) -> Middleware
+measureRequests :: Metrics -> Paths -> Middleware
 measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
@@ -206,8 +195,9 @@ catchErrors l m app req k =
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
-            logIO l Log.Error (Just req) (show ex)
+            logIO l Log.Error (Just req) (oneline <$> show ex)
         onError l m req k er
+    oneline c = if isSpace c then ' ' else c
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate

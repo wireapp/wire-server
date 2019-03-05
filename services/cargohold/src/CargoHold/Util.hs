@@ -1,7 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-
 module CargoHold.Util where
 
+import Imports
 import CargoHold.App
 import Control.Lens
 import Data.ByteString.Conversion

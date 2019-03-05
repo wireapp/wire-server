@@ -2,12 +2,10 @@
 
 module Main (main) where
 
-import Control.Monad.IO.Class
-import Data.Foldable (for_)
-import Data.Text (Text, pack)
-import System.Environment
+import Imports
+import Data.Text (pack)
 import System.Exit
-import System.IO
+import System.IO (hPutStrLn)
 import System.Metrics.Collectd.Config
 import System.Metrics.Collectd.IO
 

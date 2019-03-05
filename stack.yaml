@@ -1,4 +1,4 @@
-resolver: lts-10.3
+resolver: snapshots/wire-1.1.yaml
 
 packages:
 - libs/api-bot
@@ -8,9 +8,10 @@ packages:
 - libs/cargohold-types
 - libs/cassandra-util
 - libs/extended
+- libs/imports
 - libs/galley-types
 - libs/gundeck-types
-- libs/http-client-openssl-ext
+- libs/ssl-util
 - libs/metrics-collectd
 - libs/metrics-core
 - libs/metrics-wai
@@ -34,69 +35,12 @@ packages:
 - tools/api-simulations
 - tools/db/service-backfill
 - tools/db/auto-whitelist
-- location:
-    git: https://github.com/tiago-loureiro/haskell-multihash.git
-    commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
-  extra-dep: true
-- location:
-    git: https://github.com/wireapp/cryptobox-haskell
-    commit: 7546a1a25635ef65183e3d44c1052285e8401608
-  extra-dep: true
-- location:
-    git: https://github.com/kim/hs-collectd
-    commit: '0.0.0.2'
-  extra-dep: true
-- location:
-    git: https://github.com/kim/snappy-framing
-    commit: d99f702c0086729efd6848dea8a01e5266c3a61c
-  extra-dep: true
-- location:
-    git: https://github.com/tiago-loureiro/aws
-    commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
-  extra-dep: true
-- location:
-    git: https://gitlab.com/twittner/wai-routing
-    commit: 7e996a93fec5901767f845a50316b3c18e51a61d
-  extra-dep: true
-- location:
-    # the version on Haskage (0.9.0.2) deadlocks;
-    # see https://github.com/jwiegley/async-pool/issues/2
-    git: https://github.com/jwiegley/async-pool
-    commit: 5678c13c4ec7d96a55622f7171f8e6a6bb3a3947
-  extra-dep: true
-
-# services/spar:
-- location:
-    git: https://github.com/wireapp/saml2-web-sso
-    commit: 33b87d9bb119f1b9394e01df6d61a5ca623fe901
-  extra-dep: true
-- location:
-    git: https://github.com/wireapp/hsaml2
-    commit: 4e2167cbf158e90097993a6277b50915ce2eff60
-  extra-dep: true
-- location:
-    git: https://github.com/wireapp/hspec-wai
-    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
-  extra-dep: true
 
 extra-deps:
-- base-prelude-1.3
-- base58-bytestring-0.1.0
-- currency-codes-2.0.0.0
-- data-timeout-0.3
-- geoip2-0.3.1.0
-- html-entities-1.1.4.1
-- mime-0.4.0.2
-- snappy-0.2.0.2
-- tasty-1.0.0.1
-- text-icu-translit-0.1.0.7
-- wai-middleware-gunzip-0.0.2
-- HsOpenSSL-0.11.4.12
-- invertible-hxt-0.1  # for hsaml2 / spar
-- swagger2-2.2.1  # to get 'fromAesonOptions'
-- stomp-queue-0.3.1  # for Brig.Queue.Stomp
-- stompl-0.5.0
-- servant-multipart-0.11.2
+- git: https://github.com/wireapp/saml2-web-sso
+  commit: c03d17d656ac467350c983d5f844c199e5daceea    # master (Feb 21, 2019)
+- git: https://github.com/wireapp/hscim
+  commit: 42f6018812bf0f04741231b67b1f5e790ce0d489    # master (Feb 25, 2019)
 
 flags:
   types-common:
@@ -104,4 +48,7 @@ flags:
     protobuf: True
     arbitrary: True
 
-extra-package-dbs: []
+  galley-types:
+    cql: True
+
+allow-newer: False

@@ -1,17 +1,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Brig.Provider.DB.Instances () where
 
+import Imports
 import Brig.Provider.DB.Tag
 import Brig.Types.Provider
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Data.Id()
-import Data.Int
 import Data.Misc()
 import Data.Range()
 import Data.Text.Ascii()
@@ -53,6 +51,7 @@ instance Cql ServiceKey where
             0 -> return $! ServiceKey RsaServiceKey s p
             _ -> fail $ "Unexpected service key type: " ++ show t
       where
+        required :: Cql r => Text -> Either String r
         required f = maybe (fail ("ServiceKey: Missing required field '" ++ show f ++ "'"))
                            fromCql
                            (lookup f fs)
@@ -63,4 +62,3 @@ instance Cql ServiceKey where
         , ("size", toCql siz)
         , ("pem",  toCql pem)
         ]
-

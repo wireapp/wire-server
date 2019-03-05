@@ -1,26 +1,16 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Gundeck.Push.Native
     ( push
     , deleteTokens
     , module Types
     ) where
 
-import Control.Concurrent.Async.Lifted.Safe
-import Control.Exception (SomeAsyncException)
-import Control.Exception.Enclosed (handleAny)
-import Control.Lens ((^.), view, (&), (.~))
-import Control.Monad
+import Imports
+import Control.Lens ((^.), view, (.~))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion.To
-import Data.Foldable (for_)
 import Data.Id
 import Data.List1
-import Data.Maybe (isJust)
 import Data.Metrics (path, counterIncr)
-import Data.Text (Text)
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Options
@@ -30,6 +20,7 @@ import Gundeck.Types
 import Gundeck.Util
 import Network.AWS.Data (toText)
 import System.Logger.Class (MonadLogger, (~~), msg, val, field)
+import UnliftIO (mapConcurrently, handleAny)
 
 import qualified Data.Set                  as Set
 import qualified Data.Text                 as Text
@@ -39,16 +30,15 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: Message s -> [Address s] -> Gundeck [Result s]
+push :: NativePush -> [Address] -> Gundeck [Result]
 push _    [] = return []
 push m   [a] = pure <$> push1 m a
 push m addrs = mapConcurrently (push1 m) addrs
 
-push1 :: Message s -> Address s -> Gundeck (Result s)
+push1 :: NativePush -> Address -> Gundeck Result
 push1 m a = do
     e <- view awsEnv
-    d <- view (options.optFallback.fbQueueDelay)
-    r <- Aws.execute e $ publish m a (ttl d)
+    r <- Aws.execute e $ publish m a
     case r of
         Success _                    -> do
             Log.debug $ field "user" (toByteString (a^.addrUser))
@@ -58,24 +48,11 @@ push1 m a = do
         Failure EndpointDisabled   _ -> onDisabled
         Failure PayloadTooLarge    _ -> onPayloadTooLarge
         Failure EndpointInvalid    _ -> onInvalidEndpoint
-        Failure MissingKeys        _ -> onMissingKeys
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
     return r
   where
-    -- * Transient notifications must be delivered "now or never".
-    -- * Those with a fallback, should use the "time in the queue - 15 seconds"
-    --   to try and avoid sending both
-    -- * Others use the default level of the specific platforms, which is 4 weeks
-    --   for both APNS* and GCM
-    ttl d
-        | msgTransient m = Just (Aws.Seconds 0)
-        | hasFallback    = Just (Aws.Seconds (fromIntegral (d - 15)))
-        | otherwise      = Nothing
-
-    hasFallback = isJust (a^.addrFallback)
-
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do
             Log.info $ field "user"  (toByteString (a^.addrUser))
@@ -90,7 +67,7 @@ push1 m a = do
 
     onPayloadTooLarge = do
         view monitor >>= counterIncr (path "push.native.too_large")
-        Log.debug $ field "user" (toByteString (a^.addrUser))
+        Log.warn $ field "user" (toByteString (a^.addrUser))
                  ~~ field "arn" (toText (a^.addrEndpoint))
                  ~~ msg (val "Payload too large")
 
@@ -104,27 +81,21 @@ push1 m a = do
             Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
             onTokenRemoved
 
-    onMissingKeys =
-        Log.warn $ field "user" (toByteString (a^.addrUser))
-                ~~ field "arn" (toText (a^.addrEndpoint))
-                ~~ msg (val "Missing signaling keys")
-
     onTokenRemoved = do
         i <- mkNotificationId
         let c = a^.addrClient
         let r = singleton (target (a^.addrUser) & targetClients .~ [c])
-        let t = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) c
+        let t = a^.addrPushToken
         let p = singletonPayload (PushRemove t)
         Stream.add i r p =<< view (options.optSettings.setNotificationTTL)
 
-publish :: Message s -> Address s -> Maybe Aws.Seconds -> Aws.Amazon (Result s)
-publish m a t = flip catches pushException $ do
+publish :: NativePush -> Address -> Aws.Amazon Result
+publish m a = flip catches pushException $ do
     let ept = a^.addrEndpoint
-    let ttl = maybe mempty (Aws.timeToLive (a^.addrTransport)) t
     txt <- liftIO $ serialise m a
     case txt of
         Left  f -> return $! Failure f a
-        Right v -> toResult <$> Aws.publish ept v ttl
+        Right v -> toResult <$> Aws.publish ept v mempty
   where
     toResult (Left  (Aws.EndpointDisabled _)) = Failure EndpointDisabled a
     toResult (Left  (Aws.PayloadTooLarge  _)) = Failure PayloadTooLarge  a
@@ -141,7 +112,7 @@ publish m a t = flip catches pushException $ do
 -- a newly created address in the second argument. If such a new address
 -- is given, shared owners of the deleted tokens have their addresses
 -- migrated to the token and endpoint of the new address.
-deleteTokens :: [Address a] -> Maybe (Address a) -> Gundeck ()
+deleteTokens :: [Address] -> Maybe Address -> Gundeck ()
 deleteTokens tokens new = do
     aws <- view awsEnv
     forM_ tokens $ \a -> do
@@ -183,10 +154,10 @@ deleteTokens tokens new = do
         forM_ xs $ \x ->
             when (x^.addrEndpoint == oldArn) $ do
                 Data.insert u (a^.addrTransport) (a^.addrApp) newTok newArn
-                              (a^.addrConn) (a^.addrClient) (a^.addrFallback)
+                              (a^.addrConn) (a^.addrClient)
                 Data.delete u (a^.addrTransport) (a^.addrApp) oldTok
 
-logError :: (Exception e, MonadLogger m) => Address s -> Text -> e -> m ()
+logError :: (Exception e, MonadLogger m) => Address -> Text -> e -> m ()
 logError a m exn = Log.err $
        field "user" (toByteString (a^.addrUser))
     ~~ field "arn" (toText (a^.addrEndpoint))

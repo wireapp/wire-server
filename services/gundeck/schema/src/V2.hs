@@ -1,7 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module V2 (migration) where
 
+import Imports
 import Cassandra.Schema
 
 migration :: Migration

@@ -1,13 +1,10 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.API.Clients
     ( getClients
     , addClient
     , rmClient
     ) where
 
+import Imports
 import Control.Lens (view)
 import Data.Id
 import Galley.App

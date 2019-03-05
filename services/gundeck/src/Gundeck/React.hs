@@ -1,18 +1,12 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Curate native push tokens based on provider feedback reported
 -- via SNS events.
 module Gundeck.React (onEvent) where
 
-import Control.Lens ((^.), view, (.~), (&))
-import Control.Monad
+import Imports
+import Control.Lens ((^.), view, (.~))
 import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId)
 import Data.List1
-import Data.Foldable (for_)
-import Data.Text (Text)
 import Gundeck.Aws (SNSEndpoint, endpointEnabled, endpointToken, endpointUsers)
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
@@ -106,7 +100,7 @@ onUnhandledEventType ev = Log.warn $
 
 withEndpoint
     :: Event
-    -> (SNSEndpoint -> [Address "no-keys"] -> Gundeck ())
+    -> (SNSEndpoint -> [Address] -> Gundeck ())
     -> Gundeck ()
 withEndpoint ev f = do
     v <- view awsEnv
@@ -114,7 +108,7 @@ withEndpoint ev f = do
     for_ e $ \ep -> do
         let us = Set.toList (ep^.endpointUsers)
         as <- concat <$> mapM (`Push.lookup` Push.Quorum) us
-        case List.filter ((== (ev^.evEndpoint)) . view addrEndpoint) as of
+        case filter ((== (ev^.evEndpoint)) . view addrEndpoint) as of
             []  -> do
                 logEvent ev $ "token" .= Text.take 16 (tokenText (ep^.endpointToken))
                            ~~ msg (val "Deleting orphaned SNS endpoint")

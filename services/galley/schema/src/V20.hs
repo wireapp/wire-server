@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-
 module V20 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -69,4 +67,3 @@ migration = Migration 20 "Initial schema" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-

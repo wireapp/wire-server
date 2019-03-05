@@ -1,23 +1,15 @@
-{-# LANGUAGE MultiWayIf           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-
 module Cannon.App (wsapp, terminate, maxPingInterval) where
 
+import Imports hiding (threadDelay)
 import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
-import Control.Exception (IOException)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson hiding (Error, (.=))
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (ByteString, toStrict)
+import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId)
-import Data.IORef
 import Data.Timeout
-import Data.Word
 import Lens.Family hiding (set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -119,11 +111,25 @@ readLoop ws s = loop
                 send (connection ws) (pong p)
                 loop
             ControlMessage (Close _ _) -> return ()
-            _                          -> reset counter s 0 >> loop
+            perhapsPingMsg -> do
+                reset counter s 0
+                when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
+                loop
 
     adjustPingFreq p = case fromByteString (toStrict p) of
         Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
         _                                     -> return ()
+
+    -- control messages are internal to the browser that manages the websockets
+    -- <https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers#Pings_and_Pongs_The_Heartbeat_of_WebSockets>.
+    -- since the browser may silently lose a websocket connection, wire clients are allowed send
+    -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
+    -- reliably decide whether the connection is still alive.
+    isAppLevelPing = \case
+        (DataMessage _ _ _ (Text "ping" _)) -> True
+        (DataMessage _ _ _ (Binary "ping")) -> True
+        _                                   -> False
+    sendAppLevelPong = sendMsgIO "pong" ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do
@@ -144,7 +150,7 @@ ioErrors l k = let f s = Logger.err l $ client (key2bytes k) . msg s in
 ping :: Message
 ping = ControlMessage (Ping "ping")
 
-pong :: ByteString -> Message
+pong :: LByteString -> Message
 pong = ControlMessage . Pong
 
 set :: ASetter' a b -> IORef a -> (b -> b) -> IO ()

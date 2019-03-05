@@ -4,15 +4,9 @@
 
 module Network.Wire.Simulations.LoadTest where
 
-import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe.Extended as Async
-import Control.Monad
-import Control.Monad.IO.Class
+import Imports hiding (log)
+import UnliftIO.Async
 import Data.Id (ConvId)
-import Data.String
-import Data.Monoid
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -21,7 +15,6 @@ import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.User
 import Network.Wire.Simulations
 import System.Logger.Class
-import Prelude hiding (log)
 
 import qualified Codec.MIME.Type          as MIME
 import qualified Control.Monad.Catch      as Ex
@@ -64,12 +57,12 @@ runLoadTest s = replicateM (conversationsTotal s) mkConv
 
 runConv :: LoadTestSettings -> ([BotNet Bot], [BotNet Bot]) -> BotNet ()
 runConv s g = do
-    active  <- Async.sequencePooled (parallelRequests s) (fst g)
-    passive <- Async.sequencePooled (parallelRequests s) (snd g)
+    active  <- pooledMapConcurrentlyN (parallelRequests s) id (fst g)
+    passive <- pooledMapConcurrentlyN (parallelRequests s) id (snd g)
     let bots = active ++ passive
     -- Clear existing clients ----------
     log Info $ msg $ val "Clearing existing clients"
-    void $ forPooled (parallelRequests s) bots $ \b ->
+    pooledForConcurrentlyN_ (parallelRequests s) bots $ \b ->
         resetBotClients b
     -- Create conv ---------------------
     log Info $ msg $ val "Creating conversation"
@@ -78,7 +71,7 @@ runConv s g = do
     -- Prepare -------------------------
     log Info $ msg $ val "Preparing"
     let botsMarked = map (True,) active ++ map (False,) passive
-    states <- forPooled (parallelRequests s) botsMarked $ \(isActive, b) -> do
+    states <- pooledForConcurrentlyN (parallelRequests s) botsMarked $ \(isActive, b) -> do
         nmsg <- if isActive then between (messagesMin s) (messagesMax s) else pure 0
         nast <- if isActive then between (assetsMin s) (assetsMax s) else pure 0
         nClients <- between (clientsMin s) (clientsMax s)
@@ -93,7 +86,7 @@ runConv s g = do
             return $! BotState mainClient otherClients conv bots nmsg nast
     -- Run -----------------------------
     log Info $ msg $ val "Running"
-    void $ forPooled (parallelRequests s) (zip bots states) $ \(b, st) ->
+    pooledForConcurrentlyN_ (parallelRequests s) (zip bots states) $ \(b, st) ->
         runBotSession b $ do
             log Info $ msg $ val "Initializing sessions"
             let allClients = botClient st : botOtherClients st
@@ -108,7 +101,7 @@ runConv s g = do
             runBot s st `Ex.onException` removeClients (b, st)
     -- Drain ---------------------------
     log Info $ msg $ val "Draining"
-    void $ forPooled (parallelRequests s) (zip bots states) $ \(b, st) -> do
+    pooledForConcurrentlyN_ (parallelRequests s) (zip bots states) $ \(b, st) -> do
         removeClients (b, st)
         drainBot b
 
@@ -250,4 +243,3 @@ postAssetTime = Metrics.path "post-asset.time"
 
 between :: MonadBotNet m => Int -> Int -> m Int
 between x y = getGen >>= liftIO . MWC.uniformR (max 0 x, max x y)
-

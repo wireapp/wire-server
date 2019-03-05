@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.Team.Email
@@ -10,36 +9,42 @@ module Brig.Team.Email
     , sendMemberWelcomeMail
     ) where
 
+import Imports
 import Brig.App
 import Brig.Email
 import Brig.Team.Template
+import Brig.Template
 import Brig.Types
+import Control.Lens (view)
 import Data.Id (idToText, TeamId)
-import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
 import qualified Brig.Email      as Email
 import qualified Data.Text.Ascii as Ascii
+
 -------------------------------------------------------------------------------
 -- Invitation Email
 
 sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> AppIO ()
 sendInvitationMail to tid from code loc = do
     tpl <- invitationEmail . snd <$> teamTemplates loc
+    branding <- view templateBranding
     let mail = InvitationEmail to tid code from
-    Email.sendMail $ renderInvitationEmail mail tpl
+    Email.sendMail $ renderInvitationEmail mail tpl branding
 
 sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendCreatorWelcomeMail to tid teamName loc = do
     tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
+    branding <- view templateBranding
     let mail = CreatorWelcomeEmail to tid teamName
-    Email.sendMail $ renderCreatorWelcomeMail mail tpl
+    Email.sendMail $ renderCreatorWelcomeMail mail tpl branding
 
 sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendMemberWelcomeMail to tid teamName loc = do
     tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
+    branding <- view templateBranding
     let mail = MemberWelcomeEmail to tid teamName
-    Email.sendMail $ renderMemberWelcomeMail mail tpl
+    Email.sendMail $ renderMemberWelcomeMail mail tpl branding
 
 -------------------------------------------------------------------------------
 -- Invitation Email
@@ -51,8 +56,8 @@ data InvitationEmail = InvitationEmail
     , invInviter :: !Email
     }
 
-renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> Mail
-renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
+renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> Mail
+renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -66,17 +71,17 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
 
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
     to   = Address Nothing (fromEmail invTo)
-    txt  = renderText invitationEmailBodyText replace
-    html = renderHtml invitationEmailBodyHtml replace
-    subj = renderText invitationEmailSubject  replace
+    txt  = renderTextWithBranding invitationEmailBodyText replace branding
+    html = renderHtmlWithBranding invitationEmailBodyHtml replace branding
+    subj = renderTextWithBranding invitationEmailSubject  replace branding
 
-    replace "url"      = renderInvitationUrl invitationEmailUrl invTeamId invInvCode
+    replace "url"      = renderInvitationUrl invitationEmailUrl invTeamId invInvCode branding
     replace "inviter"  = fromEmail invInviter
     replace x          = x
 
-renderInvitationUrl :: Template -> TeamId -> InvitationCode -> Text
-renderInvitationUrl t tid (InvitationCode c) =
-    toStrict $ renderText t replace
+renderInvitationUrl :: Template -> TeamId -> InvitationCode -> TemplateBranding -> Text
+renderInvitationUrl t tid (InvitationCode c) branding =
+    toStrict $ renderTextWithBranding t replace branding
   where
     replace "team" = idToText tid
     replace "code" = Ascii.toText c
@@ -91,8 +96,8 @@ data CreatorWelcomeEmail = CreatorWelcomeEmail
     , cwTeamName :: !Text
     }
 
-renderCreatorWelcomeMail :: CreatorWelcomeEmail -> CreatorWelcomeEmailTemplate -> Mail
-renderCreatorWelcomeMail CreatorWelcomeEmail{..} CreatorWelcomeEmailTemplate{..} =
+renderCreatorWelcomeMail :: CreatorWelcomeEmail -> CreatorWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderCreatorWelcomeMail CreatorWelcomeEmail{..} CreatorWelcomeEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -103,9 +108,9 @@ renderCreatorWelcomeMail CreatorWelcomeEmail{..} CreatorWelcomeEmailTemplate{..}
   where
     from = Address (Just creatorWelcomeEmailSenderName) (fromEmail creatorWelcomeEmailSender)
     to   = Address Nothing (fromEmail cwTo)
-    txt  = renderText creatorWelcomeEmailBodyText replace
-    html = renderHtml creatorWelcomeEmailBodyHtml replace
-    subj = renderText creatorWelcomeEmailSubject replace
+    txt  = renderTextWithBranding creatorWelcomeEmailBodyText replace branding
+    html = renderHtmlWithBranding creatorWelcomeEmailBodyHtml replace branding
+    subj = renderTextWithBranding creatorWelcomeEmailSubject  replace branding
 
     replace "url"       = creatorWelcomeEmailUrl
     replace "email"     = fromEmail cwTo
@@ -122,8 +127,8 @@ data MemberWelcomeEmail = MemberWelcomeEmail
     , mwTeamName :: !Text
     }
 
-renderMemberWelcomeMail :: MemberWelcomeEmail -> MemberWelcomeEmailTemplate -> Mail
-renderMemberWelcomeMail MemberWelcomeEmail{..} MemberWelcomeEmailTemplate{..} =
+renderMemberWelcomeMail :: MemberWelcomeEmail -> MemberWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderMemberWelcomeMail MemberWelcomeEmail{..} MemberWelcomeEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -134,9 +139,9 @@ renderMemberWelcomeMail MemberWelcomeEmail{..} MemberWelcomeEmailTemplate{..} =
   where
     from = Address (Just memberWelcomeEmailSenderName) (fromEmail memberWelcomeEmailSender)
     to   = Address Nothing (fromEmail mwTo)
-    txt  = renderText memberWelcomeEmailBodyText replace
-    html = renderHtml memberWelcomeEmailBodyHtml replace
-    subj = renderText memberWelcomeEmailSubject replace
+    txt  = renderTextWithBranding memberWelcomeEmailBodyText replace branding
+    html = renderHtmlWithBranding memberWelcomeEmailBodyHtml replace branding
+    subj = renderTextWithBranding memberWelcomeEmailSubject  replace branding
 
     replace "url"       = memberWelcomeEmailUrl
     replace "email"     = fromEmail mwTo

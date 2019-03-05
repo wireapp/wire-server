@@ -6,13 +6,12 @@
 -- TODO: Move to Brig.Types.User.Intra / Internal
 module Brig.Types.Intra where
 
+import Imports
 import Brig.Types.Connection
 import Brig.Types.User
-import Control.Monad (mzero)
 import Data.Aeson
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
-import Data.Set (Set)
 
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text           as Text
@@ -121,11 +120,12 @@ instance ToJSON UserSet where
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
 newtype ReAuthUser = ReAuthUser
-    { reAuthPassword :: PlainTextPassword }
+    { reAuthPassword :: Maybe PlainTextPassword }
+  deriving (Eq, Show)
 
 instance FromJSON ReAuthUser where
     parseJSON = withObject "reauth-user" $ \o ->
-        ReAuthUser <$> o .: "password"
+        ReAuthUser <$> o .:? "password"
 
 instance ToJSON ReAuthUser where
     toJSON ru = object

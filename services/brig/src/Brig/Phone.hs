@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.Phone
     ( SMSMessage (..)
@@ -22,22 +20,17 @@ module Brig.Phone
     , Phone (..)
     ) where
 
+import Imports
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
 import Brig.Types
 import Control.Lens (view)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.Char (isSpace)
-import Data.Foldable (for_)
 import Data.LanguageCodes
-import Data.Monoid
-import Data.Text (Text, isPrefixOf)
 import Data.Time.Clock
-import Data.Typeable (Typeable)
 import Network.HTTP.Client (HttpException, Manager)
 import Ropes.Twilio (LookupDetail (..))
 import System.Logger.Message (val, msg, field, (~~))
@@ -70,7 +63,7 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
     m    <- view httpManager
     cred <- view nexmoCreds
     withCallBudget (Nexmo.callTo call) $ do
-        r <- liftIO . try . recovering x3 nexmoHandlers $ const $
+        r <- liftIO . try @_ @Nexmo.CallErrorResponse . recovering x3 nexmoHandlers $ const $
                 Nexmo.sendCall cred m call
         case r of
             Left ex -> case Nexmo.caStatus ex of
@@ -89,8 +82,10 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
                 _                   -> False
         ]
 
-    unreachable ex = warn ex >> throwM PhoneNumberUnreachable
-    barred      ex = warn ex >> throwM PhoneNumberBarred
+    unreachable :: Nexmo.CallErrorResponse -> AppT IO ()
+    unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
+    barred :: Nexmo.CallErrorResponse -> AppT IO ()
+    barred ex = warn (toException ex) >> throwM PhoneNumberBarred
 
     warn ex = Log.warn
          $ msg (val "Voice call failed.")
@@ -105,7 +100,7 @@ sendSms loc SMSMessage{..} = unless (isTestPhone smsTo) $ do
         f <- (sendNexmoSms m *> pure Nothing) `catches` nexmoFailed
         for_ f $ \ex -> do
             warn ex
-            r <- try $ sendTwilioSms m
+            r  <- try @_ @Twilio.ErrorResponse $ sendTwilioSms m
             case r of
                 Left ex' -> case Twilio.errStatus ex' of
                     -- Invalid "To" number for SMS
@@ -169,8 +164,10 @@ sendSms loc SMSMessage{..} = unless (isTestPhone smsTo) $ do
                 _     -> False
         ]
 
-    unreachable ex = warn ex >> throwM PhoneNumberUnreachable
-    barred      ex = warn ex >> throwM PhoneNumberBarred
+    unreachable :: Twilio.ErrorResponse -> AppT IO ()
+    unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
+    barred :: Twilio.ErrorResponse -> AppT IO ()
+    barred ex = warn (toException ex) >> throwM PhoneNumberBarred
 
     warn ex = Log.warn
             $ msg (val "SMS failed.")
@@ -188,7 +185,7 @@ validatePhone (Phone p)
     | otherwise     = do
         c <- view twilioCreds
         m <- view httpManager
-        r <- liftIO . try $ recovering x3 httpHandlers $ const $
+        r <- liftIO . try @_ @Twilio.ErrorResponse $ recovering x3 httpHandlers $ const $
                 Twilio.lookupPhone c m p LookupNoDetail Nothing
         case r of
             Right x -> return (Just (Phone (Twilio.lookupE164 x)))
@@ -196,7 +193,7 @@ validatePhone (Phone p)
             Left  e -> throwM e
 
 isTestPhone :: Text -> Bool
-isTestPhone = isPrefixOf "+0"
+isTestPhone = Text.isPrefixOf "+0"
 
 --------------------------------------------------------------------------------
 -- SMS Budgeting

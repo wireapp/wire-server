@@ -12,6 +12,8 @@ DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-journaler
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -34,15 +36,15 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_JOURNALER) .metadata
@@ -81,14 +83,18 @@ $(DEB_JOURNALER):
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+
+.PHONY: i-aws
+i-aws:
+	INTEGRATION_USE_REAL_AWS=1 ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i
@@ -97,7 +103,7 @@ integration: fast i
 integration-list: fast i-list
 
 integration-%: fast
-	make i-"$*"
+	make "i-$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
@@ -106,21 +112,22 @@ integration-%: fast
 db: db-reset
 
 .PHONY: db-reset
-db-reset: install
+db-reset: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate: install
+db-migrate: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 
 .PHONY: docker
 docker:
 	$(foreach executable,$(EXECUTABLES),\
-	docker build -t $(executable) \
-	-f ../../build/alpine/Dockerfile \
-	--build-arg service=$(NAME) \
+	docker build -t $(DOCKER_USER)/$(executable):$(DOCKER_TAG) \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
-	../.. \
+	../.. && \
+	docker tag $(DOCKER_USER)/$(executable):$(DOCKER_TAG) $(DOCKER_USER)/$(executable):latest && \
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/$(executable):$(DOCKER_TAG); docker push $(DOCKER_USER)/$(executable):latest; fi \
 	;)
 
 .PHONY: time

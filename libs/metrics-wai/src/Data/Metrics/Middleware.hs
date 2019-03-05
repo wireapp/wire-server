@@ -1,20 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | FUTUREWORK: use package wai-middleware-prometheus instead and deprecate collectd?
 module Data.Metrics.Middleware
     ( PathTemplate
+    , Paths
     , withPathTemplate
     , duration
     , requestCounter
     , module Data.Metrics
     ) where
 
-import Data.List (intersperse)
-import Data.Maybe (fromMaybe)
+import Imports
 import Data.Metrics
-import Data.Text (Text)
+import Data.Metrics.Types
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Route.Tree (Tree)
 import Network.Wai.Internal (Response (ResponseRaw))
 import System.Clock
 
@@ -22,15 +22,14 @@ import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
 import qualified Network.Wai.Route.Tree as Tree
 
-newtype PathTemplate = PathTemplate Text
 
-withPathTemplate :: Tree a -> (PathTemplate -> Middleware) -> Middleware
+withPathTemplate :: Paths -> (PathTemplate -> Middleware) -> Middleware
 withPathTemplate t f app r k = f (fromMaybe def tmp) app r k
   where
     def = PathTemplate "N/A"
     tmp = PathTemplate
         . T.decodeUtf8
-        . Tree.path <$> Tree.lookup t (Tree.segments $ rawPathInfo r)
+      <$> treeLookup t (Tree.segments $ rawPathInfo r)
 
 duration :: Int -> Int -> Metrics -> PathTemplate -> Middleware
 duration start len m  (PathTemplate t) f rq k = do

@@ -14,11 +14,9 @@ module Data.ZAuth.Validation
     , check
     ) where
 
+import Imports
 import Control.Lens
-import Control.Monad
 import Control.Monad.Except
-import Control.Monad.Trans.Reader
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
 import Data.Vector (Vector, (!))

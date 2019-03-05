@@ -35,9 +35,9 @@ internalEvents:
 
 emailSMS:
   email:
-    smtpEndpoint: 127.0.0.1
-    smtpUsername: dummy
-    smtpPassword: resources/smtp-secret.txt
+    smtpEndpoint:
+      host: 127.0.0.1
+      port: 2500
     smtpConnType: plain
   general:
     templateDir: resources/templates
@@ -95,6 +95,10 @@ optSettings:
   setUserCookieThrottle:
     stdDev: 3000      # 50 minutes
     retryAfter: 86400 # 1 day
+  setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
+
+logLevel: Debug
+logNetStrings: false

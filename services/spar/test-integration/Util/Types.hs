@@ -1,33 +1,17 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module Util.Types
   ( BrigReq
   , GalleyReq
   , SparReq
+  , TestSpar
   , TestEnv(..)
   , teMgr
   , teCql
   , teBrig
   , teGalley
   , teSpar
-  , teNewIdP
-  , teIdPEndpoint
-  , teUserId
-  , teTeamId
-  , teIdP
-  , teIdPChan
-  , teIdPHandle
+  , teSparEnv
   , teOpts
   , teTstOpts
   , Select
@@ -36,49 +20,39 @@ module Util.Types
   , TestErrorLabel(..)
   ) where
 
+import Imports
 import Bilge
 import Cassandra as Cas
-import Control.Concurrent.STM.TChan
 import Control.Exception
-import Control.Monad
+import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id
-import Data.String
 import Data.String.Conversions
-import GHC.Generics (Generic)
-import Lens.Micro.TH
-import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.Options as Options
 import Spar.Types
-import Text.XML
 import Util.Options
 
-import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
+import qualified Spar.App as Spar
 
 
 type BrigReq   = Request -> Request
 type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
 
+type TestSpar = ReaderT TestEnv IO
+
+-- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr         :: Manager
   , _teCql         :: Cas.ClientState
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
-  , _teNewIdP      :: SAML.NewIdP
-  , _teIdPEndpoint :: Endpoint
-  , _teUserId      :: UserId
-  , _teTeamId      :: TeamId
-  , _teIdP         :: IdP
-  , _teIdPChan     :: TChan [Node]
-  , _teIdPHandle   :: Async.Async ()
-  , _teOpts        :: Opts
-  , _teTstOpts     :: IntegrationConfig
+  , _teSparEnv     :: Spar.Env
+  , _teOpts        :: Opts               -- ^ spar config
+  , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -89,8 +63,6 @@ data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
-  , cfgNewIdp  :: SAML.NewIdP
-  , cfgMockIdp :: Endpoint
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig

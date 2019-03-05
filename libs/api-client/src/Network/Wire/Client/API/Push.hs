@@ -23,23 +23,18 @@ module Network.Wire.Client.API.Push
     , showEventType
     ) where
 
+import Imports hiding (fromString)
 import Bilge
 import Brig.Types
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
-import Control.Concurrent.MVar
 import Control.Exception (bracket, finally, onException)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Parser)
-import Data.ByteString (ByteString)
 import Data.Default.Class
 import Data.Id
 import Data.List.NonEmpty
-import Data.Maybe (fromMaybe)
 import Data.Time.Clock
-import Data.Text (Text)
 import Data.UUID (UUID, fromString)
 import Galley.Types hiding (Event, EventType)
 import Network.Connection

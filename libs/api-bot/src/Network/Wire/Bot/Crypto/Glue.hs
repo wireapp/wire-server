@@ -5,22 +5,18 @@ module Network.Wire.Bot.Crypto.Glue
     , deleteBox
     , genPrekeys
     , genLastKey
-    , genSigKeys
     , randomBytes
     , unwrap
     ) where
 
+import Imports
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.IO.Class
-import Data.ByteString (ByteString)
 import Data.ByteString.Base64
 import Data.Id
-import Data.Text
 import Data.Text.Encoding (decodeUtf8)
-import Data.Word
 import System.CryptoBox (Box)
-import System.Directory
 import System.FilePath
+import System.IO.Error (userError)
 
 import qualified Data.Text as Text
 import qualified System.CryptoBox as CBox
@@ -49,12 +45,6 @@ genPrekey :: Box -> Word16 -> IO C.Prekey
 genPrekey box i = C.Prekey (C.PrekeyId i) . decodeUtf8 . encode <$>
     (CBox.copyBytes . CBox.prekey =<< unwrap =<< CBox.newPrekey box i)
 
-genSigKeys :: Box -> IO C.SignalingKeys
-genSigKeys box = do
-    let action = randomBytes box 32
-    C.SignalingKeys <$> (C.EncKey <$> action)
-                    <*> (C.MacKey <$> action)
-
 randomBytes :: MonadIO m => Box -> Word32 -> m ByteString
 randomBytes b n = liftIO $ CBox.randomBytes b n >>= unwrap >>= CBox.copyBytes
 
@@ -68,4 +58,3 @@ getBoxDir uid label = do
     let usrDir = show (toUUID uid)
     let cltDir = maybe "" Text.unpack label
     return $ tmp </> "wire-bot" </> usrDir </> cltDir
-

@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.API.Teams
     ( createBindingTeam
     , createNonBindingTeam
@@ -30,24 +26,16 @@ module Galley.API.Teams
     , withBindingTeam
     ) where
 
+import Imports
 import Cassandra (result, hasMore)
-import Control.Concurrent.Async (mapConcurrently)
-import Control.Concurrent.Lifted (fork)
 import Control.Lens hiding (from, to)
-import Control.Monad (unless, when, void)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion hiding (fromList)
-import Data.Foldable (for_, foldrM)
-import Data.Int
 import Data.Id
 import Data.List1 (list1)
-import Data.List (partition)
-import Data.Maybe (catMaybes, isJust)
 import Data.Range
 import Data.Time.Clock (getCurrentTime, UTCTime (..))
-import Data.Traversable (mapM)
-import Data.Set (fromList, toList)
+import Data.Set (fromList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
@@ -62,7 +50,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
-import Prelude hiding (head, mapM)
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
@@ -71,6 +59,7 @@ import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
+import qualified Galley.Intra.Spar as Spar
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -105,7 +94,7 @@ lookupTeam zusr tid = do
 createNonBindingTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     NonBindingNewTeam body <- fromBody req invalidPayload
-    let owner  = newTeamMember zusr fullPermissions
+    let owner  = newTeamMember zusr fullPermissions Nothing
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
                $ body^.newTeamMembers
@@ -118,7 +107,7 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
 createBindingTeam :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
-    let owner  = newTeamMember zusr fullPermissions
+    let owner  = newTeamMember zusr fullPermissions Nothing
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
     finishCreateTeam team owner [] Nothing
 
@@ -183,6 +172,7 @@ uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
 uncheckedDeleteTeam zusr zcon tid = do
     team <- Data.team tid
     when (isJust team) $ do
+        Spar.deleteTeam tid
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
@@ -190,7 +180,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
-        void . fork $ void $ External.deliver be
+        void . forkIO $ void $ External.deliver be
         -- TODO: we don't delete bots here, but we should do that, since
         -- every bot user can only be in a single conversation. Just
         -- deleting conversations from the database is not enough.
@@ -215,8 +205,8 @@ getTeamMembers (zusr::: tid ::: _) = do
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
         Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            pure (json $ teamMemberListJson withPerm (newTeamMemberList mems))
+            let withPerms = (m `canSeePermsOf`)
+            pure (json $ teamMemberListJson withPerms (newTeamMemberList mems))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
@@ -224,19 +214,20 @@ getTeamMember (zusr ::: tid ::: uid ::: _) = do
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
         Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            let member   = findTeamMember uid mems
-            maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson withPerm) member
+            let withPerms = (m `canSeePermsOf`)
+            let member = findTeamMember uid mems
+            maybe (throwM teamMemberNotFound)
+                (pure . json . teamMemberJson withPerms) member
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
     mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
-    return . json $ teamMemberJson True mem
+    return $ json mem
 
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
     mems <- Data.teamMembers tid
-    return . json $ teamMemberListJson True (newTeamMemberList mems)
+    return . json $ newTeamMemberList mems
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -298,23 +289,17 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 
     -- inform members of the team about the change
     -- some (privileged) users will be informed about which change was applied
-    let privilege = flip hasPermission GetMemberPermissions
-        (privileged, unprivileged) = partition privilege updatedMembers
+    let privileged             = filter (`canSeePermsOf` targetMember) updatedMembers
         mkUpdate               = EdMemberUpdate targetId
         privilegedUpdate       = mkUpdate $ Just targetPermissions
-        unPrivilegedUpdate     = mkUpdate Nothing
         privilegedRecipients   = membersToRecipients Nothing privileged
-        unPrivilegedRecipients = membersToRecipients Nothing unprivileged
 
     now <- liftIO getCurrentTime
     let ePriv  = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
-        eUPriv = newEvent MemberUpdate tid now & eventData ?~ unPrivilegedUpdate
 
     -- push to all members (user is privileged)
     let pushPriv   = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
-        pushUnPriv = newPush zusr (TeamEvent eUPriv) $ unPrivilegedRecipients
     for_ pushPriv   $ \p -> push1 $ p & pushConn .~ Just zcon
-    for_ pushUnPriv $ \p -> push1 $ p & pushConn .~ Just zcon
     pure empty
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
@@ -357,7 +342,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
         let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
         for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
             push1 $ p & pushConn .~ zcon
-        void . fork $ void $ External.deliver (bots `zip` repeat y)
+        void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
@@ -387,7 +372,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     case map recipient (nonTeamMembers cmems tmems) of
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    void . fork $ void $ External.deliver (bots `zip` repeat ce)
+    void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
     Data.removeTeamConv tid cid
@@ -492,4 +477,4 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
-    pure $ json $ teamMemberListJson True (newTeamMemberList members)
+    pure . json $ newTeamMemberList members

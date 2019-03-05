@@ -1,6 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Working with remote queues (like Amazon SQS).
 module Brig.Queue
     ( module Brig.Queue.Types
@@ -8,15 +5,13 @@ module Brig.Queue
     , listen
     ) where
 
+import Imports
 import Brig.App
 import Brig.Queue.Types
 import Control.Lens (view, (^.))
 import Control.Exception (ErrorCall (..))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.Reader (ask)
 import Data.Aeson
-import Data.Text (Text)
 import Network.AWS.SQS (smrsMD5OfMessageBody)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class as Log

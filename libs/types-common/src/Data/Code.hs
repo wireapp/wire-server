@@ -9,16 +9,15 @@
 -- | Types for verification codes.
 module Data.Code where
 
+import Imports
 import Data.Aeson hiding (Value)
 import Data.Aeson.TH
 import Data.ByteString.Conversion
-import Data.Int
 import Data.Range
 import Data.Scientific (toBoundedInteger)
 import Data.Json.Util
 import Data.Text.Ascii
 import Data.Time.Clock
-import GHC.Generics
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (unpack, Value)
 #endif

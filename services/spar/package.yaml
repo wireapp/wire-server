@@ -1,3 +1,5 @@
+defaults:
+  local: ../../package-defaults.yaml
 name:          spar
 version:       '0.1'
 synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'
@@ -9,13 +11,17 @@ license-file:  LICENSE
 category:      System
 description:   'See README.md'
 
-ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -optP-Wno-nonportable-include-path
+ghc-options:
+- -j
+- -Wno-redundant-constraints
+- -Werror
 
 dependencies:
   - aeson
   - aeson-pretty
   - aeson-qq
   - base
+  - base64-bytestring
   - bilge
   - binary
   - brig-types
@@ -26,20 +32,30 @@ dependencies:
   - containers
   - cookie
   - cryptonite
+  - data-default
+  - email-validate
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extra
+  - galley-types
   - ghc-prim
+  - hscim
+  - HsOpenSSL
+  - http-api-data
   - http-client
   - http-client-tls
   - http-types
+  - imports
   - interpolate
+  - lens
   - metrics-core
-  - microlens
-  - microlens-th
+  - metrics-wai
   - mtl
+  - network-uri
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso >= 0.6
+  - retry
+  - saml2-web-sso >= 0.18
   - scientific
   - servant
   - servant-multipart
@@ -48,13 +64,16 @@ dependencies:
   - string-conversions
   - swagger2
   - text
+  - text-latin1
   - time
   - tinylog
   - transformers
   - types-common
+  - unordered-containers
   - uri-bytestring
   - uuid
   - wai
+  - wai-middleware-prometheus
   - wai-utilities
   - warp
   - x509
@@ -100,16 +119,18 @@ executables:
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - async
-      - base64-bytestring
       - galley-types
       - hspec
       - hspec-discover
       - lens-aeson
+      - MonadRandom
       - random
       - servant-client
       - spar
       - stm
       - wai
+      - warp-tls
       - xml-conduit
       - xml-hamlet
       - xml-lens
+      - zauth

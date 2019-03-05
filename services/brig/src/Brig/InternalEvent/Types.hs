@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE LambdaCase #-}
-
 module Brig.InternalEvent.Types
     ( InternalNotification(..)
     ) where

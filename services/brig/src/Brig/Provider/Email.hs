@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.Provider.Email
@@ -8,14 +7,17 @@ module Brig.Provider.Email
     , sendPasswordResetMail
     ) where
 
+import Imports
 import Brig.App
 import Brig.Email
 import Brig.Provider.Template
+import Brig.Template
 import Brig.Types.Common
 import Brig.Types.Provider
+import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Range
-import Data.Text (Text, pack)
+import Data.Text (pack)
 
 import qualified Brig.Types.Code    as Code
 import qualified Data.Text.Ascii    as Ascii
@@ -28,8 +30,9 @@ import qualified Data.Text.Lazy     as LT
 sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> Bool -> AppIO ()
 sendActivationMail name email key code update = do
     tpl <- selectTemplate update . snd <$> providerTemplates Nothing
+    branding <- view templateBranding
     let mail = ActivationEmail email name key code
-    sendMail $ renderActivationMail mail tpl
+    sendMail $ renderActivationMail mail tpl branding
   where
     selectTemplate True  = activationEmailUpdate
     selectTemplate False = activationEmail
@@ -41,8 +44,8 @@ data ActivationEmail = ActivationEmail
     , acmCode :: !Code.Value
     }
 
-renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> Mail
-renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
+renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> TemplateBranding -> Mail
+renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", LT.toStrict subj)
@@ -55,20 +58,20 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
   where
     (Code.Key key, Code.Value code) = (acmKey, acmCode)
 
-    from = Address (Just "Wire") (fromEmail activationEmailSender)
+    from = Address (Just activationEmailSenderName) (fromEmail activationEmailSender)
     to   = mkMimeAddress acmName acmTo
-    txt  = renderText activationEmailBodyText replace
-    html = renderHtml activationEmailBodyHtml replace
-    subj = renderText activationEmailSubject  replace
+    txt  = renderTextWithBranding activationEmailBodyText replace branding
+    html = renderHtmlWithBranding activationEmailBodyHtml replace branding
+    subj = renderTextWithBranding activationEmailSubject  replace branding
 
-    replace "url"   = renderActivationUrl activationEmailUrl acmKey acmCode
+    replace "url"   = renderActivationUrl activationEmailUrl acmKey acmCode branding
     replace "email" = fromEmail acmTo
     replace "name"  = fromName acmName
     replace x       = x
 
-renderActivationUrl :: Template -> Code.Key -> Code.Value -> Text
-renderActivationUrl t (Code.Key k) (Code.Value v) =
-    LT.toStrict $ renderText t replace
+renderActivationUrl :: Template -> Code.Key -> Code.Value -> TemplateBranding -> Text
+renderActivationUrl t (Code.Key k) (Code.Value v) branding =
+    LT.toStrict $ renderTextWithBranding t replace branding
   where
     replace "key"  = Ascii.toText (fromRange k)
     replace "code" = Ascii.toText (fromRange v)
@@ -80,8 +83,9 @@ renderActivationUrl t (Code.Key k) (Code.Value v) =
 sendApprovalRequestMail :: Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> AppIO ()
 sendApprovalRequestMail name email url descr key val = do
     tpl <- approvalRequestEmail . snd <$> providerTemplates Nothing
+    branding <- view templateBranding
     let mail = ApprovalRequestEmail email name url descr key val
-    sendMail $ renderApprovalRequestMail mail tpl
+    sendMail $ renderApprovalRequestMail mail tpl branding
 
 data ApprovalRequestEmail = ApprovalRequestEmail
     { aprTo    :: !Email
@@ -92,8 +96,8 @@ data ApprovalRequestEmail = ApprovalRequestEmail
     , aprCode  :: !Code.Value
     }
 
-renderApprovalRequestMail :: ApprovalRequestEmail -> ApprovalRequestEmailTemplate -> Mail
-renderApprovalRequestMail ApprovalRequestEmail{..} ApprovalRequestEmailTemplate{..} =
+renderApprovalRequestMail :: ApprovalRequestEmail -> ApprovalRequestEmailTemplate -> TemplateBranding -> Mail
+renderApprovalRequestMail ApprovalRequestEmail{..} ApprovalRequestEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", LT.toStrict subj)
@@ -102,23 +106,23 @@ renderApprovalRequestMail ApprovalRequestEmail{..} ApprovalRequestEmailTemplate{
         , mailParts   = [ [ plainPart txt, htmlPart html ] ]
         }
   where
-    from = Address (Just "Wire")       (fromEmail approvalRequestEmailSender)
-    to   = Address (Just "Wire Staff") (fromEmail approvalRequestEmailTo)
-    txt  = renderText approvalRequestEmailBodyText replace
-    html = renderHtml approvalRequestEmailBodyHtml replace
-    subj = renderText approvalRequestEmailSubject  replace
+    from = Address (Just approvalRequestEmailSenderName) (fromEmail approvalRequestEmailSender)
+    to   = Address (Just "Provider Approval Staff")      (fromEmail approvalRequestEmailTo)
+    txt  = renderTextWithBranding approvalRequestEmailBodyText replace branding
+    html = renderHtmlWithBranding approvalRequestEmailBodyHtml replace branding
+    subj = renderTextWithBranding approvalRequestEmailSubject  replace branding
 
     replace "email"       = fromEmail aprTo
     replace "name"        = fromName aprName
     replace "url"         = Text.decodeUtf8 (toByteString' aprUrl)
     replace "description" = aprDescr
-    replace "approvalUrl" = renderApprovalUrl approvalRequestEmailUrl aprKey aprCode
+    replace "approvalUrl" = renderApprovalUrl approvalRequestEmailUrl aprKey aprCode branding
     replace x             = x
 
 -- TODO: Unify with renderActivationUrl
-renderApprovalUrl :: Template -> Code.Key -> Code.Value -> Text
-renderApprovalUrl t (Code.Key k) (Code.Value v) =
-    LT.toStrict $ renderText t replace
+renderApprovalUrl :: Template -> Code.Key -> Code.Value -> TemplateBranding -> Text
+renderApprovalUrl t (Code.Key k) (Code.Value v) branding =
+    LT.toStrict $ renderTextWithBranding t replace branding
   where
     replace "key"  = Ascii.toText (fromRange k)
     replace "code" = Ascii.toText (fromRange v)
@@ -130,16 +134,17 @@ renderApprovalUrl t (Code.Key k) (Code.Value v) =
 sendApprovalConfirmMail :: Name -> Email -> AppIO ()
 sendApprovalConfirmMail name email = do
     tpl <- approvalConfirmEmail . snd <$> providerTemplates Nothing
+    branding <- view templateBranding
     let mail = ApprovalConfirmEmail email name
-    sendMail $ renderApprovalConfirmMail mail tpl
+    sendMail $ renderApprovalConfirmMail mail tpl branding
 
 data ApprovalConfirmEmail = ApprovalConfirmEmail
     { apcTo   :: !Email
     , apcName :: !Name
     }
 
-renderApprovalConfirmMail :: ApprovalConfirmEmail -> ApprovalConfirmEmailTemplate -> Mail
-renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{..} =
+renderApprovalConfirmMail :: ApprovalConfirmEmail -> ApprovalConfirmEmailTemplate -> TemplateBranding -> Mail
+renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", LT.toStrict subj)
@@ -148,11 +153,11 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
         , mailParts   = [ [ plainPart txt, htmlPart html ] ]
         }
   where
-    from = Address (Just "Wire") (fromEmail approvalConfirmEmailSender)
+    from = Address (Just approvalConfirmEmailSenderName) (fromEmail approvalConfirmEmailSender)
     to   = mkMimeAddress apcName apcTo
-    txt  = renderText approvalConfirmEmailBodyText replace
-    html = renderHtml approvalConfirmEmailBodyHtml replace
-    subj = renderText approvalConfirmEmailSubject  replace
+    txt  = renderTextWithBranding approvalConfirmEmailBodyText replace branding
+    html = renderHtmlWithBranding approvalConfirmEmailBodyHtml replace branding
+    subj = renderTextWithBranding approvalConfirmEmailSubject  replace branding
 
     replace "homeUrl" = pack $ show approvalConfirmEmailHomeUrl
     replace "email"   = fromEmail apcTo
@@ -165,8 +170,9 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
 sendPasswordResetMail :: Email -> Code.Key -> Code.Value -> AppIO ()
 sendPasswordResetMail to key code = do
     tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
+    branding <- view templateBranding
     let mail = PasswordResetEmail to key code
-    sendMail $ renderPwResetMail mail tpl
+    sendMail $ renderPwResetMail mail tpl branding
 
 data PasswordResetEmail = PasswordResetEmail
     { pwrTo   :: !Email
@@ -174,8 +180,8 @@ data PasswordResetEmail = PasswordResetEmail
     , pwrCode :: !Code.Value
     }
 
-renderPwResetMail :: PasswordResetEmail -> PasswordResetEmailTemplate -> Mail
-renderPwResetMail PasswordResetEmail{..} PasswordResetEmailTemplate{..} =
+renderPwResetMail :: PasswordResetEmail -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
+renderPwResetMail PasswordResetEmail{..} PasswordResetEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", LT.toStrict subj)
@@ -188,18 +194,18 @@ renderPwResetMail PasswordResetEmail{..} PasswordResetEmailTemplate{..} =
   where
     (Code.Key key, Code.Value code) = (pwrKey, pwrCode)
 
-    from = Address (Just "Wire") (fromEmail passwordResetEmailSender)
+    from = Address (Just passwordResetEmailSenderName) (fromEmail passwordResetEmailSender)
     to   = Address Nothing (fromEmail pwrTo)
-    txt  = renderText passwordResetEmailBodyText replace
-    html = renderHtml passwordResetEmailBodyHtml replace
-    subj = renderText passwordResetEmailSubject  replace
+    txt  = renderTextWithBranding passwordResetEmailBodyText replace branding
+    html = renderHtmlWithBranding passwordResetEmailBodyHtml replace branding
+    subj = renderTextWithBranding passwordResetEmailSubject  replace branding
 
-    replace "url" = renderPwResetUrl passwordResetEmailUrl pwrKey pwrCode
+    replace "url" = renderPwResetUrl passwordResetEmailUrl pwrKey pwrCode branding
     replace x     = x
 
-renderPwResetUrl :: Template -> Code.Key -> Code.Value -> Text
-renderPwResetUrl t (Code.Key k) (Code.Value v) =
-    LT.toStrict $ renderText t replace
+renderPwResetUrl :: Template -> Code.Key -> Code.Value -> TemplateBranding -> Text
+renderPwResetUrl t (Code.Key k) (Code.Value v) branding =
+    LT.toStrict $ renderTextWithBranding t replace branding
   where
     replace "key"  = Ascii.toText (fromRange k)
     replace "code" = Ascii.toText (fromRange v)

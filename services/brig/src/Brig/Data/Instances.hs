@@ -1,13 +1,10 @@
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Brig.Data.Instances () where
 
+import Imports
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Provider ()
@@ -15,14 +12,11 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import Data.Id()
-import Data.Int
 import Data.Range()
 import Data.String.Conversions (cs, LBS, ST)
 import Data.Text.Ascii()
 
 import qualified Data.Aeson                      as JSON
-import qualified Data.Aeson.Parser               as JSON
-import qualified Data.Attoparsec.ByteString.Lazy as P
 
 deriving instance Cql Name
 deriving instance Cql Handle
@@ -36,6 +30,7 @@ deriving instance Cql ActivationKey
 deriving instance Cql ActivationCode
 deriving instance Cql PropertyKey
 deriving instance Cql SearchableStatus
+deriving instance Cql PhonePrefix
 
 instance Cql Email where
     ctype = Tagged TextColumn
@@ -117,6 +112,7 @@ instance Cql Asset where
             0 -> return $! ImageAsset k s
             _ -> fail $ "unexpected user asset type: " ++ show t
       where
+        required :: Cql r => Text -> Either String r
         required f = maybe (fail ("Asset: Missing required field '" ++ show f ++ "'"))
                            fromCql
                            (lookup f fs)
@@ -177,7 +173,9 @@ instance Cql PrekeyId where
 instance Cql PropertyValue where
     ctype = Tagged BlobColumn
     toCql = toCql . Blob . JSON.encode . propertyValueJson
-    fromCql (CqlBlob v)  = note "Failed to read property value" $ fmap PropertyValue (P.maybeResult (P.parse JSON.value v))
+    fromCql (CqlBlob v)  = case JSON.eitherDecode v of
+        Left e -> fail ("Failed to read property value: " <> e)
+        Right x -> pure (PropertyValue x)
     fromCql _            = fail "PropertyValue: Blob expected"
 
 instance Cql Country where
@@ -197,3 +195,19 @@ instance Cql Language where
         Just l' -> return l'
         Nothing -> fail "Language: ISO 639-1 expected."
     fromCql _            = fail "Language: ASCII expected"
+
+instance Cql ManagedBy where
+    ctype = Tagged IntColumn
+
+    fromCql (CqlInt 0) = return ManagedByWire
+    fromCql (CqlInt 1) = return ManagedByScim
+    fromCql n = fail $ "Unexpected ManagedBy: " ++ show n
+
+    toCql ManagedByWire = CqlInt 0
+    toCql ManagedByScim = CqlInt 1
+
+instance Cql RichInfo where
+    ctype = Tagged BlobColumn
+    toCql = toCql . Blob . JSON.encode
+    fromCql (CqlBlob v) = JSON.eitherDecode v
+    fromCql _           = fail "RichInfo: Blob expected"

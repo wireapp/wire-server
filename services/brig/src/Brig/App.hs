@@ -1,14 +1,5 @@
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StrictData                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE UndecidableInstances       #-}
 
 module Brig.App
     ( schemaVersion
@@ -26,6 +17,7 @@ module Brig.App
     , userTemplates
     , providerTemplates
     , teamTemplates
+    , templateBranding
     , requestId
     , httpManager
     , extGetManager
@@ -53,41 +45,33 @@ module Brig.App
     , locationOf
     ) where
 
+import Imports
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
 import Brig.Queue.Types (Queue (..))
-import Brig.Template (Localised, forLocale)
+import Brig.Template (Localised, forLocale, genTemplateBranding, TemplateBranding)
 import Brig.Provider.Template
 import Brig.Team.Template
 import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient, Client)
+import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
-import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
-import Control.Monad (void, (>=>))
-import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
-import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Control
-import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Default (def)
 import Data.Id (UserId)
 import Data.IP
 import Data.List1 (list1, List1)
 import Data.Metrics (Metrics)
 import Data.Misc
-import Data.Int (Int32)
-import Data.IORef
 import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
@@ -96,9 +80,8 @@ import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
-import System.Directory (canonicalizePath)
+import Ssl.Util
 import System.Logger.Class hiding (Settings, settings)
-import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
@@ -127,7 +110,7 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 53
+schemaVersion = 58
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -147,8 +130,9 @@ data Env = Env
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
     , _tmTemplates   :: Localised TeamTemplates
+    , _templateBranding :: TemplateBranding
     , _httpManager   :: Manager
-    , _extGetManager :: [Fingerprint Rsa] -> Manager
+    , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
@@ -165,19 +149,27 @@ data Env = Env
 
 makeLenses ''Env
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Log.new $ Log.defSettings
+  & Log.setLogLevel (Opt.logLevel opts)
+  & Log.setOutput Log.StdOut
+  & Log.setFormat Nothing
+  & Log.setNetStrings (Opt.logNetStrings opts)
+
 newEnv :: Opts -> IO Env
 newEnv o = do
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- Log.new $ defSettings & setOutput StdOut . setFormat Nothing
+    lgr <- mkLogger o
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
+    let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS  $ o
     (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
     aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
@@ -210,10 +202,11 @@ newEnv o = do
         , _metrics       = mtr
         , _applog        = lgr
         , _internalEvents = eventsQueue
-        , _requestId     = mempty
+        , _requestId     = def
         , _usrTemplates  = utp
         , _provTemplates = ptp
         , _tmTemplates   = ttp
+        , _templateBranding = branding
         , _httpManager   = mgr
         , _extGetManager = ext
         , _settings      = sett
@@ -232,10 +225,15 @@ newEnv o = do
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP  s) = do
-        let host = Opt.smtpEndpoint s
-            user = SMTP.Username (Opt.smtpUsername s)
-        pass <- initCredentials (Opt.smtpPassword s)
-        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
+        let host = (Opt.smtpEndpoint s)^.epHost
+            port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s)^.epPort
+
+        smtpCredentials <- case Opt.smtpCredentials s of
+            Just (Opt.EmailSMTPCredentials u p) -> do
+                pass <- initCredentials p
+                return $ Just (SMTP.Username u, SMTP.Password pass)
+            _                                   -> return Nothing
+        smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
         return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
@@ -271,9 +269,10 @@ turnSetup lgr w dig o = do
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
-    predicate (FS.Added f _)    = Path.equalFilePath f p
-    predicate (FS.Modified f _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _)  = False
+    predicate (FS.Added f _ _)    = Path.equalFilePath f p
+    predicate (FS.Modified f _ _) = Path.equalFilePath f p
+    predicate (FS.Removed _ _ _)  = False
+    predicate (FS.Unknown _ _ _)  = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -305,6 +304,7 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
+    -- See Note [SSL context]
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL_OP_NO_SSLv3
@@ -315,13 +315,23 @@ initHttpManager = do
     -- Unfortunately, there are quite some AWS services we talk to
     -- (e.g. SES, Dynamo) that still only support TLSv1.
     -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 4096
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
 
-initExtGetManager :: IO ([Fingerprint Rsa] -> Manager)
+-- Note [SSL context]
+-- ~~~~~~~~~~~~
+--
+-- 'openSslManagerSettings' takes an IO action for creating the context;
+-- presumably a new context is created for each connection, then. However,
+-- judging by comments at https://github.com/snoyberg/http-client/pull/227,
+-- it should be fine to reuse the context, and reusing it is probably
+-- faster. So, we reuse the context.
+
+-- TODO: somewhat duplicates Galley.App.initExtEnv
+initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
@@ -331,21 +341,21 @@ initExtGetManager = do
     -- support self-signed certificates as well, hence 'VerifyNone'.
     SSL.contextSetVerificationMode ctx SSL.VerifyNone
     SSL.contextLoadSystemCerts ctx
-    mgr <- newManager (opensslManagerSettings ctx)
+    mgr <- newManager (opensslManagerSettings (pure ctx))  -- see Note [SSL context]
         { managerConnCount           = 100
         , managerIdleConnectionCount = 512
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
     Just sha <- getDigestByName "SHA256"
-    return (mkManager ctx sha mgr)
+    return (mgr, mkVerify sha)
   where
-    mkManager ctx sha mgr fprs =
+    mkVerify sha fprs =
         let pinset = map toByteString' fprs
-        in setOnConnection ctx (verifyRsaFingerprint sha pinset) mgr
+        in  verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+    c <- maybe (Cas.initialContactsPlain ((Opt.cassandra o)^.casEndpoint.epHost))
                (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
@@ -364,7 +374,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
+    return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
@@ -425,14 +435,6 @@ instance MonadIndexIO AppIO where
 
 instance Monad m => HasRequestId (AppT m) where
     getRequestId = view requestId
-
-instance MonadBase IO AppIO where
-    liftBase = liftIO
-
-instance MonadBaseControl IO AppIO where
-    type StM AppIO a = StM (ReaderT Env Client) a
-    liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
-    restoreM           = AppT . restoreM
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
     withRunInIO inner =

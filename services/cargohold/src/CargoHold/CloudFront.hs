@@ -1,8 +1,4 @@
-{-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StrictData                 #-}
 
 module CargoHold.CloudFront
@@ -13,18 +9,14 @@ module CargoHold.CloudFront
     , signedURL
     ) where
 
+import Imports
 import Control.AutoUpdate
-import Control.Monad.IO.Class
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Conversion
-import Data.Monoid
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
 import Data.Yaml (FromJSON)
-import GHC.Generics
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.PEM (readPrivateKey, PemPasswordSupply (PwNone))
 import URI.ByteString
@@ -101,4 +93,3 @@ mkPOSIXClock =
     mkAutoUpdate defaultUpdateSettings {
         updateAction = getPOSIXTime
     }
-

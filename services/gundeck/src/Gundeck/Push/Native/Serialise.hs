@@ -1,29 +1,22 @@
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Gundeck.Push.Native.Serialise
     ( serialise
     , maxPayloadSize
     ) where
 
+import Imports
 import Control.Lens ((^.), (^?), _Just)
-import Data.Aeson (object, (.=), Value, encode)
+import Data.Aeson (object, (.=), Value)
 import Data.Aeson.Text (encodeToTextBuilder)
-import Data.Int (Int64)
 import Data.Json.Util
-import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Gundeck.Push.Native.Crypto
+import Data.Text.Encoding (encodeUtf8)
 import Gundeck.Push.Native.Types
 import Gundeck.Types
 
 import qualified Data.ByteString        as BS
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Lazy   as LB
 import qualified Data.Text.Lazy         as LT
 import qualified Data.Text.Lazy.Builder as LTB
 
-serialise :: Message s -> Address s -> IO (Either Failure LT.Text)
+serialise :: NativePush -> Address -> IO (Either Failure LT.Text)
 serialise m a = do
     rs <- prepare m a
     case rs of
@@ -32,40 +25,9 @@ serialise m a = do
             Nothing  -> return $ Left PayloadTooLarge
             Just txt -> return $ Right txt
 
-prepare :: Message s -> Address s -> IO (Either Failure (Value, Priority, Maybe ApsData))
+prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority, Maybe ApsData))
 prepare m a = case m of
-    Plaintext ntf prio aps ->
-        let o = object
-              [ "type" .= ("plain" :: Text)
-              , "data" .= ntf
-              , "user" .= (a^.addrUser)
-              ]
-        in return $ Right (o, prio, aps)
-
-    Ciphertext ntf ci dg prio aps -> case a^.addrKeys of
-        Nothing -> return $ Left MissingKeys
-        Just  k -> do
-            let o = object ["data" .= ntf]
-            let j = encode o
-            let l = maxPayloadSize (a^.addrTransport)
-            if LB.length j > l
-                then return $ Left PayloadTooLarge
-                else do
-                    c <- encrypt (LB.toStrict j) k ci dg
-                    let mac = B64.encode (cipherMac c)
-                    let dat = B64.encode (cipherData c)
-                    if BS.length mac + BS.length dat > fromIntegral l
-                        then return $ Left PayloadTooLarge
-                        else do
-                            let o' = object
-                                   [ "type" .= ("cipher" :: Text)
-                                   , "mac"  .= decodeUtf8 mac
-                                   , "data" .= decodeUtf8 dat
-                                   , "user" .= (a^.addrUser)
-                                   ]
-                            return $ Right (o', prio, aps)
-
-    Notice nid prio aps ->
+    NativePush nid prio aps ->
         let o = object
               [ "type" .= ("notice" :: Text)
               , "data" .= object ["id" .= nid]

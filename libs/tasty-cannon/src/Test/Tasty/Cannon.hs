@@ -24,6 +24,7 @@ module Test.Tasty.Cannon
     , MatchFailure (..)
     , await
     , awaitMatch
+    , awaitMatch_
     , awaitMatchN
     , assertMatch
     , assertMatch_
@@ -43,29 +44,19 @@ module Test.Tasty.Cannon
     , (#)
     ) where
 
-import Control.Concurrent
+import Imports
 import Control.Concurrent.Async
-import Control.Concurrent.STM
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
-import Control.Monad (void, forever, unless)
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.IO.Class
 import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
-import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Conversion
-import Data.Foldable (mapM_, for_)
 import Data.Id
 import Data.List1
-import Data.Maybe
-import Data.Monoid
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
-import Data.Typeable
-import Data.Word
 import Gundeck.Types
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
-import Prelude hiding (mapM_)
 import System.Random (randomIO)
 import Test.Tasty.HUnit
 
@@ -167,8 +158,8 @@ instance Exception MatchFailure
 
 instance Show MatchFailure where
     show (MatchFailure ex) = case fromException ex of
-        Just (HUnitFailure msg) -> msg
-        Nothing                 -> show ex
+        Just (HUnitFailure _src msg) -> msg
+        Nothing                      -> show ex
 
 newtype MatchTimeout = MatchTimeout
     { timeoutFailures :: [MatchFailure]
@@ -199,7 +190,17 @@ instance Show RegistrationTimeout where
 await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
 
-awaitMatch :: (MonadIO m, MonadCatch m)
+-- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it.
+-- Otherwise, collect the 'Notification' and the exception thrown by the 'Assertion', and keep
+-- 'await'ing.  If 'await' times out or a satisfactory notification is available, fill all
+-- unsatisfactory notifications back to the web socket.
+--
+-- NB: (1) if 'await' receives irrelevant 'Notification's frequently enough, this function will
+-- never terminate.  The 'Timeout' argument is just passed through to 'await'.  (2) If an
+-- asynchronous exception is thrown, this drops all collected 'Notification's and exceptions, and
+-- re-throws.  This may be surprising if you run 'awaitMatch' inside a 'timeout' guard, and want to
+-- resume testing other things once the timeout triggers.
+awaitMatch :: (HasCallStack, MonadIO m, MonadCatch m)
            => Timeout
            -> WebSocket
            -> (Notification -> Assertion)
@@ -215,7 +216,7 @@ awaitMatch t ws match = go [] []
                 return (Right n)
               `catchAll` \e -> case asyncExceptionFromException e of
                 Just  x -> throwM (x :: SomeAsyncException)
-                Nothing -> let e' = MatchFailure (SomeException e)
+                Nothing -> let e' = MatchFailure e
                            in go (n : buf) (e' : errs)
             Nothing -> do
                 refill buf
@@ -223,38 +224,45 @@ awaitMatch t ws match = go [] []
 
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
-assertMatch :: (MonadIO m, MonadCatch m)
+awaitMatch_ :: (HasCallStack, MonadIO m, MonadCatch m)
+           => Timeout
+           -> WebSocket
+           -> (Notification -> Assertion)
+           -> m ()
+awaitMatch_ t w = void . awaitMatch t w
+
+assertMatch :: (HasCallStack, MonadIO m, MonadCatch m)
             => Timeout
             -> WebSocket
             -> (Notification -> Assertion)
             -> m Notification
 assertMatch t ws f = awaitMatch t ws f >>= assertSuccess
 
-assertMatch_ :: (MonadIO m, MonadCatch m)
+assertMatch_ :: (HasCallStack, MonadIO m, MonadCatch m)
              => Timeout
              -> WebSocket
              -> (Notification -> Assertion)
              -> m ()
 assertMatch_ t w = void . assertMatch t w
 
-awaitMatchN :: MonadIO m
+awaitMatchN :: (HasCallStack, MonadIO m)
             => Timeout
             -> [WebSocket]
             -> (Notification -> Assertion)
             -> m [Either MatchTimeout Notification]
 awaitMatchN t wss f = liftIO $ mapConcurrently (\ws -> awaitMatch t ws f) wss
 
-assertMatchN :: (MonadIO m, MonadThrow m)
+assertMatchN :: (HasCallStack, MonadIO m, MonadThrow m)
              => Timeout
              -> [WebSocket]
              -> (Notification -> Assertion)
              -> m [Notification]
 assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
 
-assertSuccess :: (MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
+assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
 assertSuccess = either throwM return
 
-assertNoEvent :: (MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
+assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
     results <- awaitMatchN t ww (const $ pure ())
     for_ results $

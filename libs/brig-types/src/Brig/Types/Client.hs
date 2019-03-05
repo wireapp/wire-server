@@ -8,6 +8,7 @@ module Brig.Types.Client
     , module P
     ) where
 
+import Imports
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.Types.Common as C
 import Brig.Types.Client.Prekey as P
@@ -15,7 +16,6 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc (Location, PlainTextPassword (..))
-import Data.Text (Text)
 
 
 -- * Data Types:
@@ -31,10 +31,9 @@ data ClientClass
     | DesktopClient
     deriving (Eq, Ord, Show)
 
-data NewClient a = NewClient
+data NewClient = NewClient
     { newClientPrekeys  :: [Prekey]
     , newClientLastKey  :: !LastPrekey
-    , newClientSigKeys  :: !a
     , newClientType     :: !ClientType
     , newClientLabel    :: !(Maybe Text)
     , newClientClass    :: !(Maybe ClientClass)
@@ -43,11 +42,10 @@ data NewClient a = NewClient
     , newClientModel    :: !(Maybe Text)
     }
 
-newClient :: ClientType -> LastPrekey -> a -> NewClient a
-newClient t k a = NewClient
+newClient :: ClientType -> LastPrekey -> NewClient
+newClient t k = NewClient
     { newClientPrekeys  = []
     , newClientLastKey  = k
-    , newClientSigKeys  = a
     , newClientType     = t
     , newClientLabel    = Nothing
     , newClientClass    = Nothing
@@ -76,10 +74,9 @@ newtype RmClient = RmClient
     { rmPassword :: Maybe PlainTextPassword
     }
 
-data UpdateClient a = UpdateClient
+data UpdateClient = UpdateClient
     { updateClientPrekeys :: ![Prekey]
     , updateClientLastKey :: !(Maybe LastPrekey)
-    , updateClientSigKeys :: !(Maybe a)
     , updateClientLabel   :: !(Maybe Text)
     }
 
@@ -141,12 +138,11 @@ instance FromJSON ClientClass where
         "desktop" -> return DesktopClient
         _         -> fail "Must be one of {'phone', 'tablet', 'desktop'}."
 
-instance ToJSON a => ToJSON (NewClient a) where
+instance ToJSON NewClient where
     toJSON c = object
         $ "type"     .= newClientType c
         # "prekeys"  .= newClientPrekeys c
         # "lastkey"  .= newClientLastKey c
-        # "sigkeys"  .= newClientSigKeys c
         # "label"    .= newClientLabel c
         # "class"    .= newClientClass c
         # "cookie"   .= newClientCookie c
@@ -154,11 +150,10 @@ instance ToJSON a => ToJSON (NewClient a) where
         # "model"    .= newClientModel c
         # []
 
-instance FromJSON a => FromJSON (NewClient a) where
+instance FromJSON NewClient where
     parseJSON = withObject "NewClient" $ \o ->
         NewClient <$> o .:  "prekeys"
                   <*> o .:  "lastkey"
-                  <*> o .:  "sigkeys"
                   <*> o .:  "type"
                   <*> o .:? "label"
                   <*> o .:? "class"
@@ -173,17 +168,15 @@ instance FromJSON RmClient where
     parseJSON = withObject "RmClient" $ \o ->
         RmClient <$> o .:? "password"
 
-instance ToJSON a => ToJSON (UpdateClient a) where
+instance ToJSON UpdateClient where
     toJSON c = object
         $ "prekeys" .= updateClientPrekeys c
         # "lastkey" .= updateClientLastKey c
-        # "sigkeys" .= updateClientSigKeys c
         # "label"   .= updateClientLabel c
         # []
 
-instance FromJSON a => FromJSON (UpdateClient a) where
+instance FromJSON UpdateClient where
     parseJSON = withObject "RefreshClient" $ \o ->
         UpdateClient <$> o .:?  "prekeys" .!= []
                      <*> o .:? "lastkey"
-                     <*> o .:? "sigkeys"
                      <*> o .:? "label"

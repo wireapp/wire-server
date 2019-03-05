@@ -4,31 +4,26 @@
 
 module Bonanza.App (runBonanza) where
 
+import           Imports
 import           Bonanza.Anon
 import           Bonanza.Geo
 import           Bonanza.Metrics
 import qualified Bonanza.Streaming.Kibana  as Kibana
 import qualified Bonanza.Streaming.Parser  as Parser
 import qualified Bonanza.Streaming.Snappy  as Snappy
-import           Control.Monad             (foldM, unless, when)
 import qualified Data.Aeson                as Aeson
-import           Data.ByteString           (ByteString)
 import qualified Data.ByteString           as BS
 import qualified Data.ByteString.Lazy      as BL
-import           Data.Conduit              (Conduit, ($$), (=$))
+import           Data.Conduit              (ConduitM, runConduit, (.|))
 import           Data.Conduit.Binary       (sinkHandle, sourceHandle)
 import qualified Data.Conduit.List         as Conduit
 import qualified Data.Conduit.Zlib         as Conduit
-import           Data.IORef
-import           Data.Monoid
-import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           Data.Time
 import           Data.Version              (showVersion)
 import           Options.Applicative
 import           Paths_bonanza             (version)
 import           System.CPUTime
-import           System.IO                 (stdin, stdout)
 
 
 data Opts = Opts CommonOpts Command
@@ -183,20 +178,20 @@ runBonanza = execParser optInfo >>= \ (Opts CommonOpts{..} cmd) -> do
 
     geoDB <- mkGeo geodat
 
-    sourceHandle stdin
-        =$ runDecompress decomp
-        =$ Conduit.mapM (\bs -> modifyIORef' bytes_in (+ fromIntegral (BS.length bs))
+    runConduit $ sourceHandle stdin
+        .| runDecompress decomp
+        .| Conduit.mapM (\bs -> modifyIORef' bytes_in (+ fromIntegral (BS.length bs))
                              *> pure bs)
-        =$ readWith parser
-        =$ Conduit.mapM (\evt -> modifyIORef' events_in (+1)
+        .| readWith parser
+        .| Conduit.mapM (\evt -> modifyIORef' events_in (+1)
                               *> pure evt)
-        =$ runGeo geo geoDB
-        =$ runAnonymise anon
-        =$ runCmd cmd
-        =$ runCompress comp
-        =$ Conduit.mapM (\bs -> modifyIORef' bytes_out (+ fromIntegral (BS.length bs))
+        .| runGeo geo geoDB
+        .| runAnonymise anon
+        .| runCmd cmd
+        .| runCompress comp
+        .| Conduit.mapM (\bs -> modifyIORef' bytes_out (+ fromIntegral (BS.length bs))
                              *> pure bs)
-        $$ sinkHandle stdout
+        .| sinkHandle stdout
 
     completed <- getCurrentTime
 
@@ -222,26 +217,26 @@ runBonanza = execParser optInfo >>= \ (Opts CommonOpts{..} cmd) -> do
 
     runCmd (Kibana KibanaOpts{..}) =
            Conduit.mapM Kibana.fromLogEvent
-        =$ Conduit.map ( (:[if print0 then "\0" else mempty])
+        .| Conduit.map ( (:[if print0 then "\0" else mempty])
                        . Kibana.jsonEncode idxPrefix)
-        =$ Conduit.concat
-        =$ Conduit.map BL.toChunks
-        =$ Conduit.concat
+        .| Conduit.concat
+        .| Conduit.map BL.toChunks
+        .| Conduit.concat
 
     runCmd JSON =
            Conduit.map ((:["\n"]) . Aeson.encode)
-        =$ Conduit.concat
-        =$ Conduit.map BL.toChunks
-        =$ Conduit.concat
+        .| Conduit.concat
+        .| Conduit.map BL.toChunks
+        .| Conduit.concat
 
-    runDecompress :: Maybe Compression -> Conduit ByteString IO ByteString
+    runDecompress :: Maybe Compression -> ConduitM ByteString ByteString IO ()
     runDecompress Nothing       = Conduit.map id
     runDecompress (Just GZip)   = Conduit.ungzip
-    runDecompress (Just Snappy) = Snappy.decode =$ Snappy.bytes
+    runDecompress (Just Snappy) = Snappy.decode .| Snappy.bytes
 
-    runCompress :: Maybe Compression -> Conduit ByteString IO ByteString
+    runCompress :: Maybe Compression -> ConduitM ByteString ByteString IO ()
     runCompress Nothing       = Conduit.map id
     runCompress (Just GZip)   = Conduit.gzip
-    runCompress (Just Snappy) = Snappy.encode =$ Snappy.bytes
+    runCompress (Just Snappy) = Snappy.encode .| Snappy.bytes
 
     readWith p = Parser.stream (Parser.byName p)

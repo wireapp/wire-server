@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-
 module V40 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -16,4 +14,3 @@ migration = Migration 40 "Add hashed userkeys table" $
             , primary key (key)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-

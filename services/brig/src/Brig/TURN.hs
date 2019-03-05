@@ -1,12 +1,9 @@
-{-# LANGUAGE TemplateHaskell       #-}
-
 module Brig.TURN where
 
+import Imports
 import Brig.Types (TurnURI)
 import Control.Lens
-import Data.ByteString (ByteString)
 import Data.List1
-import Data.Word
 import OpenSSL.EVP.Digest (Digest)
 import System.Random.MWC (GenIO, createSystemRandom)
 

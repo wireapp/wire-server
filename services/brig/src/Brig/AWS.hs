@@ -1,12 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE UndecidableInstances       #-}
 
 module Brig.AWS
     ( -- * Monad
@@ -36,23 +28,13 @@ module Brig.AWS
 
     ) where
 
+import Imports hiding (group)
 import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Concurrent.Lifted (threadDelay)
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=))
-import Control.Monad
-import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
-import Data.Foldable (for_)
-import Data.Monoid
-import Data.Text (Text, isPrefixOf)
-import Data.Typeable
 import Data.UUID
 import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
@@ -62,11 +44,14 @@ import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (.
 import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
 import System.Logger.Class
+import UnliftIO.Async
+import UnliftIO.Exception
 import Util.Options
 
 import qualified Brig.Options            as Opt
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
+import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Data        as AWS
@@ -92,7 +77,6 @@ newtype Amazon a = Amazon
                , Applicative
                , Monad
                , MonadIO
-               , MonadBase IO
                , MonadThrow
                , MonadCatch
                , MonadMask
@@ -100,13 +84,13 @@ newtype Amazon a = Amazon
                , MonadResource
                )
 
+instance MonadUnliftIO Amazon where
+    askUnliftIO = Amazon $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
+
 instance MonadLogger Amazon where
     log l m = view logger >>= \g -> Logger.log g l m
-
-instance MonadBaseControl IO Amazon where
-    type StM Amazon a = StM (ReaderT Env (ResourceT IO)) a
-    liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
-    restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
@@ -147,7 +131,7 @@ mkEnv lgr opts emailOpts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
-getQueueUrl :: (MonadIO m, MonadCatch m, MonadBaseControl IO m)
+getQueueUrl :: (MonadUnliftIO m, MonadCatch m)
             => AWS.Env -> Text -> m Text
 getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
 
@@ -223,7 +207,7 @@ sendMail m = do
         -- after the fact.
         AWS.ServiceError se
             |  se^.AWS.serviceStatus == status400
-            && "Invalid domain name" `isPrefixOf` AWS.toText (se^.AWS.serviceCode) -> throwM SESInvalidDomain
+            && "Invalid domain name" `Text.isPrefixOf` AWS.toText (se^.AWS.serviceCode) -> throwM SESInvalidDomain
         _                                                                          -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------
@@ -238,12 +222,12 @@ send r = throwA =<< sendCatch r
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
-execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+execCatch :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m)
           => r -> a -> m (Either AWS.Error (Rs a))
 execCatch e cmd = runResourceT . AWST.runAWST e
                 $ AWST.trying AWS._Error $ AWST.send cmd
 
-exec :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+exec :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m)
      => r -> a -> m (Rs a)
 exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
 

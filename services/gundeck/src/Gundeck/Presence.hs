@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Gundeck.Presence
     ( list
     , listAll
@@ -8,7 +5,7 @@ module Gundeck.Presence
     , remove
     ) where
 
-import Control.Lens ((&))
+import Imports
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate

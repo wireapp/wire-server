@@ -1,33 +1,27 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module Galley.External (deliver) where
 
+import Imports
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Exception (fromException)
 import Control.Lens
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion.To
 import Data.Misc
-import Data.Monoid
-import Data.Word
 import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Types (Event)
 import Galley.Types.Bot
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
+import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Message (msg, val, field, (~~))
 import URI.ByteString
+import UnliftIO (async, Async, waitCatch)
 
-import qualified Network.HTTP.Client  as Http
-import qualified Galley.Data.Services as Data
-import qualified System.Logger.Class  as Log
+import qualified Network.HTTP.Client          as Http
+import qualified Galley.Data.Services         as Data
+import qualified System.Logger.Class          as Log
 
 -- | Deliver events to external (bot) services.
 --
@@ -95,7 +89,8 @@ deliver1 s bm e
         let b = botMemId bm
         let HttpsUrl url = u
         recovering x3 httpHandlers $ const $
-            sendMessage (s^.serviceFingerprints) $ method POST
+            sendMessage (s^.serviceFingerprints) $
+                method POST
                 . maybe   id         host (urlHost u)
                 . maybe   (port 443) port (urlPort u)
                 . paths   [url^.pathL, "bots", toByteString' b, "messages"]
@@ -104,7 +99,6 @@ deliver1 s bm e
                 . timeout 5000
                 . secure
                 . expect2xx
-                $ empty
     | otherwise = return ()
 
 urlHost :: HttpsUrl -> Maybe ByteString
@@ -116,11 +110,11 @@ urlPort (HttpsUrl u) = do
     p <- a^.authorityPortL
     return (fromIntegral (p^.portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> Request -> Galley ()
-sendMessage fprs req = do
-    getMgr <- view (extEnv.extGetManager)
-    liftIO $ Http.withResponse req (getMgr fprs) (const $ return ())
+sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley ()
+sendMessage fprs reqBuilder = do
+    (man, verifyFingerprints) <- view (extEnv . extGetManager)
+    liftIO $ withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
+        Http.withResponse req man (const $ return ())
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> constantDelay 1000000
-

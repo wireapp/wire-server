@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module CargoHold.TUS
     ( createdResponse
     , headResponse
@@ -7,8 +5,8 @@ module CargoHold.TUS
     , optionsResponse
     ) where
 
+import Imports
 import CargoHold.Types.V3.Resumable (Offset, TotalSize)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Time.Clock
 import Data.Time.Format

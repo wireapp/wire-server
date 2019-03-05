@@ -1,12 +1,10 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- Legacy:
 module CargoHold.API.Legacy
     ( download
     , downloadOtr
     ) where
 
+import Imports
 import CargoHold.App
 import CargoHold.Util
 import Data.Id

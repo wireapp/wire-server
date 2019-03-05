@@ -35,28 +35,28 @@ module Brig.Types.TURN
     , tuKeyindex
     , tuT
     , tuRandom
+
+    , isUdp
+    , isTcp
+    , isTls
+    , limitServers
     )
 where
 
+import           Imports
 import           Brig.Types.TURN.Internal
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Encoding        (text)
 import           Data.Attoparsec.Text       hiding (parse)
-import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import           Data.List1
 import           Data.Misc                  (Port (..))
-import           Data.Monoid
-import           Data.Text                  (Text)
 import           Data.Text.Ascii
 import qualified Data.Text.Encoding         as TE
 import           Data.Text.Strict.Lens      (utf8)
 import           Data.Time.Clock.POSIX
-import           Data.Word
-import           GHC.Base                   (Alternative)
-import           GHC.Generics               (Generic)
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -258,3 +258,47 @@ instance ToJSON Transport where
 -- Convenience
 optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
 optional x = option Nothing (Just <$> x)
+
+-- | given a list of URIs and a size, limit URIs
+-- with order priority from highest to lowest: UDP -> TLS -> TCP
+-- i.e. (if enough servers of each type are available)
+--   1 -> 1x UDP
+--   2 -> 1x UDP, 1x TLS
+--   3 -> 1x UDP, 1x TLS, 1x TCP
+--   4 -> 2x UDP, 1x TLS, 1x TCP
+--   5 -> 2x UDP, 2x TLS, 1x TCP
+--    ... etc
+-- if not enough servers are available, prefer udp, then tls
+limitServers :: [TurnURI] -> Int -> [TurnURI]
+limitServers uris limit = limitServers' [] limit uris
+  where
+    limitServers' acc x _  | x <= 0 = acc -- Already have accumulated enough
+    limitServers' acc _ []          = acc -- No more input
+    limitServers' acc _ input       = do
+        let (udps, noUdps) = partition isUdp input
+            (udp, forTls)  = (Imports.take 1 udps, noUdps ++ drop 1 udps)
+
+            (tlss, noTlss) = partition isTls forTls
+            (tls, forTcp)  = (Imports.take 1 tlss, noTlss ++ drop 1 tlss)
+
+            (tcps, noTcps) = partition isTcp forTcp
+            (tcp, rest)    = (Imports.take 1 tcps, noTcps ++ drop 1 tcps)
+
+            new = udp ++ tls ++ tcp
+            newAcc = Imports.take limit $ acc ++ new
+        if null new -- Did we find anything interesting? If not, time to go
+            then Imports.take limit $ acc ++ rest
+            else limitServers' newAcc (limit - length newAcc) rest
+
+isUdp :: TurnURI -> Bool
+isUdp uri = uri^.turiScheme == SchemeTurn
+        && ( uri^.turiTransport == Just(TransportUDP)
+            || uri^.turiTransport == Nothing )
+
+isTcp :: TurnURI -> Bool
+isTcp uri = uri^.turiScheme == SchemeTurn
+        && uri^.turiTransport == Just(TransportTCP)
+
+isTls :: TurnURI -> Bool
+isTls uri = uri^.turiScheme == SchemeTurns
+        && uri^.turiTransport == Just(TransportTCP)

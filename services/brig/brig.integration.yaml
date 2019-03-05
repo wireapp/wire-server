@@ -57,10 +57,13 @@ emailSMS:
     # and set the correct credentials.
     # NOTE: In case a user tries to supply config values for both SES and SMTP,
     #       SES takes precedence and gets used instead
-    # smtpEndpoint: <hostname>
-    # smtpUsername: <username>
-    # smtpPassword: test/resources/smtp-secret.txt
-    # smtpConnType: tls
+    # smtpEndpoint:
+    #   host: localhost
+    #   port: 2500
+    # smtpCredentials:
+    #   username: <username>
+    #   password: test/resources/smtp-secret.txt
+    # smtpConnType: plain
     # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
     #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
     #         operator must handle these notifications "manually" (there are internal endpoints)
@@ -70,7 +73,17 @@ emailSMS:
     templateDir: deb/opt/brig/templates
     emailSender: backend-integration@wire.com
     smsSender: "<insert-sender-number-here>"
-
+    templateBranding:
+      brand: Wire
+      brandUrl: https://wire.com
+      brandLabelUrl: wire.com # This is the text in the label for the above URL
+      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+      brandService: Wire Service Provider
+      copyright: © WIRE SWISS GmbH
+      misuse: misuse@wire.com
+      legal: https://wire.com/legal/
+      forgot: https://wire.com/forgot/
+      support: https://support.wire.com/
   user:
     activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
     smsActivationUrl: http://127.0.0.1:8080/v/${code}
@@ -124,6 +137,10 @@ optSettings:
   setUserCookieThrottle:
     stdDev: 5
     retryAfter: 1
+  setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16
+
+logLevel: Warn
+logNetStrings: false

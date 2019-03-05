@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main (main) where
 
-import           Data.Monoid
+import           Imports
 import           Eval
 import           Options
 import           Options.Applicative

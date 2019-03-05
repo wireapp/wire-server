@@ -1,15 +1,8 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE NamedFieldPuns    #-}
 
-module Brig.API (runServer, parseOptions) where
+module Brig.API (runServer) where
 
+import Imports hiding (head)
 import Brig.App
 import Brig.AWS (sesQueue)
 import Brig.API.Error
@@ -18,27 +11,21 @@ import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
+import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
-import Control.Error
+import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, liftM3, unless, void, when)
 import Control.Monad.Catch (finally)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Data.Id
-import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Misc (IpAddr (..))
-import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
@@ -46,10 +33,9 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
-import Network.Wai.Utilities hiding (parseJsonBody)
+import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
@@ -59,6 +45,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Data.User                as Data
 import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
@@ -104,7 +91,7 @@ runServer o = do
     rtree      = compile (sitemap o)
     endpoint   = brig o
     server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) rtree
+    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
                . catchErrors (e^.applog) (e^.metrics)
                . GZip.gunzip . GZip.gzip GZip.def
                $ serve e
@@ -196,6 +183,19 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- given a phone number (or phone number prefix), see whether
+    -- it is blocked via a prefix (and if so, via which specific prefix)
+    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixes) $
+        capture "prefix"
+
+    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
+        capture "prefix"
+
+    post "/i/users/phone-prefixes" (continue addPhonePrefix) $
+      accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
       capture "uid"
@@ -205,6 +205,24 @@ sitemap o = do
     get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
+
+    put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
+    put "/i/users/:uid/managed-by" (continue updateManagedBy) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
+    put "/i/users/:uid/rich-info" (continue updateRichInfo) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
@@ -383,6 +401,21 @@ sitemap o = do
         Doc.returns (Doc.ref Doc.pubClient)
         Doc.response 200 "Client" Doc.end
 
+    --
+
+    get "/users/:user/rich-info" (continue getRichInfo) $
+        header "Z-User"
+        .&. capture "user"
+        .&. accept "application" "json"
+
+    document "GET" "getRichInfo" $ do
+        Doc.summary "Get user's rich info"
+        Doc.parameter Doc.Path "user" Doc.bytes' $
+            Doc.description "User ID"
+        Doc.returns (Doc.ref Doc.richInfo)
+        Doc.response 200 "RichInfo" Doc.end
+        Doc.errorResponse insufficientTeamPermissions
+
     -- /self ------------------------------------------------------------------
 
     -- Profile
@@ -461,7 +494,7 @@ sitemap o = do
         header "Z-User"
 
     document "HEAD" "checkPassword" $ do
-        Doc.summary "Check that your passowrd is set"
+        Doc.summary "Check that your password is set"
         Doc.response 200 "Password is set." Doc.end
         Doc.response 404 "Password is not set." Doc.end
 
@@ -816,6 +849,17 @@ sitemap o = do
         Doc.returns (Doc.array Doc.string')
         Doc.response 200 "List of property keys." Doc.end
 
+    ---
+
+    get "/properties-values" (continue listPropertyKeysAndValues) $
+        header "Z-User"
+        .&. accept "application" "json"
+
+    document "GET" "listPropertyKeysAndValues" $ do
+        Doc.summary "List all properties with key and value."
+        Doc.returns (Doc.ref Doc.propertyDictionary)
+        Doc.response 200 "Object with properties as attributes." Doc.end
+
     -- /register, /activate, /password-reset ----------------------------------
 
     post "/register" (continue createUser) $
@@ -990,6 +1034,9 @@ getProperty (u ::: k ::: _) = do
 listPropertyKeys :: UserId ::: JSON -> Handler Response
 listPropertyKeys (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
 
+listPropertyKeysAndValues :: UserId ::: JSON -> Handler Response
+listPropertyKeysAndValues (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
+
 getPrekey :: UserId ::: ClientId ::: JSON -> Handler Response
 getPrekey (u ::: c ::: _) = do
     prekey <- lift $ API.claimPrekey u c
@@ -1055,11 +1102,23 @@ getUserClient (user ::: cid ::: _) = lift $ do
         Just c  -> json c
         Nothing -> setStatus status404 empty
 
+getRichInfo :: UserId ::: UserId ::: JSON -> Handler Response
+getRichInfo (self ::: user ::: _) = do
+    -- Check that both users exist and the requesting user is allowed to see rich info of the
+    -- other user
+    selfUser  <- ifNothing userNotFound =<< lift (Data.lookupUser self)
+    otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
+    case (userTeam selfUser, userTeam otherUser) of
+        (Just t1, Just t2) | t1 == t2 -> pure ()
+        _ -> throwStd insufficientTeamPermissions
+    -- Query rich info
+    json . fromMaybe emptyRichInfo <$> lift (API.lookupRichInfo user)
+
 listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
-autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
+autoConnect (_ ::: _ ::: uid ::: conn ::: req) = do
     UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
@@ -1071,7 +1130,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    NewUserNoSSO new <- parseJsonBody req
+    NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1386,6 +1445,27 @@ addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
+-- | Get any matching prefixes. Also try for shorter prefix matches,
+-- i.e. checking for +123456 also checks for +12345, +1234, ...
+getPhonePrefixes :: PhonePrefix -> Handler Response
+getPhonePrefixes prefix = do
+    results <- lift $ API.phonePrefixGet prefix
+    return $ case results of
+        []      -> setStatus status404 empty
+        _       -> json results
+
+-- | Delete a phone prefix entry (must be an exact match)
+deleteFromPhonePrefix :: PhonePrefix -> Handler Response
+deleteFromPhonePrefix prefix = do
+    void . lift $ API.phonePrefixDelete prefix
+    return empty
+
+addPhonePrefix :: JSON ::: JSON ::: Request -> Handler Response
+addPhonePrefix (_ ::: _ ::: req) = do
+    prefix :: ExcludedPrefix <- parseJsonBody req
+    void . lift $ API.phonePrefixInsert prefix
+    return empty
+
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
@@ -1406,6 +1486,30 @@ isTeamOwner (uid ::: tid) = do
        Team.IsOneOfManyTeamOwners -> pure ()
        Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
+    return empty
+
+updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateSSOId (uid ::: _ ::: _ ::: req) = do
+    ssoid :: UserSSOId <- parseJsonBody req
+    success <- lift $ Data.updateSSOId uid ssoid
+    if success
+      then return empty
+      else return . setStatus status404 $ plain "User does not exist or has no team."
+
+updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateManagedBy (uid ::: _ ::: _ ::: req) = do
+    ManagedByUpdate managedBy <- parseJsonBody req
+    lift $ Data.updateManagedBy uid managedBy
+    return empty
+
+updateRichInfo :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateRichInfo (uid ::: _ ::: _ ::: req) = do
+    richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
+    maxSize <- setRichInfoLimit <$> view settings
+    when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+    lift $ Data.updateRichInfo uid richInfo
+    -- FUTUREWORK: send an event
+    -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response

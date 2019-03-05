@@ -1,9 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Bench (Bench.benchmark) where
 
+import Imports
 import Control.Concurrent.Async
-import Control.Monad
 import Criterion
 import Criterion.Main
 import Data.UUID

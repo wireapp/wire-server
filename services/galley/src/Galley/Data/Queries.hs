@@ -1,19 +1,12 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.Data.Queries where
 
+import Imports
 import Brig.Types.Code
-import Cassandra hiding (Value)
+import Cassandra as C hiding (Value)
 import Cassandra.Util
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
+import Data.Json.Util
 import Data.Misc
-import Data.Monoid
-import Data.Text (Text)
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
@@ -42,11 +35,11 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamMember :: PrepQuery R (TeamId, UserId) (Identity Permissions)
-selectTeamMember = "select perms from team_member where team = ? and user = ?"
+selectTeamMember :: PrepQuery R (TeamId, UserId) (Permissions, Maybe UserId, Maybe UTCTimeMillis)
+selectTeamMember = "select perms, invited_by, invited_at from team_member where team = ? and user = ?"
 
-selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions)
-selectTeamMembers = "select user, perms from team_member where team = ? order by user"
+selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis)
+selectTeamMembers = "select user, perms, invited_by, invited_at from team_member where team = ? order by user"
 
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"
@@ -69,8 +62,8 @@ insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"
 deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
-insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions) ()
-insertTeamMember = "insert into team_member (team, user, perms) values (?, ?, ?)"
+insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) ()
+insertTeamMember = "insert into team_member (team, user, perms, invited_by, invited_at) values (?, ?, ?, ?, ?)"
 
 deleteTeamMember :: PrepQuery W (TeamId, UserId) ()
 deleteTeamMember = "delete from team_member where team = ? and user = ?"
@@ -104,20 +97,26 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
-selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv = ?"
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
-selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv in ?"
+selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv in ?"
+
+selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
+selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team, message_timer) values (?, ?, ?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team, message_timer, receipt_mode) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-updateConvAccess :: PrepQuery W (Set Access, AccessRole, ConvId) ()
+updateConvAccess :: PrepQuery W (C.Set Access, AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
+
+updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
+updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?"
 
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
 updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
@@ -166,11 +165,11 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
-selectMember = "select user, service, provider, status, otr_muted, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv = ? and user = ?"
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectMember = "select user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
-selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv in ?"
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv in ?"
 
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId) ()
 insertMember = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
@@ -181,6 +180,9 @@ removeMember = "delete from member where conv = ? and user = ?"
 updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberMuted = "update member set otr_muted = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
+updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
+
 updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
@@ -189,7 +191,7 @@ updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = 
 
 -- Clients ------------------------------------------------------------------
 
-selectClients :: PrepQuery R (Identity [UserId]) (UserId, Set ClientId)
+selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)
 selectClients = "select user, clients from clients where user in ?"
 
 rmClients :: PrepQuery W (Identity UserId) ()
@@ -210,10 +212,10 @@ rmMemberClient c =
 rmSrv :: PrepQuery W (ProviderId, ServiceId) ()
 rmSrv = "delete from service where provider = ? AND id = ?"
 
-insertSrv :: PrepQuery W (ProviderId, ServiceId, HttpsUrl, ServiceToken, Set (Fingerprint Rsa), Bool) ()
+insertSrv :: PrepQuery W (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool) ()
 insertSrv = "insert into service (provider, id, base_url, auth_token, fingerprints, enabled) values (?, ?, ?, ?, ?, ?)"
 
-selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, Set (Fingerprint Rsa), Bool)
+selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool)
 selectSrv = "select base_url, auth_token, fingerprints, enabled from service where provider = ? AND id = ?"
 
 -- Bots ---------------------------------------------------------------------

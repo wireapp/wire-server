@@ -3,11 +3,12 @@ cargohold:
   port: 8084
 
 aws:
-  # TODO: Check AWS loadCredentialsFromEnv
-  keyId: dummykey # <-- insert-key-id-here
-  secretKey: dummysecret # <-- insert-secret-key-here
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
+  # s3DownloadEndpoint: http://fake-s3:4570
+  # ^ When not using a real S3 service, we may need to use a different,
+  #   publicly accessible endpoint for downloading assets.
+  #
   # If you want to use cloudfront for asset downloads
   # cloudFront:
   #   domain: <insert-cloudfront-domain-here>

@@ -1,10 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
+import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import Data.Monoid ((<>))
 import Options.Applicative
 import System.Logger hiding (info)
 
@@ -16,6 +14,9 @@ import qualified V24
 import qualified V25
 import qualified V26
 import qualified V27
+import qualified V28
+import qualified V29
+import qualified V30
 
 main :: IO ()
 main = do
@@ -30,6 +31,9 @@ main = do
         , V25.migration
         , V26.migration
         , V27.migration
+        , V28.migration
+        , V29.migration
+        , V30.migration
         -- When adding migrations here, don't forget to update
         -- 'schemaVersion' in Galley.Data
         ]

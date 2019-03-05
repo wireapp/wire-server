@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.User.Phone
     ( ActivationSms (..)
@@ -25,6 +23,7 @@ module Brig.User.Phone
     , validatePhone
     ) where
 
+import Imports
 import Brig.App
 import Brig.Phone
 import Brig.User.Template
@@ -32,11 +31,11 @@ import Brig.Types.Activation
 import Brig.Types.User
 import Brig.Types.User.Auth (LoginCode (..))
 import Data.Range
-import Data.Text (Text, chunksOf, intercalate, toLower)
 import Data.Text.Lazy (toStrict)
 
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
+import qualified Data.Text       as Text
 import qualified Ropes.Nexmo     as Nexmo
 
 sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> AppIO ()
@@ -152,7 +151,7 @@ renderActivationCall ActivationCall{..} (ActivationCallTemplate t) loc =
     Nexmo.Call Nothing
                (fromPhone actCallTo)
                (toStrict $ renderText t replace)
-               (Just . toLower $ locToText loc)
+               (Just . Text.toLower $ locToText loc)
                (Just 1)
   where
     replace "code" = toPinPrompt $ Ascii.toText (fromActivationCode actCallCode)
@@ -171,7 +170,7 @@ renderLoginCall LoginCall{..} (LoginCallTemplate t) loc =
     Nexmo.Call Nothing
                (fromPhone loginCallTo)
                (toStrict $ renderText t replace)
-               (Just . toLower $ locToText loc)
+               (Just . Text.toLower $ locToText loc)
                (Just 1)
   where
     replace "code" = toPinPrompt $ fromLoginCode loginCallCode
@@ -180,7 +179,7 @@ renderLoginCall LoginCall{..} (LoginCallTemplate t) loc =
 -- Common Prompt rendering
 
 toPinPrompt :: Text -> Text
-toPinPrompt = intercalate "<break time=\"750ms\"/>" . chunksOf 1
+toPinPrompt = Text.intercalate "<break time=\"750ms\"/>" . Text.chunksOf 1
 
 -- Common URL rendering
 
@@ -190,4 +189,3 @@ renderSmsActivationUrl t c =
   where
     replace "code" = c
     replace x      = x
-

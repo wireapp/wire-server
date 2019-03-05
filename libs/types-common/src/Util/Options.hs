@@ -5,23 +5,15 @@
 
 module Util.Options where
 
+import Imports
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Data.Aeson.TH
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Maybe (fromMaybe)
-import Data.Monoid
-import Data.String
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml hiding (Parser)
-import GHC.Generics
-import GHC.Word
 import Options.Applicative
 import Options.Applicative.Types
-import System.Directory
-import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import System.Exit (die)
 import URI.ByteString
@@ -82,13 +74,13 @@ makeLenses ''CassandraOpts
 newtype FilePathSecrets = FilePathSecrets FilePath
     deriving (Eq, Show, Read, FromJSON)
 
-loadSecret :: FromJSON a => FilePathSecrets -> IO (Maybe a)
+loadSecret :: FromJSON a => FilePathSecrets -> IO (Either String a)
 loadSecret (FilePathSecrets p) = do
     path   <- canonicalizePath p
     exists <- doesFileExist path
     if exists
-        then return . decode =<< BS.readFile path
-        else return Nothing
+        then return . over _Left show . decodeEither' =<< BS.readFile path
+        else return (Left "File doesn't exist")
 
 getOptions
     :: FromJSON a
@@ -116,6 +108,7 @@ getOptions desc pars defaultPath = do
         (False, Nothing) -> do
             die $ "Config file at " ++ path ++ " does not exist. \n"
   where
+    mkDesc :: InfoMod b
     mkDesc = header desc <> fullDesc
 
 parseConfigPath :: FilePath -> InfoMod String -> IO String
@@ -141,7 +134,7 @@ cassandraParser = CassandraOpts <$>
     (Endpoint <$>
         (textOption $
             long "cassandra-host"
-            <> metavar "HOSTNAME" 
+            <> metavar "HOSTNAME"
             <> help "Cassandra hostname or address")
       <*>
         (option auto $
@@ -156,6 +149,6 @@ cassandraParser = CassandraOpts <$>
 
 discoUrlParser :: Parser Text
 discoUrlParser = textOption
-    $ long "disco-url" 
+    $ long "disco-url"
     <> metavar "URL"
     <> help "klabautermann url"

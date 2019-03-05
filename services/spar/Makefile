@@ -10,6 +10,8 @@ EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -24,11 +26,11 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist spar
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist spar
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS) spar
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS) spar
 
 .PHONY: clean
 clean:
@@ -37,7 +39,7 @@ clean:
 
 .PHONY: compile
 compile:
-	stack build --fast --test --no-copy-bins spar
+	stack build --fast --test --bench --no-run-benchmarks --no-copy-bins spar
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) .metadata
@@ -64,14 +66,18 @@ $(DEB_SCHEMA): install
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+
+.PHONY: i-aws
+i-aws:
+	INTEGRATION_USE_REAL_AWS=1 ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml --match="$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i
@@ -80,7 +86,7 @@ integration: fast i
 integration-list: fast i-list
 
 integration-%: fast
-	make i-"$*"
+	make "i-$*"
 
 .PHONY: db
 db: db-reset
@@ -96,10 +102,12 @@ db-migrate: fast
 .PHONY: docker
 docker:
 	$(foreach executable,$(EXECUTABLES),\
-	docker build -t $(executable) \
-	-f Dockerfile \
+	docker build -t $(DOCKER_USER)/$(executable):$(DOCKER_TAG) \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
-	../.. \
+	../.. && \
+	docker tag $(DOCKER_USER)/$(executable):$(DOCKER_TAG) $(DOCKER_USER)/$(executable):latest && \
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/$(executable):$(DOCKER_TAG); docker push $(DOCKER_USER)/$(executable):latest; fi \
 	;)
 
 .PHONY: time

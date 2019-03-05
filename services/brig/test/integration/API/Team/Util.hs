@@ -1,10 +1,6 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeApplications  #-}
-
 module API.Team.Util where
 
+import Imports
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types.User
@@ -12,19 +8,13 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Control.Lens (view, (^?))
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Maybe (fromMaybe)
 import Data.Misc (Milliseconds)
-import Data.Text (Text)
-import Data.Typeable (Typeable)
-import Data.ByteString.Lazy (ByteString)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvUnmanaged (..), NewConvManaged (..))
-import GHC.Stack (HasCallStack)
 import Test.Tasty.HUnit
 import Util
 
@@ -82,7 +72,7 @@ createTeamMember brig galley owner tid perm = do
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"
@@ -90,9 +80,9 @@ inviteAndRegisterUser u tid brig = do
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
     let Just invitee = decodeBody rspInvitee
-    liftIO $ assertBool "Team ID in registration and team table do not match" (Just tid == userTeam invitee)
+    liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
     selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
-    liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
+    liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
     return invitee
 
 updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
@@ -104,13 +94,13 @@ updatePermissions from tid (to, perm) galley =
         . Bilge.json changeMember
         ) !!! const 200 === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
+    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -126,7 +116,7 @@ createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> M
 createManagedConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
     r <- post ( g
               . path "/i/conversations/managed"
               . zUser u
@@ -151,7 +141,7 @@ deleteTeam g tid u = do
            . paths ["teams", toByteString' tid]
            . zUser u
            . zConn "conn"
-           . lbytes (encode $ Team.newTeamDeleteData Util.defPassword)
+           . lbytes (encode $ Team.newTeamDeleteData $ Just Util.defPassword)
            ) !!! const 202 === statusCode
 
 getTeams :: UserId -> Galley -> Http Team.TeamList
@@ -174,7 +164,7 @@ accept email code = RequestBodyLBS . encode $ object
     , "team_code" .= code
     ]
 
-register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe ByteString))
+register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig = post (brig . path "/register" . contentJson . body (
     RequestBodyLBS . encode  $ object
         [ "name"            .= ("Bob" :: Text)
@@ -184,7 +174,7 @@ register e t brig = post (brig . path "/register" . contentJson . body (
         ]
     ))
 
-register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe ByteString))
+register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig = post (brig . path "/register" . contentJson . body (
     RequestBodyLBS . encode  $ object
         [ "name"            .= ("Bob" :: Text)
@@ -217,7 +207,7 @@ postInvitation brig t u i = post $ brig
     . body (RequestBodyLBS $ encode i)
     . zAuthAccess u "conn"
 
-suspendTeam :: Brig -> TeamId -> Http (Response (Maybe ByteString))
+suspendTeam :: Brig -> TeamId -> Http (Response (Maybe LByteString))
 suspendTeam brig t = post $ brig
     . paths ["i", "teams", toByteString' t, "suspend"]
     . contentJson
@@ -251,7 +241,7 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe ByteString) -> Http a
+decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe LByteString) -> Http a
 decodeBody' x = maybe (error $ "Failed to decodeBody: " ++ show x) return $ decodeBody x
 
 isActivatedUser :: UserId -> Brig -> Http Bool

@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Gundeck.Push.Data
     ( insert
     , delete
@@ -9,9 +6,8 @@ module Gundeck.Push.Data
     , Consistency (..)
     ) where
 
+import Imports
 import Cassandra
-import Control.Lens
-import Control.Monad (foldM)
 import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId, ConnId)
 import Gundeck.Instances ()
@@ -21,19 +17,19 @@ import System.Logger.Class (MonadLogger, val, msg, field, (~~))
 
 import qualified System.Logger.Class as Log
 
-lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address "no-keys"]
+lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
   where
-    q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId, Maybe Transport)
-    q = "select usr, transport, app, ptoken, arn, connection, client, fallback from user_push where usr = ?"
+    q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
+    q = "select usr, transport, app, ptoken, arn, connection, client from user_push where usr = ?"
 
     mk as r = maybe as (:as) <$> mkAddr r
 
-insert :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> ConnId -> ClientId -> Maybe Transport -> m ()
-insert u t a p e o c f = retry x5 $ write q (params Quorum (u, t, a, p, e, o, c, f))
+insert :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> ConnId -> ClientId -> m ()
+insert u t a p e o c = retry x5 $ write q (params Quorum (u, t, a, p, e, o, c))
   where
-    q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId, Maybe Transport) ()
-    q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client, fallback) values (?, ?, ?, ?, ?, ?, ?, ?)"
+    q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
+    q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?)"
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
 delete u t a p = retry x5 $ write q (params Quorum (u, t, a, p))
@@ -48,10 +44,10 @@ erase u = retry x5 $ write q (params Quorum (Identity u))
     q = "delete from user_push where usr = ?"
 
 mkAddr :: (MonadClient m, MonadLogger m)
-       => (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId, Maybe Transport)
-       -> m (Maybe (Address "no-keys"))
-mkAddr (usr, trp, app, tok, arn, con, clt, fbt) = case (clt, arn) of
-    (Just c, Just a) -> return $! Just $! Address usr trp app tok a con c Nothing fbt
+       => (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
+       -> m (Maybe Address)
+mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
+    (Just c, Just a) -> return $! Just $! Address usr a con (pushToken trp app tok c)
     _                -> do
         Log.info $ field "user" (toByteString usr)
             ~~ field "transport" (show trp)
@@ -60,4 +56,3 @@ mkAddr (usr, trp, app, tok, arn, con, clt, fbt) = case (clt, arn) of
             ~~ msg (val "Deleting legacy push token without a client or ARN.")
         delete usr trp app tok
         return Nothing
-

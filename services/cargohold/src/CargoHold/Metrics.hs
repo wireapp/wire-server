@@ -1,12 +1,8 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module CargoHold.Metrics where
 
+import Imports
 import CargoHold.App (Env, metrics)
 import Control.Lens (view)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Metrics.Middleware (path, counterIncr, counterAdd)
 
 s3UploadOk :: (MonadReader Env m, MonadIO m) => m ()

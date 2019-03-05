@@ -11,29 +11,25 @@ module Bilge.RPC
     , rpcExceptionMsg
     ) where
 
+import Imports hiding (log)
 import Bilge.IO
 import Bilge.Request
 import Bilge.Response
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
-import Data.Monoid
-import Data.Typeable
 import Control.Error hiding (err)
-import Control.Monad
 import Control.Monad.Catch hiding (tryJust)
 import Control.Monad.Except
-import Data.Text.Lazy (Text, pack)
+import Data.Text.Lazy (pack)
 import System.Logger.Class
-import Prelude hiding (log)
 
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Network.HTTP.Client  as HTTP
 
 class HasRequestId m where
     getRequestId :: m RequestId
 
 data RPCException = RPCException
-    { rpceRemote  :: !Text
+    { rpceRemote  :: !LText
     , rpceRequest :: !Request
     , rpceCause   :: !SomeException
     } deriving Typeable
@@ -50,9 +46,9 @@ instance Show RPCException where
       . showString "}"
 
 rpc :: (MonadIO m, MonadHttp m, HasRequestId m, MonadLogger m, MonadThrow m)
-    => Text
+    => LText
     -> (Request -> Request)
-    -> m (Response (Maybe Lazy.ByteString))
+    -> m (Response (Maybe LByteString))
 rpc sys = rpc' sys empty
 
 -- | Perform an HTTP request and return the response, thereby
@@ -61,10 +57,10 @@ rpc sys = rpc' sys empty
 -- Note: 'syncIO' is wrapped around the IO action performing the request
 --       and any exceptions caught are re-thrown in an 'RPCException'.
 rpc' :: (MonadIO m, MonadHttp m, HasRequestId m, MonadThrow m)
-     => Text -- ^ A label for the remote system in case of 'RPCException's.
+     => LText -- ^ A label for the remote system in case of 'RPCException's.
      -> Request
      -> (Request -> Request)
-     -> m (Response (Maybe Lazy.ByteString))
+     -> m (Response (Maybe LByteString))
 rpc' sys r f = do
     mgr <- getManager
     rId <- getRequestId
@@ -83,15 +79,15 @@ rpcExceptionMsg (RPCException sys req ex) =
 
 statusCheck :: (MonadError e m, MonadIO m)
             => Int
-            -> (Text -> e)
-            -> Response (Maybe Lazy.ByteString)
+            -> (LText -> e)
+            -> Response (Maybe LByteString)
             -> m ()
 statusCheck c f r = unless (statusCode r == c) $
     throwError $ f ("unexpected status code: " <> pack (show $ statusCode r))
 
 parseResponse :: (Exception e, MonadThrow m, Monad m, FromJSON a)
-              => (Text -> e)
-              -> Response (Maybe Lazy.ByteString)
+              => (LText -> e)
+              -> Response (Maybe LByteString)
               -> m a
 parseResponse f r = either throwM return $ do
     b <- note (f "no response body") (responseBody r)

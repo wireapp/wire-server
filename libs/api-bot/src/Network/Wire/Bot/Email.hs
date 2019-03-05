@@ -12,19 +12,14 @@ module Network.Wire.Bot.Email
     , awaitInvitationMail
     ) where
 
+import Imports
 import Codec.MIME.Parse
 import Codec.MIME.Type
-import Control.Concurrent
 import Control.Exception
-import Control.Monad (liftM2)
 import Data.Aeson
 import Data.Id (InvitationId)
-import Data.List (find)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Pool (Pool, createPool, withResource)
-import Data.Text (Text)
-import Data.Traversable (forM)
-import Data.Typeable
 import Network.HaskellNet.IMAP
 import Network.HaskellNet.IMAP.Connection
 import Network.HaskellNet.IMAP.SSL
@@ -136,8 +131,8 @@ awaitMail :: Mailbox
           -> IO (NonEmpty MIMEValue)
 awaitMail mbox folders from to purpose = go 0
   where
-    sleep   = 5000000    -- every 5 seconds
-    timeout = sleep * 24 -- for up to 2 minutes
+    sleep   = 5000000 :: Int   -- every 5 seconds
+    timeout = sleep * 24   -- for up to 2 minutes
     go t = do
         msgs <- fetchMail mbox folders from to purpose -- TODO: Retry on (some?) exceptions
         case msgs of

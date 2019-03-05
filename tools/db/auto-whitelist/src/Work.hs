@@ -8,14 +8,12 @@
 
 module Work (runCommand) where
 
+import Imports
 import Brig.Types hiding (Client)
 import Cassandra
-import Control.Monad.Except
 import Data.Id
-import Data.Maybe
 import System.Logger (Logger)
-import Data.Functor.Identity
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.List.Extra (nubOrd)
 
 import qualified System.Logger as Log
@@ -26,7 +24,7 @@ runCommand :: Logger -> ClientState -> IO ()
 runCommand l brig = runClient brig $ do
     services <- getServices
     existing <- filterM doesServiceExist (nubOrd services)
-    void $ mapMPooled 20 (whitelistService l) existing
+    pooledMapConcurrentlyN_ 20 (whitelistService l) existing
 
 ----------------------------------------------------------------------------
 -- Queries

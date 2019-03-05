@@ -1,8 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
-
 module Gundeck.Notification.Data
     ( ResultPage (..)
     , add
@@ -12,21 +7,16 @@ module Gundeck.Notification.Data
     , deleteAll
     ) where
 
-import Cassandra
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently, Forall, Pure)
-import Control.Lens ((&), (^.), _1)
-import Control.Monad.Identity
-import Control.Monad.Trans.Control
-import Data.Bool (bool)
-import Data.Foldable (toList, foldr')
+import Imports
+import Cassandra as C
+import Control.Lens ((^.), _1)
 import Data.Id
-import Data.Int
 import Data.List1 (List1)
-import Data.Maybe (listToMaybe, isJust)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, (><), (<|), ViewL (..), ViewR (..))
 import Gundeck.Types.Notification
 import Gundeck.Options (NotificationTTL (..))
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Aeson      as JSON
 import qualified Data.List.Extra as List
@@ -44,7 +34,7 @@ data ResultPage = ResultPage
         -- iff a start ID ('since') has been given which could not be found.
     }
 
-add :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
+add :: (MonadClient m, MonadUnliftIO m)
     => NotificationId
     -> List1 NotificationTarget
     -> List1 JSON.Object
@@ -53,10 +43,10 @@ add :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
 add n (List.chunksOf 32 . toList -> tgts) (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
     forM_ tgts $ mapConcurrently $ \tgt ->
         let u  = tgt^.targetUser
-            cs = Set (tgt^.targetClients)
+            cs = C.Set (tgt^.targetClients)
         in write cqlInsert (params Quorum (u, n, p, cs, fromIntegral t)) & retry x5
   where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, Set ClientId, Int32) ()
+    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsert =
         "INSERT INTO notifications \
         \(user, id, payload, clients) VALUES \
@@ -67,7 +57,7 @@ fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (May
 fetchId u n c = listToMaybe . foldr' (toNotif c) [] <$>
     query cqlById (params Quorum (u, n)) & retry x1
   where
-    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlById =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -92,14 +82,14 @@ fetchLast u c = do
             Just  n -> return (Just n)
             Nothing -> f
 
-    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlLast =
         "SELECT id, payload, clients \
         \FROM notifications \
         \WHERE user = ? \
         \ORDER BY id DESC LIMIT 1"
 
-    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlSeek =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -144,14 +134,14 @@ fetch u c since (fromRange -> size) = do
                                 EmptyR  -> ns
                                 xs :> _ -> xs
 
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlStart =
         "SELECT id, payload, clients \
         \FROM notifications \
         \WHERE user = ? \
         \ORDER BY id ASC"
 
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlSince =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -168,7 +158,7 @@ deleteAll u = write cql (params Quorum (Identity u)) & retry x5
 -- Conversions
 
 toNotif :: Maybe ClientId
-        -> (TimeUuid, Blob, Maybe (Set ClientId))
+        -> (TimeUuid, Blob, Maybe (C.Set ClientId))
         -> [QueuedNotification]
         -> [QueuedNotification]
 toNotif c (i, b, cs) ns =

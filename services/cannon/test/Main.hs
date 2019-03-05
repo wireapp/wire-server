@@ -1,5 +1,6 @@
 module Main where
 
+import Imports
 import Test.Tasty
 
 import qualified Bench            as B

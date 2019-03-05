@@ -12,6 +12,7 @@ module Brig.API.Types
     , foldKey
     ) where
 
+import Imports
 import Brig.Data.Activation (ActivationError (..), Activation (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
@@ -21,10 +22,7 @@ import Brig.Types
 import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
-import Control.Exception
 import Data.Id
-import Data.Text (Text)
-import Data.Typeable
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -69,7 +67,7 @@ data CreateUserError
     | MissingIdentity
     | EmailActivationError ActivationError
     | PhoneActivationError ActivationError
-    | InvalidEmail Email
+    | InvalidEmail Email String
     | InvalidPhone Phone
     | DuplicateUserKey UserKey
     | BlacklistedUserKey UserKey
@@ -95,7 +93,7 @@ data ConnectionError
         -- no verified user identity.
     | ConnectBlacklistedUserKey UserKey
         -- ^ An attempt at creating an invitation to a blacklisted user key.
-    | ConnectInvalidEmail Email
+    | ConnectInvalidEmail Email String
         -- ^ An attempt at creating an invitation to an invalid email address.
     | ConnectInvalidPhone Phone
         -- ^ An attempt at creating an invitation to an invalid phone nbumber.
@@ -123,7 +121,7 @@ data ChangePhoneError
     | InvalidNewPhone !Phone
 
 data ChangeEmailError
-    = InvalidNewEmail !Email
+    = InvalidNewEmail !Email !String
     | EmailExists !Email
     | ChangeBlacklistedEmail !Email
 

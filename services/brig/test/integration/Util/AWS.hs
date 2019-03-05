@@ -1,16 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Util.AWS where
 
+import Imports
 import Brig.Types
 import Control.Lens
-import Control.Monad (join)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
 import Data.Id
-import Data.Maybe
-import Data.Monoid
-import GHC.Stack
 import Test.Tasty.HUnit
 
 import qualified Brig.AWS             as AWS
@@ -20,6 +14,7 @@ import qualified Data.Text            as Text
 import qualified Data.Text.Encoding   as Text
 import qualified Data.UUID            as UUID
 import qualified Proto.UserEvents     as PU
+import qualified Proto.UserEvents_Fields as PU
 import qualified Util.Test.SQS        as SQS
 
 isRealSESEnv :: AWS.Env -> Bool

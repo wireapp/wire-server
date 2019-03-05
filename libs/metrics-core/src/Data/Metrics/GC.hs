@@ -2,6 +2,7 @@
 
 module Data.Metrics.GC (toJson) where
 
+import Imports
 import Data.Aeson
 import GHC.Stats
 
