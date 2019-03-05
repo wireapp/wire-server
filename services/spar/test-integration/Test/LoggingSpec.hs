@@ -7,8 +7,6 @@ import System.Logger as Log
 import System.IO.Silently (capture)
 import Util
 
-import qualified System.Logger as Log
-
 
 spec :: HasCallStack => SpecWith TestEnv
 spec = describe "logging" $ do
