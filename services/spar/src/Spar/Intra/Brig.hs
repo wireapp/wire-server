@@ -247,7 +247,6 @@ getUserTeam buid = do
   usr <- getUser buid
   pure $ userTeam =<< usr
 
-
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
 -- 'SparNotTeamOwner'; otherwise, return.
 assertIsTeamOwner :: (HasCallStack, MonadSparToBrig m) => UserId -> TeamId -> m ()

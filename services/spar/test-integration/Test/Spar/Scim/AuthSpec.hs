@@ -9,6 +9,8 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Control.Lens
+import Data.Misc (PlainTextPassword(..))
+import Network.Wai.Utilities.Error (label)
 import Spar.Scim
 import Spar.Types (ScimTokenInfo(..))
 import Util
@@ -34,6 +36,11 @@ specCreateToken = describe "POST /auth-tokens" $ do
     it "respects the token limit" $ testTokenLimit
     it "requires the team to have an IdP" $ testIdPIsNeeded
     it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
+    it "requires a password" $ testCreateTokenRequiresPassword
+    -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
+    -- reauthentication is not required. We currently (2019-03-05) can't test that because
+    -- only team owners with an email address can do SCIM token operations (which is something
+    -- we should change in the future).
 
 -- | Test that token creation is sane:
 --
@@ -93,10 +100,9 @@ testIdPIsNeeded = do
 
 -- | Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()
-testCreateTokenAuthorizesOnlyTeamOwner =
-  do
+testCreateTokenAuthorizesOnlyTeamOwner = do
     env <- ask
-    (_, teamId,_) <- registerTestIdP
+    (_, teamId, _) <- registerTestIdP
     teamMemberId <- runHttpT (env ^. teMgr)
       $ createTeamMember
         (env ^. teBrig)
@@ -112,6 +118,33 @@ testCreateTokenAuthorizesOnlyTeamOwner =
       !!! const 403
       === statusCode
 
+-- | Test that for a user with a password, token creation requires reauthentication (i.e. the
+-- field @"password"@ should be provided).
+--
+-- Checks both the "password not provided" and "wrong password is provided" cases.
+testCreateTokenRequiresPassword :: TestSpar ()
+testCreateTokenRequiresPassword = do
+    env <- ask
+    -- Create a new team
+    (owner, _, _) <- registerTestIdP
+    -- Creating a token doesn't work without a password
+    createToken_
+      owner
+      CreateScimToken
+        { createScimTokenDescr = "testCreateTokenRequiresPassword"
+        , createScimTokenPassword = Nothing }
+      (env ^. teSpar)
+      !!! do const 403 === statusCode
+             const "access-denied" === (label . decodeBody')
+    -- Creating a token doesn't work with a wrong password
+    createToken_
+      owner
+      CreateScimToken
+        { createScimTokenDescr = "testCreateTokenRequiresPassword"
+        , createScimTokenPassword = Just (PlainTextPassword "wrong password") }
+      (env ^. teSpar)
+      !!! do const 403 === statusCode
+             const "access-denied" === (label . decodeBody')
 
 ----------------------------------------------------------------------------
 -- Token listing
