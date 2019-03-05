@@ -720,7 +720,7 @@ instance FromJSON TeamUpdateData where
 
 instance FromJSON TeamMemberDeleteData where
     parseJSON = withObject "team-member-delete-data" $ \o ->
-        TeamMemberDeleteData <$> o .: "password"
+        TeamMemberDeleteData <$> (o .:? "password")
 
 instance ToJSON TeamMemberDeleteData where
     toJSON tmd = object
