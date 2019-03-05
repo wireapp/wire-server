@@ -39,14 +39,11 @@ import qualified Network.WebSockets          as Ws
 import qualified System.Logger.Class         as Logger
 import qualified System.IO.Strict            as Strict
 
-mkLogger :: Opts -> IO Logger
-mkLogger o = Logger.new $ simpleDefSettings (o^.logLevel) (o^.logNetStrings)
-
 run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- metrics
-    g <- mkLogger o
+    g <- Logger.new $ simpleDefSettings (o^.logLevel) (o^.logNetStrings)
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o
