@@ -28,7 +28,6 @@ import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
 import System.Logger (msg, val, simpleDefSettings)
-import System.Logger.Class (Logger)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
