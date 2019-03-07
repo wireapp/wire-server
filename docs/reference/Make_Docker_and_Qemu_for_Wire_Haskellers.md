@@ -561,7 +561,7 @@ archpath=$(foreach arch,$(patsubst 386,i386,$(filter-out $(LOCALARCH),$(1))),$(a
 $
 ```
 
-These are going to be a bit hard to explain in order, especially since we haven't covered where they are being called from. Let's take them from simplest to hardest.
+These are going to be a bit hard to explain in order, especially since we haven't covered where they are being called from. Let's take them from simplest to hardest, which happens to co-incide with shortest, to longest.
 
 The fst and snd functions are what happens when a haskell programmer is writing make. You remember all of the pairs of values earlier, that were seperated by a single '-' character? these functions return either the first, or the second item in the pair. Let's unpack 'fst'.
 fst uses the 'word' function of make to retrieve the first word from "$(subst -, ,$(1))". the 'subst' function substitutes a single dash for a single space. this seperates a <item1>-<item2> pair into a space seperated string. $(1) is the first argument passed to this function.
@@ -575,7 +575,33 @@ manivariant has a similar function to maniarch. It's job is to take an architect
 manivariant starts by using make's 'foreach' function. this works by breaking it's second argument into words, storing them into the variable name given in the first argument, and then generating text using the third option. this is a bit abusive, as we're really just using it as "if there is a variant, add --variant <variant>" structure.
 The first argument of foreach is the name of a variable. we used 'variant' here. the second argument in this case properly uses word, and subst to return only the content after a 'v' in our passed in argument, or emptystring. the third option is ' --variant $(variant)', using the variable defined in the first parameter of foreach to create " --variant 5" if this is passed "arm32v5", for instance.
 
-archpath is similar in structure to manivariant. In order to find a version of a docker image that is appropriate for our non-native architectures, we have to add 'archname/' to the image we're deriving from's path, in our Dockerfile. This function
+archpath is similar in structure to manivariant. In order to find a version of a docker image that is appropriate for our non-native architectures, we have to add the 'archname/' string to the path to the image we're deriving from, in our Dockerfile. This function returns that string. We start by using foreach in a similar method as manivariant, to only return a string if the second argument to foreach evaluates to content. In our second argument, we begin by performing a patsubst, replacing a '386' with an 'i386' if it's found in the patsubst argument. This is because on dockerhub, official images of different architectures are actually stored in a series of machine maintained accounts, and an account name can't start with a number. therefore, 386 images are stored under a user called 'i386'. As an argument to the patsubst, we're providing our first usage of filter-out. it's used here so that if the local architecture was supplied to this function, the string will return empty in section 2 of our foreach, and therefore the third section won't even be evaluated.
+
+our next function to explain is 'goodarches'. This function is passed an image name, and returns all of the arches from our architecture list that that image can be built for. It basically searches BADARCHSIM from earlier, and removes an architecture from the returned copy of ARCHES if a <imagename>-<architecture> pair for that architecture exists. We use filter-out to remove anything returned from it's second argument from the ARCHES list we provide as it's third argument. The second argument to filter-out uses snd to seperate the architecture name from a string found, and uses foreach and filter to search BADARCHSIM for all possible combinations between the passed in image name, and all of the architectures.
+
+dockerarch is a bit simpler than the last few. it takes the debian architecture name, replacing it with the docker architecture name, using a series of nested patsubst substititions.
+
+Unlike our earlier functions, nodeps does not require an argument. It's function is to return a list of images from NAMES that do not have any dependencies. To do this, we start with a filter-out of NAMES, then use a pair of nested foreach statements, both searching through NAMES, and constructing all combinations of <imagename>-<imagename>. This value is looked for in PREBUILDS, and if a combination is found, we use snd to return the dependency to filter-out. this is probably overly complicated, and can likely be shortened by the use of patsubst. "it works, ship it."
+
+Finally, we get to archpostfix. archpostfix has a similar function to archpath, only it provides a -<arch> for the end of the image path if the DEPENDENCY of this image is not an official image, and therefore can not be found by adding an 'arch/' postfix. This is long, and probably also a candidate for shortening. Reading your way through this one is an exercise for when the reader wants a reverse polish notation headache.
+
 
 To summarize the Make functions we've (ab)used in this section:
-$(word)
+```
+$(word 1,string of words)     # return the Nth word in a space separated string.
+$(subst -, ,string-of-words)  # replace occurances of '-' with ' ' in string.
+$(patsubst string%,%string)   # replace a patern with another patern, using % as a single wildcard.
+$(call function,argument)     # function calling.
+$(foreach var,string,$(var))  # iterate on a space seperated string, evaluating the last argument with var set to each word in string.
+$(filter word,word list)      # return word if it is found in word list.
+$(filter-out word, word list) # return word list without word.
+```
+
+Now after all of that, let's go through the SED command we last used. Remember that?
+```bash
+$ cat Makefile | sed -n '/^[a-z]*=/p'
+```
+Again, we're going to use sed in '-n' mode, supressing all output except the output we are searching for. /PATTERN/ searches the lines of the input for a pattern, and if it's found, the command afterward is executed, which is a 'p' for print, in this case. the patern given is '^[a-z]*='. The '^' at the beginning means 'look for this patern at the beginning of the line, and the '=' at the end is the equal sign we were looking for. '[a-z]*' is us using a character class. character classes are sedspeak for sets of characters. they can be individually listed, or in this case, be a character range. the '*' after the character class just means "look for these characters any number of times". technically, that means a line starting in '=' would work (since zero is any number of times), but luckily, our file doesn't contain lines starting with =, as this is not valid make syntax.
+
+
+
