@@ -1,7 +1,7 @@
 # About this document:
 This document is written with the goal of explaining https://github.com/wireapp/wire-server/pull/622 well enough that someone can honestly review it. :)
 
-In it, we're going to rapidly bounce back between GNU make, bash, GNU sed, Docker, and QEMU.
+In this document, we're going to rapidly bounce back and forth between GNU make, bash, GNU sed, Docker, and QEMU.
 
 # What does this Makefile do? Why was it created?
 
@@ -481,3 +481,101 @@ JESSIENAMES and STRETCHNAMES are used similarly, only they are actually referred
 ALPINEARCHES and ALPINENAMES work similarly, and are used when we've provided "DIST=ALPINE". We do not divide into seperate variables quite the same way as debian, because all of our alpine images are based on alpine 3.7.
 
 PREBUILDS contains our dependency map. essentially, this is a set of <imagename>-<imagename> pairs, where the first image mentioned depends on the second image. so, airdock_rvm depends on airdock_base, where airdock_fakesqs depends on airdock_rvm, etc.
+
+BADARCH is similar, pairing the name of an image with the architecture it fails to build on. This is so i can blacklist things that don't work yet.
+
+LOCALDEBARCH is a variable set by executing a small snippet of bash. the snippet checks, to make sure dpkg is installed (the debian package manager), and uses dpkg to determine what the architecture of your local machine is. As you remember from when we were building docker images by hand, docker will automatically fetch an image that is compiled for your current architecture, so we use LOCALDEBARCH later to decide what architecture we can skip specifically telling docker to fetch.
+
+NOMANIFEST is a tricky one to explain. You know how we added the name of the architecture BEFORE the image name in the dockerfiles? well, in the case of the dependencies of the images listed here, dockerhub isn't supporting that. DockerHub is supporting that form only for 'official' docker images, like alpine, debian, etc. as a result, in order to fetch an architecture specific version of the dependencies of these images, we need to add a -<arch> suffix. like -386 -arm32v7, etc.
+
+### Conditionals
+We don't make much use of conditionals in this makefile. There are three total uses in this Makefile. let's take a look at them.
+
+SED ABUSE:
+to get our list of conditionals out of the Makefile, we're going to use some multiline sed. specifically, we're going to look for a line starting with 'ifeq', lines starting with two spaces, then the line following.
+
+```bash
+$ cat Makefile | sed -n '/ifeq/{:n;N;s/\n  /\n /;tn;p}'
+ifeq ($(LOCALARCH),)
+ $(error LOCALARCH is empty, you may need to supply it.)
+ endif
+ifeq ($(DIST),DEBIAN)
+ ARCHES ?= $(DEBARCHES)
+ NAMES  ?= $(DEBNAMES)
+endif
+ifeq ($(DIST),ALPINE)
+ ARCHES ?= $(ALPINEARCHES)
+ NAMES  ?= $(ALPINENAMES)
+endif
+$
+```
+There's a lot to unpack there, so let's start with the simple part, the conditionals.
+The conditionals are checking for equivalence, in all cases.
+First, we check to see if LOCALARCH is empty. This can happen if dpkg was unavailable, and the user did not supply a value on the make command line or in the user's bash environment. if that happens, we use make's built in error function to display an error, and break out of the Makefile.
+The second and third conditionals decide on the values of ARCHES and NAMES. Earlier, we determined the default selection for DIST was DEBIAN, so this pair just allows the user to select ALPINE instead. note that the variable assignments in the conditionals are using the overrideable form, so the end user can override these on make's command line or in the user's environment. mac users will want to do this, since they don't have QEMU available in the same form, and are limited to building X86 and AMD64 architecture.
+
+Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, and have to abuse other operations in a manner that should be familiar to you...
+
+Now, back to our sed abuse.
+SED is a stream editor, and quite a powerful one. In this case, we're using it for a multi-line search. we're supplying the -n option, which squashes all output, except what sed is told specificly to print something with a command.
+Let's look at each of the commands in that statement seperately.
+```sed
+# find a line that has 'ifeq' in it.
+/ifeq/
+# begin a block of commands. every command in the block should be seperated by a semicolon.
+{
+# create an anchor, that is to say, a point that can be branched to.
+:n;
+# Append the next line into the parameter space. so now, for the first block, the hold parameter space would include "ifeq ($(LOCALARCH),)\n  $(error LOCALARCH is empty, you may need to supply it.)".
+N;
+# Replace the two spaces in the parameter space with one space.
+s/\n  /\n /;
+# If the previous 's' command found something, and changed something, go to our label.
+tn;
+# print the contents of the parameter space.
+p
+# close the block of commands.
+}
+```
+... Simple, right?
+
+note that the contents above can be stored to a file, and run with sed's "-f" command, for more complicated sed scripts. Sed is turing complete, so... things like tetris have been written in it. My longest sed scripts do things like sanity check OS install procedures, or change binaryish protocols into xmlish forms.
+
+### Functions
+Make has a concept of functions, and the first two functions we use are a bit haskell inspired.
+
+SED ABUSE:
+To get a list of the functions in our makefile, we're going to use a bit more traditional sed. specifically, we're going to look for lines that start with a number of lowercase characters that are immediately followed by an '=' sign.
+
+```bash
+$ cat Makefile | sed -n '/^[a-z]*=/p'
+dockerarch=$(patsubst i%,%,$(patsubst armel,arm32v5,$(patsubst armhf,arm32v7,$(patsubst arm64,arm64v8,$(1)))))
+fst=$(word 1, $(subst -, ,$(1)))
+snd=$(word 2, $(subst -, ,$(1)))
+goodarches=$(filter-out $(call snd,$(foreach arch,$(ARCHES),$(filter $(1)-$(arch),$(BADARCHSIM)))),$(ARCHES))
+nodeps=$(filter-out $(foreach target,$(NAMES),$(call snd,$(foreach dependency,$(NAMES),$(filter $(target)-$(dependency),$(PREBUILDS))))),$(NAMES))
+maniarch=$(patsubst %32,%,$(call fst,$(subst v, ,$(1))))
+manivariant=$(foreach variant,$(word 2, $(subst v, ,$(1))), --variant $(variant))
+archpostfix=$(foreach arch,$(filter-out $(filter-out $(word 3, $(subst -, ,$(filter $(call snd,$(1))-%-$(call fst,$(1)),$(foreach prebuild,$(PREBUILDS),$(prebuild)-$(call fst,$(1)))))),$(LOCALARCH)),$(call fst,$(1))),-$(arch))
+archpath=$(foreach arch,$(patsubst 386,i386,$(filter-out $(LOCALARCH),$(1))),$(arch)/)
+$
+```
+
+These are going to be a bit hard to explain in order, especially since we haven't covered where they are being called from. Let's take them from simplest to hardest.
+
+The fst and snd functions are what happens when a haskell programmer is writing make. You remember all of the pairs of values earlier, that were seperated by a single '-' character? these functions return either the first, or the second item in the pair. Let's unpack 'fst'.
+fst uses the 'word' function of make to retrieve the first word from "$(subst -, ,$(1))". the 'subst' function substitutes a single dash for a single space. this seperates a <item1>-<item2> pair into a space seperated string. $(1) is the first argument passed to this function.
+snd works similarly, retrieving <item2> from our pair.
+
+The next easiest to explain function is 'maniarch'. It returns the architecture string that we use when annotating a docker image. When we refer to an architecture, we use a string like 'amd64' or 'arm32v6', but docker manifest wants just 'arm' 'amd64' or '386'.
+maniarch first uses the 'patsubst' command to replace "anystring32" with "anystring". this removes the 32 from arm32. It's given the result of $(call fst,$(subst v, ,$(1)))) as a string to work with.
+$(call fst,$(subst v, ,$(1)))) calls our 'fst' function, giving it the result of us substituting 'v' for ' ' in the passed in argument. in the case of arm32v6, it seperates the string into "arm32 6". Note that instead of calling fst, we could have just used 'word 1' like we did in fst. This is a mistake on my part, but it works regardless, because of the way fst is built. as before, $(1) is the argument passed into our function.
+
+manivariant has a similar function to maniarch. It's job is to take an architecture name (amd64, arm32v5, etc...), and if it has a 'v<something>', to return the '--variant <something>' command line option for our 'docker manifest anotate'.
+manivariant starts by using make's 'foreach' function. this works by breaking it's second argument into words, storing them into the variable name given in the first argument, and then generating text using the third option. this is a bit abusive, as we're really just using it as "if there is a variant, add --variant <variant>" structure.
+The first argument of foreach is the name of a variable. we used 'variant' here. the second argument in this case properly uses word, and subst to return only the content after a 'v' in our passed in argument, or emptystring. the third option is ' --variant $(variant)', using the variable defined in the first parameter of foreach to create " --variant 5" if this is passed "arm32v5", for instance.
+
+archpath is similar in structure to manivariant. In order to find a version of a docker image that is appropriate for our non-native architectures, we have to add 'archname/' to the image we're deriving from's path, in our Dockerfile. This function
+
+To summarize the Make functions we've (ab)used in this section:
+$(word)
