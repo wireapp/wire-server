@@ -603,5 +603,49 @@ $ cat Makefile | sed -n '/^[a-z]*=/p'
 ```
 Again, we're going to use sed in '-n' mode, supressing all output except the output we are searching for. /PATTERN/ searches the lines of the input for a pattern, and if it's found, the command afterward is executed, which is a 'p' for print, in this case. the patern given is '^[a-z]*='. The '^' at the beginning means 'look for this patern at the beginning of the line, and the '=' at the end is the equal sign we were looking for. '[a-z]*' is us using a character class. character classes are sedspeak for sets of characters. they can be individually listed, or in this case, be a character range. the '*' after the character class just means "look for these characters any number of times". technically, that means a line starting in '=' would work (since zero is any number of times), but luckily, our file doesn't contain lines starting with =, as this is not valid make syntax.
 
+### Rules.
 
+Traditionally, makefiles are pretty simple. they are used to build a piece of software on your local machine, so you don't have to memorize all of the steps, and can type 'make', and have it just done. A simple Makefile looks like the following:
+```make
+CC=gcc
+CFLAGS=-I.
+DEPS = hellomake.h
+
+%.o: %.c $(DEPS)
+     	$(CC) -c -o $@ $< $(CFLAGS)
+
+hellomake: hellomake.o hellofunc.o
+	$(CC) -o hellomake hellomake.o hellofunc.o
+
+clean:
+	rm hellomake hellomake.o hellofunc.o
+```
+This makefile has some variables, and rules, that are used to build a C program into an executable, using GCC.
+
+In the section where we showed you how to use our makefile, we were calling 'make' with an option, such as push-all, build-smtp, names, or clean. We're now going to show you the rules that implement these options.
+
+A make rule is divided into three sections: what you want to build, what you need to build first, and the commands you run to build the thing in question:
+```make
+my_thing: things i need first
+        bash commands to build it
+```
+
+the commands to build a thing are prefaced with a tab character, and not spaces.
+
+SED ABUSE:
+This time, we're going to add the -E command to sed. this kicks sed into the 'extended regex' mode, meaning for our purposes, we don't have to put a \ before a ( or a ) in our regex. we're then going to use a patern grouping, to specify that we want either the buid or push rules. we're also going to swap the tabs for spaces, to prevent our substitution command from always matching, and not even visibly change the output. total cheating.
+
+```bash
+$ cat Makefile | sed -n -E '/^(build|push)/{:n;N;s/\n\t/\n        /;tn;p}'
+build-%: $$(foreach arch,$$(call goodarches,%),create-$$(arch)-$$*)
+        @echo -n
+
+build-all: $(foreach image,$(nodeps),build-$(image))
+
+push-%: manifest-push-%
+        @echo -n
+
+push-all: $(foreach image,$(nodeps),manifest-push-$(image))
+$
+```
 
