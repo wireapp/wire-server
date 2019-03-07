@@ -149,13 +149,16 @@ data Env = Env
 
 makeLenses ''Env
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Log.new' $ Log.simpleSettings (Opt.logLevel opts) (Opt.logNetStrings opts)
+
 newEnv :: Opts -> IO Env
 newEnv o = do
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- Log.new $ Log.simpleDefSettings (Opt.logLevel o) (Opt.logNetStrings o)
+    lgr <- mkLogger o
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager

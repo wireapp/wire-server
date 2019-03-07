@@ -39,9 +39,12 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
+mkLogger :: Opts -> IO Logger.Logger
+mkLogger opts = Logger.new' $ Logger.simpleSettings (opts ^. optLogLevel) (opts ^. optLogNetStrings)
+
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l <- Logger.new $ Logger.simpleDefSettings (o ^. optLogLevel) (o ^. optLogNetStrings)
+    l <- mkLogger o
     c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)

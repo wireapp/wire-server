@@ -123,9 +123,12 @@ instance MonadHttp Galley where
 instance HasRequestId Galley where
     getRequestId = view reqId
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Logger.new' $ Logger.simpleSettings (opts ^. optLogLevel) (opts ^. optLogNetStrings)
+
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l   <- Logger.new $ Logger.simpleDefSettings (o ^. optLogLevel) (o ^. optLogNetStrings)
+    l   <- mkLogger o
     mgr <- initHttpManager o
     Env def m o l mgr <$> initCassandra o l
                       <*> Q.new 16000

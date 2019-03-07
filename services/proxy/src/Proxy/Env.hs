@@ -35,9 +35,12 @@ data Env = Env
 
 makeLenses ''Env
 
+mkLogger :: Opts -> IO Logger.Logger
+mkLogger _opts = Logger.new' $ Logger.simpleSettings Logger.Debug False
+
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- Logger.new $ Logger.simpleDefSettings Logger.Debug False
+    g <- mkLogger o
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)

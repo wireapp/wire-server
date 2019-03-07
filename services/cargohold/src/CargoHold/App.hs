@@ -81,10 +81,13 @@ data AwsEnv = AwsEnv
 
 makeLenses ''Env
 
+mkLogger :: Opts -> IO Logger
+mkLogger _opts = Log.new' $ Log.simpleSettings Log.Debug False
+
 newEnv :: Opts -> IO Env
 newEnv o = do
     met  <- Metrics.metrics
-    lgr  <- Log.new $ Log.simpleDefSettings Log.Debug False
+    lgr  <- mkLogger o
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr def (o^.optSettings)
