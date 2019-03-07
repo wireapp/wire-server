@@ -1,2 +1,2 @@
-Spustelėję ištrinsite „Wire“ paskyrą.
-${url} 
+Bakstelėkite, norėdami ištrinti savo ${brand} paskyrą.
+${url}

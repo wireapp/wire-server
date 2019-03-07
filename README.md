@@ -69,7 +69,7 @@ The following diagram gives a high-level outline of the (deployment) architectur
 of the components that make up a Wire Server as well as the main internal and
 external dependencies between components.
 
-![wire-arch](doc/arch/wire-arch-2.png)
+![wire-arch](docs/developer/architecture/wire-arch-2.png)
 
 Communication between internal components is currently not guarded by
 dedicated authentication or encryption and is assumed to be confined to a
@@ -88,7 +88,7 @@ This requires a range of dependencies that depend on your platform/OS, such as:
 - Haskell & Rust compiler and package managers
 - Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
 
-See [doc/Dependencies.md](doc/Dependencies.md) for details.
+See [docs/developer/dependencies.md](docs/developer/dependencies.md) for details.
 
 Once all dependencies are set up, the following should succeed:
 

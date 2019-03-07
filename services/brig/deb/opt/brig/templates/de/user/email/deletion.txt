@@ -1,21 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 LÖSCHE DEIN KONTO
-Wir haben eine Anfrage zur Löschung deines Wire-Benutzerkontos erhalten. Klicke
-innerhalb der nächsten 10 Minuten auf den nachstehenden Link, um alle deine
-Unterhaltungen, Nachrichten und Kontakte zu löschen.
+Wir haben eine Anfrage zur Löschung deines ${brand}-Benutzerkontos erhalten.
+Klicke innerhalb der nächsten 10 Minuten auf den nachstehenden Link, um alle
+deine Unterhaltungen, Nachrichten und Kontakte zu löschen.
 
 Konto löschen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
 Link und füge ihn in deinem Browser ein:
 
 ${url}
 
-Falls du dies nicht beantragt hast, setze dein Passwort zurück
-[https://account.wire.com/forgot/].
+Falls du dies nicht beantragt hast, setze dein Passwort zurück [${forgot}].
 
-Wenn Du Fragen hast, bitte kontaktiere uns
-[https://support.wire.com/hc/de/requests/new].
+Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------
 
-Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
-© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
+Datenschutz [${legal}] · Missbrauch melden [${misuse}]
+${copyright}. Alle Rechte vorbehalten.

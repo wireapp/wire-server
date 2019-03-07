@@ -61,16 +61,18 @@ import qualified Web.Scim.Schema.User             as Scim
 -- UserDB instance
 
 instance Scim.UserDB Spar where
+  type UserExtra Spar = ScimUserExtra
+
   -- | List all users, possibly filtered by some predicate.
   list :: ScimTokenInfo
        -> Maybe Scim.Filter
-       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.StoredUser)
+       -> Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser ScimUserExtra))
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
-    scimusers :: [Scim.StoredUser]
+    scimusers :: [Scim.StoredUser ScimUserExtra]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
@@ -86,7 +88,7 @@ instance Scim.UserDB Spar where
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
       -> Text
-      -> Scim.ScimHandler Spar (Maybe Scim.StoredUser)
+      -> Scim.ScimHandler Spar (Maybe (Scim.StoredUser ScimUserExtra))
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- parseUid uidText
     mbBrigUser <- lift (Intra.Brig.getUser uid)
@@ -96,15 +98,15 @@ instance Scim.UserDB Spar where
 
   -- | Create a new user.
   create :: ScimTokenInfo
-         -> Scim.User
-         -> Scim.ScimHandler Spar Scim.StoredUser
+         -> Scim.User ScimUserExtra
+         -> Scim.ScimHandler Spar (Scim.StoredUser ScimUserExtra)
   create tokinfo user =
     createValidScimUser =<< validateScimUser tokinfo user
 
   update :: ScimTokenInfo
          -> Text
-         -> Scim.User
-         -> Scim.ScimHandler Spar Scim.StoredUser
+         -> Scim.User ScimUserExtra
+         -> Scim.ScimHandler Spar (Scim.StoredUser ScimUserExtra)
   update tokinfo uidText newScimUser =
     updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
 
@@ -131,7 +133,7 @@ instance Scim.UserDB Spar where
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
-  -> Scim.User
+  -> Scim.User ScimUserExtra
   -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
@@ -141,7 +143,8 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
             Nothing -> throwError $
                 Scim.serverError "The IdP configured for this provisioning token not found"
             Just idpConfig -> pure idpConfig
-    validateScimUser' idp user
+    richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
+    validateScimUser' idp richInfoLimit user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
@@ -170,9 +173,10 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => IdP        -- ^ IdP that the resulting user will be assigned to
-  -> Scim.User
+  -> Int        -- ^ Rich info limit
+  -> Scim.User ScimUserExtra
   -> m ValidScimUser
-validateScimUser' idp user = do
+validateScimUser' idp richInfoLimit user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -182,7 +186,8 @@ validateScimUser' idp user = do
             (Just "externalId is required for SAML users")
     handl <- validateHandle (Scim.userName user)
     mbName <- mapM validateName (Scim.displayName user)
-    pure $ ValidScimUser user uref handl mbName
+    richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
+    pure $ ValidScimUser user uref handl mbName richInfo
 
   where
     -- Validate a subject ID (@externalId@).
@@ -217,13 +222,25 @@ validateScimUser' idp user = do
         Left err -> throwError $ Scim.badRequest Scim.InvalidValue
             (Just ("displayName must be a valid Wire name, but: " <> Text.pack err))
 
+    -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
+    validateRichInfo :: RichInfo -> m RichInfo
+    validateRichInfo richInfo = do
+        let size = richInfoSize richInfo
+        when (size > richInfoLimit) $ throwError $
+            (Scim.badRequest Scim.InvalidValue
+                 (Just . cs $
+                      "richInfo exceeds the limit: max " <> show richInfoLimit <>
+                      " characters, but got " <> show size))
+            { Scim.status = Scim.Status 413 }
+        pure richInfo
+
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
 -- requirement.)
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ValidScimUser -> m Scim.StoredUser
-createValidScimUser (ValidScimUser user uref handl mbName) = do
+  => ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
+createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
     -- even called. However, it does that in an inefficient manner. We should remove the check
     -- from @hscim@ and do it here instead.
@@ -237,10 +254,17 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
+    --
+    -- FUTUREWORK: it's annoying that we have duplicate checks (handles, rich info, etc are
+    -- validated both by Spar and by Brig), and we should somehow get rid of them. We could do
+    -- that by switching the order of 'createUser_' and 'insertScimUser', but then if Spar
+    -- crashes after 'insertScimUser', we would never finish creating that user.
     lift $ createUser_ buid uref mbName ManagedByScim
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
     lift $ Intra.Brig.setHandle buid handl
+    -- Set rich info on brig
+    lift $ Intra.Brig.setRichInfo buid richInfo
 
     pure storedUser
 
@@ -249,7 +273,7 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
 
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.StoredUser
+  => ScimTokenInfo -> Text -> ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
 updateValidScimUser tokinfo uidText newScimUser = do
 
     -- TODO: currently the types in @hscim@ are constructed in such a way that
@@ -265,14 +289,14 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
     -- construct old and new user values with metadata.
     uid :: UserId <- parseUid uidText
-    oldScimStoredUser :: Scim.StoredUser
+    oldScimStoredUser :: Scim.StoredUser ScimUserExtra
       <- let err = throwError $ Scim.notFound "user" uidText
          in maybe err pure =<< Scim.get tokinfo uidText
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
       else do
-        newScimStoredUser :: Scim.StoredUser
+        newScimStoredUser :: Scim.StoredUser ScimUserExtra
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
@@ -286,6 +310,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
+        lift . Intra.Brig.setRichInfo uid $ newScimUser ^. vsuRichInfo
 
         -- store new user value to scim_user table (spar). (this must happen last, so in case
         -- of crash the client can repeat the operation and it won't be considered a noop.)
@@ -296,7 +321,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
 toScimStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
-  => UserId -> Scim.User -> m Scim.StoredUser
+  => UserId -> Scim.User ScimUserExtra -> m (Scim.StoredUser ScimUserExtra)
 toScimStoredUser uid usr = do
   now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
@@ -304,7 +329,11 @@ toScimStoredUser uid usr = do
 
 toScimStoredUser'
   :: HasCallStack
-  => SAML.Time -> URIBS.URI -> UserId -> Scim.User -> Scim.StoredUser
+  => SAML.Time
+  -> URIBS.URI
+  -> UserId
+  -> Scim.User ScimUserExtra
+  -> Scim.StoredUser ScimUserExtra
 toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
     Scim.WithMeta meta (Scim.WithId uid usr)
   where
@@ -326,16 +355,18 @@ toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
 
 updScimStoredUser
   :: forall m. (SAML.HasNow m)
-  => Scim.User -> Scim.StoredUser -> m Scim.StoredUser
+  => Scim.User ScimUserExtra
+  -> Scim.StoredUser ScimUserExtra
+  -> m (Scim.StoredUser ScimUserExtra)
 updScimStoredUser usr storedusr = do
   now <- SAML.getNow
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser'
   :: SAML.Time
-  -> Scim.User
-  -> Scim.StoredUser
-  -> Scim.StoredUser
+  -> Scim.User ScimUserExtra
+  -> Scim.StoredUser ScimUserExtra
+  -> Scim.StoredUser ScimUserExtra
 updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
     Scim.WithMeta meta' (Scim.WithId scimuid usr)
   where
@@ -365,7 +396,7 @@ parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
 -- requirements of strong ETags ("same resources have the same version").
 calculateVersion
   :: Text               -- ^ User ID
-  -> Scim.User
+  -> Scim.User ScimUserExtra
   -> Scim.ETag
 calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
   where

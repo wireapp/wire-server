@@ -218,6 +218,12 @@ sitemap o = do
       .&. contentType "application" "json"
       .&. request
 
+    put "/i/users/:uid/rich-info" (continue updateRichInfo) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
@@ -394,6 +400,21 @@ sitemap o = do
             Doc.description "Client ID"
         Doc.returns (Doc.ref Doc.pubClient)
         Doc.response 200 "Client" Doc.end
+
+    --
+
+    get "/users/:user/rich-info" (continue getRichInfo) $
+        header "Z-User"
+        .&. capture "user"
+        .&. accept "application" "json"
+
+    document "GET" "getRichInfo" $ do
+        Doc.summary "Get user's rich info"
+        Doc.parameter Doc.Path "user" Doc.bytes' $
+            Doc.description "User ID"
+        Doc.returns (Doc.ref Doc.richInfo)
+        Doc.response 200 "RichInfo" Doc.end
+        Doc.errorResponse insufficientTeamPermissions
 
     -- /self ------------------------------------------------------------------
 
@@ -1081,11 +1102,23 @@ getUserClient (user ::: cid ::: _) = lift $ do
         Just c  -> json c
         Nothing -> setStatus status404 empty
 
+getRichInfo :: UserId ::: UserId ::: JSON -> Handler Response
+getRichInfo (self ::: user ::: _) = do
+    -- Check that both users exist and the requesting user is allowed to see rich info of the
+    -- other user
+    selfUser  <- ifNothing userNotFound =<< lift (Data.lookupUser self)
+    otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
+    case (userTeam selfUser, userTeam otherUser) of
+        (Just t1, Just t2) | t1 == t2 -> pure ()
+        _ -> throwStd insufficientTeamPermissions
+    -- Query rich info
+    json . fromMaybe emptyRichInfo <$> lift (API.lookupRichInfo user)
+
 listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
-autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
+autoConnect (_ ::: _ ::: uid ::: conn ::: req) = do
     UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
@@ -1467,6 +1500,16 @@ updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateManagedBy (uid ::: _ ::: _ ::: req) = do
     ManagedByUpdate managedBy <- parseJsonBody req
     lift $ Data.updateManagedBy uid managedBy
+    return empty
+
+updateRichInfo :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateRichInfo (uid ::: _ ::: _ ::: req) = do
+    richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
+    maxSize <- setRichInfoLimit <$> view settings
+    when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+    lift $ Data.updateRichInfo uid richInfo
+    -- FUTUREWORK: send an event
+    -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response

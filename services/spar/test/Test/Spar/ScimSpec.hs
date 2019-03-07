@@ -11,6 +11,7 @@
 module Test.Spar.ScimSpec where
 
 import Imports
+import Brig.Types.User (emptyRichInfo)
 import Data.Id
 import Network.URI (parseURI)
 import Spar.Scim
@@ -22,6 +23,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Web.Scim.Class.User as ScimC
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
+import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.ResourceType as ScimR
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User.Name as ScimN
@@ -30,9 +32,11 @@ import qualified Web.Scim.Schema.User.Name as ScimN
 spec :: Spec
 spec = describe "toScimStoredUser'" $ do
   it "works" $ do
-    let usr :: Scim.User
+    let usr :: Scim.User ScimUserExtra
         usr = Scim.User
-          { Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b"
+          { Scim.schemas = [Scim.User20,
+                            Scim.CustomSchema "urn:wire:scim:schemas:profile:1.0"]
+          , Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b"
           , Scim.externalId = Just "c1704a48-0a1e-11e9-9186-9b185fe892e8"
           , Scim.name = Just (ScimN.Name { ScimN.formatted = Nothing
                                          , ScimN.familyName = Just ""
@@ -58,6 +62,7 @@ spec = describe "toScimStoredUser'" $ do
           , Scim.entitlements = []
           , Scim.roles = []
           , Scim.x509Certificates = []
+          , Scim.extra = ScimUserExtra emptyRichInfo
           }
 
         meta :: Scim.Meta
@@ -65,7 +70,7 @@ spec = describe "toScimStoredUser'" $ do
           { Scim.resourceType = ScimR.UserResource
           , Scim.created = now
           , Scim.lastModified = now
-          , Scim.version = Scim.Weak "e5442c575adce7a7affbb2f744ab0825c553c9e6ce5dafdee8789364d824614e"
+          , Scim.version = Scim.Weak "cd79ccdd2cff3eeb01bce976f586b086547325907e0a3a7303ecaa61a04635da"
           , Scim.location = Scim.URI . fromJust $ Network.URI.parseURI
                             "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
           }
@@ -75,7 +80,7 @@ spec = describe "toScimStoredUser'" $ do
           URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
 
-        result :: ScimC.StoredUser
+        result :: ScimC.StoredUser ScimUserExtra
         result = toScimStoredUser' now' baseuri uid usr
 
     Scim.meta result `shouldBe` meta

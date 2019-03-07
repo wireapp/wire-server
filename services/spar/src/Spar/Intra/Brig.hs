@@ -212,6 +212,21 @@ setManagedBy buid managedBy = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show (statusCode resp)
 
+-- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
+-- brig fails with >= 500.
+setRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
+setRichInfo buid richInfo = do
+  resp <- call
+    $ method PUT
+    . paths ["i", "users", toByteString' buid, "rich-info"]
+    . json (RichInfoUpdate richInfo)
+  if | statusCode resp < 300
+       -> pure ()
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show (statusCode resp)
+
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
 bindUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool

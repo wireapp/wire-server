@@ -16,6 +16,7 @@ module Spar.Data.Instances
 
 import Imports
 import Cassandra as Cas
+import Data.Aeson (FromJSON, ToJSON)
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import SAML2.Util (parseURI')
@@ -85,7 +86,7 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _                                                       = Nothing
 
 deriving instance Cql ScimToken
-instance Cql Scim.StoredUser where
+instance (FromJSON extra, ToJSON extra) => Cql (Scim.StoredUser extra) where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . Aeson.encode
 

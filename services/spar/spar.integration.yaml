@@ -35,5 +35,6 @@ maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time 
 maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
 
 maxScimTokens: 2
+richInfoLimit: 5000  # should be in sync with Brig
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

@@ -1,3 +1,3 @@
-Votre code Wire est ${code}.
+Votre code ${brand} est ${code}.
 
-Afin de vérifier votre compte, ouvrez ${url} ou entrez manuellement le code ci-dessus dans Wire.
+Ouvrez ${url} pour vérifier votre numéro.
