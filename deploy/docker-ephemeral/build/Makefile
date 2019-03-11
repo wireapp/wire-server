@@ -135,7 +135,6 @@ my-upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)
 	docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
 
 dep-upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-subupload-$$(call fst,$$*)-$$(call snd,$$(predep)))
-
 	docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
 
 dep-subupload-%: create-%
