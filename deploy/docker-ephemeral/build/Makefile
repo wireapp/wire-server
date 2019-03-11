@@ -42,7 +42,7 @@ NOMANIFEST    := airdock_rvm airdock_fakesqs localstack
 dockerarch=$(patsubst i%,%,$(patsubst armel,arm32v5,$(patsubst armhf,arm32v7,$(patsubst arm64,arm64v8,$(1)))))
 
 # the local architecture, in debian format. (i386, amd64, armel, armhf, arm64, ..)
-LOCALDEBARCH  := $(shell dpkg --print-architecture)
+LOCALDEBARCH  := $(shell [ ! -z `which dpkg` ] && dpkg --print-architecture)
 # the local architecture, in docker format. (386, amd64, arm32v5, arm32v7, arm64v8, ...)
 LOCALARCH     ?= $(call dockerarch,$(LOCALDEBARCH))
 
@@ -287,3 +287,4 @@ names:
 	@echo $(DEBNAMES)
 	@echo Alpine based images:
 	@echo $(ALPINENAMES)
+
