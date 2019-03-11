@@ -33,6 +33,7 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Data.Metrics.Types as Metrics
+import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
@@ -91,6 +92,7 @@ runServer sparCtxOpts = do
         $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
+        . logEverythingAbove400 sparCtxLogger
         . promthRun
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
@@ -102,6 +104,16 @@ lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
+
+logEverythingAbove400 :: Logger -> Middleware
+logEverythingAbove400 lgr app' req cont = do
+  app' req $ \resp -> do
+    when (HTTP.statusCode (Wai.responseStatus resp) >= 400) $ do
+      bdy <- Wai.lazyRequestBody req
+      Log.debug lgr $ "request" Log..= show req
+               Log.~~ "body"    Log..= bdy
+               Log.~~ Log.msg (Log.val "bad request")
+    cont resp
 
 promthRun :: Middleware
 promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
