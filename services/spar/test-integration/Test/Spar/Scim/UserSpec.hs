@@ -354,6 +354,8 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
     it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
     it "updates the matching Brig user" $ testBrigSideIsUpdated
+    it "cannot update user to match another user's externalId"
+        $ testUpdateToExistingExternalIdFails
     context "user is from different team" $ do
         it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
@@ -415,6 +417,25 @@ testScimSideIsUpdated = do
         Scim.resourceType meta `shouldBe` Scim.resourceType meta'
         Scim.created meta `shouldBe` Scim.created meta'
         Scim.location meta `shouldBe` Scim.location meta'
+
+-- | Test that updating a user with the externalId of another fails
+testUpdateToExistingExternalIdFails :: TestSpar ()
+testUpdateToExistingExternalIdFails = do
+    -- Create a user via SCIM
+    (tok, _) <- registerIdPAndScimToken
+    user <- randomScimUser
+    _ <- createUser tok user
+
+    otherUser <- randomScimUser
+    storedOtherUser <- createUser tok user
+
+    let otherUserExternalId = Scim.User.externalId otherUser
+    liftIO $ otherUserExternalId `shouldSatisfy` isJust
+
+    -- Try to update the other user's external ID to be the same as 'user's.
+    let updatedOtherUser = otherUser{Scim.User.externalId = otherUserExternalId}
+    _ <- updateUser tok (scimUserId storedOtherUser) updatedOtherUser
+    liftIO $ True `shouldBe` False
 
 -- | Test that updating still works when name and handle are not changed.
 --
