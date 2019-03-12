@@ -1,0 +1,24 @@
+# Produces final docker image with a single executable $executable
+
+# Requires to have created the wire-server-deps docker image (run `make` in this directory)
+# Usage example:
+#   (from wire-server root directory)
+#   export EXECUTABLE=galley-schema; docker build -t $EXECUTABLE -f build/alpine/Dockerfile.executable --build-arg executable=$EXECUTABLE .
+
+ARG deps=quay.io/wire/alpine-deps
+
+FROM ${deps}
+
+ARG executable
+
+COPY /dist/${executable} /usr/bin/${executable}
+
+# TODO: only if executable=brig, also copy templates. Docker image conditionals seem hacky:
+# https://stackoverflow.com/questions/31528384/conditional-copy-add-in-dockerfile
+# For now, adds ~2 MB of additional files into every container
+COPY --from=intermediate /dist/templates/ /usr/share/wire/templates/
+
+# ARGs are not available at runtime, create symlink at build time
+# more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
+RUN ln -s /usr/bin/${executable} /usr/bin/service
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/bin/service"]
