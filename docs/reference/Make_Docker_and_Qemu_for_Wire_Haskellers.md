@@ -620,23 +620,57 @@ hellomake: hellomake.o hellofunc.o
 clean:
 	rm hellomake hellomake.o hellofunc.o
 ```
-This makefile has some variables, and rules, that are used to build a C program into an executable, using GCC.
+This example Makefile has some variables, and rules, that are used to build a C program into an executable, using GCC.
 
-In the section where we showed you how to use our makefile, we were calling 'make' with an option, such as push-all, build-smtp, names, or clean. We're now going to show you the rules that implement these options.
+Our Makefile is much more advanced, necessatating this document, to ensure maintainability.
 
-A make rule is divided into three sections: what you want to build, what you need to build first, and the commands you run to build the thing in question:
+
+A single make rule is divided into three sections: what you want to build, what you need to build first, and the commands you run to build the thing in question:
 ```make
 my_thing: things i need first
         bash commands to build it
+
+target: prerequisites
+	recipe line 1
 ```
 
-the commands to build a thing are prefaced with a tab character, and not spaces.
+The commands to build a thing (recipe lines) are prefaced with a tab character, and not spaces. Each line is executed in a seperate shell instance.
+
+
+#### The tops of the trees
+
+In the section where we showed you how to use our Makefile, we were calling 'make' with an option, such as push-all, build-smtp, names, or clean. We're now going to show you the rules that implement these options.
 
 SED ABUSE:
-This time, we're going to add the -E command to sed. this kicks sed into the 'extended regex' mode, meaning for our purposes, we don't have to put a \ before a ( or a ) in our regex. we're then going to use a patern grouping, to specify that we want either the buid or push rules. we're also going to swap the tabs for spaces, to prevent our substitution command from always matching, and not even visibly change the output. total cheating.
+This time, we're going to add the -E command to sed. this kicks sed into the 'extended regex' mode, meaning for our purposes, we don't have to put a \ before a ( or a ) in our regex. we're then going to use a patern grouping, to specify that we want either the clean or names rules. we're also going to swap the tabs for spaces, to prevent our substitution command from always matching, and not even visibly change the output. total cheating.
+```bash
+$ cat Makefile | sed -n -E '/^(clean|names)/{:n;N;s/\n\t/\n        /;tn;p}'
+clean:
+        rm -rf elasticsearch-all airdock_base-all airdock_rvm-all airdock_fakesqs-all cassandra-all $(DEBNAMES) $(ALPINENAMES)
+
+cleandocker:
+        docker rm $$(docker ps -a -q) || true
+        docker rmi $$(docker images -q) --force || true
+
+names:
+        @echo Debian based images:
+        @echo $(DEBNAMES)
+        @echo Alpine based images:
+        @echo $(ALPINENAMES)
+```
+
+Most Makefiles change their environment. Having changed their environment, most users want a quick way to set the environment back to default, so they can make changes, and build again. to enable this, as a convention, most Makefiles have a 'clean' rule. Ours remove the git repos that we build the docker images from. note the hardcoded list of '-all' directories: these are the git repos for images where the git repo does not simply have a Dockerfile at the root of the repo. In those cases, our rules that check out the repos check them out to <imagename>-all, then do Things(tm) to create a <imagename>/Dockerfile.
+
+cleandocker is a rule i use on my machine, when docker images have gotten out of control. it removes all of the docker images on my machine, and is not meant to be regularly run.
+
+names displays the names of the images this Makefile knows about. It uses a single @ symbol at the beginning of the rules. this tells make that it should NOT display the command that make is running, when make runs it.
+
+OK, that covers the simple make rules, that have no dependencies, or parameters. Now let's take a look at our build and push rules. these are the 'top' of a dependency tree, which is to say they depend on things, that depend on things... that do the think we've asked for. 
 
 ```bash
-$ cat Makefile | sed -n -E '/^(build|push)/{:n;N;s/\n\t/\n        /;tn;p}'
+$ cat Makefile | sed -n -E '/^(build|push|all)/{:n;N;s/\n\t/\n        /;tn;p}'
+all: $(foreach image,$(nodeps),manifest-push-$(image))
+
 build-%: $$(foreach arch,$$(call goodarches,%),create-$$(arch)-$$*)
         @echo -n
 
@@ -648,4 +682,297 @@ push-%: manifest-push-%
 push-all: $(foreach image,$(nodeps),manifest-push-$(image))
 $
 ```
+
+Lets take these simplest to most complex.
+
+push-% is the rule called when we run 'make push-<imagename>'. It depends on manifest-push-%, meaning that make will take whatever you've placed after the 'push-', look for a rule called manifest-push-<what_was_after_push>, and make sure that rule completes, before trying to execute this rule. Executing this rule just executes nothing, and in reality, the '@echo -n" exists to allow the push-% rule to be executed. By default, make considers wildcard rules as phony, meaning they cannot be called from the command line, and must be called from a rule with no wildcarding.
+
+push-all is allowed to have no commands, because it's name contains no wildcard operator. In it's dependency list, we're using a foreach loop to go through our list of images that have no dependencies, and ask for manifest-push-<imagename> to be built.
+
+all is identical to push-all. I could have just depended on push-all, and saved some characters here.
+
+build-all operates similar to push-all, only it asks for build-<imagename> to be built for all of the no-dependency images.
+
+build-% combines the approach of push-% and build-all. It uses foreach to request the build of create-<arch>-<imagename>, which builds one docker image for each architecture that we know this image will build on. This is our first exposure to $$ structures, so let's look at those a bit.
+
+By default, make allows for one % in the build-target, and one % in the dependencies. it takes what it matches the % against in the build-target, and substitutes the first % found in the dependency list with that content. so, what do you do if you need to have the thing that was matched twice in the dependency list? enter .SECONDEXPANSION.
+
+```bash
+$ cat Makefile | sed -n -E '/^(.SECOND)/{:n;N;s/\n\t/\n        /;tn;p}' | less
+.SECONDEXPANSION:
+
+```
+
+.SECONDEXPANSION looks like a rule, but really, it's a flag to make, indicating that dependency lists in this Makefile should be expanded twice. During the first expansion, things will proceed as normal, and everything with two dollar signs will be ignored. during the second expansion things that were delayed by using two dollar signs are run, AND a set of variables that is normally available in the 'recipe' section. In the case we're looking at, this means that during the first expansion, only the "%" character will be interpreted. during the second expansion the foreach and call will actually be executed, and the $$* will be expanded the same way as $* will be in the recipe section, namely, exactly identical to the % expansion in the first expansion. This effectively gives us two instances of %, the one expanded in the first expansion, and $$* expanded in the second expansion.
+
+build-% also uses the same 'fake recipe' trick as push-%, that is, having a recipe that does nothing, to trick make into letting you run this.
+
+#### One Level Deeper
+
+The rules you've seen so far were intended for user interaction. they are all rules that the end user of this Makefile picks between, when deciding what they want this makefile to do. Let's look at the rules that these depend on.
+
+```bash
+$ cat Makefile | sed -n -E '/^(manifest-push)/{:n;N;s/\n\t/\n        /;tn;p}'
+manifest-push-%: $$(foreach arch,$$(call goodarches,$$*), manifest-annotate-$$(arch)-$$*) 
+        docker manifest push $(USERNAME)/$*$(TAGNAME)
+
+$
+```
+
+manifest-push-% should be relatively simple for you now. the only thing new here, is you get to see $* used in the construction of our docker manifest push command line. Let's follow the manifest creation down a few more steps.
+
+```bash
+$ cat Makefile | sed -n -E '/^(manifest-ann|manifest-crea)/{:n;N;s/\n\t/\n        /;tn;p}'
+manifest-annotate-%: manifest-create-$$(call snd,$$*)
+        docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) --arch $(call maniarch,$(call fst,$*)) $(call manivariant,$(call fst,$*))
+
+manifest-create-%: $$(foreach arch,$$(call goodarches,%), upload-$$(arch)-$$*)
+        docker manifest create $(USERNAME)/$*$(TAGNAME) $(patsubst %,$(USERNAME)/$*$(TAGNAME)-%,$(call goodarches,$*)) --amend
+
+```
+
+manifest-push depends on manifest-annotate, which depends on manifest-create, that depends on upload-... so when make tries to push a manifest, it makes sure an image has been uploaded, then creates a manifest, then annotates the manifest. We're basically writing rules for each step of our manifest, only backwards. continuing this pattern, the last thing we will depend on will be the rules that actually download the dockerfiles from git.
+
+#### Dependency Resolving 
+
+We've covered the entry points of this Makefile, and the chained dependencies that create, annotate, and upload a manifest file. now, we get into two seriously complicated sets of rules, the upload rules and the create rules. These accomplish their tasks of uploading and building docker containers, but at the same time, they accomplish our dependency resolution. Let's take a look.
+
+```bash
+$ cat Makefile | sed -n -E '/^(upload|create|my-|dep)/{:n;N;s/\n\t/\n        /;tn;p}'
+
+upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-upload-$$(call fst,$$*)-$$(call snd,$$(predep)))
+        docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
+
+dep-upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-subupload-$$(call fst,$$*)-$$(call snd,$$(predep)))
+        docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
+
+dep-subupload-%: create-%
+        docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
+
+create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-create-$$(call fst,$$*)-$$(call snd,$$(predep)))
+        cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
+
+depend-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-subcreate-$$(call fst,$$*)-$$(call snd,$$(predep)))
+        cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
+
+depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* 
+        cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
+
+$
+```
+
+First, let's tackle the roles of these rules. the *upload* rules are responsible for running docker push, while the *create* rules are responsible for running docker build. All of the upload rules depend on the first create rule, to ensure what they want to run has been built.
+
+these rules are setup in groups of three:
+
+upload-% and create-% form the top of these groups. upload-% depends on create-%, and create-% depends on the creation of a Dockerfile for this image, which is the bottom of our dependency tree. 
+
+upload-%/create-% depend on two rules: dep-upload-%/depend-create-%, which handle the upload/create for the image that THIS image depends on. There are also dep-subupload-% and dep-subcreate-% rules, to handle the dependency of the dependency of this image.
+
+This dependency-of, and dependency-of-dependency logic is necessary because Make will not let us run a recursive rule: no rule can be in one branch of the dependency graph more than once. so instead, the top of our dependency tree either starts with a single image, or with a list of images that are the top of their own dependency graphs.
+
+
+Now let's look at the rules themselves.
+upload-% has a dependency on create-%, to ensure what it wantas to upload already exists. additionally, it has a dependency that uses foreach and filter to look through the list of PREBUILDS, and depend on dep-upload-<arch>-<image> for any images this image depends on.
+
+dep-upload-% is virtually identical to upload-%, also searching through PREBUILDS for possible dependencies, and depending on dep-subupload to build them.
+
+dep-subupload does no dependency search, but has an identical docker push recipe to upload, and dep-upload. 
+
+create-%, depend-create-%, and depend-subcreate-% work similarly to the upload rules, calling docker build instead of a docker push, and depending on the Dockerfile having been created. When depending on the Dockerfile, we look through the NOMANIFEST list, and insert "NOMANIFEST-" in the name of dependency on the dockerfile. This is so that we depend on the NOMANIFEST variant if the image we are building requires us to use a postfix on the image name to access a version for a specified architecture. otherwise, we run the Dockerfile-% rule that uses a prefix (i386/, amd64/, etc) to access the docker image we are building from.  
+
+It's worth noting that for all of these *create* and *upload* rules, we pipe the output of docker to cat, which causes docker to stop trying to draw progress bars. This seriously cleans up the 
+
+
+#### Building Dockerfiles.
+
+There are two rules for creating Dockerfiles, and we decide in the *create* rules which of these to use by looking at the NOMANIFEST variable, and adding -NOMANIFEST in the name of the rule we depend on for dockerfile creation.
+
+The rules are relatively simple:
+```bash
+$ cat Makefile | sed -n -E '/^(Dock)/{:n;N;s/\n\t/\n        /;tn;p}'
+Dockerfile-NOMANIFEST-%: $$(call snd,%)/Dockerfile
+        cd $(call snd,$*) && cat Dockerfile | ${SED} "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | ${SED} "s=^\(FROM \)\(.*\)$$=\1\2$(call archpostfix,$*)=" > Dockerfile-$(call fst,$*)
+
+Dockerfile-%: $$(call snd,%)/Dockerfile
+        cd $(call snd,$*) && cat Dockerfile | ${SED} "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | ${SED} "s=^\(FROM \)\(.*\)$$=\1$(call archpath,$(call fst,$*))\2=" > Dockerfile-$(call fst,$*)
+$
+```
+
+These two rules depend on the checkout of the git repos containing the Dockerfiles. they do this by depending on <imagename>/Dockerfile. The rules are responsible for the creation of individual architecture specific derivitives of the Dockerfile that is downloaded. additionally, the rules set the MAINTAINER of the docker image to be us. Most of the heavy lifting of these rules is being done in the archpostfix, and archpath functions, which are being used in a sed expression to either postfix or prefix the image that this image is built from. 
+
+
+Let's take a look at that sed with a simpler example:
+
+SED ABUSE:
+```bash
+$ echo "FROM image-version" | sed "s=^\(FROM \)\(.*\)$=\1i386/\2="
+FROM i386/image-version
+$
+```
+
+Unlike our previous sed commands, which have all been forms of "look for this thing, and display it", with the 's' command basically being abused as a test, this one intentionally is making a change.
+
+'s' commands are immediately followed by a character, that is used to seperate and terminate two blocks of text: the part we're looking for (match section), and the part we're replacing it with(substitution section). Previously, we've used '/' as the character following a 's' command, but since we're using '/' in the text we're placing into the file, we're going to use the '=' character instead. We've covered the '^' character at the beginning of the pattern being an anchor for "this pattern should be found only at the begining of the line". In the match section of this command, we're introducing "$" as the opposite anchor: $ means "end of line.". we're not using a -E on the command line, so are forced to use "\" before our parenthesis for our matching functions. this is a pure stylistic decision. the .* in the second matching section stands for 'any character, any number of times', which will definately match against our dependent image name.
+
+The match section of this sed command basicaly translates to "at the beginning of the line, look for "FROM ", store it, and store anything else you find up to the end of the line.". These two store operations get placed in sed variables, named \1, and \2. a SED command can have up to nine variables, which we are using in the substitution section.
+
+The substitution section of this sed command uses the \1 and \2 variable references to wrap the string "i386/". this effectively places i386/ in front of the image name.
+
+Because we are using that sed command in a Makefile, we have to double up the "$" symbol, to prevent make from interpreting it as a variable. In the first sed command in these rules, we're also doing some minor escaping, adding a '\' in front of some quotes, so that our substitution of the maintainer has quotes around the email address.
+
+#### Downloading Dockerfiles
+
+Finally, we are at the bottom of our dependency tree. We've followed this is reverse order, but when we actually ask for things to be pushed, or to be built, these rules are the first ones run.
+
+There are a lot of these, of various complexities, so let's start with the simple ones first.
+
+##### Simple Checkout
+
+```bash
+$ cat Makefile | sed -n -E '/^(smtp|dynamo|minio)/{:n;N;s/\n\t/\n        /;tn;p}'
+smtp/Dockerfile:
+        git clone https://github.com/namshi/docker-smtp.git smtp
+        cd smtp && git reset --hard $(SMTP_COMMIT)
+
+dynamodb_local/Dockerfile:
+        git clone https://github.com/cnadiminti/docker-dynamodb-local.git dynamodb_local
+        cd dynamodb_local && git reset --hard $(DYNAMODB_COMMIT)
+
+minio/Dockerfile:
+        git clone https://github.com/minio/minio.git minio
+        cd minio && git reset --hard $(MINIO_COMMIT)
+
+```
+
+These rules are simple. They git clone a repo, then reset the repo to a known good revision. This isolates us from potential breakage from upstreams, and prevents someone from stealing git credentials for our upstreams, and using those credentials to make a malignant version.
+
+##### Checkout with Modifications
+
+A bit more complex rule is localstack/Dockerfile:
+```bash
+$ cat Makefile | sed -n -E '/^(localsta)/{:n;N;s/\n\t/\n        /;tn;p}'
+localstack/Dockerfile:
+        git clone https://github.com/localstack/localstack.git localstack
+        cd localstack && git reset --hard $(LOCALSTACK_COMMIT)
+        ${SED} -i.bak  "s=localstack/java-maven-node-python=$(USERNAME)/java_maven_node_python$(TAGNAME)=" $@
+         # skip tests. they take too long.
+        ${SED} -i.bak  "s=make lint.*=make lint=" localstack/Makefile
+        ${SED} -i.bak  "s=\(.*lambda.*\)=#\1=" localstack/Makefile
+						 
+$
+```
+
+This rule makes some minor modifications to localstack's Dockerfile, and the Makefile that localstack's build process places in the docker image. It changes the Dockerfile such that instead of depending on upstream's version of the java-maven-node-python docker image, we depend on the version we are building. additionally, we disable the test cases for localstack, because they take a long time, and have a timing issues on emulators. It's worth noting that we use the make "$@" variable here, which evaluates to the build target, AKA, everything to the left of the ":" on the first line of our rule.
+
+SED ABUSE:
+These have a little bit of new sed, for us. We're using the '-i' option to sed, to perform sed operations in place, which is to say, we tell sed to edit the file, and store a backup of the file before it edited it as <filename>.bak. Other than that, these are standard substitutions, like we covered in our previous SED ABUSE section.
+
+In the same approximate category is the java_maven_node_python/Dockerfile rule:
+```bash
+$ cat Makefile | sed -n -E '/^(java)/{:n;N;s/\n\t/\n        /;tn;p}'
+java_maven_node_python/Dockerfile:
+        git clone https://github.com/localstack/localstack.git java_maven_node_python
+        cd java_maven_node_python && git reset --hard $(JAVAMAVENNODEPYTHON_COMMIT)
+        cd java_maven_node_python && mv bin/Dockerfile.base Dockerfile
+         # disable installing docker-ce. not available on many architectures in binary form.
+        ${SED} -i.bak  "/.*install Docker.*/{N;N;N;N;N;d}" $@
+```
+
+This rule does a checkout like the localstack rule, but the Dockerfile is stored somewhere other that the root of the repo. we move the Dockerfile, then we disable the installation of docker-ce in the environment. we don't use it, and it's got problems with not being ported to all architectures.
+
+SED ABUSE:
+To disable the installation of docker here, we do something a bit hacky. we find the line with 'install Docker' on it, we pull the next 5 lines into the pattern buffer, then delete them. This is effectively just a multiline delete. we use the -i.bak command line, just like the last sed abuse. neat and simple.
+
+
+##### Checkout, Copy, Modify
+
+Some of the git repositories that we depend on do not store the Dockerfile in the root of the repository. instead, they have one large repository, with many directories containing many docker images. In these cases, we use git to check out the repository into a directory with the name of the image followed by '-all', then copy the directory we want out of the tree.
+
+```bash
+$ cat Makefile | sed -n -E '/^(airdock)/{:n;N;s/\n\t/\n        /;tn;p}'
+airdock_base/Dockerfile:
+        git clone https://github.com/airdock-io/docker-base.git airdock_base-all
+        cd airdock_base-all && git reset --hard $(AIRDOCKBASE_COMMIT)
+        cp -R airdock_base-all/jessie airdock_base
+         # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
+        ${SED} -i.bak  "s/GOSU_VERSION=.* /GOSU_VERSION=1.11 /" $@
+         # work around missing architecture specific binaries in earlier versions of tini.
+        ${SED} -i.bak  "s/TINI_VERSION=.*/TINI_VERSION=v0.16.1/" $@
+         # work around the lack of architecture usage when downloading tini binaries. https://github.com/airdock-io/docker-base/issues/8
+        ${SED} -i.bak  's/tini\(.asc\|\)"/tini-\$$dpkgArch\1"/' $@
+
+airdock_rvm/Dockerfile:
+        git clone https://github.com/airdock-io/docker-rvm.git airdock_rvm-all
+        cd airdock_rvm-all && git reset --hard $(AIRDOCKRVM_COMMIT)
+        cp -R airdock_rvm-all/jessie-rvm airdock_rvm
+        ${SED} -i.bak  "s=airdock/base:jessie=$(USERNAME)/airdock_base$(TAGNAME)=" $@
+         # add a second key used to sign ruby to the dockerfile. https://github.com/airdock-io/docker-rvm/issues/1
+        ${SED} -i.bak  "s=\(409B6B1796C275462A1703113804BB82D39DC0E3\)=\1 7D2BAF1CF37B13E2069D6956105BD0E739499BDB=" $@
+
+airdock_fakesqs/Dockerfile:
+        git clone https://github.com/airdock-io/docker-fake-sqs.git airdock_fakesqs-all
+        cd airdock_fakesqs-all && git reset --hard $(AIRDOCKFAKESQS_COMMIT)
+        cp -R airdock_fakesqs-all/0.3.1 airdock_fakesqs
+        ${SED} -i.bak  "s=airdock/rvm:latest=$(USERNAME)/airdock_rvm$(TAGNAME)=" $@
+         # add a workdir declaration to the final switch to root.
+        ${SED} -i.bak  "s=^USER root=USER root\nWORKDIR /=" $@
+         # break directory creation into two pieces, one run by root.
+        ${SED} -i.bak  "s=^USER ruby=USER root=" $@
+        ${SED} -i.bak  "s=cd /srv/ruby/fake-sqs.*=chown ruby.ruby /srv/ruby/fake-sqs\nUSER ruby\nWORKDIR /srv/ruby/fake-sqs\nRUN cd /srv/ruby/fake-sqs \&\& \\\\=" $@
+```
+
+In airdock_base/Dockefile, we do a clone, set it to the revision we are expecting, then copy out one directory from that repo, creating an airdock_base/ directory containing a Dockerfile, like we expect. We then change out some version numbers in the Dockerfile to work around some known bugs, and do a minor modification to two commands to allow airdock_base to be built for non-amd64 architectures.
+
+SED ABUSE:
+The sed in the airdock_base/Dockerfile rule is relatively standard fare for us now, with the exception of the last command. in it, we use a match against "\(.asc\|\)", meaning either a .asc, or empty string. This lets this sed command modify both the line that contains the path to the signature for tini, and the path to the tini package. Since we want a '$' in the dockerfile, so that when the dockerfile is run, it looks at it's internal '$dpkgArch' variable, we have to escape it with a $ to prevent make from eating it, and with a \ to prevent SED from trying to interpret it.
+
+In airdock_rvm/Dockerfile, we do the same clone, reset hard, copy routine as we did in airdock_base/Dockerfile. Since airdock_rvm depends on airdock_base, we change the image this image derives from to point to our airdock_base image. Additionally, to work around the image using an old signature to verify it's ruby download, we add another key to the gpg import line in the Dockerfile. Technically both keys are in use by the project now, so we did not remove the old one.
+
+airdock_fakesqs had a bit more modification that was required. we follow the same routine as in airdock_rvm/Dockerfile, doing our clone, reset, copy, and dependant image change, then we have to make some modifications to the WORKDIR and USERs in this Dockerfile. I don't know how they successfully build it, but it looks to me like their original file is using a different docker file interpreter, with a different permissions model. when we tried to run the Dockerfile, it would give us permissions errors. These changes make it function, by being a bit more explicit about creating things with the right permissions.
+
+SED ABUSE:
+Let's take a look at the effect of these sed commands, before we dig into the commands themselves.
+
+```bash
+$ diff -u airdock_fakesqs-all/0.3.1/Dockerfile airdock_fakesqs/Dockerfile
+--- airdock_fakesqs-all/0.3.1/Dockerfile        2019-03-11 16:47:40.367319559 +0000
++++ airdock_fakesqs/Dockerfile  2019-03-11 16:47:40.419320902 +0000
+@@ -4,15 +4,19 @@
+ # TO_BUILD:       docker build --rm -t airdock/fake-sqs .
+  # SOURCE:         https://github.com/airdock-io/docker-fake-sqs
+
+-FROM airdock/rvm:latest
++FROM julialongtin/airdock_rvm:0.0.9
+ MAINTAINER Jerome Guibert <jguibert@gmail.com>
+ ARG FAKE_SQS_VERSION=0.3.1
+-USER ruby
++USER root
+
+-RUN mkdir -p /srv/ruby/fake-sqs && cd /srv/ruby/fake-sqs && \
++RUN mkdir -p /srv/ruby/fake-sqs && chown ruby.ruby /srv/ruby/fake-sqs
++USER ruby
++WORKDIR /srv/ruby/fake-sqs
++RUN cd /srv/ruby/fake-sqs && \
+   rvm ruby-2.3 do gem install fake_sqs -v ${FAKE_SQS_VERSION} --no-ri --no-rdoc
+
+ USER root
++WORKDIR /
+
+ EXPOSE 4568
+```
+
+The first change is our path change, to use the airdock_rvm image we're managing, instead of upstream's latest.
+The second and third change happens at the place in this file where it fails. On my machine, the mkdir fails, as the ruby user cannot create this directory. to solve this, we perform the directory creation an root, THEN do our rvm work. 
+
+
+Note that when we wrote our 'clean' rule, we added these '-all' directories manually, to make sure they would get deleted.
+
+##### Checkout, Copy, Modify Multiline
+
+elasticsearch and cassandra
+
+
+# Pitfalls i fell into writing this.
+
 
