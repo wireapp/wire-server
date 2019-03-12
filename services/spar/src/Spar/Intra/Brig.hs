@@ -1,7 +1,28 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Client functions for interacting with the Brig API.
-module Spar.Intra.Brig where
+module Spar.Intra.Brig
+  ( toUserSSOId
+  , fromUserSSOId
+  , getUser
+  , getUserTeam
+  , getUsers
+  , getUserByHandle
+  , setName
+  , setHandle
+  , setManagedBy
+  , setRichInfo
+  , bindUser
+  , deleteBrigUser
+  , isTeamUser
+  , getZUsrOwnedTeam
+  , ensureReAuthorised
+  , ssoLogin
+  , createUser
+  , parseResponse
+
+  , MonadSparToBrig(..)
+  ) where
 
 -- TODO: when creating user, we need to be able to provide more
 -- master data (first name, last name, ...)
@@ -236,6 +257,20 @@ bindUser uid (toUserSSOId -> ussoid) = do
     . paths ["/i/users", toByteString' uid, "sso-id"]
     . json ussoid
   pure $ Bilge.statusCode resp < 300
+
+-- | Call brig to delete a user
+deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
+deleteBrigUser buid = do
+  resp :: Response (Maybe LBS) <- call
+    $ method DELETE
+    . paths ["/i/users", toByteString' buid]
+  let sCode = statusCode resp
+  if
+    | sCode < 300 -> pure ()
+    | inRange (400, 499) sCode
+      -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "failed to delete user"
+    | otherwise -> throwSpar . SparBrigError . cs
+      $ "delete user failed with status " <> show sCode
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool

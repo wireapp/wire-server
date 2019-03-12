@@ -493,6 +493,50 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
+        it "should delete successfully and be idempotent" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            spar <- view teSpar
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+
+
+        it "should return 401 if we don't provide a token" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ Nothing (Just uid) spar
+                !!! const 401 === statusCode
+
+        it "should return 403 if we provide a token for a different team" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            (invalidTok, _) <- registerIdPAndScimToken
+            spar <- view teSpar
+            deleteUser_ (Just invalidTok) (Just uid) spar
+                !!! const 403 === statusCode
+
+        it "should return 404 if we getUser after deleteUser" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            getUser_ (Just tok) uid spar
+                !!! const 404 === statusCode
+
         it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
             env <- ask
             user <- randomScimUser
@@ -500,6 +544,3 @@ specDeleteUser = do
             storedUser <- createUser tok user
             deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
                 !!! assertTrue_ (inRange (200, 499) . statusCode)
-
-        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
-            pendingWith "really?  how do we destroy the data then, and when?"

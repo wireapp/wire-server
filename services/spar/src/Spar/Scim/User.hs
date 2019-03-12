@@ -33,7 +33,8 @@ import Data.Range
 import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser_, wrapMonadClient)
+
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createUser_, wrapMonadClient)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -45,6 +46,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
+import qualified System.Logger as Log
 
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
@@ -111,12 +113,31 @@ instance Scim.UserDB Spar where
     updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
 
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
-  delete _ _ =
-      throwError $ Scim.ScimError
-          mempty
-          (Scim.Status 404)
-          Nothing
-          (Just "User delete is not implemented yet")  -- TODO
+  delete ScimTokenInfo{stiTeam} uidText = do
+    uid :: UserId <- parseUid uidText
+    mbBrigUser <- lift (Intra.Brig.getUser uid)
+    case mbBrigUser of
+      -- If the user doesn't exist, the deletion likely occurred already.
+      -- to be idempotent we continue assuming the user has been deleted
+      Nothing -> return False
+      Just brigUser -> do
+        unless (userTeam brigUser == Just stiTeam) $ 
+          throwError $ Scim.forbidden "you are not authorized to delete this user"
+        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)  
+                       pure
+                       $ Brig.userSSOId brigUser
+        uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
+        lift . wrapMonadClient $ Data.deleteSAMLUser uref 
+        lift . wrapMonadClient $ Data.deleteScimUser uid
+        lift $ Intra.Brig.deleteBrigUser uid
+        return True
+          where
+            logThenServerError :: String -> Scim.ScimHandler Spar b
+            logThenServerError err = do
+              logger <- asks sparCtxLogger
+              Log.err logger $ Log.msg err
+              throwError $ Scim.serverError "Server Error" 
+
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
   getMeta _ =

@@ -40,7 +40,7 @@ extra-deps:
 - git: https://github.com/wireapp/saml2-web-sso
   commit: c03d17d656ac467350c983d5f844c199e5daceea    # master (Feb 21, 2019)
 - git: https://github.com/wireapp/hscim
-  commit: 42f6018812bf0f04741231b67b1f5e790ce0d489    # master (Feb 25, 2019)
+  commit: b2ddde040426d332a2eddcddb00e81ffb1144a90    # master (Mar 13, 2019)
 - git: https://gitlab.com/fisx/tinylog
   commit: 8db744579ae38ea28139af4dc87635d709761779    # https://gitlab.com/twittner/tinylog/merge_requests/6
 

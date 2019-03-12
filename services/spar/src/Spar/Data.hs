@@ -14,6 +14,7 @@ module Spar.Data
   , insertUser
   , getUser
   , deleteUsersByIssuer
+  , deleteSAMLUser
   , insertBindCookie
   , lookupBindCookie
   , storeIdPConfig
@@ -35,6 +36,7 @@ module Spar.Data
   , insertScimUser
   , getScimUser
   , getScimUsers
+  , deleteScimUser
   ) where
 
 import Imports
@@ -214,6 +216,13 @@ deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issu
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user WHERE issuer = ?"
+
+-- | Delete a user from the saml users table.
+deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+deleteSAMLUser (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+  where
+    del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
+    del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
@@ -505,3 +514,14 @@ getScimUsers uids = runIdentity <$$>
     sel :: PrepQuery R (Identity [UserId])
                        (Identity (ScimC.User.StoredUser ScimUserExtra))
     sel = "SELECT json FROM scim_user WHERE id in ?"
+
+
+-- | Delete a SCIM user by id.
+-- You'll also want to ensure they are deleted in Brig and in the SAML Users table.
+deleteScimUser
+  :: (HasCallStack, MonadClient m)
+  => UserId -> m ()
+deleteScimUser uid = retry x5 . write del $ params Quorum (Identity uid)
+  where
+    del :: PrepQuery W (Identity UserId) ()
+    del = "DELETE FROM scim_user WHERE id = ?"
