@@ -21,6 +21,7 @@ import qualified Database.Redis.IO as Redis
 import qualified Data.List.NonEmpty as NE
 import qualified Gundeck.Aws as Aws
 import qualified System.Logger as Logger
+import qualified System.Logger.Extended as Logger
 
 data Env = Env
     { _reqId   :: !RequestId
@@ -39,12 +40,9 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
-mkLogger :: Opts -> IO Logger.Logger
-mkLogger opts = Logger.new' $ Logger.simpleSettings (opts ^. optLogLevel) (opts ^. optLogNetStrings)
-
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l <- mkLogger o
+    l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings)
     c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)

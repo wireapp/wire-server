@@ -7,7 +7,6 @@
 -- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
-  , mkLogger
   , runServer
   ) where
 
@@ -41,6 +40,7 @@ import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 
 ----------------------------------------------------------------------
@@ -67,23 +67,13 @@ initCassandra opts lgr = do
 
 
 ----------------------------------------------------------------------
--- logger
-
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new' $ Log.simpleSettings level netstr
-  where
-    level = toLevel $ saml opts ^. SAML.cfgLogLevel
-    netstr = logNetStrings opts
-
-
-----------------------------------------------------------------------
 -- servant / wai / warp
 
 -- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  sparCtxLogger <- mkLogger sparCtxOpts
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel) (logNetStrings sparCtxOpts)
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport

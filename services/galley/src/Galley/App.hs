@@ -67,6 +67,7 @@ import qualified Galley.Aws               as Aws
 import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger            as Logger
+import qualified System.Logger.Extended   as Logger
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
     deriving (Eq, Ord, Show)
@@ -123,12 +124,9 @@ instance MonadHttp Galley where
 instance HasRequestId Galley where
     getRequestId = view reqId
 
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Logger.new' $ Logger.simpleSettings (opts ^. optLogLevel) (opts ^. optLogNetStrings)
-
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l   <- mkLogger o
+    l   <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings)
     mgr <- initHttpManager o
     Env def m o l mgr <$> initCassandra o l
                       <*> Q.new 16000

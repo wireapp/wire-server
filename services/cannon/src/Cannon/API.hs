@@ -36,17 +36,15 @@ import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger               as L
+import qualified System.Logger.Extended      as L
 import qualified System.Logger.Class         as LC
 import qualified System.IO.Strict            as Strict
-
-mkLogger :: Opts -> IO L.Logger
-mkLogger opts = L.new' $ L.simpleSettings (opts ^. logLevel) (opts ^. logNetStrings)
 
 run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- metrics
-    g <- mkLogger o
+    g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o

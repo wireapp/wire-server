@@ -200,6 +200,6 @@ initHttpManager = do
 
 mkAWSEnv :: JournalOpts -> IO Aws.Env
 mkAWSEnv opts = do
-    l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
+    l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings  -- TODO: use mkLogger'?
     mgr <- initHttpManager
     Aws.mkEnv l mgr opts

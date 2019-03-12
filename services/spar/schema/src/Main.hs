@@ -3,8 +3,10 @@ module Main where
 import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import System.Logger hiding (info)
 import Util.Options
+
+import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 import qualified V0
 import qualified V1
@@ -18,7 +20,7 @@ main = do
     let desc = "Spar Cassandra Schema Migrations"
         defaultPath = "/etc/wire/spar/conf/spar-schema.yaml"
     o <- getOptions desc (Just migrationOptsParser) defaultPath
-    l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
+    l <- Log.mkLogger'
     migrateSchema l o
         [ V0.migration
         , V1.migration
@@ -34,4 +36,4 @@ main = do
         -- effectively break the currently deployed spar service)
         -- see https://github.com/wireapp/wire-server/pull/476.
 
-        ] `finally` close l
+        ] `finally` Log.close l

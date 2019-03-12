@@ -22,6 +22,7 @@ import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified System.Logger as Logger
+import qualified System.Logger.Extended as Logger
 
 data Env = Env
     { _reqId   :: !RequestId
@@ -35,12 +36,9 @@ data Env = Env
 
 makeLenses ''Env
 
-mkLogger :: Opts -> IO Logger.Logger
-mkLogger _opts = Logger.new' $ Logger.simpleSettings Logger.Debug False
-
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- mkLogger o
+    g <- Logger.mkLogger'
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)
