@@ -13,6 +13,7 @@ ARG executable
 
 COPY /dist/${executable} /usr/bin/${executable}
 
+
 # TODO: only if executable=brig, also copy templates. Docker image conditionals seem hacky:
 # https://stackoverflow.com/questions/31528384/conditional-copy-add-in-dockerfile
 # For now, adds ~2 MB of additional files into every container
