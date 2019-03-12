@@ -242,8 +242,6 @@ createValidScimUser
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-
-    -- Check that the UserRef is not taken.
     assertUserRefUnused buid uref
 
     -- Create SCIM user here in spar.
@@ -290,7 +288,6 @@ updateValidScimUser tokinfo uidText newScimUser = do
          in maybe err pure =<< Scim.get tokinfo uidText
 
     let userRef = newScimUser ^. vsuSAMLUserRef
-    -- Check that the UserRef is not taken by a different user
     assertUserRefUnused uid userRef
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)

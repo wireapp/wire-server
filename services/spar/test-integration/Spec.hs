@@ -15,12 +15,12 @@ import System.Environment (withArgs)
 import Test.Hspec
 import Util
 
--- import qualified Test.MetricsSpec
--- import qualified Test.Spar.APISpec
--- import qualified Test.Spar.AppSpec
--- import qualified Test.Spar.DataSpec
--- import qualified Test.Spar.Intra.BrigSpec
--- import qualified Test.Spar.Scim.AuthSpec
+import qualified Test.MetricsSpec
+import qualified Test.Spar.APISpec
+import qualified Test.Spar.AppSpec
+import qualified Test.Spar.DataSpec
+import qualified Test.Spar.Intra.BrigSpec
+import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 
 
@@ -40,10 +40,10 @@ partitionArgs = go [] []
 
 mkspec :: SpecWith TestEnv
 mkspec = do
-    -- describe "Metrics" Test.MetricsSpec.spec
-    -- describe "Spar.API" Test.Spar.APISpec.spec
-    -- describe "Spar.App" Test.Spar.AppSpec.spec
-    -- describe "Spar.Data" Test.Spar.DataSpec.spec
-    -- describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
-    -- describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
+    describe "Metrics" Test.MetricsSpec.spec
+    describe "Spar.API" Test.Spar.APISpec.spec
+    describe "Spar.App" Test.Spar.AppSpec.spec
+    describe "Spar.Data" Test.Spar.DataSpec.spec
+    describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
+    describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
     describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
