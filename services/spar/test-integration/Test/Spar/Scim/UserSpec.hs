@@ -426,21 +426,21 @@ testUpdateToExistingExternalIdFails = do
     user <- randomScimUser
     _ <- createUser tok user
 
-    otherUser <- randomScimUser
-    storedOtherUser <- createUser tok otherUser
+    newUser <- randomScimUser
+    storedNewUser <- createUser tok newUser
 
-    let otherUserExternalId = Scim.User.externalId otherUser
-    liftIO $ otherUserExternalId `shouldSatisfy` isJust
+    let userExternalId = Scim.User.externalId user
+    -- Ensure we're actually generating an external ID; we may stop doing this in the future
+    liftIO $ userExternalId `shouldSatisfy` isJust
 
-    -- Try to update the other user's external ID to be the same as 'user's.
-    let updatedOtherUser = otherUser{Scim.User.externalId = otherUserExternalId}
+    -- Try to update the new user's external ID to be the same as 'user's.
+    let updatedNewUser = newUser{Scim.User.externalId = userExternalId}
 
     env <- ask
     -- Should fail with 409 to denote that the given externalId is in use by a
     -- different user.
-    _ <- updateUser_ (Just tok) (Just $ scimUserId storedOtherUser) updatedOtherUser (env ^. teSpar)
-          <!! const 409 === statusCode
-    return ()
+    void $ updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar)
+            <!! const 409 === statusCode
 
 -- | Test that updating still works when name and handle are not changed.
 --
