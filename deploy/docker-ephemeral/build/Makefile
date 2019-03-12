@@ -128,10 +128,7 @@ manifest-create-%: $$(foreach arch,$$(call goodarches,%), upload-$$(arch)-$$*)
 	docker manifest create $(USERNAME)/$*$(TAGNAME) $(patsubst %,$(USERNAME)/$*$(TAGNAME)-%,$(call goodarches,$*)) --amend
 
 # upload-<arch>-<name>
-upload-%:  create-% my-upload-$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-upload-$$(call fst,$$*)-$$(call snd,$$(predep)))
-	@echo -n
-
-my-upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-upload-$$(call fst,$$*)-$$(call snd,$$(predep)))
+upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-upload-$$(call fst,$$*)-$$(call snd,$$(predep)))
 	docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
 
 dep-upload-%: create-% $$(foreach predep,$$(filter $$(call snd,%)-%,$$(PREBUILDS)), dep-subupload-$$(call fst,$$*)-$$(call snd,$$(predep)))
@@ -141,10 +138,7 @@ dep-subupload-%: create-%
 	docker push $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) | cat
 
 # create-<arch>-<name>
-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-create-$$(call fst,$$*)-$$(call snd,$$(predep))) my-create-%
-	@echo -n
-
-my-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-create-$$(call fst,$$*)-$$(call snd,$$(predep)))
+create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-create-$$(call fst,$$*)-$$(call snd,$$(predep)))
 	cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
 depend-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-subcreate-$$(call fst,$$*)-$$(call snd,$$(predep)))
@@ -152,7 +146,6 @@ depend-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMAN
 
 depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* 
 	cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
-
 
 # with a broken manifest(our images, either docker or local), we have to use a postfix to request docker images other than the one for our native architecture.
 archpostfix=$(foreach arch,$(filter-out $(filter-out $(word 3, $(subst -, ,$(filter $(call snd,$(1))-%-$(call fst,$(1)),$(foreach prebuild,$(PREBUILDS),$(prebuild)-$(call fst,$(1)))))),$(LOCALARCH)),$(call fst,$(1))),-$(arch))
@@ -209,11 +202,11 @@ airdock_base/Dockerfile:
 	git clone https://github.com/airdock-io/docker-base.git airdock_base-all
 	cd airdock_base-all && git reset --hard $(AIRDOCKBASE_COMMIT)
 	cp -R airdock_base-all/jessie airdock_base
-# work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
+	 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
 	${SED} -i.bak  "s/GOSU_VERSION=.* /GOSU_VERSION=1.11 /" $@
-# work around missing architecture specific binaries in earlier versions of tini.
+	 # work around missing architecture specific binaries in earlier versions of tini.
 	${SED} -i.bak  "s/TINI_VERSION=.*/TINI_VERSION=v0.16.1/" $@
-# work around the lack of architecture usage when downloading tini binaries. https://github.com/airdock-io/docker-base/issues/8
+	 # work around the lack of architecture usage when downloading tini binaries. https://github.com/airdock-io/docker-base/issues/8
 	${SED} -i.bak  's/tini\(.asc\|\)"/tini-\$$dpkgArch\1"/' $@
 
 airdock_rvm/Dockerfile:
@@ -221,7 +214,7 @@ airdock_rvm/Dockerfile:
 	cd airdock_rvm-all && git reset --hard $(AIRDOCKRVM_COMMIT)
 	cp -R airdock_rvm-all/jessie-rvm airdock_rvm
 	${SED} -i.bak  "s=airdock/base:jessie=$(USERNAME)/airdock_base$(TAGNAME)=" $@
-# add a second key used to sign ruby to the dockerfile. https://github.com/airdock-io/docker-rvm/issues/1
+	 # add a second key used to sign ruby to the dockerfile. https://github.com/airdock-io/docker-rvm/issues/1
 	${SED} -i.bak  "s=\(409B6B1796C275462A1703113804BB82D39DC0E3\)=\1 7D2BAF1CF37B13E2069D6956105BD0E739499BDB=" $@
 
 airdock_fakesqs/Dockerfile:
@@ -229,9 +222,9 @@ airdock_fakesqs/Dockerfile:
 	cd airdock_fakesqs-all && git reset --hard $(AIRDOCKFAKESQS_COMMIT)
 	cp -R airdock_fakesqs-all/0.3.1 airdock_fakesqs
 	${SED} -i.bak  "s=airdock/rvm:latest=$(USERNAME)/airdock_rvm$(TAGNAME)=" $@
-# add a workdir declaration to the final switch to root.
+	 # add a workdir declaration to the final switch to root.
 	${SED} -i.bak  "s=^USER root=USER root\nWORKDIR /=" $@
-# break directory creation into two pieces, one run by root.
+	 # break directory creation into two pieces, one run by root.
 	${SED} -i.bak  "s=^USER ruby=USER root=" $@
 	${SED} -i.bak  "s=cd /srv/ruby/fake-sqs.*=chown ruby.ruby /srv/ruby/fake-sqs\nUSER ruby\nWORKDIR /srv/ruby/fake-sqs\nRUN cd /srv/ruby/fake-sqs \&\& \\\\=" $@
 
@@ -239,14 +232,14 @@ java_maven_node_python/Dockerfile:
 	git clone https://github.com/localstack/localstack.git java_maven_node_python
 	cd java_maven_node_python && git reset --hard $(JAVAMAVENNODEPYTHON_COMMIT)
 	cd java_maven_node_python && mv bin/Dockerfile.base Dockerfile
-# disable installing docker-ce. not available on many architectures in binary form.
+	 # disable installing docker-ce. not available on many architectures in binary form.
 	${SED} -i.bak  "/.*install Docker.*/{N;N;N;N;N;d}" $@
 
 localstack/Dockerfile:
 	git clone https://github.com/localstack/localstack.git localstack
 	cd localstack && git reset --hard $(LOCALSTACK_COMMIT)
 	${SED} -i.bak  "s=localstack/java-maven-node-python=$(USERNAME)/java_maven_node_python$(TAGNAME)=" $@
-# skip tests. they take too long.
+	 # skip tests. they take too long.
 	${SED} -i.bak  "s=make lint.*=make lint=" localstack/Makefile
 	${SED} -i.bak  "s=\(.*lambda.*\)=#\1=" localstack/Makefile
 
