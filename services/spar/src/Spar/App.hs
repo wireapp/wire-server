@@ -119,7 +119,8 @@ wrapMonadClientWithEnv action = do
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
-wrapMonadClient :: Cas.Client a -> Spar a
+-- wrapMonadClient :: Cas.Client a -> Spar a
+wrapMonadClient :: Client a -> Spar a
 wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
