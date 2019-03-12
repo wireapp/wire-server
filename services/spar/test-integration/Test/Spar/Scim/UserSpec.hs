@@ -439,8 +439,8 @@ testUpdateToExistingExternalIdFails = do
     env <- ask
     -- Should fail with 409 to denote that the given externalId is in use by a
     -- different user.
-    void $ updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar)
-            <!! const 409 === statusCode
+    updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar)
+            !!! const 409 === statusCode
 
 -- | Test that updating still works when name and handle are not changed.
 --

@@ -243,6 +243,11 @@ createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
+
+    -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
+    -- even called. However, it does that in an inefficient manner. We should remove the check
+    -- from @hscim@ and do it here instead.
+
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     assertUserRefUnused buid uref
@@ -406,8 +411,8 @@ calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
 {-|
 Check that the UserRef is not taken; or that it's taken by the given user id.
 
-FUTUREWORK: This check is very slow as it scans the every user for the team and decodes JSON
-to get the externalId. This could be cleaned up eventually by adding an index.
+ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
+to a single `externalId`.
 -}
 assertUserRefUnused :: UserId -> SAML.UserRef -> Scim.ScimHandler Spar ()
 assertUserRefUnused wireUserId userRef = do
