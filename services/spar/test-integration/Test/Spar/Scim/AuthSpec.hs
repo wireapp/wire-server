@@ -9,6 +9,8 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Control.Lens
+import Data.Misc (PlainTextPassword(..))
+import Network.Wai.Utilities.Error (label)
 import Spar.Scim
 import Spar.Types (ScimTokenInfo(..))
 import Util
@@ -34,6 +36,11 @@ specCreateToken = describe "POST /auth-tokens" $ do
     it "respects the token limit" $ testTokenLimit
     it "requires the team to have an IdP" $ testIdPIsNeeded
     it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
+    it "requires a password" $ testCreateTokenRequiresPassword
+    -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
+    -- reauthentication is not required. We currently (2019-03-05) can't test that because
+    -- only team owners with an email address can do SCIM token operations (which is something
+    -- we should change in the future).
 
 -- | Test that token creation is sane:
 --
@@ -46,7 +53,8 @@ testCreateToken = do
     (owner, _, _) <- registerTestIdP
     CreateScimTokenResponse token _ <-
         createToken owner CreateScimToken
-            { createScimTokenDescr = "testCreateToken" }
+            { createScimTokenDescr = "testCreateToken"
+            , createScimTokenPassword = Just defPassword }
     -- Try to do @GET /Users@ and check that it succeeds
     listUsers_ (Just token) Nothing (env ^. teSpar)
         !!! const 200 === statusCode
@@ -60,12 +68,15 @@ testTokenLimit = do
     -- Create two tokens
     (owner, _, _) <- registerTestIdP
     _ <- createToken owner CreateScimToken
-             { createScimTokenDescr = "testTokenLimit / #1" }
+             { createScimTokenDescr = "testTokenLimit / #1"
+             , createScimTokenPassword = Just defPassword }
     _ <- createToken owner CreateScimToken
-             { createScimTokenDescr = "testTokenLimit / #2" }
+             { createScimTokenDescr = "testTokenLimit / #2"
+             , createScimTokenPassword = Just defPassword }
     -- Try to create the third token and see that it fails
     createToken_ owner CreateScimToken
-        { createScimTokenDescr = "testTokenLimit / #3" }
+        { createScimTokenDescr = "testTokenLimit / #3"
+        , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
         !!! const 403 === statusCode
 
@@ -81,16 +92,17 @@ testIdPIsNeeded = do
     -- Creating a token should fail now
     createToken_
         userid
-        CreateScimToken { createScimTokenDescr = "testIdPIsNeeded" }
+        CreateScimToken
+          { createScimTokenDescr = "testIdPIsNeeded"
+          , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
         !!! const 400 === statusCode
 
 -- | Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()
-testCreateTokenAuthorizesOnlyTeamOwner =
-  do
+testCreateTokenAuthorizesOnlyTeamOwner = do
     env <- ask
-    (_, teamId,_) <- registerTestIdP
+    (_, teamId, _) <- registerTestIdP
     teamMemberId <- runHttpT (env ^. teMgr)
       $ createTeamMember
         (env ^. teBrig)
@@ -99,13 +111,40 @@ testCreateTokenAuthorizesOnlyTeamOwner =
         (Galley.rolePermissions Galley.RoleMember)
     createToken_
       teamMemberId
-      (CreateScimToken
-       { createScimTokenDescr = "testCreateToken"
-       })
+      CreateScimToken
+        { createScimTokenDescr = "testCreateToken"
+        , createScimTokenPassword = Just defPassword }
       (env ^. teSpar)
       !!! const 403
       === statusCode
 
+-- | Test that for a user with a password, token creation requires reauthentication (i.e. the
+-- field @"password"@ should be provided).
+--
+-- Checks both the "password not provided" and "wrong password is provided" cases.
+testCreateTokenRequiresPassword :: TestSpar ()
+testCreateTokenRequiresPassword = do
+    env <- ask
+    -- Create a new team
+    (owner, _, _) <- registerTestIdP
+    -- Creating a token doesn't work without a password
+    createToken_
+      owner
+      CreateScimToken
+        { createScimTokenDescr = "testCreateTokenRequiresPassword"
+        , createScimTokenPassword = Nothing }
+      (env ^. teSpar)
+      !!! do const 403 === statusCode
+             const "access-denied" === (label . decodeBody')
+    -- Creating a token doesn't work with a wrong password
+    createToken_
+      owner
+      CreateScimToken
+        { createScimTokenDescr = "testCreateTokenRequiresPassword"
+        , createScimTokenPassword = Just (PlainTextPassword "wrong password") }
+      (env ^. teSpar)
+      !!! do const 403 === statusCode
+             const "access-denied" === (label . decodeBody')
 
 ----------------------------------------------------------------------------
 -- Token listing
@@ -121,9 +160,11 @@ testListTokens = do
    -- Create two tokens
    (owner, _, _) <- registerTestIdP
    _ <- createToken owner CreateScimToken
-            { createScimTokenDescr = "testListTokens / #1" }
+            { createScimTokenDescr = "testListTokens / #1"
+            , createScimTokenPassword = Just defPassword }
    _ <- createToken owner CreateScimToken
-            { createScimTokenDescr = "testListTokens / #2" }
+            { createScimTokenDescr = "testListTokens / #2"
+            , createScimTokenPassword = Just defPassword }
    -- Check that the token is on the list
    list <- scimTokenListTokens <$> listTokens owner
    liftIO $ map stiDescr list `shouldBe`
@@ -146,7 +187,8 @@ testDeletedTokensAreUnusable = do
     (owner, _, _) <- registerTestIdP
     CreateScimTokenResponse token tokenInfo <-
         createToken owner CreateScimToken
-            { createScimTokenDescr = "testDeletedTokensAreUnusable" }
+            { createScimTokenDescr = "testDeletedTokensAreUnusable"
+            , createScimTokenPassword = Just defPassword }
     -- An operation with the token should succeed
     listUsers_ (Just token) Nothing (env ^. teSpar)
         !!! const 200 === statusCode
@@ -163,7 +205,8 @@ testDeletedTokensAreUnlistable = do
    (owner, _, _) <- registerTestIdP
    CreateScimTokenResponse _ tokenInfo <-
        createToken owner CreateScimToken
-           { createScimTokenDescr = "testDeletedTokensAreUnlistable" }
+           { createScimTokenDescr = "testDeletedTokensAreUnlistable"
+           , createScimTokenPassword = Just defPassword }
    -- Delete the token
    deleteToken owner (stiId tokenInfo)
    -- Check that the token is not on the list

@@ -4,16 +4,21 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- | This is where currently all the json roundtrip tests happen for brig-types and
+-- galley-types.
 module Test.Brig.Types.Common where
 
 import Imports
 import Brig.Types.Common
+import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Typeable (typeOf)
+import Galley.Types.Teams
 import Test.Brig.Types.Arbitrary ()
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 
@@ -30,6 +35,9 @@ tests = testGroup "Common (types vs. aeson)"
     , run @Asset Proxy
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
+    , run @TeamMemberDeleteData Proxy
+    , testCase "{} is a valid TeamMemberDeleteData" $ do
+        assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)
@@ -39,3 +47,13 @@ tests = testGroup "Common (types vs. aeson)"
         msg = show $ typeOf (undefined :: a)
         trip (v :: a) = counterexample (show $ toJSON v)
                       $ Right v === (parseEither parseJSON . toJSON) v
+
+
+instance Arbitrary TeamMemberDeleteData where
+  arbitrary = newTeamMemberDeleteData <$> arbitrary
+
+instance Eq TeamMemberDeleteData where
+  a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
+
+instance Show TeamMemberDeleteData where
+  show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"

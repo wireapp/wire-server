@@ -52,6 +52,7 @@ data SparCustomError
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
+  | SparReAuthRequired
   | SparBrigError LT
   | SparBrigErrorWith Status LT
   | SparNoBodyInGalleyResponse
@@ -96,6 +97,7 @@ sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Righ
 -- Brig-specific errors
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+sparToWaiError (SAML.CustomError SparReAuthRequired)                      = Right $ Wai.Error status403 "access-denied" "This operation requires reauthentication."
 sparToWaiError (SAML.CustomError (SparBrigError msg))                     = Right $ Wai.Error status500 "bad-upstream" msg
 sparToWaiError (SAML.CustomError (SparBrigErrorWith status msg))          = Right $ Wai.Error status "bad-upstream" msg
 -- Galley-specific errors
@@ -118,7 +120,7 @@ sparToWaiError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.Error st
 sparToWaiError (SAML.CustomError SparNotFound)                            = Right $ Wai.Error status404 "not-found" "Could not find IdP."
 sparToWaiError (SAML.CustomError SparMissingZUsr)                         = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
 sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
-sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
+sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be a team owner."
 sparToWaiError (SAML.CustomError SparInitLoginWithAuth)                   = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
 sparToWaiError (SAML.CustomError SparInitBindWithoutAuth)                 = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."
 sparToWaiError (SAML.CustomError SparBindUserDisappearedFromBrig)         = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
