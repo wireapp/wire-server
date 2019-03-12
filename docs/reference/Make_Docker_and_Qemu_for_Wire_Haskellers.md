@@ -965,13 +965,20 @@ $ diff -u airdock_fakesqs-all/0.3.1/Dockerfile airdock_fakesqs/Dockerfile
 The first change is our path change, to use the airdock_rvm image we're managing, instead of upstream's latest.
 The second and third change happens at the place in this file where it fails. On my machine, the mkdir fails, as the ruby user cannot create this directory. to solve this, we perform the directory creation an root, THEN do our rvm work. 
 
+Now, let's look through the sed that did that.
+The first sed command in this rule changed the path on the FROM line, just like the similar sed statement in the last make rule we were looking at.
+The second sed command added a 'WORKDIR /' to the bottom of the Dockerfile, after the USER root.
+The third SED command changes the USER line at the top of the fire to using the root user to run the next command, instead of the ruby user.
+Finally, the fourth SED command changes the first RUN command into two run commands. one creates the directory and makes sure we have permissions to it, while the second runs our command. the sed command also inserts commands to change user to ruby, and change working directories to the directory created in the first RUN command.
+
+Structurally, the first, second, and third sed command are all pretty standard things we've seen before. The fourth command looks a little different, but really, it's the same sort of substitution, only it adds several lines. At the end of the statement is some tricky escaping.
+'&' characters must be escaped, because in sed, an '&' character is shorthand for 'the entire patern that we matched'. That will be important, later. the single '\' character has to be escaped into '\\\\'.
 
 Note that when we wrote our 'clean' rule, we added these '-all' directories manually, to make sure they would get deleted.
 
 ##### Checkout, Copy, Modify Multiline
 
 elasticsearch and cassandra
-
 
 # Pitfalls i fell into writing this.
 
