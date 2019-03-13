@@ -10,7 +10,7 @@ are [curl](https://curl.haxx.se/) (in bash syntax).
 
 If you want to dive into the backend code, start [reading here in our
 backend](https://github.com/wireapp/wire-server/blob/develop/services/spar/src/Spar/Scim.hs)
-and [our hsim library](https://github.com/wireapp/hscim).
+and [our hscim library](https://github.com/wireapp/hscim).
 
 
 ## Creating an SCIM token
@@ -98,7 +98,7 @@ form [see {#RefRichInfo}](../user/rich-info.md):
 
 ```bash
 export SCIM_USER='{
-  "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:wire:scim:schemas:profile:1.0"],
   "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
   "userName"    : "rnick",
   "displayName" : "The Rich Nick",
