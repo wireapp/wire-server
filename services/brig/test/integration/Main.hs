@@ -55,7 +55,7 @@ runTests iConf bConf otherArgs = do
     casKey  <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
     awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
 
-    lg <- Logger.new Logger.defSettings
+    lg <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
     emailAWSOpts <- parseEmailAWSOpts

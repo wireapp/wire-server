@@ -94,6 +94,7 @@ import Network.HTTP.Client.MultipartFormData
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
+import Spar.App (toLevel)
 import Spar.API.Types
 import Spar.Run
 import Spar.Types
@@ -125,6 +126,7 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
+import qualified System.Logger.Extended as Log
 
 
 -- | Call 'mkEnv' with options from config files.
@@ -169,7 +171,7 @@ cliOptsParser = (,) <$>
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- mkLogger _teOpts
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts)
   _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   let _teBrig            = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley          = endpointToReq (cfgGalley _teTstOpts)

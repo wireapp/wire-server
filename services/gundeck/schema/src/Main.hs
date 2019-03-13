@@ -3,8 +3,10 @@ module Main where
 import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import System.Logger hiding (info)
 import Util.Options
+
+import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 import qualified V1
 import qualified V2
@@ -17,7 +19,7 @@ import qualified V7
 main :: IO ()
 main = do
     o <- getOptions desc (Just migrationOptsParser) defaultPath
-    l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
+    l <- Log.mkLogger'
     migrateSchema l o
         [ V1.migration
         , V2.migration
@@ -26,7 +28,7 @@ main = do
         , V5.migration
         , V6.migration
         , V7.migration
-        ] `finally` close l
+        ] `finally` Log.close l
   where
     desc = "Gundeck Cassandra Schema Migrations"
     defaultPath = "/etc/wire/gundeck/conf/gundeck-schema.yaml"

@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: cannon
 version: '0.31.0'
@@ -11,6 +11,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - imports
+- extended
 library:
   source-dirs: src
   exposed-modules:

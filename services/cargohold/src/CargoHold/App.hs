@@ -56,6 +56,7 @@ import qualified OpenSSL.Session              as SSL
 import qualified OpenSSL.X509.SystemStore     as SSL
 import qualified Ropes.Aws                    as Aws
 import qualified System.Logger                as Log
+import qualified System.Logger.Extended       as Log
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -84,9 +85,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     met  <- Metrics.metrics
-    lgr  <- Log.new $ Log.setOutput Log.StdOut
-                    . Log.setFormat Nothing
-                    $ Log.defSettings
+    lgr  <- Log.mkLogger'
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr def (o^.optSettings)

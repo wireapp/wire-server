@@ -297,6 +297,7 @@ ec2InternalHostname 2
 ec2Region 2
 empty 5
 enqueue 4
+ensureReAuthorised 2
 env 2
 euEmail 2
 event 3
@@ -417,7 +418,6 @@ mkBot 2
 mkEndpoint 2
 mkEnv 11
 mkKey 3
-mkLogger 5
 mkPasswordResetKey 2
 monitor 2
 monitoring 4
@@ -565,7 +565,7 @@ sockSv 2
 sockSvTiny 2
 sockSvTinyNetstr 2
 someLastPrekeys 2
-spec 12
+spec 13
 ssoLogin 4
 start 2
 status 2

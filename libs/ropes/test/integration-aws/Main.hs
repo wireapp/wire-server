@@ -12,7 +12,7 @@ import qualified Tests.Ropes.Aws.Ses as SES
 
 main :: IO ()
 main = do
-    l <- Logger.new Logger.defSettings
+    l <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
     k <- pack <$> getEnv "AWS_ACCESS_KEY"
     s <- pack <$> getEnv "AWS_SECRET_KEY"
     m <- newManager tlsManagerSettings

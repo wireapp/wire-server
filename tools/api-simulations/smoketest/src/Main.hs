@@ -18,7 +18,7 @@ main :: IO ()
 main = do
     o <- parseOptions
     m <- newManager tlsManagerSettings
-    l <- Log.new Log.defSettings
+    l <- Log.new Log.defSettings  -- TODO: use mkLogger'?
     e <- newBotNetEnv m l o
     r <- runBotNet e $ do
         mainBotNet 5

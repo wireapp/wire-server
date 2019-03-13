@@ -20,7 +20,7 @@ main = do
         <> fullDesc
 
     initLogger
-        = Log.new
+        = Log.new  -- TODO: use mkLogger'?
         . Log.setOutput Log.StdOut
         . Log.setFormat Nothing
         . Log.setBufSize 0

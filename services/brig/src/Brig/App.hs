@@ -108,6 +108,7 @@ import qualified System.FilePath          as Path
 import qualified System.FSNotify          as FS
 import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
+import qualified System.Logger.Extended   as Log
 
 schemaVersion :: Int32
 schemaVersion = 58
@@ -149,20 +150,13 @@ data Env = Env
 
 makeLenses ''Env
 
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (Opt.logLevel opts)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (Opt.logNetStrings opts)
-
 newEnv :: Opts -> IO Env
 newEnv o = do
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- mkLogger o
+    lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o)
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager
