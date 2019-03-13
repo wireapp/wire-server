@@ -10,7 +10,7 @@ are [curl](https://curl.haxx.se/) (in bash syntax).
 
 If you want to dive into the backend code, start [reading here in our
 backend](https://github.com/wireapp/wire-server/blob/develop/services/spar/src/Spar/Scim.hs)
-and [our hsim library](https://github.com/wireapp/hscim).
+and [our hscim library](https://github.com/wireapp/hscim).
 
 
 ## Creating an SCIM token
