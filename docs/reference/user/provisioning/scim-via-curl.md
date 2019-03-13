@@ -98,7 +98,7 @@ form [see
 
 ```
 export SCIM_USER='{
-  "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:wire:scim:schemas:profile:1.0"],
   "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
   "userName"    : "rnick",
   "displayName" : "The Rich Nick",
