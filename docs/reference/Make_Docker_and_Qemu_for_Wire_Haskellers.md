@@ -978,8 +978,91 @@ Note that when we wrote our 'clean' rule, we added these '-all' directories manu
 
 ##### Checkout, Copy, Modify Multiline
 
-elasticsearch and cassandra
+elasticsearch and cassandra's checkouts are complicated, as they do a bit of injection of code into the docker entrypoint script. The entrypoint script is the script that is launched when you run a docker image. It's responsible for reading in environment variables, setting up the service that the docker image is supposed to run, and then running the service. For both elasticsearch and cassandra, we do a multiline insert, and we do it with multiple chained commands.
+
+Let's look at elasticsearch, as these two rules are almost identical.
+
+```bash
+$ cat Makefile | sed -n -E '/^(ela)/{:n;N;s/\n\t/\n        /;tn;p}'
+elasticsearch/Dockerfile:
+        git clone https://github.com/blacktop/docker-elasticsearch-alpine.git elasticsearch-all
+        cd elasticsearch-all && git reset --hard $(ELASTICSEARCH_COMMIT)
+        cp -R elasticsearch-all/5.6/ elasticsearch
+         # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching elasticsearch.
+         # first, add a marker to be replaced before the last if.
+        ${SED} -i.bak  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1fi\nREPLACEME/' elasticsearch/elastic-entrypoint.sh
+         # next, load our variables.
+        ${SED} -i.bak  's@REPLACEME@MY_APP_CONFIG="/usr/share/elasticsearch/config/"\n&@' elasticsearch/elastic-entrypoint.sh
+         # add our parser and replacer.
+        ${SED} -i.bak  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS_ES}" ]; then\\nfor x in $${JVM_OPTIONS_ES}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; sed -i.bak -r \'s/^[# ]?(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\' "$$MY_APP_CONFIG/jvm.options"; diff "$$MY_APP_CONFIG/jvm.options.bak" "$$MY_APP_CONFIG/jvm.options" \&\& echo "no difference"; } done;\\nfi\\n&@' elasticsearch/elastic-entrypoint.sh
+         # remove the marker we added earlier.
+        ${SED} -i.bak  's@REPLACEME@@' elasticsearch/elastic-entrypoint.sh
+
+$
+```
+
+In this rule, we're checking out the git tree, and copying one directory that contains our Dockerfile, and our entrypoint for elasticsearch. Following that, we have four sed commands, one of which inserts some very complicated bash.
+
+SED ABUSE:
+Our first sed command in this rule uses a new trick. We're using -i to edit in place, and -r to quash output. Instead of starting with a match(/.../) or a substitution (s/thing/otherthing/), we immediately start with a label. let's break down this command.
+
+```sed
+:a;   # an anchor, we can loop back to.
+$!{   # enter here only if there is content to be read from the file. note that to get this "$" past make, we had to escape it, by replacing it with $$.
+N;    # pull in the next line of content into the pattern space
+ba    # branch to the 'a' label.
+};
+s/(.*)(\n?)fi/\2\1fi\nREPLACEME/   #match everything up to the last 'fi' and replace it with a 'fi', a new line, and REPLACEME
+```
+
+What does that effectively do? the source file contains a lot of lines with 'fi' in them, by inserting REPLACEME after the last one, this gives us an anchor point, that we can safely run simpler sed commands against.
+
+for instance, our next sed command:
+```sed
+s@REPLACEME@MY_APP_CONFIG="/usr/share/elasticsearch/config/"\n&@
+```
+
+the 's' on this command is using '@' symbols to seperate the pattern from the replacement. it operates by finding the 'REPLACEME' that we inserted with the last command. As we touched on earlier, the unescaped '&' at the end of this replacement repeats back the patern, in the replacement. This effectively means that this line replaces REPLACEME with a new line of code, and puts the REPLACEME after the line it inserted.
+
+BASH ABUSE:
+The next sed command works similarly, however it inserts an extremely complicated pile of bash on one line. Let's take a look at it. I'm going to remove some semicolons, remove some of the escaping, and insert line breaks and comments, to make this a bit more readable.
+```bash
+if [ ! -z "$${JVM_OPTIONS_ES}" ]; then   # only if JVM_OPTIONS_ES was set when docker was run
+  for x in $${JVM_OPTIONS_ES}
+    do {
+      # set l to everything to the left of an equal sign.
+      l="${x%%=*}"
+      # clear out r and e.
+      r=""
+      e=""
+      # if there was an equal sign, set e to an equal sign, and set r to everything after the equal sign.
+      [ "$x" != "${x/=//}" ] && e="=" && r="$${x##*=}"
+      # if there was an '-Xm' (a java memory option), set r to the content after the (-XM<single character>), and set l to the -XM<single character> 
+      [ "$x" != "${x##-Xm?}" ] && r="$${x##-Xm?}" && l="${x%%$r}"
+      # debugging code. echo what we saw.
+      echo $l $e $r
+      # perform a substitution, uncommenting a line found that starts with $l$e, and replacing it with $l$e$r.
+      sed -i.bak -r 's/^[# ]?('"$l$e"').*/\1'"$r"'/' "$MY_APP_CONFIG/jvm.options"
+      # show that a change was done with diff, or say there was no difference.
+      diff "$$MY_APP_CONFIG/jvm.options.bak" "$MY_APP_CONFIG/jvm.options" && echo "no difference";
+    } done;
+fi
+```
+
+What this bash script is doing is, it looks for a JVM_OPTIONS_ES environment variable, and if it finds it, it rewrites the jvm.options file, uncommenting and replacing the values for java options. This allows us to change the memory pool settings, and possibly other settings, by setting a variable in the docker compose file that starts up our integration test.
+
+This bash script is inserted by a sed command and CONTAINS a sed command, and lots of special characters. The quoting of this is handled a bit differently: instead of just surrounding our sed command in '' characters, we use $'', which is bash for "use C style escaping here".
+
+SED ABUSE:
+the bash script above uses a relatively normal sed command, but intersparces it with ' and " characters, in order to pass the sed command in groups of '' characters, while using "" around the sections that we have variables in. bash will substitute variables in doublequotes, but will not substitute them in single quotes.
+This substitution command uses slashes as its separators. it starts by anchoring to the beginning of the line, and matching against either a single '#' character, or a single space. it does this by grouping the space and # in a character class ([ and ]), then using a question mark to indicate "maybe one of these.". the substitution continues by matching the bash variables $l and $e, saving them in \1, matching (and therefore removing) anything else on the line, and replacing the line with \1, followed immediately by the contents of the bash variable $r.
+
+The cassandra/Dockerfile rule is almost identical to this last rule, only substituting out the name of the variable we expect from docker to CS_JVM_OPTIONS, and changing the path to the jvm.options file.
 
 # Pitfalls i fell into writing this.
 
+The first large mistake i made when writing this, is that the 'top' of the tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once. 
 
+The second was that i didn't really understand that manifest files refer to dockerhub only, not to the local machine. This was giving me similar race conditions, where an image build for architecture A would complete, and try to build the manifest when architecture B was still building.
+
+The third was writing really complicated SED and BASH and MAKE. ;p
