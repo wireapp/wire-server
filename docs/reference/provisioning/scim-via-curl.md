@@ -94,7 +94,7 @@ export SCIM_USER='{
 ```
 
 We also support custom fields that are used in rich profiles in this
-form [see {#RefRichInfo}](../rich-info.md):
+form [see {#RefRichInfo}](../user/rich-info.md):
 
 ```bash
 export SCIM_USER='{
