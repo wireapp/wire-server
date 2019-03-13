@@ -42,8 +42,7 @@ extra-deps:
 - git: https://github.com/wireapp/hscim
   commit: 42f6018812bf0f04741231b67b1f5e790ce0d489    # master (Feb 25, 2019)
 - git: https://gitlab.com/fisx/tinylog
-  commit: 8db744579ae38ea28139af4dc87635d709761779    # ssh://git@gitlab.com/fisx/tinylog branch settings-auxiliaries
-                                                      # TODO: make this one or two PRs.  (the new' change could be made a separate PR.)
+  commit: 8db744579ae38ea28139af4dc87635d709761779    # https://gitlab.com/twittner/tinylog/merge_requests/6
 
 flags:
   types-common:
