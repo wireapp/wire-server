@@ -11,6 +11,7 @@ module Web.Scim.Schema.Error
   , badRequest
   , conflict
   , unauthorized
+  , forbidden
   , serverError
 
   -- * Servant interoperability
@@ -93,6 +94,28 @@ badRequest typ mbDetail =
     , detail = mbDetail
     }
 
+unauthorized
+  :: Text         -- ^ Error details
+  -> ScimError
+unauthorized details =
+  ScimError
+    { schemas = [Error2_0]
+    , status = Status 401
+    , scimType = Nothing
+    , detail = pure $ "authorization failed: " <> details
+    }
+
+forbidden
+  :: Text         -- ^ Error details
+  -> ScimError
+forbidden details =
+  ScimError
+    { schemas = [Error2_0]
+    , status = Status 403
+    , scimType = Nothing
+    , detail = pure $ "forbidden: " <> details
+    }
+
 notFound
   :: Text        -- ^ Resource type
   -> Text        -- ^ Resource ID
@@ -112,17 +135,6 @@ conflict =
     , status = Status 409
     , scimType = Just Uniqueness
     , detail = Nothing
-    }
-
-unauthorized
-  :: Text         -- ^ Error details
-  -> ScimError
-unauthorized details =
-  ScimError
-    { schemas = [Error2_0]
-    , status = Status 401
-    , scimType = Nothing
-    , detail = pure $ "authorization failed: " <> details
     }
 
 serverError
