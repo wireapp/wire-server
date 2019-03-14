@@ -52,7 +52,8 @@ initCassandra opts lgr = do
                (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Types.discoUrl opts)
-    cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
+    cas <- Cas.init $ Cas.defSettings
+      & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
       & Cas.setPortNumber (fromIntegral $ Types.cassandra opts ^. casEndpoint . epPort)
       & Cas.setKeyspace (Keyspace $ Types.cassandra opts ^. casKeyspace)

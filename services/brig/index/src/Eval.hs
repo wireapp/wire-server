@@ -42,7 +42,8 @@ runCommand l = \case
        <$> newManager defaultManagerSettings
 
     initDb cas
-        = C.init l
+        = C.init
+        $ C.setLogger          (C.mkLogger l)
         . C.setContacts        (view cHost cas) []
         . C.setPortNumber      (fromIntegral (view cPort cas))
         . C.setKeyspace        (view cKeyspace cas)

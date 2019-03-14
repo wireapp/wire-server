@@ -138,8 +138,9 @@ initCassandra o l = do
     c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_galley")
                (unpack <$> o^.optDiscoUrl)
-    C.init (Logger.clone (Just "cassandra.galley") l) $
-              C.setContacts (NE.head c) (NE.tail c)
+    C.init
+            . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
+            . C.setContacts (NE.head c) (NE.tail c)
             . C.setPortNumber (fromIntegral $ o^.optCassandra.casEndpoint.epPort)
             . C.setKeyspace (Keyspace $ o^.optCassandra.casKeyspace)
             . C.setMaxConnections 4
