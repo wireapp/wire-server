@@ -1,9 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | 'zauth' token signing and verification.
---
--- REFACTOR: should this be moved to @/libs/zauth@?
-module Brig.ZAuth
+module Data.ZAuth.Settings
     ( -- * Monad
       ZAuth
     , MonadZAuth (..)
