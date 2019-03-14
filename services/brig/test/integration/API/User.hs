@@ -39,8 +39,15 @@ tests conf p b c ch g aws = do
         , API.User.RichInfo.tests      cl at conf p b c g
         ]
 
+zAuthTestSettings :: ZAuth.Settings
+zAuthTestSettings = ZAuth.Settings 1
+    (ZAuth.UserTokenTimeout (60 * 60 * 24 * 28))    -- 28 days
+    (ZAuth.SessionTokenTimeout (60 * 60 * 24))      -- 1 day
+    (ZAuth.AccessTokenTimeout 900)                  -- 15 minutes
+    (ZAuth.ProviderTokenTimeout (60 * 60 * 24 * 7)) -- 7 days
+
 mkZAuthEnv :: Maybe Opt.Opts -> IO ZAuth.Env
 mkZAuthEnv config = do
     Just (sk :| sks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
     Just (pk :| pks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
-    ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings
+    ZAuth.mkEnv (sk :| sks) (pk :| pks) zAuthTestSettings

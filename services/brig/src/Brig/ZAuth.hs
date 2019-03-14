@@ -17,7 +17,6 @@ module Brig.ZAuth
       -- * Settings
     , settings
     , Settings (..)
-    , defSettings
     , localSettings
     , keyIndex
     , UserTokenTimeout (..)
@@ -95,15 +94,8 @@ data Settings = Settings
     , _userTokenTimeout     :: !UserTokenTimeout      -- ^ User token validity timeout
     , _sessionTokenTimeout  :: !SessionTokenTimeout   -- ^ Session token validity timeout
     , _accessTokenTimeout   :: !AccessTokenTimeout    -- ^ Access token validity timeout
-    , _providerTokenTimeout :: !ProviderTokenTimeout  -- ^ Access token validity timeout
+    , _providerTokenTimeout :: !ProviderTokenTimeout  -- ^ Provider token validity timeout
     } deriving (Show, Generic)
-
-defSettings :: Settings
-defSettings = Settings 1
-    (UserTokenTimeout (60 * 60 * 24 * 28))    -- 28 days
-    (SessionTokenTimeout (60 * 60 * 24))      -- 1 day
-    (AccessTokenTimeout 900)                  -- 15 minutes
-    (ProviderTokenTimeout (60 * 60 * 24 * 7)) -- 7 days
 
 data Env = Env
     { _private  :: !ZC.Env
