@@ -25,7 +25,7 @@ import qualified Data.ByteString               as BS
 import qualified Brig.Types.Swagger            as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
-import qualified Brig.ZAuth                    as ZAuth
+import qualified Data.ZAuth.Settings           as ZAuth
 import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()

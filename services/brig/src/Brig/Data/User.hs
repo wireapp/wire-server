@@ -68,7 +68,7 @@ import Data.Conduit (ConduitM)
 import Data.UUID.V4
 import Galley.Types.Bot
 
-import qualified Brig.ZAuth as ZAuth
+import qualified Data.ZAuth.Settings as ZAuth
 
 -- | Authentication errors.
 data AuthError

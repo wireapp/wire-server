@@ -41,7 +41,7 @@ import qualified Data.List                as List
 import qualified System.Logger.Class      as Log
 import qualified Data.Metrics             as Metrics
 import qualified Web.Cookie               as WebCookie
-import qualified Brig.ZAuth               as ZAuth
+import qualified Data.ZAuth.Settings      as ZAuth
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management

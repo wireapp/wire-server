@@ -18,9 +18,9 @@ import qualified API.User.PasswordReset
 import qualified API.User.Property
 import qualified API.User.RichInfo
 
-import qualified Brig.AWS     as AWS
-import qualified Brig.Options as Opt
-import qualified Brig.ZAuth   as ZAuth
+import qualified Brig.AWS            as AWS
+import qualified Brig.Options        as Opt
+import qualified Data.ZAuth.Settings as ZAuth
 
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> IO TestTree
 tests conf p b c ch g aws = do

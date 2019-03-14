@@ -6,7 +6,7 @@ import Bilge.Assert hiding (assert)
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
-import Brig.ZAuth (ZAuth, runZAuth)
+import Data.ZAuth.Settings (ZAuth, runZAuth)
 import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
 import Data.Aeson
@@ -28,7 +28,7 @@ import qualified Bilge                as Http
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Lazy       as Lazy
-import qualified Brig.ZAuth           as ZAuth
+import qualified Data.ZAuth.Settings  as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
 

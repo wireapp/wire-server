@@ -56,7 +56,7 @@ import Brig.Team.Template
 import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
-import Brig.ZAuth (MonadZAuth (..), runZAuth)
+import Data.ZAuth.Settings (MonadZAuth (..), runZAuth)
 import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
@@ -90,7 +90,7 @@ import qualified Brig.Queue.Stomp         as Stomp
 import qualified Brig.Options             as Opt
 import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
-import qualified Brig.ZAuth               as ZAuth
+import qualified Data.ZAuth.Settings      as ZAuth
 import qualified Cassandra                as Cas
 import qualified Cassandra.Settings       as Cas
 import qualified Data.GeoIP2              as GeoIp

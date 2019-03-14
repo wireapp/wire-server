@@ -16,7 +16,7 @@ import Data.Yaml (FromJSON(..))
 import Util.Options
 import System.Logger (Level)
 
-import qualified Brig.ZAuth  as ZAuth
+import qualified Data.ZAuth.Settings  as ZAuth
 import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout

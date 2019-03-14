@@ -49,7 +49,6 @@ library:
   - Brig.RPC
   - Brig.User.Auth.Cookie.Limit
   - Brig.User.Search.Index
-  - Brig.ZAuth
   dependencies:
   - amazonka >=1.3.7
   - amazonka-dynamodb >=1.3.7

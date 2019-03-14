@@ -36,7 +36,7 @@ import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
-import qualified Brig.ZAuth as ZAuth
+import qualified Data.ZAuth.Settings as ZAuth
 
 data Access = Access
     { accessToken  :: !AccessToken

@@ -72,7 +72,7 @@ import qualified OpenSSL.EVP.PKey             as SSL
 import qualified Ssl.Util                     as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
-import qualified Brig.ZAuth                   as ZAuth
+import qualified Data.ZAuth.Settings          as ZAuth
 import qualified Galley.Types.Teams           as Teams
 
 routes :: Routes Doc.ApiBuilder Handler ()
