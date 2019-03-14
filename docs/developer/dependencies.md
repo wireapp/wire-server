@@ -1,4 +1,4 @@
-# Dependencies
+# Dependencies {#DevDeps}
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
