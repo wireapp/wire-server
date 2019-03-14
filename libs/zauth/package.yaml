@@ -81,3 +81,8 @@ tests:
     - uuid
     - zauth
 stability: experimental
+flags:
+  cql:
+    description: Enable cql instances
+    manual: false
+    default: false

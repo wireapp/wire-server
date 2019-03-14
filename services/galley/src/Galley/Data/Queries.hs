@@ -234,9 +234,9 @@ updateTeamSettings :: PrepQuery W ( ZAuth.UserTokenTimeout
                                   ) ()
 updateTeamSettings = [r|
   update team_settings
-     set user_token_timeout_seconds = ?
-       , session_token_timeout_seconds = ?
-       , access_token_timeout_seconds = ?
-       , provider_token_timeout_seconds = ?
-     where team = ?
+    set user_token_timeout_seconds = ?
+      , session_token_timeout_seconds = ?
+      , access_token_timeout_seconds = ?
+      , provider_token_timeout_seconds = ?
+    where team = ?
   |]

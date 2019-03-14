@@ -24,6 +24,7 @@ module Galley.Data
     , deleteTeam
     , removeTeamConv
     , updateTeam
+    , newUpdateTeamSettings
     , updateTeamStatus
 
     -- * Conversations
@@ -289,6 +290,17 @@ updateTeam tid u = retry x5 $ batch $ do
         addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
     for_ (u^.iconKeyUpdate) $ \k ->
         addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
+
+newUpdateTeamSettings :: MonadClient m => TeamId -> TeamSettingsUpdateData -> m ()
+newUpdateTeamSettings tid tsud =
+  retry x5 $ write Cql.updateTeamSettings
+          (params Quorum
+                  ( tsud ^. tsUserTokenTimeout
+                  , tsud ^. tsSessionTokenTimeout
+                  , tsud ^. tsAccessTokenTimeout
+                  , tsud ^. tsProviderTokenTimeout
+                  , tid
+                  ))
 
 -- Conversations ------------------------------------------------------------
 

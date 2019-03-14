@@ -53,4 +53,7 @@ flags:
   galley-types:
     cql: True
 
+  zauth:
+    cql: True
+
 allow-newer: False

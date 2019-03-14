@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 -- | 'zauth' token signing and verification.
 module Data.ZAuth.Settings
