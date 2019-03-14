@@ -74,6 +74,11 @@ import qualified Data.List.NonEmpty    as NonEmpty
 import qualified Data.ZAuth.Creation   as ZC
 import qualified Data.ZAuth.Validation as ZV
 
+#ifdef WITH_CQL
+import Data.Coerce
+import Database.CQL.Protocol hiding (header)
+#endif
+
 newtype ZAuth a = ZAuth { unZAuth :: ReaderT Env IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
 
@@ -93,7 +98,7 @@ data Settings = Settings
     , _sessionTokenTimeout  :: !SessionTokenTimeout   -- ^ Session token validity timeout
     , _accessTokenTimeout   :: !AccessTokenTimeout    -- ^ Access token validity timeout
     , _providerTokenTimeout :: !ProviderTokenTimeout  -- ^ Provider token validity timeout
-    } deriving (Show, Generic)
+    } deriving (Show, Eq, Generic)
 
 data Env = Env
     { _private  :: !ZC.Env
@@ -108,24 +113,61 @@ type BotToken      = Token Bot
 
 newtype UserTokenTimeout = UserTokenTimeout
     { userTokenTimeoutSeconds :: Integer }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 newtype SessionTokenTimeout = SessionTokenTimeout
     { sessionTokenTimeoutSeconds :: Integer }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 newtype AccessTokenTimeout = AccessTokenTimeout
     { accessTokenTimeoutSeconds :: Integer }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 newtype ProviderTokenTimeout = ProviderTokenTimeout
     { providerTokenTimeoutSeconds :: Integer }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance FromJSON UserTokenTimeout
 instance FromJSON SessionTokenTimeout
 instance FromJSON AccessTokenTimeout
 instance FromJSON ProviderTokenTimeout
+
+#ifdef WITH_CQL
+-- | These helpers work with any newtype over Integer
+toInt64 :: Coercible a Integer => a -> Int64
+toInt64 n = fromInteger . clamp . coerce $ n
+  where
+    -- Don't overflow; just clamp
+    clamp :: Integer -> Integer
+    clamp = min (toInteger $ maxBound @Int64)
+
+fromInt64 :: Coercible Integer a => Int64 -> a
+fromInt64 = coerce . toInteger
+
+instance Cql UserTokenTimeout where
+  ctype = Tagged BigIntColumn
+  toCql = CqlBigInt . toInt64
+  fromCql (CqlBigInt i) = Right (fromInt64 i)
+  fromCql _             = Left "Expected CqlBigInt."
+
+instance Cql SessionTokenTimeout where
+  ctype = Tagged BigIntColumn
+  toCql = CqlBigInt . toInt64
+  fromCql (CqlBigInt i) = Right (fromInt64 i)
+  fromCql _             = Left "Expected CqlBigInt."
+
+instance Cql AccessTokenTimeout where
+  ctype = Tagged BigIntColumn
+  toCql = CqlBigInt . toInt64
+  fromCql (CqlBigInt i) = Right (fromInt64 i)
+  fromCql _             = Left "Expected CqlBigInt."
+
+instance Cql ProviderTokenTimeout where
+  ctype = Tagged BigIntColumn
+  toCql = CqlBigInt . toInt64
+  fromCql (CqlBigInt i) = Right (fromInt64 i)
+  fromCql _             = Left "Expected CqlBigInt."
+#endif
 
 instance FromJSON Settings where
   parseJSON = withObject "ZAuth.Settings" $ \o ->
