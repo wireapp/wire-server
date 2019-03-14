@@ -16,6 +16,17 @@ EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 
+
+# if it's passed to make, pass -j flag to GHC, and to stack.
+MAKE_PID := $(shell echo $$PPID)
+JOB_FLAG := $(filter -j%, $(subst -j ,-j,$(shell ps T | grep "^\s*$(MAKE_PID).*$(MAKE)")))
+JOBS     := $(subst -j,,$(JOB_FLAG))
+ifeq (${JOBS},)
+  WIRE_STACK_OPTIONS ?=
+else
+  WIRE_STACK_OPTIONS := ${WIRE_STACK_OPTIONS} -j${JOBS} --ghc-options -j${JOBS}
+endif
+
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
 	      echo "Environment variable $* not set"; \
@@ -29,7 +40,7 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist $(WIRE_STACK_OPTIONS)
 
 .PHONY: fast
 fast: init
