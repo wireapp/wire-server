@@ -170,7 +170,7 @@ createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createUser_ buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid mbName managedBy
+  buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
@@ -178,11 +178,11 @@ createUser_ buid suid mbName managedBy = do
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-  uteamid <- Intra.getUserTeam buid
+  uteamid <- Intra.getBrigUserTeam buid
   unless (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindUser buid userref >>= \case
+  Intra.bindBrigUser buid userref >>= \case
     True  -> pure buid
     False -> do
       SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid

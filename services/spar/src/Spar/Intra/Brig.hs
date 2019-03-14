@@ -4,21 +4,21 @@
 module Spar.Intra.Brig
   ( toUserSSOId
   , fromUserSSOId
-  , getUser
-  , getUserTeam
-  , getUsers
-  , getUserByHandle
-  , setName
-  , setHandle
-  , setManagedBy
-  , setRichInfo
-  , bindUser
+  , getBrigUser
+  , getBrigUserTeam
+  , getBrigUsers
+  , getBrigUserByHandle
+  , setBrigUserName
+  , setBrigUserHandle
+  , setBrigUserManagedBy
+  , setBrigUserRichInfo
+  , bindBrigUser
   , deleteBrigUser
+  , createBrigUser
   , isTeamUser
   , getZUsrOwnedTeam
   , ensureReAuthorised
   , ssoLogin
-  , createUser
   , parseResponse
 
   , MonadSparToBrig(..)
@@ -90,7 +90,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 
 
 -- | Create a user on brig.
-createUser
+createBrigUser
   :: (HasCallStack, MonadSparToBrig m)
   => SAML.UserRef    -- ^ SSO identity
   -> UserId
@@ -98,7 +98,7 @@ createUser
   -> Maybe Name      -- ^ User name (if 'Nothing', the subject ID will be used)
   -> ManagedBy       -- ^ Who should have control over the user
   -> m UserId
-createUser suid (Id buid) teamid mbName managedBy = do
+createBrigUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
@@ -139,8 +139,8 @@ createUser suid (Id buid) teamid mbName managedBy = do
 
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getUser buid = do
+getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
+getBrigUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . path "/self"
@@ -157,15 +157,15 @@ getUser buid = do
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
 -- TODO: implement an internal end-point on brig that makes this possible with one request.
-getUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
-getUsers = fmap catMaybes . mapM getUser
+getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
+getBrigUsers = fmap catMaybes . mapM getBrigUser
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if
 -- @hscim@ stops doing checks during user creation.
-getUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
-getUserByHandle handle = do
+getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
+getBrigUserByHandle handle = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . path "/i/users"
@@ -182,8 +182,8 @@ getUserByHandle handle = do
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
-setName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
-setName buid name = do
+setBrigUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
+setBrigUserName buid name = do
   resp <- call
     $ method PUT
     . path "/self"
@@ -204,8 +204,8 @@ setName buid name = do
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
-setHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
-setHandle buid (Handle handle) = do
+setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
+setBrigUserHandle buid (Handle handle) = do
   resp <- call
     $ method PUT
     . path "/self/handle"
@@ -221,8 +221,8 @@ setHandle buid (Handle handle) = do
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
-setManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
-setManagedBy buid managedBy = do
+setBrigUserManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
+setBrigUserManagedBy buid managedBy = do
   resp <- call
     $ method PUT
     . paths ["i", "users", toByteString' buid, "managed-by"]
@@ -236,8 +236,8 @@ setManagedBy buid managedBy = do
 
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
-setRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
-setRichInfo buid richInfo = do
+setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
+setBrigUserRichInfo buid richInfo = do
   resp <- call
     $ method PUT
     . paths ["i", "users", toByteString' buid, "rich-info"]
@@ -251,8 +251,8 @@ setRichInfo buid richInfo = do
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
-bindUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
-bindUser uid (toUserSSOId -> ussoid) = do
+bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
+bindBrigUser uid (toUserSSOId -> ussoid) = do
   resp <- call $ method PUT
     . paths ["/i/users", toByteString' uid, "sso-id"]
     . json ussoid
@@ -274,19 +274,19 @@ deleteBrigUser buid = do
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = isJust <$> getUserTeam buid
+isTeamUser buid = isJust <$> getBrigUserTeam buid
 
 -- | Check that a user id exists on brig and has a team id.
-getUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
-getUserTeam buid = do
-  usr <- getUser buid
+getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
+getBrigUserTeam buid = do
+  usr <- getBrigUser buid
   pure $ userTeam =<< usr
 
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
 -- 'SparNotTeamOwner'; otherwise, return.
 assertIsTeamOwner :: (HasCallStack, MonadSparToBrig m) => UserId -> TeamId -> m ()
 assertIsTeamOwner buid tid = do
-  self <- maybe (throwSpar SparNotInTeam) pure =<< getUser buid
+  self <- maybe (throwSpar SparNotInTeam) pure =<< getBrigUser buid
   when (userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
   resp :: Response (Maybe LBS) <- call
     $ method GET
@@ -300,7 +300,7 @@ getZUsrOwnedTeam :: (HasCallStack, SAML.SP m, MonadSparToBrig m)
                  => Maybe UserId -> m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
-  usr <- getUser uid
+  usr <- getBrigUser uid
   case userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ assertIsTeamOwner uid teamid

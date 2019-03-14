@@ -73,7 +73,7 @@ instance Scim.UserDB Spar where
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
-         lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
+         lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser ScimUserExtra]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
@@ -93,7 +93,7 @@ instance Scim.UserDB Spar where
       -> Scim.ScimHandler Spar (Maybe (Scim.StoredUser ScimUserExtra))
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- parseUid uidText
-    mbBrigUser <- lift (Intra.Brig.getUser uid)
+    mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
       then lift . wrapMonadClient . Data.getScimUser $ uid
       else pure Nothing
@@ -115,7 +115,7 @@ instance Scim.UserDB Spar where
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
   delete ScimTokenInfo{stiTeam} uidText = do
     uid :: UserId <- parseUid uidText
-    mbBrigUser <- lift (Intra.Brig.getUser uid)
+    mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     case mbBrigUser of
       -- If the user doesn't exist, the deletion likely occurred already.
       -- to be idempotent we continue assuming the user has been deleted
@@ -286,9 +286,9 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     lift $ createUser_ buid uref mbName ManagedByScim
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
-    lift $ Intra.Brig.setHandle buid handl
+    lift $ Intra.Brig.setBrigUserHandle buid handl
     -- Set rich info on brig
-    lift $ Intra.Brig.setRichInfo buid richInfo
+    lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
 
     pure storedUser
 
@@ -326,15 +326,15 @@ updateValidScimUser tokinfo uidText newScimUser = do
         -- update 'SAML.UserRef'
         let uref = newScimUser ^. vsuSAMLUserRef
         lift . wrapMonadClient $ Data.insertSAMLUser uref uid  -- on spar
-        bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
+        bindok <- lift $ Intra.Brig.bindBrigUser uid uref  -- on brig
         unless bindok . throwError $
             Scim.serverError "Failed to update SAML UserRef on brig."
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
             -- (internal error?  race condition?)
 
-        maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
-        lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
-        lift . Intra.Brig.setRichInfo uid $ newScimUser ^. vsuRichInfo
+        maybe (pure ()) (lift . Intra.Brig.setBrigUserName uid) $ newScimUser ^. vsuName
+        lift . Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
+        lift . Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
 
         -- store new user value to scim_user table (spar). (this must happen last, so in case
         -- of crash the client can repeat the operation and it won't be considered a noop.)
