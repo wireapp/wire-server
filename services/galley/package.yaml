@@ -13,6 +13,7 @@ dependencies:
 - extended
 - safe >=0.3
 - ssl-util
+- raw-strings-qq
 library:
   source-dirs: src
   exposed-modules:
@@ -92,6 +93,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.0
+  - zauth
 executables:
   galley:
     main: src/Main.hs

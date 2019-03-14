@@ -12,7 +12,9 @@ import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import qualified Data.ZAuth.Settings as ZAuth
 
+import Text.RawString.QQ
 import qualified Data.Text.Lazy as LT
 
 -- Teams --------------------------------------------------------------------
@@ -222,3 +224,19 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+
+-- Team Settings ---------------------------------------------------------------------
+updateTeamSettings :: PrepQuery W ( ZAuth.UserTokenTimeout
+                                  , ZAuth.SessionTokenTimeout
+                                  , ZAuth.AccessTokenTimeout
+                                  , ZAuth.ProviderTokenTimeout
+                                  , TeamId
+                                  ) ()
+updateTeamSettings = [r|
+  update team_settings
+     set user_token_timeout_seconds = ?
+       , session_token_timeout_seconds = ?
+       , access_token_timeout_seconds = ?
+       , provider_token_timeout_seconds = ?
+     where team = ?
+  |]
