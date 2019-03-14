@@ -155,5 +155,5 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           $ outcome
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
-  muid <- runSparCass $ Data.getUser uref
+  muid <- runSparCass $ Data.getSAMLUser uref
   pure (muid, outcome, loc, qry)

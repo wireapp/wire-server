@@ -462,7 +462,7 @@ testUpdateUserRefIndex = do
     _ <- updateUser tok userid user'
     vuser' <- either (error . show) pure $
         validateScimUser' idp 999999 user'  -- 999999 = some big number
-    muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
+    muserid' <- runSparCass $ Data.getSAMLUser (vuser' ^. vsuSAMLUserRef)
     liftIO $ do
         muserid' `shouldBe` Just userid
 

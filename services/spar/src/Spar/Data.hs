@@ -7,16 +7,23 @@ module Spar.Data
   , Env(..)
   , mkEnv
   , mkTTLAssertions
+  -- * SAML state handling
   , storeAReqID, unStoreAReqID, isAliveAReqID
   , storeAssID, unStoreAssID, isAliveAssID
   , storeVerdictFormat
   , getVerdictFormat
-  , insertUser
-  , getUser
-  , deleteUsersByIssuer
+
+  -- * SAML Users
+  , insertSAMLUser
+  , getSAMLUser
+  , deleteSAMLUsersByIssuer
   , deleteSAMLUser
+
+  -- * Cookies
   , insertBindCookie
   , lookupBindCookie
+
+  -- IDPs
   , storeIdPConfig
   , getIdPConfig
   , getIdPConfigByIssuer
@@ -198,21 +205,21 @@ getVerdictFormat req = (>>= toVerdictFormat) <$>
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = runIdentity <$$>
+getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+getSAMLUser (SAML.UserRef tenant subject) = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
-deleteUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
-deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user WHERE issuer = ?"
@@ -371,7 +378,7 @@ deleteTeam team = do
     for_ idps $ \idp -> do
       let idpid = idp ^. SAML.idpId
           issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      deleteUsersByIssuer issuer
+      deleteSAMLUsersByIssuer issuer
       deleteIdPConfig idpid issuer team
 
 ----------------------------------------------------------------------

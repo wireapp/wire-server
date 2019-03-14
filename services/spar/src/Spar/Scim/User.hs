@@ -270,7 +270,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- from @hscim@ and do it here instead.
 
     -- Check that the UserRef is not taken.
-    whenM (isJust <$> lift (wrapMonadClient (Data.getUser uref))) $
+    whenM (isJust <$> lift (wrapMonadClient (Data.getSAMLUser uref))) $
         throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
@@ -325,7 +325,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
         -- update 'SAML.UserRef'
         let uref = newScimUser ^. vsuSAMLUserRef
-        lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
+        lift . wrapMonadClient $ Data.insertSAMLUser uref uid  -- on spar
         bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
         unless bindok . throwError $
             Scim.serverError "Failed to update SAML UserRef on brig."

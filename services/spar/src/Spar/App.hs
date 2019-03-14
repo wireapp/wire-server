@@ -127,7 +127,7 @@ wrapMonadClient action = do
       (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
+insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
@@ -136,7 +136,7 @@ insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
 getUser uref = do
-  muid <- wrapMonadClient $ Data.getUser uref
+  muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
