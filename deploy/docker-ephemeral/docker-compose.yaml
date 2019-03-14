@@ -6,7 +6,8 @@ networks:
 services:
   fake_dynamodb:
     container_name: demo_wire_dynamodb
-    image: cnadiminti/dynamodb-local:2018-04-11
+#    image: cnadiminti/dynamodb-local:2018-04-11
+    image: julialongtin/dynamodb_local:0.0.9
     ports:
       - 127.0.0.1:4567:8000
     networks:
@@ -14,7 +15,8 @@ services:
 
   fake_sqs:
     container_name: demo_wire_sqs
-    image: airdock/fake-sqs:0.3.1
+#    image: airdock/fake-sqs:0.3.1
+    image: julialongtin/airdock_fakesqs:0.0.9
     ports:
       - 127.0.0.1:4568:4568
     networks:
@@ -22,7 +24,8 @@ services:
 
   fake_localstack:
     container_name: demo_wire_localstack
-    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
+#    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
+    image: julialongtin/localstack:0.0.9
     ports:
       - 127.0.0.1:4569:4579 # ses # needed for local integration tests
       - 127.0.0.1:4575:4575 # sns
@@ -35,8 +38,8 @@ services:
 
   basic_smtp: # needed for demo setup
     container_name: demo_wire_smtp
-    # https://github.com/namshi/docker-smtp
-    image: namshi/smtp
+#    image: namshi/smtp
+    image: julialongtin/smtp:0.0.9
     ports:
         - 127.0.0.1:2500:25
     networks:
@@ -44,7 +47,8 @@ services:
 
   fake_s3:
     container_name: demo_wire_s3
-    image: minio/minio:RELEASE.2018-05-25T19-49-13Z
+#    image: minio/minio:RELEASE.2018-05-25T19-49-13Z
+    image: julialongtin/minio:0.0.9
     ports:
      - "127.0.0.1:4570:9000"
     environment:
@@ -59,6 +63,7 @@ services:
   #   ports:
   #     - "61613:61613"
 
+  # FIXME: replace redis image with one we build.
   redis:
     container_name: demo_wire_redis
     image: redis:3.0.7-alpine
@@ -159,6 +164,7 @@ services:
     networks:
       - demo_wire
 
+  # FIXME: replace aws_cli with an image that we build.
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
     depends_on:
