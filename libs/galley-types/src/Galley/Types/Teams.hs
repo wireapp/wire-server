@@ -102,6 +102,13 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
+    , TeamSettingsUpdateData
+    , newTeamSettingsUpdateData
+    , tsUserTokenTimeout
+    , tsSessionTokenTimeout
+    , tsAccessTokenTimeout
+    , tsProviderTokenTimeout
+
     , TeamMemberDeleteData
     , tmdAuthPassword
     , newTeamMemberDeleteData
@@ -124,6 +131,7 @@ import Data.Range
 import Data.Time (UTCTime)
 import Galley.Types.Teams.Internal
 
+import qualified Data.ZAuth.Settings as ZAuth
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 #ifdef WITH_CQL
@@ -197,6 +205,13 @@ data TeamUpdateData = TeamUpdateData
     { _nameUpdate    :: Maybe (Range 1 256 Text)
     , _iconUpdate    :: Maybe (Range 1 256 Text)
     , _iconKeyUpdate :: Maybe (Range 1 256 Text)
+    } deriving (Eq, Show)
+
+data TeamSettingsUpdateData = TeamSettingsUpdateData
+    { _tsUserTokenTimeout     :: ZAuth.UserTokenTimeout
+    , _tsSessionTokenTimeout  :: ZAuth.SessionTokenTimeout
+    , _tsAccessTokenTimeout   :: ZAuth.AccessTokenTimeout
+    , _tsProviderTokenTimeout :: ZAuth.ProviderTokenTimeout
     } deriving (Eq, Show)
 
 data TeamList = TeamList
@@ -341,6 +356,20 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
+newTeamSettingsUpdateData
+  :: ZAuth.UserTokenTimeout
+  -> ZAuth.SessionTokenTimeout
+  -> ZAuth.AccessTokenTimeout
+  -> ZAuth.ProviderTokenTimeout
+  -> TeamSettingsUpdateData
+newTeamSettingsUpdateData utt stt att ptt =
+  TeamSettingsUpdateData
+  { _tsUserTokenTimeout     = utt
+  , _tsSessionTokenTimeout  = stt
+  , _tsAccessTokenTimeout   = att
+  , _tsProviderTokenTimeout = ptt
+  }
+
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
@@ -358,6 +387,7 @@ makeLenses ''NewTeam
 makeLenses ''NewTeamMember
 makeLenses ''Event
 makeLenses ''TeamUpdateData
+makeLenses ''TeamSettingsUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
