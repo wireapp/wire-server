@@ -130,12 +130,13 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
     $ method POST
     . path "/i/users"
     . json newUser
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> userId . selfUser <$> parseResponse @SelfProfile resp
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "create user failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "create user failed with status " <> show sCode
 
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
@@ -195,12 +196,13 @@ setBrigUserName buid name = do
                , uupAssets = Nothing
                , uupAccentId = Nothing
                }
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> pure ()
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set name failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "set name failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "set name failed with status " <> show sCode
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
@@ -212,12 +214,13 @@ setBrigUserHandle buid (Handle handle) = do
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
     . json (HandleUpdate handle)
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> pure ()
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "set handle failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "set handle failed with status " <> show sCode
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
@@ -227,12 +230,13 @@ setBrigUserManagedBy buid managedBy = do
     $ method PUT
     . paths ["i", "users", toByteString' buid, "managed-by"]
     . json (ManagedByUpdate managedBy)
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> pure ()
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
 
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
@@ -242,12 +246,13 @@ setBrigUserRichInfo buid richInfo = do
     $ method PUT
     . paths ["i", "users", toByteString' buid, "rich-info"]
     . json (RichInfoUpdate richInfo)
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> pure ()
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
@@ -314,14 +319,15 @@ ensureReAuthorised (Just uid) secret = do
     $ method GET
     . paths ["/i/users", toByteString' uid, "reauthenticate"]
     . json (ReAuthUser secret)
-  if | statusCode resp == 200
+  let sCode = statusCode resp
+  if | sCode== 200
        -> pure ()
-     | statusCode resp == 403
+     | sCode == 403
        -> throwSpar SparReAuthRequired
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "reauthentication failed"
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "reauthentication failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "reauthentication failed with status " <> show sCode
 
 -- | Get persistent cookie from brig and redirect user past login process.
 --
@@ -334,9 +340,10 @@ ssoLogin buid = do
     . path "/i/sso-login"
     . json (SsoLogin buid Nothing)
     . queryItem "persist" "true"
-  if | statusCode resp < 300
+  let sCode = statusCode resp
+  if | sCode < 300
        -> Just <$> respToCookie resp
-     | inRange (400, 499) (statusCode resp)
+     | inRange (400, 499) sCode
        -> pure Nothing
      | otherwise
-       -> throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show (statusCode resp)
+       -> throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show sCode
