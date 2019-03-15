@@ -63,15 +63,13 @@ data Server = Server
     , serverLogger              :: Logger
     , serverMetrics             :: Metrics
     , serverTimeout             :: Maybe Int
-    , serverOnException         :: [Maybe Request -> Handler IO ()]
-    , serverOnExceptionResponse :: [Handler Identity Response]
     }
 
 defaultServer :: String -> Word16 -> Logger -> Metrics -> Server
-defaultServer h p l m = Server h p l m Nothing [] []
+defaultServer h p l m = Server h p l m Nothing
 
 newSettings :: MonadIO m => Server -> m Settings
-newSettings (Server h p l m t el er) = do
+newSettings (Server h p l m t) = do
     -- (Atomically) initialise the standard metrics, to avoid races.
     void $ gaugeGet' (path "net.connections") m
     void $ counterGet' (path "net.errors") m
@@ -80,8 +78,6 @@ newSettings (Server h p l m t el er) = do
            . setBeforeMainLoop logStart
            . setOnOpen (const $ connStart >> return True)
            . setOnClose (const connEnd)
-           . setOnException onException
-           . setOnExceptionResponse onExceptionResponse
            . setTimeout (fromMaybe 300 t)
            $ defaultSettings
   where
@@ -90,26 +86,6 @@ newSettings (Server h p l m t el er) = do
 
     logStart = Log.info l . msg $
         val "Listening on " +++ h +++ ':' +++ p
-
-    -- TODO: what's the difference between this and 'catchErrors' below?
-    onException r e = for_ r flushRequestBody >> (runHandlers e $
-        map ($ r) el ++
-        [ Handler $ \(x :: Error) -> do
-            logError l r x
-            when (statusCode (Error.code x) >= 500) $
-                counterIncr (path "net.errors") m
-        , Handler $ \(ZlibException (-3)) -> logIO l Info r $
-            val "Invalid zlib compression in request body."
-        , Handler $ \(x :: SomeException) ->
-            if defaultShouldDisplayException x
-                then do
-                    logIO l Log.Error r (show e)
-                    counterIncr (path "net.errors") m
-                else logIO l Log.Trace r (show e)
-        ])
-
-    onExceptionResponse e = runIdentity . runHandlers e $
-        er ++ map (fmap errorRs') errorHandlers
 
 -- Run a WAI 'Application', initiating Warp's graceful shutdown
 -- on receiving either the INT or TERM signals. After closing

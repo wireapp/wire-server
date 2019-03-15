@@ -53,7 +53,7 @@ run o = do
                <*> newManager defaultManagerSettings { managerConnCount = 128 }
                <*> createSystemRandom
                <*> mkClock
-    s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout) [] []
+    s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout)
     let rtree    = compile sitemap
         measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
