@@ -91,6 +91,7 @@ newSettings (Server h p l m t el er) = do
     logStart = Log.info l . msg $
         val "Listening on " +++ h +++ ':' +++ p
 
+    -- TODO: what's the difference between this and 'catchErrors' below?
     onException r e = for_ r flushRequestBody >> (runHandlers e $
         map ($ r) el ++
         [ Handler $ \(x :: Error) -> do
