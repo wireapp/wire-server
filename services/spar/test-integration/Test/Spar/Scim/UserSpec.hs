@@ -519,7 +519,7 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
-        it "should delete successfully and be idempotent" $ do
+        it "when called twice, should first delete then 404 you" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
@@ -529,7 +529,7 @@ specDeleteUser = do
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
             deleteUser_ (Just tok) (Just uid) spar
-                !!! const 204 === statusCode
+                !!! const 404 === statusCode  -- https://tools.ietf.org/html/rfc7644#section-3.6
 
         -- FUTUREWORK: hscim has the the following test.  we should probably go through all
         -- `delete` tests and see if they can move to hscim or are already included there.

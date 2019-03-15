@@ -116,10 +116,11 @@ instance Scim.UserDB Spar where
     uid :: UserId <- parseUid uidText
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     case mbBrigUser of
-      -- If the user doesn't exist, the deletion likely occurred already.
-      -- to be idempotent we continue assuming the user has been deleted
-      Nothing -> return False
+      Nothing -> do
+        -- double-deletion gets you a 404.
+        throwError $ Scim.notFound "user" (cs $ show uid)
       Just brigUser -> do
+        -- users from other teams get you a 404.
         unless (userTeam brigUser == Just stiTeam) $
           throwError $ Scim.notFound "user" (cs $ show uid)
         ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)
