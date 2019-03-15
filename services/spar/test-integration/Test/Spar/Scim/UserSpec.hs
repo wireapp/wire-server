@@ -531,6 +531,8 @@ specDeleteUser = do
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
 
+        -- FUTUREWORK: hscim has the the following test.  we should probably go through all
+        -- `delete` tests and see if they can move to hscim or are already included there.
 
         it "should return 401 if we don't provide a token" $ do
             user <- randomScimUser
