@@ -195,9 +195,8 @@ catchErrors l m app req k =
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
-            logIO l Log.Error (Just req) (oneline <$> show ex)
+            logIO l Log.Error (Just req) (show ex)
         onError l m req k er
-    oneline c = if isSpace c then ' ' else c
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
