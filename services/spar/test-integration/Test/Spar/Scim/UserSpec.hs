@@ -541,7 +541,7 @@ specDeleteUser = do
             deleteUser_ Nothing (Just uid) spar
                 !!! const 401 === statusCode
 
-        it "should return 403 if we provide a token for a different team" $ do
+        it "should return 404 if we provide a token for a different team" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
@@ -550,7 +550,7 @@ specDeleteUser = do
             (invalidTok, _) <- registerIdPAndScimToken
             spar <- view teSpar
             deleteUser_ (Just invalidTok) (Just uid) spar
-                !!! const 403 === statusCode
+                !!! const 404 === statusCode
 
         it "should return 404 if we getUser after deleteUser" $ do
             user <- randomScimUser

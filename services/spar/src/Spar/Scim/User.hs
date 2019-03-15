@@ -121,7 +121,7 @@ instance Scim.UserDB Spar where
       Nothing -> return False
       Just brigUser -> do
         unless (userTeam brigUser == Just stiTeam) $
-          throwError $ Scim.forbidden "you are not authorized to delete this user"
+          throwError $ Scim.notFound "user" (cs $ show uid)
         ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)
                        pure
                        $ Brig.userSSOId brigUser
