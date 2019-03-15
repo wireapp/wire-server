@@ -437,7 +437,7 @@ to a single `externalId`.
 -}
 assertUserRefUnused :: UserId -> SAML.UserRef -> Scim.ScimHandler Spar ()
 assertUserRefUnused wireUserId userRef = do
-  mExistingUserId <- lift $ wrapMonadClient (Data.getUser userRef)
+  mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
   case mExistingUserId of
     -- No existing user for this userRef; it's okay to set it
     Nothing -> return ()
