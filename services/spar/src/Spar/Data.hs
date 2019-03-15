@@ -60,6 +60,7 @@ import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictForma
 import Spar.Types
 import Spar.Scim.Types
 import URI.ByteString
+import Text.RawString.QQ
 
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
@@ -402,12 +403,16 @@ insertScimToken token ScimTokenInfo{..} = retry x5 $ batch $ do
     addPrepQuery insByTeam  (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
   where
     insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
-    insByToken = "INSERT INTO team_provisioning_by_token \
-                 \(token_, team, id, created_at, idp, descr) \
-                 \VALUES (?, ?, ?, ?, ?, ?)"
-    insByTeam  = "INSERT INTO team_provisioning_by_team \
-                 \(token_, team, id, created_at, idp, descr) \
-                 \VALUES (?, ?, ?, ?, ?, ?)"
+    insByToken = [r|
+      INSERT INTO team_provisioning_by_token
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+    |]
+    insByTeam  = [r|
+      INSERT INTO team_provisioning_by_team
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+    |]
 
 -- | Check whether a token exists and if yes, what team and IdP are
 -- associated with it.
@@ -419,8 +424,10 @@ lookupScimToken token = do
     pure $ fmap fromScimTokenRow mbRow
   where
     sel :: PrepQuery R (Identity ScimToken) ScimTokenRow
-    sel = "SELECT token_, team, id, created_at, idp, descr \
-          \FROM team_provisioning_by_token WHERE token_ = ?"
+    sel = [r|
+      SELECT token_, team, id, created_at, idp, descr
+        FROM team_provisioning_by_token WHERE token_ = ?
+    |]
 
 -- | List all tokens associated with a team, in the order of their creation.
 getScimTokens
@@ -433,8 +440,10 @@ getScimTokens team = do
     pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
-    sel = "SELECT token_, team, id, created_at, idp, descr \
-          \FROM team_provisioning_by_team WHERE team = ?"
+    sel = [r|
+      SELECT token_, team, id, created_at, idp, descr
+        FROM team_provisioning_by_team WHERE team = ?
+    |]
 
 -- | Delete a token.
 deleteScimToken
@@ -450,16 +459,22 @@ deleteScimToken team tokenid = do
             addPrepQuery delByToken (Identity token)
   where
     selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimToken)
-    selById = "SELECT token_ FROM team_provisioning_by_team \
-              \WHERE team = ? AND id = ?"
+    selById = [r|
+      SELECT token_ FROM team_provisioning_by_team
+        WHERE team = ? AND id = ?
+    |]
 
     delById :: PrepQuery W (TeamId, ScimTokenId) ()
-    delById = "DELETE FROM team_provisioning_by_team \
-              \WHERE team = ? AND id = ?"
+    delById = [r|
+      DELETE FROM team_provisioning_by_team
+        WHERE team = ? AND id = ?
+    |]
 
     delByToken :: PrepQuery W (Identity ScimToken) ()
-    delByToken = "DELETE FROM team_provisioning_by_token \
-                 \WHERE token_ = ?"
+    delByToken = [r|
+      DELETE FROM team_provisioning_by_token
+        WHERE token_ = ?
+    |]
 
 -- | Delete all tokens belonging to a team.
 deleteTeamScimTokens
