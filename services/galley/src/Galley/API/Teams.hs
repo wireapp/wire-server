@@ -6,6 +6,7 @@ module Galley.API.Teams
     , getTeam
     , getTeamInternal
     , getTeamNameInternal
+    , getTeamSettingsInternal
     , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
@@ -72,6 +73,11 @@ getTeamInternal (tid ::: _) =
 getTeamNameInternal :: TeamId ::: JSON -> Galley Response
 getTeamNameInternal (tid ::: _) =
     maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
+
+getTeamSettingsInternal :: TeamId ::: JSON -> Galley Response
+getTeamSettingsInternal (tid ::: _) = do
+    defaultTeamSettings <- view (options . optSettings . setDefaultTeamSettings)
+    json . fromMaybe defaultTeamSettings <$> Data.getTeamSettings tid
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
 getManyTeams (zusr ::: range ::: size ::: _) =

@@ -9,6 +9,8 @@ import Util.Options.Common
 import System.Logger (Level)
 import Data.Misc
 
+import Galley.Types.Teams
+
 data Settings = Settings
     {
     -- | Number of connections for the HTTP client pool
@@ -21,6 +23,9 @@ data Settings = Settings
     , _setIntraListing          :: Bool
     -- | URI prefix for conversations with access mode @code@
     , _setConversationCodeURI   :: HttpsUrl
+    -- | Defaults for team settings.
+    --   These are potentially overridden by values stored per-team.
+    , _setDefaultTeamSettings      :: TeamSettings
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings

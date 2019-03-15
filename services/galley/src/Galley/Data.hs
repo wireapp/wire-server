@@ -11,6 +11,7 @@ module Galley.Data
     , removeTeamMember
     , team
     , Galley.Data.teamName
+    , getTeamSettings
     , teamConversation
     , teamConversations
     , teamIdsFrom
@@ -24,7 +25,7 @@ module Galley.Data
     , deleteTeam
     , removeTeamConv
     , updateTeam
-    , newUpdateTeamSettings
+    , updateTeamSettings
     , updateTeamStatus
 
     -- * Conversations
@@ -157,6 +158,13 @@ team tid =
 teamName :: MonadClient m => TeamId -> m (Maybe Text)
 teamName tid = fmap runIdentity <$>
     retry x1 (query1 Cql.selectTeamName (params Quorum (Identity tid)))
+
+getTeamSettings :: MonadClient m => TeamId -> m (Maybe TeamSettings)
+getTeamSettings tid = do
+  let q = query1 Cql.selectTeamSettings (params Quorum $ Identity tid)
+  fmap toTeamSettings <$> retry x5 q
+    where
+      toTeamSettings (utt, stt, att, ptt) = newTeamSettings utt stt att ptt
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =
@@ -291,8 +299,8 @@ updateTeam tid u = retry x5 $ batch $ do
     for_ (u^.iconKeyUpdate) $ \k ->
         addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
 
-newUpdateTeamSettings :: MonadClient m => TeamId -> TeamSettingsUpdateData -> m ()
-newUpdateTeamSettings tid tsud =
+updateTeamSettings :: MonadClient m => TeamId -> TeamSettings -> m ()
+updateTeamSettings tid tsud =
   retry x5 $ write Cql.updateTeamSettings
           (params Quorum
                   ( tsud ^. tsUserTokenTimeout

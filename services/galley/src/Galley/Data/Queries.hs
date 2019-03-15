@@ -226,6 +226,22 @@ insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
 
 -- Team Settings ---------------------------------------------------------------------
+selectTeamSettings :: PrepQuery R (Identity TeamId)
+                                  ( ZAuth.UserTokenTimeout
+                                  , ZAuth.SessionTokenTimeout
+                                  , ZAuth.AccessTokenTimeout
+                                  , ZAuth.ProviderTokenTimeout
+                                  )
+selectTeamSettings = [r|
+  select
+      user_token_timeout_seconds
+    , session_token_timeout_seconds
+    , access_token_timeout_seconds
+    , provider_token_timeout_seconds
+  from team_settings
+  where team = ?
+  |]
+
 updateTeamSettings :: PrepQuery W ( ZAuth.UserTokenTimeout
                                   , ZAuth.SessionTokenTimeout
                                   , ZAuth.AccessTokenTimeout

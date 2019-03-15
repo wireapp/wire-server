@@ -102,8 +102,8 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
-    , TeamSettingsUpdateData
-    , newTeamSettingsUpdateData
+    , TeamSettings
+    , newTeamSettings
     , tsUserTokenTimeout
     , tsSessionTokenTimeout
     , tsAccessTokenTimeout
@@ -128,6 +128,7 @@ import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Data.Coerce
 import Data.Time (UTCTime)
 import Galley.Types.Teams.Internal
 
@@ -207,7 +208,7 @@ data TeamUpdateData = TeamUpdateData
     , _iconKeyUpdate :: Maybe (Range 1 256 Text)
     } deriving (Eq, Show)
 
-data TeamSettingsUpdateData = TeamSettingsUpdateData
+data TeamSettings = TeamSettings
     { _tsUserTokenTimeout     :: ZAuth.UserTokenTimeout
     , _tsSessionTokenTimeout  :: ZAuth.SessionTokenTimeout
     , _tsAccessTokenTimeout   :: ZAuth.AccessTokenTimeout
@@ -356,14 +357,14 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-newTeamSettingsUpdateData
+newTeamSettings
   :: ZAuth.UserTokenTimeout
   -> ZAuth.SessionTokenTimeout
   -> ZAuth.AccessTokenTimeout
   -> ZAuth.ProviderTokenTimeout
-  -> TeamSettingsUpdateData
-newTeamSettingsUpdateData utt stt att ptt =
-  TeamSettingsUpdateData
+  -> TeamSettings
+newTeamSettings utt stt att ptt =
+  TeamSettings
   { _tsUserTokenTimeout     = utt
   , _tsSessionTokenTimeout  = stt
   , _tsAccessTokenTimeout   = att
@@ -387,7 +388,7 @@ makeLenses ''NewTeam
 makeLenses ''NewTeamMember
 makeLenses ''Event
 makeLenses ''TeamUpdateData
-makeLenses ''TeamSettingsUpdateData
+makeLenses ''TeamSettings
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
@@ -510,6 +511,26 @@ intToPerms n =
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
+
+instance ToJSON TeamSettings where
+    toJSON ts = object
+        $ "user_token_timeout_seconds"     .= (asInteger $ _tsUserTokenTimeout ts)
+        # "session_token_timeout_seconds"  .= (asInteger $ _tsSessionTokenTimeout ts)
+        # "access_token_timeout_seconds"   .= (asInteger $ _tsAccessTokenTimeout ts)
+        # "provider_token_timeout_seconds" .= (asInteger $ _tsProviderTokenTimeout ts)
+        # []
+      where
+        asInteger :: Coercible a Integer => a -> Integer
+        asInteger = coerce
+
+instance FromJSON TeamSettings where
+    parseJSON = withObject "team_settings" $ \o -> do
+      utt <- o .: "user_token_timeout_seconds"
+      stt <- o .: "session_token_timeout_seconds"
+      att <- o .: "access_token_timeout_seconds"
+      ptt <- o .: "provider_token_timeout_seconds"
+      return $ newTeamSettings utt stt att ptt
+
 
 instance ToJSON TeamList where
     toJSON t = object
