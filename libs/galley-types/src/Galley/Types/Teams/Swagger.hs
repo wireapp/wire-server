@@ -21,8 +21,8 @@ module Galley.Types.Teams.Swagger
   , teamMemberDelete
   , teamMemberList
   , teamSettings
-  , update
-  , updateEvent
+  , updateTeam
+  , updateTeamEvent
   ) where
 
 import Imports hiding (min, max)
@@ -43,10 +43,10 @@ teamsModels =
     , event
     , memberEvent
     , convEvent
-    , updateEvent
+    , updateTeamEvent
     , member
     , conversation
-    , update
+    , updateTeam
     , teamMemberDelete
     , teamDelete
     ]
@@ -183,7 +183,7 @@ event = defineModel "TeamEvent" $ do
         description "date and time this event occurred"
     children "type" [ memberEvent
                     , convEvent
-                    , updateEvent
+                    , updateTeamEvent
                     ]
 
 eventType :: DataType
@@ -207,10 +207,10 @@ convEvent = defineModel "TeamConversationEvent" $ do
     description "team conversation event"
     property "data" (ref conversation) $ description "conversation data"
 
-updateEvent :: Model
-updateEvent = defineModel "TeamUpdateEvent" $ do
+updateTeamEvent :: Model
+updateTeamEvent = defineModel "TeamUpdateEvent" $ do
     description "team update event"
-    property "data" (ref update) $ description "update data"
+    property "data" (ref updateTeam) $ description "update data"
 
 member :: Model
 member = defineModel "MemberData" $
@@ -220,8 +220,8 @@ conversation :: Model
 conversation = defineModel "ConversationData" $
     property "conv" bytes' $ description "conversation ID"
 
-update :: Model
-update = defineModel "TeamUpdateData" $ do
+updateTeam :: Model
+updateTeam = defineModel "TeamUpdateData" $ do
     description "team update data"
     property "name" string' $ do
         description "new team name"
