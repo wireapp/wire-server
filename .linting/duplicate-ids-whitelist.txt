@@ -135,8 +135,8 @@ _optAws 2
 _optCassandra 2
 _optDiscoUrl 2
 _optGundeck 2
-_optLogLevel 2
-_optLogNetStrings 2
+_optLogLevel 3
+_optLogNetStrings 3
 _optSettings 3
 _options 3
 _pushNativePriority 2
