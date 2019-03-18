@@ -21,8 +21,9 @@ import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
-import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestSetup
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C
@@ -32,23 +33,9 @@ import qualified Data.HashMap.Strict    as HashMap
 import qualified Data.Map.Strict        as Map
 import qualified Data.Set               as Set
 import qualified Data.UUID              as UUID
-import qualified Galley.Aws             as Aws
 import qualified Galley.Types.Proto     as Proto
 import qualified Test.QuickCheck        as Q
 import qualified Test.Tasty.Cannon      as WS
-
-type Galley      = Request -> Request
-type Brig        = Request -> Request
-type ResponseLBS = Response (Maybe Lazy.ByteString)
-
-data TestSetup = TestSetup
-  { manager         :: Manager
-  , galley          :: Galley
-  , brig            :: Brig
-  , cannon          :: Cannon
-  , awsEnv          :: Maybe Aws.Env
-  , maxConvSize     :: Word16
-  }
 
 -------------------------------------------------------------------------------
 -- API Operations

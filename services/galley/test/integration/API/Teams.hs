@@ -19,6 +19,7 @@ import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestSetup (test, TestSignature)
 import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
@@ -32,15 +33,6 @@ import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
 import qualified Galley.Aws as Aws
-
-type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
-
-test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
-test s n h = testCase n runTest
-  where
-    runTest = do
-        setup <- s
-        void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup) (awsEnv setup))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
