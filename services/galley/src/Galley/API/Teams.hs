@@ -6,7 +6,8 @@ module Galley.API.Teams
     , getTeam
     , getTeamInternal
     , getTeamNameInternal
-    , getTeamSettingsInternal
+    , getTeamSettings, getTeamSettingsInternal
+    , putTeamSettings
     , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
@@ -75,9 +76,30 @@ getTeamNameInternal (tid ::: _) =
     maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
 
 getTeamSettingsInternal :: TeamId ::: JSON -> Galley Response
-getTeamSettingsInternal (tid ::: _) = do
+getTeamSettingsInternal (tid ::: _) = getTeamSettings' tid
+
+getTeamSettings :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamSettings (zusr ::: tid ::: _) = do
+    Data.teamMember tid zusr >>= \case
+        Nothing         -> throwM teamMemberNotFound
+        Just teamMember -> unless (isTeamOwner teamMember) $ throwM invalidPermissions
+    getTeamSettings' tid
+
+-- | Helper for getTeamSettings handlers; does not perform any authorization checks
+getTeamSettings' :: TeamId -> Galley Response
+getTeamSettings' tid = do
     defaultTeamSettings <- view (options . optSettings . setDefaultTeamSettings)
-    json . fromMaybe defaultTeamSettings <$> Data.getTeamSettings tid
+    json . fromMaybe defaultTeamSettings <$> Data.fetchTeamSettings tid
+
+putTeamSettings :: UserId ::: TeamId ::: Request ::: JSON -> Galley Response
+putTeamSettings (zusr ::: tid ::: req ::: _) = do
+    Data.teamMember tid zusr
+      >>= \case
+        Nothing         -> throwM teamMemberNotFound
+        Just teamMember -> unless (isTeamOwner teamMember) $ throwM invalidPermissions
+    teamSettings <- fromBody req invalidPayload
+    Data.updateTeamSettings tid teamSettings
+    return empty
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
 getManyTeams (zusr ::: range ::: size ::: _) =

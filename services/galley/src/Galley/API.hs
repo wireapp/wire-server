@@ -99,7 +99,7 @@ sitemap = do
         summary "Update team properties"
         parameter Path "id" bytes' $
             description "Team ID"
-        body (ref TeamsModel.update) $
+        body (ref TeamsModel.teamUpdate) $
             description "JSON body"
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied SetTeamData)
@@ -310,6 +310,38 @@ sitemap = do
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied DeleteConversation)
 
+   --
+
+    get "/teams/:tid/settings" (continue getTeamSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamSettings" $ do
+        summary "Get team settings"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        returns (ref TeamsModel.teamSettings)
+        response 200 "Team settings" end
+        errorResponse Error.teamMemberNotFound
+        errorResponse Error.invalidPermissions
+
+   --
+
+    put "/teams/:tid/settings" (continue putTeamSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. request
+        .&. accept "application" "json"
+
+
+    document "PUT" "updateTeamSettings" $ do
+        summary "Update team settings"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        body (ref TeamsModel.teamSettings) $
+            description "JSON body"
+        -- TODO(ChrisPenner) update errors after implementing
    --
 
     get "/bot/conversation" (continue getBotConversation) $
@@ -876,7 +908,7 @@ sitemap = do
         capture "tid"
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/settings" (continue getTeamSettingsInternal) $
+    get "/i/teams/:tid/settings" (continue getTeamSettingsUnauthed) $
         capture "tid"
         .&. accept "application" "json"
 
