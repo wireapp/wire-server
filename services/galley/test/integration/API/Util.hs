@@ -758,11 +758,16 @@ retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
 
-callGetTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> Http TeamTokenSettings
-callGetTeamTokenSettings g usr tid = do
-    r <- get (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
+expectStatus :: (HasCallStack, FromJSON a) => Int -> Http (Response (Maybe LByteString)) -> Http a
+expectStatus expectedStatus resultM =
+  fromJust . decodeBody <$> (resultM <!! const expectedStatus === statusCode)
 
-callPutTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> TeamTokenSettings -> Http ()
-callPutTeamTokenSettings g usr tid tts = do
-    put (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr . json tts) !!! const 200 === statusCode
+expectStatus_ :: (HasCallStack) => Int -> Http (Response (Maybe LByteString)) -> Http ()
+expectStatus_ expectedStatus resultM = (resultM !!! const expectedStatus === statusCode)
+
+callGetTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> Http (Response (Maybe LByteString))
+callGetTeamTokenSettings g usr tid = get (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr)
+
+callPutTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> TeamTokenSettings -> Http (Response (Maybe LByteString))
+callPutTeamTokenSettings g usr tid tts =
+    put (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr . json tts)

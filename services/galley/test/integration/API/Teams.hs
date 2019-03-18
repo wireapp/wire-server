@@ -82,7 +82,9 @@ tests s = testGroup "Teams API"
     -- , test s "post crypto broadcast message 100 (or max cons)" postCryptoBroadcastMessage100OrMaxConns
     , testGroup "Token Settings"
        [ test s "getTeamTokenSettings returns default settings if unset" testGetDefaultTokenSettings
-       , test s "getting after settings should return the set values" testSetAndGetTokenSettings
+       , test s "getting after settings should return the set values" testPutAndGetTokenSettings
+       , test s "getting settings for another team is not found" testGetTokenSettingsUnauthorized
+       , test s "putting settings for another team is not found" testPutTokenSettingsUnauthorized
        ]
     ]
 
@@ -1055,31 +1057,41 @@ newTeamMember' perms uid = newTeamMember uid perms Nothing
 -- Team Token Settings -----------------------------------------------------------------------
 teamFixture ::  Galley -> Brig -> Http (TeamId, UserId)
 teamFixture g b = do
-  owner <- Util.randomUser b
-  tid <- Util.createTeam g "foo" owner []
-  return (tid, owner)
-
+    owner <- Util.randomUser b
+    tid <- Util.createTeam g "foo" owner []
+    return (tid, owner)
 
 testGetDefaultTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testGetDefaultTokenSettings g b _ _ = do
-  (tid, ownerId) <- teamFixture g b
-  tts <- callGetTeamTokenSettings g ownerId tid
-  liftIO $ assertEqual "team token settings" tts defaultTokenSettings
-    where
-      -- This matches the default values set in galley.integration.yaml
-      defaultTokenSettings = TeamTokenSettings
-        { _ttsUserTokenTimeoutSeconds = coerce @Integer 2419200
-        , _ttsSessionTokenTimeoutSeconds = coerce @Integer 86400
-        , _ttsAccessTokenTimeoutSeconds = coerce @Integer 900
-        , _ttsProviderTokenTimeoutSeconds = coerce @Integer 604800
-        }
-
-testSetAndGetTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testSetAndGetTokenSettings g b _ _ = do
     (tid, ownerId) <- teamFixture g b
-    callPutTeamTokenSettings g ownerId tid newTeamTokenSettings
-    tts <- callGetTeamTokenSettings g ownerId tid
+    expectStatus_ 200 $ callGetTeamTokenSettings g ownerId tid
+
+testGetTokenSettingsUnauthorized :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testGetTokenSettingsUnauthorized g b _ _ = do
+    (tid, _) <- teamFixture g b
+    (_, notOwnerId) <- teamFixture g b
+    expectStatus_ 404 $ callGetTeamTokenSettings g notOwnerId tid
+
+testPutAndGetTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testPutAndGetTokenSettings g b _ _ = do
+    (tid, ownerId) <- teamFixture g b
+    expectStatus_ 200 $ callPutTeamTokenSettings g ownerId tid newTeamTokenSettings
+    tts <- expectStatus 200 $ callGetTeamTokenSettings g ownerId tid
     liftIO $ assertEqual "team token settings" tts newTeamTokenSettings
+      where
+        newTeamTokenSettings =
+          TeamTokenSettings
+            { _ttsUserTokenTimeoutSeconds = coerce @Integer 10
+            , _ttsSessionTokenTimeoutSeconds = coerce @Integer 20
+            , _ttsAccessTokenTimeoutSeconds = coerce @Integer 30
+            , _ttsProviderTokenTimeoutSeconds = coerce @Integer 40
+            }
+
+testPutTokenSettingsUnauthorized :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testPutTokenSettingsUnauthorized g b _ _ = do
+  (tid, _) <- teamFixture g b
+  (_, notOwnerId) <- teamFixture g b
+  expectStatus_ 404 $ callPutTeamTokenSettings g notOwnerId tid newTeamTokenSettings
       where
         newTeamTokenSettings =
           TeamTokenSettings
