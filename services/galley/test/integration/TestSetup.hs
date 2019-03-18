@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
-{-# LANGUAGE DerivingStrategies #-}
 module TestSetup
   ( test
   , TestSignature
@@ -35,9 +34,13 @@ type ResponseLBS = Response (Maybe LByteString)
 
 type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
 
-newtype TestM a = TestM (ReaderT TestSetup (HttpT IO) a)
-  deriving (Functor, Applicative, Monad, MonadReader TestSetup, MonadIO, MonadCatch, MonadThrow)
-  deriving newtype MonadHttp
+newtype TestM a = TestM {runTestM :: ReaderT TestSetup (HttpT IO) a}
+    deriving (Functor, Applicative, Monad, MonadReader TestSetup, MonadIO, MonadCatch
+            , MonadThrow, MonadMask,  MonadHttp)
+
+instance MonadUnliftIO TestM where
+  askUnliftIO = TestM askUnliftIO
+  withRunInIO = _
 
 data TestSetup = TestSetup
   { _manager         :: Manager
@@ -51,10 +54,11 @@ data TestSetup = TestSetup
 makeLenses ''TestSetup
 
 
-test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
+test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
   where
+    runTest :: Assertion
     runTest = do
         setup <- s
-        void $ runHttpT (setup ^. manager) (h (setup ^. galley) (setup ^. brig ) (setup ^. cannon) (setup ^. awsEnv ))
+        void . runHttpT (setup ^. manager) . flip runReaderT setup . runTestM $ h
 
