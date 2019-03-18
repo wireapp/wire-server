@@ -180,14 +180,14 @@ catchErrors l m app req k =
         onError l m req k er
 
     -- catch status >= 400 even if it does not come in the form of an exception, but as a
-    -- response.  generate exactly the same log effects, plus a log line saying this shouldn't
-    -- have happened.
+    -- response, and log the request id.  not much else we can do about it without taking
+    -- apart the streaming response.  this should be fixed whenever it is found in the logs.
     k' resp = do
         when (statusCode (responseStatus resp) >= 400) $ do
-            Log.warn l (msg $ val "Expected exception instead of response with status >= 400")
-            logError l (Just req) $ Error (responseStatus resp) "unexpected-error" "unexpected-error"
+            Log.warn l
+                $ field "request" (fromMaybe "N/A" (lookupRequestId req))
+                . (msg $ val "Expected exception instead of response with status >= 400")
         k resp
-
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
