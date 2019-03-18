@@ -131,16 +131,12 @@ teamSettings = defineModel "TeamSettings" $ do
     description "team settings"
     property "user_token_timeout_seconds" int64' $ do
         description "Time in seconds until user tokens expire"
-        optional
     property "session_token_timeout_seconds" int64' $ do
         description "Time in seconds until session tokens expire"
-        optional
     property "access_token_timeout_seconds" int64' $ do
         description "Time in seconds until access tokens expire"
-        optional
     property "provider_token_timeout_seconds" int64' $ do
         description "Time in seconds until provider tokens expire"
-        optional
 
 permissions :: Model
 permissions = defineModel "Permissions" $ do
