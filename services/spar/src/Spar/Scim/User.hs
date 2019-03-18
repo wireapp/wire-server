@@ -25,7 +25,6 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
-import Control.Monad.Extra (whenM)
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
@@ -117,17 +116,18 @@ instance Scim.UserDB Spar where
     uid :: UserId <- parseUid uidText
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     case mbBrigUser of
-      -- If the user doesn't exist, the deletion likely occurred already.
-      -- to be idempotent we continue assuming the user has been deleted
-      Nothing -> return False
+      Nothing -> do
+        -- double-deletion gets you a 404.
+        throwError $ Scim.notFound "user" (cs $ show uid)
       Just brigUser -> do
-        unless (userTeam brigUser == Just stiTeam) $ 
-          throwError $ Scim.forbidden "you are not authorized to delete this user"
-        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)  
+        -- users from other teams get you a 404.
+        unless (userTeam brigUser == Just stiTeam) $
+          throwError $ Scim.notFound "user" (cs $ show uid)
+        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)
                        pure
                        $ Brig.userSSOId brigUser
         uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
-        lift . wrapMonadClient $ Data.deleteSAMLUser uref 
+        lift . wrapMonadClient $ Data.deleteSAMLUser uref
         lift . wrapMonadClient $ Data.deleteScimUser uid
         lift $ Intra.Brig.deleteBrigUser uid
         return True
@@ -136,7 +136,7 @@ instance Scim.UserDB Spar where
             logThenServerError err = do
               logger <- asks sparCtxLogger
               Log.err logger $ Log.msg err
-              throwError $ Scim.serverError "Server Error" 
+              throwError $ Scim.serverError "Server Error"
 
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
@@ -265,15 +265,15 @@ createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
+
     -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
     -- even called. However, it does that in an inefficient manner. We should remove the check
     -- from @hscim@ and do it here instead.
 
-    -- Check that the UserRef is not taken.
-    whenM (isJust <$> lift (wrapMonadClient (Data.getSAMLUser uref))) $
-        throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
+    assertUserRefUnused buid uref
+
     -- Create SCIM user here in spar.
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
@@ -316,6 +316,9 @@ updateValidScimUser tokinfo uidText newScimUser = do
     oldScimStoredUser :: Scim.StoredUser ScimUserExtra
       <- let err = throwError $ Scim.notFound "user" uidText
          in maybe err pure =<< Scim.get tokinfo uidText
+
+    let userRef = newScimUser ^. vsuSAMLUserRef
+    assertUserRefUnused uid userRef
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
@@ -426,6 +429,23 @@ calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
   where
     h :: Digest SHA256
     h = hashlazy (Aeson.encode (Scim.WithId uidText usr))
+
+{-|
+Check that the UserRef is not taken; or that it's taken by the given user id.
+
+ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
+to a single `externalId`.
+-}
+assertUserRefUnused :: UserId -> SAML.UserRef -> Scim.ScimHandler Spar ()
+assertUserRefUnused wireUserId userRef = do
+  mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
+  case mExistingUserId of
+    -- No existing user for this userRef; it's okay to set it
+    Nothing -> return ()
+    -- A user exists; verify that it's the same user before updating
+    Just existingUserId  ->
+      unless (existingUserId == wireUserId) $
+        throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
