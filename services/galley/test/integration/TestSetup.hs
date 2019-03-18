@@ -2,8 +2,6 @@
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 module TestSetup
   ( test
-  , TestSignature
-  , TestSetup(..)
   , manager
   , galley
   , brig
@@ -13,30 +11,37 @@ module TestSetup
   , Galley
   , Brig
   , Cannon
-  , ResponseLBS
-  , TestM
+  , TestM(..)
+  , TestSetup(..)
   ) where
 
 import Imports
-import Test.Tasty
-import Test.Tasty.HUnit
-import Control.Lens
-import Control.Monad.Catch
+import Test.Tasty          (TestName, TestTree)
+import Test.Tasty.HUnit    (Assertion, testCase)
+import Control.Lens        ((^.), makeLenses)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Bilge (Http, HttpT(..), Manager, MonadHttp, Request, runHttpT)
 
-import Bilge (Request, HttpT(..), Http, Manager, Response, runHttpT, MonadHttp)
-import qualified Galley.Aws             as Aws
+import qualified Galley.Aws          as Aws
 
 type Galley      = Request -> Request
 type Brig        = Request -> Request
 type Cannon      = Request -> Request
-type ResponseLBS = Response (Maybe LByteString)
 
-
-type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
-
-newtype TestM a = TestM {runTestM :: ReaderT TestSetup (HttpT IO) a}
-    deriving (Functor, Applicative, Monad, MonadReader TestSetup, MonadIO, MonadCatch
-            , MonadThrow, MonadMask,  MonadHttp, MonadUnliftIO)
+newtype TestM a =
+  TestM { runTestM :: ReaderT TestSetup (HttpT IO) a
+        }
+    deriving ( Functor
+             , Applicative
+             , Monad
+             , MonadReader TestSetup
+             , MonadIO
+             , MonadCatch
+             , MonadThrow
+             , MonadMask
+             , MonadHttp
+             , MonadUnliftIO
+             )
 
 data TestSetup = TestSetup
   { _manager         :: Manager

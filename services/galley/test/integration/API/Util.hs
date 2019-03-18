@@ -37,6 +37,7 @@ import qualified Galley.Types.Proto     as Proto
 import qualified Test.QuickCheck        as Q
 import qualified Test.Tasty.Cannon      as WS
 
+type ResponseLBS = Response (Maybe LByteString)
 -------------------------------------------------------------------------------
 -- API Operations
 
