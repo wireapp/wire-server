@@ -23,7 +23,7 @@ module Spar.Data
   , insertBindCookie
   , lookupBindCookie
 
-  -- IDPs
+  -- * IDPs
   , storeIdPConfig
   , getIdPConfig
   , getIdPConfigByIssuer
