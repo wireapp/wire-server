@@ -104,10 +104,10 @@ module Galley.Types.Teams
 
     , TeamSettings
     , newTeamSettings
-    , tsUserTokenTimeout
-    , tsSessionTokenTimeout
-    , tsAccessTokenTimeout
-    , tsProviderTokenTimeout
+    , tsUserTokenTimeoutSeconds
+    , tsSessionTokenTimeoutSeconds
+    , tsAccessTokenTimeoutSeconds
+    , tsProviderTokenTimeoutSeconds
 
     , TeamMemberDeleteData
     , tmdAuthPassword
@@ -209,10 +209,10 @@ data TeamUpdateData = TeamUpdateData
     } deriving (Eq, Show)
 
 data TeamSettings = TeamSettings
-    { _tsUserTokenTimeout     :: ZAuth.UserTokenTimeout
-    , _tsSessionTokenTimeout  :: ZAuth.SessionTokenTimeout
-    , _tsAccessTokenTimeout   :: ZAuth.AccessTokenTimeout
-    , _tsProviderTokenTimeout :: ZAuth.ProviderTokenTimeout
+    { _tsUserTokenTimeoutSeconds     :: ZAuth.UserTokenTimeout
+    , _tsSessionTokenTimeoutSeconds  :: ZAuth.SessionTokenTimeout
+    , _tsAccessTokenTimeoutSeconds   :: ZAuth.AccessTokenTimeout
+    , _tsProviderTokenTimeoutSeconds :: ZAuth.ProviderTokenTimeout
     } deriving (Eq, Show)
 
 data TeamList = TeamList
@@ -365,10 +365,10 @@ newTeamSettings
   -> TeamSettings
 newTeamSettings utt stt att ptt =
   TeamSettings
-  { _tsUserTokenTimeout     = utt
-  , _tsSessionTokenTimeout  = stt
-  , _tsAccessTokenTimeout   = att
-  , _tsProviderTokenTimeout = ptt
+  { _tsUserTokenTimeoutSeconds     = utt
+  , _tsSessionTokenTimeoutSeconds  = stt
+  , _tsAccessTokenTimeoutSeconds   = att
+  , _tsProviderTokenTimeoutSeconds = ptt
   }
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
@@ -514,10 +514,10 @@ permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 
 instance ToJSON TeamSettings where
     toJSON ts = object
-        $ "user_token_timeout_seconds"     .= (asInteger $ _tsUserTokenTimeout ts)
-        # "session_token_timeout_seconds"  .= (asInteger $ _tsSessionTokenTimeout ts)
-        # "access_token_timeout_seconds"   .= (asInteger $ _tsAccessTokenTimeout ts)
-        # "provider_token_timeout_seconds" .= (asInteger $ _tsProviderTokenTimeout ts)
+        $ "user_token_timeout_seconds"     .= (asInteger $ _tsUserTokenTimeoutSeconds ts)
+        # "session_token_timeout_seconds"  .= (asInteger $ _tsSessionTokenTimeoutSeconds ts)
+        # "access_token_timeout_seconds"   .= (asInteger $ _tsAccessTokenTimeoutSeconds ts)
+        # "provider_token_timeout_seconds" .= (asInteger $ _tsProviderTokenTimeoutSeconds ts)
         # []
       where
         asInteger :: Coercible a Integer => a -> Integer
