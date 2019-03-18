@@ -1,6 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Galley.Types.Teams.Swagger where
+module Galley.Types.Teams.Swagger
+  ( teamsModels
+  , convEvent
+  , conversation
+  , event
+  , eventType
+  , member
+  , memberEvent
+  , newBindingTeam
+  , newNonBindingTeam
+  , newTeamMember
+  , permissions
+  , team
+  , teamConversation
+  , teamConversationList
+  , teamDelete
+  , teamList
+  , teamMember
+  , teamMemberDelete
+  , teamMemberList
+  , teamSettings
+  , update
+  , updateEvent
+  ) where
 
 import Imports hiding (min, max)
 import Data.Swagger.Build.Api
@@ -101,6 +124,22 @@ teamMember = defineModel "TeamMember" $ do
         optional
     property "created_by" bytes' $ do
         description "ID of the inviting user.  Requires created_at."
+        optional
+
+teamSettings :: Model
+teamSettings = defineModel "TeamSettings" $ do
+    description "team settings"
+    property "user_token_timeout_seconds" int64' $ do
+        description "Time in seconds until user tokens expire"
+        optional
+    property "session_token_timeout_seconds" int64' $ do
+        description "Time in seconds until session tokens expire"
+        optional
+    property "access_token_timeout_seconds" int64' $ do
+        description "Time in seconds until access tokens expire"
+        optional
+    property "provider_token_timeout_seconds" int64' $ do
+        description "Time in seconds until provider tokens expire"
         optional
 
 permissions :: Model
