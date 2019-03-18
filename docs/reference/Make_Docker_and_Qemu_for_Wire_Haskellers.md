@@ -175,7 +175,7 @@ QEMU is a full system emulator, and a userspace emulator. QEMU's system emulatio
 QEMU's userspace emulation allows you to download a program written for a different processor, and assuming you have the appropriate libraries, DLLs, etc... you can just run it locally. Typically this involves either having a program with no dependencies, or installing a set of system libraries on your machine for the target architecture alongside your current set of libraries.
 
 ### About BinFmt Support:
-BinFmt support is a set of extensions to the linux kernel that allow you to specify an interpreter for binaries of a certain patern (magic number, ELF header, .EXE header, etc), so that when you attempt to execute them, the kerner  will launch the interpreter of your choice, passing it the path to the binary you tried to execute. On my debian machine, it is used for python by default. Many people use this support for executing windows executables on linux using the WINE package, which contains a re-implementation of the Windows system libraries.
+BinFmt support is a set of extensions to the linux kernel that allow you to specify an interpreter for binaries of a certain pattern (magic number, ELF header, .EXE header, etc), so that when you attempt to execute them, the kernel will launch the interpreter of your choice, passing it the path to the binary you tried to execute. On my debian machine, it is used for python by default. Many people use this support for executing windows executables on linux using the WINE package, which contains a re-implementation of the Windows system libraries.
 
 The Linux kernel's BinFmt module can be set to look for an interpreter at run time, or to load the interpreter into memory when it is configured. The packages we're going to set up and exercise in this stage use the "load when you configure" approach. This is useful, so than when you're operating in a docker container, you don't have to place the system emulator in the docker container itsself for the kernel to find it.
 
@@ -355,7 +355,7 @@ GNU make is designed to build targets by looking at the environment it's in, and
 
 Before we take the Makefile apart, let's go over using it.
 
-This Makefile is meant to be used in four ways: building a set of images, pushing (and building) a set of images, building a single image, or building a set of images. It follows the manifest workflow we documented earlier.
+This Makefile is meant to be used in four ways: building a set of images, pushing (and building) a set of images, building a single image. It follows the manifest workflow we documented earlier.
 
 By default, running 'make' in the same directory as the Makefile (assuming you've set all of the above up correctly) will attempt to build and push all of the docker images the makefile knows about to dockerhub. If you want this to work, you need to create a dockerhub account, use 'docker login' to log your local instance of docker in to dockerhub, then you need to create a repository for each docker image.
 
@@ -374,16 +374,18 @@ The list of names is divided into two groups. one group is for images based on d
 Since no-one wants to click through dockerhub to create repositories, let's just build docker images locally, for now.
 
 Make looks at it's environment in order to decide what to do, so here are some environment variables that we're going to use. all of these variables have default values, so we're only going to provide a few of them.
-'''
-ARCHES: the list of architectures we're going to attempt docker builds for. Mac users should supply "386 AMD64" to this, as they have no binfmt support.
-DIST: the distribution we're going to build for. this can be either DEBIAN or ALPINE.
-DOCKER_USERNAME: our username on dockerhub.
-DOCKER_EMAIL: Our email address, as far as dockerhub is concerned.
-DOCKER_REALNAME: again, our name string that will be displayed in DockerHub.
-SED: which sed binary to use. Mac users should install GSED, and pass the path to it in this variable.
-'''
 
-To build all of the debian based images locally on my machine, i run "make DIST=DEBIAN DOCKER_USERNAME=julialongtin DOCKER_EMAIL=julia.longtin@wire.com DOCKER_REALNAME='Julia Longtin' build-all -j".
+- `ARCHES`: the list of architectures we're going to attempt docker builds for. Mac users should supply "386 AMD64" to this, as they have no binfmt support.
+- `DIST`: the distribution we're going to build for. this can be either DEBIAN or ALPINE.
+- `DOCKER`_USERNAME: our username on dockerhub.
+- `DOCKER`_EMAIL: Our email address, as far as dockerhub is concerned.
+- `DOCKER`_REALNAME: again, our name string that will be displayed in DockerHub.
+- `SED`: which sed binary to use. Mac users should install GSED, and pass the path to it in this variable.
+
+To build all of the debian based images locally on my machine, i run
+```bash
+make DIST=DEBIAN DOCKER_USERNAME=julialongtin DOCKER_EMAIL=julia.longtin@wire.com DOCKER_REALNAME='Julia Longtin' build-all -j".
+```
 
 What's the -j for? adding a '-j' to the command line causes make to execute in parallel. That's to say, it will try to build ALL of the images at once, taking care to build images that are dependencies of other images before building the images that depend on them.
 
@@ -406,14 +408,13 @@ If we want to use these images in our docker compose, we can edit the docker com
       - demo_wire
 ```
 
-To remove all of the git repositories containing the Dockerfiles we download to build these images, we can run 'make clean'. There is also the option to run 'make cleandocker' to REMOVE ALL OF THE DOCKER IMAGES ON YOUR MACHINE. careful with that one.
-Note that docker makes good use of caching, so running 'make clean' and the same make command you used to build the images will complete really fast, as docker does not actually need to rebuild the images.
+To remove all of the git repositories containing the Dockerfiles we download to build these images, we can run `make clean`. There is also the option to run `make cleandocker` to REMOVE ALL OF THE DOCKER IMAGES ON YOUR MACHINE. careful with that one. Note that docker makes good use of caching, so running 'make clean' and the same make command you used to build the images will complete really fast, as docker does not actually need to rebuild the images.
 
 ## Reading through the Makefile
 
 OK, now that we have a handle on what it does, and how to use it, let's get into the Makefile itsself.
 
-A Makefile is a series of rules for performing tasks, variables used when creating those tasks, and some minimal functions and conditional structures.  Rules are implemented as groups of bash commands, where each line is handled by a new bash interpreter. Personally, i think it 'feels functiony', only without the type systems. Like if bash tried to be functional.
+A Makefile is a series of rules for performing tasks, variables used when creating those tasks, and some minimal functions and conditional structures.  Rules are implemented as groups of bash commands, where each line is handled by a new bash interpreter. Personally, i think it 'feels functiony', only without a type system and with lots of side effects. Like if bash tried to be functional.
 
 ### Variables
 
@@ -480,16 +481,16 @@ JESSIENAMES and STRETCHNAMES are used similarly, only they are actually referred
 
 ALPINEARCHES and ALPINENAMES work similarly, and are used when we've provided "DIST=ALPINE". We do not divide into seperate variables quite the same way as debian, because all of our alpine images are based on alpine 3.7.
 
-PREBUILDS contains our dependency map. essentially, this is a set of <imagename>-<imagename> pairs, where the first image mentioned depends on the second image. so, airdock_rvm depends on airdock_base, where airdock_fakesqs depends on airdock_rvm, etc.
+PREBUILDS contains our dependency map. essentially, this is a set of pairs of image names, where the first image mentioned depends on the second image. so, airdock_rvm depends on airdock_base, where airdock_fakesqs depends on airdock_rvm, etc.  this means that our docker image names may not contain `-`s (not sure this is allowed by docker).
 
 BADARCH is similar, pairing the name of an image with the architecture it fails to build on. This is so i can blacklist things that don't work yet.
 
-LOCALDEBARCH is a variable set by executing a small snippet of bash. the snippet checks, to make sure dpkg is installed (the debian package manager), and uses dpkg to determine what the architecture of your local machine is. As you remember from when we were building docker images by hand, docker will automatically fetch an image that is compiled for your current architecture, so we use LOCALDEBARCH later to decide what architecture we can skip specifically telling docker to fetch.
+LOCALDEBARCH is a variable set by executing a small snippet of bash. the snippet makes sure dpkg is installed (the debian package manager), and uses dpkg to determine what the architecture of your local machine is. As you remember from when we were building docker images by hand, docker will automatically fetch an image that is compiled for your current architecture, so we use LOCALDEBARCH later to decide what architectures we need to fetch and which we can skip.
 
-NOMANIFEST is a tricky one to explain. You know how we added the name of the architecture BEFORE the image name in the dockerfiles? well, in the case of the dependencies of the images listed here, dockerhub isn't supporting that. DockerHub is supporting that form only for 'official' docker images, like alpine, debian, etc. as a result, in order to fetch an architecture specific version of the dependencies of these images, we need to add a -<arch> suffix. like -386 -arm32v7, etc.
+NOMANIFEST lists images that need a work-around for fetching image dependencies for specific architectures. You know how we added the name of the architecture BEFORE the image name in the dockerfiles? well, in the case of the dependencies of the images listed here, dockerhub isn't supporting that. DockerHub is supporting that form only for 'official' docker images, like alpine, debian, etc. as a result, in order to fetch an architecture specific version of the dependencies of these images, we need to add a -<arch> suffix. like -386 -arm32v7, etc.
 
 ### Conditionals
-We don't make much use of conditionals in this makefile. There are three total uses in this Makefile. let's take a look at them.
+We don't make much use of conditionals, but there are three total uses in this Makefile. let's take a look at them.
 
 SED ABUSE:
 to get our list of conditionals out of the Makefile, we're going to use some multiline sed. specifically, we're going to look for a line starting with 'ifeq', lines starting with two spaces, then the line following.
@@ -509,12 +510,16 @@ ifeq ($(DIST),ALPINE)
 endif
 $
 ```
+
+[TODO: this is really cool, but it may be easier to digest if we just point the reader to the places in the Makefile where this happens.  anyway that's where i looked; i don't have a lot of trust that my understanding of how what i see here relates to what's in the Makefile.  the abuse in the next example ("functions") is simple enough for me to be comfortable with it :-).  perhaps you can just leave this one in as well and explain better how to read around it?]
+
 There's a lot to unpack there, so let's start with the simple part, the conditionals.
-The conditionals are checking for equivalence, in all cases.
+The conditionals are checking for equality, in all cases.
 First, we check to see if LOCALARCH is empty. This can happen if dpkg was unavailable, and the user did not supply a value on the make command line or in the user's bash environment. if that happens, we use make's built in error function to display an error, and break out of the Makefile.
 The second and third conditionals decide on the values of ARCHES and NAMES. Earlier, we determined the default selection for DIST was DEBIAN, so this pair just allows the user to select ALPINE instead. note that the variable assignments in the conditionals are using the overrideable form, so the end user can override these on make's command line or in the user's environment. mac users will want to do this, since they don't have QEMU available in the same form, and are limited to building X86 and AMD64 architecture.
 
-Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, and have to abuse other operations in a manner that should be familiar to you...
+Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, [TODO: i don't understand the rest of the sentence.]
+and have to abuse other operations in a manner that should be familiar to you...
 
 Now, back to our sed abuse.
 SED is a stream editor, and quite a powerful one. In this case, we're using it for a multi-line search. we're supplying the -n option, which squashes all output, except what sed is told specificly to print something with a command.
@@ -638,6 +643,8 @@ The commands to build a thing (recipe lines) are prefaced with a tab character, 
 
 
 #### The tops of the trees
+
+[TODO: i would use "root" instead of "top".]
 
 In the section where we showed you how to use our Makefile, we were calling 'make' with an option, such as push-all, build-smtp, names, or clean. We're now going to show you the rules that implement these options.
 

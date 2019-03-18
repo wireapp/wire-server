@@ -9,7 +9,7 @@ USERNAME  := $(DOCKER_USERNAME)
 REALNAME  := $(DOCKER_REALNAME)
 EMAIL     := $(DOCKER_EMAIL)
 
-# the set of images we're going to build. DEBIAN, or ALPINE.
+# the distribution we're going to build for. this can be either DEBIAN or ALPINE.
 DIST            ?= DEBIAN
 
 # these are docker architecture names, not debian.
@@ -24,7 +24,7 @@ JESSIENAMES   := airdock_fakesqs airdock_rvm airdock_base smtp
 # the names of the docker images we're building that are based on debian stretch.
 STRETCHNAMES  := dynamodb_local cassandra
 # the names of the docker images that we're building that are based on debian.
-DEBNAMES      :=  $(JESSIENAMES) $(STRETCHNAMES)
+DEBNAMES      := $(JESSIENAMES) $(STRETCHNAMES)
 
 # the arches that we build for alpine.
 ALPINEARCHES  := amd64 386 arm32v6
