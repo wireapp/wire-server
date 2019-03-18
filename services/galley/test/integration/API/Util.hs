@@ -223,7 +223,12 @@ putConvAccept invited cid = do
       . zType "access"
       . zConn "conn"
 
-postOtrMessage :: (Request -> Request) -> UserId -> ClientId -> ConvId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
+postOtrMessage :: (Request -> Request)
+               -> UserId
+               -> ClientId
+               -> ConvId
+               -> [(UserId, ClientId, Text)]
+               -> TestM ResponseLBS
 postOtrMessage f u d c rec = do
     g <- view galley
     post $ g

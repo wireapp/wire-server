@@ -1,26 +1,26 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 module TestSetup
-  ( test
-  , manager
-  , galley
-  , brig
-  , cannon
-  , awsEnv
-  , maxConvSize
-  , Galley
-  , Brig
-  , Cannon
-  , TestM(..)
-  , TestSetup(..)
-  ) where
+    ( test
+    , manager
+    , galley
+    , brig
+    , cannon
+    , awsEnv
+    , maxConvSize
+    , Galley
+    , Brig
+    , Cannon
+    , TestM(..)
+    , TestSetup(..)
+    ) where
 
 import Imports
 import Test.Tasty          (TestName, TestTree)
 import Test.Tasty.HUnit    (Assertion, testCase)
 import Control.Lens        ((^.), makeLenses)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Bilge (Http, HttpT(..), Manager, MonadHttp, Request, runHttpT)
+import Bilge (HttpT(..), Manager, MonadHttp, Request, runHttpT)
 
 import qualified Galley.Aws          as Aws
 
@@ -44,13 +44,13 @@ newtype TestM a =
              )
 
 data TestSetup = TestSetup
-  { _manager         :: Manager
-  , _galley          :: Galley
-  , _brig            :: Brig
-  , _cannon          :: Cannon
-  , _awsEnv          :: Maybe Aws.Env
-  , _maxConvSize     :: Word16
-  }
+    { _manager     :: Manager
+    , _galley      :: Galley
+    , _brig        :: Brig
+    , _cannon      :: Cannon
+    , _awsEnv      :: Maybe Aws.Env
+    , _maxConvSize :: Word16
+    }
 
 makeLenses ''TestSetup
 

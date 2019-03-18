@@ -44,19 +44,19 @@ ensureQueueEmptyIO Nothing    = return ()
 
 assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
 assertQueue label check = view TS.awsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env $ fetchMessage label check
-  Nothing -> return ()
+    Just env -> liftIO $ Aws.execute env $ fetchMessage label check
+    Nothing -> return ()
 
 -- Try to assert an event in the queue for a `timeout` amount of seconds
 tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
 tryAssertQueue timeout label check = view TS.awsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
-  Nothing -> return ()
+    Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
+    Nothing -> return ()
 
 assertQueueEmpty :: (HasCallStack) => TestM ()
 assertQueueEmpty = view TS.awsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env ensureNoMessages
-  Nothing -> return ()
+    Just env -> liftIO $ Aws.execute env ensureNoMessages
+    Nothing -> return ()
 
 tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
 tActivateWithCurrency c l (Just e) = do
