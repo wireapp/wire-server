@@ -202,11 +202,12 @@ onError g m r k e = liftIO $ do
 
 -- | Log an 'Error' response for debugging purposes.
 logError :: MonadIO m => Logger -> Maybe Request -> Error -> m ()
-logError g r (Error c l m) = liftIO $ Log.debug g logMsg
+logError g mr (Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
            . field "label" l
-           . field "request" (fromMaybe "N/A" (lookupRequestId =<< r))
+           . field "request" (fromMaybe "N/A" (lookupRequestId =<< mr))
+           . field "request_details" (maybe "N/A" show mr)
            . msg (val "\"" +++ m +++ val "\"")
 
 logIO :: ToBytes a => Logger -> Level -> Maybe Request -> a -> IO ()
