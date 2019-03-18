@@ -554,7 +554,7 @@ specDeleteUser = do
             deleteUser_ (Just invalidTok) (Just uid) spar
                 !!! const 404 === statusCode
 
-        it "should return 404 if we getUser after deleteUser" $ do
+        it "getUser should return 404 after deleteUser" $ do
             user <- randomScimUser
             (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
