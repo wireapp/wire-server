@@ -26,6 +26,15 @@ settings:
   maxConvSize: 128
   intraListing: false
   conversationCodeURI: https://127.0.0.1/join/
+  defaultTeamTokenSettings:
+    # 28 days
+    user_token_timeout_seconds: 2419200
+    # 1 day
+    session_token_timeout_seconds: 86400
+    # 15 minutes
+    access_token_timeout_seconds: 900
+    # 7 days
+    provider_token_timeout_seconds: 604800
 
 logLevel: Info
 logNetStrings: false
