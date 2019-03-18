@@ -23,7 +23,7 @@ import Test.Tasty.HUnit
 import Control.Lens
 import Control.Monad.Catch
 
-import Bilge (Request, HttpT, Http, Manager, Response, runHttpT, MonadHttp)
+import Bilge (Request, HttpT(..), Http, Manager, Response, runHttpT, MonadHttp)
 import qualified Galley.Aws             as Aws
 
 type Galley      = Request -> Request
@@ -36,11 +36,7 @@ type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
 
 newtype TestM a = TestM {runTestM :: ReaderT TestSetup (HttpT IO) a}
     deriving (Functor, Applicative, Monad, MonadReader TestSetup, MonadIO, MonadCatch
-            , MonadThrow, MonadMask,  MonadHttp)
-
-instance MonadUnliftIO TestM where
-  askUnliftIO = TestM askUnliftIO
-  withRunInIO = _
+            , MonadThrow, MonadMask,  MonadHttp, MonadUnliftIO)
 
 data TestSetup = TestSetup
   { _manager         :: Manager

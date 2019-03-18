@@ -10,8 +10,8 @@ import Galley.Types
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import Test.Tasty.HUnit
 import TestSetup
+import Control.Lens (view)
 
 import qualified Galley.Types.Teams       as Teams
 import qualified Test.Tasty.Cannon        as WS
@@ -30,91 +30,92 @@ tests s = testGroup "Per-conversation message timer"
 messageTimerInit
     :: Maybe Milliseconds    -- ^ Timer value
     -> TestM ()
-messageTimerInit mtimer g b _ca = do
+messageTimerInit mtimer = do
     -- Create a conversation with a timer
-    [alice, bob, jane] <- randomUsers b 3
-    connectUsers b alice (list1 bob [jane])
-    rsp <- postConv g alice [bob, jane] Nothing [] Nothing mtimer <!!
+    [alice, bob, jane] <- randomUsers 3
+    connectUsers alice (list1 bob [jane])
+    rsp <- postConv alice [bob, jane] Nothing [] Nothing mtimer <!!
         const 201 === statusCode
     cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing mtimer
     -- Check that the timer is indeed what it should be
-    getConv g jane cid !!!
+    getConv jane cid !!!
         const mtimer === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChange :: TestM ()
-messageTimerChange g b _ca = do
+messageTimerChange = do
     -- Create a conversation without a timer
-    [alice, bob, jane] <- randomUsers b 3
-    connectUsers b alice (list1 bob [jane])
-    rsp <- postConv g alice [bob, jane] Nothing [] Nothing Nothing <!!
+    [alice, bob, jane] <- randomUsers 3
+    connectUsers alice (list1 bob [jane])
+    rsp <- postConv alice [bob, jane] Nothing [] Nothing Nothing <!!
         const 201 === statusCode
     cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing Nothing
     -- Set timer to null and observe 204
-    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate Nothing) !!!
+    putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate Nothing) !!!
         const 204 === statusCode
     -- Set timer to 1 second
-    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate timer1sec) !!!
+    putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!!
         const 200 === statusCode
-    getConv g jane cid !!!
+    getConv jane cid !!!
         const timer1sec === (cnvMessageTimer <=< decodeBody)
     -- Set timer to null
-    putMessageTimerUpdate g bob cid (ConversationMessageTimerUpdate Nothing) !!!
+    putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate Nothing) !!!
         const 200 === statusCode
-    getConv g jane cid !!!
+    getConv jane cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
     -- Set timer to 1 year
-    putMessageTimerUpdate g bob cid (ConversationMessageTimerUpdate timer1year) !!!
+    putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate timer1year) !!!
         const 200 === statusCode
-    getConv g jane cid !!!
+    getConv jane cid !!!
         const timer1year === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChangeGuest :: TestM ()
-messageTimerChangeGuest g b _ca = do
+messageTimerChangeGuest = do
     -- Create a team and a guest user
-    [owner, member, guest] <- randomUsers b 3
-    connectUsers b owner (list1 member [guest])
-    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
+    [owner, member, guest] <- randomUsers 3
+    connectUsers owner (list1 member [guest])
+    tid <- createTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
     -- Create a conversation
-    cid <- createTeamConv g owner tid [member, guest] Nothing Nothing Nothing
+    cid <- createTeamConv owner tid [member, guest] Nothing Nothing Nothing
     -- Try to change the timer (as the guest user) and observe failure
-    putMessageTimerUpdate g guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
+    putMessageTimerUpdate guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
         const "access-denied" === (label . decodeBody' "error label")
-    getConv g guest cid !!!
+    getConv guest cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
     -- Try to change the timer (as a team member) and observe success
-    putMessageTimerUpdate g member cid (ConversationMessageTimerUpdate timer1sec) !!!
+    putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!!
         const 200 === statusCode
-    getConv g guest cid !!!
+    getConv guest cid !!!
         const timer1sec === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChangeO2O :: TestM ()
-messageTimerChangeO2O g b _ca = do
+messageTimerChangeO2O = do
     -- Create a 1:1 conversation
-    [alice, bob] <- randomUsers b 2
-    connectUsers b alice (singleton bob)
-    rsp <- postO2OConv g alice bob Nothing <!!
+    [alice, bob] <- randomUsers 2
+    connectUsers alice (singleton bob)
+    rsp <- postO2OConv alice bob Nothing <!!
         const 200 === statusCode
     cid <- assertConv rsp One2OneConv alice alice [bob] (Just "chat") Nothing
     -- Try to change the timer and observe failure
-    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
+    putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
         const "invalid-op" === (label . decodeBody' "error label")
-    getConv g alice cid !!!
+    getConv alice cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
 
 messageTimerEvent :: TestM ()
-messageTimerEvent g b ca = do
+messageTimerEvent = do
+    ca <- view cannon
     -- Create a conversation
-    [alice, bob] <- randomUsers b 2
-    connectUsers b alice (singleton bob)
-    rsp <- postConv g alice [bob] Nothing [] Nothing Nothing <!!
+    [alice, bob] <- randomUsers 2
+    connectUsers alice (singleton bob)
+    rsp <- postConv alice [bob] Nothing [] Nothing Nothing <!!
         const 201 === statusCode
     cid <- assertConv rsp RegularConv alice alice [bob] Nothing Nothing
     -- Set timer to 1 second and check that all participants got the event
     WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
         let update = ConversationMessageTimerUpdate timer1sec
-        putMessageTimerUpdate g alice cid update !!!
+        putMessageTimerUpdate alice cid update !!!
             const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertConvMessageTimerUpdate cid alice update
