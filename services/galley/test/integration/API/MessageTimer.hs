@@ -9,20 +9,12 @@ import Data.Misc
 import Galley.Types
 import Network.Wai.Utilities.Error
 import Test.Tasty
-import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestSetup
 
 import qualified Galley.Types.Teams       as Teams
 import qualified Test.Tasty.Cannon        as WS
-
-type TestSignature a = Galley -> Brig -> Cannon -> TestSetup -> Http a
-
-test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
-test s n t = testCase n runTest
-  where
-    runTest = do
-        setup <- s
-        (void $ runHttpT (manager setup) (t (galley setup) (brig setup) (cannon setup) setup))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Per-conversation message timer"
@@ -37,8 +29,8 @@ tests s = testGroup "Per-conversation message timer"
 
 messageTimerInit
     :: Maybe Milliseconds    -- ^ Timer value
-    -> Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerInit mtimer g b _ca _ = do
+    -> TestM ()
+messageTimerInit mtimer g b _ca = do
     -- Create a conversation with a timer
     [alice, bob, jane] <- randomUsers b 3
     connectUsers b alice (list1 bob [jane])
@@ -49,8 +41,8 @@ messageTimerInit mtimer g b _ca _ = do
     getConv g jane cid !!!
         const mtimer === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChange :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChange g b _ca _ = do
+messageTimerChange :: TestM ()
+messageTimerChange g b _ca = do
     -- Create a conversation without a timer
     [alice, bob, jane] <- randomUsers b 3
     connectUsers b alice (list1 bob [jane])
@@ -76,8 +68,8 @@ messageTimerChange g b _ca _ = do
     getConv g jane cid !!!
         const timer1year === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChangeGuest :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChangeGuest g b _ca _ = do
+messageTimerChangeGuest :: TestM ()
+messageTimerChangeGuest g b _ca = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers b 3
     connectUsers b owner (list1 member [guest])
@@ -96,8 +88,8 @@ messageTimerChangeGuest g b _ca _ = do
     getConv g guest cid !!!
         const timer1sec === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChangeO2O :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChangeO2O g b _ca _ = do
+messageTimerChangeO2O :: TestM ()
+messageTimerChangeO2O g b _ca = do
     -- Create a 1:1 conversation
     [alice, bob] <- randomUsers b 2
     connectUsers b alice (singleton bob)
@@ -111,8 +103,8 @@ messageTimerChangeO2O g b _ca _ = do
     getConv g alice cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
 
-messageTimerEvent :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerEvent g b ca _ = do
+messageTimerEvent :: TestM ()
+messageTimerEvent g b ca = do
     -- Create a conversation
     [alice, bob] <- randomUsers b 2
     connectUsers b alice (singleton bob)

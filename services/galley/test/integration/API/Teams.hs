@@ -17,9 +17,9 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Test.Tasty
-import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import TestSetup (test, TestSignature)
+import TestSetup (test, Galley, Cannon, TestSetup, Brig, ResponseLBS)
 import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
@@ -187,7 +187,7 @@ testCreateOne2OneWithMembers (rolePermissions -> perms) g b c a = do
     -- Recreating a One2One is a no-op, returns a 200
     Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid !!! const 200 === statusCode
   where
-    repeatIf :: Util.ResponseLBS -> Bool
+    repeatIf :: ResponseLBS -> Bool
     repeatIf r = statusCode r /= 201
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()

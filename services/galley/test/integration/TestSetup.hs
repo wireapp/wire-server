@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fprint-potential-instances #-}
+{-# LANGUAGE DerivingStrategies #-}
 module TestSetup
   ( test
   , TestSignature
@@ -12,14 +15,16 @@ module TestSetup
   , Brig
   , Cannon
   , ResponseLBS
+  , TestM
   ) where
 
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Control.Lens
+import Control.Monad.Catch
 
-import Bilge (Request, Http, Manager, Response)
+import Bilge (Request, HttpT, Http, Manager, Response, runHttpT, MonadHttp)
 import qualified Galley.Aws             as Aws
 
 type Galley      = Request -> Request
@@ -29,6 +34,10 @@ type ResponseLBS = Response (Maybe LByteString)
 
 
 type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
+
+newtype TestM a = TestM (ReaderT TestSetup (HttpT IO) a)
+  deriving (Functor, Applicative, Monad, MonadReader TestSetup, MonadIO, MonadCatch, MonadThrow)
+  deriving newtype MonadHttp
 
 data TestSetup = TestSetup
   { _manager         :: Manager
@@ -47,5 +56,5 @@ test s n h = testCase n runTest
   where
     runTest = do
         setup <- s
-        void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup) (awsEnv setup))
+        void $ runHttpT (setup ^. manager) (h (setup ^. galley) (setup ^. brig ) (setup ^. cannon) (setup ^. awsEnv ))
 
