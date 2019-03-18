@@ -74,8 +74,7 @@ sitemap = do
     post "/assets/v3/resumable" (continue createResumableV3) $
         header "Z-User"
         .&. header "Upload-Length"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @V3.ResumableSettings
 
     -- TODO (Compliance): Require and check Tus-Resumable header
     -- against supported version(s).
@@ -237,8 +236,8 @@ resumableOptionsV3 _ = do
     maxTotal <- view (settings.setMaxTotalBytes)
     return $ TUS.optionsResponse (fromIntegral maxTotal) empty
 
-createResumableV3 :: UserId ::: V3.TotalSize ::: Media "application" "json" ::: Request -> Handler Response
-createResumableV3 (u ::: size ::: _ ::: req) = do
+createResumableV3 :: UserId ::: V3.TotalSize ::: JsonRequest V3.ResumableSettings -> Handler Response
+createResumableV3 (u ::: size ::: req) = do
     sets <- parseBody req !>> Error.clientError
     res  <- Resumable.create (V3.UserPrincipal u) sets size
     let key = res^.V3.resumableAsset.V3.assetKey
@@ -246,13 +245,14 @@ createResumableV3 (u ::: size ::: _ ::: req) = do
     let loc = "/assets/v3/resumable/" <> toByteString' key
     return . TUS.createdResponse loc expiry $ json res
 
-statusResumableV3 :: UserId ::: V3.AssetKey  -> Handler Response
+statusResumableV3 :: UserId ::: V3.AssetKey -> Handler Response
 statusResumableV3 (u ::: a) = do
     stat <- Resumable.status (V3.UserPrincipal u) a
     return $ case stat of
         Nothing -> setStatus status404 empty
         Just st -> TUS.headResponse st empty
 
+-- Request = raw bytestring
 uploadResumableV3 :: UserId ::: V3.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: V3.AssetKey  ::: Request -> Handler Response
 uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
     (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
@@ -293,7 +293,10 @@ botDeleteV3 (bot ::: key) = do
 --------------------------------------------------------------------------------
 -- Helpers
 
-uploadSimpleV3 :: V3.Principal -> Request -> Handler Response
+uploadSimpleV3
+    :: V3.Principal
+    -> Request                 -- Raw bytestring
+    -> Handler Response
 uploadSimpleV3 prc req = do
     let src = sourceRequestBody req
     asset <- V3.upload prc src

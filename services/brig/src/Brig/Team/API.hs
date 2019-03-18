@@ -19,7 +19,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Range
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response)
+import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus, result, and)
 import Network.Wai.Routing hiding (head)
 import Network.Wai.Utilities hiding (message, code)
@@ -44,7 +44,7 @@ routes = do
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "tid"
-        .&. request
+        .&. jsonRequest @InvitationRequest
 
     document "POST" "sendTeamInvitation" $ do
         Doc.summary "Create and send a new team invitation."
@@ -153,7 +153,7 @@ getInvitationCode (_ ::: t ::: r) = do
   where
     found c = json $ object [ "code" .= c ]
 
-createInvitation :: JSON ::: UserId ::: TeamId ::: Request -> Handler Response
+createInvitation :: JSON ::: UserId ::: TeamId ::: JsonRequest InvitationRequest -> Handler Response
 createInvitation (_ ::: uid ::: tid ::: req) = do
     body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
