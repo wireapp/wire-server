@@ -166,6 +166,7 @@ fetchTeamSettings tid = do
     where
       toTeamSettings (utt, stt, att, ptt) = newTeamSettings utt stt att ptt
 
+
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =
     map runIdentity <$> retry x1 (query Cql.selectUserTeamsIn (params Quorum (usr, tids)))
@@ -303,10 +304,10 @@ updateTeamSettings :: MonadClient m => TeamId -> TeamSettings -> m ()
 updateTeamSettings tid tsud =
   retry x5 $ write Cql.updateTeamSettings
           (params Quorum
-                  ( tsud ^. tsUserTokenTimeout
-                  , tsud ^. tsSessionTokenTimeout
-                  , tsud ^. tsAccessTokenTimeout
-                  , tsud ^. tsProviderTokenTimeout
+                  ( tsud ^. tsUserTokenTimeoutSeconds
+                  , tsud ^. tsSessionTokenTimeoutSeconds
+                  , tsud ^. tsAccessTokenTimeoutSeconds
+                  , tsud ^. tsProviderTokenTimeoutSeconds
                   , tid
                   ))
 

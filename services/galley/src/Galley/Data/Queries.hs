@@ -238,7 +238,7 @@ selectTeamSettings = [r|
     , session_token_timeout_seconds
     , access_token_timeout_seconds
     , provider_token_timeout_seconds
-  from team_settings
+  from team_token_settings
   where team = ?
   |]
 

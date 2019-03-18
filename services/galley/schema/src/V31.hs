@@ -5,9 +5,9 @@ import Cassandra.Schema
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 31 "Add team_settings table" $ do
+migration = Migration 31 "Add team_token_settings table" $ do
   schema' [r|
-      CREATE TABLE team_settings 
+      CREATE TABLE team_token_settings 
         (  team                            uuid    PRIMARY KEY
         ,  user_token_timeout_seconds      bigint
         ,  session_token_timeout_seconds   bigint
