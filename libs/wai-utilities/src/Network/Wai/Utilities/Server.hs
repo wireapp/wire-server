@@ -171,13 +171,23 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- yield 5xx responses).
 catchErrors :: Logger -> Metrics -> Middleware
 catchErrors l m app req k =
-    app req k `catch` errorResponse
+    app req k' `catch` errorResponse
   where
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
             logIO l Log.Error (Just req) (show ex)
         onError l m req k er
+
+    -- catch status >= 400 even if it does not come in the form of an exception, but as a
+    -- response.  generate exactly the same log effects, plus a log line saying this shouldn't
+    -- have happened.
+    k' resp = do
+        when (statusCode (responseStatus resp) >= 400) $ do
+            Log.warn l (msg $ val "Expected exception instead of response with status >= 400")
+            logError l (Just req) $ Error (responseStatus resp) "unexpected-error" "unexpected-error"
+        k resp
+
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
