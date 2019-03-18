@@ -89,39 +89,39 @@ to look at a manifest file (local or remote), use 'docker manifest inspect'. for
 $ docker manifest inspect namshi/smtp
 {
         "schemaVersion": 2,
-	"mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-	"config": {
-	        "mediaType": "application/vnd.docker.container.image.v1+json",
-	        "size": 3837,
-	        "digest": "sha256:f2dffd734243f5233b3c74808868a4166e3b05c465f6343fb3c8bc30bd72af38"
-	},
-	"layers": [
-	        {
-	                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-	                "size": 54384652,
-	                "digest": "sha256:ff42297909573059acb8e981efbc12eff68641f8449f04470a4f218e53a1e80e"
-	        },
-	        {
-	                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-	                "size": 14757658,
-	                "digest": "sha256:bb7eb4b06654d8d568eb13419e3c906c7f0b46779e1ab2a60720922e3d58eea6"
-	        },
-	        {
-	                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-	                "size": 1146,
-	                "digest": "sha256:cf932c8b3d1a80cc099be8684668709ab2eba611d1271f5d5219abcb2213b560"
-	        },
-	        {
-	                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-	                "size": 424,
-	                "digest": "sha256:8adeef74c927855a587f459fd3b3d03e0d75a608d81f53279358b295f2129a62"
-	        },
-	        {
-	                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-	                "size": 1392,
-	                "digest": "sha256:52aa0a29c3081aa439aa279fe650f8d4a99b9aed799786363c926f1268a82c44"
-	        }
-	]
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {
+                "mediaType": "application/vnd.docker.container.image.v1+json",
+                "size": 3837,
+                "digest": "sha256:f2dffd734243f5233b3c74808868a4166e3b05c465f6343fb3c8bc30bd72af38"
+        },
+        "layers": [
+                {
+                        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                        "size": 54384652,
+                        "digest": "sha256:ff42297909573059acb8e981efbc12eff68641f8449f04470a4f218e53a1e80e"
+                },
+                {
+                        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                        "size": 14757658,
+                        "digest": "sha256:bb7eb4b06654d8d568eb13419e3c906c7f0b46779e1ab2a60720922e3d58eea6"
+                },
+                {
+                        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                        "size": 1146,
+                        "digest": "sha256:cf932c8b3d1a80cc099be8684668709ab2eba611d1271f5d5219abcb2213b560"
+                },
+                {
+                        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                        "size": 424,
+                        "digest": "sha256:8adeef74c927855a587f459fd3b3d03e0d75a608d81f53279358b295f2129a62"
+                },
+                {
+                        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                        "size": 1392,
+                        "digest": "sha256:52aa0a29c3081aa439aa279fe650f8d4a99b9aed799786363c926f1268a82c44"
+                }
+        ]
 }
 ```
 
@@ -290,7 +290,7 @@ Saving to: ‘sash_3.8-5_armel.deb’
 sash_3.8-5_armel.deb                                                  100%[========================================================================================================================================================================>] 271.46K  --.-KB/s    in 0.07s
 
 2019-03-06 14:27:39 (3.65 MB/s) - ‘sash_3.8-5_armel.deb’ saved [277976/277976]
-$ 
+$
 ```
 
 This deb will not install on our machine, so we're going to manually take it apart, to get the sash binary out of it.
@@ -612,13 +612,13 @@ CFLAGS=-I.
 DEPS = hellomake.h
 
 %.o: %.c $(DEPS)
-     	$(CC) -c -o $@ $< $(CFLAGS)
+        $(CC) -c -o $@ $< $(CFLAGS)
 
 hellomake: hellomake.o hellofunc.o
-	$(CC) -o hellomake hellomake.o hellofunc.o
+        $(CC) -o hellomake hellomake.o hellofunc.o
 
 clean:
-	rm hellomake hellomake.o hellofunc.o
+        rm hellomake hellomake.o hellofunc.o
 ```
 This example Makefile has some variables, and rules, that are used to build a C program into an executable, using GCC.
 
@@ -631,7 +631,7 @@ my_thing: things i need first
         bash commands to build it
 
 target: prerequisites
-	recipe line 1
+        recipe line 1
 ```
 
 The commands to build a thing (recipe lines) are prefaced with a tab character, and not spaces. Each line is executed in a seperate shell instance.
@@ -665,7 +665,7 @@ cleandocker is a rule i use on my machine, when docker images have gotten out of
 
 names displays the names of the images this Makefile knows about. It uses a single @ symbol at the beginning of the rules. this tells make that it should NOT display the command that make is running, when make runs it.
 
-OK, that covers the simple make rules, that have no dependencies, or parameters. Now let's take a look at our build and push rules. these are the 'top' of a dependency tree, which is to say they depend on things, that depend on things... that do the think we've asked for. 
+OK, that covers the simple make rules, that have no dependencies, or parameters. Now let's take a look at our build and push rules. these are the 'top' of a dependency tree, which is to say they depend on things, that depend on things... that do the think we've asked for.
 
 ```bash
 $ cat Makefile | sed -n -E '/^(build|push|all)/{:n;N;s/\n\t/\n        /;tn;p}'
@@ -713,7 +713,7 @@ The rules you've seen so far were intended for user interaction. they are all ru
 
 ```bash
 $ cat Makefile | sed -n -E '/^(manifest-push)/{:n;N;s/\n\t/\n        /;tn;p}'
-manifest-push-%: $$(foreach arch,$$(call goodarches,$$*), manifest-annotate-$$(arch)-$$*) 
+manifest-push-%: $$(foreach arch,$$(call goodarches,$$*), manifest-annotate-$$(arch)-$$*)
         docker manifest push $(USERNAME)/$*$(TAGNAME)
 
 $
@@ -733,7 +733,7 @@ manifest-create-%: $$(foreach arch,$$(call goodarches,%), upload-$$(arch)-$$*)
 
 manifest-push depends on manifest-annotate, which depends on manifest-create, that depends on upload-... so when make tries to push a manifest, it makes sure an image has been uploaded, then creates a manifest, then annotates the manifest. We're basically writing rules for each step of our manifest, only backwards. continuing this pattern, the last thing we will depend on will be the rules that actually download the dockerfiles from git.
 
-#### Dependency Resolving 
+#### Dependency Resolving
 
 We've covered the entry points of this Makefile, and the chained dependencies that create, annotate, and upload a manifest file. now, we get into two seriously complicated sets of rules, the upload rules and the create rules. These accomplish their tasks of uploading and building docker containers, but at the same time, they accomplish our dependency resolution. Let's take a look.
 
@@ -755,7 +755,7 @@ create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST))
 depend-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-subcreate-$$(call fst,$$*)-$$(call snd,$$(predep)))
         cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
-depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* 
+depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$*
         cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
 $
@@ -765,7 +765,7 @@ First, let's tackle the roles of these rules. the *upload* rules are responsible
 
 these rules are setup in groups of three:
 
-upload-% and create-% form the top of these groups. upload-% depends on create-%, and create-% depends on the creation of a Dockerfile for this image, which is the bottom of our dependency tree. 
+upload-% and create-% form the top of these groups. upload-% depends on create-%, and create-% depends on the creation of a Dockerfile for this image, which is the bottom of our dependency tree.
 
 upload-%/create-% depend on two rules: dep-upload-%/depend-create-%, which handle the upload/create for the image that THIS image depends on. There are also dep-subupload-% and dep-subcreate-% rules, to handle the dependency of the dependency of this image.
 
@@ -777,11 +777,11 @@ upload-% has a dependency on create-%, to ensure what it wantas to upload alread
 
 dep-upload-% is virtually identical to upload-%, also searching through PREBUILDS for possible dependencies, and depending on dep-subupload to build them.
 
-dep-subupload does no dependency search, but has an identical docker push recipe to upload, and dep-upload. 
+dep-subupload does no dependency search, but has an identical docker push recipe to upload, and dep-upload.
 
-create-%, depend-create-%, and depend-subcreate-% work similarly to the upload rules, calling docker build instead of a docker push, and depending on the Dockerfile having been created. When depending on the Dockerfile, we look through the NOMANIFEST list, and insert "NOMANIFEST-" in the name of dependency on the dockerfile. This is so that we depend on the NOMANIFEST variant if the image we are building requires us to use a postfix on the image name to access a version for a specified architecture. otherwise, we run the Dockerfile-% rule that uses a prefix (i386/, amd64/, etc) to access the docker image we are building from.  
+create-%, depend-create-%, and depend-subcreate-% work similarly to the upload rules, calling docker build instead of a docker push, and depending on the Dockerfile having been created. When depending on the Dockerfile, we look through the NOMANIFEST list, and insert "NOMANIFEST-" in the name of dependency on the dockerfile. This is so that we depend on the NOMANIFEST variant if the image we are building requires us to use a postfix on the image name to access a version for a specified architecture. otherwise, we run the Dockerfile-% rule that uses a prefix (i386/, amd64/, etc) to access the docker image we are building from.
 
-It's worth noting that for all of these *create* and *upload* rules, we pipe the output of docker to cat, which causes docker to stop trying to draw progress bars. This seriously cleans up the 
+It's worth noting that for all of these *create* and *upload* rules, we pipe the output of docker to cat, which causes docker to stop trying to draw progress bars. This seriously cleans up the
 
 
 #### Building Dockerfiles.
@@ -799,7 +799,7 @@ Dockerfile-%: $$(call snd,%)/Dockerfile
 $
 ```
 
-These two rules depend on the checkout of the git repos containing the Dockerfiles. they do this by depending on <imagename>/Dockerfile. The rules are responsible for the creation of individual architecture specific derivitives of the Dockerfile that is downloaded. additionally, the rules set the MAINTAINER of the docker image to be us. Most of the heavy lifting of these rules is being done in the archpostfix, and archpath functions, which are being used in a sed expression to either postfix or prefix the image that this image is built from. 
+These two rules depend on the checkout of the git repos containing the Dockerfiles. they do this by depending on <imagename>/Dockerfile. The rules are responsible for the creation of individual architecture specific derivitives of the Dockerfile that is downloaded. additionally, the rules set the MAINTAINER of the docker image to be us. Most of the heavy lifting of these rules is being done in the archpostfix, and archpath functions, which are being used in a sed expression to either postfix or prefix the image that this image is built from.
 
 
 Let's take a look at that sed with a simpler example:
@@ -859,7 +859,7 @@ localstack/Dockerfile:
          # skip tests. they take too long.
         ${SED} -i.bak  "s=make lint.*=make lint=" localstack/Makefile
         ${SED} -i.bak  "s=\(.*lambda.*\)=#\1=" localstack/Makefile
-						 
+
 $
 ```
 
@@ -963,7 +963,7 @@ $ diff -u airdock_fakesqs-all/0.3.1/Dockerfile airdock_fakesqs/Dockerfile
 ```
 
 The first change is our path change, to use the airdock_rvm image we're managing, instead of upstream's latest.
-The second and third change happens at the place in this file where it fails. On my machine, the mkdir fails, as the ruby user cannot create this directory. to solve this, we perform the directory creation an root, THEN do our rvm work. 
+The second and third change happens at the place in this file where it fails. On my machine, the mkdir fails, as the ruby user cannot create this directory. to solve this, we perform the directory creation an root, THEN do our rvm work.
 
 Now, let's look through the sed that did that.
 The first sed command in this rule changed the path on the FROM line, just like the similar sed statement in the last make rule we were looking at.
@@ -1037,7 +1037,7 @@ if [ ! -z "$${JVM_OPTIONS_ES}" ]; then   # only if JVM_OPTIONS_ES was set when d
       e=""
       # if there was an equal sign, set e to an equal sign, and set r to everything after the equal sign.
       [ "$x" != "${x/=//}" ] && e="=" && r="$${x##*=}"
-      # if there was an '-Xm' (a java memory option), set r to the content after the (-XM<single character>), and set l to the -XM<single character> 
+      # if there was an '-Xm' (a java memory option), set r to the content after the (-XM<single character>), and set l to the -XM<single character>
       [ "$x" != "${x##-Xm?}" ] && r="$${x##-Xm?}" && l="${x%%$r}"
       # debugging code. echo what we saw.
       echo $l $e $r
@@ -1061,7 +1061,7 @@ The cassandra/Dockerfile rule is almost identical to this last rule, only substi
 
 # Pitfalls i fell into writing this.
 
-The first large mistake i made when writing this, is that the 'top' of the tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once. 
+The first large mistake i made when writing this, is that the 'top' of the tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once.
 
 The second was that i didn't really understand that manifest files refer to dockerhub only, not to the local machine. This was giving me similar race conditions, where an image build for architecture A would complete, and try to build the manifest when architecture B was still building.
 

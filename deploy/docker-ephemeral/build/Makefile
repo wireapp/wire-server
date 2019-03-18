@@ -13,7 +13,7 @@ EMAIL     := $(DOCKER_EMAIL)
 DIST            ?= DEBIAN
 
 # these are docker architecture names, not debian.
-STRETCHARCHES := arm32v5 arm32v7 386 amd64 arm64v8 ppc64le s390x 
+STRETCHARCHES := arm32v5 arm32v7 386 amd64 arm64v8 ppc64le s390x
 JESSIEARCHES  := arm32v5 arm32v7 386 amd64
 # the arches that our images based on debian support.
 # note that we only care about the pi, the 386, and amd64 for now.
@@ -38,7 +38,7 @@ PREBUILDS     := airdock_rvm-airdock_base airdock_fakesqs-airdock_rvm localstack
 # by adding the name of the docker image here, we use the image:tag-<arch> format, instead of <arch>/image:tag.
 NOMANIFEST    := airdock_rvm airdock_fakesqs localstack
 
-# convert from debian architecture string to docker architecture string. 
+# convert from debian architecture string to docker architecture string.
 dockerarch=$(patsubst i%,%,$(patsubst armel,arm32v5,$(patsubst armhf,arm32v7,$(patsubst arm64,arm64v8,$(1)))))
 
 # the local architecture, in debian format. (i386, amd64, armel, armhf, arm64, ..)
@@ -116,7 +116,7 @@ maniarch=$(patsubst %32,%,$(call fst,$(subst v, ,$(1))))
 manivariant=$(foreach variant,$(word 2, $(subst v, ,$(1))), --variant $(variant))
 
 # manifest-push-<name>
-manifest-push-%: $$(foreach arch,$$(call goodarches,$$*), manifest-annotate-$$(arch)-$$*) 
+manifest-push-%: $$(foreach arch,$$(call goodarches,$$*), manifest-annotate-$$(arch)-$$*)
 	docker manifest push $(USERNAME)/$*$(TAGNAME)
 
 #manifest-annotate-<arch>-<name>
@@ -144,7 +144,7 @@ create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST))
 depend-create-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)), depend-subcreate-$$(call fst,$$*)-$$(call snd,$$(predep)))
 	cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
-depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* 
+depend-subcreate-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$*
 	cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
 # with a broken manifest(our images, either docker or local), we have to use a postfix to request docker images other than the one for our native architecture.
@@ -264,7 +264,7 @@ cassandra/Dockerfile:
 	 # remove the marker we added earlier.
 	${SED} -i.bak  's@REPLACEME@@' cassandra/docker-entrypoint.sh
 
-# cleanup. remove the directories we set up for building, as well as the git repos we download. 
+# cleanup. remove the directories we set up for building, as well as the git repos we download.
 .PHONY: clean
 clean:
 	rm -rf elasticsearch-all airdock_base-all airdock_rvm-all airdock_fakesqs-all cassandra-all $(DEBNAMES) $(ALPINENAMES)
@@ -279,4 +279,3 @@ names:
 	@echo $(DEBNAMES)
 	@echo Alpine based images:
 	@echo $(ALPINENAMES)
-
