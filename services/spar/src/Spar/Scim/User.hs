@@ -120,8 +120,11 @@ instance Scim.UserDB Spar where
         -- double-deletion gets you a 404.
         throwError $ Scim.notFound "user" (cs $ show uid)
       Just brigUser -> do
-        -- users from other teams get you a 404.
+        -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
+        -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
+        -- possible, we should do a check here and prohibit it.
         unless (userTeam brigUser == Just stiTeam) $
+        -- users from other teams get you a 404.
           throwError $ Scim.notFound "user" (cs $ show uid)
         ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)
                        pure
