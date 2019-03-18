@@ -52,7 +52,11 @@ import qualified Web.Cookie as Cky
 
 app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
-        $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
+        $ serve (Proxy @API)
+                (hoistServer (Proxy @API)
+                             (runSparIO ctx)
+                             (api $ sparCtxOpts ctx)
+                    :: Server API)
 
 api :: Opts -> ServerT API Spar
 api opts

@@ -4,6 +4,8 @@
 module Spar.App
   ( Spar(..)
   , Env(..)
+  , runSparExceptT
+  , runSparIO
   , condenseLogMsg
   , toLevel
   , wrapMonadClientWithEnv
@@ -17,7 +19,7 @@ import Imports
 import Bilge
 import Brig.Types (Name, ManagedBy(..))
 import Cassandra
-import Control.Exception (assert)
+import Control.Exception (assert, throwIO)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -191,7 +193,23 @@ bindUser buid userref = do
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = Handler . ExceptT . fmap (fmapL sparToServantErr) . runExceptT $ runReaderT action ctx
+  nt = runSparExceptT
+
+-- | Write 'SparError's into 'ExceptT', where it will be rendered by servant.  Until we have
+-- moved all of wire-server to servant, consider calling 'runSparIO' instead.
+runSparExceptT :: Env -> Spar a -> Handler a
+runSparExceptT = runSpar' (fmap (fmapL sparToServantErr))
+
+-- | Throw 'SparError's as 'IO' 'Error's, where they can be found and handled by 'catchError'.
+runSparIO :: Env -> Spar a -> Handler a
+runSparIO = runSpar' (>>= either (either (pure . Left) throwIO . sparToWaiError) (pure . Right))
+
+runSpar'
+  :: (IO (Either SparError a) -> IO (Either ServantErr a))
+  -> Env -> Spar a -> Handler a
+runSpar' mkerr ctx (Spar action) =
+  Handler . ExceptT . mkerr . runExceptT $ runReaderT action ctx
+
 
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
