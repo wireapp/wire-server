@@ -509,13 +509,13 @@ instance ToJSON TeamTokenSettings where
         asInteger = coerce
 
 instance FromJSON TeamTokenSettings where
-    parseJSON = withObject "team_settings" $ \o -> do
+    parseJSON = withObject "team_token_settings" $ \o -> do
       -- Expect an integer in the JSON then coerce it into the proper newtype from zauth
       utt <- coerce @Integer <$> o .: "user_token_timeout_seconds"
       stt <- coerce @Integer <$> o .: "session_token_timeout_seconds"
       att <- coerce @Integer <$> o .: "access_token_timeout_seconds"
       ptt <- coerce @Integer <$> o .: "provider_token_timeout_seconds"
-      return $ TeamTokenSettings 
+      return $ TeamTokenSettings
         { _ttsUserTokenTimeoutSeconds     = utt
         , _ttsSessionTokenTimeoutSeconds  = stt
         , _ttsAccessTokenTimeoutSeconds   = att

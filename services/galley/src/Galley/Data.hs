@@ -164,7 +164,13 @@ fetchTeamTokenSettings tid = do
   let q = query1 Cql.selectTeamTokenSettings (params Quorum $ Identity tid)
   fmap toTeamTokenSettings <$> retry x5 q
     where
-      toTeamTokenSettings (utt, stt, att, ptt) = newTeamTokenSettings utt stt att ptt
+      toTeamTokenSettings (utt, stt, att, ptt) =
+          TeamTokenSettings
+            { _ttsUserTokenTimeoutSeconds     = utt
+            , _ttsSessionTokenTimeoutSeconds  = stt
+            , _ttsAccessTokenTimeoutSeconds   = att
+            , _ttsProviderTokenTimeoutSeconds = ptt
+            }
 
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]

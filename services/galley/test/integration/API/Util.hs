@@ -762,3 +762,7 @@ callGetTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> Http T
 callGetTeamTokenSettings g usr tid = do
     r <- get (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
+
+callPutTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> TeamTokenSettings -> Http ()
+callPutTeamTokenSettings g usr tid tts = do
+    put (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr . json tts) !!! const 200 === statusCode

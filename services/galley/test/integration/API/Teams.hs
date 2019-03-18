@@ -82,7 +82,7 @@ tests s = testGroup "Teams API"
     -- , test s "post crypto broadcast message 100 (or max cons)" postCryptoBroadcastMessage100OrMaxConns
     , testGroup "Token Settings"
        [ test s "getTeamTokenSettings returns default settings if unset" testGetDefaultTokenSettings
-       , test s "getTeamTokenSettings returns default settings if unset" testSetAndGetTokenSettings
+       , test s "getting after settings should return the set values" testSetAndGetTokenSettings
        ]
     ]
 
@@ -1077,7 +1077,16 @@ testGetDefaultTokenSettings g b _ _ = do
 testSetAndGetTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testSetAndGetTokenSettings g b _ _ = do
     (tid, ownerId) <- teamFixture g b
+    callPutTeamTokenSettings g ownerId tid newTeamTokenSettings
     tts <- callGetTeamTokenSettings g ownerId tid
-    liftIO $ assertEqual "team token settings" tts undefined
+    liftIO $ assertEqual "team token settings" tts newTeamTokenSettings
+      where
+        newTeamTokenSettings =
+          TeamTokenSettings
+            { _ttsUserTokenTimeoutSeconds = coerce @Integer 10
+            , _ttsSessionTokenTimeoutSeconds = coerce @Integer 20
+            , _ttsAccessTokenTimeoutSeconds = coerce @Integer 30
+            , _ttsProviderTokenTimeoutSeconds = coerce @Integer 40
+            }
 
 --------------------------------------------------------------------------------------------
