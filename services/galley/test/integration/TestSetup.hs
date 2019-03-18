@@ -3,7 +3,7 @@
 module TestSetup
   ( test
   , TestSignature
-  , TestSetup
+  , TestSetup(..)
   , manager
   , galley
   , brig

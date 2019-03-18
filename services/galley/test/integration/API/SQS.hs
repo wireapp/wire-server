@@ -36,9 +36,11 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger as L
 
 ensureQueueEmpty :: TestM ()
-ensureQueueEmpty  = view TS.awsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env purgeQueue
-  Nothing -> return ()
+ensureQueueEmpty  = view TS.awsEnv >>= ensureQueueEmptyIO
+
+ensureQueueEmptyIO :: MonadIO m => Maybe Aws.Env -> m ()
+ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
+ensureQueueEmptyIO Nothing    = return ()
 
 assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
 assertQueue label check = view TS.awsEnv >>= \case
