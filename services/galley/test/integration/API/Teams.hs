@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-unused-top-binds #-}
 module API.Teams (tests) where
 
 import Imports
@@ -8,6 +9,8 @@ import Control.Lens hiding ((#), (.=))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Coerce
+import qualified Data.ZAuth.Settings as ZAuth
 import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
@@ -44,38 +47,43 @@ test s n h = testCase n runTest
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
+    -- REFACTOR: Use nested test groups for clarity
     [ test s "create team" testCreateTeam
-    , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
-    , test s "create binding team with currency" testCreateBindingTeamWithCurrency
-    , test s "create team with members" testCreateTeamWithMembers
-    , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
-    , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
-    , test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner)
-    , test s "add new team member" testAddTeamMember
-    , test s "add new team member binding teams" testAddTeamMemberCheckBound
-    , test s "add new team member internal" testAddTeamMemberInternal
-    , test s "remove team member" testRemoveTeamMember
-    , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
-    , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
-    , test s "add team conversation" testAddTeamConv
-    , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
-    , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
-    , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
-    , test s "add team member to conversation without connection" testAddTeamMemberToConv
-    , test s "update conversation as member" (testUpdateTeamConv RoleMember)
-    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner)
-    , test s "delete non-binding team" testDeleteTeam
-    , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
-    , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
-    , test s "delete team conversation" testDeleteTeamConv
-    , test s "update team data" testUpdateTeam
-    , test s "update team member" testUpdateTeamMember
-    , test s "update team status" testUpdateTeamStatus
-    , test s "post crypto broadcast message json" postCryptoBroadcastMessageJson
-    , test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto
-    , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
-    , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
-    , test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
+    -- , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
+    -- , test s "create binding team with currency" testCreateBindingTeamWithCurrency
+    -- , test s "create team with members" testCreateTeamWithMembers
+    -- , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
+    -- , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
+    -- , test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner)
+    -- , test s "add new team member" testAddTeamMember
+    -- , test s "add new team member binding teams" testAddTeamMemberCheckBound
+    -- , test s "add new team member internal" testAddTeamMemberInternal
+    -- , test s "remove team member" testRemoveTeamMember
+    -- , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
+    -- , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
+    -- , test s "add team conversation" testAddTeamConv
+    -- , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
+    -- , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
+    -- , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
+    -- , test s "add team member to conversation without connection" testAddTeamMemberToConv
+    -- , test s "update conversation as member" (testUpdateTeamConv RoleMember)
+    -- , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner)
+    -- , test s "delete non-binding team" testDeleteTeam
+    -- , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
+    -- , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
+    -- , test s "delete team conversation" testDeleteTeamConv
+    -- , test s "update team data" testUpdateTeam
+    -- , test s "update team member" testUpdateTeamMember
+    -- , test s "update team status" testUpdateTeamStatus
+    -- , test s "post crypto broadcast message json" postCryptoBroadcastMessageJson
+    -- , test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto
+    -- , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
+    -- , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
+    -- , test s "post crypto broadcast message 100 (or max cons)" postCryptoBroadcastMessage100OrMaxConns
+    , testGroup "Token Settings"
+       [ test s "getTeamTokenSettings returns default settings if unset" testGetDefaultTokenSettings
+       , test s "getTeamTokenSettings returns default settings if unset" testSetAndGetTokenSettings
+       ]
     ]
 
 timeout :: WS.Timeout
@@ -1043,3 +1051,33 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing
+
+-- Team Token Settings -----------------------------------------------------------------------
+teamFixture ::  Galley -> Brig -> Http (TeamId, UserId)
+teamFixture g b = do
+  owner <- Util.randomUser b
+  tid <- Util.createTeam g "foo" owner []
+  return (tid, owner)
+
+
+testGetDefaultTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testGetDefaultTokenSettings g b _ _ = do
+  (tid, ownerId) <- teamFixture g b
+  tts <- callGetTeamTokenSettings g ownerId tid
+  liftIO $ assertEqual "team token settings" tts defaultTokenSettings
+    where
+      -- This matches the default values set in galley.integration.yaml
+      defaultTokenSettings = TeamTokenSettings
+        { _ttsUserTokenTimeoutSeconds = coerce @Integer 2419200
+        , _ttsSessionTokenTimeoutSeconds = coerce @Integer 86400
+        , _ttsAccessTokenTimeoutSeconds = coerce @Integer 900
+        , _ttsProviderTokenTimeoutSeconds = coerce @Integer 604800
+        }
+
+testSetAndGetTokenSettings :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testSetAndGetTokenSettings g b _ _ = do
+    (tid, ownerId) <- teamFixture g b
+    tts <- callGetTeamTokenSettings g ownerId tid
+    liftIO $ assertEqual "team token settings" tts undefined
+
+--------------------------------------------------------------------------------------------

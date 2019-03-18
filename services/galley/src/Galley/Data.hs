@@ -123,7 +123,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 30
+schemaVersion = 31
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -304,10 +304,10 @@ updateTeamTokenSettings :: MonadClient m => TeamId -> TeamTokenSettings -> m ()
 updateTeamTokenSettings tid tsud =
   retry x5 $ write Cql.updateTeamTokenSettings
           (params Quorum
-                  ( tsud ^. tsUserTokenTimeoutSeconds
-                  , tsud ^. tsSessionTokenTimeoutSeconds
-                  , tsud ^. tsAccessTokenTimeoutSeconds
-                  , tsud ^. tsProviderTokenTimeoutSeconds
+                  ( tsud ^. ttsUserTokenTimeoutSeconds
+                  , tsud ^. ttsSessionTokenTimeoutSeconds
+                  , tsud ^. ttsAccessTokenTimeoutSeconds
+                  , tsud ^. ttsProviderTokenTimeoutSeconds
                   , tid
                   ))
 

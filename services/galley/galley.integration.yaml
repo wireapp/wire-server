@@ -26,8 +26,17 @@ settings:
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
+  defaultTeamTokenSettings:
+    # 28 days
+    user_token_timeout_seconds: 2419200
+    # 1 day
+    session_token_timeout_seconds: 86400
+    # 15 minutes
+    access_token_timeout_seconds: 900
+    # 7 days
+    provider_token_timeout_seconds: 604800
 
-logLevel: Info
+logLevel: Warn
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling

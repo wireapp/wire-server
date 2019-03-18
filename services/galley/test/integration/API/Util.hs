@@ -757,3 +757,8 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
+
+callGetTeamTokenSettings :: HasCallStack => Galley -> UserId -> TeamId -> Http TeamTokenSettings
+callGetTeamTokenSettings g usr tid = do
+    r <- get (g . paths ["teams", toByteString' tid, "settings", "tokens"] . zUser usr) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))

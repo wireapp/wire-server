@@ -102,8 +102,7 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
-    , TeamTokenSettings
-    , newTeamTokenSettings
+    , TeamTokenSettings(..)
     , ttsUserTokenTimeoutSeconds
     , ttsSessionTokenTimeoutSeconds
     , ttsAccessTokenTimeoutSeconds
@@ -357,20 +356,6 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-newTeamTokenSettings
-  :: ZAuth.UserTokenTimeout
-  -> ZAuth.SessionTokenTimeout
-  -> ZAuth.AccessTokenTimeout
-  -> ZAuth.ProviderTokenTimeout
-  -> TeamTokenSettings
-newTeamTokenSettings utt stt att ptt =
-  TeamTokenSettings
-  { _ttsUserTokenTimeoutSeconds     = utt
-  , _ttsSessionTokenTimeoutSeconds  = stt
-  , _ttsAccessTokenTimeoutSeconds   = att
-  , _ttsProviderTokenTimeoutSeconds = ptt
-  }
-
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
@@ -525,12 +510,17 @@ instance ToJSON TeamTokenSettings where
 
 instance FromJSON TeamTokenSettings where
     parseJSON = withObject "team_settings" $ \o -> do
-      utt <- o .: "user_token_timeout_seconds"
-      stt <- o .: "session_token_timeout_seconds"
-      att <- o .: "access_token_timeout_seconds"
-      ptt <- o .: "provider_token_timeout_seconds"
-      return $ newTeamTokenSettings utt stt att ptt
-
+      -- Expect an integer in the JSON then coerce it into the proper newtype from zauth
+      utt <- coerce @Integer <$> o .: "user_token_timeout_seconds"
+      stt <- coerce @Integer <$> o .: "session_token_timeout_seconds"
+      att <- coerce @Integer <$> o .: "access_token_timeout_seconds"
+      ptt <- coerce @Integer <$> o .: "provider_token_timeout_seconds"
+      return $ TeamTokenSettings 
+        { _ttsUserTokenTimeoutSeconds     = utt
+        , _ttsSessionTokenTimeoutSeconds  = stt
+        , _ttsAccessTokenTimeoutSeconds   = att
+        , _ttsProviderTokenTimeoutSeconds = ptt
+        }
 
 instance ToJSON TeamList where
     toJSON t = object
