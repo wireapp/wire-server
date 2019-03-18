@@ -13,6 +13,8 @@ module Network.Wai.Utilities.Server
       -- * Middlewares
     , measureRequests
     , catchErrors
+    , heavyDebugLogging
+    , onlyLogEndpoint
 
       -- * Utilities
     , onError
@@ -33,6 +35,7 @@ import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding.Error (lenientDecode)
 import Network.HTTP.Types.Status
+import Network.HTTP.Types.Method
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
@@ -44,6 +47,7 @@ import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
+import qualified Control.Concurrent.STM.TVar as TVar
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
@@ -188,6 +192,65 @@ errorHandlers =
     ]
 {-# INLINE errorHandlers #-}
 
+-- | If the log level is less sensitive than 'Debug' just call the underlying app unchanged.
+-- Otherwise, pull a copy of the request body before running it, and if response status is @>=
+-- 400@, log the entire request, including the body.
+--
+-- The request sanitizer is called on the 'Request' and its body before it is being logged,
+-- giving you a chance to erase any confidential information.  Eg., if you're only interested
+-- in one end-point that has no sensitive information, use 'onlyLogEndpoint'.
+--
+-- WARNINGS:
+--
+--  * This may log confidential information if contained in the request.  Use the sanitizer to
+--    avoid that.
+--  * This does not catch any exceptions in the underlying app, so consider calling
+--    'catchErrors' before this.
+--  * Be careful with trying this in production: this puts a performance penalty on every
+--    request (unless level is less sensitive than 'Debug').
+heavyDebugLogging
+    :: ((Request, LByteString) -> Maybe (Request, LByteString))
+    -> Level -> Logger -> Middleware
+heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
+    (bdy, req') <- if lvl <= Debug
+        then cloneBody req
+        else pure ("n/a", req)
+    app req' $ \resp -> do
+        forM_ (sanitizeReq (req', bdy)) $ \(req'', bdy') ->
+            when (statusCode (responseStatus resp) >= 400) $ logBody req'' bdy'
+        cont resp
+  where
+    cloneBody :: Request -> IO (LByteString, Request)
+    cloneBody req = do
+        bdy <- lazyRequestBody req
+        requestBody' <- emitLByteString bdy
+        pure (bdy, req { requestBody = requestBody' })
+
+    logBody :: Request -> LByteString -> IO ()
+    logBody req bdy = Log.debug lgr logMsg
+      where
+        logMsg = field "request" (fromMaybe "N/A" $ lookupRequestId req)
+               . field "request_details" (show req)
+               . field "request_body" bdy
+               . msg (val "full request details")
+
+onlyLogEndpoint :: Method -> [Text] -> (Request, LByteString) -> Maybe (Request, LByteString)
+onlyLogEndpoint mth pathi out@(req, _) =
+    if requestMethod req == mth && pathInfo req == pathi
+    then Just out
+    else Nothing
+
+emitLByteString :: LByteString -> IO (IO ByteString)
+emitLByteString lbs = do
+    chunks :: TVar.TVar [ByteString] <- TVar.newTVarIO (LBS.toChunks lbs)
+    pure $ do
+        nextChunk <- atomically $ do
+            xs <- TVar.readTVar chunks
+            case xs of
+                [] -> pure Nothing
+                (x:xs') -> TVar.writeTVar chunks xs' >> pure (Just x)
+        pure $ fromMaybe "" nextChunk
+
 --------------------------------------------------------------------------------
 -- Utilities
 
@@ -201,13 +264,15 @@ onError g m r k e = liftIO $ do
     k (errorRs' e)
 
 -- | Log an 'Error' response for debugging purposes.
+--
+-- It would be nice to have access to the request body here, but that's already streamed away
+-- by the handler in all likelyhood.  See 'heavyDebugLogging'.
 logError :: MonadIO m => Logger -> Maybe Request -> Error -> m ()
 logError g mr (Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
            . field "label" l
            . field "request" (fromMaybe "N/A" (lookupRequestId =<< mr))
-           . field "request_details" (maybe "N/A" show mr)
            . msg (val "\"" +++ m +++ val "\"")
 
 logIO :: ToBytes a => Logger -> Level -> Maybe Request -> a -> IO ()

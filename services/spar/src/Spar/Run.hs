@@ -74,7 +74,8 @@ initCassandra opts lgr = do
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel) (logNetStrings sparCtxOpts)
+  let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
@@ -90,7 +91,9 @@ runServer sparCtxOpts = do
         . Bilge.port (sparCtxOpts ^. to galley . epPort)
         $ Bilge.empty
   let wrappedApp
-        = WU.catchErrors sparCtxLogger mx
+        = WU.heavyDebugLogging
+            (WU.onlyLogEndpoint "POST" ["sso", "finalize-login"]) logLevel sparCtxLogger
+        . WU.catchErrors sparCtxLogger mx
         . promthRun
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware

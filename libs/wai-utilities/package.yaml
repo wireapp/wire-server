@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: wai-utilities
 version: '0.16.1'
@@ -24,6 +24,7 @@ dependencies:
 - metrics-wai >=0.5.7
 - pipes >=4.1
 - streaming-commons >=0.1
+- stm
 - swagger >=0.1
 - text >=0.11
 - transformers >=0.3
