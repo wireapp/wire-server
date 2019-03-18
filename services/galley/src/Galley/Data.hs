@@ -11,7 +11,7 @@ module Galley.Data
     , removeTeamMember
     , team
     , Galley.Data.teamName
-    , getTeamSettings
+    , fetchTeamSettings
     , teamConversation
     , teamConversations
     , teamIdsFrom
@@ -159,8 +159,8 @@ teamName :: MonadClient m => TeamId -> m (Maybe Text)
 teamName tid = fmap runIdentity <$>
     retry x1 (query1 Cql.selectTeamName (params Quorum (Identity tid)))
 
-getTeamSettings :: MonadClient m => TeamId -> m (Maybe TeamSettings)
-getTeamSettings tid = do
+fetchTeamSettings :: MonadClient m => TeamId -> m (Maybe TeamSettings)
+fetchTeamSettings tid = do
   let q = query1 Cql.selectTeamSettings (params Quorum $ Identity tid)
   fmap toTeamSettings <$> retry x5 q
     where
