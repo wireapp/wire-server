@@ -6,8 +6,8 @@ module Galley.API.Teams
     , getTeam
     , getTeamInternal
     , getTeamNameInternal
-    , getTeamSettings, getTeamSettingsInternal
-    , putTeamSettings
+    , getTeamTokenSettings, getTeamTokenSettingsInternal
+    , putTeamTokenSettings
     , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
@@ -75,30 +75,30 @@ getTeamNameInternal :: TeamId ::: JSON -> Galley Response
 getTeamNameInternal (tid ::: _) =
     maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
 
-getTeamSettingsInternal :: TeamId ::: JSON -> Galley Response
-getTeamSettingsInternal (tid ::: _) = getTeamSettings' tid
+getTeamTokenSettingsInternal :: TeamId ::: JSON -> Galley Response
+getTeamTokenSettingsInternal (tid ::: _) = getTeamTokenSettings' tid
 
-getTeamSettings :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamSettings (zusr ::: tid ::: _) = do
+getTeamTokenSettings :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamTokenSettings (zusr ::: tid ::: _) = do
     Data.teamMember tid zusr >>= \case
         Nothing         -> throwM teamMemberNotFound
         Just teamMember -> unless (isTeamOwner teamMember) $ throwM invalidPermissions
-    getTeamSettings' tid
+    getTeamTokenSettings' tid
 
--- | Helper for getTeamSettings handlers; does not perform any authorization checks
-getTeamSettings' :: TeamId -> Galley Response
-getTeamSettings' tid = do
-    defaultTeamSettings <- view (options . optSettings . setDefaultTeamSettings)
-    json . fromMaybe defaultTeamSettings <$> Data.fetchTeamSettings tid
+-- | Helper for getTeamTokenSettings handlers; does not perform any authorization checks
+getTeamTokenSettings' :: TeamId -> Galley Response
+getTeamTokenSettings' tid = do
+    defaultTeamTokenSettings <- view (options . optSettings . setDefaultTeamTokenSettings)
+    json . fromMaybe defaultTeamTokenSettings <$> Data.fetchTeamTokenSettings tid
 
-putTeamSettings :: UserId ::: TeamId ::: Request ::: JSON -> Galley Response
-putTeamSettings (zusr ::: tid ::: req ::: _) = do
+putTeamTokenSettings :: UserId ::: TeamId ::: Request ::: JSON -> Galley Response
+putTeamTokenSettings (zusr ::: tid ::: req ::: _) = do
     Data.teamMember tid zusr
       >>= \case
         Nothing         -> throwM teamMemberNotFound
         Just teamMember -> unless (isTeamOwner teamMember) $ throwM invalidPermissions
-    teamSettings <- fromBody req invalidPayload
-    Data.updateTeamSettings tid teamSettings
+    teamTokenSettings <- fromBody req invalidPayload
+    Data.updateTeamTokenSettings tid teamTokenSettings
     return empty
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response

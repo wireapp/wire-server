@@ -20,7 +20,7 @@ module Galley.Types.Teams.Swagger
   , teamMember
   , teamMemberDelete
   , teamMemberList
-  , teamSettings
+  , teamTokenSettings
   , teamUpdate
   , teamUpdateEvent
   ) where
@@ -126,9 +126,9 @@ teamMember = defineModel "TeamMember" $ do
         description "ID of the inviting user.  Requires created_at."
         optional
 
-teamSettings :: Model
-teamSettings = defineModel "TeamSettings" $ do
-    description "team settings"
+teamTokenSettings :: Model
+teamTokenSettings = defineModel "teamTokenSettings" $ do
+    description "team token settings"
     property "user_token_timeout_seconds" int64' $ do
         description "Time in seconds until user tokens expire"
     property "session_token_timeout_seconds" int64' $ do

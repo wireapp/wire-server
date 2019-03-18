@@ -102,12 +102,12 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
-    , TeamSettings
-    , newTeamSettings
-    , tsUserTokenTimeoutSeconds
-    , tsSessionTokenTimeoutSeconds
-    , tsAccessTokenTimeoutSeconds
-    , tsProviderTokenTimeoutSeconds
+    , TeamTokenSettings
+    , newTeamTokenSettings
+    , ttsUserTokenTimeoutSeconds
+    , ttsSessionTokenTimeoutSeconds
+    , ttsAccessTokenTimeoutSeconds
+    , ttsProviderTokenTimeoutSeconds
 
     , TeamMemberDeleteData
     , tmdAuthPassword
@@ -208,11 +208,11 @@ data TeamUpdateData = TeamUpdateData
     , _iconKeyUpdate :: Maybe (Range 1 256 Text)
     } deriving (Eq, Show)
 
-data TeamSettings = TeamSettings
-    { _tsUserTokenTimeoutSeconds     :: ZAuth.UserTokenTimeout
-    , _tsSessionTokenTimeoutSeconds  :: ZAuth.SessionTokenTimeout
-    , _tsAccessTokenTimeoutSeconds   :: ZAuth.AccessTokenTimeout
-    , _tsProviderTokenTimeoutSeconds :: ZAuth.ProviderTokenTimeout
+data TeamTokenSettings = TeamTokenSettings
+    { _ttsUserTokenTimeoutSeconds     :: ZAuth.UserTokenTimeout
+    , _ttsSessionTokenTimeoutSeconds  :: ZAuth.SessionTokenTimeout
+    , _ttsAccessTokenTimeoutSeconds   :: ZAuth.AccessTokenTimeout
+    , _ttsProviderTokenTimeoutSeconds :: ZAuth.ProviderTokenTimeout
     } deriving (Eq, Show)
 
 data TeamList = TeamList
@@ -357,18 +357,18 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-newTeamSettings
+newTeamTokenSettings
   :: ZAuth.UserTokenTimeout
   -> ZAuth.SessionTokenTimeout
   -> ZAuth.AccessTokenTimeout
   -> ZAuth.ProviderTokenTimeout
-  -> TeamSettings
-newTeamSettings utt stt att ptt =
-  TeamSettings
-  { _tsUserTokenTimeoutSeconds     = utt
-  , _tsSessionTokenTimeoutSeconds  = stt
-  , _tsAccessTokenTimeoutSeconds   = att
-  , _tsProviderTokenTimeoutSeconds = ptt
+  -> TeamTokenSettings
+newTeamTokenSettings utt stt att ptt =
+  TeamTokenSettings
+  { _ttsUserTokenTimeoutSeconds     = utt
+  , _ttsSessionTokenTimeoutSeconds  = stt
+  , _ttsAccessTokenTimeoutSeconds   = att
+  , _ttsProviderTokenTimeoutSeconds = ptt
   }
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
@@ -388,7 +388,7 @@ makeLenses ''NewTeam
 makeLenses ''NewTeamMember
 makeLenses ''Event
 makeLenses ''TeamUpdateData
-makeLenses ''TeamSettings
+makeLenses ''TeamTokenSettings
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
@@ -512,24 +512,24 @@ intToPerms n =
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 
-instance ToJSON TeamSettings where
+instance ToJSON TeamTokenSettings where
     toJSON ts = object
-        $ "user_token_timeout_seconds"     .= (asInteger $ _tsUserTokenTimeoutSeconds ts)
-        # "session_token_timeout_seconds"  .= (asInteger $ _tsSessionTokenTimeoutSeconds ts)
-        # "access_token_timeout_seconds"   .= (asInteger $ _tsAccessTokenTimeoutSeconds ts)
-        # "provider_token_timeout_seconds" .= (asInteger $ _tsProviderTokenTimeoutSeconds ts)
+        $ "user_token_timeout_seconds"     .= (asInteger $ _ttsUserTokenTimeoutSeconds ts)
+        # "session_token_timeout_seconds"  .= (asInteger $ _ttsSessionTokenTimeoutSeconds ts)
+        # "access_token_timeout_seconds"   .= (asInteger $ _ttsAccessTokenTimeoutSeconds ts)
+        # "provider_token_timeout_seconds" .= (asInteger $ _ttsProviderTokenTimeoutSeconds ts)
         # []
       where
         asInteger :: Coercible a Integer => a -> Integer
         asInteger = coerce
 
-instance FromJSON TeamSettings where
+instance FromJSON TeamTokenSettings where
     parseJSON = withObject "team_settings" $ \o -> do
       utt <- o .: "user_token_timeout_seconds"
       stt <- o .: "session_token_timeout_seconds"
       att <- o .: "access_token_timeout_seconds"
       ptt <- o .: "provider_token_timeout_seconds"
-      return $ newTeamSettings utt stt att ptt
+      return $ newTeamTokenSettings utt stt att ptt
 
 
 instance ToJSON TeamList where

@@ -312,34 +312,34 @@ sitemap = do
 
    --
 
-    get "/teams/:tid/settings" (continue getTeamSettings) $
+    get "/teams/:tid/settings" (continue getTeamTokenSettings) $
         zauthUserId
         .&. capture "tid"
         .&. accept "application" "json"
 
-    document "GET" "getTeamSettings" $ do
+    document "GET" "getTeamTokenSettings" $ do
         summary "Get team settings"
         parameter Path "tid" bytes' $
             description "Team ID"
-        returns (ref TeamsModel.teamSettings)
+        returns (ref TeamsModel.teamTokenSettings)
         response 200 "Team settings" end
         errorResponse Error.teamMemberNotFound
         errorResponse Error.invalidPermissions
 
    --
 
-    put "/teams/:tid/settings" (continue putTeamSettings) $
+    put "/teams/:tid/settings" (continue putTeamTokenSettings) $
         zauthUserId
         .&. capture "tid"
         .&. request
         .&. accept "application" "json"
 
 
-    document "PUT" "updateTeamSettings" $ do
+    document "PUT" "updateTeamTokenSettings" $ do
         summary "Update team settings"
         parameter Path "tid" bytes' $
             description "Team ID"
-        body (ref TeamsModel.teamSettings) $
+        body (ref TeamsModel.teamTokenSettings) $
             description "JSON body"
         -- TODO(ChrisPenner) update errors after implementing
    --
@@ -908,7 +908,7 @@ sitemap = do
         capture "tid"
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/settings" (continue getTeamSettingsUnauthed) $
+    get "/i/teams/:tid/settings" (continue getTeamTokenSettingsInternal) $
         capture "tid"
         .&. accept "application" "json"
 

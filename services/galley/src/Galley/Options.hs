@@ -25,7 +25,7 @@ data Settings = Settings
     , _setConversationCodeURI   :: HttpsUrl
     -- | Defaults for team settings.
     --   These are potentially overridden by values stored per-team.
-    , _setDefaultTeamSettings      :: TeamSettings
+    , _setDefaultTeamTokenSettings      :: TeamTokenSettings
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings

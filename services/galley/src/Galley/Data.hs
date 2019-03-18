@@ -11,7 +11,7 @@ module Galley.Data
     , removeTeamMember
     , team
     , Galley.Data.teamName
-    , fetchTeamSettings
+    , fetchTeamTokenSettings
     , teamConversation
     , teamConversations
     , teamIdsFrom
@@ -25,7 +25,7 @@ module Galley.Data
     , deleteTeam
     , removeTeamConv
     , updateTeam
-    , updateTeamSettings
+    , updateTeamTokenSettings
     , updateTeamStatus
 
     -- * Conversations
@@ -159,12 +159,12 @@ teamName :: MonadClient m => TeamId -> m (Maybe Text)
 teamName tid = fmap runIdentity <$>
     retry x1 (query1 Cql.selectTeamName (params Quorum (Identity tid)))
 
-fetchTeamSettings :: MonadClient m => TeamId -> m (Maybe TeamSettings)
-fetchTeamSettings tid = do
-  let q = query1 Cql.selectTeamSettings (params Quorum $ Identity tid)
-  fmap toTeamSettings <$> retry x5 q
+fetchTeamTokenSettings :: MonadClient m => TeamId -> m (Maybe TeamTokenSettings)
+fetchTeamTokenSettings tid = do
+  let q = query1 Cql.selectTeamTokenSettings (params Quorum $ Identity tid)
+  fmap toTeamTokenSettings <$> retry x5 q
     where
-      toTeamSettings (utt, stt, att, ptt) = newTeamSettings utt stt att ptt
+      toTeamTokenSettings (utt, stt, att, ptt) = newTeamTokenSettings utt stt att ptt
 
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
@@ -300,9 +300,9 @@ updateTeam tid u = retry x5 $ batch $ do
     for_ (u^.iconKeyUpdate) $ \k ->
         addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
 
-updateTeamSettings :: MonadClient m => TeamId -> TeamSettings -> m ()
-updateTeamSettings tid tsud =
-  retry x5 $ write Cql.updateTeamSettings
+updateTeamTokenSettings :: MonadClient m => TeamId -> TeamTokenSettings -> m ()
+updateTeamTokenSettings tid tsud =
+  retry x5 $ write Cql.updateTeamTokenSettings
           (params Quorum
                   ( tsud ^. tsUserTokenTimeoutSeconds
                   , tsud ^. tsSessionTokenTimeoutSeconds
