@@ -599,23 +599,22 @@ zType = header "Z-Type"
 
 -- TODO: it'd be nicer to just take a list here and handle the cases with 0
 -- users differently
-connectUsers :: Brig -> UserId -> List1 UserId -> TestM ()
-connectUsers b u us = void $ connectUsersWith expect2xx b u us
+connectUsers :: UserId -> List1 UserId -> TestM ()
+connectUsers u us = void $ connectUsersWith expect2xx u us
 
-connectUsersUnchecked :: Brig
-                      -> UserId
+connectUsersUnchecked :: UserId
                       -> List1 UserId
                       -> TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
 connectUsersUnchecked = connectUsersWith id
 
 connectUsersWith :: (Request -> Request)
-                 -> Brig
                  -> UserId
                  -> List1 UserId
                  -> TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersWith fn b u us = mapM connectTo us
+connectUsersWith fn u us = mapM connectTo us
   where
     connectTo v = do
+        b <- view brig
         r1 <- post ( b
              . zUser u
              . zConn "conn"
@@ -633,15 +632,17 @@ connectUsersWith fn b u us = mapM connectTo us
         return (r1, r2)
 
 -- | A copy of 'putConnection' from Brig integration tests.
-putConnection :: Brig -> UserId -> UserId -> Relation -> TestM ResponseLBS
-putConnection b from to r = put $ b
-    . paths ["/connections", toByteString' to]
-    . contentJson
-    . body payload
-    . zUser from
-    . zConn "conn"
-  where
-    payload = RequestBodyLBS . encode $ object [ "status" .= r ]
+putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
+putConnection from to r = do
+    b <- view brig
+    put $ b
+      . paths ["/connections", toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+    where
+      payload = RequestBodyLBS . encode $ object [ "status" .= r ]
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
@@ -658,8 +659,9 @@ randomUser' hasPassword = do
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-ephemeralUser :: HasCallStack => Brig -> TestM UserId
-ephemeralUser b = do
+ephemeralUser :: HasCallStack => TestM UserId
+ephemeralUser = do
+    b <- view brig
     name <- UUID.toText <$> liftIO nextRandom
     let p = object [ "name" .= name ]
     r <- post (b . path "/register" . json p) <!! const 201 === statusCode
@@ -677,8 +679,9 @@ randomClient usr lk = do
         { newClientPassword = Just (PlainTextPassword defPassword)
         }
 
-ensureDeletedState :: HasCallStack => Brig -> Bool -> UserId -> UserId -> TestM ()
-ensureDeletedState b check from u =
+ensureDeletedState :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
+ensureDeletedState check from u = do
+    b <- view brig
     get ( b
         . paths ["users", toByteString' u]
         . zUser from
@@ -686,21 +689,24 @@ ensureDeletedState b check from u =
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
 
 -- TODO: Refactor, as used also in brig
-deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
-deleteClient b u c pw = delete $ b
-    . paths ["clients", toByteString' c]
-    . zUser u
-    . zConn "conn"
-    . contentJson
-    . body payload
-  where
-    payload = RequestBodyLBS . encode $ object
-        [ "password" .= pw
-        ]
+deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
+deleteClient u c pw = do
+    b <- view brig
+    delete $ b
+      . paths ["clients", toByteString' c]
+      . zUser u
+      . zConn "conn"
+      . contentJson
+      . body payload
+    where
+      payload = RequestBodyLBS . encode $ object
+          [ "password" .= pw
+          ]
 
 -- TODO: Refactor, as used also in brig
-isUserDeleted :: HasCallStack => Brig -> UserId -> TestM Bool
-isUserDeleted b u = do
+isUserDeleted :: HasCallStack => UserId -> TestM Bool
+isUserDeleted u = do
+    b <- view brig
     r <- get (b . paths ["i", "users", toByteString' u, "status"]) <!!
         const 200 === statusCode
 
