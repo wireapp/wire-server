@@ -72,7 +72,6 @@ services:
     networks:
       - demo_wire
 
-  # NOTE: requires you to run: "sudo sysctl -w vm.max_map_count=262144", or you will get 'max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]'. see: https://github.com/docker-library/elasticsearch/issues/98
   elasticsearch:
     container_name: demo_wire_elasticsearch
     #image: elasticsearch:5.6
@@ -88,6 +87,7 @@ services:
 # what's present in the jvm.options file by default.
 #      - "JVM_OPTIONS_ES=-Xmx2g -Xms2g"
       - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
+      - "discovery.type=single-node"
     networks:
       - demo_wire
 
