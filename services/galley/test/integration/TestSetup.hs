@@ -8,9 +8,6 @@ module TestSetup
     , tsCannon
     , tsAwsEnv
     , tsMaxConvSize
-    , Galley
-    , Brig
-    , Cannon
     , TestM(..)
     , TestSetup(..)
     ) where
@@ -23,10 +20,6 @@ import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Bilge (HttpT(..), Manager, MonadHttp, Request, runHttpT)
 
 import qualified Galley.Aws          as Aws
-
-type Galley      = Request -> Request
-type Brig        = Request -> Request
-type Cannon      = Request -> Request
 
 newtype TestM a =
   TestM { runTestM :: ReaderT TestSetup (HttpT IO) a
@@ -43,11 +36,15 @@ newtype TestM a =
              , MonadUnliftIO
              )
 
+type GalleyR      = Request -> Request
+type BrigR        = Request -> Request
+type CannonR      = Request -> Request
+
 data TestSetup = TestSetup
     { _tsManager     :: Manager
-    , _tsGalley      :: Galley
-    , _tsBrig        :: Brig
-    , _tsCannon      :: Cannon
+    , _tsGalley      :: GalleyR
+    , _tsBrig        :: BrigR
+    , _tsCannon      :: CannonR
     , _tsAwsEnv      :: Maybe Aws.Env
     , _tsMaxConvSize :: Word16
     }
