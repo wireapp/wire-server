@@ -2,10 +2,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE GADTs #-}
 module Brig.ClientBuilder  where
 
 import Imports
-import Network.Wai (defaultRequest, Request, Response, ResponseReceived)
+import Network.Wai (defaultRequest, Response, ResponseReceived)
 import Network.Wai.Predicate hiding (setStatus, result, and, (#))
 import qualified Network.Wai.Predicate as P
 import qualified Network.Wai.Predicate.Request as P
@@ -15,68 +16,59 @@ import Data.CaseInsensitive
 import Brig.API.Handler
 import Network.HTTP.Types
 import Control.Arrow((&&&))
+import Data.Proxy
 import GHC.TypeLits
+import Bilge.Request as B
+import Data.ByteString.Char8 (pack)
 
-newtype Tagged t a = T a
+data HeaderP s = HeaderP ByteString
+data QueryP s = QueryP (Maybe ByteString)
 
-type family CallFunc params where
-    CallFunc (p ::: ps) = AsParam p -> CallFunc ps
-    CallFunc () = Request -> Request
-    CallFunc r = r -> (Request -> Request)
+class ApplyParam params where
+    applyParam :: params -> Request -> Request
 
-type family AsParam p where
-    AsParam (HeaderP s) = Tagged (HeaderP s) String
-    AsParam (QueryP s) = Tagged (QueryP s) String
+instance (ApplyParam p, ApplyParam ps) => ApplyParam (p ::: ps) where
+    applyParam (p ::: ps) = applyParam ps . applyParam p
 
-data HeaderP s
-data QueryP s
+instance (KnownSymbol s) => ApplyParam (HeaderP s) where
+    applyParam (HeaderP v) = B.header (mk . pack $  symbolVal (Proxy @s)) v
 
-class ToClient params where
-    toClient :: CallFunc params
+instance (KnownSymbol s) => ApplyParam (QueryP s) where
+    applyParam (QueryP v) = B.query [(pack $ symbolVal (Proxy @s), v)]
 
-class ApplyParam p where
-    applyParam :: AsParam p -> (Request -> Request)
+data ClientMeta = CM { mParams :: ReqParams
+                     } deriving Show
 
-instance {-# OVERLAPPING #-}  (ApplyParam p, ToClient ps) => ToClient (p ::: ps) where
-    toClient v = toClient @ps $ applyParam @p v
+get' :: Monad m
+     => ByteString
+     -> (a -> Continue m -> m ResponseReceived)
+     -> (ReqParams, Predicate RoutingReq P.Error a)
+     -> Routes ClientMeta m ()
+get' pth handler (params, preds) = do
+    get pth handler preds
+    attach (CM { mParams = params })
 
-instance {-# OVERLAPPABLE #-} (ApplyParam p, (CallFunc p) ~ (AsParam p -> (Request -> Request))) => ToClient p where
-    toClient v = applyParam @p v $ defaultRequest
+simpleHandler :: (JSON ::: Text) -> m Response
+simpleHandler (_ ::: _) = undefined
 
+testRoute :: Routes ClientMeta IO ()
+testRoute = do
+    get' "/calls/config" (continue simpleHandler) $
+        accept' "application" "json"
+        .&.. header' "Z-User"
+    attach (CM { mParams = [] })
 
--- data ClientMeta = CM { mParams :: ReqParams
-                     -- } deriving Show
+clientInfo :: [Meta ClientMeta]
+clientInfo = examine testRoute
 
--- get' :: Monad m
---      => ByteString
---      -> (a -> Continue m -> m ResponseReceived)
---      -> (ReqParams, Predicate RoutingReq P.Error a)
---      -> Routes ClientMeta m ()
--- get' pth handler (params, preds) = do
---     get pth handler preds
---     attach (CM { mParams = params })
+data OnRequest = Query String | Header String | ContentType String deriving Show
+type ReqParams = [OnRequest]
 
--- simpleHandler :: (JSON ::: Text) -> m Response
--- simpleHandler (_ ::: _) = undefined
+accept' :: P.HasHeaders r => ByteString -> ByteString -> (ReqParams, Predicate r Error (Media (t :: Symbol) (s :: Symbol)))
+accept' a b = (pure $ ContentType a b, accept a b)
 
--- testRoute :: Routes ClientMeta IO ()
--- testRoute = do
---     get' "/calls/config" (continue simpleHandler) $
---         accept' "application" "json"
---         .&.. header' "Z-User"
---     attach (CM { mParams = [] })
+header' :: P.HasHeaders r => HeaderName -> (ReqParams, Predicate r Error Text)
+header' = (pure . Header &&& header)
 
--- clientInfo :: [Meta ClientMeta]
--- clientInfo = examine testRoute
-
--- data OnRequest = Query String | Header String | ContentType String deriving Show
--- type ReqParams = [OnRequest]
-
--- accept' :: P.HasHeaders r => ByteString -> ByteString -> (ReqParams, Predicate r Error (Media (t :: Symbol) (s :: Symbol)))
--- accept' a b = (pure $ ContentType a b, accept a b)
-
--- header' :: P.HasHeaders r => HeaderName -> (ReqParams, Predicate r Error Text)
--- header' = (pure . Header &&& header)
-
--- (.&..) :: (ReqParams, Predicate a f t) -> (ReqParams, Predicate a f t') -> (ReqParams, Predicate a f (t ::: t'))
--- (.&..) = liftA2 (.&.)
+(.&..) :: (ReqParams, Predicate a f t) -> (ReqParams, Predicate a f t') -> (ReqParams, Predicate a f (t ::: t'))
+(.&..) = liftA2 (.&.)
