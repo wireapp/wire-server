@@ -57,7 +57,7 @@ run o = do
     let rtree    = compile sitemap
         measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
-        start    = measured . catchErrors g m $ Gzip.gzip Gzip.def app
+        start    = measured . catchErrors g (Right m) $ Gzip.gzip Gzip.def app
     runSettings s start `finally` L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3

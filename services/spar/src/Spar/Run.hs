@@ -16,7 +16,6 @@ import Cassandra as Cas
 import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
-import Data.Metrics (metrics)
 import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
 import Network.Wai (Application, Middleware)
@@ -37,6 +36,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
+import qualified Prometheus as Prm
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger as Log
@@ -76,7 +76,7 @@ runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
-  mx <- metrics
+  mx <- Prm.registerIO (pure . Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
       shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
@@ -93,8 +93,8 @@ runServer sparCtxOpts = do
   let wrappedApp
         = WU.heavyDebugLogging
             (WU.onlyLogEndpoint "POST" ["sso", "finalize-login"]) logLevel sparCtxLogger
-        . WU.catchErrors sparCtxLogger mx
         . promthRun
+        . WU.catchErrors sparCtxLogger (Left mx)
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
@@ -106,6 +106,7 @@ lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
+-- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 promthRun :: Middleware
 promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
   where

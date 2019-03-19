@@ -23,6 +23,7 @@ dependencies:
 - metrics-core >=0.1
 - metrics-wai >=0.5.7
 - pipes >=4.1
+- prometheus-client
 - streaming-commons >=0.1
 - stm
 - swagger >=0.1

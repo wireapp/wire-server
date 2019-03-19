@@ -92,7 +92,7 @@ runServer o = do
     endpoint   = brig o
     server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.applog) (e^.metrics)
+               . catchErrors (e^.applog) (Right $ e^.metrics)
                . GZip.gunzip . GZip.gzip GZip.def
                $ serve e
 

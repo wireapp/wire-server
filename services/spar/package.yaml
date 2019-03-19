@@ -54,6 +54,7 @@ dependencies:
   - mtl
   - network-uri
   - optparse-applicative
+  - prometheus-client
   - raw-strings-qq
   - retry
   - saml2-web-sso >= 0.18

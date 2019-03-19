@@ -12,7 +12,7 @@ module Network.Wai.Utilities.Server
 
       -- * Middlewares
     , measureRequests
-    , catchErrors
+    , catchErrors, OnErrorMetrics
     , heavyDebugLogging
     , onlyLogEndpoint
 
@@ -55,6 +55,7 @@ import qualified Data.Text.Lazy.Encoding     as LT
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
 
@@ -169,7 +170,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- them into appropriate 'Error' responses, thereby logging
 -- as well as counting server errors (i.e. exceptions that
 -- yield 5xx responses).
-catchErrors :: Logger -> Metrics -> Middleware
+catchErrors :: Logger -> OnErrorMetrics -> Middleware
 catchErrors l m app req k =
     app req k' `catch` errorResponse
   where
@@ -264,12 +265,19 @@ emitLByteString lbs = do
 --------------------------------------------------------------------------------
 -- Utilities
 
+-- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
+-- package introduced for spar ('Left').
+type OnErrorMetrics = Either Prm.Counter Metrics
+
 -- | Send an 'Error' response.
-onError :: MonadIO m => Logger -> Metrics -> Request -> Continue IO -> Error -> m ResponseReceived
+onError
+    :: MonadIO m
+    => Logger -> OnErrorMetrics -> Request -> Continue IO -> Error
+    -> m ResponseReceived
 onError g m r k e = liftIO $ do
     logError g (Just r) e
     when (statusCode (Error.code e) >= 500) $
-        counterIncr (path "net.errors") m
+        either Prm.incCounter (counterIncr (path "net.errors")) m
     flushRequestBody r
     k (errorRs' e)
 

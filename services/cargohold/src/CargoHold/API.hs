@@ -48,7 +48,7 @@ runServer o = do
     rtree      = compile sitemap
     server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.appLogger) (e^.metrics)
+               . catchErrors (e^.appLogger) (Right $ e^.metrics)
                . GZip.gzip GZip.def
                $ serve e
 
