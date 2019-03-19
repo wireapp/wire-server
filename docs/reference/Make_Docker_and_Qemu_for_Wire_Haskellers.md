@@ -518,8 +518,7 @@ The conditionals are checking for equality, in all cases.
 First, we check to see if LOCALARCH is empty. This can happen if dpkg was unavailable, and the user did not supply a value on the make command line or in the user's bash environment. if that happens, we use make's built in error function to display an error, and break out of the Makefile.
 The second and third conditionals decide on the values of ARCHES and NAMES. Earlier, we determined the default selection for DIST was DEBIAN, so this pair just allows the user to select ALPINE instead. note that the variable assignments in the conditionals are using the overrideable form, so the end user can override these on make's command line or in the user's environment. mac users will want to do this, since they don't have QEMU available in the same form, and are limited to building X86 and AMD64 architecture.
 
-Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, [TODO: I don't understand the rest of the sentence.]
-and have to abuse other operations in a manner that should be familiar to you...
+Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, and have to abuse other operations in 'functionalish' manners...
 
 Now, back to our sed abuse.
 SED is a stream editor, and quite a powerful one. In this case, we're using it for a multi-line search. we're supplying the -n option, which squashes all output, except what sed is told specificly to print something with a command.
