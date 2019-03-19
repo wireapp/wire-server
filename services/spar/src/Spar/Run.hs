@@ -7,7 +7,7 @@
 -- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
-  , runServer
+  , runServer, mkApp
   ) where
 
 import Imports
@@ -74,13 +74,19 @@ initCassandra opts lgr = do
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
+  let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
+      shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
+      sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
+  (wrappedApp, sparCtxLogger -> logger) <- mkApp sparCtxOpts
+  Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
+  WU.runSettingsWithShutdown settings wrappedApp 5
+
+mkApp :: Opts -> IO (Application, Env)
+mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
   mx <- Prm.registerIO (pure . Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
-  let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
-      shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
-      sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
           Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
@@ -98,8 +104,7 @@ runServer sparCtxOpts = do
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
-  Log.info sparCtxLogger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
-  WU.runSettingsWithShutdown settings wrappedApp 5
+  pure (wrappedApp, let sparCtxRequestId = RequestId "N/A" in Env {..})
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do

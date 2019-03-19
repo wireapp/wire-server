@@ -124,6 +124,7 @@ executables:
       - galley-types
       - hspec
       - hspec-discover
+      - hspec-wai
       - lens-aeson
       - MonadRandom
       - random
@@ -133,6 +134,7 @@ executables:
       - stm
       - tinylog
       - wai
+      - wai-extra
       - warp-tls
       - xml-conduit
       - xml-hamlet
