@@ -19,7 +19,7 @@ import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import TestSetup (test,  TestSetup, TestM, cannon, galley)
+import TestSetup (test,  TestSetup, TestM, tsCannon, tsGalley)
 import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
@@ -74,7 +74,7 @@ timeout = 3 # Second
 
 testCreateTeam :: TestM ()
 testCreateTeam = do
-    c <- view cannon
+    c <- view tsCannon
     owner <- Util.randomUser
     WS.bracketR c owner $ \wsOwner -> do
         tid   <- Util.createTeam "foo" owner []
@@ -92,7 +92,7 @@ testCreateTeam = do
 
 testCreateMulitpleBindingTeams :: TestM ()
 testCreateMulitpleBindingTeams = do
-    g <- view galley
+    g <- view tsGalley
     owner <- Util.randomUser
     _     <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
@@ -120,7 +120,7 @@ testCreateBindingTeamWithCurrency = do
 
 testCreateTeamWithMembers :: TestM ()
 testCreateTeamWithMembers = do
-    c <- view cannon
+    c <- view tsCannon
     owner <- Util.randomUser
     user1 <- Util.randomUser
     user2 <- Util.randomUser
@@ -174,7 +174,7 @@ testCreateOne2OneWithMembers
     => Role  -- ^ Role of the user who creates the conversation
     -> TestM ()
 testCreateOne2OneWithMembers (rolePermissions -> perms) = do
-    c <- view cannon
+    c <- view tsCannon
     owner <- Util.randomUser
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
@@ -195,8 +195,8 @@ testCreateOne2OneWithMembers (rolePermissions -> perms) = do
 
 testAddTeamMember :: TestM ()
 testAddTeamMember = do
-    c <- view cannon
-    g <- view galley
+    c <- view tsCannon
+    g <- view tsGalley
     owner <- Util.randomUser
     let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
@@ -222,7 +222,7 @@ testAddTeamMember = do
 
 testAddTeamMemberCheckBound :: TestM ()
 testAddTeamMemberCheckBound = do
-    g <- view galley
+    g <- view tsGalley
     ownerBound <- Util.randomUser
     tidBound   <- Util.createTeamInternal "foo" ownerBound
     assertQueue "create team" tActivate
@@ -241,7 +241,7 @@ testAddTeamMemberCheckBound = do
 
 testAddTeamMemberInternal :: TestM ()
 testAddTeamMemberInternal = do
-    c <- view cannon
+    c <- view tsCannon
     owner <- Util.randomUser
     tid <- Util.createTeam "foo" owner []
     let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
@@ -262,8 +262,8 @@ testAddTeamMemberInternal = do
 
 testRemoveTeamMember :: TestM ()
 testRemoveTeamMember = do
-    c <- view cannon
-    g <- view galley
+    c <- view tsCannon
+    g <- view tsGalley
     owner <- Util.randomUser
     let p1 = Util.symmPermissions [AddRemoveConvMember]
     let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
@@ -309,8 +309,8 @@ testRemoveTeamMember = do
 
 testRemoveBindingTeamMember :: Bool -> TestM ()
 testRemoveBindingTeamMember ownerHasPassword = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner <- Util.randomUser' ownerHasPassword
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
@@ -381,7 +381,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
 
 testAddTeamConv :: TestM ()
 testAddTeamConv = do
-    c <- view cannon
+    c <- view tsCannon
     owner  <- Util.randomUser
     extern <- Util.randomUser
 
@@ -457,7 +457,7 @@ testAddTeamConvAsExternalPartner = do
 
 testAddManagedConv :: TestM ()
 testAddManagedConv = do
-    g <- view galley
+    g <- view tsGalley
     owner <- Util.randomUser
     tid <- Util.createTeam "foo" owner []
     let tinfo = ConvTeamInfo tid True
@@ -530,8 +530,8 @@ testUpdateTeamConv (rolePermissions -> perms) = do
 
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner <- Util.randomUser
     let p = Util.symmPermissions [AddRemoveConvMember]
     member <- newTeamMember' p <$> Util.randomUser
@@ -580,8 +580,8 @@ testDeleteTeam = do
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner  <- Util.randomUser' ownerHasPassword
     tid    <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
@@ -651,8 +651,8 @@ testDeleteBindingTeam ownerHasPassword = do
 
 testDeleteTeamConv :: TestM ()
 testDeleteTeamConv = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner <- Util.randomUser
     let p = Util.symmPermissions [DeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
@@ -716,8 +716,8 @@ testDeleteTeamConv = do
 
 testUpdateTeam :: TestM ()
 testUpdateTeam = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner <- Util.randomUser
     let p = Util.symmPermissions [DeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
@@ -755,8 +755,8 @@ testUpdateTeam = do
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     owner <- Util.randomUser
     let p = Util.symmPermissions [SetMemberPermissions]
     member <- newTeamMember' p <$> Util.randomUser
@@ -810,7 +810,7 @@ testUpdateTeamMember = do
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
-    g <- view galley
+    g <- view tsGalley
     owner <- Util.randomUser
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
@@ -902,7 +902,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
 
 postCryptoBroadcastMessageJson :: TestM ()
 postCryptoBroadcastMessageJson = do
-    c <- view cannon
+    c <- view tsCannon
     -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
     (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -940,7 +940,7 @@ postCryptoBroadcastMessageJson = do
 
 postCryptoBroadcastMessageJson2 :: TestM ()
 postCryptoBroadcastMessageJson2 = do
-    c <- view cannon
+    c <- view tsCannon
     -- Team1: Alice, Bob. Team2: Charlie. Connect Alice,Charlie
     (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
@@ -994,7 +994,7 @@ postCryptoBroadcastMessageProto = do
     -- similar to postCryptoBroadcastMessageJson except uses protobuf
 
     -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
-    c <- view cannon
+    c <- view tsCannon
     (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
     (charlie,cc) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -1033,7 +1033,7 @@ postCryptoBroadcastMessageNoTeam = do
 
 postCryptoBroadcastMessage100OrMaxConns :: TestM ()
 postCryptoBroadcastMessage100OrMaxConns = do
-    c <- view cannon
+    c <- view tsCannon
     (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
     _ <- createTeamInternal "foo" alice
     assertQueue "" tActivate

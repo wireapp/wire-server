@@ -105,7 +105,7 @@ messageTimerChangeO2O = do
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do
-    ca <- view cannon
+    ca <- view tsCannon
     -- Create a conversation
     [alice, bob] <- randomUsers 2
     connectUsers alice (singleton bob)

@@ -2,12 +2,12 @@
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 module TestSetup
     ( test
-    , manager
-    , galley
-    , brig
-    , cannon
-    , awsEnv
-    , maxConvSize
+    , tsManager
+    , tsGalley
+    , tsBrig
+    , tsCannon
+    , tsAwsEnv
+    , tsMaxConvSize
     , Galley
     , Brig
     , Cannon
@@ -44,12 +44,12 @@ newtype TestM a =
              )
 
 data TestSetup = TestSetup
-    { _manager     :: Manager
-    , _galley      :: Galley
-    , _brig        :: Brig
-    , _cannon      :: Cannon
-    , _awsEnv      :: Maybe Aws.Env
-    , _maxConvSize :: Word16
+    { _tsManager     :: Manager
+    , _tsGalley      :: Galley
+    , _tsBrig        :: Brig
+    , _tsCannon      :: Cannon
+    , _tsAwsEnv      :: Maybe Aws.Env
+    , _tsMaxConvSize :: Word16
     }
 
 makeLenses ''TestSetup
@@ -61,5 +61,5 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
         setup <- s
-        void . runHttpT (setup ^. manager) . flip runReaderT setup . runTestM $ h
+        void . runHttpT (setup ^. tsManager) . flip runReaderT setup . runTestM $ h
 

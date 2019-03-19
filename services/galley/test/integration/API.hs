@@ -97,20 +97,20 @@ tests s = testGroup "Galley integration tests"
 
 status :: TestM ()
 status = do
-    g <- view galley
+    g <- view tsGalley
     get (g . path "/i/status") !!!
       const 200 === statusCode
 
 monitor :: TestM ()
 monitor = do
-    g <- view galley
+    g <- view tsGalley
     get (g . path "/i/monitoring") !!! do
         const 200 === statusCode
         const (Just "application/json") =~= getHeader "Content-Type"
 
 postConvOk :: TestM ()
 postConvOk = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     jane  <- randomUser
@@ -139,7 +139,7 @@ postConvOk = do
 
 postCryptoMessage1 :: TestM ()
 postCryptoMessage1 = do
-    c <- view cannon
+    c <- view tsCannon
     (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -226,7 +226,7 @@ postCryptoMessage1 = do
 
 postCryptoMessage2 :: TestM ()
 postCryptoMessage2 = do
-    b <- view brig
+    b <- view tsBrig
     (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -248,7 +248,7 @@ postCryptoMessage2 = do
 
 postCryptoMessage3 :: TestM ()
 postCryptoMessage3 = do
-    b <- view brig
+    b <- view tsBrig
     (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -325,7 +325,7 @@ postCryptoMessage5 = do
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     conv  <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing Nothing
@@ -337,7 +337,7 @@ postJoinConvOk = do
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     eve   <- ephemeralUser
@@ -374,7 +374,7 @@ postJoinCodeConvOk = do
 
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     conv  <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess] Nothing Nothing
     -- Cannot do code operations if conversation not in code access
@@ -412,7 +412,7 @@ postConvertCodeConv = do
 
 postConvertTeamConv :: TestM ()
 postConvertTeamConv = do
-    c <- view cannon
+    c <- view tsCannon
     -- Create a team conversation with team-alice, team-bob, activated-eve
     -- Non-activated mallory can join
     alice <- randomUser
@@ -577,7 +577,7 @@ postConvFailNotConnected = do
 
 postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
-    n <- fromIntegral <$> view maxConvSize
+    n <- fromIntegral <$> view tsMaxConvSize
     alice <- randomUser
     bob:others <- replicateM n (randomUser)
     connectUsers alice (list1 bob others)
@@ -621,7 +621,7 @@ postO2OConvOk = do
 
 postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
-    g <- view galley
+    g <- view tsGalley
     alice <- randomUser
     let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
@@ -741,14 +741,14 @@ postRepeatConnectConvCancel = do
         privateAccess   @=? cnvAccess cnv4
   where
     cancel u c = do
-        g <- view galley
+        g <- view tsGalley
         put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u) !!!
             const 200 === statusCode
         getConv u (cnvId c) !!! const 404 === statusCode
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
-    g <- view galley
+    g <- view tsGalley
     alice <- randomUser
     bob   <- randomUser
     conv  <- decodeBody' "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
@@ -797,7 +797,7 @@ getConvOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
-    g <- view galley
+    g <- view tsGalley
     alice <- randomUser
     bob   <- randomUser
     chuck <- randomUser
@@ -887,7 +887,7 @@ postMembersFail = do
 
 postTooManyMembersFail :: TestM ()
 postTooManyMembersFail = do
-    n <- fromIntegral <$> view maxConvSize
+    n <- fromIntegral <$> view tsMaxConvSize
     alice <- randomUser
     bob   <- randomUser
     chuck <- randomUser
@@ -928,8 +928,8 @@ deleteMembersFailO2O = do
 
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     connectUsers alice (singleton bob)
@@ -980,7 +980,7 @@ putMemberAllOk = putMemberOk
 
 putMemberOk :: MemberUpdate ->  TestM ()
 putMemberOk update = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     connectUsers alice (singleton bob)
@@ -1035,8 +1035,8 @@ putMemberOk update = do
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
-    g <- view galley
-    c <- view cannon
+    g <- view tsGalley
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     jane  <- randomUser
@@ -1098,7 +1098,7 @@ putReceiptModeOk = do
 
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
-    g <- view galley
+    g <- view tsGalley
     alice <- randomUser
     bob   <- randomUser
     connectUsers alice (singleton bob)
@@ -1122,7 +1122,7 @@ postTypingIndicators = do
 
 removeUser :: TestM ()
 removeUser = do
-    c <- view cannon
+    c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     carl  <- randomUser
