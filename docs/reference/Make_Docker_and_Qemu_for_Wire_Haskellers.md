@@ -37,7 +37,7 @@ Docker contains just enough built-in logic to interpret a manifest file on docke
 
 If you're building a docker image for multiple architectures, you want a Manifest, so that docker automatically grabs the right image for the user's machine. This changes our workflow from earlier quite a bit:
 
-I build a docker image from a Dockerfile, and i build other images from slightly different versions of this Dockerfile (more on this later). I tag these images with a suffix, so that i can tell them apart. I upload the images to dockerhub, retaining the tags that differentiate the diffenent versions from each other. I create a manifest file, referring to the images that have been pushed to DockerHub, and upload the manifest file to DockerHub. People can download and use the image from dockerhub by refering to the tag of the manifest file. I can share the Dockerfile and additions via git, on dockerhub, and others can build their own images from it.
+I build a docker image from a Dockerfile, and I build other images from slightly different versions of this Dockerfile (more on this later). I tag these images with a suffix, so that I can tell them apart. I upload the images to dockerhub, retaining the tags that differentiate the diffenent versions from each other. I create a manifest file, referring to the images that have been pushed to DockerHub, and upload the manifest file to DockerHub. People can download and use the image from dockerhub by refering to the tag of the manifest file. I can share the Dockerfile and additions via git, on dockerhub, and others can build their own images from it.
 
 #### What does this look like?
 
@@ -80,7 +80,7 @@ That wasn't so bad, was it?
 The sed commands used above accomplished two things. One, they changed out the MAINTAINER line in the Dockerfile, to indicate that I am the maintainer of this docker image. Two, for the 386 image, it specified that Docker was to start by using the i386 version of debian to base the image off of, not the AMD64 version. we did not need to make that change to the AMD64 version of the Dockerfile, because Docker on our local machine automatically downloads AMD64 images, since our copies of docker were built on AMD64 machines.
 
 ##### OK, what was the --amend on the docker manifest create line?
-Docker creates manifest files, and stores them in your local docker. I haven't found a good way to remove them, so instead, i add --amend, so that docker changes the local file, instead of just telling you it already exists, and failing.
+Docker creates manifest files, and stores them in your local docker. I haven't found a good way to remove them, so instead, I add --amend, so that docker changes the local file, instead of just telling you it already exists, and failing.
 
 ##### What does a manifest file look like?
 to look at a manifest file (local or remote), use 'docker manifest inspect'. for example, here's the original namshi/smtp manifest.
@@ -382,7 +382,7 @@ Make looks at it's environment in order to decide what to do, so here are some e
 - `DOCKER`_REALNAME: again, our name string that will be displayed in DockerHub.
 - `SED`: which sed binary to use. Mac users should install GSED, and pass the path to it in this variable.
 
-To build all of the debian based images locally on my machine, i run
+To build all of the debian based images locally on my machine, I run
 ```bash
 make DIST=DEBIAN DOCKER_USERNAME=julialongtin DOCKER_EMAIL=julia.longtin@wire.com DOCKER_REALNAME='Julia Longtin' build-all -j".
 ```
@@ -414,7 +414,7 @@ To remove all of the git repositories containing the Dockerfiles we download to 
 
 OK, now that we have a handle on what it does, and how to use it, let's get into the Makefile itsself.
 
-A Makefile is a series of rules for performing tasks, variables used when creating those tasks, and some minimal functions and conditional structures.  Rules are implemented as groups of bash commands, where each line is handled by a new bash interpreter. Personally, i think it 'feels functiony', only without a type system and with lots of side effects. Like if bash tried to be functional.
+A Makefile is a series of rules for performing tasks, variables used when creating those tasks, and some minimal functions and conditional structures.  Rules are implemented as groups of bash commands, where each line is handled by a new bash interpreter. Personally, I think it 'feels functiony', only without a type system and with lots of side effects. Like if bash tried to be functional.
 
 ### Variables
 
@@ -481,16 +481,18 @@ JESSIENAMES and STRETCHNAMES are used similarly, only they are actually referred
 
 ALPINEARCHES and ALPINENAMES work similarly, and are used when we've provided "DIST=ALPINE". We do not divide into seperate variables quite the same way as debian, because all of our alpine images are based on alpine 3.7.
 
-PREBUILDS contains our dependency map. essentially, this is a set of pairs of image names, where the first image mentioned depends on the second image. so, airdock_rvm depends on airdock_base, where airdock_fakesqs depends on airdock_rvm, etc.  this means that our docker image names may not contain `-`s (not sure this is allowed by docker).
+PREBUILDS contains our dependency map. essentially, this is a set of pairs of image names, where the first image mentioned depends on the second image. so, airdock_rvm depends on airdock_base, where airdock_fakesqs depends on airdock_rvm, etc.  this means that our docker image names may not contain `-`s. Dockerhub allows it, but this makefile needed a seperator... and that's the one I picked.
 
-BADARCH is similar, pairing the name of an image with the architecture it fails to build on. This is so i can blacklist things that don't work yet.
+BADARCH is similar, pairing the name of an image with the architecture it fails to build on. This is so I can blacklist things that don't work yet.
 
-LOCALDEBARCH is a variable set by executing a small snippet of bash. the snippet makes sure dpkg is installed (the debian package manager), and uses dpkg to determine what the architecture of your local machine is. As you remember from when we were building docker images by hand, docker will automatically fetch an image that is compiled for your current architecture, so we use LOCALDEBARCH later to decide what architectures we need to fetch and which we can skip.
+LOCALDEBARCH is a variable set by executing a small snippet of bash. The snippet makes sure dpkg is installed (the debian package manager), and uses dpkg to determine what the architecture of your local machine is. As you remember from when we were building docker images by hand, docker will automatically fetch an image that is compiled for your current architecture, so we use LOCALDEBARCH later to decide what architectures we need to fetch with a prefix or postfix, and which we can fetch normally.
 
 NOMANIFEST lists images that need a work-around for fetching image dependencies for specific architectures. You know how we added the name of the architecture BEFORE the image name in the dockerfiles? well, in the case of the dependencies of the images listed here, dockerhub isn't supporting that. DockerHub is supporting that form only for 'official' docker images, like alpine, debian, etc. as a result, in order to fetch an architecture specific version of the dependencies of these images, we need to add a -<arch> suffix. like -386 -arm32v7, etc.
 
 ### Conditionals
 We don't make much use of conditionals, but there are three total uses in this Makefile. let's take a look at them.
+
+In order to look at our conditionals (and many other sections of this Makefile later), we're going to abuse sed. If you're not comfortable with the sed shown here, or are having problems getting it to work, you can instead just open the Makefile in your favorite text editor, and search around. I abuse sed here for both brevity, and to encourage the reader to understand complicated sed commands, for when we are using them later IN the Makefile.
 
 SED ABUSE:
 to get our list of conditionals out of the Makefile, we're going to use some multiline sed. specifically, we're going to look for a line starting with 'ifeq', lines starting with two spaces, then the line following.
@@ -511,14 +513,12 @@ endif
 $
 ```
 
-[TODO: this is really cool, but it may be easier to digest if we just point the reader to the places in the Makefile where this happens.  anyway that's where i looked; i don't have a lot of trust that my understanding of how what i see here relates to what's in the Makefile.  the abuse in the next example ("functions") is simple enough for me to be comfortable with it :-).  perhaps you can just leave this one in as well and explain better how to read around it?]
-
 There's a lot to unpack there, so let's start with the simple part, the conditionals.
 The conditionals are checking for equality, in all cases.
 First, we check to see if LOCALARCH is empty. This can happen if dpkg was unavailable, and the user did not supply a value on the make command line or in the user's bash environment. if that happens, we use make's built in error function to display an error, and break out of the Makefile.
 The second and third conditionals decide on the values of ARCHES and NAMES. Earlier, we determined the default selection for DIST was DEBIAN, so this pair just allows the user to select ALPINE instead. note that the variable assignments in the conditionals are using the overrideable form, so the end user can override these on make's command line or in the user's environment. mac users will want to do this, since they don't have QEMU available in the same form, and are limited to building X86 and AMD64 architecture.
 
-Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, [TODO: i don't understand the rest of the sentence.]
+Note that conditionals are evaluated when the file is read, once. This means that we don't have the ability to use them in our rules, or in our functions, [TODO: I don't understand the rest of the sentence.]
 and have to abuse other operations in a manner that should be familiar to you...
 
 Now, back to our sed abuse.
@@ -632,7 +632,7 @@ Our Makefile is much more advanced, necessatating this document, to ensure maint
 
 A single make rule is divided into three sections: what you want to build, what you need to build first, and the commands you run to build the thing in question:
 ```make
-my_thing: things i need first
+my_thing: things I need first
         bash commands to build it
 
 target: prerequisites
@@ -642,9 +642,7 @@ target: prerequisites
 The commands to build a thing (recipe lines) are prefaced with a tab character, and not spaces. Each line is executed in a seperate shell instance.
 
 
-#### The tops of the trees
-
-[TODO: i would use "root" instead of "top".]
+#### The roots of the trees
 
 In the section where we showed you how to use our Makefile, we were calling 'make' with an option, such as push-all, build-smtp, names, or clean. We're now going to show you the rules that implement these options.
 
@@ -668,7 +666,7 @@ names:
 
 Most Makefiles change their environment. Having changed their environment, most users want a quick way to set the environment back to default, so they can make changes, and build again. to enable this, as a convention, most Makefiles have a 'clean' rule. Ours remove the git repos that we build the docker images from. note the hardcoded list of '-all' directories: these are the git repos for images where the git repo does not simply have a Dockerfile at the root of the repo. In those cases, our rules that check out the repos check them out to <imagename>-all, then do Things(tm) to create a <imagename>/Dockerfile.
 
-cleandocker is a rule i use on my machine, when docker images have gotten out of control. it removes all of the docker images on my machine, and is not meant to be regularly run.
+cleandocker is a rule I use on my machine, when docker images have gotten out of control. it removes all of the docker images on my machine, and is not meant to be regularly run.
 
 names displays the names of the images this Makefile knows about. It uses a single @ symbol at the beginning of the rules. this tells make that it should NOT display the command that make is running, when make runs it.
 
@@ -772,11 +770,11 @@ First, let's tackle the roles of these rules. the *upload* rules are responsible
 
 these rules are setup in groups of three:
 
-upload-% and create-% form the top of these groups. upload-% depends on create-%, and create-% depends on the creation of a Dockerfile for this image, which is the bottom of our dependency tree.
+upload-% and create-% form the root of these groups. upload-% depends on create-%, and create-% depends on the creation of a Dockerfile for this image, which is the bottom of our dependency tree.
 
 upload-%/create-% depend on two rules: dep-upload-%/depend-create-%, which handle the upload/create for the image that THIS image depends on. There are also dep-subupload-% and dep-subcreate-% rules, to handle the dependency of the dependency of this image.
 
-This dependency-of, and dependency-of-dependency logic is necessary because Make will not let us run a recursive rule: no rule can be in one branch of the dependency graph more than once. so instead, the top of our dependency tree either starts with a single image, or with a list of images that are the top of their own dependency graphs.
+This dependency-of, and dependency-of-dependency logic is necessary because Make will not let us run a recursive rule: no rule can be in one branch of the dependency graph more than once. so instead, the root of our dependency tree either starts with a single image, or with a list of images that are the root of their own dependency graphs.
 
 
 Now let's look at the rules themselves.
@@ -975,7 +973,7 @@ The second and third change happens at the place in this file where it fails. On
 Now, let's look through the sed that did that.
 The first sed command in this rule changed the path on the FROM line, just like the similar sed statement in the last make rule we were looking at.
 The second sed command added a 'WORKDIR /' to the bottom of the Dockerfile, after the USER root.
-The third SED command changes the USER line at the top of the fire to using the root user to run the next command, instead of the ruby user.
+The third SED command changes the USER line at the top of the file to using the root user to run the next command, instead of the ruby user.
 Finally, the fourth SED command changes the first RUN command into two run commands. one creates the directory and makes sure we have permissions to it, while the second runs our command. the sed command also inserts commands to change user to ruby, and change working directories to the directory created in the first RUN command.
 
 Structurally, the first, second, and third sed command are all pretty standard things we've seen before. The fourth command looks a little different, but really, it's the same sort of substitution, only it adds several lines. At the end of the statement is some tricky escaping.
@@ -1066,10 +1064,10 @@ This substitution command uses slashes as its separators. it starts by anchoring
 
 The cassandra/Dockerfile rule is almost identical to this last rule, only substituting out the name of the variable we expect from docker to CS_JVM_OPTIONS, and changing the path to the jvm.options file.
 
-# Pitfalls i fell into writing this.
+# Pitfalls I fell into writing this.
 
-The first large mistake i made when writing this, is that the 'top' of the tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once.
+The first large mistake I made when writing this, is that the root of the makefile's dependency tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once.
 
-The second was that i didn't really understand that manifest files refer to dockerhub only, not to the local machine. This was giving me similar race conditions, where an image build for architecture A would complete, and try to build the manifest when architecture B was still building.
+The second was that I didn't really understand that manifest files refer to dockerhub only, not to the local machine. This was giving me similar race conditions, where an image build for architecture A would complete, and try to build the manifest when architecture B was still building.
 
 The third was writing really complicated SED and BASH and MAKE. ;p
