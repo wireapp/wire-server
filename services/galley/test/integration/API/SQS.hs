@@ -22,6 +22,7 @@ import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
 import System.Logger.Class
 import Test.Tasty.HUnit
+import TestSetup
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Currency as Currency
@@ -33,22 +34,28 @@ import qualified Network.AWS.SQS as SQS
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger as L
 
-ensureQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
-ensureQueueEmpty (Just env) = liftIO $ Aws.execute env purgeQueue
-ensureQueueEmpty Nothing    = return ()
+ensureQueueEmpty :: TestM ()
+ensureQueueEmpty  = view tsAwsEnv >>= ensureQueueEmptyIO
 
-assertQueue :: MonadIO m => String -> Maybe Aws.Env -> (String -> Maybe E.TeamEvent -> IO ()) -> m ()
-assertQueue label (Just env) check = liftIO $ Aws.execute env $ fetchMessage label check
-assertQueue _     Nothing    _     = return ()
+ensureQueueEmptyIO :: MonadIO m => Maybe Aws.Env -> m ()
+ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
+ensureQueueEmptyIO Nothing    = return ()
+
+assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
+assertQueue label check = view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env $ fetchMessage label check
+    Nothing -> return ()
 
 -- Try to assert an event in the queue for a `timeout` amount of seconds
-tryAssertQueue :: MonadIO m => Int -> String -> Maybe Aws.Env -> (String -> Maybe E.TeamEvent -> IO ()) -> m ()
-tryAssertQueue timeout label (Just env) check = liftIO $ Aws.execute env $ awaitMessage label timeout check
-tryAssertQueue _       _     Nothing    _     = return ()
+tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
+tryAssertQueue timeout label check = view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
+    Nothing -> return ()
 
-assertQueueEmpty :: (HasCallStack, MonadIO m) => Maybe Aws.Env -> m ()
-assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
-assertQueueEmpty Nothing    = return ()
+assertQueueEmpty :: (HasCallStack) => TestM ()
+assertQueueEmpty = view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env ensureNoMessages
+    Nothing -> return ()
 
 tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
 tActivateWithCurrency c l (Just e) = do
