@@ -7,15 +7,23 @@ module Spar.Data
   , Env(..)
   , mkEnv
   , mkTTLAssertions
+  -- * SAML state handling
   , storeAReqID, unStoreAReqID, isAliveAReqID
   , storeAssID, unStoreAssID, isAliveAssID
   , storeVerdictFormat
   , getVerdictFormat
-  , insertUser
-  , getUser
-  , deleteUsersByIssuer
+
+  -- * SAML Users
+  , insertSAMLUser
+  , getSAMLUser
+  , deleteSAMLUsersByIssuer
+  , deleteSAMLUser
+
+  -- * Cookies
   , insertBindCookie
   , lookupBindCookie
+
+  -- * IDPs
   , storeIdPConfig
   , getIdPConfig
   , getIdPConfigByIssuer
@@ -35,6 +43,7 @@ module Spar.Data
   , insertScimUser
   , getScimUser
   , getScimUsers
+  , deleteScimUser
   ) where
 
 import Imports
@@ -51,6 +60,7 @@ import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictForma
 import Spar.Types
 import Spar.Scim.Types
 import URI.ByteString
+import Text.RawString.QQ
 
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
@@ -196,24 +206,31 @@ getVerdictFormat req = (>>= toVerdictFormat) <$>
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = runIdentity <$$>
+getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+getSAMLUser (SAML.UserRef tenant subject) = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
-deleteUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
-deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user WHERE issuer = ?"
+
+-- | Delete a user from the saml users table.
+deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+deleteSAMLUser (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+  where
+    del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
+    del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
@@ -362,7 +379,7 @@ deleteTeam team = do
     for_ idps $ \idp -> do
       let idpid = idp ^. SAML.idpId
           issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      deleteUsersByIssuer issuer
+      deleteSAMLUsersByIssuer issuer
       deleteIdPConfig idpid issuer team
 
 ----------------------------------------------------------------------
@@ -386,12 +403,16 @@ insertScimToken token ScimTokenInfo{..} = retry x5 $ batch $ do
     addPrepQuery insByTeam  (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
   where
     insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
-    insByToken = "INSERT INTO team_provisioning_by_token \
-                 \(token_, team, id, created_at, idp, descr) \
-                 \VALUES (?, ?, ?, ?, ?, ?)"
-    insByTeam  = "INSERT INTO team_provisioning_by_team \
-                 \(token_, team, id, created_at, idp, descr) \
-                 \VALUES (?, ?, ?, ?, ?, ?)"
+    insByToken = [r|
+      INSERT INTO team_provisioning_by_token
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+    |]
+    insByTeam  = [r|
+      INSERT INTO team_provisioning_by_team
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+    |]
 
 -- | Check whether a token exists and if yes, what team and IdP are
 -- associated with it.
@@ -403,8 +424,10 @@ lookupScimToken token = do
     pure $ fmap fromScimTokenRow mbRow
   where
     sel :: PrepQuery R (Identity ScimToken) ScimTokenRow
-    sel = "SELECT token_, team, id, created_at, idp, descr \
-          \FROM team_provisioning_by_token WHERE token_ = ?"
+    sel = [r|
+      SELECT token_, team, id, created_at, idp, descr
+        FROM team_provisioning_by_token WHERE token_ = ?
+    |]
 
 -- | List all tokens associated with a team, in the order of their creation.
 getScimTokens
@@ -417,8 +440,10 @@ getScimTokens team = do
     pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
-    sel = "SELECT token_, team, id, created_at, idp, descr \
-          \FROM team_provisioning_by_team WHERE team = ?"
+    sel = [r|
+      SELECT token_, team, id, created_at, idp, descr
+        FROM team_provisioning_by_team WHERE team = ?
+    |]
 
 -- | Delete a token.
 deleteScimToken
@@ -434,16 +459,22 @@ deleteScimToken team tokenid = do
             addPrepQuery delByToken (Identity token)
   where
     selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimToken)
-    selById = "SELECT token_ FROM team_provisioning_by_team \
-              \WHERE team = ? AND id = ?"
+    selById = [r|
+      SELECT token_ FROM team_provisioning_by_team
+        WHERE team = ? AND id = ?
+    |]
 
     delById :: PrepQuery W (TeamId, ScimTokenId) ()
-    delById = "DELETE FROM team_provisioning_by_team \
-              \WHERE team = ? AND id = ?"
+    delById = [r|
+      DELETE FROM team_provisioning_by_team
+        WHERE team = ? AND id = ?
+    |]
 
     delByToken :: PrepQuery W (Identity ScimToken) ()
-    delByToken = "DELETE FROM team_provisioning_by_token \
-                 \WHERE token_ = ?"
+    delByToken = [r|
+      DELETE FROM team_provisioning_by_token
+        WHERE token_ = ?
+    |]
 
 -- | Delete all tokens belonging to a team.
 deleteTeamScimTokens
@@ -505,3 +536,14 @@ getScimUsers uids = runIdentity <$$>
     sel :: PrepQuery R (Identity [UserId])
                        (Identity (ScimC.User.StoredUser ScimUserExtra))
     sel = "SELECT json FROM scim_user WHERE id in ?"
+
+
+-- | Delete a SCIM user by id.
+-- You'll also want to ensure they are deleted in Brig and in the SAML Users table.
+deleteScimUser
+  :: (HasCallStack, MonadClient m)
+  => UserId -> m ()
+deleteScimUser uid = retry x5 . write del $ params Quorum (Identity uid)
+  where
+    del :: PrepQuery W (Identity UserId) ()
+    del = "DELETE FROM scim_user WHERE id = ?"

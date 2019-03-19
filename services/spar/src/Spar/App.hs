@@ -127,7 +127,7 @@ wrapMonadClient action = do
       (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
+insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
@@ -136,7 +136,7 @@ insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
 getUser uref = do
-  muid <- wrapMonadClient $ Data.getUser uref
+  muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -170,7 +170,7 @@ createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createUser_ buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid mbName managedBy
+  buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
@@ -178,11 +178,11 @@ createUser_ buid suid mbName managedBy = do
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-  uteamid <- Intra.getUserTeam buid
+  uteamid <- Intra.getBrigUserTeam buid
   unless (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindUser buid userref >>= \case
+  Intra.bindBrigUser buid userref >>= \case
     True  -> pure buid
     False -> do
       SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
