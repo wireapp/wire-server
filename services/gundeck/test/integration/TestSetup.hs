@@ -23,7 +23,7 @@ import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Bilge (HttpT(..), Manager, MonadHttp, Request, runHttpT)
 
 import qualified Cassandra           as Cql
-import qualified Galley.Aws          as Aws
+import qualified System.Logger       as Log
 
 newtype TestM a =
   TestM { runTestM :: ReaderT TestSetup (HttpT IO) a

@@ -17,10 +17,10 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.Options
-import Types
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import TestSetup
 
 import qualified API
 import qualified System.Logger   as Logger
@@ -74,10 +74,10 @@ main = withOpenSSL $ runTests go
         let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
         gConf <- handleParseError =<< decodeFileEither gFile
         iConf <- handleParseError =<< decodeFileEither iFile
-        g <- Gundeck . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
-        c <- Cannon  . mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-        c2 <- Cannon  . mkRequest <$> optOrEnv cannon2 iConf (local . read) "CANNON2_WEB_PORT"
-        b <- Brig    . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+        g  <- GundeckR . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
+        c  <- CannonR  . mkRequest <$> optOrEnv cannon  iConf (local . read) "CANNON_WEB_PORT"
+        c2 <- CannonR  . mkRequest <$> optOrEnv cannon2 iConf (local . read) "CANNON2_WEB_PORT"
+        b  <- BrigR    . mkRequest <$> optOrEnv brig    iConf (local . read) "BRIG_WEB_PORT"
         ch <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
         cp <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
         ck <- optOrEnv (\v -> v^.optCassandra.casKeyspace) gConf pack "GUNDECK_CASSANDRA_KEYSPACE"
