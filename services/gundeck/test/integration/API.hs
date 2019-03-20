@@ -41,6 +41,8 @@ import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
 import qualified Prelude
+import qualified System.Logger          as Log
+import qualified System.Logger.Extended as Log
 
 appName :: AppName
 appName = AppName "test"
@@ -136,9 +138,18 @@ removeUser g c _ s = do
     deleteUser g user
     ntfs <- listNotifications user Nothing g
     liftIO $ do
-        tokens <- Cql.runClient s (Push.lookup user Push.Quorum)
+        logger <- Log.new Log.defSettings
+        tokens <- Cql.runClient s (runWithLogger logger $ Push.lookup user Push.Quorum)
         null tokens    @?= True
         ntfs           @?= []
+  where
+    -- This is a bit of a hack; the Client monad is no longer a 'MonadLogger' (cql-io had a
+    -- breaking change), but our code still requires it, so we wrap the client monad with
+    -- LoggerT which has MonadLogger (it's just a Reader over Logger) to satisfy the logger
+    -- constraints of our code; then we run the logger and get a Client monad to pass to
+    -- 'runClient'. This would be nicer if there was a ClientT; but there isn't :'(
+    runWithLogger :: Log.Logger -> Log.LoggerT m a -> m a
+    runWithLogger logger = flip runReaderT logger . Log.runLoggerT
 
 replacePresence :: TestSignature ()
 replacePresence gu ca _ _ = do
