@@ -1,19 +1,13 @@
 module Galley.API where
 
 import Imports hiding (head)
-import Cassandra (runClient, shutdown)
-import Cassandra.Schema (versionCheck)
-import Control.Exception (finally)
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
 import Data.Metrics.Middleware as Metrics
-import Data.Metrics.WaiRoute (treeToPaths)
-import Data.Misc
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.App
 import Galley.API.Clients
@@ -21,7 +15,6 @@ import Galley.API.Create
 import Galley.API.Update
 import Galley.API.Teams
 import Galley.API.Query
-import Galley.Options
 import Galley.Types (OtrFilterMissing (..))
 import Galley.Types.Teams (Perm (..))
 import Network.HTTP.Types
@@ -32,44 +25,15 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.Server hiding (serverPort)
-import Util.Options
 
-import qualified Control.Concurrent.Async      as Async
 import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
-import qualified Galley.Data                   as Data
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
 import qualified Network.Wai.Predicate         as P
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified System.Logger                 as Log
-
-run :: Opts -> IO ()
-run o = do
-    m <- metrics
-    e <- createEnv m o
-    let l = e^.applog
-    s <- newSettings $ defaultServer (unpack $ o^.optGalley.epHost)
-                                     (portNumber $ fromIntegral $ o^.optGalley.epPort)
-                                     l
-                                     m
-    runClient (e^.cstate) $
-        versionCheck Data.schemaVersion
-    d <- Async.async $ evalGalley e Internal.deleteLoop
-    let rtree    = compile sitemap
-        measured = measureRequests m (treeToPaths rtree)
-        app r k  = runGalley e r (route rtree r k)
-        start    = measured . catchErrors l m . GZip.gunzip . GZip.gzip GZip.def $ app
-    runSettingsWithShutdown s start 5 `finally` do
-        Async.cancel d
-        shutdown (e^.cstate)
-        Log.flush l
-        Log.close l
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
