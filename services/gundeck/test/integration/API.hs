@@ -41,7 +41,6 @@ import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
 import qualified Prelude
-import qualified System.Logger          as Log
 import qualified System.Logger.Extended as Log
 
 appName :: AppName
@@ -105,16 +104,15 @@ addUser = registerUser
 removeUser :: TestM ()
 removeUser = do
     g <- view tsGundeck
-    c <- view tsCannon
     s <- view tsCass
     logger <- view tsLogger
     user <- fst <$> registerUser
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
-    _    <- registerPushToken user tok g
-    _    <- sendPush g (buildPush user [(user, RecipientClientsAll)] (textPayload "data"))
+    _    <- registerPushToken user tok
+    _    <- sendPush (buildPush user [(user, RecipientClientsAll)] (textPayload "data"))
     deleteUser g user
-    ntfs <- listNotifications user Nothing g
+    ntfs <- listNotifications user Nothing
     liftIO $ do
         -- Creating a new logger here is a bit of a hack; the Client monad is no longer a
         -- 'MonadLogger' (cql-io had a breaking change), but our code still requires it, so we
@@ -138,7 +136,7 @@ replacePresence = do
     let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0 ""
     void $ connectUser ca uid con
     setPresence gu pres1 !!! const 201 === statusCode
-    sendPush gu (push uid [uid])
+    sendPush (push uid [uid])
     getPresence gu (showUser uid) !!! do
         const 2 === length . decodePresence
         assertTrue "Cannon is not removed" $
@@ -157,18 +155,17 @@ replacePresence = do
 
 removeStalePresence :: TestM ()
 removeStalePresence = do
-    gu <- view tsGundeck
     ca <- view tsCannon
     uid <- randomId
     con <- randomConnId
     void $ connectUser ca uid con
     ensurePresent uid 1
-    sendPush gu (push uid [uid])
+    sendPush (push uid [uid])
     m <- liftIO newEmptyMVar
     w <- wsRun ca uid con (wsCloser m)
     wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
-    sendPush gu (push uid [uid])
+    sendPush (push uid [uid])
     ensurePresent uid 0
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
@@ -176,11 +173,10 @@ removeStalePresence = do
 
 singleUserPush :: TestM ()
 singleUserPush = do
-    gu <- view tsGundeck
     ca <- view tsCannon
     uid <- randomId
     ch  <- connectUser ca uid =<< randomConnId
-    sendPush gu (push uid [uid])
+    sendPush (push uid [uid])
     liftIO $ do
         msg <- waitForMessage ch
         assertBool  "No push message received" (isJust msg)
@@ -198,7 +194,6 @@ singleUserPush = do
 -- is a k8s load balancer that dispatches requests to different replicas.
 bulkPush :: Bool -> Int -> Int -> TestM ()
 bulkPush isE2E numUsers numConnsPerUser = do
-    gu  <- view tsGundeck
     ca  <- view tsCannon
     ca2 <- view tsCannon
     uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
@@ -214,7 +209,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
       pure $ chs1 ++ chs2
 
     let pushData = mconcat . replicate 3 $ (if isE2E then pushE2E else pushGroup) uid ucs'
-    sendPushes gu pushData
+    sendPushes pushData
     liftIO $ forConcurrently_ chs $ replicateM 3 . checkMsg
   where
     -- associate chans with userid, connid.
@@ -268,12 +263,11 @@ bulkPush isE2E numUsers numConnsPerUser = do
 
 sendSingleUserNoPiggyback :: TestM ()
 sendSingleUserNoPiggyback = do
-    gu  <- view tsGundeck
     ca  <- view tsCannon
     uid <- randomId
     did <- randomConnId
     ch  <- connectUser ca uid did
-    sendPush gu (push uid [uid] did)
+    sendPush (push uid [uid] did)
     liftIO $ do
         msg <- waitForMessage ch
         assertBool "Push message received" (isNothing msg)
@@ -283,17 +277,16 @@ sendSingleUserNoPiggyback = do
 
 sendMultipleUsers :: TestM ()
 sendMultipleUsers = do
-    gu  <- view tsGundeck
     ca  <- view tsCannon
     uid1 <- randomId -- offline and no native push
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
-    _    <- registerPushToken uid3 tok gu
+    _    <- registerPushToken uid3 tok
 
     ws <- connectUser ca uid2 =<< randomConnId
-    sendPush gu (push uid1 [uid1, uid2, uid3])
+    sendPush (push uid1 [uid1, uid2, uid3])
     -- 'uid2' should get the push over the websocket
     liftIO $ do
         msg <- waitForMessage ws
@@ -305,11 +298,11 @@ sendMultipleUsers = do
     -- We should get a 'DeliveryFailure' and / or 'EndpointUpdated'
     -- via SQS and thus remove the token.
     liftIO $ putStrLn "Waiting for SQS feedback to remove the token (~60-90s) ..."
-    void $ retryWhileN 90 (not . null) (listPushTokens uid3 gu)
+    void $ retryWhileN 90 (not . null) (listPushTokens uid3)
 
     -- 'uid1' and 'uid2' should each have 1 notification
-    ntfs1 <- listNotifications uid1 Nothing gu
-    ntfs2 <- listNotifications uid2 Nothing gu
+    ntfs1 <- listNotifications uid1 Nothing
+    ntfs2 <- listNotifications uid2 Nothing
     liftIO $ forM_ [ntfs1, ntfs2] $ \ntfs -> do
         assertEqual "Not exactly 1 notification" 1 (length ntfs)
         let p = view queuedNotificationPayload (Prelude.head ntfs)
@@ -317,7 +310,7 @@ sendMultipleUsers = do
 
     -- 'uid3' should have two notifications, one for the message and one
     -- for the removed token.
-    ntfs3 <- listNotifications uid3 Nothing gu
+    ntfs3 <- listNotifications uid3 Nothing
     liftIO $ do
         assertBool "Not at least 2 notifications" (length ntfs3 >= 2)
         let (n1,nx) = checkNotifications ntfs3
@@ -338,13 +331,12 @@ sendMultipleUsers = do
 
 targetConnectionPush :: TestM ()
 targetConnectionPush = do
-    gu  <- view tsGundeck
     ca  <- view tsCannon
     uid   <- randomId
     conn1 <- randomConnId
     c1 <- connectUser ca uid conn1
     c2 <- connectUser ca uid =<< randomConnId
-    sendPush gu (push uid conn1)
+    sendPush (push uid conn1)
     liftIO $ do
         e1 <- waitForMessage c1
         e2 <- waitForMessage c2
@@ -356,7 +348,6 @@ targetConnectionPush = do
 
 targetClientPush :: TestM ()
 targetClientPush = do
-    gu  <- view tsGundeck
     ca  <- view tsCannon
     uid <- randomId
     cid1 <- randomClientId
@@ -366,22 +357,22 @@ targetClientPush = do
     c1  <- connectUser ca1 uid =<< randomConnId
     c2  <- connectUser ca2 uid =<< randomConnId
     -- Push only to the first client
-    sendPush gu (push uid cid1)
+    sendPush (push uid cid1)
     liftIO $ do
         e1 <- waitForMessage c1
         e2 <- waitForMessage c2
         assertBool "No push message received" (isJust e1)
         assertBool "Unexpected push message received" (isNothing e2)
     -- Push only to the second client
-    sendPush gu (push uid cid2)
+    sendPush (push uid cid2)
     liftIO $ do
         e1 <- waitForMessage c1
         e2 <- waitForMessage c2
         assertBool "Unexpected push message received" (isNothing e1)
         assertBool "No push message received" (isJust e2)
     -- Check the notification stream
-    ns1 <- listNotifications uid (Just cid1) gu
-    ns2 <- listNotifications uid (Just cid2) gu
+    ns1 <- listNotifications uid (Just cid1)
+    ns2 <- listNotifications uid (Just cid2)
     liftIO $ forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
         assertEqual "Not exactly 1 notification" 1 (length ns)
         let p = view queuedNotificationPayload (Prelude.head ns)
@@ -398,18 +389,16 @@ targetClientPush = do
 
 testNoNotifs :: TestM ()
 testNoNotifs = do
-    gu  <- view tsGundeck
     ally <- randomId
-    ns <- listNotifications ally Nothing gu
+    ns <- listNotifications ally Nothing
     liftIO $ assertEqual "Unexpected notifications" 0 (length ns)
 
 testFetchAllNotifs :: TestM ()
 testFetchAllNotifs = do
-    gu  <- view tsGundeck
     ally <- randomId
     let pload = textPayload "hello"
-    replicateM_ 10 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
-    ns <- listNotifications ally Nothing gu
+    replicateM_ 10 (sendPush (buildPush ally [(ally, RecipientClientsAll)] pload))
+    ns <- listNotifications ally Nothing
     liftIO $ assertEqual "Unexpected notification count" 10 (length ns)
     liftIO $ assertEqual "Unexpected notification payloads"
                 (replicate 10 pload)
@@ -420,8 +409,8 @@ testFetchNewNotifs = do
     gu  <- view tsGundeck
     ally <- randomId
     let pload = textPayload "hello"
-    replicateM_ 4 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
-    ns <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
+    replicateM_ 4 (sendPush (buildPush ally [(ally, RecipientClientsAll)] pload))
+    ns <- map (view queuedNotificationId) <$> listNotifications ally Nothing
     get ( runGundeckR gu
         . zUser ally
         . path "notifications"
@@ -434,8 +423,8 @@ testNoNewNotifs :: TestM ()
 testNoNewNotifs = do
     gu  <- view tsGundeck
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
-    (n:_) <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
+    (n:_) <- map (view queuedNotificationId) <$> listNotifications ally Nothing
     get ( runGundeckR gu
         . zUser ally
         . path "notifications"
@@ -448,11 +437,11 @@ testMissingNotifs :: TestM ()
 testMissingNotifs = do
     gu  <- view tsGundeck
     other   <- randomId
-    sendPush gu (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
-    (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing gu
+    sendPush (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
+    (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing
     ally    <- randomId
-    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
-    ns <- listNotifications ally Nothing gu
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
+    ns <- listNotifications ally Nothing
     get ( runGundeckR gu
         . zUser ally
         . path "notifications"
@@ -464,9 +453,9 @@ testFetchLastNotif :: TestM ()
 testFetchLastNotif = do
     gu  <- view tsGundeck
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
-    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "last"))
-    [_, n] <- listNotifications ally Nothing gu
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "last"))
+    [_, n] <- listNotifications ally Nothing
     get (runGundeckR gu . zUser ally . paths ["notifications", "last"]) !!! do
         const 200 === statusCode
         const (Just n) === parseNotification
@@ -483,8 +472,8 @@ testFetchNotifBadSince :: TestM ()
 testFetchNotifBadSince = do
     gu  <- view tsGundeck
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
-    ns <- listNotifications ally Nothing gu
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
+    ns <- listNotifications ally Nothing
     get ( runGundeckR gu
         . zUser ally
         . path "notifications"
@@ -498,11 +487,11 @@ testFetchNotifById = do
     ally <- randomId
     c1 <- randomClientId
     c2 <- randomClientId
-    sendPush gu (buildPush ally [(ally, RecipientClientsSome (List1.singleton c1))]
+    sendPush (buildPush ally [(ally, RecipientClientsSome (List1.singleton c1))]
                            (textPayload "first"))
-    sendPush gu (buildPush ally [(ally, RecipientClientsSome (List1.singleton c2))]
+    sendPush (buildPush ally [(ally, RecipientClientsSome (List1.singleton c2))]
                            (textPayload "second"))
-    [n1, n2] <- listNotifications ally Nothing gu
+    [n1, n2] <- listNotifications ally Nothing
     forM_ [(n1, c1), (n2, c2)] $ \(n, c) ->
         let nid = toByteString' (view queuedNotificationId n)
             cid = toByteString' c
@@ -516,83 +505,81 @@ testFetchNotifById = do
 
 testFilterNotifByClient :: TestM ()
 testFilterNotifByClient = do
-    gu  <- view tsGundeck
     alice <- randomId
     clt1  <- randomClientId
     clt2  <- randomClientId
     clt3  <- randomClientId
 
     -- Add a notification for client 1
-    sendPush gu (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt1))]
+    sendPush (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt1))]
                                  (textPayload "first"))
-    [n] <- listNotifications alice (Just clt1) gu
+    [n] <- listNotifications alice (Just clt1)
 
     -- get all for the first client
-    getNotifications gu alice (Just clt1) !!! do
+    getNotifications alice (Just clt1) !!! do
         const 200        === statusCode
         const (Just [n]) === parseNotifications
     -- get all for the second client
-    getNotifications gu alice (Just clt2) !!! do
+    getNotifications alice (Just clt2) !!! do
         const 200       === statusCode
         const (Just []) === parseNotifications
     -- get all for all clients
-    getNotifications gu alice Nothing !!! do
+    getNotifications alice Nothing !!! do
         const 200        === statusCode
         const (Just [n]) === parseNotifications
 
     -- Add another notification for client 3
-    sendPush gu (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt3))]
+    sendPush (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt3))]
                                  (textPayload "last"))
-    [n'] <- listNotifications alice (Just clt3) gu
+    [n'] <- listNotifications alice (Just clt3)
 
     -- get last for the first client
-    getLastNotification gu alice (Just clt1) !!! do
+    getLastNotification alice (Just clt1) !!! do
         const 200      === statusCode
         const (Just n) === parseNotification
     -- get last for a second client
-    getLastNotification gu alice (Just clt2) !!! do
+    getLastNotification alice (Just clt2) !!! do
         const 404                === statusCode
         const (Just "not-found") =~= responseBody
     -- get last for a third client
-    getLastNotification gu alice (Just clt3) !!! do
+    getLastNotification alice (Just clt3) !!! do
         const 200       === statusCode
         const (Just n') === parseNotification
     -- get last for any client
-    getLastNotification gu alice Nothing !!! do
+    getLastNotification alice Nothing !!! do
         const 200       === statusCode
         const (Just n') === parseNotification
 
     -- Add a lot of notifications for client 3
-    replicateM_ 101 $ sendPush gu
+    replicateM_ 101 $ sendPush
         (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt3))]
                          (textPayload "final"))
-    ns <- listNotifications alice (Just clt3) gu
+    ns <- listNotifications alice (Just clt3)
     liftIO $ assertBool "notification count" (length ns == 102)
 
     -- last for the first client still unchanged
-    getLastNotification gu alice (Just clt1) !!! do
+    getLastNotification alice (Just clt1) !!! do
         const 200      === statusCode
         const (Just n) === parseNotification
 
     -- still no notification for the second client
-    getLastNotification gu alice (Just clt2) !!! do
+    getLastNotification alice (Just clt2) !!! do
         const 404                === statusCode
         const (Just "not-found") =~= responseBody
 
     -- last for the third client updated
-    getLastNotification gu alice (Just clt3) !!! do
+    getLastNotification alice (Just clt3) !!! do
         const 200              === statusCode
         const (Just (last ns)) === parseNotification
 
 testNotificationPaging :: TestM ()
 testNotificationPaging = do
-    gu  <- view tsGundeck
     -- Without client ID
     u1 <- randomId
-    replicateM_ 399 (insert gu u1 RecipientClientsAll)
-    paging gu u1 Nothing 399 399 [399, 0]
-    paging gu u1 Nothing 399 100 [100, 100, 100, 99, 0]
-    paging gu u1 Nothing 399 101 [101, 101, 101, 96, 0]
+    replicateM_ 399 (insert u1 RecipientClientsAll)
+    paging u1 Nothing 399 399 [399, 0]
+    paging u1 Nothing 399 100 [100, 100, 100, 99, 0]
+    paging u1 Nothing 399 101 [101, 101, 101, 96, 0]
 
     -- With client ID
     u2 <- randomId
@@ -600,38 +587,38 @@ testNotificationPaging = do
     let numClients = length clients
     forM_ [0..999] $ \i -> do
         let c = clients !! (i `mod` numClients)
-        insert gu u2 (RecipientClientsSome (List1.singleton c))
+        insert u2 (RecipientClientsSome (List1.singleton c))
     -- View of client 1
-    paging gu u2 (Just c1) 334 100 [100, 100, 100, 34, 0]
-    paging gu u2 (Just c1) 334 334 [334, 0]
+    paging u2 (Just c1) 334 100 [100, 100, 100, 34, 0]
+    paging u2 (Just c1) 334 334 [334, 0]
     -- View of client 2
-    paging gu u2 (Just c2) 333 100 [100, 100, 100, 33, 0]
-    paging gu u2 (Just c2) 333 333 [333, 0]
+    paging u2 (Just c2) 333 100 [100, 100, 100, 33, 0]
+    paging u2 (Just c2) 333 333 [333, 0]
     -- View of client 3
-    paging gu u2 (Just c3) 333 100 [100, 100, 100, 33, 0]
-    paging gu u2 (Just c3) 333 333 [333, 0]
+    paging u2 (Just c3) 333 100 [100, 100, 100, 33, 0]
+    paging u2 (Just c3) 333 333 [333, 0]
 
     -- With overlapped pages and excess elements on the last page
     u3 <- randomId
-    replicateM_ 90 $ insert gu u3 (RecipientClientsSome (List1.singleton c1))
-    replicateM_ 20 $ insert gu u3 (RecipientClientsSome (List1.singleton c2))
-    replicateM_ 20 $ insert gu u3 (RecipientClientsSome (List1.singleton c1))
-    paging gu u3 (Just c1) 110 100 [100, 10, 0]
-    paging gu u3 (Just c1) 110 110 [110, 0]
-    paging gu u3 (Just c2)  20 100 [20, 0]
+    replicateM_ 90 $ insert u3 (RecipientClientsSome (List1.singleton c1))
+    replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c2))
+    replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c1))
+    paging u3 (Just c1) 110 100 [100, 10, 0]
+    paging u3 (Just c1) 110 110 [110, 0]
+    paging u3 (Just c2)  20 100 [20, 0]
   where
-    insert gu u c = sendPush gu (buildPush u [(u, c)] (textPayload "data"))
+    insert u c = sendPush (buildPush u [(u, c)] (textPayload "data"))
 
-    paging gu u c total step = foldM_ (next gu u c (total, step)) (0, Nothing)
+    paging u c total step = foldM_ (next u c (total, step)) (0, Nothing)
 
-    next :: GundeckR
-         -> UserId
+    next :: UserId
          -> Maybe ClientId
          -> (Int, Int)
          -> (Int, Maybe NotificationId)
          -> Int
          -> TestM (Int, Maybe NotificationId)
-    next gu u c (total, step) (count, start) pageSize = do
+    next u c (total, step) (count, start) pageSize = do
+        gu <- view tsGundeck
         let range = maybe id (queryItem "client" . toByteString') c
                   . maybe id (queryItem "since" . toByteString') start
                   . queryItem "size" (toByteString' step)
@@ -661,7 +648,6 @@ testUnregisterClient = do
 testRegisterPushToken :: TestM ()
 testRegisterPushToken = do
     g <- view tsGundeck
-    b <- view tsBrig
     uid <- randomUser
 
     -- Client 1 with 4 distinct tokens
@@ -678,24 +664,24 @@ testRegisterPushToken = do
     t22' <- randomToken c2 gcmToken -- overlaps
 
     -- Register non-overlapping tokens
-    _ <- registerPushToken uid t11 g
-    _ <- registerPushToken uid t12 g
-    _ <- registerPushToken uid t13 g
-    _ <- registerPushToken uid t21 g
-    _ <- registerPushToken uid t22 g
+    _ <- registerPushToken uid t11
+    _ <- registerPushToken uid t12
+    _ <- registerPushToken uid t13
+    _ <- registerPushToken uid t21
+    _ <- registerPushToken uid t22
 
     -- Check tokens
-    _tokens <- sortPushTokens <$> listPushTokens uid g
+    _tokens <- sortPushTokens <$> listPushTokens uid
     let _expected = sortPushTokens [t11, t12, t13, t21, t22]
     liftIO $ assertEqual "unexpected tokens" _expected _tokens
 
     -- Register overlapping tokens. The previous overlapped
     -- tokens should be removed, but none of the others.
-    _ <- registerPushToken uid t11' g
-    _ <- registerPushToken uid t22' g
+    _ <- registerPushToken uid t11'
+    _ <- registerPushToken uid t22'
 
     -- Check tokens
-    _tokens <- sortPushTokens <$> listPushTokens uid g
+    _tokens <- sortPushTokens <$> listPushTokens uid
     let _expected = sortPushTokens [t11', t12, t13, t21, t22']
     liftIO $ assertEqual "unexpected tokens" _expected _tokens
 
@@ -704,42 +690,38 @@ testRegisterPushToken = do
     unregisterClient g uid c1 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     unregisterClient g uid c2 !!! const 200 === statusCode
     unregisterClient g uid c2 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
-    _tokens <- listPushTokens uid g
+    _tokens <- listPushTokens uid
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
 -- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestM ()
 testRegisterTooManyTokens = do
-    g <- view tsGundeck
     -- create tokens for reuse with multiple users
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     uids   <- liftIO $ replicateM 55 randomId
     -- create 55 users with these tokens, which should succeed
-    mapM_ (registerToken g 201 gcmTok) uids
+    mapM_ (registerToken 201 gcmTok) uids
     -- should run out of space in endpoint metadata and fail with a 413 on number 56
-    registerToken g 413 gcmTok =<< randomId
+    registerToken 413 gcmTok =<< randomId
   where
-    registerToken g status gcmTok uid = do
+    registerToken status gcmTok uid = do
         con <- randomClientId
         let tkg = pushToken GCM "test" gcmTok con
-        registerPushTokenRequest uid tkg g !!! const status === statusCode
+        registerPushTokenRequest uid tkg !!! const status === statusCode
 
 testUnregisterPushToken :: TestM ()
 testUnregisterPushToken = do
-    g <- view tsGundeck
-    b <- view tsBrig
     uid <- randomUser
     clt <- randomClientId
     tkn <- randomToken clt gcmToken
-    void $ registerPushToken uid tkn g
-    void $ retryWhileN 12 null (listPushTokens uid g)
-    unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
-    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
-    unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
+    void $ registerPushToken uid tkn
+    void $ retryWhileN 12 null (listPushTokens uid)
+    unregisterPushToken uid (tkn^.token) !!! const 204 === statusCode
+    void $ retryWhileN 12 (not . null) (listPushTokens uid)
+    unregisterPushToken uid (tkn^.token) !!! const 404 === statusCode
 
 testPingPong :: TestM ()
 testPingPong = do
-    gu <- view tsGundeck
     ca <- view tsCannon
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
@@ -752,7 +734,6 @@ testPingPong = do
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
-    gu <- view tsGundeck
     ca <- view tsCannon
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
@@ -765,8 +746,6 @@ testNoPingNoPong = do
 
 testSharePushToken :: TestM ()
 testSharePushToken = do
-    g <- view tsGundeck
-    b <- view tsBrig
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     let tok1 = pushToken GCM "test" gcmTok
@@ -779,8 +758,8 @@ testSharePushToken = do
         c2 <- randomClientId
         let t1 = tk c1
         let t2 = tk c2
-        t1' <- registerPushToken u1 t1 g
-        t2' <- registerPushToken u2 t2 g -- share the token with u1
+        t1' <- registerPushToken u1 t1
+        t2' <- registerPushToken u2 t2 -- share the token with u1
         -- ^ Unfortunately this fails locally :(
         -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
         -- Instead of getting something in the lines of
@@ -788,17 +767,15 @@ testSharePushToken = do
         liftIO $ assertEqual "token mismatch" (t1^.token) t1'
         liftIO $ assertEqual "token mismatch" (t2^.token) t2'
         liftIO $ assertEqual "token mismatch" t1' t2'
-        ts1 <- retryWhile ((/= 1) . length) (listPushTokens u1 g)
-        ts2 <- retryWhile ((/= 1) . length) (listPushTokens u2 g)
+        ts1 <- retryWhile ((/= 1) . length) (listPushTokens u1)
+        ts2 <- retryWhile ((/= 1) . length) (listPushTokens u2)
         liftIO $ assertEqual "token mismatch" [t1] ts1
         liftIO $ assertEqual "token mismatch" [t2] ts2
-        unregisterPushToken u1 t1' g !!! const 204 === statusCode
-        unregisterPushToken u2 t2' g !!! const 204 === statusCode
+        unregisterPushToken u1 t1' !!! const 204 === statusCode
+        unregisterPushToken u2 t2' !!! const 204 === statusCode
 
 testReplaceSharedPushToken :: TestM ()
 testReplaceSharedPushToken = do
-    g <- view tsGundeck
-    b <- view tsBrig
     u1 <- randomUser
     u2 <- randomUser
     c1 <- randomClientId
@@ -808,49 +785,46 @@ testReplaceSharedPushToken = do
     t1 <- Token . T.decodeUtf8 . toByteString' <$> randomId
     let pt1 = pushToken GCM "test" t1 c1
     let pt2 = pt1 & tokenClient .~ c2 -- share the token
-    _ <- registerPushToken u1 pt1 g
-    _ <- registerPushToken u2 pt2 g
+    _ <- registerPushToken u1 pt1
+    _ <- registerPushToken u2 pt2
 
     -- Update the shared token
     t2 <- Token . T.decodeUtf8 . toByteString' <$> randomId
     let new = pushToken GCM "test" t2 c1
-    _ <- registerPushToken u1 new g
+    _ <- registerPushToken u1 new
 
     -- Check both tokens
-    ts1 <- map (view token) <$> listPushTokens u1 g
-    ts2 <- map (view token) <$> listPushTokens u2 g
+    ts1 <- map (view token) <$> listPushTokens u1
+    ts2 <- map (view token) <$> listPushTokens u2
     liftIO $ do
         [t2] @=? ts1
         [t2] @=? ts2
 
 testLongPushToken :: TestM ()
 testLongPushToken = do
-    g <- view tsGundeck
-    b <- view tsBrig
     uid <- randomUser
     clt <- randomClientId
 
     -- normal size APNS token should succeed
     tkn1 <- randomToken clt apnsToken
-    registerPushTokenRequest uid tkn1 g !!! const 201 === statusCode
+    registerPushTokenRequest uid tkn1 !!! const 201 === statusCode
 
     -- APNS token over 400 bytes should fail (actual token sizes are twice the tSize)
     tkn2 <- randomToken clt apnsToken{tSize=256}
-    registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
+    registerPushTokenRequest uid tkn2 !!! const 413 === statusCode
 
     -- normal size GCM token should succeed
     tkn3 <- randomToken clt gcmToken
-    registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
+    registerPushTokenRequest uid tkn3 !!! const 201 === statusCode
 
     -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
     tkn4 <- randomToken clt gcmToken{tSize=5000}
-    registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
+    registerPushTokenRequest uid tkn4 !!! const 413 === statusCode
 
 -- * Helpers
 
 registerUser :: HasCallStack => TestM (UserId, ConnId)
 registerUser = do
-    gu <- view tsGundeck
     ca <- view tsCannon
     uid <- randomId
     con <- randomConnId
@@ -939,13 +913,14 @@ unregisterClient g uid cid = delete $ runGundeckR g
     . zUser uid
     . paths ["/i/clients", toByteString' cid]
 
-registerPushToken :: UserId -> PushToken -> GundeckR -> TestM Token
-registerPushToken u t g = do
-    r <- registerPushTokenRequest u t g
+registerPushToken :: UserId -> PushToken -> TestM Token
+registerPushToken u t = do
+    r <- registerPushTokenRequest u t
     return $ Token (T.decodeUtf8 $ getHeader' "Location" r)
 
-registerPushTokenRequest :: UserId -> PushToken -> GundeckR -> TestM (Response (Maybe BL.ByteString))
-registerPushTokenRequest u t g = do
+registerPushTokenRequest :: UserId -> PushToken -> TestM (Response (Maybe BL.ByteString))
+registerPushTokenRequest u t = do
+    g <- view tsGundeck
     let p = RequestBodyLBS (encode t)
     post ( runGundeckR g
          . path "/push/tokens"
@@ -955,8 +930,9 @@ registerPushTokenRequest u t g = do
          . body p
          )
 
-unregisterPushToken :: UserId -> Token -> GundeckR -> TestM (Response (Maybe BL.ByteString))
-unregisterPushToken u t g = do
+unregisterPushToken :: UserId -> Token -> TestM (Response (Maybe BL.ByteString))
+unregisterPushToken u t = do
+    g <- view tsGundeck
     let p = RequestBodyLBS (encode t)
     delete ( runGundeckR g
            . paths ["/push/tokens", toByteString' t]
@@ -966,8 +942,9 @@ unregisterPushToken u t g = do
            . body p
            )
 
-listPushTokens :: UserId -> GundeckR -> TestM [PushToken]
-listPushTokens u g = do
+listPushTokens :: UserId -> TestM [PushToken]
+listPushTokens u = do
+    g <- view tsGundeck
     rs <- get ( runGundeckR g
               . path "/push/tokens"
               . zUser u
@@ -977,32 +954,33 @@ listPushTokens u g = do
           (return . pushTokens)
           (responseBody rs >>= decode)
 
-listNotifications :: HasCallStack => UserId -> Maybe ClientId -> GundeckR -> TestM [QueuedNotification]
-listNotifications u c g = do
-    rs <- getNotifications g u c <!! const 200 === statusCode
+listNotifications :: HasCallStack => UserId -> Maybe ClientId -> TestM [QueuedNotification]
+listNotifications u c = do
+    rs <- getNotifications u c <!! const 200 === statusCode
     case responseBody rs >>= decode of
         Nothing -> error "Failed to decode notifications"
         Just ns -> maybe (error "No timestamp on notifications list") -- cf. #47
                          (const $ pure (view queuedNotifications ns))
                          (view queuedTime ns)
 
-getNotifications :: GundeckR -> UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
-getNotifications gu u c = get $ runGundeckR gu
+getNotifications :: UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
+getNotifications u c = view tsGundeck >>= \gu -> get $ runGundeckR gu
     . zUser u
     . path "notifications"
     . maybe id (queryItem "client" . toByteString') c
 
-getLastNotification :: GundeckR -> UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
-getLastNotification gu u c = get $ runGundeckR gu
+getLastNotification :: UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
+getLastNotification u c = view tsGundeck >>= \gu -> get $ runGundeckR gu
     . zUser u
     . paths ["notifications", "last"]
     . maybe id (queryItem "client" . toByteString') c
 
-sendPush :: HasCallStack => GundeckR -> Push -> TestM ()
-sendPush gu push = sendPushes gu [push]
+sendPush :: HasCallStack => Push -> TestM ()
+sendPush push = sendPushes [push]
 
-sendPushes :: HasCallStack => GundeckR -> [Push] -> TestM ()
-sendPushes gu push =
+sendPushes :: HasCallStack => [Push] -> TestM ()
+sendPushes push = do
+    gu <- view tsGundeck
     post ( runGundeckR gu . path "i/push/v2" . json push ) !!! const 200 === statusCode
 
 buildPush
