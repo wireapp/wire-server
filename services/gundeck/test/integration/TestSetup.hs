@@ -8,6 +8,7 @@ module TestSetup
     , tsCannon2
     , tsBrig
     , tsCass
+    , tsLogger
     , TestM(..)
     , TestSetup(..)
     , BrigR(..)
@@ -51,6 +52,7 @@ data TestSetup = TestSetup
   , _tsCannon2 :: CannonR
   , _tsBrig    :: BrigR
   , _tsCass    :: Cql.ClientState
+  , _tsLogger  :: Log.Logger
   }
 
 makeLenses ''TestSetup

@@ -107,6 +107,7 @@ removeUser = do
     g <- view tsGundeck
     c <- view tsCannon
     s <- view tsCass
+    logger <- view tsLogger
     user <- fst <$> registerUser
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
@@ -121,7 +122,6 @@ removeUser = do
         -- Logger) to satisfy the logger constraints of our code; then we run the logger and
         -- get a Client monad to pass to 'runClient'. This would be nicer if there was a
         -- ClientT; but there isn't :'(
-        logger <- Log.new Log.defSettings
         tokens <- Cql.runClient s (Log.runWithLogger logger $ Push.lookup user Push.Quorum)
         null tokens    @?= True
         ntfs           @?= []

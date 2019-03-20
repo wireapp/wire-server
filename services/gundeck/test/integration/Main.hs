@@ -67,6 +67,7 @@ main = withOpenSSL $ runTests go
   where
     go g i = withResource (getOpts g i) releaseOpts $ \opts -> API.tests opts
 
+    getOpts :: FilePath -> FilePath -> IO API.TestSetup
     getOpts gFile iFile = do
         m <- newManager tlsManagerSettings {
             managerResponseTimeout = responseTimeoutMicro 300000000
@@ -85,7 +86,7 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ API.TestSetup m g c c2 b db
+        return $ API.TestSetup m g c c2 b db lg
 
     releaseOpts _ = return ()
 
