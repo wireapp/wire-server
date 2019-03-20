@@ -85,7 +85,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     met  <- Metrics.metrics
-    lgr  <- Log.mkLogger'
+    lgr  <- Log.mkLogger (o^.optLogLevel) (o^.optLogNetStrings)
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr def (o^.optSettings)

@@ -136,6 +136,8 @@ Integration tests require all of the haskell services (brig, galley, cannon, gun
     - SNS
     - S3
     - DynamoDB
+- Required additional software:
+    - netcat (in order to allow the services being tested to talk to the dependencies above)
 
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
 

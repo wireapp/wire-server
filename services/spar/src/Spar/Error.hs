@@ -29,6 +29,9 @@ import qualified SAML2.WebSSO as SAML
 
 type SparError = SAML.Error SparCustomError
 
+-- FUTUREWORK: This instance should probably be inside saml2-web-sso instead.
+instance Exception SparError
+
 throwSpar :: MonadError SparError m => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 

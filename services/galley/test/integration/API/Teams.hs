@@ -17,8 +17,9 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Test.Tasty
-import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestSetup (test,  TestSetup, TestM, tsCannon, tsGalley)
 import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
@@ -31,16 +32,6 @@ import qualified Data.UUID as UUID
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
-import qualified Galley.Aws as Aws
-
-type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
-
-test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
-test s n h = testCase n runTest
-  where
-    runTest = do
-        setup <- s
-        void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup) (awsEnv setup))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
@@ -81,13 +72,14 @@ tests s = testGroup "Teams API"
 timeout :: WS.Timeout
 timeout = 3 # Second
 
-testCreateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateTeam g b c a = do
-    owner <- Util.randomUser b
+testCreateTeam :: TestM ()
+testCreateTeam = do
+    c <- view tsCannon
+    owner <- Util.randomUser
     WS.bracketR c owner $ \wsOwner -> do
-        tid   <- Util.createTeam g "foo" owner []
-        team  <- Util.getTeam g owner tid
-        assertQueueEmpty a
+        tid   <- Util.createTeam "foo" owner []
+        team  <- Util.getTeam owner tid
+        assertQueueEmpty
         liftIO $ do
             assertEqual "owner" owner (team^.teamCreator)
             eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
@@ -98,46 +90,48 @@ testCreateTeam g b c a = do
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
 
-testCreateMulitpleBindingTeams :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateMulitpleBindingTeams g b _ a = do
-    owner <- Util.randomUser b
-    _     <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
+testCreateMulitpleBindingTeams :: TestM ()
+testCreateMulitpleBindingTeams = do
+    g <- view tsGalley
+    owner <- Util.randomUser
+    _     <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
     post (g . path "/teams" . zUser owner . zConn "conn" . json nt) !!!
         const 403 === statusCode
 
     -- If never used the internal API, can create multiple teams
-    owner' <- Util.randomUser b
-    void $ Util.createTeam g "foo" owner' []
-    void $ Util.createTeam g "foo" owner' []
+    owner' <- Util.randomUser
+    void $ Util.createTeam "foo" owner' []
+    void $ Util.createTeam "foo" owner' []
 
-testCreateBindingTeamWithCurrency :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateBindingTeamWithCurrency g b _ a = do
-    _owner <- Util.randomUser b
-    _      <- Util.createTeamInternal g "foo" _owner
+testCreateBindingTeamWithCurrency :: TestM ()
+testCreateBindingTeamWithCurrency = do
+    _owner <- Util.randomUser
+    _      <- Util.createTeamInternal "foo" _owner
     -- Backwards compatible
-    assertQueue "create team" a (tActivateWithCurrency Nothing)
+    assertQueue "create team" (tActivateWithCurrency Nothing)
 
     -- Ensure currency is properly journaled
-    _owner <- Util.randomUser b
-    _      <- Util.createTeamInternalWithCurrency g "foo" _owner Currency.USD
-    assertQueue "create team" a (tActivateWithCurrency $ Just Currency.USD)
+    _owner <- Util.randomUser
+    _      <- Util.createTeamInternalWithCurrency "foo" _owner Currency.USD
+    assertQueue "create team" (tActivateWithCurrency $ Just Currency.USD)
 
-testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateTeamWithMembers g b c _ = do
-    owner <- Util.randomUser b
-    user1 <- Util.randomUser b
-    user2 <- Util.randomUser b
+testCreateTeamWithMembers :: TestM ()
+testCreateTeamWithMembers = do
+    c <- view tsCannon
+    owner <- Util.randomUser
+    user1 <- Util.randomUser
+    user2 <- Util.randomUser
     let pp = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     let m1 = newTeamMember' pp user1
     let m2 = newTeamMember' pp user2
-    Util.connectUsers b owner (list1 user1 [user2])
+    Util.connectUsers owner (list1 user1 [user2])
     WS.bracketR3 c owner user1 user2 $ \(wsOwner, wsUser1, wsUser2) -> do
-        tid  <- Util.createTeam g "foo" owner [m1, m2]
-        team <- Util.getTeam g owner tid
-        mem  <- Util.getTeamMembers g owner tid
+        tid  <- Util.createTeam "foo" owner [m1, m2]
+        team <- Util.getTeam owner tid
+        mem  <- Util.getTeamMembers owner tid
         liftIO $ do
             assertEqual "members"
                 (Set.fromList [newTeamMember' fullPermissions owner, m1, m2])
@@ -151,68 +145,71 @@ testCreateTeamWithMembers g b c _ = do
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
 
-testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
-    owner <- Util.randomUser b
+testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
+testCreateOne2OneFailNonBindingTeamMembers = do
+    owner <- Util.randomUser
     let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
-    mem2 <- newTeamMember' p2 <$> Util.randomUser b
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
-    tid <- Util.createTeam g "foo" owner [mem1, mem2]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
+    mem2 <- newTeamMember' p2 <$> Util.randomUser
+    Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
+    tid <- Util.createTeam "foo" owner [mem1, mem2]
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
-    Util.createOne2OneTeamConv g (mem1^.userId) (mem2^.userId) Nothing tid !!! do
+    Util.createOne2OneTeamConv (mem1^.userId) (mem2^.userId) Nothing tid !!! do
         const 404 === statusCode
         const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
     -- Both have a binding team but not the same team
-    owner1 <- Util.randomUser b
-    tid1 <- Util.createTeamInternal g "foo" owner1
-    assertQueue "create team" a tActivate
-    owner2 <- Util.randomUser b
-    void $ Util.createTeamInternal g "foo" owner2
-    assertQueue "create another team" a tActivate
-    Util.createOne2OneTeamConv g owner1 owner2 Nothing tid1 !!! do
+    owner1 <- Util.randomUser
+    tid1 <- Util.createTeamInternal "foo" owner1
+    assertQueue "create team" tActivate
+    owner2 <- Util.randomUser
+    void $ Util.createTeamInternal "foo" owner2
+    assertQueue "create another team" tActivate
+    Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
         const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
 
 testCreateOne2OneWithMembers
     :: HasCallStack
     => Role  -- ^ Role of the user who creates the conversation
-    -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateOne2OneWithMembers (rolePermissions -> perms) g b c a = do
-    owner <- Util.randomUser b
-    tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
-    mem1 <- newTeamMember' perms <$> Util.randomUser b
+    -> TestM ()
+testCreateOne2OneWithMembers (rolePermissions -> perms) = do
+    c <- view tsCannon
+    owner <- Util.randomUser
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
+    mem1 <- newTeamMember' perms <$> Util.randomUser
 
     WS.bracketR c (mem1^.userId) $ \wsMem1 -> do
-        Util.addTeamMemberInternal g tid mem1
+        Util.addTeamMemberInternal tid mem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
-        assertQueue "team member join" a $ tUpdate 2 [owner]
+        assertQueue "team member join" $ tUpdate 2 [owner]
 
-    void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid)
+    void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv owner (mem1^.userId) Nothing tid)
 
     -- Recreating a One2One is a no-op, returns a 200
-    Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid !!! const 200 === statusCode
+    Util.createOne2OneTeamConv owner (mem1^.userId) Nothing tid !!! const 200 === statusCode
   where
-    repeatIf :: Util.ResponseLBS -> Bool
+    repeatIf :: ResponseLBS -> Bool
     repeatIf r = statusCode r /= 201
 
-testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamMember g b c _ = do
-    owner <- Util.randomUser b
+testAddTeamMember :: TestM ()
+testAddTeamMember = do
+    c <- view tsCannon
+    g <- view tsGalley
+    owner <- Util.randomUser
     let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
-    mem2 <- newTeamMember' p2 <$> Util.randomUser b
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
-    Util.connectUsers b (mem1^.userId) (list1 (mem2^.userId) [])
-    tid <- Util.createTeam g "foo" owner [mem1, mem2]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
+    mem2 <- newTeamMember' p2 <$> Util.randomUser
+    Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
+    Util.connectUsers (mem1^.userId) (list1 (mem2^.userId) [])
+    tid <- Util.createTeam "foo" owner [mem1, mem2]
 
-    mem3 <- newTeamMember' p1 <$> Util.randomUser b
+    mem3 <- newTeamMember' p1 <$> Util.randomUser
     let payload = json (newNewTeamMember mem3)
-    Util.connectUsers b (mem1^.userId) (list1 (mem3^.userId) [])
-    Util.connectUsers b (mem2^.userId) (list1 (mem3^.userId) [])
+    Util.connectUsers (mem1^.userId) (list1 (mem3^.userId) [])
+    Util.connectUsers (mem2^.userId) (list1 (mem3^.userId) [])
 
     -- `mem1` lacks permission to add new team members
     post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1^.userId) . payload) !!!
@@ -220,39 +217,41 @@ testAddTeamMember g b c _ = do
 
     WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
-        Util.addTeamMember g (mem2^.userId) tid mem3
+        Util.addTeamMember (mem2^.userId) tid mem3
         mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
 
-testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamMemberCheckBound g b _ a = do
-    ownerBound <- Util.randomUser b
-    tidBound   <- Util.createTeamInternal g "foo" ownerBound
-    assertQueue "create team" a tActivate
+testAddTeamMemberCheckBound :: TestM ()
+testAddTeamMemberCheckBound = do
+    g <- view tsGalley
+    ownerBound <- Util.randomUser
+    tidBound   <- Util.createTeamInternal "foo" ownerBound
+    assertQueue "create team" tActivate
 
-    rndMem <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser b
+    rndMem <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
     -- Cannot add any users to bound teams
     post (g . paths ["teams", toByteString' tidBound, "members"] . zUser ownerBound . zConn "conn" . json (newNewTeamMember rndMem)) !!!
         const 403 === statusCode
 
-    owner <- Util.randomUser b
-    tid   <- Util.createTeam g "foo" owner []
+    owner <- Util.randomUser
+    tid   <- Util.createTeam "foo" owner []
     -- Cannot add bound users to any teams
     let boundMem = newTeamMember' (Util.symmPermissions []) ownerBound
     post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem)) !!!
         const 403 === statusCode
 
-testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamMemberInternal g b c a = do
-    owner <- Util.randomUser b
-    tid <- Util.createTeam g "foo" owner []
+testAddTeamMemberInternal :: TestM ()
+testAddTeamMemberInternal = do
+    c <- view tsCannon
+    owner <- Util.randomUser
+    tid <- Util.createTeam "foo" owner []
     let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
 
     WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
-        Util.addTeamMemberInternal g tid mem1
+        Util.addTeamMemberInternal tid mem1
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1^.userId)) [wsOwner, wsMem1]
-        assertQueue "tem member join" a $ tUpdate 2 [owner]
-    void $ Util.getTeamMemberInternal g tid (mem1^.userId)
+        assertQueue "tem member join" $ tUpdate 2 [owner]
+    void $ Util.getTeamMemberInternal tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -261,27 +260,29 @@ testAddTeamMemberInternal g b c a = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testRemoveTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testRemoveTeamMember g b c _ = do
-    owner <- Util.randomUser b
+testRemoveTeamMember :: TestM ()
+testRemoveTeamMember = do
+    c <- view tsCannon
+    g <- view tsGalley
+    owner <- Util.randomUser
     let p1 = Util.symmPermissions [AddRemoveConvMember]
     let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
-    mem2 <- newTeamMember' p2 <$> Util.randomUser b
-    mext1 <- Util.randomUser b
-    mext2 <- Util.randomUser b
-    mext3 <- Util.randomUser b
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mext1, mext2, mext3])
-    tid <- Util.createTeam g "foo" owner [mem1, mem2]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
+    mem2 <- newTeamMember' p2 <$> Util.randomUser
+    mext1 <- Util.randomUser
+    mext2 <- Util.randomUser
+    mext3 <- Util.randomUser
+    Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId, mext1, mext2, mext3])
+    tid <- Util.createTeam "foo" owner [mem1, mem2]
 
     -- Managed conversation:
-    void $ Util.createManagedConv g owner tid [] (Just "gossip") Nothing Nothing
+    void $ Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
     -- Regular conversation:
-    cid2 <- Util.createTeamConv g owner tid [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing Nothing
+    cid2 <- Util.createTeamConv owner tid [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing Nothing
     -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
-    void $ Util.createTeamConv g owner tid [mem2^.userId, mext2] (Just "blaa") Nothing Nothing
+    void $ Util.createTeamConv owner tid [mem2^.userId, mext2] (Just "blaa") Nothing Nothing
     -- Member external 3 is a guest and part of a conversation that mem1 is a part of
-    cid3 <- Util.createTeamConv g owner tid [mem1^.userId, mext3] (Just "blaa") Nothing Nothing
+    cid3 <- Util.createTeamConv owner tid [mem1^.userId, mext3] (Just "blaa") Nothing Nothing
 
     WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext1, mext2, mext3] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext1, _wsMext2, wsMext3] -> do
         -- `mem1` lacks permission to remove team members
@@ -299,25 +300,27 @@ testRemoveTeamMember g b c _ = do
                ) !!! const 200 === statusCode
 
         -- Ensure that `mem1` is still a user (tid is not a binding team)
-        Util.ensureDeletedState b False owner (mem1^.userId)
+        Util.ensureDeletedState False owner (mem1^.userId)
 
         mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
         checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
 
-testRemoveBindingTeamMember :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testRemoveBindingTeamMember ownerHasPassword g b c a = do
-    owner <- Util.randomUser' ownerHasPassword b
-    tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
-    mext  <- Util.randomUser b
+testRemoveBindingTeamMember :: Bool -> TestM ()
+testRemoveBindingTeamMember ownerHasPassword = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner <- Util.randomUser' ownerHasPassword
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
+    mext  <- Util.randomUser
     let p1 = Util.symmPermissions [AddRemoveConvMember]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
-    Util.addTeamMemberInternal g tid mem1
-    assertQueue "team member join" a $ tUpdate 2 [owner]
-    Util.connectUsers b owner (singleton mext)
-    cid1 <- Util.createTeamConv g owner tid [(mem1^.userId), mext] (Just "blaa") Nothing Nothing
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
+    Util.addTeamMemberInternal tid mem1
+    assertQueue "team member join" $ tUpdate 2 [owner]
+    Util.connectUsers owner (singleton mext)
+    cid1 <- Util.createTeamConv owner tid [(mem1^.userId), mext] (Just "blaa") Nothing Nothing
 
     when ownerHasPassword $ do
         -- Deleting from a binding team with empty body is invalid
@@ -346,7 +349,7 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
 
     -- Mem1 is still part of Wire
-    Util.ensureDeletedState b False owner (mem1^.userId)
+    Util.ensureDeletedState False owner (mem1^.userId)
 
     WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
         if ownerHasPassword
@@ -371,52 +374,53 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
 
-        assertQueue "team member leave" a $ tUpdate 1 [owner]
+        assertQueue "team member leave" $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]
         -- Mem1 is now gone from Wire
-        Util.ensureDeletedState b True owner (mem1^.userId)
+        Util.ensureDeletedState True owner (mem1^.userId)
 
-testAddTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamConv g b c _ = do
-    owner  <- Util.randomUser b
-    extern <- Util.randomUser b
+testAddTeamConv :: TestM ()
+testAddTeamConv = do
+    c <- view tsCannon
+    owner  <- Util.randomUser
+    extern <- Util.randomUser
 
     let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-    mem1 <- newTeamMember' p <$> Util.randomUser b
-    mem2 <- newTeamMember' p <$> Util.randomUser b
+    mem1 <- newTeamMember' p <$> Util.randomUser
+    mem2 <- newTeamMember' p <$> Util.randomUser
 
-    Util.connectUsers b owner (list1 (mem1^.userId) [extern, mem2^.userId])
-    tid <- Util.createTeam g "foo" owner [mem2]
+    Util.connectUsers owner (list1 (mem1^.userId) [extern, mem2^.userId])
+    tid <- Util.createTeam "foo" owner [mem2]
 
     WS.bracketRN c [owner, extern, mem1^.userId, mem2^.userId]  $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
         -- Managed conversation:
-        cid1 <- Util.createManagedConv g owner tid [] (Just "gossip") Nothing Nothing
+        cid1 <- Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
         checkConvCreateEvent cid1 wsOwner
         checkConvCreateEvent cid1 wsMem2
 
         -- Regular conversation:
-        cid2 <- Util.createTeamConv g owner tid [extern] (Just "blaa") Nothing Nothing
+        cid2 <- Util.createTeamConv owner tid [extern] (Just "blaa") Nothing Nothing
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
         -- mem2 is not a conversation member but still receives an event that
         -- a new team conversation has been created:
         checkTeamConvCreateEvent tid cid2 wsMem2
 
-        Util.addTeamMember g owner tid mem1
+        Util.addTeamMember owner tid mem1
 
         checkTeamMemberJoin tid (mem1^.userId) wsOwner
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem2
 
         -- New team members are added automatically to managed conversations ...
-        Util.assertConvMember g (mem1^.userId) cid1
+        Util.assertConvMember (mem1^.userId) cid1
         -- ... but not to regular ones.
-        Util.assertNotConvMember g (mem1^.userId) cid2
+        Util.assertNotConvMember (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
+        cid3 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
-            Util.assertConvMember g u cid3
+            Util.assertConvMember u cid3
 
         checkConvCreateEvent cid3 wsOwner
         checkConvCreateEvent cid3 wsMem1
@@ -424,25 +428,25 @@ testAddTeamConv g b c _ = do
 
         -- Non team members are never added implicitly.
         for_ [cid1, cid3] $
-            Util.assertNotConvMember g extern
+            Util.assertNotConvMember extern
 
         WS.assertNoEvent timeout ws
 
-testAddTeamConvAsExternalPartner :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamConvAsExternalPartner g b _ a = do
-    owner <- Util.randomUser b
-    memMember1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
-    memMember2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
-    memExternalPartner <- newTeamMember' (rolePermissions RoleExternalPartner) <$> Util.randomUser b
-    Util.connectUsers b owner
+testAddTeamConvAsExternalPartner :: TestM ()
+testAddTeamConvAsExternalPartner = do
+    owner <- Util.randomUser
+    memMember1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+    memMember2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+    memExternalPartner <- newTeamMember' (rolePermissions RoleExternalPartner) <$> Util.randomUser
+    Util.connectUsers owner
         (list1 (memMember1^.userId) [memExternalPartner^.userId, memMember2^.userId])
-    tid <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
+    tid <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
     forM_ [(2, memMember1), (3, memMember2), (4, memExternalPartner)] $ \(i, mem) -> do
-        Util.addTeamMemberInternal g tid mem
-        assertQueue ("team member join #" ++ show i) a $ tUpdate i [owner]
+        Util.addTeamMemberInternal tid mem
+        assertQueue ("team member join #" ++ show i) $ tUpdate i [owner]
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
-    Util.createTeamConvAccessRaw g
+    Util.createTeamConvAccessRaw
         (memExternalPartner^.userId)
         tid
         [memMember1^.userId, memMember2^.userId]
@@ -451,10 +455,11 @@ testAddTeamConvAsExternalPartner g b _ a = do
         const 403 === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
-testAddManagedConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddManagedConv g b _c _ = do
-    owner <- Util.randomUser b
-    tid <- Util.createTeam g "foo" owner []
+testAddManagedConv :: TestM ()
+testAddManagedConv = do
+    g <- view tsGalley
+    owner <- Util.randomUser
+    tid <- Util.createTeam "foo" owner []
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
                NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing
@@ -467,82 +472,84 @@ testAddManagedConv g b _c _ = do
          )
        !!! const 400 === statusCode
 
-testAddTeamConvWithUsers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamConvWithUsers g b _ _ = do
-    owner  <- Util.randomUser b
-    extern <- Util.randomUser b
-    Util.connectUsers b owner (list1 extern [])
-    tid <- Util.createTeam g "foo" owner []
+testAddTeamConvWithUsers :: TestM ()
+testAddTeamConvWithUsers = do
+    owner  <- Util.randomUser
+    extern <- Util.randomUser
+    Util.connectUsers owner (list1 extern [])
+    tid <- Util.createTeam "foo" owner []
     -- Create managed team conversation and erroneously specify external users.
-    cid <- Util.createManagedConv g owner tid [extern] (Just "gossip") Nothing Nothing
+    cid <- Util.createManagedConv owner tid [extern] (Just "gossip") Nothing Nothing
     -- External users have been ignored.
-    Util.assertNotConvMember g extern cid
+    Util.assertNotConvMember extern cid
     -- Team members are present.
-    Util.assertConvMember g owner cid
+    Util.assertConvMember owner cid
 
-testAddTeamMemberToConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamMemberToConv g b _ _ = do
-    owner <- Util.randomUser b
+testAddTeamMemberToConv :: TestM ()
+testAddTeamMemberToConv = do
+    owner <- Util.randomUser
     let p = Util.symmPermissions [AddRemoveConvMember]
-    mem1 <- newTeamMember' p <$> Util.randomUser b
-    mem2 <- newTeamMember' p <$> Util.randomUser b
-    mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser b
+    mem1 <- newTeamMember' p <$> Util.randomUser
+    mem2 <- newTeamMember' p <$> Util.randomUser
+    mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
 
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mem3^.userId])
-    tid <- Util.createTeam g "foo" owner [mem1, mem2, mem3]
+    Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId, mem3^.userId])
+    tid <- Util.createTeam "foo" owner [mem1, mem2, mem3]
 
     -- Team owner creates new regular team conversation:
-    cid <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
+    cid <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
 
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can add other team members without requiring a user connection
     -- thanks to both being team members and member 1 having the permission
     -- `AddRemoveConvMember`.
-    Util.assertNotConvMember g (mem1^.userId) cid
-    Util.postMembers g (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
-    Util.assertConvMember g (mem2^.userId) cid
+    Util.assertNotConvMember (mem1^.userId) cid
+    Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
+    Util.assertConvMember (mem2^.userId) cid
 
     -- OTOH, team member 3 can not add another team member since it
     -- lacks the required permission
-    Util.assertNotConvMember g (mem3^.userId) cid
-    Util.postMembers g (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
+    Util.assertNotConvMember (mem3^.userId) cid
+    Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
 testUpdateTeamConv
     :: Role  -- ^ Role of the user who creates the conversation
-    -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testUpdateTeamConv (rolePermissions -> perms) g b _ _ = do
-    owner  <- Util.randomUser b
-    member <- Util.randomUser b
-    Util.connectUsers b owner (list1 member [])
-    tid <- Util.createTeam g "foo" owner [newTeamMember member perms Nothing]
-    cid <- Util.createTeamConv g owner tid [member] (Just "gossip") Nothing Nothing
-    resp <- updateTeamConv g member cid (ConversationRename "not gossip")
+    -> TestM ()
+testUpdateTeamConv (rolePermissions -> perms) = do
+    owner  <- Util.randomUser
+    member <- Util.randomUser
+    Util.connectUsers owner (list1 member [])
+    tid <- Util.createTeam "foo" owner [newTeamMember member perms Nothing]
+    cid <- Util.createTeamConv owner tid [member] (Just "gossip") Nothing Nothing
+    resp <- updateTeamConv member cid (ConversationRename "not gossip")
     liftIO $ assertEqual "status"
         (if ModifyConvMetadata `elem` (perms ^. self) then 200 else 403)
         (statusCode resp)
 
-testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testDeleteTeam g b c a = do
-    owner <- Util.randomUser b
+testDeleteTeam :: TestM ()
+testDeleteTeam = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner <- Util.randomUser
     let p = Util.symmPermissions [AddRemoveConvMember]
-    member <- newTeamMember' p <$> Util.randomUser b
-    extern <- Util.randomUser b
-    Util.connectUsers b owner (list1 (member^.userId) [extern])
+    member <- newTeamMember' p <$> Util.randomUser
+    extern <- Util.randomUser
+    Util.connectUsers owner (list1 (member^.userId) [extern])
 
-    tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
-    cid2 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
+    tid  <- Util.createTeam "foo" owner [member]
+    cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+    cid2 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
 
-    Util.assertConvMember g owner cid2
-    Util.assertConvMember g (member^.userId) cid2
-    Util.assertNotConvMember g extern cid2
+    Util.assertConvMember owner cid2
+    Util.assertConvMember (member^.userId) cid2
+    Util.assertNotConvMember extern cid2
 
-    Util.postMembers g owner (list1 extern []) cid1 !!! const 200 === statusCode
-    Util.assertConvMember g owner cid1
-    Util.assertConvMember g extern cid1
-    Util.assertNotConvMember g (member^.userId) cid1
+    Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
+    Util.assertConvMember owner cid1
+    Util.assertConvMember extern cid1
+    Util.assertNotConvMember (member^.userId) cid1
 
     void $ WS.bracketR3 c owner extern (member^.userId) $ \(wsOwner, wsExtern, wsMember) -> do
         delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn") !!!
@@ -563,32 +570,34 @@ testDeleteTeam g b c a = do
 
     for_ [owner, extern, member^.userId] $ \u -> do
         -- Ensure no user got deleted
-        Util.ensureDeletedState b False owner u
+        Util.ensureDeletedState False owner u
         for_ [cid1, cid2] $ \x -> do
-            Util.getConv g u x !!! const 404 === statusCode
-            Util.getSelfMember g u x !!! do
+            Util.getConv u x !!! const 404 === statusCode
+            Util.getSelfMember u x !!! do
                 const 200         === statusCode
                 const (Just Null) === Util.decodeBody
-    assertQueueEmpty a
+    assertQueueEmpty
 
-testDeleteBindingTeam :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testDeleteBindingTeam ownerHasPassword g b c a = do
-    owner  <- Util.randomUser' ownerHasPassword b
-    tid    <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
+testDeleteBindingTeam :: Bool -> TestM ()
+testDeleteBindingTeam ownerHasPassword = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner  <- Util.randomUser' ownerHasPassword
+    tid    <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
     let p1 = Util.symmPermissions [AddRemoveConvMember]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem1 <- newTeamMember' p1 <$> Util.randomUser
     let p2 = Util.symmPermissions [AddRemoveConvMember]
-    mem2 <- newTeamMember' p2 <$> Util.randomUser b
+    mem2 <- newTeamMember' p2 <$> Util.randomUser
     let p3 = Util.symmPermissions [AddRemoveConvMember]
-    mem3 <- newTeamMember' p3 <$> Util.randomUser b
-    Util.addTeamMemberInternal g tid mem1
-    assertQueue "team member join 2" a $ tUpdate 2 [owner]
-    Util.addTeamMemberInternal g tid mem2
-    assertQueue "team member join 3" a $ tUpdate 3 [owner]
-    Util.addTeamMemberInternal g tid mem3
-    assertQueue "team member join 4" a $ tUpdate 4 [owner]
-    extern <- Util.randomUser b
+    mem3 <- newTeamMember' p3 <$> Util.randomUser
+    Util.addTeamMemberInternal tid mem1
+    assertQueue "team member join 2" $ tUpdate 2 [owner]
+    Util.addTeamMemberInternal tid mem2
+    assertQueue "team member join 3" $ tUpdate 3 [owner]
+    Util.addTeamMemberInternal tid mem3
+    assertQueue "team member join 4" $ tUpdate 4 [owner]
+    extern <- Util.randomUser
 
     delete ( g
            . paths ["teams", toByteString' tid]
@@ -607,7 +616,7 @@ testDeleteBindingTeam ownerHasPassword g b c a = do
                                             then Just $ PlainTextPassword Util.defPassword
                                             else Nothing))
            ) !!! const 202 === statusCode
-    assertQueue "team member leave 1" a $ tUpdate 3 [owner]
+    assertQueue "team member leave 1" $ tUpdate 3 [owner]
 
     void $ WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
         delete ( g
@@ -630,35 +639,37 @@ testDeleteBindingTeam ownerHasPassword g b c a = do
         WS.assertNoEvent (1 # Second) [wsExtern]
         -- Note that given the async nature of team deletion, we may
         -- have other events in the queue (such as TEAM_UPDATE)
-        tryAssertQueue 10 "team delete, should be there" a tDelete
+        tryAssertQueue 10 "team delete, should be there" tDelete
 
     forM_ [owner, (mem1^.userId), (mem2^.userId)] $
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
-        Util.ensureDeletedState b True extern
+        Util.ensureDeletedState True extern
 
     -- Let's clean it up, just in case
-    ensureQueueEmpty a
+    ensureQueueEmpty
 
-testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testDeleteTeamConv g b c _ = do
-    owner <- Util.randomUser b
+testDeleteTeamConv :: TestM ()
+testDeleteTeamConv = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner <- Util.randomUser
     let p = Util.symmPermissions [DeleteConversation]
-    member <- newTeamMember' p <$> Util.randomUser b
-    extern <- Util.randomUser b
-    Util.connectUsers b owner (list1 (member^.userId) [extern])
+    member <- newTeamMember' p <$> Util.randomUser
+    extern <- Util.randomUser
+    Util.connectUsers owner (list1 (member^.userId) [extern])
 
-    tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
+    tid  <- Util.createTeam "foo" owner [member]
+    cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
     let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
-    putAccessUpdate g owner cid1 access !!! const 200 === statusCode
-    code <- decodeConvCodeEvent <$> (postConvCode g owner cid1 <!! const 201 === statusCode)
-    cid2 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
+    putAccessUpdate owner cid1 access !!! const 200 === statusCode
+    code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
+    cid2 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
 
-    Util.postMembers g owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
+    Util.postMembers owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
 
-    for_ [owner, member^.userId, extern] $ \u -> Util.assertConvMember g u cid1
-    for_ [owner, member^.userId]         $ \u -> Util.assertConvMember g u cid2
+    for_ [owner, member^.userId, extern] $ \u -> Util.assertConvMember u cid1
+    for_ [owner, member^.userId]         $ \u -> Util.assertConvMember u cid2
 
     WS.bracketR3 c owner extern (member^.userId) $ \(wsOwner, wsExtern, wsMember) -> do
         delete ( g
@@ -684,10 +695,10 @@ testDeleteTeamConv g b c _ = do
 
     for_ [cid1, cid2] $ \x ->
         for_ [owner, member^.userId, extern] $ \u -> do
-            Util.getConv g u x !!! const 404 === statusCode
-            Util.assertNotConvMember g u x
+            Util.getConv u x !!! const 404 === statusCode
+            Util.assertNotConvMember u x
 
-    postConvCodeCheck g code !!! const 404 === statusCode
+    postConvCodeCheck code !!! const 404 === statusCode
   where
     checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -703,13 +714,15 @@ testDeleteTeamConv g b c _ = do
         evtConv e @?= cid
         evtData e @?= Nothing
 
-testUpdateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testUpdateTeam g b c _ = do
-    owner <- Util.randomUser b
+testUpdateTeam :: TestM ()
+testUpdateTeam = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner <- Util.randomUser
     let p = Util.symmPermissions [DeleteConversation]
-    member <- newTeamMember' p <$> Util.randomUser b
-    Util.connectUsers b owner (list1 (member^.userId) [])
-    tid <- Util.createTeam g "foo" owner [member]
+    member <- newTeamMember' p <$> Util.randomUser
+    Util.connectUsers owner (list1 (member^.userId) [])
+    tid <- Util.createTeam "foo" owner [member]
     let bad = object ["name" .= T.replicate 100 "too large"]
     put ( g
         . paths ["teams", toByteString' tid]
@@ -740,13 +753,15 @@ testUpdateTeam g b c _ = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdTeamUpdate upd)
 
-testUpdateTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testUpdateTeamMember g b c a = do
-    owner <- Util.randomUser b
+testUpdateTeamMember :: TestM ()
+testUpdateTeamMember = do
+    g <- view tsGalley
+    c <- view tsCannon
+    owner <- Util.randomUser
     let p = Util.symmPermissions [SetMemberPermissions]
-    member <- newTeamMember' p <$> Util.randomUser b
-    Util.connectUsers b owner (list1 (member^.userId) [])
-    tid <- Util.createTeam g "foo" owner [member]
+    member <- newTeamMember' p <$> Util.randomUser
+    Util.connectUsers owner (list1 (member^.userId) [])
+    tid <- Util.createTeam "foo" owner [member]
     -- Must have at least 1 member with full permissions
     let changeOwner = newNewTeamMember (newTeamMember' p owner)
     put ( g
@@ -765,7 +780,7 @@ testUpdateTeamMember g b c a = do
             . zConn "conn"
             . json changeMember
             ) !!! const 200 === statusCode
-        member' <- Util.getTeamMember g owner tid (member^.userId)
+        member' <- Util.getTeamMember owner tid (member^.userId)
         liftIO $ assertEqual "permissions" (member'^.permissions) (changeMember^.ntmNewTeamMember.permissions)
         checkTeamMemberUpdateEvent tid (member^.userId) wsOwner (pure fullPermissions)
         checkTeamMemberUpdateEvent tid (member^.userId) wsMember (pure fullPermissions)
@@ -778,13 +793,13 @@ testUpdateTeamMember g b c a = do
             . zConn "conn"
             . json changeOwner
             ) !!! const 200 === statusCode
-        owner' <- Util.getTeamMember g (member^.userId) tid owner
+        owner' <- Util.getTeamMember (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
         -- owner no longer has GetPermissions, but she can still see the update because it's about her!
         checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
         checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
-    assertQueueEmpty a
+    assertQueueEmpty
   where
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -793,22 +808,23 @@ testUpdateTeamMember g b c a = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid mPerm)
 
-testUpdateTeamStatus :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testUpdateTeamStatus g b _ a = do
-    owner <- Util.randomUser b
-    tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue "create team" a tActivate
+testUpdateTeamStatus :: TestM ()
+testUpdateTeamStatus = do
+    g <- view tsGalley
+    owner <- Util.randomUser
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
     -- Check for idempotency
-    Util.changeTeamStatus g tid Active
-    assertQueueEmpty a
-    Util.changeTeamStatus g tid Suspended
-    assertQueue "suspend first time" a tSuspend
-    Util.changeTeamStatus g tid Suspended
-    assertQueueEmpty a
-    Util.changeTeamStatus g tid Suspended
-    assertQueueEmpty a
-    Util.changeTeamStatus g tid Active
-    assertQueue "activate again" a tActivate
+    Util.changeTeamStatus tid Active
+    assertQueueEmpty
+    Util.changeTeamStatus tid Suspended
+    assertQueue "suspend first time" tSuspend
+    Util.changeTeamStatus tid Suspended
+    assertQueueEmpty
+    Util.changeTeamStatus tid Suspended
+    assertQueueEmpty
+    Util.changeTeamStatus tid Active
+    assertQueue "activate again" tActivate
 
     void $ put ( g
                . paths ["i", "teams", toByteString' tid, "status"]
@@ -817,7 +833,7 @@ testUpdateTeamStatus g b _ a = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
 
-checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> Http ()
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
     let j = Object $ List1.head (ntfPayload notif)
     let etype = j ^? key "type" . _String
@@ -825,7 +841,7 @@ checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
     etype @?= Just "user.delete"
     euser @?= Just (UUID.toText (toUUID uid))
 
-checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -833,7 +849,7 @@ checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberJoin uid)
 
-checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -841,7 +857,7 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberLeave usr)
 
-checkTeamConvCreateEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> Http ()
+checkTeamConvCreateEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> TestM ()
 checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -849,7 +865,7 @@ checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdConvCreate cid)
 
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
+checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -858,7 +874,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
         Just (Conv.EdConversation x) -> cnvId x @?= cid
         other                        -> assertFailure $ "Unexpected event data: " <> show other
 
-checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> Http ()
+checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -866,7 +882,7 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Nothing
 
-checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
+checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -874,7 +890,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     evtConv e @?= cid
     evtData e @?= Nothing
 
-checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> Http ()
+checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
@@ -884,22 +900,23 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
             Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
             other                    -> assertFailure $ "Unexpected event data: " <> show other
 
-postCryptoBroadcastMessageJson :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessageJson g b c a = do
+postCryptoBroadcastMessageJson :: TestM ()
+postCryptoBroadcastMessageJson = do
+    c <- view tsCannon
     -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
-    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
-    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
-    (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
-    connectUsers b alice (list1 charlie [dan])
-    tid1 <- createTeamInternal g "foo" alice
-    assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
-    assertQueue "" a $ tUpdate 2 [alice]
-    _ <- createTeamInternal g "foo" charlie
-    assertQueue "" a tActivate
+    (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient (someLastPrekeys !! 2)
+    (dan,    dc) <- randomUserWithClient (someLastPrekeys !! 3)
+    connectUsers alice (list1 charlie [dan])
+    tid1 <- createTeamInternal "foo" alice
+    assertQueue "" tActivate
+    addTeamMemberInternal tid1 $ newTeamMember' (symmPermissions []) bob
+    assertQueue "" $ tUpdate 2 [alice]
+    _ <- createTeamInternal "foo" charlie
+    assertQueue "" tActivate
     -- A second client for Alice
-    ac2 <- randomClient b alice (someLastPrekeys !! 4)
+    ac2 <- randomClient alice (someLastPrekeys !! 4)
     -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
     let t = 1 # Second -- WS receive timeout
     let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
@@ -907,7 +924,7 @@ postCryptoBroadcastMessageJson g b c a = do
         -- Alice's clients 1 and 2 listen to their own messages only
         WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
             WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
-                Util.postOtrBroadcastMessage id g alice ac msg !!! do
+                Util.postOtrBroadcastMessage id alice ac msg !!! do
                     const 201 === statusCode
                     assertTrue_ (eqMismatch [] [] [] . decodeBody)
                 -- Bob should get the broadcast (team member of alice)
@@ -921,29 +938,30 @@ postCryptoBroadcastMessageJson g b c a = do
                 -- Alice's second client should get the broadcast
                 void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
 
-postCryptoBroadcastMessageJson2 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessageJson2 g b c a = do
+postCryptoBroadcastMessageJson2 :: TestM ()
+postCryptoBroadcastMessageJson2 = do
+    c <- view tsCannon
     -- Team1: Alice, Bob. Team2: Charlie. Connect Alice,Charlie
-    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
-    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
-    connectUsers b alice (list1 charlie [])
-    tid1 <- createTeamInternal g "foo" alice
-    assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
-    assertQueue "" a $ tUpdate 2 [alice]
+    (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient (someLastPrekeys !! 2)
+    connectUsers alice (list1 charlie [])
+    tid1 <- createTeamInternal "foo" alice
+    assertQueue "" tActivate
+    addTeamMemberInternal tid1 $ newTeamMember' (symmPermissions []) bob
+    assertQueue "" $ tUpdate 2 [alice]
 
     let t = 3 # Second -- WS receive timeout
     -- Missing charlie
     let m1 = [(bob, bc, "ciphertext1")]
-    Util.postOtrBroadcastMessage id g alice ac m1 !!! do
+    Util.postOtrBroadcastMessage id alice ac m1 !!! do
         const 412 === statusCode
         assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
 
     -- Complete
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
         let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
-        Util.postOtrBroadcastMessage id g alice ac m2 !!! do
+        Util.postOtrBroadcastMessage id alice ac m2 !!! do
             const 201 === statusCode
             assertTrue "No devices expected" (eqMismatch [] [] [] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
@@ -952,7 +970,7 @@ postCryptoBroadcastMessageJson2 g b c a = do
     -- Redundant self
     WS.bracketR3 c alice bob charlie $ \(wsA, wsB, wsE) -> do
         let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
-        Util.postOtrBroadcastMessage id g alice ac m3 !!! do
+        Util.postOtrBroadcastMessage id alice ac m3 !!! do
             const 201 === statusCode
             assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
@@ -962,37 +980,38 @@ postCryptoBroadcastMessageJson2 g b c a = do
 
     -- Deleted charlie
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
-        deleteClient b charlie cc (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
+        deleteClient charlie cc (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
-        Util.postOtrBroadcastMessage id g alice ac m4 !!! do
+        Util.postOtrBroadcastMessage id alice ac m4 !!! do
             const 201 === statusCode
             assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
         -- charlie should not get it
         assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
 
-postCryptoBroadcastMessageProto :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessageProto g b c a = do
+postCryptoBroadcastMessageProto :: TestM ()
+postCryptoBroadcastMessageProto = do
     -- similar to postCryptoBroadcastMessageJson except uses protobuf
 
     -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
-    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
-    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
-    (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
-    connectUsers b alice (list1 charlie [dan])
-    tid1 <- createTeamInternal g "foo" alice
-    assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
-    assertQueue "" a $ tUpdate 2 [alice]
-    _ <- createTeamInternal g "foo" charlie
-    assertQueue "" a tActivate
+    c <- view tsCannon
+    (alice,  ac) <- randomUserWithClient (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient (someLastPrekeys !! 2)
+    (dan,    dc) <- randomUserWithClient (someLastPrekeys !! 3)
+    connectUsers alice (list1 charlie [dan])
+    tid1 <- createTeamInternal "foo" alice
+    assertQueue "" tActivate
+    addTeamMemberInternal tid1 $ newTeamMember' (symmPermissions []) bob
+    assertQueue "" $ tUpdate 2 [alice]
+    _ <- createTeamInternal "foo" charlie
+    assertQueue "" tActivate
     -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
     let t = 1 # Second -- WS receive timeout
     let ciphertext = encodeCiphertext "hello bob"
     WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
         let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
-        Util.postProtoOtrBroadcast g alice ac msg !!! do
+        Util.postProtoOtrBroadcast alice ac msg !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . decodeBody)
         -- Bob should get the broadcast (team member of alice)
@@ -1004,26 +1023,27 @@ postCryptoBroadcastMessageProto g b c a = do
         -- Alice should not get her own broadcast
         WS.assertNoEvent timeout ws
 
-postCryptoBroadcastMessageNoTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessageNoTeam g b _ _ = do
-    (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
-    connectUsers b alice (list1 bob [])
+postCryptoBroadcastMessageNoTeam :: TestM ()
+postCryptoBroadcastMessageNoTeam = do
+    (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+    (bob,   bc) <- randomUserWithClient (someLastPrekeys !! 1)
+    connectUsers alice (list1 bob [])
     let msg = [(bob, bc, "ciphertext1")]
-    Util.postOtrBroadcastMessage id g alice ac msg !!! const 404 === statusCode
+    Util.postOtrBroadcastMessage id alice ac msg !!! const 404 === statusCode
 
-postCryptoBroadcastMessage100OrMaxConns :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessage100OrMaxConns g b c a = do
-    (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    _ <- createTeamInternal g "foo" alice
-    assertQueue "" a tActivate
+postCryptoBroadcastMessage100OrMaxConns :: TestM ()
+postCryptoBroadcastMessage100OrMaxConns = do
+    c <- view tsCannon
+    (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+    _ <- createTeamInternal "foo" alice
+    assertQueue "" tActivate
     ((bob, bc), others) <- createAndConnectUserWhileLimitNotReached alice (100 :: Int) [] (someLastPrekeys !! 1)
-    connectUsers b alice (list1 bob (fst <$> others))
+    connectUsers alice (list1 bob (fst <$> others))
     let t = 3 # Second -- WS receive timeout
     WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
         let f (u, clt) = (u, clt, "ciphertext")
         let msg = (bob, bc, "ciphertext") : (f <$> others)
-        Util.postOtrBroadcastMessage id g alice ac msg !!! do
+        Util.postOtrBroadcastMessage id alice ac msg !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . decodeBody)
         void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
@@ -1031,8 +1051,8 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
-        (uid, cid) <- randomUserWithClient b pk
-        (r1, r2)   <- List1.head <$> connectUsersUnchecked b alice (singleton uid)
+        (uid, cid) <- randomUserWithClient pk
+        (r1, r2)   <- List1.head <$> connectUsersUnchecked alice (singleton uid)
         case (statusCode r1, statusCode r2, remaining, acc) of
             (201, 200, 0, []    ) -> error "Need to connect with at least 1 user"
             (201, 200, 0, (x:xs)) -> return (x, xs)

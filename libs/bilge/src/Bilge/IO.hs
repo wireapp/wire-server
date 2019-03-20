@@ -82,8 +82,11 @@ newtype HttpT m a = HttpT
 class MonadHttp m where
     getManager :: m Manager
 
-instance Monad m => MonadHttp (HttpT m) where
+instance {-# OVERLAPPING #-} Monad m => MonadHttp (HttpT m) where
     getManager = HttpT ask
+
+instance {-# OVERLAPPABLE #-} (MonadTrans t, MonadHttp m, Monad m) => MonadHttp (t m) where
+  getManager = lift getManager
 
 instance MonadBase IO (HttpT IO) where
     liftBase = liftIO

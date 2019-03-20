@@ -488,7 +488,7 @@ testUpdateUserRefIndex = do
     _ <- updateUser tok userid user'
     vuser' <- either (error . show) pure $
         validateScimUser' idp 999999 user'  -- 999999 = some big number
-    muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
+    muserid' <- runSparCass $ Data.getSAMLUser (vuser' ^. vsuSAMLUserRef)
     liftIO $ do
         muserid' `shouldBe` Just userid
 
@@ -519,6 +519,56 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
+        it "should respond with 204" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            spar <- view teSpar
+            -- Expect first call to succeed
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            -- The second call may return either of 204 or 404 depending on whether Brig has
+            -- finished deletion. This assertion is here to document that this is currently
+            -- the expected behaviour
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! assertTrue "expected one of 204, 404" ((`elem` [204, 404]) . statusCode)
+
+        -- FUTUREWORK: hscim has the the following test.  we should probably go through all
+        -- `delete` tests and see if they can move to hscim or are already included there.
+
+        it "should return 401 if we don't provide a token" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ Nothing (Just uid) spar
+                !!! const 401 === statusCode
+
+        it "should return 404 if we provide a token for a different team" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            (invalidTok, _) <- registerIdPAndScimToken
+            spar <- view teSpar
+            deleteUser_ (Just invalidTok) (Just uid) spar
+                !!! const 404 === statusCode
+
+        it "getUser should return 404 after deleteUser" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            getUser_ (Just tok) uid spar
+                !!! const 404 === statusCode
+
         it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
             env <- ask
             user <- randomScimUser
@@ -526,6 +576,3 @@ specDeleteUser = do
             storedUser <- createUser tok user
             deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
                 !!! assertTrue_ (inRange (200, 499) . statusCode)
-
-        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
-            pendingWith "really?  how do we destroy the data then, and when?"

@@ -20,9 +20,9 @@ import Test.Tasty.Options
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import TestSetup (TestSetup(..))
 
 import qualified API
-import qualified API.Util               as Util
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
 
@@ -79,8 +79,8 @@ main = withOpenSSL $ runTests go
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
         convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
         awsEnv <- initAwsEnv e q
-        SQS.ensureQueueEmpty awsEnv
-        return $ Util.TestSetup m g b c awsEnv convMaxSize
+        SQS.ensureQueueEmptyIO awsEnv
+        return $ TestSetup m g b c awsEnv convMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal

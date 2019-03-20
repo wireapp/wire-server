@@ -98,14 +98,14 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ Data.getUser uref
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Nothing
 
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid  <- nextWireId
-          ()   <- runSparCass $ insertUser uref uid
-          muid <- runSparCass $ Data.getUser uref
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid
 
       context "user already exists (idempotency)" $ do
@@ -113,9 +113,9 @@ spec = do
           uref <- nextUserRef
           uid  <- nextWireId
           uid' <- nextWireId
-          ()   <- runSparCass $ insertUser uref uid
-          ()   <- runSparCass $ insertUser uref uid'
-          muid <- runSparCass $ Data.getUser uref
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid'
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid'
 
 
@@ -196,7 +196,6 @@ spec = do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
 
-
 testSPStoreID
   :: forall m (a :: Type). (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
   => (SAML.ID a -> SAML.Time -> m ())
@@ -257,10 +256,10 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
        liftIO $ tokens `shouldBe` []
     -- The users from 'user':
     do let Right uref1 = fromUserSSOId ssoid1
-       mbUser1 <- runSparCass $ Data.getUser uref1
+       mbUser1 <- runSparCass $ Data.getSAMLUser uref1
        liftIO $ mbUser1 `shouldBe` Nothing
     do let Right uref2 = fromUserSSOId ssoid2
-       mbUser2 <- runSparCass $ Data.getUser uref2
+       mbUser2 <- runSparCass $ Data.getSAMLUser uref2
        liftIO $ mbUser2 `shouldBe` Nothing
     -- The config from 'idp':
     do mbIdp <- runSparCass $ Data.getIdPConfig (idp ^. SAML.idpId)
