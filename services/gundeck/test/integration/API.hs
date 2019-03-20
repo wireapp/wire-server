@@ -100,17 +100,14 @@ tests s = testGroup "Gundeck integration tests" [
 -- Push
 
 addUser :: TestM (UserId, ConnId)
-addUser = do
-    gu <- view tsGundeck
-    ca <- view tsCannon
-    registerUser gu ca
+addUser = registerUser
 
 removeUser :: TestM ()
 removeUser = do
     g <- view tsGundeck
     c <- view tsCannon
     s <- view tsCass
-    user <- fst <$> registerUser g c
+    user <- fst <$> registerUser
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
@@ -139,7 +136,7 @@ replacePresence = do
     let localhost8081 = URI . fromJust $ parseURI "http://localhost:8081"
     let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing 0 ""
     let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0 ""
-    void $ connectUser gu ca uid con
+    void $ connectUser ca uid con
     setPresence gu pres1 !!! const 201 === statusCode
     sendPush gu (push uid [uid])
     getPresence gu (showUser uid) !!! do
@@ -164,15 +161,15 @@ removeStalePresence = do
     ca <- view tsCannon
     uid <- randomId
     con <- randomConnId
-    void $ connectUser gu ca uid con
-    ensurePresent gu uid 1
+    void $ connectUser ca uid con
+    ensurePresent uid 1
     sendPush gu (push uid [uid])
     m <- liftIO newEmptyMVar
     w <- wsRun ca uid con (wsCloser m)
-    wsAssertPresences gu uid 1
+    wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
     sendPush gu (push uid [uid])
-    ensurePresent gu uid 0
+    ensurePresent uid 0
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
@@ -182,7 +179,7 @@ singleUserPush = do
     gu <- view tsGundeck
     ca <- view tsCannon
     uid <- randomId
-    ch  <- connectUser gu ca uid =<< randomConnId
+    ch  <- connectUser ca uid =<< randomConnId
     sendPush gu (push uid [uid])
     liftIO $ do
         msg <- waitForMessage ch
@@ -212,8 +209,8 @@ bulkPush isE2E numUsers numConnsPerUser = do
     chs <- do
       let (ucs1,  ucs2)  = splitAt (fromIntegral (length ucs `div` 2)) ucs
           (ucs1', ucs2') = splitAt (fromIntegral (length ucs `div` 2)) ucs'
-      chs1 <- injectucs ca  ucs1' . fmap snd <$> connectUsersAndDevices gu ca  ucs1
-      chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices gu ca2 ucs2
+      chs1 <- injectucs ca  ucs1' . fmap snd <$> connectUsersAndDevices ca  ucs1
+      chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices ca2 ucs2
       pure $ chs1 ++ chs2
 
     let pushData = mconcat . replicate 3 $ (if isE2E then pushE2E else pushGroup) uid ucs'
@@ -275,7 +272,7 @@ sendSingleUserNoPiggyback = do
     ca  <- view tsCannon
     uid <- randomId
     did <- randomConnId
-    ch  <- connectUser gu ca uid did
+    ch  <- connectUser ca uid did
     sendPush gu (push uid [uid] did)
     liftIO $ do
         msg <- waitForMessage ch
@@ -295,7 +292,7 @@ sendMultipleUsers = do
     tok  <- randomToken clt gcmToken
     _    <- registerPushToken uid3 tok gu
 
-    ws <- connectUser gu ca uid2 =<< randomConnId
+    ws <- connectUser ca uid2 =<< randomConnId
     sendPush gu (push uid1 [uid1, uid2, uid3])
     -- 'uid2' should get the push over the websocket
     liftIO $ do
@@ -345,8 +342,8 @@ targetConnectionPush = do
     ca  <- view tsCannon
     uid   <- randomId
     conn1 <- randomConnId
-    c1 <- connectUser gu ca uid conn1
-    c2 <- connectUser gu ca uid =<< randomConnId
+    c1 <- connectUser ca uid conn1
+    c2 <- connectUser ca uid =<< randomConnId
     sendPush gu (push uid conn1)
     liftIO $ do
         e1 <- waitForMessage c1
@@ -366,8 +363,8 @@ targetClientPush = do
     cid2 <- randomClientId
     let ca1 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid1))
     let ca2 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid2))
-    c1  <- connectUser gu ca1 uid =<< randomConnId
-    c2  <- connectUser gu ca2 uid =<< randomConnId
+    c1  <- connectUser ca1 uid =<< randomConnId
+    c2  <- connectUser ca2 uid =<< randomConnId
     -- Push only to the first client
     sendPush gu (push uid cid1)
     liftIO $ do
@@ -665,7 +662,7 @@ testRegisterPushToken :: TestM ()
 testRegisterPushToken = do
     g <- view tsGundeck
     b <- view tsBrig
-    uid <- randomUser b
+    uid <- randomUser
 
     -- Client 1 with 4 distinct tokens
     c1   <- randomClientId
@@ -731,7 +728,7 @@ testUnregisterPushToken :: TestM ()
 testUnregisterPushToken = do
     g <- view tsGundeck
     b <- view tsBrig
-    uid <- randomUser b
+    uid <- randomUser
     clt <- randomClientId
     tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
@@ -747,7 +744,7 @@ testPingPong = do
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
     [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
-      <- connectUsersAndDevicesWithSendingClients gu ca [(uid, [connid])]
+      <- connectUsersAndDevicesWithSendingClients ca [(uid, [connid])]
     liftIO $ do
         atomically $ writeTChan chwrite "ping"
         msg <- waitForMessage chread
@@ -760,7 +757,7 @@ testNoPingNoPong = do
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
     [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
-      <- connectUsersAndDevicesWithSendingClients gu ca [(uid, [connid])]
+      <- connectUsersAndDevicesWithSendingClients ca [(uid, [connid])]
     liftIO $ do
         atomically $ writeTChan chwrite "Wire is so much nicer with internet!"
         msg <- waitForMessage chread
@@ -776,8 +773,8 @@ testSharePushToken = do
     let tok2 = pushToken APNSVoIP "com.wire.dev.ent" apsTok
     let tok3 = pushToken APNS "com.wire.int.ent" apsTok
     forM_ [tok1, tok2, tok3] $ \tk -> do
-        u1 <- randomUser b
-        u2 <- randomUser b
+        u1 <- randomUser
+        u2 <- randomUser
         c1 <- randomClientId
         c2 <- randomClientId
         let t1 = tk c1
@@ -802,8 +799,8 @@ testReplaceSharedPushToken :: TestM ()
 testReplaceSharedPushToken = do
     g <- view tsGundeck
     b <- view tsBrig
-    u1 <- randomUser b
-    u2 <- randomUser b
+    u1 <- randomUser
+    u2 <- randomUser
     c1 <- randomClientId
     c2 <- randomClientId
 
@@ -830,7 +827,7 @@ testLongPushToken :: TestM ()
 testLongPushToken = do
     g <- view tsGundeck
     b <- view tsBrig
-    uid <- randomUser b
+    uid <- randomUser
     clt <- randomClientId
 
     -- normal size APNS token should succeed
@@ -851,44 +848,47 @@ testLongPushToken = do
 
 -- * Helpers
 
-registerUser :: HasCallStack => GundeckR -> CannonR -> TestM (UserId, ConnId)
-registerUser gu ca = do
+registerUser :: HasCallStack => TestM (UserId, ConnId)
+registerUser = do
+    gu <- view tsGundeck
+    ca <- view tsCannon
     uid <- randomId
     con <- randomConnId
-    void $ connectUser gu ca uid con
-    ensurePresent gu uid 1
+    void $ connectUser ca uid con
+    ensurePresent uid 1
     return (uid, con)
 
-ensurePresent :: HasCallStack => GundeckR -> UserId -> Int -> TestM ()
-ensurePresent gu u n =
+ensurePresent :: HasCallStack => UserId -> Int -> TestM ()
+ensurePresent u n = do
+    gu <- view tsGundeck
     retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u)) !!!
         (const n === length . decodePresence)
 
-connectUser :: HasCallStack => GundeckR -> CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
-connectUser gu ca uid con = do
-    [(_, [ch])] <- connectUsersAndDevices gu ca [(uid, [con])]
+connectUser :: HasCallStack => CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
+connectUser ca uid con = do
+    [(_, [ch])] <- connectUsersAndDevices ca [(uid, [con])]
     return ch
 
 connectUsersAndDevices
   :: HasCallStack
-  => GundeckR -> CannonR -> [(UserId, [ConnId])]
+  => CannonR -> [(UserId, [ConnId])]
   -> TestM [(UserId, [TChan ByteString])]
-connectUsersAndDevices gu ca uidsAndConnIds =
-    strip <$> connectUsersAndDevicesWithSendingClients gu ca uidsAndConnIds
+connectUsersAndDevices ca uidsAndConnIds = do
+    strip <$> connectUsersAndDevicesWithSendingClients ca uidsAndConnIds
   where strip = fmap (_2 %~ fmap fst)
 
 connectUsersAndDevicesWithSendingClients
   :: HasCallStack
-  => GundeckR -> CannonR -> [(UserId, [ConnId])]
+  => CannonR -> [(UserId, [ConnId])]
   -> TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
-connectUsersAndDevicesWithSendingClients gu ca uidsAndConnIds = do
+connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
     chs <- forM uidsAndConnIds $ \(uid, conns) -> (uid,) <$> do
         forM conns $ \conn -> do
             chread  <- liftIO $ atomically newTChan
             chwrite <- liftIO $ atomically newTChan
             _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
             pure (chread, chwrite)
-    (\(uid, conns) -> wsAssertPresences gu uid (length conns)) `mapM_` uidsAndConnIds
+    (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
     pure chs
 
 -- | Sort 'PushToken's based on the actual 'token' values.
@@ -906,8 +906,9 @@ wsRun ca uid (ConnId con) app = do
     caOpts = WS.defaultConnectionOptions
     caHdrs = [ ("Z-User", showUser uid), ("Z-Connection", con) ]
 
-wsAssertPresences :: HasCallStack => GundeckR -> UserId -> Int -> TestM ()
-wsAssertPresences gu uid numPres = do
+wsAssertPresences :: HasCallStack => UserId -> Int -> TestM ()
+wsAssertPresences uid numPres = do
+    gu <- view tsGundeck
     retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
         (const numPres === length . decodePresence)
 
@@ -1044,8 +1045,9 @@ setPresence gu dat = post (runGundeckR gu . path "/i/presences" . json dat)
 decodePresence :: Response (Maybe BL.ByteString) -> [Presence]
 decodePresence rs = fromMaybe (error "Failed to decode presences") $ responseBody rs >>= decode
 
-randomUser :: BrigR -> TestM UserId
-randomUser br = do
+randomUser :: TestM UserId
+randomUser = do
+    br <- view tsBrig
     e <- liftIO $ mkEmail "success" "simulator.amazonses.com"
     let p = object
             [ "name"     .= e
