@@ -20,6 +20,8 @@ dependencies:
 - optparse-applicative
 - tinylog
 - unliftio
+- cql-io
+- exceptions
 library:
   source-dirs: src
 stability: experimental
