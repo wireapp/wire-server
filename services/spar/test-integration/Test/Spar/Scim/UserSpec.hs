@@ -519,17 +519,21 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
-        it "when called twice, should first delete then 404 you" $ do
+        it "should respond with 204" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let uid = scimUserId storedUser
 
             spar <- view teSpar
+            -- Expect first call to succeed
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
+            -- The second call may return either of 204 or 404 depending on whether Brig has
+            -- finished deletion. This assertion is here to document that this is currently
+            -- the expected behaviour
             deleteUser_ (Just tok) (Just uid) spar
-                !!! const 404 === statusCode  -- https://tools.ietf.org/html/rfc7644#section-3.6
+                !!! assertTrue "expected one of 204, 404" ((`elem` [204, 404]) . statusCode)
 
         -- FUTUREWORK: hscim has the the following test.  we should probably go through all
         -- `delete` tests and see if they can move to hscim or are already included there.
