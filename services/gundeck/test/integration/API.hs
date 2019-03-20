@@ -56,22 +56,14 @@ data TestSetup = TestSetup
   , cass    :: Cql.ClientState
   }
 
-type TestSignature a = Gundeck -> Cannon -> Brig -> Cql.ClientState -> Http a
-type TestSignature2 a = Gundeck -> Cannon -> Cannon -> Brig -> Cql.ClientState -> Http a
+type TestSignature a = TestSetup -> Http a
 
 test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
 test setup n h = testCase n runTest
   where
     runTest = do
         s <- setup
-        void $ runHttpT (manager s) (h (gundeck s) (cannon s) (brig s) (cass s))
-
-test2 :: IO TestSetup -> TestName -> (TestSignature2 a) -> TestTree
-test2 setup n h = testCase n runTest
-  where
-    runTest = do
-        s <- setup
-        void $ runHttpT (manager s) (h (gundeck s) (cannon s) (cannon2 s) (brig s) (cass s))
+        void $ runHttpT (manager s) (h s)
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Gundeck integration tests" [
@@ -81,8 +73,8 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test2 s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8
-        , test2 s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8
+        , test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8
+        , test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -126,10 +118,10 @@ tests s = testGroup "Gundeck integration tests" [
 -- Push
 
 addUser :: TestSignature (UserId, ConnId)
-addUser gu ca _ _ = registerUser gu ca
+addUser (TestSetup _ gu ca _ _ _) = registerUser gu ca
 
 removeUser :: TestSignature ()
-removeUser g c _ s = do
+removeUser (TestSetup _ g c _ _ s) = do
     user <- fst <$> registerUser g c
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
@@ -150,7 +142,7 @@ removeUser g c _ s = do
         ntfs           @?= []
 
 replacePresence :: TestSignature ()
-replacePresence gu ca _ _ = do
+replacePresence (TestSetup _ gu ca _ _ _) = do
     uid <- randomId
     con <- randomConnId
     let localhost8080 = URI . fromJust $ parseURI "http://localhost:8080"
@@ -177,7 +169,7 @@ replacePresence gu ca _ _ = do
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 removeStalePresence :: TestSignature ()
-removeStalePresence gu ca _ _ = do
+removeStalePresence (TestSetup _ gu ca _ _ _) = do
     uid <- randomId
     con <- randomConnId
     void $ connectUser gu ca uid con
@@ -194,7 +186,7 @@ removeStalePresence gu ca _ _ = do
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 singleUserPush :: TestSignature ()
-singleUserPush gu ca _ _ = do
+singleUserPush (TestSetup _ gu ca _ _ _) = do
     uid <- randomId
     ch  <- connectUser gu ca uid =<< randomConnId
     sendPush gu (push uid [uid])
@@ -213,8 +205,8 @@ singleUserPush gu ca _ _ = do
 -- notifications from server (@isE2E == False@) to all connections, and make sure they all arrive at
 -- the destination devices.  This also works if you pass the same 'Cannon' twice, even if 'Cannon'
 -- is a k8s load balancer that dispatches requests to different replicas.
-bulkPush :: Bool -> Int -> Int -> TestSignature2 ()
-bulkPush isE2E numUsers numConnsPerUser gu ca ca2 _ _ = do
+bulkPush :: Bool -> Int -> Int -> TestSignature ()
+bulkPush isE2E numUsers numConnsPerUser (TestSetup _ gu ca ca2 _ _) = do
     uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
     (connids@((_:_):_)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     let ucs  :: [(UserId, [ConnId])]         = zip uids connids
@@ -281,7 +273,7 @@ bulkPush isE2E numUsers numConnsPerUser gu ca ca2 _ _ = do
                 assertBool  "Unexpected push message received" (isNothing msg)
 
 sendSingleUserNoPiggyback :: TestSignature ()
-sendSingleUserNoPiggyback gu ca _ _ = do
+sendSingleUserNoPiggyback (TestSetup _ gu ca _ _ _) = do
     uid <- randomId
     did <- randomConnId
     ch  <- connectUser gu ca uid did
@@ -294,7 +286,7 @@ sendSingleUserNoPiggyback gu ca _ _ = do
     push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just d
 
 sendMultipleUsers :: TestSignature ()
-sendMultipleUsers gu ca _ _ = do
+sendMultipleUsers (TestSetup _ gu ca _ _ _) = do
     uid1 <- randomId -- offline and no native push
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
@@ -347,7 +339,7 @@ sendMultipleUsers gu ca _ _ = do
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 targetConnectionPush :: TestSignature ()
-targetConnectionPush gu ca _ _ = do
+targetConnectionPush (TestSetup _ gu ca _ _ _) = do
     uid   <- randomId
     conn1 <- randomConnId
     c1 <- connectUser gu ca uid conn1
@@ -363,7 +355,7 @@ targetConnectionPush gu ca _ _ = do
     push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestSignature ()
-targetClientPush gu ca _ _ = do
+targetClientPush (TestSetup _ gu ca _ _ _) = do
     uid <- randomId
     cid1 <- randomClientId
     cid2 <- randomClientId
@@ -403,13 +395,13 @@ targetClientPush gu ca _ _ = do
 -- Notifications
 
 testNoNotifs :: TestSignature ()
-testNoNotifs gu _ _ _ = do
+testNoNotifs (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     ns <- listNotifications ally Nothing gu
     liftIO $ assertEqual "Unexpected notifications" 0 (length ns)
 
 testFetchAllNotifs :: TestSignature ()
-testFetchAllNotifs gu _ _ _ = do
+testFetchAllNotifs (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     let pload = textPayload "hello"
     replicateM_ 10 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
@@ -420,7 +412,7 @@ testFetchAllNotifs gu _ _ _ = do
                 (map (view queuedNotificationPayload) ns)
 
 testFetchNewNotifs :: TestSignature ()
-testFetchNewNotifs gu _ _ _ = do
+testFetchNewNotifs (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     let pload = textPayload "hello"
     replicateM_ 4 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
@@ -434,7 +426,7 @@ testFetchNewNotifs gu _ _ _ = do
         const (Just $ drop 2 ns) === parseNotificationIds
 
 testNoNewNotifs :: TestSignature ()
-testNoNewNotifs gu _ _ _ = do
+testNoNewNotifs (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
     (n:_) <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
@@ -447,7 +439,7 @@ testNoNewNotifs gu _ _ _ = do
             const (Just []) === parseNotificationIds
 
 testMissingNotifs :: TestSignature ()
-testMissingNotifs gu _ _ _ = do
+testMissingNotifs (TestSetup _ gu _ _ _ _) = do
     other   <- randomId
     sendPush gu (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
     (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing gu
@@ -462,7 +454,7 @@ testMissingNotifs gu _ _ _ = do
         const (Just ns) === parseNotifications
 
 testFetchLastNotif :: TestSignature ()
-testFetchLastNotif gu _ _ _ = do
+testFetchLastNotif (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
     sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "last"))
@@ -472,14 +464,14 @@ testFetchLastNotif gu _ _ _ = do
         const (Just n) === parseNotification
 
 testNoLastNotif :: TestSignature ()
-testNoLastNotif gu _ _ _ = do
+testNoLastNotif (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     get (runGundeck gu . zUser ally . paths ["notifications", "last"]) !!! do
         const 404 === statusCode
         const (Just "not-found") =~= responseBody
 
 testFetchNotifBadSince :: TestSignature ()
-testFetchNotifBadSince gu _ _ _ = do
+testFetchNotifBadSince (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
     ns <- listNotifications ally Nothing gu
@@ -491,7 +483,7 @@ testFetchNotifBadSince gu _ _ _ = do
         const (Just ns) === parseNotifications
 
 testFetchNotifById :: TestSignature ()
-testFetchNotifById gu _ _ _ = do
+testFetchNotifById (TestSetup _ gu _ _ _ _) = do
     ally <- randomId
     c1 <- randomClientId
     c2 <- randomClientId
@@ -512,7 +504,7 @@ testFetchNotifById gu _ _ _ = do
             const (Just n) === parseNotification
 
 testFilterNotifByClient :: TestSignature ()
-testFilterNotifByClient gu _ _ _ = do
+testFilterNotifByClient (TestSetup _ gu _ _ _ _) = do
     alice <- randomId
     clt1  <- randomClientId
     clt2  <- randomClientId
@@ -581,7 +573,7 @@ testFilterNotifByClient gu _ _ _ = do
         const (Just (last ns)) === parseNotification
 
 testNotificationPaging :: TestSignature ()
-testNotificationPaging gu _ _ _ = do
+testNotificationPaging (TestSetup _ gu _ _ _ _) = do
     -- Without client ID
     u1 <- randomId
     replicateM_ 399 (insert u1 RecipientClientsAll)
@@ -642,7 +634,7 @@ testNotificationPaging gu _ _ _ = do
 -- Client registration
 
 testUnregisterClient :: TestSignature ()
-testUnregisterClient g _ _ _ = do
+testUnregisterClient (TestSetup _ g _ _ _ _) = do
     uid <- randomId
     cid <- randomClientId
     unregisterClient g uid cid
@@ -652,7 +644,7 @@ testUnregisterClient g _ _ _ = do
 -- Native push token registration
 
 testRegisterPushToken :: TestSignature ()
-testRegisterPushToken g _ b _ = do
+testRegisterPushToken (TestSetup _ g _ _ b _) = do
     uid <- randomUser b
 
     -- Client 1 with 4 distinct tokens
@@ -700,7 +692,7 @@ testRegisterPushToken g _ b _ = do
 
 -- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestSignature ()
-testRegisterTooManyTokens g _ _ _ = do
+testRegisterTooManyTokens (TestSetup _ g _ _ _ _) = do
     -- create tokens for reuse with multiple users
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     uids   <- liftIO $ replicateM 55 randomId
@@ -715,7 +707,7 @@ testRegisterTooManyTokens g _ _ _ = do
         registerPushTokenRequest uid tkg g !!! const status === statusCode
 
 testUnregisterPushToken :: TestSignature ()
-testUnregisterPushToken g _ b _ = do
+testUnregisterPushToken (TestSetup _ g _ _ b _) = do
     uid <- randomUser b
     clt <- randomClientId
     tkn <- randomToken clt gcmToken
@@ -726,7 +718,7 @@ testUnregisterPushToken g _ b _ = do
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
 testPingPong :: TestSignature ()
-testPingPong gu ca _ _ = do
+testPingPong (TestSetup _ gu ca _ _ _) = do
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
     [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
@@ -737,7 +729,7 @@ testPingPong gu ca _ _ = do
         assertBool "no pong" $ msg == Just "pong"
 
 testNoPingNoPong :: TestSignature ()
-testNoPingNoPong gu ca _ _ = do
+testNoPingNoPong (TestSetup _ gu ca _ _ _) = do
     uid :: UserId <- randomId
     connid :: ConnId <- randomConnId
     [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
@@ -748,7 +740,7 @@ testNoPingNoPong gu ca _ _ = do
         assertBool "unexpected response on non-ping" $ isNothing msg
 
 testSharePushToken :: TestSignature ()
-testSharePushToken g _ b _ = do
+testSharePushToken (TestSetup _ g _ _ b _) = do
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     let tok1 = pushToken GCM "test" gcmTok
@@ -778,7 +770,7 @@ testSharePushToken g _ b _ = do
         unregisterPushToken u2 t2' g !!! const 204 === statusCode
 
 testReplaceSharedPushToken :: TestSignature ()
-testReplaceSharedPushToken g _ b _ = do
+testReplaceSharedPushToken (TestSetup _ g _ _ b _) = do
     u1 <- randomUser b
     u2 <- randomUser b
     c1 <- randomClientId
@@ -804,7 +796,7 @@ testReplaceSharedPushToken g _ b _ = do
         [t2] @=? ts2
 
 testLongPushToken :: TestSignature ()
-testLongPushToken g _ b _ = do
+testLongPushToken (TestSetup _ g _ _ b _) = do
     uid <- randomUser b
     clt <- randomClientId
 
