@@ -80,7 +80,7 @@ That wasn't so bad, was it?
 The sed commands used above accomplished two things. One, they changed out the MAINTAINER line in the Dockerfile, to indicate that I am the maintainer of this docker image. Two, for the 386 image, it specified that Docker was to start by using the i386 version of debian to base the image off of, not the AMD64 version. we did not need to make that change to the AMD64 version of the Dockerfile, because Docker on our local machine automatically downloads AMD64 images, since our copies of docker were built on AMD64 machines.
 
 ##### OK, what was the --amend on the docker manifest create line?
-Docker creates manifest files, and stores them in your local docker. I haven't found a good way to remove them, so instead, I add --amend, so that docker changes the local file, instead of just telling you it already exists, and failing.
+Docker creates manifest files, and stores them in your local docker. I haven't found a good way to remove them, so instead, I add --amend, so that if one already exists, docker overwrites the locally stored file, instead of just telling you one already exists, and exiting with an error.
 
 ##### What does a manifest file look like?
 to look at a manifest file (local or remote), use 'docker manifest inspect'. for example, here's the original namshi/smtp manifest.
@@ -161,8 +161,8 @@ This is very different. instead of showing layers, it has the SHASUMs of the ima
 That's it as far as the docker parts of this. Simple, right? :)
 
 ### Limits of Manifest files:
-I can't figgure out how to delete local manifest files.
-I haven't figgured out how to point to local images in a manifest file. this means if we use the name of a manifest in our Docker compose configuration, docker will go out to dockerhub for the image, rather than using a new image we just built, and we have to build a manifest file AFTER the push do dockerhub has been completed.
+I can't figure out how to delete local manifest files.
+I haven't figured out how to point to local images in a manifest file. this means if we use the name of a manifest in our Docker compose configuration, docker will go out to dockerhub for the image, rather than using a new image we just built, and we have to build a manifest file AFTER the push do dockerhub has been completed.
 
 ## QEMU + BinFmt Support:
 

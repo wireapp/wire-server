@@ -29,18 +29,18 @@ to build an individual image (and it's dependent images), run "make-<imagename>"
 
 ## Using with Dockerhub
 
-If you want to upload images to dockerhub, you must go to dockerhub, and create repositories under your user with the names of the images you want to upload. Again, to get the list of names buildable with this Makefile, type 'make names'.
+If you want to upload images to dockerhub, you must go to dockerhub, and create repositories under your user with the names of the images you want to upload. use `make names` to get the list of buildable images.
 
 If you don't want to change the Makefile, add the DOCKER_USERNAME, DOCKER_EMAIL, and DOCKER_REALNAME environment variables.
 
-For instance, when I want to build all debian images, and upload them to dockerhub, i use:
+For instance, when I want to build all debian images, and upload them to dockerhub I use:
 ```bash
 make DIST=DEBIAN DOCKER_USERNAME=julialongtin DOCKER_EMAIL=julia.longtin@wire.com DOCKER_REALNAME='Julia Longtin' push-all
 ```
 
-You can also push a single image (and it's dependencies) with "make push-<imagename>".
+You can also push a single image (and it's dependent images) with "make push-<imagename>".
 
-If you want your builds to go faster, and are good with having more garbled output, use the '-j' argument to make, to parallize the builds.
+If you want your builds to go faster, and are okay with having interleaved output from multiple builds, use the '-j' argument to make, to parallize the builds. '-j' can take an integer argument for the number of threads you want it to run at once, or no argument for 'all of the things you can figure out how to do at once'.
 
 By default this makefile builds and uploads the debian based images. Use the 'DIST=ALPINE' environment variable to build the alpine based images instead.
 
