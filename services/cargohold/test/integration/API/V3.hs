@@ -1,6 +1,7 @@
 module API.V3 where
 
 import Imports hiding (head)
+import TestSetup
 import Bilge hiding (body)
 import Bilge.Assert
 import Control.Lens hiding (sets)
@@ -27,22 +28,6 @@ import qualified Codec.MIME.Type              as MIME
 import qualified Data.ByteString.Lazy         as Lazy
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.UUID                    as UUID
-
-type CargoHold = Request -> Request
-
-data TestSetup = TestSetup
-  { manager   :: Manager
-  , cargohold :: CargoHold
-  }
-
-type TestSignature a = CargoHold -> Http a
-
-test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
-test s n h = testCase n runTest
-  where
-    runTest = do
-        setup <- s
-        (void $ runHttpT (manager setup) (h (cargohold setup)))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "v3"

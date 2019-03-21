@@ -57,6 +57,7 @@ main = withOpenSSL $ runTests go
   where
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
                 testGroup "Cargohold API Integration" [API.V3.tests opts]
+                testGroup "Metrics" [testMetrics opts]
 
     getOpts _ i = do
         -- TODO: It would actually be useful to read some
