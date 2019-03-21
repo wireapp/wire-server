@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
-module API (TestSetup(..), tests) where
+module API (tests) where
 
 import Bilge
 import Bilge.Assert
@@ -24,7 +24,7 @@ import System.Random                  (randomIO)
 import System.Timeout                 (timeout)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Types
+import TestSetup
 
 import qualified Cassandra              as Cql
 import qualified Data.Aeson.Types       as Aeson
@@ -45,15 +45,6 @@ import qualified Prelude
 appName :: AppName
 appName = AppName "test"
 
-data TestSetup = TestSetup
-  { manager :: Manager
-  , gundeck :: Gundeck
-  , cannon  :: Cannon
-  , cannon2 :: Cannon
-  , brig    :: Brig
-  , cass    :: Cql.ClientState
-  }
-
 type TestSignature a = Gundeck -> Cannon -> Brig -> Cql.ClientState -> Http a
 type TestSignature2 a = Gundeck -> Cannon -> Cannon -> Brig -> Cql.ClientState -> Http a
 
@@ -62,14 +53,14 @@ test setup n h = testCase n runTest
   where
     runTest = do
         s <- setup
-        void $ runHttpT (manager s) (h (gundeck s) (cannon s) (brig s) (cass s))
+        void $ runHttpT (s ^. tsManager) (h (s ^. tsGundeck) (s ^. tsCannon) (s ^. tsBrig) (s ^. tsCass))
 
 test2 :: IO TestSetup -> TestName -> (TestSignature2 a) -> TestTree
 test2 setup n h = testCase n runTest
   where
     runTest = do
         s <- setup
-        void $ runHttpT (manager s) (h (gundeck s) (cannon s) (cannon2 s) (brig s) (cass s))
+        void $ runHttpT (s ^. tsManager) (h (s ^. tsGundeck) (s ^. tsCannon) (s ^. tsCannon2) (s ^. tsBrig) (s ^. tsCass))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Gundeck integration tests" [
