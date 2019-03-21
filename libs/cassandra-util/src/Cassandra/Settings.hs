@@ -21,6 +21,8 @@ module Cassandra.Settings
     , setResponseTimeout
     , setRetrySettings
     , setPolicy
+    , setLogger
+    , mkLogger
     , initialContactsDisco
     , initialContactsPlain
     ) where
@@ -29,6 +31,7 @@ import Imports
 import Control.Lens
 import Data.Aeson.Lens
 import Database.CQL.IO hiding (values)
+import Database.CQL.IO.Tinylog (mkLogger)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
 import Network.Wreq

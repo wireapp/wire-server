@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: cassandra-util
 version: '0.16.5'
@@ -14,6 +14,7 @@ dependencies:
 - conduit
 - cql >=3.0.0
 - cql-io >=0.14
+- cql-io-tinylog
 - dns >=3.0
 - errors >=1.4
 - exceptions >=0.6
