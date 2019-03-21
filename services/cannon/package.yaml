@@ -17,9 +17,10 @@ library:
   exposed-modules:
   - Cannon.API
   - Cannon.Dict
+  - Cannon.Options
+  - Cannon.Run
   - Cannon.Types
   - Cannon.WS
-  - Cannon.Options
   dependencies:
   - base >=4.6 && <5
   - aeson >=0.11
