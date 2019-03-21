@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Imports
-import Brig.API
+import Brig.Run (run)
 import OpenSSL (withOpenSSL)
 
 import Util.Options
@@ -11,4 +11,4 @@ main = withOpenSSL $ do
   let desc = "Brig - User Service"
       defaultPath = "/etc/wire/brig/conf/brig.yaml"
   options <- getOptions desc Nothing defaultPath
-  runServer options
+  run options

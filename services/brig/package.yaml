@@ -47,6 +47,7 @@ library:
   - Brig.Options
   - Brig.Provider.DB
   - Brig.RPC
+  - Brig.Run
   - Brig.User.Auth.Cookie.Limit
   - Brig.User.Search.Index
   - Brig.ZAuth
