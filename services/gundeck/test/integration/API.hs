@@ -63,7 +63,7 @@ test2 setup n h = testCase n runTest
         void $ runHttpT (s ^. tsManager) (h (s ^. tsGundeck) (s ^. tsCannon) (s ^. tsCannon2) (s ^. tsBrig) (s ^. tsCass))
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Gundeck integration tests" [
+tests s = testGroup "API tests" [
     testGroup "Push"
         [ test s "Register a user"       $ addUser
         , test s "Delete a user"         $ removeUser

@@ -1,7 +1,5 @@
 module TestSetup where
 
-import           Imports
-import           Util.Options
 import           Bilge
 import           Control.Lens (makeLenses)
 import qualified Cassandra    as Cql
@@ -20,3 +18,4 @@ data TestSetup = TestSetup
   }
 
 makeLenses ''TestSetup
+
