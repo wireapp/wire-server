@@ -114,12 +114,6 @@ removeUser = do
     deleteUser g user
     ntfs <- listNotifications user Nothing
     liftIO $ do
-        -- Creating a new logger here is a bit of a hack; the Client monad is no longer a
-        -- 'MonadLogger' (cql-io had a breaking change), but our code still requires it, so we
-        -- wrap the client monad with LoggerT which has MonadLogger (it's just a Reader over
-        -- Logger) to satisfy the logger constraints of our code; then we run the logger and
-        -- get a Client monad to pass to 'runClient'. This would be nicer if there was a
-        -- ClientT; but there isn't :'(
         tokens <- Cql.runClient s (Log.runWithLogger logger $ Push.lookup user Push.Quorum)
         null tokens    @?= True
         ntfs           @?= []
