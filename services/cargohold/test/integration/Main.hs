@@ -16,7 +16,9 @@ import Util.Test
 import Test.Tasty
 import Test.Tasty.Options
 
+import TestSetup
 import qualified API.V3
+import qualified Metrics
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoint
@@ -56,8 +58,9 @@ main :: IO ()
 main = withOpenSSL $ runTests go
   where
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
-                testGroup "Cargohold API Integration" [API.V3.tests opts]
-                testGroup "Metrics" [testMetrics opts]
+        testGroup "Cargohold" [ API.V3.tests opts
+                              , Metrics.tests opts
+                              ]
 
     getOpts _ i = do
         -- TODO: It would actually be useful to read some
@@ -70,7 +73,7 @@ main = withOpenSSL $ runTests go
         let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
         iConf <- handleParseError =<< decodeFileEither i
         cargo <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
-        return $ API.V3.TestSetup m cargo
+        return $ TestSetup m cargo
 
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 

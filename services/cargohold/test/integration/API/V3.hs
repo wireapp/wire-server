@@ -30,7 +30,7 @@ import qualified Data.ByteString.Char8        as C8
 import qualified Data.UUID                    as UUID
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "v3"
+tests s = testGroup "API Integration v3"
     [ testGroup "simple"
         [ test s "roundtrip"          testSimpleRoundtrip
         , test s "tokens"             testSimpleTokens

@@ -1,12 +1,17 @@
 module Metrics (tests) where
 
-tests :: IO TestSetup -> TestTree
-tests s = test s "prometheus" testPrometheusMetrics
+import Imports
+import Bilge
+import Bilge.Assert
+import TestSetup
+import Test.Tasty
 
-testPrometheusMetrics :: TestSignature
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
+
+testPrometheusMetrics :: TestSignature ()
 testPrometheusMetrics cargohold =
-    g <- view cargohold
-    get (g . path "/i/metrics") !!! do
+    get (cargohold . path "/i/metrics") !!! do
         const 200 === statusCode
         -- Should contain the request duration metric in its output
         const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
