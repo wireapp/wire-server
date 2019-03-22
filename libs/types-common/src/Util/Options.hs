@@ -72,7 +72,7 @@ deriveFromJSON toOptionFieldName ''CassandraOpts
 makeLenses ''CassandraOpts
 
 newtype FilePathSecrets = FilePathSecrets FilePath
-    deriving (Eq, Show, Read, FromJSON)
+    deriving (Eq, Show, FromJSON)
 
 loadSecret :: FromJSON a => FilePathSecrets -> IO (Either String a)
 loadSecret (FilePathSecrets p) = do

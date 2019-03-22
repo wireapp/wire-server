@@ -49,7 +49,7 @@ import qualified System.Logger         as Logger
 
 newtype AccessKeyId = AccessKeyId
     { unKey :: ByteString }
-    deriving (Read, Eq, Show)
+    deriving (Eq, Show)
 
 instance FromJSON AccessKeyId where
   parseJSON = withText "Aws.AccessKeyId" $
@@ -57,7 +57,7 @@ instance FromJSON AccessKeyId where
 
 newtype SecretAccessKey = SecretAccessKey
     { unSecret :: ByteString }
-    deriving (Read, Eq)
+    deriving (Eq)
 
 instance Show SecretAccessKey where
   show _ = "AWS Secret hidden"
