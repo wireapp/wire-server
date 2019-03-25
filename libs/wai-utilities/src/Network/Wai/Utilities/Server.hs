@@ -173,7 +173,8 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 --------------------------------------------------------------------------------
 -- Middlewares
 
--- | Create a middleware that tracks detailed request / response
+-- | DEPRECATED; use 'waiPrometheusMiddleware' instead.
+-- Create a middleware that tracks detailed request / response
 -- statistics, including timing information, for every path in the
 -- given routing tree.
 --
