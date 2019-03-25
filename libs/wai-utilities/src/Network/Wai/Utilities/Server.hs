@@ -13,7 +13,6 @@ module Network.Wai.Utilities.Server
       -- * Middlewares
     , measureRequests
     , catchErrors, catchErrors', OnErrorMetrics
-    , catchErrorsServant
     , heavyDebugLogging
     , onlyLogEndpoint
 
