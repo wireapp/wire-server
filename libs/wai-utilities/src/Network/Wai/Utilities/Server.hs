@@ -168,6 +168,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 
 catchErrors  :: Logger -> OnErrorMetrics -> Middleware
 catchErrors = catchErrors' True
+{-# INLINEABLE catchErrors #-}
 
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
@@ -196,7 +197,7 @@ catchErrors' warnNonExceptFailures l m app req k =
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
                 . (msg $ val "Expected exception instead of response with status >= 400")
         k resp
-{-# INLINEABLE catchErrors #-}
+{-# INLINEABLE catchErrors' #-}
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
