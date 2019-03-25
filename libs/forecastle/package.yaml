@@ -1,0 +1,27 @@
+defaults: 
+  local: ../../package-defaults.yaml
+name: forecastle
+version: '0.0.1'
+synopsis: Library for shared test helpers
+description: Library for shared test helpers
+category: Testing
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+extra-source-files:
+- README.md
+dependencies:
+- base >=4.7 && <5
+- amazonka
+- bilge
+- exceptions
+- hspec
+- imports
+- lens
+- mtl
+- generic-lens
+- HUnit
+library:
+  source-dirs: src
+stability: experimental

@@ -16,6 +16,7 @@ default-extensions:
 - DeriveGeneric
 - DeriveLift
 - DeriveTraversable
+- DerivingStrategies
 - EmptyCase
 - FlexibleContexts
 - FlexibleInstances
