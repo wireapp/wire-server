@@ -100,7 +100,7 @@ mkApp sparCtxOpts = do
         = WU.heavyDebugLogging
             (WU.onlyLogEndpoint "POST" ["sso", "finalize-login"]) logLevel sparCtxLogger
         . promthRun
-        . WU.catchErrorsServant sparCtxLogger (Left mx)
+        . WU.catchErrors' False sparCtxLogger (Left mx)
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
