@@ -23,7 +23,7 @@ data TestSetup = TestSetup
   }
 makeLenses ''TestSetup
 
-test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
+test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
 test s n h = testCase n runTest
   where
     runTest = do
