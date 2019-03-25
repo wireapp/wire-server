@@ -12,7 +12,7 @@ module Network.Wai.Utilities.Server
 
       -- * Middlewares
     , measureRequests
-    , catchErrors, OnErrorMetrics
+    , catchErrors, catchErrorsServant, OnErrorMetrics
     , heavyDebugLogging
     , onlyLogEndpoint
 
@@ -166,12 +166,22 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
 
+catchErrors  :: Logger -> OnErrorMetrics -> Middleware
+catchErrors = catchErrors' False
+
+catchErrorsServant  :: Logger -> OnErrorMetrics -> Middleware
+catchErrorsServant = catchErrors' True
+
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
 -- as well as counting server errors (i.e. exceptions that
 -- yield 5xx responses).
-catchErrors :: Logger -> OnErrorMetrics -> Middleware
-catchErrors l m app req k =
+--
+-- The boolean determines whether response values with
+-- status >= 400 are allowed (servant), or whether we should
+-- not expect and consequently warn about them (wai-route).
+catchErrors' :: Bool -> Logger -> OnErrorMetrics -> Middleware
+catchErrors' forServant l m app req k =
     app req k' `catch` errorResponse
   where
     errorResponse ex = do
@@ -183,7 +193,7 @@ catchErrors l m app req k =
     -- catch status >= 400 even if it does not come in the form of an exception, but as a
     -- response, and log the request id.  not much else we can do about it without taking
     -- apart the streaming response.  this should be fixed whenever it is found in the logs.
-    k' resp = do
+    k' = if forServant then k else \resp -> do
         when (statusCode (responseStatus resp) >= 400) $ do
             Log.warn l
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
