@@ -275,7 +275,7 @@ emitLByteString lbs = do
 
 -- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
 -- package introduced for spar ('Left').
-type OnErrorMetrics = Either Prm.Counter Metrics
+type OnErrorMetrics = [Either Prm.Counter Metrics]
 
 -- | Send an 'Error' response.
 onError
@@ -285,7 +285,7 @@ onError
 onError g m r k e = liftIO $ do
     logError g (Just r) e
     when (statusCode (Error.code e) >= 500) $
-        either Prm.incCounter (counterIncr (path "net.errors")) m
+        either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
     flushRequestBody r
     k (errorRs' e)
 

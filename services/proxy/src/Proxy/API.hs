@@ -41,7 +41,7 @@ run o = do
     let rtree    = compile (sitemap e)
     let measured = measureRequests m (treeToPaths rtree)
     let app r k  = runProxy e r (route rtree r k)
-    let start    = measured . catchErrors (e^.applog) (Right m) $ app
+    let start    = measured . catchErrors (e^.applog) [Right m] $ app
     runSettings s start `finally` destroyEnv e
 
 sitemap :: Env -> Routes a Proxy ()

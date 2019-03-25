@@ -57,7 +57,7 @@ runServer o = do
     pipeline e = do
         let routes = compile sitemap
         return $ measureRequests (e^.monitor) (treeToPaths routes)
-               . catchErrors (e^.applog) (Right $ e^.monitor)
+               . catchErrors (e^.applog) [Right $ e^.monitor]
                . GZip.gunzip . GZip.gzip GZip.def
                $ \r k -> runGundeck e r (route routes r k)
 
