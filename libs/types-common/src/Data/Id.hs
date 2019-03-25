@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP                        #-}
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -64,7 +63,7 @@ instance NFData NoId where rnf a = seq a ()
 
 newtype Id a = Id
     { toUUID :: UUID
-    } deriving (Eq, Ord, Generic, NFData)
+    } deriving (Eq, Ord, NFData, Hashable)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -83,8 +82,6 @@ instance FromByteString (Id a) where
 
 instance ToByteString (Id a) where
     builder = byteString . toASCIIBytes . toUUID
-
-instance Hashable (Id a)
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
@@ -145,7 +142,6 @@ instance Arbitrary (Id a) where
 newtype ConnId = ConnId
     { fromConnId :: ByteString
     } deriving ( Eq
-               , Generic
                , Ord
                , Read
                , Show
@@ -213,7 +209,6 @@ newtype BotId = BotId
     { botUserId :: UserId }
     deriving ( Eq
              , Ord
-             , Generic
              , FromByteString
              , ToByteString
              , Hashable

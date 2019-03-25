@@ -124,6 +124,7 @@ executables:
     - brig-types
     - cassandra-util
     - containers
+    - exceptions
     - gundeck
     - gundeck-types
     - http-client

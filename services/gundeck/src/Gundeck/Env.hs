@@ -59,8 +59,9 @@ createEnv m o = do
             . Redis.setConnectTimeout 3
             . Redis.setSendRecvTimeout 5
             $ Redis.defSettings
-    p <- C.init (Logger.clone (Just "cassandra.gundeck") l) $
-              C.setContacts (NE.head c) (NE.tail c)
+    p <- C.init $
+              C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
+            . C.setContacts (NE.head c) (NE.tail c)
             . C.setPortNumber (fromIntegral $ o^.optCassandra.casEndpoint.epPort)
             . C.setKeyspace (Keyspace (o^.optCassandra.casKeyspace))
             . C.setMaxConnections 4

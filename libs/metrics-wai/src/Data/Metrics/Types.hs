@@ -17,6 +17,7 @@ import Data.Tree as Tree
 
 import qualified Data.ByteString.Char8 as BS
 
+-- | The string used to represent the route within metrics e.g. the prometheus label
 newtype PathTemplate = PathTemplate Text
 
 -- | A 'Forest' of path segments.  A path segment is 'Left' if it captures a value
@@ -49,7 +50,8 @@ mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fma
         else tree : melt (tree' : trees)
 
 -- | A variant of 'Network.Wai.Route.Tree.lookup'.  The segments contain values to be captured
--- when running the 'App', but here we simply replace them with @"<>"@.
+-- when running the 'App', here we simply replace them with their identifier;
+-- e.g. @/user/1234@ might become @/user/userid@
 treeLookup :: Paths -> [ByteString] -> Maybe ByteString
 treeLookup (Paths forest) = go [] forest
   where

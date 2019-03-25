@@ -649,3 +649,10 @@ zAuthAccess 2
 zConn 5
 zUser 6
 zauth 3
+BrigR 2
+CannonR 2
+TestM 2
+_tsBrig 2
+_tsCannon 2
+_tsManager 2
+runTestM 2

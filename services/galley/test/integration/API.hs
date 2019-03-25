@@ -40,6 +40,7 @@ tests s = testGroup "Galley integration tests"
     mainTests = testGroup "Main API"
         [ test s "status" status
         , test s "monitoring" monitor
+        , test s "metrics" metrics
         , test s "create conversation" postConvOk
         , test s "get empty conversations" getConvsOk
         , test s "get conversations by ids" getConvsOk2
@@ -107,6 +108,15 @@ monitor = do
     get (g . path "/i/monitoring") !!! do
         const 200 === statusCode
         const (Just "application/json") =~= getHeader "Content-Type"
+
+metrics :: TestM ()
+metrics = do
+    g <- view tsGalley
+    get (g . path "/i/metrics") !!! do
+        const 200 === statusCode
+        -- Should contain the request duration metric in its output
+        const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+
 
 postConvOk :: TestM ()
 postConvOk = do

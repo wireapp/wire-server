@@ -71,6 +71,7 @@ main = withOpenSSL $ runTests go
                             , Metrics.tests opts
                             ]
 
+    getOpts :: FilePath -> FilePath -> IO TestSetup
     getOpts gFile iFile = do
         m <- newManager tlsManagerSettings {
             managerResponseTimeout = responseTimeoutMicro 300000000
@@ -78,10 +79,10 @@ main = withOpenSSL $ runTests go
         let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
         gConf <- handleParseError =<< decodeFileEither gFile
         iConf <- handleParseError =<< decodeFileEither iFile
-        g <- Gundeck . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
-        c <- Cannon  . mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-        c2 <- Cannon  . mkRequest <$> optOrEnv cannon2 iConf (local . read) "CANNON2_WEB_PORT"
-        b <- Brig    . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+        g  <- GundeckR . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
+        c  <- CannonR  . mkRequest <$> optOrEnv cannon  iConf (local . read) "CANNON_WEB_PORT"
+        c2 <- CannonR  . mkRequest <$> optOrEnv cannon2 iConf (local . read) "CANNON2_WEB_PORT"
+        b  <- BrigR    . mkRequest <$> optOrEnv brig    iConf (local . read) "BRIG_WEB_PORT"
         ch <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
         cp <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
         ck <- optOrEnv (\v -> v^.optCassandra.casKeyspace) gConf pack "GUNDECK_CASSANDRA_KEYSPACE"
@@ -89,7 +90,7 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ TestSetup m g c c2 b db
+        return $ TestSetup m g c c2 b db lg
 
     releaseOpts _ = return ()
 
