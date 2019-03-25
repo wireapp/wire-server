@@ -1,7 +1,6 @@
 module API.V3 where
 
 import Imports hiding (head)
-import TestSetup
 import Bilge hiding (body)
 import Bilge.Assert
 import Control.Lens hiding (sets)
@@ -18,8 +17,8 @@ import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200, status204)
 import Network.Wai.Utilities (Error (label))
-import Test.Tasty
-import Test.Tasty.HUnit
+import Forecastle
+import Forecastle.HUnit
 
 import qualified CargoHold.Types.V3           as V3
 import qualified CargoHold.Types.V3.Resumable as V3
@@ -29,23 +28,30 @@ import qualified Data.ByteString.Lazy         as Lazy
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.UUID                    as UUID
 
-tests :: IO TestSetup -> TestTree
-tests s = testGroup "API Integration v3"
-    [ testGroup "simple"
-        [ test s "roundtrip"          testSimpleRoundtrip
-        , test s "tokens"             testSimpleTokens
-        , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
-        ]
-    , testGroup "RealAWS"
-        [ testGroup "resumable"
-            [ test s "small"          testResumableSmall
-            , test s "large"          testResumableBig
-            , test s "last-small"     testResumableLastSmall
-            , test s "stepwise-small" testResumableStepSmall
-            , test s "stepwise-big"   testResumableStepBig
-            ]
-        ]
-    ]
+type CargoHold = (Request -> Request)
+type TestSignature a = CargoHold -> HttpT IO a
+
+liftT :: (CargoHold -> HttpT IO a) -> (CargoHold, Manager) -> IO ()
+liftT t (c, m) = void . runHttpT m $ t c
+
+-- liftTest :: TestSignature a -> TestM' a
+-- liftTest t = view (tCargoHold . coerced) >>= TestM . lift . t
+
+tests :: SpecWith (CargoHold, Manager)
+tests = describe "API Integration v3" $ do
+    context "simple" $ do
+        specify "roundtrip"           $ liftT testSimpleRoundtrip
+        specify "tokens"              $ liftT testSimpleTokens
+        specify "s3-upstream-closed"  $ liftT testSimpleS3ClosedConnectionReuse
+    context "RealAWS" $ do
+        context "resumable" $ do
+            specify "small"           $ liftT testResumableSmall
+            specify "large"           $ liftT testResumableBig
+            specify "last-small"      $ liftT testResumableLastSmall
+            specify "stepwise-small"  $ liftT testResumableStepSmall
+            specify "stepwise-big"    $ liftT testResumableStepBig
+
+
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads

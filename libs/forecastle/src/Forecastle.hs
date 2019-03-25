@@ -5,13 +5,16 @@ module Forecastle
     , tGalley
     , tBrig
     , tCannon
+    , tCargoHold
     , tAwsEnv
     , test
     , testGroup
+    , withEnv
     , TestM'
     , TestM(..)
     , TestSetup(..)
     , GalleyR(..)
+    , CargoHoldR(..)
     , BrigR(..)
     , CannonR(..)
     , module Test.Hspec
@@ -31,10 +34,11 @@ import Test.Hspec
 newtype GalleyR = GalleyR { runGalleyR :: Request -> Request }
 newtype BrigR = BrigR { runBrigR :: Request -> Request }
 newtype CannonR = CannonR { runCannonR :: Request -> Request }
+newtype CargoHoldR = CargoHoldR { runCargoHoldR :: Request -> Request }
 
 type TestM' a = TestM TestSetup a
 newtype TestM e a =
-  TestM { runTestM :: ReaderT e (HttpT IO) a
+  TestM { runTestM :: ReaderT e IO a
         } deriving newtype
         ( Functor
         , Applicative
@@ -44,15 +48,18 @@ newtype TestM e a =
         , MonadCatch
         , MonadThrow
         , MonadMask
-        , MonadHttp
         , MonadUnliftIO
         )
+
+instance (HasType Manager e) => MonadHttp (TestM e) where
+    getManager = view tManager
 
 data TestSetup = TestSetup
     { tsManager     :: Manager
     , tsGalley      :: GalleyR
     , tsBrig        :: BrigR
     , tsCannon      :: CannonR
+    , tsCargoHoldR  :: CargoHoldR
     , tsAwsEnv      :: Maybe AWS.Env
     } deriving (Generic)
 
@@ -68,16 +75,23 @@ tBrig = typed @BrigR . coerced
 tCannon :: HasType CannonR e => Lens' e (Request -> Request)
 tCannon = typed @CannonR . coerced
 
+tCargoHold :: HasType CargoHoldR e => Lens' e (Request -> Request)
+tCargoHold = typed @CargoHoldR . coerced
+
 tAwsEnv :: HasType (Maybe AWS.Env) e => Traversal' e AWS.Env
 tAwsEnv = typed @(Maybe AWS.Env) . _Just
 
 type TestDescription = String
 test :: HasType Manager e => IO e -> TestDescription -> TestM e a -> Spec
-test s desc h = specify desc runTest
+test setupEnv desc h = before setupEnv $ specify desc t
   where
-    runTest = do
-        setup <- s
-        void . runHttpT (setup ^. tManager) . flip runReaderT setup . runTestM $ h
+    t s = do
+        void . flip runReaderT s . runTestM $ h
 
-testGroup :: TestDescription -> [Spec] -> Spec
+testGroup :: TestDescription -> [SpecWith a] -> SpecWith a
 testGroup desc specs = describe desc (sequence_ specs)
+
+-- | Can be used with 'it'; e.g. it "does something with env" . withEnv $ myTestM
+withEnv :: TestM e () -> e -> IO ()
+withEnv t testEnv =
+    void . flip runReaderT testEnv . runTestM $ t
