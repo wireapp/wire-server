@@ -191,4 +191,4 @@ type Handler = ExceptT Error App
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k =
     let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-    in runAppT e' (exceptT (Server.onError (_appLogger e) (Right $ _metrics e) r k) return h)
+    in runAppT e' (exceptT (Server.onError (_appLogger e) [Right $ _metrics e] r k) return h)
