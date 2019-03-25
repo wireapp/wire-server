@@ -11,8 +11,8 @@ module Spar.Error
   ( SparError
   , SparCustomError(..)
   , throwSpar
-  , sparToServantErr
-  , sparToWaiError
+  , sparToServantErrIO
+  , sparToWaiErrorIO
   ) where
 
 import Imports
@@ -24,7 +24,9 @@ import Servant
 import Spar.Types (TTLError)
 
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified Network.Wai.Utilities.Server as Wai
 import qualified SAML2.WebSSO as SAML
+import qualified System.Logger as Log
 
 
 type SparError = SAML.Error SparCustomError
@@ -76,6 +78,16 @@ data SparCustomError
   | SparProvisioningTokenLimitReached
   deriving (Eq, Show)
 
+sparToServantErrIO :: Log.Logger -> SparError -> MonadIO m => m ServantErr
+sparToServantErrIO logger err = do
+  let errServant = sparToServantErr err
+  liftIO $ Wai.logError logger Nothing (servantToWaiError errServant)
+  pure errServant
+
+servantToWaiError :: ServantErr -> Wai.Error
+servantToWaiError (ServantErr code phrase body _headers) =
+  Wai.Error (Status code (cs phrase)) (cs phrase) (cs body)
+
 sparToServantErr :: SparError -> ServantErr
 sparToServantErr = either id waiToServant . sparToWaiError
 
@@ -86,6 +98,12 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   , errBody         = encode waierr
   , errHeaders      = []
   }
+
+sparToWaiErrorIO :: Log.Logger -> SparError -> MonadIO m => m (Either ServantErr Wai.Error)
+sparToWaiErrorIO logger err = do
+  let errPossiblyWai = sparToWaiError err
+  liftIO $ Wai.logError logger Nothing (either servantToWaiError id $ errPossiblyWai)
+  pure errPossiblyWai
 
 sparToWaiError :: SparError -> Either ServantErr Wai.Error
 sparToWaiError (SAML.CustomError SparNoSuchRequest)                       = Right $ Wai.Error status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
