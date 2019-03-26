@@ -192,8 +192,8 @@ catchErrorsException l m app req k =
 {-# INLINEABLE catchErrorsException #-}
 
 -- | Catch status >= 400 even if it does not come in the form of an exception, but as a
--- response, and re-throw what information we can recover.  also log a warning that this
--- really shouldn't happen, and an typed exception should be thrown instead.
+-- response, and log a warning that this really shouldn't happen, and a typed exception should
+-- be thrown instead.
 catchErrorsResponse :: Logger -> Middleware
 catchErrorsResponse l app req k =
     app req $ \resp -> do
@@ -203,7 +203,6 @@ catchErrorsResponse l app req k =
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
                 . field "error" (show errinfo)
                 . (msg $ val "Expected exception instead of response with status >= 400")
-            throw errinfo
         k resp
 {-# INLINEABLE catchErrorsResponse #-}
 
