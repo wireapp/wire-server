@@ -100,7 +100,8 @@ mkApp sparCtxOpts = do
         = WU.heavyDebugLogging
             (WU.onlyLogEndpoint "POST" ["sso", "finalize-login"]) logLevel sparCtxLogger
         . promthRun
-        . WU.catchErrors' False sparCtxLogger [Left mx]
+        . WU.catchErrorsException sparCtxLogger [Left mx]
+          -- error 'Response's not thrown as exceptions are logged in 'sparToWaiErrorIO'
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

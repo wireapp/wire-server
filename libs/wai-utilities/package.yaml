@@ -25,6 +25,7 @@ dependencies:
 - pipes >=4.1
 - prometheus-client
 - streaming-commons >=0.1
+- string-conversions
 - stm
 - swagger >=0.1
 - text >=0.11

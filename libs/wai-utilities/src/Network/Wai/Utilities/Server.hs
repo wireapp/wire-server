@@ -12,7 +12,10 @@ module Network.Wai.Utilities.Server
 
       -- * Middlewares
     , measureRequests
-    , catchErrors, catchErrors', OnErrorMetrics
+    , catchErrors
+    , catchErrorsException
+    , catchErrorsResponse
+    , OnErrorMetrics
     , heavyDebugLogging
     , onlyLogEndpoint
 
@@ -33,6 +36,7 @@ import Data.Aeson (encode)
 import Data.ByteString.Builder
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
+import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Method
@@ -166,9 +170,9 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
 
--- | Alias for @'catchErrors'' True@.
+-- | Run both 'catchErrorsException', 'catchErrorsResponse'.
 catchErrors  :: Logger -> OnErrorMetrics -> Middleware
-catchErrors = catchErrors' True
+catchErrors l m = catchErrorsException l m . catchErrorsResponse l
 {-# INLINEABLE catchErrors #-}
 
 -- | Create a middleware that catches exceptions and turns
@@ -176,29 +180,34 @@ catchErrors = catchErrors' True
 -- as well as counting server errors (i.e. exceptions that
 -- yield 5xx responses).
 --
--- The boolean determines whether response values with
--- status >= 400 are allowed (servant), or whether we should
--- not expect and consequently warn about them (wai-route).
-catchErrors' :: Bool -> Logger -> OnErrorMetrics -> Middleware
-catchErrors' warnNonExceptFailures l m app req k =
-    app req k' `catch` errorResponse
+-- This does not log any 'Response' values with error status.
+-- See 'catchErrors'.
+catchErrorsException :: Logger -> OnErrorMetrics -> Middleware
+catchErrorsException l m app req k =
+    app req k `catch` errorResponse
   where
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
             logIO l Log.Error (Just req) (show ex)
         onError l m req k er
+{-# INLINEABLE catchErrorsException #-}
 
-    -- catch status >= 400 even if it does not come in the form of an exception, but as a
-    -- response, and log the request id.  not much else we can do about it without taking
-    -- apart the streaming response.  this should be fixed whenever it is found in the logs.
-    k' resp = do
-        when (warnNonExceptFailures && statusCode (responseStatus resp) >= 400) $ do
+-- | Catch status >= 400 even if it does not come in the form of an exception, but as a
+-- response, and re-throw what information we can recover.  also log a warning that this
+-- really shouldn't happen, and an typed exception should be thrown instead.
+catchErrorsResponse :: Logger -> Middleware
+catchErrorsResponse l app req k =
+    app req $ \resp -> do
+        when (statusCode (responseStatus resp) >= 400) $ do
+            let errinfo = Error (responseStatus resp) (cs . statusMessage $ responseStatus resp) "N/A"
             Log.warn l
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
+                . field "error" (show errinfo)
                 . (msg $ val "Expected exception instead of response with status >= 400")
+            throw errinfo
         k resp
-{-# INLINEABLE catchErrors' #-}
+{-# INLINEABLE catchErrorsResponse #-}
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
