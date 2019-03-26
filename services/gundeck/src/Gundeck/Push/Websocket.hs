@@ -15,10 +15,12 @@ import Data.Id
 import Data.List1
 import Data.Misc (Milliseconds (..))
 import Data.Time.Clock.POSIX
+import Data.Timeout (Timeout, (#>), TimeoutUnit(MilliSecond))
 import Gundeck.Monad
-import Gundeck.Types.Notification
 import Gundeck.Types.BulkPush
+import Gundeck.Types.Notification
 import Gundeck.Types.Presence
+import Gundeck.Types.Timeouts
 import Gundeck.Util
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
@@ -142,7 +144,7 @@ bulkSend' uri (encode -> jsbody) = do
            . method POST
            . contentJson
            . lbytes jsbody
-           . timeout 3000 -- ms
+           . timeout' gundeckToCannonReqTimeout
            ) <$> Http.setUri empty (fromURI uri)
     try (submit req) >>= \case
         Left  e -> throwM (e :: SomeException)
@@ -339,7 +341,7 @@ send n pp =
                 $ method POST
                 . contentJson
                 . lbytes js
-                . timeout 3000 -- ms
+                . timeout' gundeckToCannonReqTimeout
 
     check r = r { Http.checkResponse = \rq rs ->
         when (responseStatus rs `notElem` [status200, status410]) $
@@ -356,3 +358,6 @@ logPresence :: Presence -> Log.Msg -> Log.Msg
 logPresence p =
        Log.field "user"   (toByteString (userId p))
     ~~ Log.field "zconn"  (toByteString (connId p))
+
+timeout' :: Timeout -> (Request -> Request)
+timeout' = Bilge.timeout . fromIntegral . (#> MilliSecond)

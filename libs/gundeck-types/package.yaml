@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: gundeck-types
 version: '1.45.0'
@@ -15,6 +15,7 @@ dependencies:
 - base64-bytestring >=1.0
 - bytestring >=0.10
 - bytestring-conversion >=0.2
+- data-timeout
 - containers >=0.5
 - imports
 - lens >=4.11
@@ -36,3 +37,4 @@ library:
   - Gundeck.Types.Push
   - Gundeck.Types.Push.V2
   - Gundeck.Types.Swagger
+  - Gundeck.Types.Timeouts

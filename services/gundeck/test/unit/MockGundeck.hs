@@ -41,7 +41,6 @@ import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
 import Gundeck.Types hiding (recipient)
-import Gundeck.Types.BulkPush
 import System.Logger.Class as Log hiding (trace)
 import Test.QuickCheck as QC
 import Test.QuickCheck.Instances ()
