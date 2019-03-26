@@ -24,7 +24,7 @@ main = do
     unless (clientsMin o >= 1) $
         error "invalid value for --clients: has to be at least 1"
     m <- newManager tlsManagerSettings
-    l <- Log.new Log.defSettings
+    l <- Log.new Log.defSettings  -- TODO: use mkLogger'?
     e <- newBotNetEnv m l (ltsBotNetSettings o)
     void . runBotNet e $ do
         runLoadTest o

@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: gundeck
 version: '1.45.0'
@@ -10,6 +10,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - imports
+- extended
 library:
   source-dirs: src
   ghc-options:
@@ -122,6 +123,7 @@ executables:
     - brig-types
     - cassandra-util
     - containers
+    - exceptions
     - gundeck
     - gundeck-types
     - http-client

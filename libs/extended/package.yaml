@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: extended
 version: '0.1.0'
@@ -18,9 +18,10 @@ dependencies:
 - extra
 - imports
 - optparse-applicative
+- tinylog
 - unliftio
+- cql-io
+- exceptions
 library:
   source-dirs: src
-  exposed-modules:
-  - Options.Applicative.Extended
 stability: experimental

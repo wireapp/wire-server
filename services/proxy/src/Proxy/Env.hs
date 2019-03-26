@@ -20,15 +20,15 @@ import Data.Metrics.Middleware (Metrics)
 import Proxy.Options
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import System.Logger.Class hiding (Error, info)
 
 import qualified System.Logger as Logger
+import qualified System.Logger.Extended as Logger
 
 data Env = Env
     { _reqId   :: !RequestId
     , _monitor :: !Metrics
     , _options :: !Opts
-    , _applog  :: !Logger
+    , _applog  :: !Logger.Logger
     , _manager :: !Manager
     , _secrets :: !Config
     , _loader  :: !ThreadId
@@ -38,7 +38,7 @@ makeLenses ''Env
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
+    g <- Logger.mkLogger'
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)
@@ -49,7 +49,7 @@ createEnv m o = do
     return $! Env def m o g n c t
   where
     reloadError g x =
-        Logger.err g (msg $ val "Failed reloading config: " +++ show x)
+        Logger.err g (Logger.msg $ Logger.val "Failed reloading config: " Logger.+++ show x)
 
 destroyEnv :: Env -> IO ()
 destroyEnv e = do

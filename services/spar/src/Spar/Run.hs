@@ -7,7 +7,6 @@
 -- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
-  , mkLogger
   , runServer
   ) where
 
@@ -41,6 +40,7 @@ import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 
 ----------------------------------------------------------------------
@@ -52,7 +52,8 @@ initCassandra opts lgr = do
                (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Types.discoUrl opts)
-    cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
+    cas <- Cas.init $ Cas.defSettings
+      & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
       & Cas.setPortNumber (fromIntegral $ Types.cassandra opts ^. casEndpoint . epPort)
       & Cas.setKeyspace (Keyspace $ Types.cassandra opts ^. casKeyspace)
@@ -67,24 +68,13 @@ initCassandra opts lgr = do
 
 
 ----------------------------------------------------------------------
--- logger
-
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (toLevel $ saml opts ^. SAML.cfgLogLevel)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (logNetStrings opts)
-
-
-----------------------------------------------------------------------
 -- servant / wai / warp
 
 -- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  sparCtxLogger <- mkLogger sparCtxOpts
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel) (logNetStrings sparCtxOpts)
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport

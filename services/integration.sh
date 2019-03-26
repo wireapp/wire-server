@@ -77,8 +77,6 @@ function run() {
     service=$1
     instance=$2
     colour=$3
-    # TODO can be removed once all services have been switched to YAML configs
-    [ $# -gt 3 ] && export LOG_LEVEL=$4
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
@@ -90,7 +88,7 @@ run galley "" ${yellow}
 run gundeck "" ${blue}
 run cannon "" ${orange}
 run cannon "2" ${orange}
-run cargohold "" ${purpleish} Info
+run cargohold "" ${purpleish}
 run spar "" ${orange}
 
 # the ports are copied from ./integration.yaml

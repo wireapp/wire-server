@@ -1,9 +1,4 @@
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- | See also: services/brig/test/integration/API/Metrics.hs
 module Test.MetricsSpec (spec) where

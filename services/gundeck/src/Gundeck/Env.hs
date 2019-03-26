@@ -14,7 +14,6 @@ import Util.Options
 import Gundeck.Options as Opt
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import System.Logger.Class hiding (Error, info)
 
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
@@ -22,12 +21,13 @@ import qualified Database.Redis.IO as Redis
 import qualified Data.List.NonEmpty as NE
 import qualified Gundeck.Aws as Aws
 import qualified System.Logger as Logger
+import qualified System.Logger.Extended as Logger
 
 data Env = Env
     { _reqId   :: !RequestId
     , _monitor :: !Metrics
     , _options :: !Opts
-    , _applog  :: !Logger
+    , _applog  :: !Logger.Logger
     , _manager :: !Manager
     , _cstate  :: !ClientState
     , _rstate  :: !Redis.Pool
@@ -40,16 +40,9 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Logger.new $ Logger.defSettings
-    & Logger.setLogLevel (opts ^. optLogLevel)
-    & Logger.setOutput Logger.StdOut
-    & Logger.setFormat Nothing
-    & Logger.setNetStrings (opts ^. optLogNetStrings)
-
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l <- mkLogger o
+    l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings)
     c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
@@ -66,8 +59,9 @@ createEnv m o = do
             . Redis.setConnectTimeout 3
             . Redis.setSendRecvTimeout 5
             $ Redis.defSettings
-    p <- C.init (Logger.clone (Just "cassandra.gundeck") l) $
-              C.setContacts (NE.head c) (NE.tail c)
+    p <- C.init $
+              C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
+            . C.setContacts (NE.head c) (NE.tail c)
             . C.setPortNumber (fromIntegral $ o^.optCassandra.casEndpoint.epPort)
             . C.setKeyspace (Keyspace (o^.optCassandra.casKeyspace))
             . C.setMaxConnections 4
@@ -83,6 +77,6 @@ createEnv m o = do
     }
     return $! Env def m o l n p r a io
 
-reqIdMsg :: RequestId -> Msg -> Msg
-reqIdMsg = ("request" .=) . unRequestId
+reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
+reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}

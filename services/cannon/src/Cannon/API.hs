@@ -28,7 +28,6 @@ import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
 import System.Logger (msg, val)
-import System.Logger.Class (Logger)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
@@ -36,21 +35,16 @@ import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
-import qualified System.Logger.Class         as Logger
+import qualified System.Logger               as L
+import qualified System.Logger.Extended      as L
+import qualified System.Logger.Class         as LC
 import qualified System.IO.Strict            as Strict
-
-mkLogger :: Opts -> IO Logger
-mkLogger o = Logger.new $ Logger.defSettings
-    & Logger.setLogLevel (o^.logLevel)
-    & Logger.setOutput Logger.StdOut
-    & Logger.setFormat Nothing
-    & Logger.setNetStrings (o^.logNetStrings)
 
 run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- metrics
-    g <- mkLogger o
+    g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o
@@ -64,7 +58,7 @@ run o = do
         measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
         start    = measured . catchErrors g m $ Gzip.gzip Gzip.def app
-    runSettings s start `finally` Logger.close (applog e)
+    runSettings s start `finally` L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
 
@@ -160,11 +154,11 @@ singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
 singlePush notification (PushTarget usrid conid) = do
     let k = mkKey usrid conid
     d <- clients
-    Logger.debug $ client (key2bytes k) . msg (val "push")
+    LC.debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d
     case c of
         Nothing -> do
-            Logger.debug $ client (key2bytes k) . msg (val "push: client gone")
+            LC.debug $ client (key2bytes k) . msg (val "push: client gone")
             return PushStatusGone
         Just x -> do
             e <- wsenv

@@ -3,8 +3,10 @@ module Main where
 import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import System.Logger hiding (info)
 import Util.Options
+
+import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 import qualified V9
 import qualified V10
@@ -59,7 +61,7 @@ main = do
     let desc = "Brig Cassandra Schema Migrations"
         defaultPath = "/etc/wire/brig/conf/brig-schema.yaml"
     o <- getOptions desc (Just migrationOptsParser) defaultPath
-    l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
+    l <- Log.mkLogger'
     migrateSchema l o
         [ V9.migration
         , V10.migration
@@ -108,4 +110,4 @@ main = do
         , V56.migration
         , V57.migration
         , V58.migration
-        ] `finally` close l
+        ] `finally` Log.close l

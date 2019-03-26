@@ -37,7 +37,7 @@ sendRawMailSuccess e = do
 
 sendMailFailure :: Env -> IO ()
 sendMailFailure e = do
-    l <- Logger.new Logger.defSettings
+    l <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
     x <- newEnv l (getManager e) $ Just (AccessKeyId "abc", SecretAccessKey "eh?")
     r <- runExceptT . trySes $ sendRequest x sesCfg =<< sendRawEmail testMimeMail
     case r of

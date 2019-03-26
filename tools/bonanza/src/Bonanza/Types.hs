@@ -102,7 +102,7 @@ instance Monoid Tags where
 type TagValue = Aeson.Value
 
 newtype Host = Host { host :: Text }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show)
 
 instance ToJSON Host where
     toJSON (Host h) = toJSON h

@@ -36,6 +36,7 @@ dependencies:
   - email-validate
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extended
   - extra
   - galley-types
   - ghc-prim
@@ -126,8 +127,10 @@ executables:
       - MonadRandom
       - random
       - servant-client
+      - silently
       - spar
       - stm
+      - tinylog
       - wai
       - warp-tls
       - xml-conduit

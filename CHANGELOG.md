@@ -1,4 +1,36 @@
-# 2019-02-28
+# 2019-03-25 #674
+
+## API changes
+
+  * SCIM delete user endpoint (#660)
+  * Require reauthentication when creating a SCIM token (#639)
+  * Disallow duplicate external ids via SCIM update user (#657)
+
+## Documentation changes
+
+  * Make an index for the docs/ (#662)
+  * Docs: using scim with curl. (#659)
+  * Add spar to the arch diagram. (#650)
+
+## Bug fixes
+
+  * ADFS-workaround for SAML2 authn response signature validation. (#670)
+  * Fix: empty objects `{}` are valid TeamMemberDeleteData. (#652)
+  * Better logo rendering in emails (#649)
+
+## Internal changes
+
+  * Remove some unused instances (#671)
+  * Reusable wai middleware for prometheus (for Galley only for now) (#669)
+  * Bump cql-io dep from merge request to latest release. (#661)
+  * docker image building for all of the docker images our integration tests require. (#622, #668)
+  * Checking for 404 is flaky; depends on deletion succeeding (#667)
+  * Refactor Galley Tests to use Reader Pattern (#666)
+  * Switch Cargohold to YAML-only config (#653)
+  * Filter newlines in log output.  (#642)
+
+
+# 2019-02-28 #648
 
 ## API changes
 

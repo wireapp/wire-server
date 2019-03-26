@@ -62,7 +62,7 @@ import qualified Data.ByteString.Lazy as Lazy
 data Debug
     = Head -- ^ Print HTTP request/response header.
     | Full -- ^ Like 'Head' but also print the response body.
-    deriving (Eq, Ord, Show, Read, Enum)
+    deriving (Eq, Ord, Show, Enum)
 
 type Http a = HttpT IO a
 
@@ -82,8 +82,11 @@ newtype HttpT m a = HttpT
 class MonadHttp m where
     getManager :: m Manager
 
-instance Monad m => MonadHttp (HttpT m) where
+instance {-# OVERLAPPING #-} Monad m => MonadHttp (HttpT m) where
     getManager = HttpT ask
+
+instance {-# OVERLAPPABLE #-} (MonadTrans t, MonadHttp m, Monad m) => MonadHttp (t m) where
+  getManager = lift getManager
 
 instance MonadBase IO (HttpT IO) where
     liftBase = liftIO
