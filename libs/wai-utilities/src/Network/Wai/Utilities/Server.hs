@@ -166,6 +166,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
 
+-- | Alias for @'catchErrors'' True@.
 catchErrors  :: Logger -> OnErrorMetrics -> Middleware
 catchErrors = catchErrors' True
 {-# INLINEABLE catchErrors #-}
