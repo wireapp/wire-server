@@ -77,8 +77,14 @@ function run() {
     service=$1
     instance=$2
     colour=$3
+    if [ echo -n | sed -u '' ]; then
+        UNBUFFERED=-u
+    else
+        echo "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
+        UNBUFFERED=''
+    fi
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
-        | sed -u -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+        | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 check_prerequisites
