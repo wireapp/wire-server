@@ -240,7 +240,7 @@ heavyDebugLogging
 heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
     (bdy, req') <- if lvl <= Debug  -- or (`elem` [Trace, Debug])
         then cloneBody req
-        else pure ("n/a", req)
+        else pure ("body omitted because log level was less sensitive than Debug", req)
     app req' $ \resp -> do
         forM_ (sanitizeReq (req', bdy)) $ \(req'', bdy') ->
             when (statusCode (responseStatus resp) >= 400) $ logBody req'' bdy'
