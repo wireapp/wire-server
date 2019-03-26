@@ -77,10 +77,11 @@ function run() {
     service=$1
     instance=$2
     colour=$3
-    if [ echo -n | sed -u '' ]; then
+    # Test if sed supports buffer settings.  GNU sed does, busybox sed does not.
+    if [ echo -n | sed -u '' >/dev/null 2>&1 ]; then
         UNBUFFERED=-u
     else
-        echo "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
+        echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
         UNBUFFERED=''
     fi
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
