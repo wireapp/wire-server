@@ -78,7 +78,7 @@ function run() {
     instance=$2
     colour=$3
     # Test if sed supports buffer settings.  GNU sed does, busybox sed does not.
-    if [ echo -n | sed -u '' >/dev/null 2>&1 ]; then
+    if sed -u '' </dev/null >/dev/null 2>&1; then
         UNBUFFERED=-u
     else
         echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
