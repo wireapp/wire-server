@@ -78,7 +78,7 @@ data SparCustomError
   | SparProvisioningTokenLimitReached
   deriving (Eq, Show)
 
-sparToServantErrIO :: Log.Logger -> SparError -> MonadIO m => m ServantErr
+sparToServantErrIO :: MonadIO m => Log.Logger -> SparError -> m ServantErr
 sparToServantErrIO logger err = do
   let errServant = sparToServantErr err
   liftIO $ Wai.logError logger Nothing (servantToWaiError errServant)
@@ -99,7 +99,7 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   , errHeaders      = []
   }
 
-sparToWaiErrorIO :: Log.Logger -> SparError -> MonadIO m => m (Either ServantErr Wai.Error)
+sparToWaiErrorIO :: MonadIO m => Log.Logger -> SparError -> m (Either ServantErr Wai.Error)
 sparToWaiErrorIO logger err = do
   let errPossiblyWai = sparToWaiError err
   liftIO $ Wai.logError logger Nothing (either servantToWaiError id $ errPossiblyWai)
