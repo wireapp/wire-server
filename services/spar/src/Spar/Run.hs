@@ -97,14 +97,18 @@ mkApp sparCtxOpts = do
         . Bilge.port (sparCtxOpts ^. to galley . epPort)
         $ Bilge.empty
   let wrappedApp
-        = WU.heavyDebugLogging
-            (WU.onlyLogEndpoint "POST" ["sso", "finalize-login"]) logLevel sparCtxLogger
+        = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
         . WU.catchErrorsException sparCtxLogger [Left mx]
           -- error 'Response's not thrown as exceptions are logged in 'sparToWaiErrorIO'
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
+      heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
+      heavyLogOnly out@(req, _) =
+        if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
+        then Just out
+        else Nothing
   pure (wrappedApp, let sparCtxRequestId = RequestId "N/A" in Env {..})
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application

@@ -17,7 +17,6 @@ module Network.Wai.Utilities.Server
     , catchErrorsResponse
     , OnErrorMetrics
     , heavyDebugLogging
-    , onlyLogEndpoint
 
       -- * Utilities
     , onError
@@ -225,8 +224,7 @@ errorHandlers =
 -- 400@, log the entire request, including the body.
 --
 -- The request sanitizer is called on the 'Request' and its body before it is being logged,
--- giving you a chance to erase any confidential information.  Eg., if you're only interested
--- in one end-point that has no sensitive information, use 'onlyLogEndpoint'.
+-- giving you a chance to erase any confidential information.
 --
 -- WARNINGS:
 --
@@ -261,12 +259,6 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
                . field "request_details" (show req)
                . field "request_body" bdy
                . msg (val "full request details")
-
-onlyLogEndpoint :: Method -> [Text] -> (Request, LByteString) -> Maybe (Request, LByteString)
-onlyLogEndpoint mth pathi out@(req, _) =
-    if requestMethod req == mth && pathInfo req == pathi
-    then Just out
-    else Nothing
 
 -- | Compute a stream from a lazy bytestring suitable for putting into the 'Response'.  This
 -- can be used if we want to take a look at the body in a 'Middleware' *after* the request has
