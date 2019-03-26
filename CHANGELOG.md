@@ -1,4 +1,4 @@
-# 2019-03-25
+# 2019-03-25 #674
 
 ## API changes
 
@@ -30,7 +30,7 @@
   * Filter newlines in log output.  (#642)
 
 
-# 2019-02-28
+# 2019-02-28 #648
 
 ## API changes
 
