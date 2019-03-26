@@ -60,6 +60,7 @@ library:
   - mtl >=2.2
   - ssl-util >=0.1
   - optparse-applicative >=0.10
+  - prometheus-client
   - protobuf >=0.2
   - proto-lens >=0.2
   - retry >=0.5
