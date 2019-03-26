@@ -51,7 +51,6 @@ import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
-import qualified Control.Concurrent.STM.TVar as TVar
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
@@ -241,7 +240,7 @@ heavyDebugLogging
     :: ((Request, LByteString) -> Maybe (Request, LByteString))
     -> Level -> Logger -> Middleware
 heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
-    (bdy, req') <- if lvl <= Debug
+    (bdy, req') <- if lvl <= Debug  -- or (`elem` [Trace, Debug])
         then cloneBody req
         else pure ("n/a", req)
     app req' $ \resp -> do
@@ -269,16 +268,27 @@ onlyLogEndpoint mth pathi out@(req, _) =
     then Just out
     else Nothing
 
+-- | Compute a stream from a lazy bytestring suitable for putting into the 'Response'.  This
+-- can be used if we want to take a look at the body in a 'Middleware' *after* the request has
+-- been processed and the stream flushed.
+--
+-- This implementation returns the entire body in the first stream chunk.  An alternative,
+-- possibly faster implementation would be this:
+--
+-- >>> emitLByteString lbs = do
+-- >>>     chunks <- TVar.newTVarIO (LBS.toChunks lbs)
+-- >>>     pure $ do
+-- >>>         nextChunk <- atomically $ do
+-- >>>             xs <- TVar.readTVar chunks
+-- >>>             case xs of
+-- >>>                 [] -> pure Nothing
+-- >>>                 (x:xs') -> TVar.writeTVar chunks xs' >> pure (Just x)
+-- >>>         pure $ fromMaybe "" nextChunk
 emitLByteString :: LByteString -> IO (IO ByteString)
 emitLByteString lbs = do
-    chunks :: TVar.TVar [ByteString] <- TVar.newTVarIO (LBS.toChunks lbs)
-    pure $ do
-        nextChunk <- atomically $ do
-            xs <- TVar.readTVar chunks
-            case xs of
-                [] -> pure Nothing
-                (x:xs') -> TVar.writeTVar chunks xs' >> pure (Just x)
-        pure $ fromMaybe "" nextChunk
+    tvar <- newTVarIO (cs lbs)
+    -- | Emit the bytestring on the first read, then always return "" on subsequent reads
+    return . atomically $ swapTVar tvar mempty
 
 --------------------------------------------------------------------------------
 -- Utilities
