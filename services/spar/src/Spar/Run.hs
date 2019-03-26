@@ -77,7 +77,8 @@ runServer sparCtxOpts = do
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
       shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
-  (wrappedApp, sparCtxLogger -> logger) <- mkApp sparCtxOpts
+  (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
+  let logger = sparCtxLogger ctxOpts
   Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
   WU.runSettingsWithShutdown settings wrappedApp 5
 
