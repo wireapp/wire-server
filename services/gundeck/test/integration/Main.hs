@@ -23,6 +23,7 @@ import Util.Test
 import TestSetup
 
 import qualified API
+import qualified Metrics
 import qualified System.Logger   as Logger
 
 data IntegrationConfig = IntegrationConfig
@@ -65,9 +66,12 @@ runTests run = defaultMainWithIngredients ings $
 main :: IO ()
 main = withOpenSSL $ runTests go
   where
-    go g i = withResource (getOpts g i) releaseOpts $ \opts -> API.tests opts
+    go g i = withResource (getOpts g i) releaseOpts $ \opts ->
+        testGroup "Gundeck" [ API.tests opts
+                            , Metrics.tests opts
+                            ]
 
-    getOpts :: FilePath -> FilePath -> IO API.TestSetup
+    getOpts :: FilePath -> FilePath -> IO TestSetup
     getOpts gFile iFile = do
         m <- newManager tlsManagerSettings {
             managerResponseTimeout = responseTimeoutMicro 300000000
@@ -86,7 +90,7 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ API.TestSetup m g c c2 b db lg
+        return $ TestSetup m g c c2 b db lg
 
     releaseOpts _ = return ()
 

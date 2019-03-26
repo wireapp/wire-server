@@ -7,6 +7,7 @@ import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Data.Text.Encoding                as T
 
 import Data.Metrics.WaiRoute (treeToPaths)
+import Data.Metrics.Types (Paths)
 import Data.Metrics.Types (treeLookup)
 
 -- | Adds a prometheus metrics endpoint at @/i/metrics@
@@ -14,8 +15,9 @@ import Data.Metrics.Types (treeLookup)
 -- (e.g. removing params from calls)
 waiPrometheusMiddleware :: Monad m => Routes a m b -> Wai.Middleware
 waiPrometheusMiddleware routes =
-    Promth.prometheus conf . Promth.instrumentHandlerValue (normalizeWaiRequestRoute routes)
+    Promth.prometheus conf . Promth.instrumentHandlerValue (normalizeWaiRequestRoute paths)
   where
+    paths = treeToPaths $ prepare routes
     conf = Promth.def
         { Promth.prometheusEndPoint      = ["i", "metrics"]
           -- We provide our own instrumentation so we can normalize routes
@@ -25,11 +27,11 @@ waiPrometheusMiddleware routes =
 -- | Compute a normalized route for a given request.
 -- Normalized routes have route parameters replaced with their identifier
 -- e.g. @/user/1234@ might become @/user/userid@
-normalizeWaiRequestRoute :: Monad m => Routes a m b -> Wai.Request -> Text
-normalizeWaiRequestRoute routes req = pathInfo
+normalizeWaiRequestRoute :: Paths -> Wai.Request -> Text
+normalizeWaiRequestRoute paths req = pathInfo
   where
     mPathInfo :: Maybe ByteString
-    mPathInfo = treeLookup (treeToPaths $ prepare routes) (T.encodeUtf8 <$> Wai.pathInfo req)
+    mPathInfo = treeLookup paths (T.encodeUtf8 <$> Wai.pathInfo req)
 
     -- Use the normalized path info if available; otherwise dump the raw path info for
     -- debugging purposes

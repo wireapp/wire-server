@@ -1,18 +1,15 @@
-module CargoHold.API (runServer) where
+module CargoHold.API (sitemap) where
 
 import Imports hiding (head)
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (finally)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Predicate
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, Request, responseLBS)
@@ -20,11 +17,9 @@ import Network.Wai.Conduit (sourceRequestBody)
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import URI.ByteString
-import Util.Options
 
 import qualified CargoHold.API.V3              as V3
 import qualified CargoHold.API.V3.Resumable    as Resumable
@@ -34,25 +29,8 @@ import qualified CargoHold.TUS                 as TUS
 import qualified CargoHold.Types.V3            as V3
 import qualified CargoHold.Types.V3.Resumable  as V3
 import qualified Data.Swagger.Build.Api        as Doc
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Utilities.Server  as Server
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-runServer :: Opts -> IO ()
-runServer o = do
-    e <- newEnv o
-    s <- Server.newSettings (server e)
-    runSettingsWithShutdown s (pipeline e) 5
-        `finally` closeEnv e
-  where
-    rtree      = compile sitemap
-    server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.appLogger) [Right $ e^.metrics]
-               . GZip.gzip GZip.def
-               $ serve e
-
-    serve e r k = runHandler e r (Server.route rtree r k) k
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do

@@ -1,4 +1,4 @@
-module Proxy.API (Proxy.API.run) where
+module Proxy.API (sitemap) where
 
 import Imports hiding (head)
 import Control.Monad.Catch
@@ -7,19 +7,15 @@ import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Handler.Warp
 import Network.Wai.Predicate hiding (err, Error, setStatus)
 import Network.Wai.Predicate.Request (getRequest)
 import Network.Wai.Routing hiding (path, route)
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Server hiding (serverPort)
 import Proxy.Env
 import Proxy.Proxy
-import Proxy.Options
 import System.Logger.Class hiding (Error, info, render)
 
 import qualified Bilge.Request as Req
@@ -32,17 +28,6 @@ import qualified Data.Text as Text
 import qualified Network.HTTP.Client as Client
 import qualified Network.Wai.Internal as I
 import qualified System.Logger as Logger
-
-run :: Opts -> IO ()
-run o = do
-    m <- metrics
-    e <- createEnv m o
-    s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
-    let rtree    = compile (sitemap e)
-    let measured = measureRequests m (treeToPaths rtree)
-    let app r k  = runProxy e r (route rtree r k)
-    let start    = measured . catchErrors (e^.applog) [Right m] $ app
-    runSettings s start `finally` destroyEnv e
 
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
