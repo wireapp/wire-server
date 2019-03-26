@@ -101,7 +101,7 @@ mkApp sparCtxOpts = do
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
         . WU.catchErrorsException sparCtxLogger [Left mx]
-          -- error 'Response's not thrown as exceptions are logged in 'sparToWaiErrorIO'
+          -- error 'Response's not thrown as exceptions are logged in 'renderSparErrorIO'
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

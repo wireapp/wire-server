@@ -244,7 +244,7 @@ catchVerdictErrors = (`catchError` hndlr)
     hndlr :: SparError -> Spar VerdictHandlerResult
     hndlr err = do
       logr <- view (to sparCtxLogger)
-      waiErr <- sparToWaiErrorIO logr err
+      waiErr <- renderSparErrorIO logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
