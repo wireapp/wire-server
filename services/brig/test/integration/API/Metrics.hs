@@ -9,6 +9,7 @@ module API.Metrics (tests) where
 
 import Imports
 import Bilge
+import Bilge.Assert
 import Brig.Types.User
 import Control.Lens
 import Data.ByteString.Conversion
@@ -24,11 +25,19 @@ import Util
 tests :: Manager -> Brig -> IO TestTree
 tests manager brig = do
     return $ testGroup "metrics"
-        [ testCase "work" . void $ runHttpT manager (testMetricsWaiRoute brig)
+        [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig)
+        , testCase "work" . void $ runHttpT manager (testMonitoringEndpoint brig)
         ]
 
-testMetricsWaiRoute :: Brig -> Http ()
-testMetricsWaiRoute brig = do
+testPrometheusMetrics :: Brig -> Http ()
+testPrometheusMetrics brig = do
+    get (brig . path "/i/metrics") !!! do
+        const 200 === statusCode
+        -- Should contain the request duration metric in its output
+        const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+
+testMonitoringEndpoint :: Brig -> Http ()
+testMonitoringEndpoint brig = do
     let p1 = "/self"
         p2 uid = "/users/" <> uid <> "/clients"
 

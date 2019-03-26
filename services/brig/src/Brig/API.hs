@@ -1,10 +1,9 @@
 {-# LANGUAGE RecordWildCards   #-}
 
-module Brig.API (runServer) where
+module Brig.API (sitemap) where
 
 import Imports hiding (head)
 import Brig.App
-import Brig.AWS (sesQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
@@ -17,15 +16,12 @@ import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (finally)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Misc (IpAddr (..))
 import Data.Range
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
@@ -34,37 +30,27 @@ import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
 import qualified Data.List1                    as List1
-import qualified Control.Concurrent.Async      as Async
 import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
 import qualified Brig.Data.User                as Data
-import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
-import qualified Brig.AWS                      as AWS
-import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.InternalEvent.Process    as Internal
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Galley.Types.Swagger          as Doc
 import qualified Galley.Types.Teams            as Team
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Utilities         as Utilities
 import qualified Data.ByteString.Lazy          as Lazy
 import qualified Data.Map.Strict               as Map
-import qualified Network.Wai.Utilities.Server  as Server
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Brig.Provider.API             as Provider
@@ -72,31 +58,6 @@ import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
 import qualified System.Logger.Class           as Log
-
-runServer :: Opts -> IO ()
-runServer o = do
-    e <- newEnv o
-    s <- Server.newSettings (server e)
-    emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
-        Async.async $
-        AWS.execute (e^.awsEnv) $
-        AWS.listen q (runAppT e . SesNotification.onEvent)
-    internalEventListener <- Async.async $
-        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
-    runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        mapM_ Async.cancel emailListener
-        Async.cancel internalEventListener
-        closeEnv e
-  where
-    rtree      = compile (sitemap o)
-    endpoint   = brig o
-    server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.applog) (e^.metrics)
-               . GZip.gunzip . GZip.gzip GZip.def
-               $ serve e
-
-    serve e r k = runHandler e r (Server.route rtree r k) k
 
 ---------------------------------------------------------------------------
 -- Sitemap

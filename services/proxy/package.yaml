@@ -20,6 +20,7 @@ library:
   - Proxy.Env
   - Proxy.Options
   - Proxy.Proxy
+  - Proxy.Run
   dependencies:
   - base >=4.6 && <5
   - aeson >=1.0

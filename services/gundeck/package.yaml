@@ -37,6 +37,7 @@ library:
   - Gundeck.Push.Native.Types
   - Gundeck.Push.Websocket
   - Gundeck.React
+  - Gundeck.Run
   - Gundeck.Util
   - Gundeck.Util.DelayQueue
   - Gundeck.Util.Redis

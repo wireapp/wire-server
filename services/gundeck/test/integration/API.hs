@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
-module API (TestSetup(..), tests) where
+module API (tests) where
 
 import Bilge
 import Bilge.Assert
@@ -22,9 +22,9 @@ import Network.URI                    (parseURI)
 import Safe
 import System.Random                  (randomIO)
 import System.Timeout                 (timeout)
-import TestSetup
 import Test.Tasty
 import Test.Tasty.HUnit
+import TestSetup
 
 import qualified Cassandra              as Cql
 import qualified Data.Aeson.Types       as Aeson
@@ -47,7 +47,7 @@ appName :: AppName
 appName = AppName "test"
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Gundeck integration tests" [
+tests s = testGroup "API tests" [
     testGroup "Push"
         [ test s "Register a user"       $ addUser
         , test s "Delete a user"         $ removeUser
