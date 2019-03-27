@@ -311,7 +311,7 @@ onError g m r k e = liftIO $ do
 --
 -- It would be nice to have access to the request body here, but that's already streamed away
 -- by the handler in all likelyhood.  See 'heavyDebugLogging'.
-logError :: MonadIO m => Logger -> Maybe Request -> Wai.Error -> m ()
+logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
