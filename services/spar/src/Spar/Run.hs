@@ -39,7 +39,6 @@ import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 
 

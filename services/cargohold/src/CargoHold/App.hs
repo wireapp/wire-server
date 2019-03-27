@@ -55,7 +55,6 @@ import qualified Network.Wai.Utilities.Server as Server
 import qualified OpenSSL.Session              as SSL
 import qualified OpenSSL.X509.SystemStore     as SSL
 import qualified Ropes.Aws                    as Aws
-import qualified System.Logger                as Log
 import qualified System.Logger.Extended       as Log
 
 -------------------------------------------------------------------------------

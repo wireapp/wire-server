@@ -106,7 +106,6 @@ import qualified Ropes.Nexmo              as Nexmo
 import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
 import qualified System.FSNotify          as FS
-import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 import qualified System.Logger.Extended   as Log
 

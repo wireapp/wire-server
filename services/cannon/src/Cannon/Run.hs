@@ -22,7 +22,6 @@ import qualified Data.Metrics.Middleware as Middleware
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified System.IO.Strict            as Strict
-import qualified System.Logger               as L
 import qualified System.Logger.Extended      as L
 
 run :: Opts -> IO ()
