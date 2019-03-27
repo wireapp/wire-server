@@ -91,7 +91,7 @@ lookupTeam zusr tid = do
     else
         pure Nothing
 
-createNonBindingTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
+createNonBindingTeam :: UserId ::: ConnId ::: JsonRequest NonBindingNewTeam ::: JSON -> Galley Response
 createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     NonBindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions Nothing
@@ -104,14 +104,14 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
     finishCreateTeam team owner others (Just zcon)
 
-createBindingTeam :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+createBindingTeam :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley Response
 createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions Nothing
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
     finishCreateTeam team owner [] Nothing
 
-updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+updateTeamStatus :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
     TeamStatusUpdate to cur <- fromBody req invalidPayload
     from <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -134,7 +134,7 @@ updateTeamStatus (tid ::: req ::: _) = do
         ( Suspended    , Suspended ) -> return False
         ( _            , _         ) -> throwM invalidTeamStatusUpdate
 
-updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
     membs <- Data.teamMembers tid
@@ -155,7 +155,7 @@ deleteTeam (zusr::: zcon ::: tid ::: req ::: _ ::: _) = do
         _ -> do
             void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
             when ((tdTeam team)^.teamBinding == Binding) $ do
-                body <- fromBody req invalidPayload
+                body <- fromBody (JsonRequest req) invalidPayload
                 ensureReAuthorised zusr (body^.tdAuthPassword)
             queueDelete
   where
@@ -229,7 +229,7 @@ uncheckedGetTeamMembers (tid ::: _) = do
     mems <- Data.teamMembers tid
     return . json $ newTeamMemberList mems
 
-addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
@@ -245,7 +245,7 @@ addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
-uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+uncheckedAddTeamMember :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 uncheckedAddTeamMember (tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
@@ -253,7 +253,7 @@ uncheckedAddTeamMember (tid ::: req ::: _) = do
     Journal.teamUpdate tid (nmem^.ntmNewTeamMember : mems)
     return rsp
 
-updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON
+updateTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON
                  -> Galley Response
 updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     -- the team member to be updated
@@ -310,7 +310,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     unless okToDelete $ throwM noOtherOwner
     team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     if team^.teamBinding == Binding && isTeamMember remove mems then do
-        body <- fromBody req invalidPayload
+        body <- fromBody (JsonRequest req) invalidPayload
         ensureReAuthorised zusr (body^.tmdAuthPassword)
         deleteUser remove
         Journal.teamUpdate tid (filter (\u -> u^.userId /= remove) mems)

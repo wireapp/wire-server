@@ -202,7 +202,7 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-fromBody :: FromJSON a => Request -> (Lazy.Text -> Error) -> Galley a
+fromBody :: FromJSON a => JsonRequest a -> (Lazy.Text -> Error) -> Galley a
 fromBody r f = exceptT (throwM . f) return (parseBody r)
 {-# INLINE fromBody #-}
 

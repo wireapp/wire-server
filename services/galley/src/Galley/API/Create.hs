@@ -38,8 +38,8 @@ import qualified Galley.Types.Teams as Teams
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-createGroupConversation (zusr ::: zcon ::: req ::: _) = do
+createGroupConversation :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createGroupConversation (zusr ::: zcon ::: req) = do
     wrapped@(NewConvUnmanaged body) <- fromBody req invalidPayload
     case newConvTeam body of
         Nothing    -> createRegularGroupConv zusr zcon wrapped
@@ -48,8 +48,8 @@ createGroupConversation (zusr ::: zcon ::: req ::: _) = do
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversation
-    :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-internalCreateManagedConversation (zusr ::: zcon ::: req ::: _) = do
+    :: UserId ::: ConnId ::: JsonRequest NewConvManaged -> Galley Response
+internalCreateManagedConversation (zusr ::: zcon ::: req) = do
     NewConvManaged body <- fromBody req invalidPayload
     case newConvTeam body of
         Nothing -> throwM internalError
@@ -109,8 +109,8 @@ createSelfConversation zusr = do
         c <- Data.createSelfConversation zusr Nothing
         conversationResponse status201 zusr c
 
-createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
+createOne2OneConversation :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createOne2OneConversation (zusr ::: zcon ::: req) = do
     NewConvUnmanaged j <- fromBody req invalidPayload
     other  <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
     (x, y) <- toUUIDs zusr other
@@ -135,8 +135,8 @@ createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
-createConnectConversation :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
-createConnectConversation (usr ::: conn ::: req ::: _) = do
+createConnectConversation :: UserId ::: Maybe ConnId ::: JsonRequest Connect -> Galley Response
+createConnectConversation (usr ::: conn ::: req) = do
     j      <- fromBody req invalidPayload
     (x, y) <- toUUIDs usr (cRecipient j)
     n      <- rangeCheckedMaybe (cName j)
