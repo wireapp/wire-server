@@ -12,7 +12,7 @@ import Brig.Data.Instances ()
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Unique
-import Cassandra
+import Cassandra (PrepQuery, Consistency(Quorum, One), R, W, params, query1, retry, write, x1,x5)
 import Data.Id
 
 import qualified Brig.Data.User as User

@@ -5,7 +5,7 @@
 module Galley.Data.Instances where
 
 import Imports
-import Cassandra.CQL
+import Cassandra.CQL (Cql, Value(CqlInt, CqlBoolean, CqlUdt), ColumnType(IntColumn, BooleanColumn, UdtColumn, UuidColumn), Tagged(Tagged), fromCql, toCql, ctype)
 import Control.Error (note)
 import Galley.Types
 import Galley.Types.Bot
