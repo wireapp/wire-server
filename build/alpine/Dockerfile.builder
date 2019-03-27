@@ -15,7 +15,7 @@ WORKDIR /
 # Finally, we build docs for haskell-src-exts without hyperlinking enabled
 # to avoid a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
-RUN apk add --no-cache git ncurses && \
+RUN apk add --no-cache git ncurses sed && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
     stack update && \

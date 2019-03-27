@@ -54,7 +54,7 @@ import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
-    ps   :: [Push] <- fromBody req (Error status400 "bad-request")
+    ps   :: [Push] <- fromJsonBody (JsonRequest req)
     bulk :: Bool   <- view (options . optSettings . setBulkPush)
     rs             <- if bulk
                       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
@@ -311,9 +311,9 @@ nativeTargets p pres =
     check (Left  e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
-addToken :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Gundeck Response
+addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
 addToken (uid ::: cid ::: req ::: _) = do
-    new <- fromBody req (Error status400 "bad-request")
+    new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
             ~~ "token" .= Text.take 16 (tokenText (new^.token))

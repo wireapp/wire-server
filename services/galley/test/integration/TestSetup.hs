@@ -15,26 +15,11 @@ module TestSetup
 import Imports
 import Test.Tasty          (TestName, TestTree)
 import Test.Tasty.HUnit    (Assertion, testCase)
-import Control.Lens        ((^.), makeLenses)
+import Control.Lens        (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Bilge (HttpT(..), Manager, MonadHttp, Request, runHttpT)
+import Bilge (Manager, MonadHttp(..), Request)
 
 import qualified Galley.Aws          as Aws
-
-newtype TestM a =
-  TestM { runTestM :: ReaderT TestSetup (HttpT IO) a
-        }
-    deriving ( Functor
-             , Applicative
-             , Monad
-             , MonadReader TestSetup
-             , MonadIO
-             , MonadCatch
-             , MonadThrow
-             , MonadMask
-             , MonadHttp
-             , MonadUnliftIO
-             )
 
 type GalleyR      = Request -> Request
 type BrigR        = Request -> Request
@@ -51,6 +36,21 @@ data TestSetup = TestSetup
 
 makeLenses ''TestSetup
 
+newtype TestM a =
+  TestM { runTestM :: ReaderT TestSetup IO a }
+    deriving ( Functor
+             , Applicative
+             , Monad
+             , MonadReader TestSetup
+             , MonadIO
+             , MonadCatch
+             , MonadThrow
+             , MonadMask
+             , MonadUnliftIO
+             )
+
+instance MonadHttp TestM where
+    getManager = view tsManager
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
@@ -58,5 +58,4 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
         setup <- s
-        void . runHttpT (setup ^. tsManager) . flip runReaderT setup . runTestM $ h
-
+        void . flip runReaderT setup . runTestM $ h
