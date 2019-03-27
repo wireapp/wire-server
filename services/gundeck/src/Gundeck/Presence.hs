@@ -13,7 +13,7 @@ import Gundeck.Monad
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
-import Network.Wai (Response)
+import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 
 import qualified Gundeck.Presence.Data as Data
@@ -25,9 +25,9 @@ listAll :: List UserId ::: JSON -> Gundeck Response
 listAll (uids ::: _) = setStatus status200 . json . concat
                     <$> Data.listAll (fromList uids)
 
-add :: JsonRequest Presence ::: JSON -> Gundeck Response
+add :: Request ::: JSON -> Gundeck Response
 add (req ::: _) = do
-    p <- fromJsonBody req
+    p <- fromJsonBody (JsonRequest req)
     Data.add p
     return $ ( setStatus status201
              . addHeader hLocation (toByteString' (resource p))

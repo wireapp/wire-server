@@ -31,7 +31,7 @@ import Gundeck.Options
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
-import Network.Wai (Response)
+import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 import System.Logger.Class (msg, (.=), (~~), val, (+++))
 import UnliftIO.Concurrent (forkIO)
@@ -52,9 +52,9 @@ import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
 import qualified System.Logger.Class          as Log
 
-push :: JsonRequest [Push] ::: JSON -> Gundeck Response
+push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
-    ps   :: [Push] <- fromJsonBody req
+    ps   :: [Push] <- fromJsonBody (JsonRequest req)
     bulk :: Bool   <- view (options . optSettings . setBulkPush)
     rs             <- if bulk
                       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)

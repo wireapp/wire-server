@@ -66,12 +66,12 @@ sitemap = do
         response 200 "Object containing list of push tokens" end
 
     post "/i/push" (continue Push.push) $
-        jsonRequest @[Push] .&. accept "application" "json"
+        request .&. accept "application" "json"
         -- TODO: REFACTOR: this end-point is probably noise, and should be dropped.  @/i/push/v2@ does exactly
         -- the same thing.
 
     post "/i/push/v2" (continue Push.push) $
-        jsonRequest @[Push] .&. accept "application" "json"
+        request .&. accept "application" "json"
 
     -- Notification API --------------------------------------------------------
 
@@ -137,7 +137,7 @@ sitemap = do
         param "ids" .&. accept "application" "json"
 
     post "/i/presences" (continue Presence.add) $
-        jsonRequest @Presence .&. accept "application" "json"
+        request .&. accept "application" "json"
 
     delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
         param "uid" .&. param "did" .&. param "cannon"
