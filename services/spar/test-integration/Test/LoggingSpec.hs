@@ -10,7 +10,6 @@ import System.IO.Silently (capture)
 import System.Logger as Log
 import Util
 
-import qualified Network.Wai.Utilities.Server as Wai
 import qualified Network.Wai.Test as HW
 import qualified Test.Hspec.Wai as HW
 import qualified Test.Hspec.Wai.Internal as HW
@@ -26,24 +25,6 @@ spec = describe "logging" $ do
         Log.flush logger
       out `shouldContain` "hrgh  woaa"
       out `shouldNotContain` "hrgh\n\nwoaa"
-
-  let -- Test the 'WU.catchErrorsResponse' 'Middleware'.
-      testCatchErrorsResponse :: HW.WaiSession HW.SResponse -> Int -> TestSpar ()
-      testCatchErrorsResponse badReq expectedStatus = do
-        (app, env) <- liftIO . mkApp =<< view teOpts
-        (out, resp) <- liftIO . capture $ do
-          resp <- HW.withApplication app $ badReq
-          Log.flush (sparCtxLogger env)
-          pure resp
-        liftIO $ do
-          statusCode (HW.simpleStatus resp) `shouldBe` expectedStatus
-          out `shouldNotContain` cs Wai.catchErrorsResponseMsg
-
-  it "Errors are thrown as IO Error, not handled by servant (1)" $
-    testCatchErrorsResponse (HW.post "/sso/finalize-login" "") 400
-
-  it "Errors are thrown as IO Error, not handled by servant (2)" $
-    testCatchErrorsResponse (HW.get "/no/such/path") 404
 
   context "loglevel == debug" $ do
     it "400 on finalize-login causes log of entire request" $ do

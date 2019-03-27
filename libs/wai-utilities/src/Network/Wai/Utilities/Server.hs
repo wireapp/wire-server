@@ -14,7 +14,7 @@ module Network.Wai.Utilities.Server
     , measureRequests
     , catchErrors
     , catchErrorsException
-    , catchErrorsResponse, catchErrorsResponseMsg
+    , catchErrorsResponse
     , OnErrorMetrics
     , heavyDebugLogging
 
