@@ -15,7 +15,7 @@ module Gundeck.Monad
     , Gundeck
     , runDirect
     , runGundeck
-    , fromBody
+    , fromJsonBody
     , ifNothing
     , posixTime
     ) where
@@ -33,6 +33,7 @@ import Data.Misc (Milliseconds (..))
 import Gundeck.Env
 import Network.Wai
 import Network.Wai.Utilities
+import Network.HTTP.Types
 import System.Logger.Class hiding (Error, info)
 
 import qualified Database.Redis.IO as Redis
@@ -83,9 +84,9 @@ lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
-fromBody :: FromJSON a => Request -> (LText -> Error) -> Gundeck a
-fromBody r f = exceptT (throwM . f) return (parseBody r)
-{-# INLINE fromBody #-}
+fromJsonBody :: FromJSON a => JsonRequest a -> Gundeck a
+fromJsonBody r = exceptT (throwM . Error status400 "bad-request") return (parseBody r)
+{-# INLINE fromJsonBody #-}
 
 ifNothing :: Error -> Maybe a -> Gundeck a
 ifNothing e = maybe (throwM e) return

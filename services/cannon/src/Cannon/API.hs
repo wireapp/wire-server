@@ -54,7 +54,7 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
-    post "/i/bulkpush" (continue bulkpush)
+    post "/i/bulkpush" (continue bulkpush) $
         request
 
     head "/i/presences/:user/:conn" (continue checkPresence) $
@@ -88,7 +88,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseBody' req >>= bulkpush')
+bulkpush req = json <$> (parseBody' (JsonRequest req) >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse

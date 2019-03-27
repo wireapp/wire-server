@@ -96,9 +96,9 @@ unblockConv (usr ::: conn ::: cnv) = do
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
 
-updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
-    body <- fromBody req invalidPayload :: Galley ConversationAccessUpdate
+updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
+updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
+    body <- fromJsonBody req
     let targetAccess = Set.fromList (toList (cupAccess body))
         targetRole = cupAccessRole body
     -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
@@ -198,9 +198,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     botsL :: Lens' ([Member], [BotMember]) [BotMember]
     botsL = _2
 
-updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ::: JSON -> Galley Response
-updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
-    ConversationReceiptModeUpdate target <- fromBody req invalidPayload
+updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
+updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _) = do
+    ConversationReceiptModeUpdate target <- fromJsonBody req
     permissionCheckTeamConv usr cnv ModifyConvMetadata
     (bots, users) <- botsAndUsers <$> Data.members cnv
     current <- Data.lookupReceiptMode cnv
@@ -216,9 +216,9 @@ updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
         pushEvent receiptEvent users bots zcon
         return $ json receiptEvent & setStatus status200
 
-updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
-    body <- fromBody req invalidPayload :: Galley ConversationMessageTimerUpdate
+updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
+updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
+    body <- fromJsonBody req
     let messageTimer = cupMessageTimer body
     -- checks and balances
     (bots, users) <- botsAndUsers <$> Data.members cnv
@@ -303,15 +303,15 @@ returnCode c = do
     let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
     return $ setStatus status200 . json $ res
 
-checkReusableCode :: Request ::: JSON -> Galley Response
-checkReusableCode (req ::: _) = do
-    convCode <- fromBody req invalidPayload
+checkReusableCode :: JsonRequest ConversationCode -> Galley Response
+checkReusableCode req = do
+    convCode <- fromJsonBody req
     void $ verifyReusableCode convCode
     return empty
 
-joinConversationByReusableCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
-    convCode <- fromBody req invalidPayload
+joinConversationByReusableCode :: UserId ::: ConnId ::: JsonRequest ConversationCode -> Galley Response
+joinConversationByReusableCode (zusr ::: zcon ::: req) = do
+    convCode <- fromJsonBody req
     c <- verifyReusableCode convCode
     joinConversation zusr zcon (codeConversation c) CodeAccess
 
@@ -335,9 +335,9 @@ joinConversation zusr zcon cnv access = do
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
 
-addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
+addMembers (zusr ::: zcon ::: cid ::: req) = do
+    body <- fromJsonBody req
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
@@ -362,13 +362,13 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
 
-updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
+updateMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
+updateMember (zusr ::: zcon ::: cid ::: req) = do
     alive <- Data.isConvAlive cid
     unless alive $ do
         Data.deleteConversation cid
         throwM convNotFound
-    body <- fromBody req invalidPayload
+    body <- fromJsonBody req
     m    <- Data.member cid zusr >>= ifNothing convNotFound
     up   <- Data.updateMember cid zusr body
     now  <- liftIO getCurrentTime
@@ -417,27 +417,27 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
 
-postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: Request ::: JSON ::: JSON -> Galley Response
+postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessage (zbot ::: zcnv ::: val ::: req ::: _) = do
-    msg <- fromBody req invalidPayload
+    msg <- fromJsonBody req
     postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
 
 postProtoOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
-    Proto.toNewOtrMessage <$> fromProtoBody req invalidPayload >>=
+    Proto.toNewOtrMessage <$> fromProtoBody req >>=
     postNewOtrMessage zusr (Just zcon) cnv val
 
-postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
-postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
-    postNewOtrMessage zusr (Just zcon) cnv val =<< fromBody req invalidPayload
+postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
+postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req) =
+    postNewOtrMessage zusr (Just zcon) cnv val =<< fromJsonBody req
 
-postOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
-postOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
-    postNewOtrBroadcast zusr (Just zcon) val =<< fromBody req invalidPayload
+postOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
+postOtrBroadcast (zusr ::: zcon ::: val ::: req) =
+    postNewOtrBroadcast zusr (Just zcon) val =<< fromJsonBody req
 
 postProtoOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
-    Proto.toNewOtrMessage <$> fromProtoBody req invalidPayload >>=
+    Proto.toNewOtrMessage <$> fromProtoBody req >>=
     postNewOtrBroadcast zusr (Just zcon) val
 
 postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
@@ -491,9 +491,9 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushTransient      (newOtrTransient msg)
             in (toBots, p:toUsers)
 
-updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+updateConversation :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversation (zusr ::: zcon ::: cnv ::: req) = do
+    body <- fromJsonBody req
     permissionCheckTeamConv zusr cnv ModifyConvMetadata
     alive <- Data.isConvAlive cnv
     unless alive $ do
@@ -511,9 +511,9 @@ updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return $ json e & setStatus status200
 
-isTyping :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
-isTyping (zusr ::: zcon ::: cnv ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+isTyping :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
+isTyping (zusr ::: zcon ::: cnv ::: req) = do
+    body <- fromJsonBody req
     mm   <- Data.members cnv
     unless (zusr `isMember` mm) $
         throwM convNotFound
@@ -526,19 +526,19 @@ isTyping (zusr ::: zcon ::: cnv ::: req ::: _) = do
               & pushTransient .~ True
     return empty
 
-addService :: Request ::: JSON -> Galley Response
-addService (req ::: _) = do
-    Data.insertService =<< fromBody req invalidPayload
+addService :: JsonRequest Service -> Galley Response
+addService req = do
+    Data.insertService =<< fromJsonBody req
     return empty
 
-rmService :: Request ::: JSON -> Galley Response
-rmService (req ::: _) = do
-    Data.deleteService =<< fromBody req invalidPayload
+rmService :: JsonRequest ServiceRef -> Galley Response
+rmService req = do
+    Data.deleteService =<< fromJsonBody req
     return empty
 
-addBot :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-addBot (zusr ::: zcon ::: req ::: _) = do
-    b <- fromBody req invalidPayload
+addBot :: UserId ::: ConnId ::: JsonRequest AddBot -> Galley Response
+addBot (zusr ::: zcon ::: req) = do
+    b <- fromJsonBody req
     c <- Data.conversation (b^.addBotConv) >>= ifNothing convNotFound
     -- Check some preconditions on adding bots to a conversation
     for_ (Data.convTeam c) $ teamConvChecks (b^.addBotConv)
@@ -568,9 +568,9 @@ addBot (zusr ::: zcon ::: req ::: _) = do
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
 
-rmBot :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
-rmBot (zusr ::: zcon ::: req ::: _) = do
-    b <- fromBody req invalidPayload
+rmBot :: UserId ::: Maybe ConnId ::: JsonRequest RemoveBot -> Galley Response
+rmBot (zusr ::: zcon ::: req) = do
+    b <- fromJsonBody req
     c <- Data.conversation (b^.rmBotConv) >>= ifNothing convNotFound
     unless (zusr `isMember` Data.convMembers c) $
         throwM convNotFound

@@ -37,6 +37,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Predicate hiding (Error, err, status)
+import Network.Wai.Predicate.Request (HasRequest)
 import Network.Wai.Routing.Route (Routes, Tree, App, Continue)
 import Network.Wai.Utilities.Error (Error (Error))
 import Network.Wai.Utilities.Request (lookupRequestId)
@@ -226,7 +227,7 @@ onError g m r k e = liftIO $ do
     k (errorRs' e)
 
 -- | Log an 'Error' response for debugging purposes.
-logError :: MonadIO m => Logger -> Maybe Request -> Error -> m ()
+logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Error -> m ()
 logError g r (Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
@@ -234,7 +235,7 @@ logError g r (Error c l m) = liftIO $ Log.debug g logMsg
            . field "request" (fromMaybe "N/A" (lookupRequestId =<< r))
            . msg (val "\"" +++ m +++ val "\"")
 
-logIO :: ToBytes a => Logger -> Level -> Maybe Request -> a -> IO ()
+logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
 logIO lg lv r a =
     let reqId = field "request" . fromMaybe "N/A" . lookupRequestId <$> r
         mesg  = fromMaybe id reqId . msg a

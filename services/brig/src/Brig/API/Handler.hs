@@ -25,7 +25,7 @@ import Network.Wai.Predicate (Media)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
-import Network.Wai.Utilities.Request (lookupRequestId, parseBody)
+import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (setStatus, json, addHeader)
 import System.Logger (Logger)
 
@@ -76,7 +76,7 @@ type JSON = Media "application" "json"
 -- TODO: move to libs/wai-utilities?  there is a parseJson' in "Network.Wai.Utilities.Request",
 -- but adjusting its signature to this here would require to move more code out of brig (at least
 -- badRequest and probably all the other errors).
-parseJsonBody :: FromJSON a => Request -> Handler a
+parseJsonBody :: FromJSON a => JsonRequest a -> Handler a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If a whitelist is configured, consult it, otherwise a no-op.

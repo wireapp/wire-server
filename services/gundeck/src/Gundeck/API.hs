@@ -10,6 +10,7 @@ import Data.Text.Encoding (decodeLatin1)
 import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
+import Gundeck.Types
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
@@ -32,9 +33,8 @@ sitemap = do
     post "/push/tokens" (continue Push.addToken) $
         header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @PushToken
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "registerPushToken" $ do
         summary "Register a native push token"
