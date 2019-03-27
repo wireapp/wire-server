@@ -43,12 +43,12 @@ import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Predicate hiding (Error, err, status)
 import Network.Wai.Routing.Route (Routes, Tree, App, Continue)
-import Network.Wai.Utilities.Error (Error (Error))
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
@@ -120,7 +120,7 @@ runSettingsWithShutdown s app secs = do
 compile :: Monad m => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
-    predicateError e = return (encode $ Error (P.status e) "client-error" (format e), [jsonContent])
+    predicateError e = return (encode $ Wai.Error (P.status e) "client-error" (format e), [jsonContent])
 
     -- [label] 'source' reason: message
     format e =
@@ -150,7 +150,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
 route :: (MonadCatch m, MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
-    noEndpoint = Error status404 "no-endpoint" "The requested endpoint does not exist"
+    noEndpoint = Wai.Error status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
 
 --------------------------------------------------------------------------------
@@ -184,6 +184,7 @@ catchErrorsException :: Logger -> OnErrorMetrics -> Middleware
 catchErrorsException l m app req k =
     app req k `catch` errorResponse
   where
+    errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
@@ -198,7 +199,7 @@ catchErrorsResponse :: Logger -> Middleware
 catchErrorsResponse l app req k =
     app req $ \resp -> do
         when (statusCode (responseStatus resp) >= 400) $ do
-            let errinfo = Error (responseStatus resp) (cs . statusMessage $ responseStatus resp) "N/A"
+            let errinfo = Wai.Error (responseStatus resp) (cs . statusMessage $ responseStatus resp) "N/A"
             Log.warn l
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
                 . field "error" (show errinfo)
@@ -208,13 +209,13 @@ catchErrorsResponse l app req k =
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m Error]
+errorHandlers :: Applicative m => [Handler m Wai.Error]
 errorHandlers =
-    [ Handler $ \(x :: Error)          -> pure x
-    , Handler $ \(_ :: InvalidRequest) -> pure $ Error status400 "client-error" "Invalid Request"
-    , Handler $ \(_ :: TimeoutThread)  -> pure $ Error status408 "client-error" "Request Timeout"
-    , Handler $ \(ZlibException (-3))  -> pure $ Error status400 "client-error" "Invalid request body compression"
-    , Handler $ \(_ :: SomeException)  -> pure $ Error status500 "server-error" "Server Error"
+    [ Handler $ \(x :: Wai.Error)      -> pure x
+    , Handler $ \(_ :: InvalidRequest) -> pure $ Wai.Error status400 "client-error" "Invalid Request"
+    , Handler $ \(_ :: TimeoutThread)  -> pure $ Wai.Error status408 "client-error" "Request Timeout"
+    , Handler $ \(ZlibException (-3))  -> pure $ Wai.Error status400 "client-error" "Invalid request body compression"
+    , Handler $ \(_ :: SomeException)  -> pure $ Wai.Error status500 "server-error" "Server Error"
     ]
 {-# INLINE errorHandlers #-}
 
@@ -291,7 +292,7 @@ type OnErrorMetrics = [Either Prm.Counter Metrics]
 -- | Send an 'Error' response.
 onError
     :: MonadIO m
-    => Logger -> OnErrorMetrics -> Request -> Continue IO -> Error
+    => Logger -> OnErrorMetrics -> Request -> Continue IO -> Wai.Error
     -> m ResponseReceived
 onError g m r k e = liftIO $ do
     logError g (Just r) e
@@ -304,8 +305,8 @@ onError g m r k e = liftIO $ do
 --
 -- It would be nice to have access to the request body here, but that's already streamed away
 -- by the handler in all likelyhood.  See 'heavyDebugLogging'.
-logError :: MonadIO m => Logger -> Maybe Request -> Error -> m ()
-logError g mr (Error c l m) = liftIO $ Log.debug g logMsg
+logError :: MonadIO m => Logger -> Maybe Request -> Wai.Error -> m ()
+logError g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
            . field "label" l
