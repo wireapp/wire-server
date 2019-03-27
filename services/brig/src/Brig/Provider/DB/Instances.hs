@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Brig.Provider.DB.Instances where
+module Brig.Provider.DB.Instances () where
 
 import Imports
 import Brig.Provider.DB.Tag

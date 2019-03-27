@@ -1,7 +1,7 @@
 -- | The top import of our Cassandra utility library. Essentially, a "everyone who needs cassandra needs this" import.
 module Cassandra (module C) where
 
--- | pull in our extended wrapper of Database.CQL.Protocol
+-- pull in our extended wrapper of Database.CQL.Protocol
 import Cassandra.CQL as C (
   Keyspace(Keyspace),
   Tagged(Tagged),
@@ -31,7 +31,7 @@ import Cassandra.CQL as C (
   retag,
   untag)
 
--- | pull in our extended wrapper of Database.CQL.IO.
+-- pull in our extended wrapper of Database.CQL.IO.
 import Cassandra.Exec as C (
   MonadClient,
   ClientState,
