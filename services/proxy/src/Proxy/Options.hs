@@ -10,9 +10,10 @@ module Proxy.Options
     ) where
 
 import Imports
-import Control.Lens
+import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
+import System.Logger (Level)
 
 data Opts = Opts
     { _host          :: !String     -- ^ Host to listen on

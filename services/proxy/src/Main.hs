@@ -2,7 +2,6 @@ module Main (main) where
 
 import Imports
 import Proxy.Run (run)
-import Proxy.Options
 import Util.Options
 
 main :: IO ()
