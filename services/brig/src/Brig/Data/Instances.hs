@@ -8,7 +8,7 @@ import Imports
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Provider ()
-import Cassandra.CQL
+import Cassandra.CQL (Tagged(Tagged), Value(CqlText, CqlAscii, CqlBlob, CqlInt, CqlList, CqlUdt), ColumnType(TextColumn, AsciiColumn, BlobColumn, IntColumn, MaybeColumn, ListColumn, UdtColumn), Cql, Blob(Blob), ctype, fromCql, toCql)
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import Data.Id()

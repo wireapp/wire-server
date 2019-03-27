@@ -20,7 +20,7 @@ import Brig.Data.UserKey
 import Brig.Data.PasswordReset
 import Brig.Types
 import Brig.Types.Intra
-import Cassandra
+import Cassandra (PrepQuery, W, R, Ascii(Ascii), Consistency(Quorum), params, query1, retry, write, x1, x5)
 import Control.Error
 import Data.Id
 import Data.Text (pack)

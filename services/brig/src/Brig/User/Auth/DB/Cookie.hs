@@ -5,7 +5,7 @@ module Brig.User.Auth.DB.Cookie where
 import Imports
 import Brig.User.Auth.DB.Instances ()
 import Brig.Types.User.Auth
-import Cassandra
+import Cassandra (BatchType(BatchUnLogged), Consistency(Quorum), Cql, MonadClient, PrepQuery, W, R, addPrepQuery, batch, retry, params, query, query1, setConsistency, setType, write, x1, x5)
 import Data.Id
 import Data.Time.Clock
 

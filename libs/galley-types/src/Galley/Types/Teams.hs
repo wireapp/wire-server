@@ -128,7 +128,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 #ifdef WITH_CQL
 import qualified Control.Error.Util as Err
-import qualified Database.CQL.Protocol as Cql
+import qualified Cassandra as Cql (Cql, ctype, toCql, fromCql, Tagged(Tagged), ColumnType(IntColumn, BigIntColumn, UdtColumn), Value(CqlInt, CqlUdt, CqlBigInt))
 #endif
 
 data Event = Event

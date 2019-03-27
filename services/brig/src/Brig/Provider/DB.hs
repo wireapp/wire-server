@@ -8,7 +8,7 @@ import Brig.Provider.DB.Instances ()
 import Brig.Provider.DB.Tag
 import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
-import Cassandra as C
+import Cassandra as C (Set(Set), PrepQuery, W, R, MonadClient, Page, BatchType(BatchLogged, BatchUnLogged), BatchM, Client, Consistency(One, Quorum), addPrepQuery, batch, emptyPage, fromSet, paginate, paramsP, result, setConsistency, write, hasMore, query, query1, setType, params, liftClient, retry, x1, x5)
 import Control.Arrow ((&&&))
 import Data.Id
 import Data.List1 (List1)

@@ -56,7 +56,7 @@ import Brig.Password
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (newUserExpiresIn)
-import Cassandra
+import Cassandra (Consistency(Quorum), BatchType(BatchLogged), PrepQuery, MonadClient, R, W, addPrepQuery, batch, params, paramsP, paginateC, query, query1, retry, setConsistency, setType, write, x1, x5)
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Id

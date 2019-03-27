@@ -19,7 +19,7 @@ import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
-import Cassandra
+import Cassandra (Consistency(Quorum, One), BatchType(BatchLogged), QueryString, R, W, PrepQuery, addPrepQuery, batch, paginate, paginateC, params, query, query1, paramsP, result, retry, setType, setConsistency, write, x1, x5)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Conduit ((.|), runConduit)
 import Data.Id

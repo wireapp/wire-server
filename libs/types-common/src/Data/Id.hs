@@ -24,7 +24,7 @@ import Data.Text.Lazy.Builder.Int
 import Data.UUID
 import Data.UUID.V4
 #ifdef WITH_CQL
-import Database.CQL.Protocol hiding (S)
+import Cassandra (Cql, Tagged, ColumnType, toCql, fromCql, ctype, retag)
 #endif
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck

@@ -12,7 +12,7 @@ import Imports
 import Brig.App (AppIO, currentTime)
 import Brig.Data.Instances ()
 import Brig.Types
-import Cassandra
+import Cassandra (Consistency(Quorum), PrepQuery, R, W, params, query1, retry, write, x1, x5)
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Id

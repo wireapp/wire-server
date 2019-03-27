@@ -6,7 +6,7 @@ module Brig.Password
     ) where
 
 import Imports
-import Cassandra
+import Cassandra (Cql, Value(CqlBlob), ColumnType(BlobColumn), Tagged(Tagged), ctype, fromCql, toCql)
 import Crypto.Scrypt
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.Misc (PlainTextPassword (..))

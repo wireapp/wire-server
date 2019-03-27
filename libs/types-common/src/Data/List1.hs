@@ -9,7 +9,7 @@ import Imports
 import Data.List.NonEmpty (NonEmpty)
 import Data.Aeson
 #ifdef WITH_CQL
-import Database.CQL.Protocol
+import Cassandra (Cql, Tagged(Tagged), ColumnType(ListColumn), Value(CqlList), ctype, toCql, fromCql, untag)
 #endif
 
 import qualified Data.List.NonEmpty as N

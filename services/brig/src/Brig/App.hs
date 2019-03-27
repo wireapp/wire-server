@@ -57,7 +57,7 @@ import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient)
+import Cassandra (MonadClient, Keyspace(Keyspace), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
 import Control.Error

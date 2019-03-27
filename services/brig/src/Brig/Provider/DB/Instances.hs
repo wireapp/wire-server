@@ -2,12 +2,12 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Brig.Provider.DB.Instances () where
+module Brig.Provider.DB.Instances where
 
 import Imports
 import Brig.Provider.DB.Tag
 import Brig.Types.Provider
-import Cassandra.CQL
+import Cassandra.CQL (Cql, ctype, Value(CqlInt, CqlBigInt, CqlBlob, CqlUdt), ColumnType(BigIntColumn, BlobColumn, UdtColumn, IntColumn), Tagged(Tagged), fromCql, toCql)
 import Data.ByteString.Conversion
 import Data.Id()
 import Data.Misc()

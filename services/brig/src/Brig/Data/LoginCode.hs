@@ -14,7 +14,7 @@ import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
 import Brig.Types.User.Auth
 import Brig.Types.Code (Timeout (..))
-import Cassandra
+import Cassandra (PrepQuery, Consistency(Quorum), W, R, params, query1, retry, write, x1, x5)
 import Control.Lens (view)
 import Data.Id
 import Data.Time.Clock
