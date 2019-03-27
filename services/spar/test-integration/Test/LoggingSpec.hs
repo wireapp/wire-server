@@ -4,7 +4,6 @@ import Imports
 import Control.Lens
 import Data.String.Conversions (cs)
 import Network.HTTP.Types.Status (statusCode)
-import Network.Wai (Application)
 import Spar.App
 import Spar.Run (mkApp)
 import System.IO.Silently (capture)
@@ -28,20 +27,17 @@ spec = describe "logging" $ do
       out `shouldContain` "hrgh  woaa"
       out `shouldNotContain` "hrgh\n\nwoaa"
 
-  let withApp :: (Application -> Env -> Expectation) -> TestSpar ()
-      withApp testcase = do
-        (app, env) <- liftIO . mkApp =<< view teOpts
-        liftIO $ testcase app env
-
-      -- Test the 'WU.catchErrorsResponse' 'Middleware'.
+  let -- Test the 'WU.catchErrorsResponse' 'Middleware'.
       testCatchErrorsResponse :: HW.WaiSession HW.SResponse -> Int -> TestSpar ()
-      testCatchErrorsResponse badReq expectedStatus = withApp $ \app env -> do
-        (out, resp) <- capture $ do
+      testCatchErrorsResponse badReq expectedStatus = do
+        (app, env) <- liftIO . mkApp =<< view teOpts
+        (out, resp) <- liftIO . capture $ do
           resp <- HW.withApplication app $ badReq
           Log.flush (sparCtxLogger env)
           pure resp
-        statusCode (HW.simpleStatus resp) `shouldBe` expectedStatus
-        out `shouldNotContain` cs Wai.catchErrorsResponseMsg
+        liftIO $ do
+          statusCode (HW.simpleStatus resp) `shouldBe` expectedStatus
+          out `shouldNotContain` cs Wai.catchErrorsResponseMsg
 
   it "Errors are thrown as IO Error, not handled by servant (1)" $
     testCatchErrorsResponse (HW.post "/sso/finalize-login" "") 400
@@ -50,11 +46,13 @@ spec = describe "logging" $ do
     testCatchErrorsResponse (HW.get "/no/such/path") 404
 
   context "loglevel == debug" $ do
-    it "400 on finalize-login causes log of entire request" . withApp $ \app env -> do
+    it "400 on finalize-login causes log of entire request" $ do
+      (app, env) <- liftIO . mkApp =<< view teOpts
       let badbody = "@@badxml"
-      (out, resp) <- capture $ do
+      (out, resp) <- liftIO . capture $ do
         resp <- HW.withApplication app $ HW.post "/sso/finalize-login" badbody
         Log.flush (sparCtxLogger env)
         pure resp
-      statusCode (HW.simpleStatus resp) `shouldBe` 400
-      out `shouldContain` cs badbody
+      liftIO $ do
+        statusCode (HW.simpleStatus resp) `shouldBe` 400
+        out `shouldContain` cs badbody
