@@ -352,8 +352,9 @@ initCassandra o g = do
     c <- maybe (Cas.initialContactsPlain ((Opt.cassandra o)^.casEndpoint.epHost))
                (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
-    p <- Cas.init (Log.clone (Just "cassandra.brig") g)
-            $ Cas.setContacts (NE.head c) (NE.tail c)
+    p <- Cas.init
+            $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+            . Cas.setContacts (NE.head c) (NE.tail c)
             . Cas.setPortNumber (fromIntegral ((Opt.cassandra o)^.casEndpoint.epPort))
             . Cas.setKeyspace (Keyspace ((Opt.cassandra o)^.casKeyspace))
             . Cas.setMaxConnections 4

@@ -62,7 +62,7 @@ import qualified Data.ByteString.Lazy as Lazy
 data Debug
     = Head -- ^ Print HTTP request/response header.
     | Full -- ^ Like 'Head' but also print the response body.
-    deriving (Eq, Ord, Show, Read, Enum)
+    deriving (Eq, Ord, Show, Enum)
 
 type Http a = HttpT IO a
 

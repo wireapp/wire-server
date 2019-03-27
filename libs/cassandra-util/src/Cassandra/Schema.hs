@@ -22,7 +22,7 @@ module Cassandra.Schema
 
 import Imports hiding (intercalate, fromString, log, All, init)
 import Cassandra (Keyspace(Keyspace), Version(V3), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
-import Cassandra.Settings (initialContactsPlain, Policy, defSettings, setPolicy, setPoolStripes, setMaxConnections, setPortNumber, setContacts, setProtocolVersion, setResponseTimeout, setSendTimeout, setConnectTimeout)
+import Cassandra.Settings (initialContactsPlain, Policy, defSettings, setLogger, setPolicy, setPoolStripes, setMaxConnections, setPortNumber, setContacts, setProtocolVersion, setResponseTimeout, setSendTimeout, setConnectTimeout)
 import qualified Cassandra as CQL (init)
 import Control.Monad.Catch
 import Control.Retry
@@ -36,10 +36,11 @@ import Data.UUID (UUID)
 import Database.CQL.IO (Policy(Policy, setup, onEvent, select, acceptable, hostCount, display, current), schema, HostResponse, getResult, request)
 import Database.CQL.Protocol (Request(RqQuery), Query(Query))
 import Options.Applicative hiding (info)
-import System.Logger (Logger, Level (..), log, msg)
 
-import qualified Data.Text.Lazy as LT
+import qualified Database.CQL.IO.Tinylog as CT
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Text.Lazy as LT
+import qualified System.Logger as Log
 
 data Migration = Migration
     { migVersion :: Int32
@@ -131,11 +132,12 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
     prms = QueryParams One False () Nothing Nothing Nothing Nothing
     cql  = QueryString $ "use \"" <> fromStrict k <> "\""
 
-migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
+migrateSchema :: Log.Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
     hosts <- initialContactsPlain $ pack (migHost o)
-    p <- CQL.init l $
-            setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
+    p <- CQL.init $
+            setLogger (CT.mkLogger l)
+          . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)
           . setMaxConnections 1
           . setPoolStripes 1
@@ -177,7 +179,7 @@ migrateSchema l o ms = do
             . sortBy (\x y -> migVersion x `compare` migVersion y)
             $ ms
 
-    info = liftIO . log l Info . msg
+    info = liftIO . Log.log l Log.Info . Log.msg
 
     dropKeyspace :: Keyspace -> QueryString S () ()
     dropKeyspace (Keyspace k) = QueryString $ "drop keyspace if exists \"" <>  fromStrict k <> "\""

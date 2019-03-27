@@ -16,8 +16,7 @@ dependencies:
 library:
   source-dirs: src
   exposed-modules:
-  - Galley.API
-  - Galley.App
+  - Galley.Run
   - Galley.Options
   - Galley.Aws
   - Galley.Data

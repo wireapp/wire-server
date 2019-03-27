@@ -1,4 +1,4 @@
-resolver: snapshots/wire-1.1.yaml
+resolver: snapshots/wire-1.2.yaml
 
 packages:
 - libs/api-bot
@@ -38,7 +38,7 @@ packages:
 
 extra-deps:
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: c03d17d656ac467350c983d5f844c199e5daceea    # master (Feb 21, 2019)
+  commit: e3aa52ac8637c168c122ad3e0eda02a7759dd56b    # master (Mar 20, 2019)
 - git: https://github.com/wireapp/hscim
   commit: b2ddde040426d332a2eddcddb00e81ffb1144a90    # master (Mar 13, 2019)
 - git: https://gitlab.com/fisx/tinylog

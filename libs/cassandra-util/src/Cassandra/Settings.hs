@@ -11,7 +11,8 @@ module Cassandra.Settings
 import Imports
 import Control.Lens
 import Data.Aeson.Lens
-import Database.CQL.IO as C (Settings, Policy, setPolicy, setRetrySettings, setResponseTimeout, setPrepareStrategy, setMaxTimeouts, setSendTimeout, setConnectTimeout, setPoolStripes, setMaxStreams, setMaxConnections, setIdleTimeout, setPortNumber, setKeyspace, addContact, setContacts, setCompression, setProtocolVersion, defSettings)
+import Database.CQL.IO as C (Settings, Policy, setLogger, setPolicy, setRetrySettings, setResponseTimeout, setPrepareStrategy, setMaxTimeouts, setSendTimeout, setConnectTimeout, setPoolStripes, setMaxStreams, setMaxConnections, setIdleTimeout, setPortNumber, setKeyspace, addContact, setContacts, setCompression, setProtocolVersion, defSettings)
+import Database.CQL.IO.Tinylog as C (mkLogger)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
 import Network.Wreq

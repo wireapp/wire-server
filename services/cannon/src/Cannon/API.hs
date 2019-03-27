@@ -1,20 +1,14 @@
-module Cannon.API (run) where
+module Cannon.API (sitemap) where
 
 import Imports hiding (head)
-import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App
 import Cannon.Types
-import Cannon.Options
 import Cannon.WS hiding (env)
-import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (strip, pack)
-import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Gundeck.Types
 import Gundeck.Types.BulkPush
@@ -23,55 +17,15 @@ import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Request (parseBody')
-import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
 import System.Logger (msg, val)
-import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
 import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
-import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
-import qualified System.Logger               as L
-import qualified System.Logger.Extended      as L
 import qualified System.Logger.Class         as LC
-import qualified System.IO.Strict            as Strict
-
-run :: Opts -> IO ()
-run o = do
-    ext <- loadExternal
-    m <- metrics
-    g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
-    e <- mkEnv <$> pure m
-               <*> pure ext
-               <*> pure o
-               <*> pure g
-               <*> D.empty 128
-               <*> newManager defaultManagerSettings { managerConnCount = 128 }
-               <*> createSystemRandom
-               <*> mkClock
-    s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout) [] []
-    let rtree    = compile sitemap
-        measured = measureRequests m (treeToPaths rtree)
-        app  r k = runCannon e (route rtree r k) r
-        start    = measured . catchErrors g m $ Gzip.gzip Gzip.def app
-    runSettings s start `finally` L.close (applog e)
-  where
-    idleTimeout = fromIntegral $ maxPingInterval + 3
-
-    -- Each cannon instance advertises its own location (ip or dns name) to gundeck.
-    -- Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
-    loadExternal :: IO ByteString
-    loadExternal = do
-      let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o^.cannon.externalHostFile)
-      fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o^.cannon.externalHost)
-
-    readExternal :: FilePath -> IO ByteString
-    readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
-
 
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
@@ -100,7 +54,7 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
-    post "/i/bulkpush" (continue bulkpush)
+    post "/i/bulkpush" (continue bulkpush) $
         request
 
     head "/i/presences/:user/:conn" (continue checkPresence) $
@@ -134,7 +88,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseBody' req >>= bulkpush')
+bulkpush req = json <$> (parseBody' (JsonRequest req) >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
