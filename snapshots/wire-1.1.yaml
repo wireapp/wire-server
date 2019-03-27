@@ -1,4 +1,4 @@
-resolver: wire-1.0.yaml
+resolver: https://raw.githubusercontent.com/wireapp/wire-server/develop/snapshots/wire-1.0.yaml
 name: wire-1.1
 
 packages:
