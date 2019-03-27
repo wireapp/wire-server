@@ -38,7 +38,6 @@ import Data.Streaming.Zlib (ZlibException (..))
 import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
 import Network.HTTP.Types.Status
-import Network.HTTP.Types.Method
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
