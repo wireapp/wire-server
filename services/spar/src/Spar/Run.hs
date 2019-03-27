@@ -101,7 +101,10 @@ mkApp sparCtxOpts = do
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
         . WU.catchErrorsException sparCtxLogger [Left mx]
-          -- error 'Response's not thrown as exceptions are logged in 'renderSparErrorIO'
+          -- Error 'Response's not thrown as exceptions are logged in
+          -- 'renderSparErrorWithLogging' before the 'Application' is constructed, when there
+          -- is still all the type information around.  So we don't have to do this with
+          -- 'WU.catchErrorsResponse'.
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

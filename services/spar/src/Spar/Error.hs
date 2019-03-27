@@ -11,8 +11,8 @@ module Spar.Error
   ( SparError
   , SparCustomError(..)
   , throwSpar
-  , sparToServantErrIO
-  , renderSparErrorIO
+  , sparToServantErrWithLogging
+  , renderSparErrorWithLogging
   ) where
 
 import Imports
@@ -78,8 +78,8 @@ data SparCustomError
   | SparProvisioningTokenLimitReached
   deriving (Eq, Show)
 
-sparToServantErrIO :: MonadIO m => Log.Logger -> SparError -> m ServantErr
-sparToServantErrIO logger err = do
+sparToServantErrWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServantErr
+sparToServantErrWithLogging logger err = do
   let errServant = sparToServantErr err
   liftIO $ Wai.logError logger Nothing (servantToWaiError errServant)
   pure errServant
@@ -99,8 +99,8 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   , errHeaders      = []
   }
 
-renderSparErrorIO :: MonadIO m => Log.Logger -> SparError -> m (Either ServantErr Wai.Error)
-renderSparErrorIO logger err = do
+renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServantErr Wai.Error)
+renderSparErrorWithLogging logger err = do
   let errPossiblyWai = renderSparError err
   liftIO $ Wai.logError logger Nothing (either servantToWaiError id $ errPossiblyWai)
   pure errPossiblyWai

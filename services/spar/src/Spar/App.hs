@@ -200,7 +200,7 @@ instance SPHandler SparError Spar where
 
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
-          sparToServantErrIO (sparCtxLogger ctx) err >>= throwError
+          sparToServantErrWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
@@ -252,7 +252,7 @@ catchVerdictErrors = (`catchError` hndlr)
     hndlr :: SparError -> Spar VerdictHandlerResult
     hndlr err = do
       logr <- asks sparCtxLogger
-      waiErr <- renderSparErrorIO logr err
+      waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
