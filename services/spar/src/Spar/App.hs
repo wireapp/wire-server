@@ -190,10 +190,18 @@ bindUser buid userref = do
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = Handler . ExceptT . (convErr =<<) . runExceptT $ runReaderT action ctx
+  nt :: forall a. Env -> Spar a -> Handler a
+  nt ctx (Spar action) = do
+      err <- actionHandler
+      throwErrorAsHandlerException err
     where
-      convErr :: Either SparError a -> IO (Either ServantErr a)
-      convErr = either (fmap Left . sparToServantErrIO (sparCtxLogger ctx)) (pure . Right)
+      actionHandler :: Handler (Either SparError a)
+      actionHandler = liftIO $ runExceptT $ runReaderT action ctx
+
+      throwErrorAsHandlerException :: Either SparError a -> Handler a
+      throwErrorAsHandlerException (Left err) =
+          sparToServantErrIO (sparCtxLogger ctx) err >>= throwError
+      throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
