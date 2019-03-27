@@ -23,6 +23,7 @@ import Network.HTTP.Types.Status
 import Servant
 import Spar.Types (TTLError)
 
+import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import qualified SAML2.WebSSO as SAML
@@ -81,7 +82,7 @@ data SparCustomError
 sparToServantErrWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServantErr
 sparToServantErrWithLogging logger err = do
   let errServant = sparToServantErr err
-  liftIO $ Wai.logError logger Nothing (servantToWaiError errServant)
+  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (servantToWaiError errServant)
   pure errServant
 
 servantToWaiError :: ServantErr -> Wai.Error
@@ -102,7 +103,7 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
 renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServantErr Wai.Error)
 renderSparErrorWithLogging logger err = do
   let errPossiblyWai = renderSparError err
-  liftIO $ Wai.logError logger Nothing (either servantToWaiError id $ errPossiblyWai)
+  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
   pure errPossiblyWai
 
 renderSparError :: SparError -> Either ServantErr Wai.Error
