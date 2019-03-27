@@ -83,7 +83,7 @@ lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
-fromBody :: FromJSON a => Request -> (LText -> Error) -> Gundeck a
+fromBody :: FromJSON a => JsonRequest a -> (LText -> Error) -> Gundeck a
 fromBody r f = exceptT (throwM . f) return (parseBody r)
 {-# INLINE fromBody #-}
 

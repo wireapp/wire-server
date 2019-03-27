@@ -10,6 +10,7 @@ import Data.Text.Encoding (decodeLatin1)
 import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
+import Gundeck.Types
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
@@ -32,9 +33,8 @@ sitemap = do
     post "/push/tokens" (continue Push.addToken) $
         header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @PushToken
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "registerPushToken" $ do
         summary "Register a native push token"
@@ -66,12 +66,12 @@ sitemap = do
         response 200 "Object containing list of push tokens" end
 
     post "/i/push" (continue Push.push) $
-        request .&. accept "application" "json"
+        jsonRequest @[Push] .&. accept "application" "json"
         -- TODO: REFACTOR: this end-point is probably noise, and should be dropped.  @/i/push/v2@ does exactly
         -- the same thing.
 
     post "/i/push/v2" (continue Push.push) $
-        request .&. accept "application" "json"
+        jsonRequest @[Push] .&. accept "application" "json"
 
     -- Notification API --------------------------------------------------------
 
@@ -137,7 +137,7 @@ sitemap = do
         param "ids" .&. accept "application" "json"
 
     post "/i/presences" (continue Presence.add) $
-        request .&. accept "application" "json"
+        jsonRequest @Presence .&. accept "application" "json"
 
     delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
         param "uid" .&. param "did" .&. param "cannon"

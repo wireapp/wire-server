@@ -31,7 +31,7 @@ import Gundeck.Options
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
-import Network.Wai (Request, Response)
+import Network.Wai (Response)
 import Network.Wai.Utilities
 import System.Logger.Class (msg, (.=), (~~), val, (+++))
 import UnliftIO.Concurrent (forkIO)
@@ -52,7 +52,7 @@ import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
 import qualified System.Logger.Class          as Log
 
-push :: Request ::: JSON -> Gundeck Response
+push :: JsonRequest [Push] ::: JSON -> Gundeck Response
 push (req ::: _) = do
     ps   :: [Push] <- fromBody req (Error status400 "bad-request")
     bulk :: Bool   <- view (options . optSettings . setBulkPush)
@@ -311,7 +311,7 @@ nativeTargets p pres =
     check (Left  e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
-addToken :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Gundeck Response
+addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
 addToken (uid ::: cid ::: req ::: _) = do
     new <- fromBody req (Error status400 "bad-request")
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
