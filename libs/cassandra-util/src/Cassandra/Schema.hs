@@ -3,8 +3,6 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 
--- Additional functionality on top of our cassandra library. Used by brig, brig's schema definitions, Spar, Spar's schema definitions, Galley, Galley's schema definitions, Gundeck, and Gundeck's schema definitions.
-
 module Cassandra.Schema
     ( Migration           (..)
     , MigrationOpts       (..)
@@ -20,10 +18,9 @@ module Cassandra.Schema
     , schema'
     ) where
 
-import Imports hiding (intercalate, fromString, log, All, init)
-import Cassandra (Keyspace(Keyspace), Version(V3), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
-import Cassandra.Settings (initialContactsPlain, Policy, defSettings, setLogger, setPolicy, setPoolStripes, setMaxConnections, setPortNumber, setContacts, setProtocolVersion, setResponseTimeout, setSendTimeout, setConnectTimeout)
-import qualified Cassandra as CQL (init)
+import Imports hiding (intercalate, fromString, log, All)
+import Cassandra
+import Cassandra.Settings
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
@@ -33,8 +30,8 @@ import Data.Text.Lazy (fromStrict)
 import Data.Text.Lazy.Builder (fromText, fromString, toLazyText)
 import Data.Time.Clock
 import Data.UUID (UUID)
-import Database.CQL.IO (Policy(Policy, setup, onEvent, select, acceptable, hostCount, display, current), schema, HostResponse, getResult, request)
-import Database.CQL.Protocol (Request(RqQuery), Query(Query))
+import Database.CQL.IO
+import Database.CQL.Protocol (Request (..), Query (..))
 import Options.Applicative hiding (info)
 
 import qualified Database.CQL.IO.Tinylog as CT
@@ -135,7 +132,7 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
 migrateSchema :: Log.Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
     hosts <- initialContactsPlain $ pack (migHost o)
-    p <- CQL.init $
+    p <- Database.CQL.IO.init $
             setLogger (CT.mkLogger l)
           . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)

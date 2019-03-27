@@ -44,7 +44,7 @@ import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
 import Data.Text.Ascii (AsciiText)
 #ifdef WITH_CQL
-import Cassandra hiding (Set)
+import Database.CQL.Protocol hiding (Set, Map)
 #endif
 import Numeric.Natural
 #ifdef WITH_ARBITRARY

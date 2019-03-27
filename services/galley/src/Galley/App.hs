@@ -35,7 +35,7 @@ module Galley.App
 import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
-import Cassandra hiding (Set)
+import Cassandra hiding (Error, Set)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)

@@ -59,7 +59,7 @@ import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 #ifdef WITH_CQL
-import Cassandra hiding (Ascii)
+import Database.CQL.Protocol hiding (Ascii, check)
 #endif
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck

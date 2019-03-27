@@ -23,7 +23,7 @@ import Data.Text.Lazy.Builder.Int
 import Data.UUID
 import Data.UUID.V4
 #ifdef WITH_CQL
-import Cassandra hiding (S)
+import Database.CQL.Protocol hiding (S)
 #endif
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck

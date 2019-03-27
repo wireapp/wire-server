@@ -1,29 +1,58 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | This module exports components from Cassandra's Database.CQL.IO, adding a few functions we find useful, that are built on top of it.
-
 module Cassandra.Exec
-    ( params
+    ( Client
+    , MonadClient    (..)
+    , ClientState
+    , CassandraError (..)
+    , syncCassandra
+    , runClient
+    , Database.CQL.IO.init
+    , shutdown
+
+    , Page (hasMore, result, nextPage)
+    , emptyPage
+
+    , params
     , paramsP
     , x5
     , x1
-    , syncCassandra
+
+    , query
+    , query1
+    , write
+    , schema
+    , paginate
     , paginateC
-    , module C
+
+      -- * Prepared Queries
+    , PrepQuery
+    , prepared
+    , queryString
+
+      -- * Batch
+    , BatchM
+    , addQuery
+    , addPrepQuery
+    , setType
+    , setConsistency
+    , setSerialConsistency
+    , batch
+
+      -- * Retry Settings
+    , RetrySettings
+    , adjustConsistency
+    , adjustSendTimeout
+    , adjustResponseTimeout
+    , retry
     ) where
 
-import Imports hiding (init)
-import Cassandra.CQL (R, Consistency)
+import Imports
+import Cassandra.CQL
 import Control.Monad.Catch
 import Data.Conduit
-
--- | Things we just import and re-export.
-import Database.CQL.IO as C (MonadClient, Client, ClientState, BatchM, PrepQuery, Page(hasMore, result, nextPage), adjustResponseTimeout, adjustSendTimeout, adjustConsistency, batch, setSerialConsistency, setConsistency, setType, addPrepQuery, addQuery, queryString, prepared, schema, write, query1, query, emptyPage, shutdown, runClient, retry, localState, liftClient, paginate, init)
--- | We only use these locally.
-import Database.CQL.IO (RetrySettings, RunQ, eagerRetrySettings, defRetrySettings)
-
-import Database.CQL.Protocol (QueryParams(QueryParams), Error, Tuple)
+import Database.CQL.IO
 
 params :: Tuple a => Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing

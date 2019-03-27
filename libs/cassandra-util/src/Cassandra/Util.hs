@@ -1,8 +1,8 @@
-module Cassandra.Util (writeTimeToUTC, defInitCassandra, Writetime) where
+module Cassandra.Util where
 
 import Imports hiding (init)
-import Cassandra (ClientState, Keyspace(Keyspace), init)
-import Cassandra.Settings (setLogger, setPortNumber, setContacts, setKeyspace, defSettings)
+import Cassandra
+import Cassandra.Settings
 import Data.Text (unpack)
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX(posixSecondsToUTCTime)

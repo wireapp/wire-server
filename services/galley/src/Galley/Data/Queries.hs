@@ -3,7 +3,7 @@ module Galley.Data.Queries where
 import Imports
 import Brig.Types.Code
 import Cassandra as C hiding (Value)
-import Cassandra.Util (Writetime)
+import Cassandra.Util
 import Data.Id
 import Data.Json.Util
 import Data.Misc

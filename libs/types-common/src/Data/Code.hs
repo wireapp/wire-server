@@ -19,7 +19,7 @@ import Data.Json.Util
 import Data.Text.Ascii
 import Data.Time.Clock
 #ifdef WITH_CQL
-import Cassandra hiding (Value)
+import Database.CQL.Protocol hiding (unpack, Value)
 #endif
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
