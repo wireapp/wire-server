@@ -11,7 +11,7 @@ module Brig.Budget
 
 import Imports
 import Brig.Data.Instances ()
-import Cassandra (Consistency(One), MonadClient, Cql, PrepQuery, R, W, query1, params, write, retry, x5)
+import Cassandra
 import Data.Time.Clock
 
 data Budget = Budget

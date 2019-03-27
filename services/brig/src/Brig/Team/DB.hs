@@ -26,7 +26,7 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Galley.Types.Teams (Role)
-import Cassandra (MonadClient, BatchType(BatchLogged), Consistency(Quorum), PrepQuery, R, W, addPrepQuery, batch, emptyPage, hasMore, liftClient, paginate, paginateC, params, paramsP, query1, result, retry, setConsistency, setType, write, x1, x5)
+import Cassandra
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Id
 import Data.Conduit ((.|), runConduit)

@@ -23,7 +23,7 @@ import Brig.Data.Instances ()
 import Brig.Email
 import Brig.Phone
 import Brig.Types
-import Cassandra (ColumnType(IntColumn, BlobColumn), Consistency(One, Quorum), Cql, PrepQuery, Tagged(Tagged), Value(CqlInt, CqlBlob), R, W, ctype, fromCql, params, query, query1, retry, toCql, write, x5, x1)
+import Cassandra
 import Control.Lens (view)
 import Data.ByteString.Lazy (toStrict)
 import Data.Id

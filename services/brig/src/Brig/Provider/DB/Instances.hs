@@ -7,7 +7,7 @@ module Brig.Provider.DB.Instances () where
 import Imports
 import Brig.Provider.DB.Tag
 import Brig.Types.Provider
-import Cassandra.CQL (Cql, ctype, Value(CqlInt, CqlBigInt, CqlBlob, CqlUdt), ColumnType(BigIntColumn, BlobColumn, UdtColumn, IntColumn), Tagged(Tagged), fromCql, toCql)
+import Cassandra.CQL
 import Data.ByteString.Conversion
 import Data.Id()
 import Data.Misc()

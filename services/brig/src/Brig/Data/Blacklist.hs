@@ -14,7 +14,7 @@ module Brig.Data.Blacklist
 import Imports
 import Brig.Data.UserKey
 import Brig.Types.Common
-import Cassandra (Consistency(Quorum), MonadClient, PrepQuery, W, R, params, query, query1, retry, write, x1, x5)
+import Cassandra
 
 --------------------------------------------------------------------------------
 -- UserKey blacklisting

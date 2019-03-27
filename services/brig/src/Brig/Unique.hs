@@ -12,7 +12,7 @@ module Brig.Unique
 
 import Imports
 import Brig.Data.Instances ()
-import Cassandra as C (Consistency(Quorum), MonadClient, PrepQuery, R, W, Set(Set), fromSet, params, query1, retry, write, x1, x5)
+import Cassandra as C
 import Control.Concurrent.Timeout
 import Data.Id
 import Data.Timeout

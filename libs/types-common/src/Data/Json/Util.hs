@@ -17,7 +17,7 @@ module Data.Json.Util
 import Imports
 import Control.Lens ((%~), coerced)
 #ifdef WITH_CQL
-import qualified Cassandra as CQL (Cql, ctype, fromCql, toCql, Tagged(Tagged), ColumnType(TimestampColumn))
+import qualified Cassandra as CQL
 #endif
 import Data.Aeson
 import Data.Aeson.Types

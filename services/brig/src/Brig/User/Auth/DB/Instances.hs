@@ -6,7 +6,7 @@ module Brig.User.Auth.DB.Instances () where
 
 import Imports
 import Brig.Types.User.Auth
-import Cassandra.CQL (ColumnType(BigIntColumn, IntColumn), Cql, Tagged(Tagged), Value(CqlInt, CqlBigInt), ctype, toCql, fromCql)
+import Cassandra.CQL
 import Data.Id()
 import Data.Misc()
 import Data.Range()

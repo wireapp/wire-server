@@ -27,7 +27,7 @@ import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
-import Cassandra (Consistency(Quorum), MonadClient, PrepQuery, R, W, liftClient, params, retry, query, query1, write, x1, x5)
+import Cassandra hiding (Client)
 import Control.Error
 import Control.Lens
 import Control.Monad.Catch

@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- So we can abuse pattern, and import the CqlInt constructor without importing the Value datatype.
-{-# LANGUAGE PatternSynonyms #-}
 
 -- | Random, time-limited codes for e-mail addresses and phone numbers
 -- for use in a variety of 'Scope's.
@@ -47,7 +45,7 @@ import Brig.Email (mkEmailKey, emailKeyUniq)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Brig.Types (Email, Phone)
 import Brig.Types.Code (Key (..), Value (..), Timeout (..), KeyValuePair (..))
-import Cassandra (MonadClient, Cql, Tagged(Tagged), Consistency(Quorum), ColumnType(IntColumn), pattern CqlInt, PrepQuery, W, R, toCql, fromCql, ctype, retry, x5, x1, write, params, query1)
+import Cassandra hiding (Value)
 import Data.Range
 import Data.UUID (UUID)
 import Text.Printf (printf)
