@@ -29,7 +29,7 @@ spec = describe "logging" $ do
 
   let withApp :: (Application -> Env -> Expectation) -> TestSpar ()
       withApp testcase = do
-        (app, env) <- liftIO . mkApp =<< asks (^. teOpts)
+        (app, env) <- liftIO . mkApp =<< view teOpts
         liftIO $ testcase app env
 
       test400 :: HW.WaiSession HW.SResponse -> Int -> TestSpar ()
