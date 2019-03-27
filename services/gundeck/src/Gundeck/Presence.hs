@@ -27,7 +27,7 @@ listAll (uids ::: _) = setStatus status200 . json . concat
 
 add :: JsonRequest Presence ::: JSON -> Gundeck Response
 add (req ::: _) = do
-    p <- fromBody req (Error status400 "bad-request")
+    p <- fromJsonBody req
     Data.add p
     return $ ( setStatus status201
              . addHeader hLocation (toByteString' (resource p))
