@@ -68,7 +68,7 @@ packages:
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 
 # Our fork of aws with minor fixes
-- git: https://github.com/tiago-loureiro/aws
+- git: https://github.com/wireapp/aws
   commit: 42695688fc20f80bf89cec845c57403954aab0a2
 
 # https://github.com/hspec/hspec-wai/pull/49
@@ -80,10 +80,10 @@ packages:
 #
 # The important commits for us are:
 #
-#   * https://github.com/snoyberg/http-client/compare/master...neongreen:connection-guts
+#   * https://github.com/snoyberg/http-client/compare/master...wireapp:connection-guts
 #
 # The archive corresponds to commit 6a4ac55edf5e62574210c77a1468fa7accb81670.
-- archive: https://github.com/neongreen/http-client/archive/wire-2019-01-25.tar.gz
+- archive: https://github.com/wireapp/http-client/archive/wire-2019-01-25.tar.gz
   subdirs:
   - http-client
   - http-client-openssl
@@ -103,7 +103,7 @@ packages:
 #   * https://github.com/brendanhay/amazonka/pull/493/files
 #
 # The archive corresponds to commit 52896fd46ef6812708e9e4d7456becc692698f6b.
-- archive: https://github.com/neongreen/amazonka/archive/wire-2019-01-25.tar.gz
+- archive: https://github.com/wireapp/amazonka/archive/wire-2019-01-25.tar.gz
   subdirs:
   - amazonka
   - core
