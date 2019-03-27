@@ -14,7 +14,7 @@ module Network.Wai.Utilities.Server
     , measureRequests
     , catchErrors
     , catchErrorsException
-    , catchErrorsResponse
+    , catchErrorsResponse, catchErrorsResponseMsg
     , OnErrorMetrics
     , heavyDebugLogging
 
@@ -203,9 +203,14 @@ catchErrorsResponse l app req k =
             Log.warn l
                 $ field "request" (fromMaybe "N/A" (lookupRequestId req))
                 . field "error" (show errinfo)
-                . (msg $ val "A handler responded with status >= 400; please throw an exception instead of manually constructing an error response")
+                . (msg $ val catchErrorsResponseMsg)
         k resp
 {-# INLINEABLE catchErrorsResponse #-}
+
+catchErrorsResponseMsg :: ByteString
+catchErrorsResponseMsg =
+    "A handler responded with status >= 400; please throw an exception " <>
+    "instead of manually constructing an error response"
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
