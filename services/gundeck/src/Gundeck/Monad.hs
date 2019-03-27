@@ -23,7 +23,7 @@ module Gundeck.Monad
 import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
-import Cassandra hiding (Error)
+import Cassandra
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)

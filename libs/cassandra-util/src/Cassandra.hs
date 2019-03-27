@@ -1,4 +1,64 @@
+-- | The top import of our Cassandra utility library. Essentially, a "everyone who needs cassandra needs this" import.
 module Cassandra (module C) where
 
-import Cassandra.CQL  as C
-import Cassandra.Exec as C
+-- pull in our extended wrapper of Database.CQL.Protocol
+import Cassandra.CQL as C (
+  Keyspace(Keyspace),
+  Tagged(Tagged),
+  TimeUuid(TimeUuid),
+  Blob(Blob),
+  Ascii(Ascii),
+  Set(Set),
+  QueryString(QueryString),
+  QueryParams(QueryParams),
+  Consistency(One, Quorum, All),
+  BatchType(BatchLogged, BatchUnLogged),
+  Value(CqlInt, CqlBlob, CqlText, CqlUdt, CqlBigInt, CqlList, CqlAscii, CqlDouble, CqlBoolean),
+  ColumnType(IntColumn, BlobColumn, TextColumn, BigIntColumn, UdtColumn, TimestampColumn, ListColumn, AsciiColumn, DoubleColumn, MaybeColumn, UuidColumn, BooleanColumn),
+  Version(V3),
+  R,
+  W,
+  S,
+  Cql,
+  unKeyspace,
+  ctype,
+  toCql,
+  fromCql,
+  fromAscii,
+  fromSet,
+  fromBlob,
+  fromTimeUuid,
+  retag,
+  untag)
+
+-- pull in our extended wrapper of Database.CQL.IO.
+import Cassandra.Exec as C (
+  MonadClient,
+  ClientState,
+  Client,
+  Page,
+  PrepQuery,
+  BatchM,
+  query,
+  retry,
+  query1,
+  batch,
+  emptyPage,
+  hasMore,
+  nextPage,
+  localState,
+  liftClient,
+  paginateC,
+  result,
+  setConsistency,
+  setType,
+  addPrepQuery,
+  runClient,
+  params,
+  paramsP,
+  paginate,
+  shutdown,
+  init,
+  write,
+  x5,
+  x1)

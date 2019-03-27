@@ -2,7 +2,7 @@ module Main (main) where
 
 import Imports hiding (local)
 import Bilge hiding (header)
-import Cassandra.Util
+import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Conversion
