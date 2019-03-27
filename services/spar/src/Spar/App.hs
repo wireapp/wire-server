@@ -251,7 +251,7 @@ catchVerdictErrors = (`catchError` hndlr)
   where
     hndlr :: SparError -> Spar VerdictHandlerResult
     hndlr err = do
-      logr <- view (to sparCtxLogger)
+      logr <- asks sparCtxLogger
       waiErr <- renderSparErrorIO logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
