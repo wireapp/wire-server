@@ -20,7 +20,6 @@ import qualified Cassandra.Settings as C
 import qualified Database.Redis.IO as Redis
 import qualified Data.List.NonEmpty as NE
 import qualified Gundeck.Aws as Aws
-import qualified System.Logger as Logger
 import qualified System.Logger.Extended as Logger
 
 data Env = Env

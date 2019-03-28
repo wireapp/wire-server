@@ -5,7 +5,6 @@ import Cassandra.Schema
 import Control.Exception (finally)
 import Util.Options
 
-import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 
 import qualified V9

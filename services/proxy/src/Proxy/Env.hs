@@ -21,7 +21,6 @@ import Proxy.Options
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified System.Logger as Logger
 import qualified System.Logger.Extended as Logger
 
 data Env = Env

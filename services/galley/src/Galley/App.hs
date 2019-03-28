@@ -66,7 +66,6 @@ import qualified Data.ProtocolBuffers     as Proto
 import qualified Galley.Aws               as Aws
 import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
-import qualified System.Logger            as Logger
 import qualified System.Logger.Extended   as Logger
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
