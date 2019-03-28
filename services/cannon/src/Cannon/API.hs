@@ -27,6 +27,7 @@ import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger.Class         as LC
 
+
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
     get "/await" (continue await) $

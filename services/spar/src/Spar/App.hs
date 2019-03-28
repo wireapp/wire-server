@@ -21,7 +21,6 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
-import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
 import SAML2.Util (renderURI)
@@ -191,7 +190,18 @@ bindUser buid userref = do
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = Handler . ExceptT . fmap (fmapL sparToServantErr) . runExceptT $ runReaderT action ctx
+  nt :: forall a. Env -> Spar a -> Handler a
+  nt ctx (Spar action) = do
+      err <- actionHandler
+      throwErrorAsHandlerException err
+    where
+      actionHandler :: Handler (Either SparError a)
+      actionHandler = liftIO $ runExceptT $ runReaderT action ctx
+
+      throwErrorAsHandlerException :: Either SparError a -> Handler a
+      throwErrorAsHandlerException (Left err) =
+          sparToServantErrWithLogging (sparCtxLogger ctx) err >>= throwError
+      throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
@@ -237,12 +247,15 @@ data VerdictHandlerResult
   | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
-catchVerdictErrors = (`catchError` pure . hndlr)
+catchVerdictErrors = (`catchError` hndlr)
   where
-    hndlr :: SparError -> VerdictHandlerResult
-    hndlr err = case sparToWaiError err of
-      Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-      Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+    hndlr :: SparError -> Spar VerdictHandlerResult
+    hndlr err = do
+      logr <- asks sparCtxLogger
+      waiErr <- renderSparErrorWithLogging logr err
+      pure $ case waiErr of
+        Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
+        Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult bindCky = catchVerdictErrors . \case

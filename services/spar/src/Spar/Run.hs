@@ -7,7 +7,7 @@
 -- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
-  , runServer
+  , runServer, mkApp
   ) where
 
 import Imports
@@ -16,7 +16,6 @@ import Cassandra as Cas
 import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
-import Data.Metrics (metrics)
 import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
 import Network.Wai (Application, Middleware)
@@ -37,6 +36,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
+import qualified Prometheus as Prm
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger as Log
@@ -74,12 +74,20 @@ initCassandra opts lgr = do
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel) (logNetStrings sparCtxOpts)
-  mx <- metrics
-  sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
       shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
+  (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
+  let logger = sparCtxLogger ctxOpts
+  Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
+  WU.runSettingsWithShutdown settings wrappedApp 5
+
+mkApp :: Opts -> IO (Application, Env)
+mkApp sparCtxOpts = do
+  let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
+  mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
+  sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
           Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
@@ -90,19 +98,29 @@ runServer sparCtxOpts = do
         . Bilge.port (sparCtxOpts ^. to galley . epPort)
         $ Bilge.empty
   let wrappedApp
-        = WU.catchErrors sparCtxLogger mx
+        = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
+        . WU.catchErrorsException sparCtxLogger [Left mx]
+          -- Error 'Response's not thrown as exceptions are logged in
+          -- 'renderSparErrorWithLogging' before the 'Application' is constructed, when there
+          -- is still all the type information around.  So we don't have to do this with
+          -- 'WU.catchErrorsResponse'.
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
-  Log.info sparCtxLogger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
-  WU.runSettingsWithShutdown settings wrappedApp 5
+      heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
+      heavyLogOnly out@(req, _) =
+        if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
+        then Just out
+        else Nothing
+  pure (wrappedApp, let sparCtxRequestId = RequestId "N/A" in Env {..})
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
+-- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 promthRun :: Middleware
 promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
   where

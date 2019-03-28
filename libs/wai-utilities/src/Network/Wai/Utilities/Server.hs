@@ -13,6 +13,10 @@ module Network.Wai.Utilities.Server
       -- * Middlewares
     , measureRequests
     , catchErrors
+    , catchErrorsException
+    , catchErrorsResponse
+    , OnErrorMetrics
+    , heavyDebugLogging
 
       -- * Utilities
     , onError
@@ -31,6 +35,7 @@ import Data.Aeson (encode)
 import Data.ByteString.Builder
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
+import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -39,12 +44,12 @@ import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Predicate hiding (Error, err, status)
 import Network.Wai.Predicate.Request (HasRequest)
 import Network.Wai.Routing.Route (Routes, Tree, App, Continue)
-import Network.Wai.Utilities.Error (Error (Error))
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
@@ -52,6 +57,7 @@ import qualified Data.Text.Lazy.Encoding     as LT
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
 
@@ -64,15 +70,13 @@ data Server = Server
     , serverLogger              :: Logger
     , serverMetrics             :: Metrics
     , serverTimeout             :: Maybe Int
-    , serverOnException         :: [Maybe Request -> Handler IO ()]
-    , serverOnExceptionResponse :: [Handler Identity Response]
     }
 
 defaultServer :: String -> Word16 -> Logger -> Metrics -> Server
-defaultServer h p l m = Server h p l m Nothing [] []
+defaultServer h p l m = Server h p l m Nothing
 
 newSettings :: MonadIO m => Server -> m Settings
-newSettings (Server h p l m t el er) = do
+newSettings (Server h p l m t) = do
     -- (Atomically) initialise the standard metrics, to avoid races.
     void $ gaugeGet' (path "net.connections") m
     void $ counterGet' (path "net.errors") m
@@ -81,8 +85,6 @@ newSettings (Server h p l m t el er) = do
            . setBeforeMainLoop logStart
            . setOnOpen (const $ connStart >> return True)
            . setOnClose (const connEnd)
-           . setOnException onException
-           . setOnExceptionResponse onExceptionResponse
            . setTimeout (fromMaybe 300 t)
            $ defaultSettings
   where
@@ -91,25 +93,6 @@ newSettings (Server h p l m t el er) = do
 
     logStart = Log.info l . msg $
         val "Listening on " +++ h +++ ':' +++ p
-
-    onException r e = for_ r flushRequestBody >> (runHandlers e $
-        map ($ r) el ++
-        [ Handler $ \(x :: Error) -> do
-            logError l r x
-            when (statusCode (Error.code x) >= 500) $
-                counterIncr (path "net.errors") m
-        , Handler $ \(ZlibException (-3)) -> logIO l Info r $
-            val "Invalid zlib compression in request body."
-        , Handler $ \(x :: SomeException) ->
-            if defaultShouldDisplayException x
-                then do
-                    logIO l Log.Error r (show e)
-                    counterIncr (path "net.errors") m
-                else logIO l Log.Trace r (show e)
-        ])
-
-    onExceptionResponse e = runIdentity . runHandlers e $
-        er ++ map (fmap errorRs') errorHandlers
 
 -- Run a WAI 'Application', initiating Warp's graceful shutdown
 -- on receiving either the INT or TERM signals. After closing
@@ -138,7 +121,7 @@ runSettingsWithShutdown s app secs = do
 compile :: Monad m => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
-    predicateError e = return (encode $ Error (P.status e) "client-error" (format e), [jsonContent])
+    predicateError e = return (encode $ Wai.Error (P.status e) "client-error" (format e), [jsonContent])
 
     -- [label] 'source' reason: message
     format e =
@@ -168,7 +151,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
 route :: (MonadCatch m, MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
-    noEndpoint = Error status404 "no-endpoint" "The requested endpoint does not exist"
+    noEndpoint = Wai.Error status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
 
 --------------------------------------------------------------------------------
@@ -186,53 +169,154 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
 
+-- | Run both 'catchErrorsException', 'catchErrorsResponse'.
+catchErrors  :: Logger -> OnErrorMetrics -> Middleware
+catchErrors l m = catchErrorsException l m . catchErrorsResponse l
+{-# INLINEABLE catchErrors #-}
+
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
 -- as well as counting server errors (i.e. exceptions that
 -- yield 5xx responses).
-catchErrors :: Logger -> Metrics -> Middleware
-catchErrors l m app req k =
+--
+-- This does not log any 'Response' values with error status.
+-- See 'catchErrors'.
+catchErrorsException :: Logger -> OnErrorMetrics -> Middleware
+catchErrorsException l m app req k =
     app req k `catch` errorResponse
   where
+    errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
-            logIO l Log.Error (Just req) (oneline <$> show ex)
+            logIO l Log.Error (Just req) (show ex)
         onError l m req k er
-    oneline c = if isSpace c then ' ' else c
-{-# INLINEABLE catchErrors #-}
+{-# INLINEABLE catchErrorsException #-}
+
+-- | Catch status >= 400 even if it does not come in the form of an exception, but as a
+-- response, and log a warning that this really shouldn't happen, and a typed exception should
+-- be thrown instead.
+catchErrorsResponse :: Logger -> Middleware
+catchErrorsResponse l app req k =
+    app req $ \resp -> do
+        when (statusCode (responseStatus resp) >= 400) $ do
+            let errinfo = Wai.Error (responseStatus resp) (cs . statusMessage $ responseStatus resp) "N/A"
+            Log.warn l
+                $ field "request" (fromMaybe "N/A" (lookupRequestId req))
+                . field "error" (show errinfo)
+                . (msg $ val catchErrorsResponseMsg)
+        k resp
+{-# INLINEABLE catchErrorsResponse #-}
+
+catchErrorsResponseMsg :: ByteString
+catchErrorsResponseMsg =
+    "A handler responded with status >= 400; please throw an exception " <>
+    "instead of manually constructing an error response"
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m Error]
+errorHandlers :: Applicative m => [Handler m Wai.Error]
 errorHandlers =
-    [ Handler $ \(x :: Error)          -> pure x
-    , Handler $ \(_ :: InvalidRequest) -> pure $ Error status400 "client-error" "Invalid Request"
-    , Handler $ \(_ :: TimeoutThread)  -> pure $ Error status408 "client-error" "Request Timeout"
-    , Handler $ \(ZlibException (-3))  -> pure $ Error status400 "client-error" "Invalid request body compression"
-    , Handler $ \(_ :: SomeException)  -> pure $ Error status500 "server-error" "Server Error"
+    [ Handler $ \(x :: Wai.Error)      -> pure x
+    , Handler $ \(_ :: InvalidRequest) -> pure $ Wai.Error status400 "client-error" "Invalid Request"
+    , Handler $ \(_ :: TimeoutThread)  -> pure $ Wai.Error status408 "client-error" "Request Timeout"
+    , Handler $ \(ZlibException (-3))  -> pure $ Wai.Error status400 "client-error" "Invalid request body compression"
+    , Handler $ \(_ :: SomeException)  -> pure $ Wai.Error status500 "server-error" "Server Error"
     ]
 {-# INLINE errorHandlers #-}
+
+-- | If the log level is less sensitive than 'Debug' just call the underlying app unchanged.
+-- Otherwise, pull a copy of the request body before running it, and if response status is @>=
+-- 400@, log the entire request, including the body.
+--
+-- The request sanitizer is called on the 'Request' and its body before it is being logged,
+-- giving you a chance to erase any confidential information.
+--
+-- WARNINGS:
+--
+--  * This may log confidential information if contained in the request.  Use the sanitizer to
+--    avoid that.
+--  * This does not catch any exceptions in the underlying app, so consider calling
+--    'catchErrors' before this.
+--  * Be careful with trying this in production: this puts a performance penalty on every
+--    request (unless level is less sensitive than 'Debug').
+heavyDebugLogging
+    :: ((Request, LByteString) -> Maybe (Request, LByteString))
+    -> Level -> Logger -> Middleware
+heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
+    (bdy, req') <- if lvl <= Debug  -- or (`elem` [Trace, Debug])
+        then cloneBody req
+        else pure ("body omitted because log level was less sensitive than Debug", req)
+    app req' $ \resp -> do
+        forM_ (sanitizeReq (req', bdy)) $ \(req'', bdy') ->
+            when (statusCode (responseStatus resp) >= 400) $ logBody req'' bdy'
+        cont resp
+  where
+    cloneBody :: Request -> IO (LByteString, Request)
+    cloneBody req = do
+        bdy <- lazyRequestBody req
+        requestBody' <- emitLByteString bdy
+        pure (bdy, req { requestBody = requestBody' })
+
+    logBody :: Request -> LByteString -> IO ()
+    logBody req bdy = Log.debug lgr logMsg
+      where
+        logMsg = field "request" (fromMaybe "N/A" $ lookupRequestId req)
+               . field "request_details" (show req)
+               . field "request_body" bdy
+               . msg (val "full request details")
+
+-- | Compute a stream from a lazy bytestring suitable for putting into the 'Response'.  This
+-- can be used if we want to take a look at the body in a 'Middleware' *after* the request has
+-- been processed and the stream flushed.
+--
+-- This implementation returns the entire body in the first stream chunk.  An alternative,
+-- possibly faster implementation would be this:
+--
+-- >>> emitLByteString lbs = do
+-- >>>     chunks <- TVar.newTVarIO (LBS.toChunks lbs)
+-- >>>     pure $ do
+-- >>>         nextChunk <- atomically $ do
+-- >>>             xs <- TVar.readTVar chunks
+-- >>>             case xs of
+-- >>>                 [] -> pure Nothing
+-- >>>                 (x:xs') -> TVar.writeTVar chunks xs' >> pure (Just x)
+-- >>>         pure $ fromMaybe "" nextChunk
+emitLByteString :: LByteString -> IO (IO ByteString)
+emitLByteString lbs = do
+    tvar <- newTVarIO (cs lbs)
+    -- | Emit the bytestring on the first read, then always return "" on subsequent reads
+    return . atomically $ swapTVar tvar mempty
 
 --------------------------------------------------------------------------------
 -- Utilities
 
+-- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
+-- package introduced for spar ('Left').
+type OnErrorMetrics = [Either Prm.Counter Metrics]
+
 -- | Send an 'Error' response.
-onError :: MonadIO m => Logger -> Metrics -> Request -> Continue IO -> Error -> m ResponseReceived
+onError
+    :: MonadIO m
+    => Logger -> OnErrorMetrics -> Request -> Continue IO -> Wai.Error
+    -> m ResponseReceived
 onError g m r k e = liftIO $ do
     logError g (Just r) e
     when (statusCode (Error.code e) >= 500) $
-        counterIncr (path "net.errors") m
+        either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
     flushRequestBody r
     k (errorRs' e)
 
 -- | Log an 'Error' response for debugging purposes.
-logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Error -> m ()
-logError g r (Error c l m) = liftIO $ Log.debug g logMsg
+--
+-- It would be nice to have access to the request body here, but that's already streamed away
+-- by the handler in all likelyhood.  See 'heavyDebugLogging'.
+logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
+logError g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg = field "code" (statusCode c)
            . field "label" l
-           . field "request" (fromMaybe "N/A" (lookupRequestId =<< r))
+           . field "request" (fromMaybe "N/A" (lookupRequestId =<< mr))
            . msg (val "\"" +++ m +++ val "\"")
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()

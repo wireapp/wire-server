@@ -26,6 +26,7 @@ dependencies:
 - http-types >=0.8
 - mime >=0.4
 - mtl >=2.1
+- prometheus-client
 - safe >=0.3
 - text >=1.1
 - transformers >=0.3
