@@ -26,4 +26,5 @@ We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It
 What you need to know as a Wire backend developer. All of these documents can and should be referenced in the code.
 
 * [Development setup](developer/dependencies.md) `{#DevDeps}`
+* [Editor setup](developer/editor-setup.md) `{#DevEditor}`
 * TODO
