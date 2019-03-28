@@ -64,7 +64,7 @@ packages:
 ############################################################
 
 #  Our fork of multihash with relaxed upper bounds
-- git: https://github.com/tiago-loureiro/haskell-multihash.git
+- git: https://github.com/wireapp/haskell-multihash.git
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 
 # Our fork of aws with minor fixes
