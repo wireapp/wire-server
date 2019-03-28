@@ -23,6 +23,8 @@ chmod +x .git/hooks/post-checkout
 
 To jump to an identifier, press `M-.`. You can also do `C-u M-x xref-find-definitions` to get interactive search through identifiers. Press `M-,` to return to where you were before the jump.
 
+Jump-to-definition is case-insensitive by default, which is probably not what you want. To change that, do `M-x customize-variable tags-case-fold-search`.
+
 By default hasktags only generates tags for the current package. The Wire backend is composed of many packages, and it's useful to be able to jump to any identifier in wire-server. One way to do it is to setup Emacs to check if there's a Projectile project that the current directory belongs to, and if so, override the "current package" default.
 
 Install the [projectile][] package for Emacs and do `M-x projectile-add-known-project <path to wire-server>`. Then add the following snippet to your `init.el`:
