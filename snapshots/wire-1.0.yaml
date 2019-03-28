@@ -1,23 +1,4 @@
-# A custom Stack snapshot (https://docs.haskellstack.org/en/stable/custom_snapshot/) used for
-# Wire code.
-#
-# Should never be changed once pushed to develop, because in other repositories we refer to
-# snapshot definitions by URL. Stack only downloads snapshot definitions once and never checks
-# whether they have changed. So, when building code from other repositories, people would be
-# getting inconsistent results depending on whether they built that code before or not.
-#
-# To add, modify, or remove packages, a new snapshot should be created. It can be based on the
-# previous snapshot version (please read the docs above to learn what the syntax is). For
-# major changes, e.g. LTS bumps, it's better to create a snapshot from scratch.
-#
-# Some packages in this snapshot reference tar files instead of Git repos. This is due to
-# several issues in Stack that make working with big Git repositories unpleasant:
-#
-#   * https://github.com/commercialhaskell/stack/issues/4345
-#   * https://github.com/commercialhaskell/stack/issues/3551
-#
-# Unless the fixes to those are released, it's recommended to use Github's tar releases for
-# forks of big/old packages.
+# DO NOT MODIFY THIS FILE. See README.md to learn why.
 
 resolver: lts-12.10
 name: wire-1.0
@@ -83,11 +64,11 @@ packages:
 ############################################################
 
 #  Our fork of multihash with relaxed upper bounds
-- git: https://github.com/tiago-loureiro/haskell-multihash.git
+- git: https://github.com/wireapp/haskell-multihash.git
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 
 # Our fork of aws with minor fixes
-- git: https://github.com/tiago-loureiro/aws
+- git: https://github.com/wireapp/aws
   commit: 42695688fc20f80bf89cec845c57403954aab0a2
 
 # https://github.com/hspec/hspec-wai/pull/49
@@ -99,10 +80,10 @@ packages:
 #
 # The important commits for us are:
 #
-#   * https://github.com/snoyberg/http-client/compare/master...neongreen:connection-guts
+#   * https://github.com/snoyberg/http-client/compare/master...wireapp:connection-guts
 #
 # The archive corresponds to commit 6a4ac55edf5e62574210c77a1468fa7accb81670.
-- archive: https://github.com/neongreen/http-client/archive/wire-2019-01-25.tar.gz
+- archive: https://github.com/wireapp/http-client/archive/wire-2019-01-25.tar.gz
   subdirs:
   - http-client
   - http-client-openssl
@@ -122,7 +103,7 @@ packages:
 #   * https://github.com/brendanhay/amazonka/pull/493/files
 #
 # The archive corresponds to commit 52896fd46ef6812708e9e4d7456becc692698f6b.
-- archive: https://github.com/neongreen/amazonka/archive/wire-2019-01-25.tar.gz
+- archive: https://github.com/wireapp/amazonka/archive/wire-2019-01-25.tar.gz
   subdirs:
   - amazonka
   - core
@@ -136,3 +117,5 @@ packages:
 
 - git: https://github.com/wireapp/hsaml2
   commit: 000868849efd85ba82d2bf0ac5757f801d49ad5a    # master (Sep 10, 2018)
+
+# DO NOT MODIFY THIS FILE. See README.md to learn why.
