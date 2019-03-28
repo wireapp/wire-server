@@ -169,7 +169,11 @@ curl -X PUT \
 
 ### delete user
 
-**Not implemented yet.**
+```
+curl -X DELETE \
+  --header "Authorization: Bearer $SCIM_TOKEN" \
+  $WIRE_BACKEND/scim/v2/Users/$STORED_USER_ID
+```
 
 ### groups
 
