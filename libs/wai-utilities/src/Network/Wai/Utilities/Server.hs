@@ -276,7 +276,7 @@ onError
 onError g m r k e = liftIO $ do
     logError g (Just r) e
     when (statusCode (Error.code e) >= 500) $
-        either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
+        either (const $ pure ()) (counterIncr (path "net.errors")) `mapM_` m
     flushRequestBody r
     k (errorRs' e)
 
