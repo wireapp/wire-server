@@ -27,9 +27,11 @@ import Imports
 import Brig.App
 import Brig.Phone
 import Brig.User.Template
+import Brig.Template
 import Brig.Types.Activation
 import Brig.Types.User
 import Brig.Types.User.Auth (LoginCode (..))
+import Control.Lens (view)
 import Data.Range
 import Data.Text.Lazy (toStrict)
 
@@ -40,33 +42,39 @@ import qualified Ropes.Nexmo     as Nexmo
 
 sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> AppIO ()
 sendActivationSms to (_, c) loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates loc
-    sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl)
+    sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl) branding
 
 sendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> AppIO ()
 sendPasswordResetSms to (_, c) loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates loc
-    sendSms loc' $ renderPasswordResetSms (PasswordResetSms to c) (passwordResetSms tpl)
+    sendSms loc' $ renderPasswordResetSms (PasswordResetSms to c) (passwordResetSms tpl) branding
 
 sendLoginSms :: Phone -> LoginCode -> Maybe Locale -> AppIO ()
 sendLoginSms to code loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates loc
-    sendSms loc' $ renderLoginSms (LoginSms to code) (loginSms tpl)
+    sendSms loc' $ renderLoginSms (LoginSms to code) (loginSms tpl) branding
 
 sendDeletionSms :: Phone -> Code.Key -> Code.Value -> Locale -> AppIO ()
 sendDeletionSms to key code loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates (Just loc)
-    sendSms loc' $ renderDeletionSms (DeletionSms to key code) (deletionSms tpl)
+    sendSms loc' $ renderDeletionSms (DeletionSms to key code) (deletionSms tpl) branding
 
 sendActivationCall :: Phone -> ActivationPair -> Maybe Locale -> AppIO ()
 sendActivationCall to (_, c) loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates loc
-    sendCall $ renderActivationCall (ActivationCall to c) (activationCall tpl) loc'
+    sendCall $ renderActivationCall (ActivationCall to c) (activationCall tpl) loc' branding
 
 sendLoginCall :: Phone -> LoginCode -> Maybe Locale -> AppIO ()
 sendLoginCall to c loc = do
+    branding <- view templateBranding
     (loc', tpl) <- userTemplates loc
-    sendCall $ renderLoginCall (LoginCall to c) (loginCall tpl) loc'
+    sendCall $ renderLoginCall (LoginCall to c) (loginCall tpl) loc' branding
 
 -------------------------------------------------------------------------------
 -- Activation SMS
@@ -76,9 +84,9 @@ data ActivationSms = ActivationSms
     , actSmsCode :: !ActivationCode
     }
 
-renderActivationSms :: ActivationSms -> ActivationSmsTemplate -> SMSMessage
-renderActivationSms ActivationSms{..} (ActivationSmsTemplate url t from) =
-    SMSMessage from (fromPhone actSmsTo) (toStrict $ renderText t replace)
+renderActivationSms :: ActivationSms -> ActivationSmsTemplate -> TemplateBranding -> SMSMessage
+renderActivationSms ActivationSms{..} (ActivationSmsTemplate url t from) branding =
+    SMSMessage from (fromPhone actSmsTo) (toStrict $ renderTextWithBranding t replace branding)
   where
     replace "code" = codeText
     replace "url"  = renderSmsActivationUrl url codeText
@@ -94,9 +102,9 @@ data PasswordResetSms = PasswordResetSms
     , pwrSmsCode :: !PasswordResetCode
     }
 
-renderPasswordResetSms :: PasswordResetSms -> PasswordResetSmsTemplate -> SMSMessage
-renderPasswordResetSms PasswordResetSms{..} (PasswordResetSmsTemplate t from) =
-    SMSMessage from (fromPhone pwrSmsTo) (toStrict $ renderText t replace)
+renderPasswordResetSms :: PasswordResetSms -> PasswordResetSmsTemplate -> TemplateBranding -> SMSMessage
+renderPasswordResetSms PasswordResetSms{..} (PasswordResetSmsTemplate t from) branding =
+    SMSMessage from (fromPhone pwrSmsTo) (toStrict $ renderTextWithBranding t replace branding)
   where
     replace "code" = Ascii.toText (fromPasswordResetCode pwrSmsCode)
     replace x      = x
@@ -109,9 +117,9 @@ data LoginSms = LoginSms
     , loginSmsCode :: !LoginCode
     }
 
-renderLoginSms :: LoginSms -> LoginSmsTemplate -> SMSMessage
-renderLoginSms LoginSms{..} (LoginSmsTemplate url t from) =
-    SMSMessage from (fromPhone loginSmsTo) (toStrict $ renderText t replace)
+renderLoginSms :: LoginSms -> LoginSmsTemplate -> TemplateBranding -> SMSMessage
+renderLoginSms LoginSms{..} (LoginSmsTemplate url t from) branding =
+    SMSMessage from (fromPhone loginSmsTo) (toStrict $ renderTextWithBranding t replace branding)
   where
     replace "code" = fromLoginCode loginSmsCode
     replace "url"  = renderSmsActivationUrl url (fromLoginCode loginSmsCode)
@@ -126,9 +134,9 @@ data DeletionSms = DeletionSms
     , delSmsCode :: !Code.Value
     }
 
-renderDeletionSms :: DeletionSms -> DeletionSmsTemplate -> SMSMessage
-renderDeletionSms DeletionSms{..} (DeletionSmsTemplate url txt from) =
-    SMSMessage from (fromPhone delSmsTo) (toStrict $ renderText txt replace1)
+renderDeletionSms :: DeletionSms -> DeletionSmsTemplate -> TemplateBranding -> SMSMessage
+renderDeletionSms DeletionSms{..} (DeletionSmsTemplate url txt from) branding =
+    SMSMessage from (fromPhone delSmsTo) (toStrict $ renderTextWithBranding txt replace1 branding)
   where
     replace1 "code" = Ascii.toText (fromRange (Code.asciiValue delSmsCode))
     replace1 "url"  = toStrict (renderText url replace2)
@@ -146,11 +154,11 @@ data ActivationCall = ActivationCall
     , actCallCode :: !ActivationCode
     }
 
-renderActivationCall :: ActivationCall -> ActivationCallTemplate -> Locale -> Nexmo.Call
-renderActivationCall ActivationCall{..} (ActivationCallTemplate t) loc =
+renderActivationCall :: ActivationCall -> ActivationCallTemplate -> Locale -> TemplateBranding -> Nexmo.Call
+renderActivationCall ActivationCall{..} (ActivationCallTemplate t) loc branding =
     Nexmo.Call Nothing
                (fromPhone actCallTo)
-               (toStrict $ renderText t replace)
+               (toStrict $ renderTextWithBranding t replace branding)
                (Just . Text.toLower $ locToText loc)
                (Just 1)
   where
@@ -165,11 +173,11 @@ data LoginCall = LoginCall
     , loginCallCode :: !LoginCode
     }
 
-renderLoginCall :: LoginCall -> LoginCallTemplate -> Locale -> Nexmo.Call
-renderLoginCall LoginCall{..} (LoginCallTemplate t) loc =
+renderLoginCall :: LoginCall -> LoginCallTemplate -> Locale -> TemplateBranding -> Nexmo.Call
+renderLoginCall LoginCall{..} (LoginCallTemplate t) loc branding =
     Nexmo.Call Nothing
                (fromPhone loginCallTo)
-               (toStrict $ renderText t replace)
+               (toStrict $ renderTextWithBranding t replace branding)
                (Just . Text.toLower $ locToText loc)
                (Just 1)
   where
