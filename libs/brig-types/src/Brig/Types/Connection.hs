@@ -25,7 +25,8 @@ import Data.Text as Text
 
 -- | Initial message sent along with a connection request. 1-256 characters.
 --
--- /Note 2019-03-28:/ currently not used by client apps.
+-- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
+-- works as a nice source of spam. TODO deprecate and remove.
 newtype Message = Message { messageText :: Text }
     deriving (Eq, Ord, Show, ToJSON)
 
