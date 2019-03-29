@@ -8,6 +8,7 @@ What you need to know as a user of the Wire backend: concepts, features, and API
 
 We support the following functionality related to users and user profiles:
 
+* [Connections between users](reference/user/connection.md) `{#RefConnection}`
 * [Rich info](reference/user/rich-info.md) `{#RefRichInfo}`
 * TODO
 
