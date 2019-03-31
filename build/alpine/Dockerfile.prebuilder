@@ -50,6 +50,5 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 RUN git clone https://github.com/commercialhaskell/stack && \
     cd stack && \
     git checkout f0b66a1ab60fb5be85f6cb60491915bf53d3cd3c && \
-    sed -i -e 's/lts-12.20/lts-12.14/' snapshot-lts-12.yaml && \
     stack install --system-ghc --stack-yaml=stack-lts-12.yaml --system-ghc && \
     cp /root/.local/bin/stack /usr/local/bin/stack
