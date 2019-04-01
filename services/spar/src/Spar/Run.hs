@@ -85,7 +85,7 @@ mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
-  mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
+  mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =

@@ -30,7 +30,7 @@ import qualified Prometheus          as Prm
 run :: Opts -> IO ()
 run o = do
     m <- M.metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
+    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     e <- App.createEnv m o
     let l = e ^. App.applog
     s <- newSettings $ defaultServer (unpack $ o ^. optGalley.epHost)

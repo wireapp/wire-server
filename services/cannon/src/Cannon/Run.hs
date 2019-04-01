@@ -29,7 +29,7 @@ run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- Middleware.metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
+    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
     e <- mkEnv <$> pure m
                <*> pure ext

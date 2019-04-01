@@ -29,7 +29,7 @@ import qualified Prometheus as Prm
 run :: Opts -> IO ()
 run o = do
     e <- newEnv o
-    mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
+    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     s <- Server.newSettings (server e)
     emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
         Async.async $
