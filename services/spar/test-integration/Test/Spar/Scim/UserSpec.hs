@@ -17,6 +17,7 @@ import Util
 
 import qualified SAML2.WebSSO.Types               as SAML
 import qualified Spar.Data                        as Data
+import qualified Spar.Intra.Brig                  as Intra
 import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
@@ -505,7 +506,7 @@ testBrigSideIsUpdated = do
     _ <- updateUser tok userid user'
     validScimUser <- either (error . show) pure $
         validateScimUser' idp 999999 user'
-    brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
+    brigUser      <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
     brigUser `userShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
@@ -527,14 +528,14 @@ specDeleteUser = do
             storedUser <- createUser tok user
             let uid :: UserId = scimUserId storedUser
             uref :: SAML.UserRef <- do
-                usr <- getSelf uid
+                usr <- runSpar $ Intra.getBrigUser uid
                 maybe (error "no UserRef from brig") pure $ urefFromBrig =<< usr
             spar <- view teSpar
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
 
             brigUser :: Maybe User
-              <- eventually (getSelf uid) isNothing
+              <- eventually (runSpar $ Intra.getBrigUser uid) isNothing
             samlUser :: Maybe UserId
               <- eventually (getUserIdViaRef' uref) isNothing
             scimUser :: Maybe (ScimC.User.StoredUser ScimUserExtra)

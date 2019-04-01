@@ -63,7 +63,7 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , getSsoidViaSelf, getSsoidViaSelf', getSelf
+  , getSsoidViaSelf, getSsoidViaSelf'
   , getUserIdViaRef, getUserIdViaRef'
   , getScimUser
   ) where
@@ -765,32 +765,13 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- getSelf uid
+  musr <- runSpar $ Intra.getBrigUser uid
   pure $ case userIdentity =<< musr of
             Just (SSOIdentity ssoid _ _) -> Just ssoid
             Just (FullIdentity _ _)  -> Nothing
             Just (EmailIdentity _)   -> Nothing
             Just (PhoneIdentity _)   -> Nothing
             Nothing                  -> Nothing
-
-getSelf :: HasCallStack => UserId -> TestSpar (Maybe User)
-getSelf uid = do
-  let probe :: HasCallStack => TestSpar (Maybe User)
-      probe = do
-        env <- ask
-        fmap selfToUser . call . get $
-          ( (env ^. teBrig)
-          . header "Z-User" (toByteString' uid)
-          . path "/self"
-          . expect2xx
-          )
-
-      selfToUser :: HasCallStack => ResponseLBS -> Maybe User
-      selfToUser (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-        = Just $ selfUser selfprof
-      selfToUser _ = Nothing
-
-  eventually probe isNothing
 
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
