@@ -15,7 +15,9 @@ import Data.Ix (inRange)
 import Spar.Scim
 import Util
 
+import qualified SAML2.WebSSO.Types               as SAML
 import qualified Spar.Data                        as Data
+import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
@@ -519,7 +521,29 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
-        it "should respond with 204" $ do
+        it "should delete user from brig, spar.scim_user, spar.user" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid :: UserId = scimUserId storedUser
+            uref :: SAML.UserRef <- do
+                usr <- getSelf uid
+                maybe (error "no UserRef from brig") pure $ urefFromBrig =<< usr
+            spar <- view teSpar
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+
+            brigUser :: Maybe User
+              <- eventually (getSelf uid) isNothing
+            samlUser :: Maybe UserId
+              <- eventually (getUserIdViaRef' uref) isNothing
+            scimUser :: Maybe (ScimC.User.StoredUser ScimUserExtra)
+              <- eventually (getScimUser uid) isNothing
+
+            liftIO $ (brigUser, samlUser, scimUser)
+              `shouldBe` (Nothing, Nothing, Nothing)
+
+        it "should respond with 204 on first deletion, then 404" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
@@ -529,11 +553,20 @@ specDeleteUser = do
             -- Expect first call to succeed
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
-            -- The second call may return either of 204 or 404 depending on whether Brig has
-            -- finished deletion. This assertion is here to document that this is currently
-            -- the expected behaviour
+            -- Subsequent calls will return 404 eventually
+            eventually (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
+                !!! const 404 === statusCode
+
+        it "should free externalId and everything else in the scim user for re-use" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid :: UserId = scimUserId storedUser
+            spar <- view teSpar
             deleteUser_ (Just tok) (Just uid) spar
-                !!! assertTrue "expected one of 204, 404" ((`elem` [204, 404]) . statusCode)
+                !!! const 204 === statusCode
+            eventually (createUser_ (Just tok) user spar) ((== 201) . statusCode)
+                !!! const 201 === statusCode
 
         -- FUTUREWORK: hscim has the the following test.  we should probably go through all
         -- `delete` tests and see if they can move to hscim or are already included there.

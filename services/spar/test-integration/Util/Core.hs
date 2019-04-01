@@ -15,6 +15,7 @@ module Util.Core
   , passes, it, pending, pendingWith
   , shouldRespondWith
   , module Test.Hspec
+  , eventually
   -- * HTTP
   , call
   , endpointToReq
@@ -64,6 +65,7 @@ module Util.Core
   , runSpar
   , getSsoidViaSelf, getSsoidViaSelf', getSelf
   , getUserIdViaRef, getUserIdViaRef'
+  , getScimUser
   ) where
 
 import Imports hiding (head)
@@ -97,6 +99,7 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.App (toLevel)
 import Spar.API.Types
 import Spar.Run
+import Spar.Scim.Types
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
@@ -121,12 +124,13 @@ import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
+import qualified System.Logger.Extended as Log
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
-import qualified System.Logger.Extended as Log
+import qualified Web.Scim.Class.User as ScimC.User
 
 
 -- | Call 'mkEnv' with options from config files.
@@ -203,6 +207,17 @@ pending = liftIO Test.Hspec.pending
 
 pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
+
+
+-- | Run a probe a couple of times, until a "good" value materializes or until patience runs
+-- out.
+eventually :: TestSpar a -> (a -> Bool) -> TestSpar a
+eventually action good = do
+    env <- ask
+    liftIO $ retrying
+        (exponentialBackoff 50 <> limitRetries 15)
+        (\_ -> pure . not . good)
+        (\_ -> action `runReaderT` env)
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
@@ -775,19 +790,18 @@ getSelf uid = do
         = Just $ selfUser selfprof
       selfToUser _ = Nothing
 
-  env <- ask
-  liftIO $ retrying
-    (exponentialBackoff 50 <> limitRetries 5)
-    (\_ -> pure . isNothing)
-    (\_ -> probe `runReaderT` env)
+  eventually probe isNothing
 
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  env <- ask
-  liftIO $ retrying
-    (exponentialBackoff 50 <> limitRetries 5)
-    (\_ -> pure . isNothing)
-    (\_ -> runClient (env ^. teCql) $ Data.getSAMLUser uref)
+  eventually (view teCql >>= \cql -> runClient cql $ Data.getSAMLUser uref) isNothing
+
+-- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
+-- the other lookups above into the various user tables in the various cassandras.  we should
+-- probably clean this up a little, and also pick better names for everything.
+getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser ScimUserExtra))
+getScimUser uid = do
+  eventually (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isNothing
