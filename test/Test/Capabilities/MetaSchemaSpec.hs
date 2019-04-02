@@ -22,7 +22,7 @@ import           Test.Hspec.Wai      hiding (post, put, patch)
 app :: IO Application
 app = do
   storage <- emptyTestStorage
-  pure $ mkapp (Proxy @ConfigAPI) (toServant (configServer empty)) (nt storage)
+  pure $ mkapp @Mock (Proxy @ConfigAPI) (toServant (configServer empty)) (nt storage)
 
 shouldSatisfy :: (Show a, FromJSON a) =>
                  WaiSession SResponse -> (a -> Bool) -> WaiExpectation

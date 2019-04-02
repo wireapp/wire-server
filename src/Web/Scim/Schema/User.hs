@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | SCIM user representation.
 --
@@ -56,8 +58,15 @@ import Web.Scim.Schema.User.Photo (Photo)
 
 import GHC.Generics (Generic)
 
+-- | Configurable parts of 'User'.
+class UserTypes tag where
+  -- | User ID type.
+  type UserId tag
+  -- | Extra data carried with each 'User'.
+  type UserExtra tag
 
-data User extra = User
+-- | SCIM user record, parametrized with type-level tag @t@ (see 'UserTypes').
+data User tag = User
   {
     schemas :: [Schema]
 
@@ -101,13 +110,16 @@ data User extra = User
   --
   -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
   -- rendering of optional and multivalued fields, lowercase objects, etc).
-  , extra :: extra
-  } deriving (Show, Eq, Generic)
+  , extra :: UserExtra tag
+  } deriving (Generic)
+
+deriving instance Show (UserExtra tag) => Show (User tag)
+deriving instance Eq (UserExtra tag) => Eq (User tag)
 
 empty
-  :: [Schema]        -- ^ Schemas
-  -> extra           -- ^ Extra data
-  -> User extra
+  :: [Schema]               -- ^ Schemas
+  -> UserExtra tag          -- ^ Extra data
+  -> User tag
 empty schemas extra = User
   { schemas = schemas
   , userName = ""
@@ -133,7 +145,7 @@ empty schemas extra = User
   , extra = extra
   }
 
-instance FromJSON extra => FromJSON (User extra) where
+instance FromJSON (UserExtra tag) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
     let o = HM.fromList . map (over _1 toLower) . HM.toList $ obj
@@ -163,7 +175,7 @@ instance FromJSON extra => FromJSON (User extra) where
     extra <- parseJSON (Object obj)
     pure User{..}
 
-instance ToJSON extra => ToJSON (User extra) where
+instance ToJSON (UserExtra tag) => ToJSON (User tag) where
   toJSON User{..} =
     let mainObject = HM.fromList $ concat
           [ [ "schemas" .= schemas ]
@@ -203,8 +215,6 @@ instance ToJSON extra => ToJSON (User extra) where
       multiValuedField fname = \case
         [] -> []
         xs -> [fname .= xs]
-
-type UserId = Text
 
 -- | A type used to indicate that the SCIM record doesn't have any extra data. Encoded as an
 -- empty map.

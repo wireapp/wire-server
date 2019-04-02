@@ -54,7 +54,7 @@ spec = do
         Right (extendedUser (UserExtraObject "foo"))
 
 -- | A 'User' with all attributes present.
-completeUser :: User NoUserExtra
+completeUser :: User (TestTag Text () () NoUserExtra)
 completeUser = User
   { schemas = [User20]
   , userName = "sample userName"
@@ -181,7 +181,7 @@ completeUserJson = [scim|
 |]
 
 -- | A 'User' with all attributes empty (if possible).
-minimalUser :: User NoUserExtra
+minimalUser :: User (TestTag Text () () NoUserExtra)
 minimalUser = (empty [User20] NoUserExtra) { userName = "sample userName" }
 
 -- | Reference encoding of 'minimalUser'.
@@ -262,7 +262,7 @@ instance ToJSON UserExtraTest where
     object ["urn:hscim:test" .= object ["test" .= t]]
 
 -- | A 'User' with extra fields present.
-extendedUser :: UserExtraTest -> User UserExtraTest
+extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
 extendedUser e =
     (empty [User20, CustomSchema "urn:hscim:test"] e)
     { userName = "sample userName" }

@@ -1,20 +1,21 @@
-module Web.Scim.Class.Group (
-  GroupSite (..)
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Web.Scim.Class.Group
+  ( GroupSite (..)
   , GroupDB (..)
+  , GroupTypes (..)
   , StoredGroup
   , Group (..)
-  , GroupId
   , Member (..)
   , groupServer
   ) where
 
-import           Control.Monad
 import           Data.Text
 import           Data.Aeson
 import           GHC.Generics (Generic)
 import           Web.Scim.Schema.Common
-import           Web.Scim.Schema.Error
 import           Web.Scim.Schema.Meta
+import           Web.Scim.Schema.ListResponse
 import           Web.Scim.ContentType
 import           Web.Scim.Handler
 import           Web.Scim.Class.Auth
@@ -22,12 +23,17 @@ import           Servant
 import           Servant.API.Generic
 import           Servant.Server.Generic
 
+import qualified Data.Aeson as Aeson
+
 ----------------------------------------------------------------------------
 -- /Groups API
 
-type GroupId = Text
-
 type Schema = Text
+
+-- | Configurable parts of 'Group'.
+class GroupTypes tag where
+  -- | Group ID type.
+  type GroupId tag
 
 -- TODO
 data Member = Member
@@ -55,88 +61,110 @@ instance FromJSON Group where
 instance ToJSON Group where
   toJSON = genericToJSON serializeOptions
 
-type StoredGroup = WithMeta (WithId Group)
+type StoredGroup tag = WithMeta (WithId (GroupId tag) Group)
 
-data GroupSite route = GroupSite
-  { getGroups :: route :-
-      Get '[SCIM] [StoredGroup]
-  , getGroup :: route :-
-      Capture "id" Text :> Get '[SCIM] StoredGroup
-  , postGroup :: route :-
-      ReqBody '[SCIM] Group :> PostCreated '[SCIM] StoredGroup
-  , putGroup :: route :-
-      Capture "id" Text :> ReqBody '[SCIM] Group :> Put '[SCIM] StoredGroup
-  , patchGroup :: route :-
-      Capture "id" Text :> Patch '[SCIM] StoredGroup
-  , deleteGroup :: route :-
-      Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
+data GroupSite tag route = GroupSite
+  { gsGetGroups :: route :-
+      Get '[SCIM] (ListResponse (StoredGroup tag))
+  , gsGetGroup :: route :-
+      Capture "id" (GroupId tag) :>
+      Get '[SCIM] (StoredGroup tag)
+  , gsPostGroup :: route :-
+      ReqBody '[SCIM] Group :>
+      PostCreated '[SCIM] (StoredGroup tag)
+  , gsPutGroup :: route :-
+      Capture "id" (GroupId tag) :>
+      ReqBody '[SCIM] Group :>
+      Put '[SCIM] (StoredGroup tag)
+  , gsPatchGroup :: route :-
+      Capture "id" (GroupId tag) :>
+      ReqBody '[SCIM] Aeson.Value :>
+      Patch '[SCIM] (StoredGroup tag)
+  , gsDeleteGroup :: route :-
+      Capture "id" (GroupId tag) :>
+      DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
 ----------------------------------------------------------------------------
 -- Methods used by the API
 
-class (Monad m, AuthDB m) => GroupDB m where
-  list :: AuthInfo m -> ScimHandler m [StoredGroup]
-  get :: AuthInfo m -> GroupId -> ScimHandler m (Maybe StoredGroup)
-  create :: AuthInfo m -> Group -> ScimHandler m StoredGroup
-  update :: AuthInfo m -> GroupId -> Group -> ScimHandler m StoredGroup
-  delete :: AuthInfo m -> GroupId -> ScimHandler m Bool  -- ^ Return 'False' if the group didn't exist
-  getGroupMeta :: AuthInfo m -> ScimHandler m Meta
+class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
+  -- | Get all groups.
+  getGroups
+    :: AuthInfo tag
+    -> ScimHandler m (ListResponse (StoredGroup tag))
+
+  -- | Get a single group by ID.
+  --
+  -- Should throw 'notFound' if the group does not.
+  getGroup
+    :: AuthInfo tag
+    -> GroupId tag
+    -> ScimHandler m (StoredGroup tag)
+
+  -- | Create a new group.
+  --
+  -- Should throw 'conflict' if uniqueness constraints are violated.
+  postGroup
+    :: AuthInfo tag
+    -> Group
+    -> ScimHandler m (StoredGroup tag)
+
+  -- | Overwrite an existing group.
+  --
+  -- Should throw 'notFound' if the group does not exist, and 'conflict' if uniqueness
+  -- constraints are violated.
+  putGroup
+    :: AuthInfo tag
+    -> GroupId tag
+    -> Group
+    -> ScimHandler m (StoredGroup tag)
+
+  -- | Modify an existing group.
+  --
+  -- Should throw 'notFound' if the group doesn't exist, and 'conflict' if uniqueness
+  -- constraints are violated.
+  --
+  -- FUTUREWORK: add types for PATCH (instead of 'Aeson.Value').
+  -- See <https://tools.ietf.org/html/rfc7644#section-3.5.2>
+  patchGroup
+    :: AuthInfo tag
+    -> GroupId tag
+    -> Aeson.Value  -- ^ PATCH payload
+    -> ScimHandler m (StoredGroup tag)
+
+  -- | Delete a group.
+  --
+  -- Should throw 'notFound' if the group does not exist.
+  deleteGroup
+    :: AuthInfo tag
+    -> GroupId tag
+    -> ScimHandler m ()
 
 ----------------------------------------------------------------------------
 -- API handlers
 
 groupServer
-    :: GroupDB m
-    => Maybe (AuthData m) -> GroupSite (AsServerT (ScimHandler m))
+    :: forall tag m. (Show (GroupId tag), GroupDB tag m)
+    => Maybe (AuthData tag) -> GroupSite tag (AsServerT (ScimHandler m))
 groupServer authData = GroupSite
-  { getGroups = do
-      auth <- authCheck authData
-      getGroups' auth
-  , getGroup = \gid -> do
-      auth <- authCheck authData
-      getGroup' auth gid
-  , postGroup = \gr -> do
-      auth <- authCheck authData
-      postGroup' auth gr
-  , putGroup = \gid gr -> do
-      auth <- authCheck authData
-      putGroup' auth gid gr
-  , patchGroup = error "PATCH /Groups: not implemented"
-  , deleteGroup = \gid -> do
-      auth <- authCheck authData
-      deleteGroup' auth gid
+  { gsGetGroups = do
+      auth <- authCheck @tag authData
+      getGroups @tag auth
+  , gsGetGroup = \gid -> do
+      auth <- authCheck @tag authData
+      getGroup @tag auth gid
+  , gsPostGroup = \gr -> do
+      auth <- authCheck @tag authData
+      postGroup @tag auth gr
+  , gsPutGroup = \gid gr -> do
+      auth <- authCheck @tag authData
+      putGroup @tag auth gid gr
+  , gsPatchGroup = \gid patch -> do
+      auth <- authCheck @tag authData
+      patchGroup @tag auth gid patch
+  , gsDeleteGroup = \gid -> do
+      auth <- authCheck @tag authData
+      deleteGroup @tag auth gid
+      pure NoContent
   }
-
-getGroups'
-    :: GroupDB m
-    => AuthInfo m -> ScimHandler m [StoredGroup]
-getGroups' auth = do
-  list auth
-
-getGroup'
-    :: GroupDB m
-    => AuthInfo m -> GroupId -> ScimHandler m StoredGroup
-getGroup' auth gid = do
-  maybeGroup <- get auth gid
-  maybe (throwScim (notFound "Group" gid)) pure maybeGroup
-
-postGroup'
-    :: GroupDB m
-    => AuthInfo m -> Group -> ScimHandler m StoredGroup
-postGroup' auth gr = do
-  create auth gr
-
-putGroup'
-    :: GroupDB m
-    => AuthInfo m -> GroupId -> Group -> ScimHandler m StoredGroup
-putGroup' auth gid gr = do
-  update auth gid gr
-
-deleteGroup'
-    :: GroupDB m
-    => AuthInfo m -> GroupId -> ScimHandler m NoContent
-deleteGroup' auth gid = do
-  deleted <- delete auth gid
-  unless deleted $ throwScim (notFound "Group" gid)
-  pure NoContent

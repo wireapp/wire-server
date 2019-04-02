@@ -125,7 +125,7 @@ notFound resourceType resourceId =
     { schemas = [Error2_0]
     , status = Status 404
     , scimType = Nothing
-    , detail = pure $ resourceType <> " '" <> resourceId <> "' not found"
+    , detail = pure $ resourceType <> " " <> resourceId <> " not found"
     }
 
 conflict :: ScimError

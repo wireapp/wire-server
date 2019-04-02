@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Web.Scim.Class.User
     ( UserDB (..)
     , StoredUser
@@ -5,13 +7,10 @@ module Web.Scim.Class.User
     , userServer
     ) where
 
-import           Control.Monad
-import           Data.Text
 import           GHC.Generics (Generic)
 import           Web.Scim.Schema.User
 import           Web.Scim.Schema.Meta
 import           Web.Scim.Schema.Common
-import           Web.Scim.Schema.Error
 import           Web.Scim.Schema.ListResponse hiding (schemas)
 import           Web.Scim.Handler
 import           Web.Scim.Filter
@@ -21,130 +20,117 @@ import           Servant
 import           Servant.API.Generic
 import           Servant.Server.Generic
 
+import qualified Data.Aeson as Aeson
+
 ----------------------------------------------------------------------------
 -- /Users API
 
-type StoredUser extra = WithMeta (WithId (User extra))
+type StoredUser tag = WithMeta (WithId (UserId tag) (User tag))
 
-data UserSite extra route = UserSite
-  { getUsers :: route :-
+data UserSite tag route = UserSite
+  { usGetUsers :: route :-
       QueryParam "filter" Filter :>
-      Get '[SCIM] (ListResponse (StoredUser extra))
-  , getUser :: route :-
-      Capture "id" Text :>
-      Get '[SCIM] (StoredUser extra)
-  , postUser :: route :-
-      ReqBody '[SCIM] (User extra) :>
-      PostCreated '[SCIM] (StoredUser extra)
-  , putUser :: route :-
-      Capture "id" Text :>
-      ReqBody '[SCIM] (User extra) :>
-      Put '[SCIM] (StoredUser extra)
-  , patchUser :: route :-
-      Capture "id" Text :>
-      Patch '[SCIM] (StoredUser extra)
-  , deleteUser :: route :-
-      Capture "id" Text :>
+      Get '[SCIM] (ListResponse (StoredUser tag))
+  , usGetUser :: route :-
+      Capture "id" (UserId tag) :>
+      Get '[SCIM] (StoredUser tag)
+  , usPostUser :: route :-
+      ReqBody '[SCIM] (User tag) :>
+      PostCreated '[SCIM] (StoredUser tag)
+  , usPutUser :: route :-
+      Capture "id" (UserId tag) :>
+      ReqBody '[SCIM] (User tag) :>
+      Put '[SCIM] (StoredUser tag)
+  , usPatchUser :: route :-
+      Capture "id" (UserId tag) :>
+      ReqBody '[SCIM] Aeson.Value :>
+      Patch '[SCIM] (StoredUser tag)
+  , usDeleteUser :: route :-
+      Capture "id" (UserId tag) :>
       DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
 ----------------------------------------------------------------------------
 -- Methods used by the API
 
--- TODO: parameterize UserId
-class (Monad m, AuthDB m) => UserDB m where
-  type UserExtra m
-  list :: AuthInfo m -> Maybe Filter -> ScimHandler m (ListResponse (StoredUser (UserExtra m)))
-  get :: AuthInfo m -> UserId -> ScimHandler m (Maybe (StoredUser (UserExtra m)))
-  create :: AuthInfo m -> User (UserExtra m) -> ScimHandler m (StoredUser (UserExtra m))
-  update :: AuthInfo m -> UserId -> User (UserExtra m) -> ScimHandler m (StoredUser (UserExtra m))
-  delete :: AuthInfo m -> UserId -> ScimHandler m Bool  -- ^ Return 'False' if the user didn't exist
-  getMeta :: AuthInfo m -> ScimHandler m Meta
+class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
+  -- | Get all users, optionally filtered by a 'Filter'.
+  getUsers
+    :: AuthInfo tag
+    -> Maybe Filter
+    -> ScimHandler m (ListResponse (StoredUser tag))
+
+  -- | Get a single user by ID.
+  --
+  -- Should throw 'notFound' if the user doesn't exist.
+  getUser
+    :: AuthInfo tag
+    -> UserId tag
+    -> ScimHandler m (StoredUser tag)
+
+  -- | Create a new user.
+  --
+  -- Should throw 'conflict' if uniqueness constraints are violated.
+  postUser
+    :: AuthInfo tag
+    -> User tag
+    -> ScimHandler m (StoredUser tag)
+
+  -- | Overwrite an existing user.
+  --
+  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if uniqueness
+  -- constraints are violated.
+  putUser
+    :: AuthInfo tag
+    -> UserId tag
+    -> User tag
+    -> ScimHandler m (StoredUser tag)
+
+  -- | Modify an existing user.
+  --
+  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if uniqueness
+  -- constraints are violated.
+  --
+  -- FUTUREWORK: add types for PATCH (instead of 'Aeson.Value').
+  -- See <https://tools.ietf.org/html/rfc7644#section-3.5.2>
+  patchUser
+    :: AuthInfo tag
+    -> UserId tag
+    -> Aeson.Value  -- ^ PATCH payload
+    -> ScimHandler m (StoredUser tag)
+
+  -- | Delete a user.
+  --
+  -- Should throw 'notFound' if the user doesn't exist.
+  deleteUser
+    :: AuthInfo tag
+    -> UserId tag
+    -> ScimHandler m ()
 
 ----------------------------------------------------------------------------
 -- API handlers
 
 userServer
-    :: UserDB m
-    => Maybe (AuthData m) -> UserSite (UserExtra m) (AsServerT (ScimHandler m))
+    :: forall tag m. (AuthDB tag m, UserDB tag m)
+    => Maybe (AuthData tag) -> UserSite tag (AsServerT (ScimHandler m))
 userServer authData = UserSite
-  { getUsers = \mbFilter -> do
-      auth <- authCheck authData
-      getUsers' auth mbFilter
-  , getUser = \uid -> do
-      auth <- authCheck authData
-      getUser' auth uid
-  , postUser = \user -> do
-      auth <- authCheck authData
-      postUser' auth user
-  , putUser = \uid user -> do
-      auth <- authCheck authData
-      putUser' auth uid user
-  , patchUser = error "PATCH /Users: not implemented"
-  , deleteUser = \uid -> do
-      auth <- authCheck authData
-      deleteUser' auth uid
+  { usGetUsers = \mbFilter -> do
+      auth <- authCheck @tag authData
+      getUsers @tag auth mbFilter
+  , usGetUser = \uid -> do
+      auth <- authCheck @tag authData
+      getUser @tag auth uid
+  , usPostUser = \user -> do
+      auth <- authCheck @tag authData
+      postUser @tag auth user
+  , usPutUser = \uid user -> do
+      auth <- authCheck @tag authData
+      putUser @tag auth uid user
+  , usPatchUser = \uid patch -> do
+      auth <- authCheck @tag authData
+      patchUser @tag auth uid patch
+  , usDeleteUser = \uid -> do
+      auth <- authCheck @tag authData
+      deleteUser @tag auth uid
+      pure NoContent
   }
-
-getUsers'
-    :: UserDB m
-    => AuthInfo m
-    -> Maybe Filter
-    -> ScimHandler m (ListResponse (StoredUser (UserExtra m)))
-getUsers' auth mbFilter = do
-  list auth mbFilter
-
-getUser'
-    :: UserDB m
-    => AuthInfo m
-    -> UserId
-    -> ScimHandler m (StoredUser (UserExtra m))
-getUser' auth uid = do
-  maybeUser <- get auth uid
-  maybe (throwScim (notFound "User" uid)) pure maybeUser
-
-postUser'
-    :: UserDB m
-    => AuthInfo m
-    -> User (UserExtra m)
-    -> ScimHandler m (StoredUser (UserExtra m))
-postUser' auth user = do
-  -- Find users with the same username (case-insensitive)
-  --
-  -- TODO: it might be worth it to let 'create' handle conflicts if it can
-  -- do it in one pass instead of two passes. Same applies to 'updateUser''
-  -- and similar functions.
-  let filter_ = FilterAttrCompare AttrUserName OpEq (ValString (userName user))
-  stored <- list auth (Just filter_)
-  when (totalResults stored > 0) $
-    throwScim conflict
-  create auth user
-
--- | Fully update a 'User'.
---
--- Spec: <https://tools.ietf.org/html/rfc7644#section-3.5.1>.
---
--- FUTUREWORK: according to the spec, we should handle cases where someone
--- attempts to overwrite @readOnly@ and @immutable@ attributes. Currently we
--- don't have any such attributes.
---
--- See <https://github.com/wireapp/hscim/issues/21>.
-putUser'
-    :: UserDB m
-    => AuthInfo m
-    -> UserId
-    -> User (UserExtra m)
-    -> ScimHandler m (StoredUser (UserExtra m))
-putUser' auth uid user = do
-  stored <- get auth uid
-  case stored of
-    Just _ -> update auth uid user
-    Nothing -> throwScim (notFound "User" uid)
-
-deleteUser'
-    :: UserDB m
-    => AuthInfo m -> UserId -> ScimHandler m NoContent
-deleteUser' auth uid = do
-  deleted <- delete auth uid
-  unless deleted $ throwScim (notFound "User" uid)
-  pure NoContent

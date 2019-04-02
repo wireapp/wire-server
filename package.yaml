@@ -61,6 +61,7 @@ dependencies:
   - microlens
   - http-api-data
   - mmorph
+  - hashable
 
 ghc-options: -Wall
 

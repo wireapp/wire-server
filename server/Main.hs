@@ -23,7 +23,7 @@ import           Text.Email.Validate
 main :: IO ()
 main = do
   storage <- TestStorage <$> mkUserDB <*> STMMap.newIO
-  run 9000 (app MetaSchema.empty (nt storage))
+  run 9000 (app @Mock MetaSchema.empty (nt storage))
 
 -- | Create a UserDB with a single user:
 --
@@ -64,5 +64,5 @@ mkUserDB = do
         , active = Just True
         , emails = [email]
         }
-  atomically $ STMMap.insert (WithMeta meta (WithId "elton" user)) "elton" db
+  atomically $ STMMap.insert (WithMeta meta (WithId (Id 0) user)) (Id 0) db
   pure db

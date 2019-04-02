@@ -13,18 +13,18 @@ import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Servant.API.Generic
 
-
 app :: IO Application
 app = do
   storage <- emptyTestStorage
   let auth = Just "authorized"
-  pure $ mkapp (Proxy @GroupAPI) (toServant (groupServer auth)) (nt storage)
+  pure $ mkapp @Mock (Proxy @(GroupAPI Mock))
+               (toServant (groupServer @Mock auth)) (nt storage)
 
 spec :: Spec
 spec = beforeAll app $ do
   describe "GET & POST /Groups" $ do
     it "responds with [] in empty environment" $ do
-      get "/" `shouldRespondWith` [scim|[]|]
+      get "/" `shouldRespondWith` emptyList
 
     it "can insert then retrieve stored group" $ do
       post "/" adminGroup `shouldRespondWith` 201
@@ -32,10 +32,10 @@ spec = beforeAll app $ do
 
   describe "GET /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
-      get "/unknown" `shouldRespondWith` unknown
+      get "/9999" `shouldRespondWith` 404
 
-    it "retrieves stored user" $ do
-      -- the test implementation stores users with uid [0,1..n-1]
+    it "retrieves stored group" $ do
+      -- the test implementation stores groups with uid [0,1..n-1]
       get "/0" `shouldRespondWith` admins
 
   describe "PUT /Groups/:id" $ do
@@ -43,7 +43,7 @@ spec = beforeAll app $ do
       put "/0" adminUpdate0 `shouldRespondWith` updatedAdmins0
 
     it "does not create new group" $ do
-      put "/nonexisting" adminGroup `shouldRespondWith` 404
+      put "/9999" adminGroup `shouldRespondWith` 404
 
   describe "DELETE /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
@@ -67,18 +67,25 @@ adminGroup = [scim|
 
 groups :: ResponseMatcher
 groups = [scim|
-        [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
-           "displayName":"Admin",
-           "members":[],
-           "id":"0",
-           "meta":{
-             "resourceType":"Group",
-             "location":"todo",
-             "created":"2018-01-01T00:00:00Z",
-             "version":"W/\"testVersion\"",
-             "lastModified":"2018-01-01T00:00:00Z"
-           }
-        }]|]
+        { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+          "Resources":
+            [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
+               "displayName":"Admin",
+               "members":[],
+               "id":"0",
+               "meta":{
+                 "resourceType":"Group",
+                 "location":"todo",
+                 "created":"2018-01-01T00:00:00Z",
+                 "version":"W/\"testVersion\"",
+                 "lastModified":"2018-01-01T00:00:00Z"
+               }
+             }
+            ],
+          "totalResults":1,
+          "itemsPerPage":1,
+          "startIndex":0
+        }|]
 
 admins :: ResponseMatcher
 admins = [scim|
@@ -126,10 +133,11 @@ updatedAdmins0 = [scim|
            }
         }|]
 
-
-unknown :: ResponseMatcher
-unknown = [scim|
-       { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
-         "status": "404",
-         "detail": "Group 'unknown' not found"
-       }|] { matchStatus = 404 }
+emptyList :: ResponseMatcher
+emptyList = [scim|
+       { "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+         "Resources":[],
+         "totalResults":0,
+         "itemsPerPage":0,
+         "startIndex":0
+       }|]

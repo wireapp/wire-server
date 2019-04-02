@@ -10,17 +10,17 @@ import qualified Network.URI as Network
 import qualified Data.HashMap.Lazy as HML
 
 
-data WithId a = WithId
-  { id :: Text
+data WithId id a = WithId
+  { id :: id
   , value :: a
   } deriving (Eq, Show)
 
-instance (ToJSON a) => ToJSON (WithId a) where
+instance (ToJSON id, ToJSON a) => ToJSON (WithId id a) where
   toJSON (WithId i v) = case toJSON v of
-    (Object o) -> Object (HML.insert "id" (String i) o)
+    (Object o) -> Object (HML.insert "id" (toJSON i) o)
     other      -> other
 
-instance (FromJSON a) => FromJSON (WithId a) where
+instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where
   parseJSON = withObject "WithId" $ \o ->
     WithId <$> o .: "id" <*> parseJSON (Object o)
 

@@ -8,6 +8,8 @@ module Test.Util (
   -- * JSON parsing
   , Field(..)
   , getField
+  -- * Tag
+  , TestTag
   ) where
 
 import           Data.ByteString (ByteString)
@@ -24,6 +26,10 @@ import           Test.Hspec.Wai.Matcher (bodyEquals)
 import           Data.Proxy
 import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import qualified Data.HashMap.Strict as SMap
+
+import           Web.Scim.Schema.User (UserTypes (..))
+import           Web.Scim.Class.Group (GroupTypes (..))
+import           Web.Scim.Class.Auth (AuthTypes (..))
 
 ----------------------------------------------------------------------------
 -- Redefine wai test helpers to include scim+json content type
@@ -101,3 +107,21 @@ instance (KnownSymbol s, ToJSON a) => ToJSON (Field s a) where
   toJSON (Field x) = object [ key .= x]
     where
       key = pack $ symbolVal (Proxy :: Proxy s)
+
+----------------------------------------------------------------------------
+-- Tag
+
+-- | A type-level tag for 'UserTypes', 'AuthTypes', etc. that allows picking any types we
+-- might need in tests.
+data TestTag id authData authInfo userExtra
+
+instance UserTypes (TestTag id authData authInfo userExtra) where
+  type UserId (TestTag id authData authInfo userExtra) = id
+  type UserExtra (TestTag id authData authInfo userExtra) = userExtra
+
+instance GroupTypes (TestTag id authData authInfo userExtra) where
+  type GroupId (TestTag id authData authInfo userExtra) = id
+
+instance AuthTypes (TestTag id authData authInfo userExtra) where
+  type AuthData (TestTag id authData authInfo userExtra) = authData
+  type AuthInfo (TestTag id authData authInfo userExtra) = authInfo
