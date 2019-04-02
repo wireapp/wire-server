@@ -25,12 +25,10 @@ import qualified Galley.App          as App
 import Galley.App
 import qualified Galley.Data         as Data
 import           Galley.Options      (Opts, optGalley)
-import qualified Prometheus          as Prm
 
 run :: Opts -> IO ()
 run o = do
     m <- M.metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net.errors" "count status >= 500 responses")
     e <- App.createEnv m o
     let l = e ^. App.applog
     s <- newSettings $ defaultServer (unpack $ o ^. optGalley.epHost)
@@ -47,7 +45,7 @@ run o = do
         middlewares :: Middleware
         middlewares = waiPrometheusMiddleware sitemap
                     . measured
-                    . catchErrors l [Left mx, Right m]
+                    . catchErrors l [Right m]
                     . GZip.gunzip
                     . GZip.gzip GZip.def
     runSettingsWithShutdown s (middlewares app) 5 `finally` do
