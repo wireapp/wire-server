@@ -99,11 +99,12 @@ mkApp sparCtxOpts = do
   let wrappedApp
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
-        . WU.catchErrorsException sparCtxLogger [Left mx]
-          -- Error 'Response's not thrown as exceptions are logged in
-          -- 'renderSparErrorWithLogging' before the 'Application' is constructed, when there
-          -- is still all the type information around.  So we don't have to do this with
-          -- 'WU.catchErrorsResponse'.
+        . WU.catchErrors sparCtxLogger [Left mx]
+          -- Error 'Response's are usually not thrown as exceptions, but logged in
+          -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
+          -- value, when there is still all the type information around.  'WU.catchErrors' is
+          -- still here for errors outside the power of the 'Application', like network
+          -- outages.
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
