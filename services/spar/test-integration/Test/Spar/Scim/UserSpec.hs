@@ -77,7 +77,7 @@ testCreateUser = do
         . path "/self"
         . expect2xx
         )
-    brigUser `userShouldMatch` scimStoredUser
+    brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
 
 -- | Test that @externalId@ (for SSO login) is required when creating a user.
 testExternalIdIsRequired :: TestSpar ()
@@ -181,7 +181,7 @@ testRichInfo = do
     let -- validate response
         checkStoredUser
             :: HasCallStack
-            => Scim.UserC.StoredUser ScimUserExtra -> RichInfo -> TestSpar ()
+            => Scim.UserC.StoredUser SparTag -> RichInfo -> TestSpar ()
         checkStoredUser storedUser rinf = liftIO $ do
             (Scim.User.extra . Scim.value . Scim.thing) storedUser
                 `shouldBe` (ScimUserExtra rinf)
@@ -538,7 +538,7 @@ specDeleteUser = do
               <- eventually (runSpar $ Intra.getBrigUser uid) isNothing
             samlUser :: Maybe UserId
               <- eventually (getUserIdViaRef' uref) isNothing
-            scimUser :: Maybe (ScimC.User.StoredUser ScimUserExtra)
+            scimUser :: Maybe (ScimC.User.StoredUser SparTag)
               <- eventually (getScimUser uid) isNothing
 
             liftIO $ (brigUser, samlUser, scimUser)

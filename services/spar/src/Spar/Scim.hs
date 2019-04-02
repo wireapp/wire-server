@@ -58,7 +58,6 @@ import Spar.App (Spar)
 import Spar.Scim.Types
 import Spar.Scim.Auth
 import Spar.Scim.User
-import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
 
@@ -80,9 +79,9 @@ apiScim :: ServerT APIScim Spar
 apiScim = hoistScim (toServant (Scim.siteServer configuration))
      :<|> apiScimToken
   where
-    hoistScim = hoistServer (Proxy @(Scim.SiteAPI ScimToken ScimUserExtra))
+    hoistScim = hoistServer (Proxy @(Scim.SiteAPI SparTag))
                             (Scim.fromScimHandler fromError)
     fromError = throwError . SAML.CustomServant . Scim.scimToServantErr
 
-instance Scim.Group.GroupDB Spar where
+instance Scim.Group.GroupDB SparTag Spar where
   -- TODO

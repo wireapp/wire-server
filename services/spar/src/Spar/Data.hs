@@ -508,33 +508,31 @@ deleteTeamScimTokens team = do
 -- in a separate column otherwise, allowing for fast version filtering on the database.
 insertScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> ScimC.User.StoredUser ScimUserExtra -> m ()
+  => UserId -> ScimC.User.StoredUser SparTag -> m ()
 insertScimUser uid usr = retry x5 . write ins $
-  params Quorum (uid, usr)
+  params Quorum (uid, WrappedScimStoredUser usr)
   where
-    ins :: PrepQuery W (UserId, ScimC.User.StoredUser ScimUserExtra) ()
+    ins :: PrepQuery W (UserId, WrappedScimStoredUser SparTag) ()
     ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
 
 getScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> m (Maybe (ScimC.User.StoredUser ScimUserExtra))
-getScimUser uid = runIdentity <$$>
+  => UserId -> m (Maybe (ScimC.User.StoredUser SparTag))
+getScimUser uid = fromWrappedScimStoredUser . runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (Identity uid))
   where
-    sel :: PrepQuery R (Identity UserId)
-                       (Identity (ScimC.User.StoredUser ScimUserExtra))
+    sel :: PrepQuery R (Identity UserId) (Identity (WrappedScimStoredUser SparTag))
     sel = "SELECT json FROM scim_user WHERE id = ?"
 
 -- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
 -- the output list will just be shorter (no errors).
 getScimUsers
   :: (HasCallStack, MonadClient m)
-  => [UserId] -> m [ScimC.User.StoredUser ScimUserExtra]
-getScimUsers uids = runIdentity <$$>
+  => [UserId] -> m [ScimC.User.StoredUser SparTag]
+getScimUsers uids = fromWrappedScimStoredUser . runIdentity <$$>
   retry x1 (query sel (params Quorum (Identity uids)))
   where
-    sel :: PrepQuery R (Identity [UserId])
-                       (Identity (ScimC.User.StoredUser ScimUserExtra))
+    sel :: PrepQuery R (Identity [UserId]) (Identity (WrappedScimStoredUser SparTag))
     sel = "SELECT json FROM scim_user WHERE id in ?"
 
 

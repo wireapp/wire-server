@@ -61,19 +61,17 @@ import qualified Web.Scim.Schema.User             as Scim
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Scim.UserDB Spar where
-  type UserExtra Spar = ScimUserExtra
-
+instance Scim.UserDB SparTag Spar where
   -- | List all users, possibly filtered by some predicate.
-  list :: ScimTokenInfo
-       -> Maybe Scim.Filter
-       -> Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser ScimUserExtra))
-  list ScimTokenInfo{stiTeam} mbFilter = do
+  getUsers :: ScimTokenInfo
+           -> Maybe Scim.Filter
+           -> Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser SparTag))
+  getUsers ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
-    scimusers :: [Scim.StoredUser ScimUserExtra]
+    scimusers :: [Scim.StoredUser SparTag]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
@@ -87,68 +85,64 @@ instance Scim.UserDB Spar where
     Scim.fromList <$> filterM check scimusers
 
   -- | Get a single user by its ID.
-  get :: ScimTokenInfo
-      -> Text
-      -> Scim.ScimHandler Spar (Maybe (Scim.StoredUser ScimUserExtra))
-  get ScimTokenInfo{stiTeam} uidText = do
-    uid <- parseUid uidText
+  getUser :: ScimTokenInfo
+          -> UserId
+          -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+  getUser ScimTokenInfo{stiTeam} uid = do
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
-    if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
+    mbScimUser <- if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
       then lift . wrapMonadClient . Data.getScimUser $ uid
       else pure Nothing
+    maybe (throwError . Scim.notFound "User" $ idToText uid) pure mbScimUser
 
   -- | Create a new user.
-  create :: ScimTokenInfo
-         -> Scim.User ScimUserExtra
-         -> Scim.ScimHandler Spar (Scim.StoredUser ScimUserExtra)
-  create tokinfo user =
-    createValidScimUser =<< validateScimUser tokinfo user
+  postUser :: ScimTokenInfo
+           -> Scim.User SparTag
+           -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+  postUser tokinfo user = createValidScimUser =<< validateScimUser tokinfo user
 
-  update :: ScimTokenInfo
-         -> Text
-         -> Scim.User ScimUserExtra
-         -> Scim.ScimHandler Spar (Scim.StoredUser ScimUserExtra)
-  update tokinfo uidText newScimUser =
-    updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
+  putUser :: ScimTokenInfo
+          -> UserId
+          -> Scim.User SparTag
+          -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+  putUser tokinfo uid newScimUser =
+    updateValidScimUser tokinfo uid =<< validateScimUser tokinfo newScimUser
 
-  delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
-  delete ScimTokenInfo{stiTeam} uidText = do
-    uid :: UserId <- parseUid uidText
+  patchUser :: ScimTokenInfo
+            -> Scim.UserId SparTag
+            -> Value
+            -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+  patchUser = error "not implemented"
+
+  deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
+  deleteUser ScimTokenInfo{stiTeam} uid = do
+    let uidtxt = idToText uid
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     case mbBrigUser of
       Nothing -> do
         -- double-deletion gets you a 404.
-        throwError $ Scim.notFound "user" (cs $ show uid)
+        throwError $ Scim.notFound "user" uidtxt
       Just brigUser -> do
         -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
         -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
         -- possible, we should do a check here and prohibit it.
         unless (userTeam brigUser == Just stiTeam) $
         -- users from other teams get you a 404.
-          throwError $ Scim.notFound "user" (cs $ show uid)
-        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidText)
+          throwError $ Scim.notFound "user" uidtxt
+        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidtxt)
                        pure
                        $ Brig.userSSOId brigUser
         uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
         lift . wrapMonadClient $ Data.deleteSAMLUser uref
         lift . wrapMonadClient $ Data.deleteScimUser uid
         lift $ Intra.Brig.deleteBrigUser uid
-        return True
+        return ()
           where
             logThenServerError :: String -> Scim.ScimHandler Spar b
             logThenServerError err = do
               logger <- asks sparCtxLogger
               Log.err logger $ Log.msg err
               throwError $ Scim.serverError "Server Error"
-
-
-  getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
-  getMeta _ =
-      throwError $ Scim.ScimError
-          mempty
-          (Scim.Status 404)
-          Nothing
-          (Just "User getMeta is not implemented yet")  -- TODO
 
 ----------------------------------------------------------------------------
 -- User creation and validation
@@ -157,7 +151,7 @@ instance Scim.UserDB Spar where
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
-  -> Scim.User ScimUserExtra
+  -> Scim.User SparTag
   -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
@@ -198,7 +192,7 @@ validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => IdP        -- ^ IdP that the resulting user will be assigned to
   -> Int        -- ^ Rich info limit
-  -> Scim.User ScimUserExtra
+  -> Scim.User SparTag
   -> m ValidScimUser
 validateScimUser' idp richInfoLimit user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
@@ -266,7 +260,7 @@ validateScimUser' idp richInfoLimit user = do
 -- requirement.)
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
+  => ValidScimUser -> m (Scim.StoredUser SparTag)
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 
     -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
@@ -300,8 +294,8 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ScimTokenInfo -> Text -> ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
-updateValidScimUser tokinfo uidText newScimUser = do
+  => ScimTokenInfo -> UserId -> ValidScimUser -> m (Scim.StoredUser SparTag)
+updateValidScimUser tokinfo uid newScimUser = do
 
     -- TODO: currently the types in @hscim@ are constructed in such a way that
     -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
@@ -315,10 +309,8 @@ updateValidScimUser tokinfo uidText newScimUser = do
     -- TODO: how do we get this safe w.r.t. race conditions / crashes?
 
     -- construct old and new user values with metadata.
-    uid :: UserId <- parseUid uidText
-    oldScimStoredUser :: Scim.StoredUser ScimUserExtra
-      <- let err = throwError $ Scim.notFound "user" uidText
-         in maybe err pure =<< Scim.get tokinfo uidText
+    oldScimStoredUser :: Scim.StoredUser SparTag
+      <- Scim.getUser tokinfo uid
 
     let userRef = newScimUser ^. vsuSAMLUserRef
     assertUserRefUnused uid userRef
@@ -326,7 +318,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
       else do
-        newScimStoredUser :: Scim.StoredUser ScimUserExtra
+        newScimStoredUser :: Scim.StoredUser SparTag
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
@@ -351,7 +343,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
 toScimStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
-  => UserId -> Scim.User ScimUserExtra -> m (Scim.StoredUser ScimUserExtra)
+  => UserId -> Scim.User SparTag -> m (Scim.StoredUser SparTag)
 toScimStoredUser uid usr = do
   now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
@@ -362,9 +354,9 @@ toScimStoredUser'
   => SAML.Time
   -> URIBS.URI
   -> UserId
-  -> Scim.User ScimUserExtra
-  -> Scim.StoredUser ScimUserExtra
-toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
+  -> Scim.User SparTag
+  -> Scim.StoredUser SparTag
+toScimStoredUser' (SAML.Time now) baseuri uid usr =
     Scim.WithMeta meta (Scim.WithId uid usr)
   where
     mkLocation :: String -> URI
@@ -377,42 +369,36 @@ toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
       { Scim.resourceType = Scim.UserResource
       , Scim.created = now
       , Scim.lastModified = now
-      , Scim.version = calculateVersion uid usr
+      , Scim.version = calculateVersion (idToText uid) usr
         -- TODO: it looks like we need to add this to the HTTP header.
         -- https://tools.ietf.org/html/rfc7644#section-3.14
-      , Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs uid
+      , Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs (idToText uid)
       }
 
 updScimStoredUser
   :: forall m. (SAML.HasNow m)
-  => Scim.User ScimUserExtra
-  -> Scim.StoredUser ScimUserExtra
-  -> m (Scim.StoredUser ScimUserExtra)
+  => Scim.User SparTag
+  -> Scim.StoredUser SparTag
+  -> m (Scim.StoredUser SparTag)
 updScimStoredUser usr storedusr = do
   now <- SAML.getNow
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser'
   :: SAML.Time
-  -> Scim.User ScimUserExtra
-  -> Scim.StoredUser ScimUserExtra
-  -> Scim.StoredUser ScimUserExtra
+  -> Scim.User SparTag
+  -> Scim.StoredUser SparTag
+  -> Scim.StoredUser SparTag
 updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
     Scim.WithMeta meta' (Scim.WithId scimuid usr)
   where
     meta' = meta
       { Scim.lastModified = moddate
-      , Scim.version = calculateVersion scimuid usr
+      , Scim.version = calculateVersion (idToText scimuid) usr
       }
 
 ----------------------------------------------------------------------------
 -- Utilities
-
-parseUid
-  :: forall m m'. (m ~ Scim.ScimHandler m', Monad m')
-  => Text -> m UserId
-parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
-  where err = throwError $ Scim.notFound "user" uidText
 
 -- | Calculate resource version (currently only for 'Scim.User's).
 --
@@ -426,7 +412,7 @@ parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
 -- requirements of strong ETags ("same resources have the same version").
 calculateVersion
   :: Text               -- ^ User ID
-  -> Scim.User ScimUserExtra
+  -> Scim.User SparTag
   -> Scim.ETag
 calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
   where

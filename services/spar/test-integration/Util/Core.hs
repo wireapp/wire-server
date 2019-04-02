@@ -783,6 +783,6 @@ getUserIdViaRef' uref = do
 -- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
 -- the other lookups above into the various user tables in the various cassandras.  we should
 -- probably clean this up a little, and also pick better names for everything.
-getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser ScimUserExtra))
+getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser SparTag))
 getScimUser uid = do
   eventually (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isNothing

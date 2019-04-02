@@ -38,12 +38,7 @@ import qualified Web.Scim.Handler                 as Scim
 import qualified Web.Scim.Schema.Error            as Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Scim.Class.Auth.AuthDB Spar where
-    -- To authenticate, you need to provide a 'ScimToken'
-    type AuthData Spar = ScimToken
-    -- The result of authentication (passed to our handlers) is 'ScimTokenInfo'
-    type AuthInfo Spar = ScimTokenInfo
-
+instance Scim.Class.Auth.AuthDB SparTag Spar where
     -- Validate and resolve a given token
     authCheck :: Maybe ScimToken -> Scim.ScimHandler Spar ScimTokenInfo
     authCheck Nothing =
