@@ -18,7 +18,6 @@ import qualified Prometheus as Prm
 run :: Opts -> IO ()
 run o = do
     m <- metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     e <- createEnv m o
     s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
     let rtree    = compile (sitemap e)
@@ -26,5 +25,5 @@ run o = do
     let app r k  = runProxy e r (route rtree r k)
     let middleware = waiPrometheusMiddleware (sitemap e)
                    . measured
-                   . catchErrors (e^.applog) [Left mx, Right m]
+                   . catchErrors (e^.applog)
     runSettings s (middleware app) `finally` destroyEnv e

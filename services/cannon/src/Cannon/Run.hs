@@ -21,7 +21,6 @@ import qualified Cannon.Dict                 as D
 import qualified Data.Metrics.Middleware     as Middleware
 import qualified Network.Wai                 as Wai
 import qualified Network.Wai.Middleware.Gzip as Gzip
-import qualified Prometheus                  as Prm
 import qualified System.IO.Strict            as Strict
 import qualified System.Logger.Extended      as L
 
@@ -29,7 +28,6 @@ run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- Middleware.metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
     e <- mkEnv <$> pure m
                <*> pure ext
@@ -46,7 +44,7 @@ run o = do
         middleware :: Wai.Middleware
         middleware = waiPrometheusMiddleware sitemap
                    . measured
-                   . catchErrors g [Left mx, Right m]
+                   . catchErrors g
                    . Gzip.gzip Gzip.def
         start    =  middleware app
     runSettings s start `finally` L.close (applog e)

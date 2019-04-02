@@ -23,28 +23,26 @@ import qualified Gundeck.Aws as Aws
 import qualified Network.Wai.Middleware.Gzip as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified System.Logger as Log
-import qualified Prometheus as Prm
 
 run :: Opts -> IO ()
 run o = do
     m <- metrics
-    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     e <- createEnv m o
     runClient (e^.cstate) $
         versionCheck schemaVersion
     let l = e^.applog
     s <- newSettings $ defaultServer (unpack $ o^.optGundeck.epHost) (o^.optGundeck.epPort) l m
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
-    runSettingsWithShutdown s (middleware e mx $ app e) 5 `finally` do
+    runSettingsWithShutdown s (middleware e $ app e) 5 `finally` do
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
         Log.close (e^.applog)
   where
-    middleware :: Env -> Prm.Counter -> Wai.Middleware
-    middleware e mx = waiPrometheusMiddleware sitemap
+    middleware :: Env -> Wai.Middleware
+    middleware e = waiPrometheusMiddleware sitemap
                  . measureRequests (e^.monitor) (treeToPaths routes)
-                 . catchErrors (e^.applog) [Left mx, Right $ e^.monitor]
+                 . catchErrors (e^.applog)
                  . GZip.gunzip . GZip.gzip GZip.def
     app :: Env -> Wai.Application
     app e r k = runGundeck e r (route routes r k)
