@@ -13,8 +13,6 @@ module Network.Wai.Utilities.Server
       -- * Middlewares
     , measureRequests
     , catchErrors
-    , catchErrorsException
-    , catchErrorsResponse
     , OnErrorMetrics
     , heavyDebugLogging
 
@@ -169,11 +167,6 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
       requestCounter m p . duration 30 12 m p
 {-# INLINEABLE measureRequests #-}
 
--- | Run both 'catchErrorsException', 'catchErrorsResponse'.
-catchErrors  :: Logger -> OnErrorMetrics -> Middleware
-catchErrors l m = catchErrorsException l m . catchErrorsResponse l
-{-# INLINEABLE catchErrors #-}
-
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
 -- as well as counting server errors (i.e. exceptions that
@@ -181,8 +174,8 @@ catchErrors l m = catchErrorsException l m . catchErrorsResponse l
 --
 -- This does not log any 'Response' values with error status.
 -- See 'catchErrors'.
-catchErrorsException :: Logger -> OnErrorMetrics -> Middleware
-catchErrorsException l m app req k =
+catchErrors :: Logger -> OnErrorMetrics -> Middleware
+catchErrors l m app req k =
     app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
@@ -191,27 +184,7 @@ catchErrorsException l m app req k =
         when (statusCode (Error.code er) >= 500) $
             logIO l Log.Error (Just req) (show ex)
         onError l m req k er
-{-# INLINEABLE catchErrorsException #-}
-
--- | Catch status >= 400 even if it does not come in the form of an exception, but as a
--- response, and log a warning that this really shouldn't happen, and a typed exception should
--- be thrown instead.
-catchErrorsResponse :: Logger -> Middleware
-catchErrorsResponse l app req k =
-    app req $ \resp -> do
-        when (statusCode (responseStatus resp) >= 400) $ do
-            let errinfo = Wai.Error (responseStatus resp) (cs . statusMessage $ responseStatus resp) "N/A"
-            Log.warn l
-                $ field "request" (fromMaybe "N/A" (lookupRequestId req))
-                . field "error" (show errinfo)
-                . (msg $ val catchErrorsResponseMsg)
-        k resp
-{-# INLINEABLE catchErrorsResponse #-}
-
-catchErrorsResponseMsg :: ByteString
-catchErrorsResponseMsg =
-    "A handler responded with status >= 400; please throw an exception " <>
-    "instead of manually constructing an error response"
+{-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
