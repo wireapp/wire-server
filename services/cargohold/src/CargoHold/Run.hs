@@ -20,16 +20,17 @@ import           CargoHold.API     (sitemap)
 run :: Opts -> IO ()
 run o = do
     e <- newEnv o
+    mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
     s <- Server.newSettings (server e)
-    runSettingsWithShutdown s (middleware e $ serve e) 5
+    runSettingsWithShutdown s (middleware e mx $ serve e) 5
         `finally` closeEnv e
   where
     rtree      = compile sitemap
     server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
-    middleware :: Env -> Wai.Middleware
-    middleware e = waiPrometheusMiddleware sitemap
+    middleware :: Env -> Prm.Counter -> Wai.Middleware
+    middleware e mx = waiPrometheusMiddleware sitemap
                  . measureRequests (e^.metrics) (treeToPaths rtree)
-                 . catchErrors (e^.appLogger)
+                 . catchErrors (e^.appLogger) [Left mx, Right $ e^.metrics]
                  . GZip.gzip GZip.def
 
     serve e r k = runHandler e r (Server.route rtree r k) k

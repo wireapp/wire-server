@@ -85,6 +85,7 @@ mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
+  mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
@@ -98,7 +99,7 @@ mkApp sparCtxOpts = do
   let wrappedApp
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
-        . WU.catchErrors sparCtxLogger
+        . WU.catchErrors sparCtxLogger [Left mx]
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
           -- value, when there is still all the type information around.  'WU.catchErrors' is

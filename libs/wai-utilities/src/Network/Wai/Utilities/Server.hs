@@ -13,6 +13,7 @@ module Network.Wai.Utilities.Server
       -- * Middlewares
     , measureRequests
     , catchErrors
+    , OnErrorMetrics
     , heavyDebugLogging
 
       -- * Utilities
@@ -54,6 +55,7 @@ import qualified Data.Text.Lazy.Encoding     as LT
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
 
@@ -75,6 +77,7 @@ newSettings :: MonadIO m => Server -> m Settings
 newSettings (Server h p l m t) = do
     -- (Atomically) initialise the standard metrics, to avoid races.
     void $ gaugeGet' (path "net.connections") m
+    void $ counterGet' (path "net.errors") m
     return $ setHost (fromString h)
            . setPort (fromIntegral p)
            . setBeforeMainLoop logStart
@@ -171,8 +174,8 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 --
 -- This does not log any 'Response' values with error status.
 -- See 'catchErrors'.
-catchErrors :: Logger -> Middleware
-catchErrors l app req k =
+catchErrors :: Logger -> OnErrorMetrics -> Middleware
+catchErrors l m app req k =
     app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
@@ -180,7 +183,7 @@ catchErrors l app req k =
         er <- runHandlers ex errorHandlers
         when (statusCode (Error.code er) >= 500) $
             logIO l Log.Error (Just req) (show ex)
-        onError l req k er
+        onError l m req k er
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
@@ -261,13 +264,19 @@ emitLByteString lbs = do
 --------------------------------------------------------------------------------
 -- Utilities
 
+-- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
+-- package introduced for spar ('Left').
+type OnErrorMetrics = [Either Prm.Counter Metrics]
+
 -- | Send an 'Error' response.
 onError
     :: MonadIO m
-    => Logger -> Request -> Continue IO -> Wai.Error
+    => Logger -> OnErrorMetrics -> Request -> Continue IO -> Wai.Error
     -> m ResponseReceived
-onError g r k e = liftIO $ do
+onError g m r k e = liftIO $ do
     logError g (Just r) e
+    when (statusCode (Error.code e) >= 500) $
+        either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
     flushRequestBody r
     k (errorRs' e)
 
