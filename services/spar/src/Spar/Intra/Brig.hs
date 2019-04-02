@@ -273,9 +273,9 @@ deleteBrigUser buid = do
   if
     | sCode < 300 -> pure ()
     | inRange (400, 499) sCode
-      -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "failed to delete user"
-    | otherwise -> throwSpar . SparBrigError . cs
-      $ "delete user failed with status " <> show sCode
+      -> throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
+    | otherwise
+      -> throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
