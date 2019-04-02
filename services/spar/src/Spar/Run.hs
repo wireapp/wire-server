@@ -36,7 +36,6 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
-import qualified Prometheus as Prm
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger.Extended as Log
@@ -85,7 +84,6 @@ mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
-  mx <- Prm.register (Prm.counter $ Prm.Info "net_errors" "count status >= 500 responses")
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
@@ -99,7 +97,7 @@ mkApp sparCtxOpts = do
   let wrappedApp
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
-        . WU.catchErrors sparCtxLogger [Left mx]
+        . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
           -- value, when there is still all the type information around.  'WU.catchErrors' is
