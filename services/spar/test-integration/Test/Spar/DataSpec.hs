@@ -117,6 +117,19 @@ spec = do
           muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid'
 
+      describe "DELETE" $ do
+        it "works" $ do
+          uref <- nextUserRef
+          uid  <- nextWireId
+          do
+            ()   <- runSparCass $ Data.insertSAMLUser uref uid
+            muid <- runSparCass (Data.getSAMLUser uref) `eventually` isJust
+            liftIO $ muid `shouldBe` Just uid
+          do
+            ()   <- runSparCass $ Data.deleteSAMLUser uref
+            muid <- runSparCass (Data.getSAMLUser uref) `eventually` isNothing
+            liftIO $ muid `shouldBe` Nothing
+
 
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
