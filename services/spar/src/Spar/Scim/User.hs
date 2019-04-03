@@ -243,7 +243,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-    assertUserRefUnused buid uref
+    assertUserRefUnused uref
 
     -- Create SCIM user here in spar.
     storedUser <- lift $ toScimStoredUser buid user
@@ -286,8 +286,7 @@ updateValidScimUser tokinfo uid newScimUser = do
     oldScimStoredUser :: Scim.StoredUser SparTag
       <- Scim.getUser tokinfo uid
 
-    let userRef = newScimUser ^. vsuSAMLUserRef
-    assertUserRefUnused uid userRef
+    assertUserRefMatchesUserId (newScimUser ^. vsuSAMLUserRef) uid
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
@@ -296,9 +295,9 @@ updateValidScimUser tokinfo uid newScimUser = do
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
-        let uref = newScimUser ^. vsuSAMLUserRef
-        lift . wrapMonadClient $ Data.insertSAMLUser uref uid  -- on spar
-        bindok <- lift $ Intra.Brig.bindBrigUser uid uref  -- on brig
+        let newuref = newScimUser ^. vsuSAMLUserRef
+        lift . wrapMonadClient $ Data.insertSAMLUser newuref uid  -- on spar
+        bindok <- lift $ Intra.Brig.bindBrigUser uid newuref  -- on brig
         unless bindok . throwError $
             Scim.serverError "Failed to update SAML UserRef on brig."
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
@@ -426,21 +425,28 @@ calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
     h = hashlazy (Aeson.encode (Scim.WithId uidText usr))
 
 {-|
-Check that the UserRef is not taken; or that it's taken by the given user id.
+Check that the UserRef is not taken.
 
 ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 to a single `externalId`.
 -}
-assertUserRefUnused :: UserId -> SAML.UserRef -> Scim.ScimHandler Spar ()
-assertUserRefUnused wireUserId userRef = do
+assertUserRefUnused :: SAML.UserRef -> Scim.ScimHandler Spar ()
+assertUserRefUnused userRef = do
   mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
-  case mExistingUserId of
-    -- No existing user for this userRef; it's okay to set it
-    Nothing -> return ()
-    -- A user exists; verify that it's the same user before updating
-    Just existingUserId  ->
-      unless (existingUserId == wireUserId) $
-        throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
+  unless (isNothing mExistingUserId) $
+    throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
+
+{-|
+Check that the UserRef is not taken, or mapped on a given user id.
+
+ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
+to a single `externalId`.
+-}
+assertUserRefMatchesUserId :: SAML.UserRef -> UserId -> Scim.ScimHandler Spar ()
+assertUserRefMatchesUserId userRef wireUserId = do
+  mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
+  unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
+    throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
