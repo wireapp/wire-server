@@ -115,34 +115,8 @@ instance Scim.UserDB SparTag Spar where
   patchUser = error "not implemented"
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
-  deleteUser ScimTokenInfo{stiTeam} uid = do
-    let uidtxt = idToText uid
-    mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
-    case mbBrigUser of
-      Nothing -> do
-        -- double-deletion gets you a 404.
-        throwError $ Scim.notFound "user" uidtxt
-      Just brigUser -> do
-        -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
-        -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
-        -- possible, we should do a check here and prohibit it.
-        unless (userTeam brigUser == Just stiTeam) $
-        -- users from other teams get you a 404.
-          throwError $ Scim.notFound "user" uidtxt
-        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs uidtxt)
-                       pure
-                       $ Brig.userSSOId brigUser
-        uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
-        lift . wrapMonadClient $ Data.deleteSAMLUser uref
-        lift . wrapMonadClient $ Data.deleteScimUser uid
-        lift $ Intra.Brig.deleteBrigUser uid
-        return ()
-          where
-            logThenServerError :: String -> Scim.ScimHandler Spar b
-            logThenServerError err = do
-              logger <- asks sparCtxLogger
-              Log.err logger $ Log.msg err
-              throwError $ Scim.serverError "Server Error"
+  deleteUser = deleteScimUser
+
 
 ----------------------------------------------------------------------------
 -- User creation and validation
@@ -396,6 +370,38 @@ updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scim
       { Scim.lastModified = moddate
       , Scim.version = calculateVersion (idToText scimuid) usr
       }
+
+
+deleteScimUser
+  :: ScimTokenInfo -> UserId -> ExceptT Scim.ScimError Spar ()
+deleteScimUser ScimTokenInfo{stiTeam} uid = do
+    mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
+    case mbBrigUser of
+      Nothing -> do
+        -- double-deletion gets you a 404.
+        throwError $ Scim.notFound "user" (idToText uid)
+      Just brigUser -> do
+        -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
+        -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
+        -- possible, we should do a check here and prohibit it.
+        unless (userTeam brigUser == Just stiTeam) $
+        -- users from other teams get you a 404.
+          throwError $ Scim.notFound "user" (idToText uid)
+        ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs (idToText uid))
+                       pure
+                       $ Brig.userSSOId brigUser
+        uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
+        lift . wrapMonadClient $ Data.deleteSAMLUser uref
+        lift . wrapMonadClient $ Data.deleteScimUser uid
+        lift $ Intra.Brig.deleteBrigUser uid
+        return ()
+  where
+    logThenServerError :: String -> Scim.ScimHandler Spar b
+    logThenServerError err = do
+      logger <- asks sparCtxLogger
+      Log.err logger $ Log.msg err
+      throwError $ Scim.serverError "Server Error"
+
 
 ----------------------------------------------------------------------------
 -- Utilities
