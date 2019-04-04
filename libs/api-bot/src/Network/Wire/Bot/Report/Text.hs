@@ -37,9 +37,8 @@ formatReport pretty r = toLazyText $
         <> foldMap metric (sectionMetrics s)
         <> "\n"
 
-    metric (Counter l p) = single l $ decimal  (reportCounter r p)
-    metric (Label   l p) = single l $ fromText (reportLabel r p)
-    metric (Gauge   l p) = single l $ decimal  (reportGauge r p)
+    metric (Counter l p) = single l . fromString . show $ (reportCounter r p)
+    metric (Gauge   l p) = single l . fromString . show $ (reportGauge r p)
     metric (Buckets l p) = multi  l $ sort $ HashMap.toList (reportBucket r p)
 
     single k v = "\t" <> fromText k   <> ": " <> value v <> "\n"

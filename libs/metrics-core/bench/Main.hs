@@ -39,15 +39,15 @@ main = do
             ]
         ]
 
-loop :: Word -> IO () -> IO ()
+loop :: Double -> IO () -> IO ()
 loop 0  _  = return ()
 loop !i io = io >> loop (i - 1) io
 
-contentionIters :: Word
+contentionIters :: Double
 contentionIters = 10000
 
-contentionConc :: Word
+contentionConc :: Double
 contentionConc = 100
 
-contentionSum :: Word
+contentionSum :: Double
 contentionSum = sum [i * contentionIters | i <- [1..contentionConc]]

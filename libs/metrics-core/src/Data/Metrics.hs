@@ -63,7 +63,7 @@ metrics = liftIO $ Metrics
 --
 -- Currently just replaces all "/" with "_" and lowercases the result
 toInfo :: Path -> P.Info
-toInfo (Path p) = P.Info (p & T.replace "/" "_"
+toInfo (Path p) = P.Info (p & T.replace "." "_"
                            & T.toLower)
                         "description not provided"
 
