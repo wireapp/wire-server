@@ -279,7 +279,7 @@ updateValidScimUser tokinfo uid newScimUser = do
     oldScimStoredUser :: Scim.StoredUser SparTag
       <- Scim.getUser tokinfo uid
 
-    assertUserRefMatchesUserId (newScimUser ^. vsuSAMLUserRef) uid
+    assertUserRefNotUsedElsewhere (newScimUser ^. vsuSAMLUserRef) uid
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
@@ -430,13 +430,13 @@ assertUserRefUnused userRef = do
     throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
 {-|
-Check that the UserRef is not taken, or mapped on a given user id.
+Check that the UserRef is not taken *by another user*.
 
 ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 to a single `externalId`.
 -}
-assertUserRefMatchesUserId :: SAML.UserRef -> UserId -> Scim.ScimHandler Spar ()
-assertUserRefMatchesUserId userRef wireUserId = do
+assertUserRefNotUsedElsewhere :: SAML.UserRef -> UserId -> Scim.ScimHandler Spar ()
+assertUserRefNotUsedElsewhere userRef wireUserId = do
   mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
