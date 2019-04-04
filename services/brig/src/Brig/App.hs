@@ -84,6 +84,7 @@ import Ssl.Util
 import System.Logger.Class hiding (Settings, settings)
 import Util.Options
 
+import qualified Brig.Metrics             as PMetrics
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
 import qualified Brig.Queue.Stomp         as Stomp
@@ -116,38 +117,42 @@ schemaVersion = 58
 -- Environment
 
 data Env = Env
-    { _cargohold     :: RPC.Request
-    , _galley        :: RPC.Request
-    , _gundeck       :: RPC.Request
-    , _casClient     :: Cas.ClientState
-    , _smtpEnv       :: Maybe SMTP.SMTP
-    , _awsEnv        :: AWS.Env
-    , _stompEnv      :: Maybe Stomp.Env
-    , _metrics       :: Metrics
-    , _applog        :: Logger
+    { _cargohold :: RPC.Request
+    , _galley :: RPC.Request
+    , _gundeck :: RPC.Request
+    , _casClient :: Cas.ClientState
+    , _smtpEnv :: Maybe SMTP.SMTP
+    , _awsEnv :: AWS.Env
+    , _stompEnv :: Maybe Stomp.Env
+    , _metrics :: Metrics
+    , _prometheusMetrics :: PMetrics.Metrics
+    , _applog :: Logger
     , _internalEvents :: Queue
-    , _requestId     :: RequestId
-    , _usrTemplates  :: Localised UserTemplates
+    , _requestId :: RequestId
+    , _usrTemplates :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
-    , _tmTemplates   :: Localised TeamTemplates
+    , _tmTemplates :: Localised TeamTemplates
     , _templateBranding :: TemplateBranding
-    , _httpManager   :: Manager
+    , _httpManager :: Manager
     , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
-    , _settings      :: Settings
-    , _nexmoCreds    :: Nexmo.Credentials
-    , _twilioCreds   :: Twilio.Credentials
-    , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
-    , _fsWatcher     :: FS.WatchManager
-    , _turnEnv       :: IORef TURN.Env
-    , _turnEnvV2     :: IORef TURN.Env
-    , _currentTime   :: IO UTCTime
-    , _zauthEnv      :: ZAuth.Env
-    , _digestSHA256  :: Digest
-    , _digestMD5     :: Digest
-    , _indexEnv      :: IndexEnv
+    , _settings :: Settings
+    , _nexmoCreds :: Nexmo.Credentials
+    , _twilioCreds :: Twilio.Credentials
+    , _geoDb :: Maybe (IORef GeoIp.GeoDB)
+    , _fsWatcher :: FS.WatchManager
+    , _turnEnv :: IORef TURN.Env
+    , _turnEnvV2 :: IORef TURN.Env
+    , _currentTime :: IO UTCTime
+    , _zauthEnv :: ZAuth.Env
+    , _digestSHA256 :: Digest
+    , _digestMD5 :: Digest
+    , _indexEnv :: IndexEnv
     }
 
 makeLenses ''Env
+
+instance PMetrics.HasMetrics Env where
+    metrics = prometheusMetrics
 
 newEnv :: Opts -> IO Env
 newEnv o = do
@@ -162,6 +167,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
+    pMetrics <- PMetrics.initMetrics
     let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS  $ o
     (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
     aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
@@ -185,35 +191,36 @@ newEnv o = do
         StompQueue q -> pure (StompQueue q)
         SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
-        { _cargohold     = mkEndpoint $ Opt.cargohold o
-        , _galley        = mkEndpoint $ Opt.galley o
-        , _gundeck       = mkEndpoint $ Opt.gundeck o
-        , _casClient     = cas
-        , _smtpEnv       = emailSMTP
-        , _awsEnv        = aws
-        , _stompEnv      = stomp
-        , _metrics       = mtr
-        , _applog        = lgr
-        , _internalEvents = eventsQueue
-        , _requestId     = def
-        , _usrTemplates  = utp
-        , _provTemplates = ptp
-        , _tmTemplates   = ttp
-        , _templateBranding = branding
-        , _httpManager   = mgr
-        , _extGetManager = ext
-        , _settings      = sett
-        , _nexmoCreds    = nxm
-        , _twilioCreds   = twl
-        , _geoDb         = g
-        , _turnEnv       = turn
-        , _turnEnvV2     = turnV2
-        , _fsWatcher     = w
-        , _currentTime   = clock
-        , _zauthEnv      = zau
-        , _digestMD5     = md5
-        , _digestSHA256  = sha256
-        , _indexEnv      = mkIndexEnv o lgr mgr mtr
+        { _cargohold         = mkEndpoint $ Opt.cargohold o
+        , _galley            = mkEndpoint $ Opt.galley o
+        , _gundeck           = mkEndpoint $ Opt.gundeck o
+        , _casClient         = cas
+        , _smtpEnv           = emailSMTP
+        , _awsEnv            = aws
+        , _stompEnv          = stomp
+        , _metrics           = mtr
+        , _prometheusMetrics = pMetrics
+        , _applog            = lgr
+        , _internalEvents    = eventsQueue
+        , _requestId         = def
+        , _usrTemplates      = utp
+        , _provTemplates     = ptp
+        , _tmTemplates       = ttp
+        , _templateBranding  = branding
+        , _httpManager       = mgr
+        , _extGetManager     = ext
+        , _settings          = sett
+        , _nexmoCreds        = nxm
+        , _twilioCreds       = twl
+        , _geoDb             = g
+        , _turnEnv           = turn
+        , _turnEnvV2         = turnV2
+        , _fsWatcher         = w
+        , _currentTime       = clock
+        , _zauthEnv          = zau
+        , _digestMD5         = md5
+        , _digestSHA256      = sha256
+        , _indexEnv          = mkIndexEnv o lgr mgr mtr
         }
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
@@ -398,6 +405,7 @@ newtype AppT m a = AppT
              , MonadCatch
              , MonadMask
              , MonadReader Env
+             , PMetrics.MonadMonitor
              )
 
 type AppIO = AppT IO

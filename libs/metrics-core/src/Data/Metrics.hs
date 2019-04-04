@@ -44,90 +44,83 @@ import Data.Aeson
 import Data.Atomics.Counter (AtomicCounter)
 import Data.Hashable
 import Data.Metrics.Buckets (Buckets)
+import Data.Metrics.Types
 
-import qualified Data.Atomics.Counter as Atomic
-import qualified Data.Text            as T
-import qualified Data.HashMap.Strict  as Map
-import qualified Data.Metrics.Buckets as Buckets
-import qualified Data.Metrics.GC      as GC
+import qualified Data.Atomics.Counter  as Atomic
+import qualified Data.Text             as T
+import qualified Data.HashMap.Strict   as Map
+import qualified Data.Metrics.Buckets  as Buckets
+import qualified Data.Metrics.GC       as GC
+import qualified Data.Metrics.CollectD as CD
 
-newtype Path = Path { _path :: Text } deriving (Eq, Hashable, Semigroup, Monoid)
+import qualified Prometheus as P
 
-path :: Text -> Path
-path = Path
+class MonadMetrics m where
+    getMetrics :: m Metrics
 
-newtype Counter = Counter AtomicCounter
-newtype Gauge   = Gauge   AtomicCounter
-newtype Label   = Label   (IORef Text)
+data Counter = Counter P.Counter CD.Counter
+data Gauge   = Gauge   P.Gauge CD.Gauge
 
 data Metrics = Metrics
     { counters :: IORef (HashMap Path Counter)
     , gauges   :: IORef (HashMap Path Gauge)
-    , labels   :: IORef (HashMap Path Label)
-    , buckets  :: IORef (HashMap Path Buckets)
+    -- , labels   :: IORef (HashMap Path Label)
+    -- , buckets  :: IORef (HashMap Path Buckets)
     }
 
-metrics :: MonadIO m => m Metrics
-metrics = liftIO $ Metrics
-    <$> newIORef Map.empty
-    <*> newIORef Map.empty
-    <*> newIORef Map.empty
-    <*> newIORef Map.empty
+-- | Converts a CollectD style 'path' to a Metric name usable by prometheus
+--
+-- Currently just replaces all "/" with "_" and lowercases the result
+toPInfo :: Path -> P.Info
+toPInfo (Path p) = P.Info (p & T.replace "/" "_"
+                           & T.toLower)
+                        "description not provided"
+
+
+getOrCreate :: (MonadIO m, Eq k, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
+getOrCreate mapRef key initializer = liftIO $ do
+    hMap <- readIORef mapRef
+    maybe initialize return (Map.lookup key hMap)
+  where
+    initialize = do
+        val <- initializer
+        atomicModifyIORef' mapRef $ \m -> (Map.insert key val m, val)
 
 -----------------------------------------------------------------------------
 -- Counter specifics
 
+newCounter :: MonadIO m => Path -> m Counter
+newCounter p = liftIO $ liftA2 Counter (P.register pCounter) (CD.Counter <$> (Atomic.newCounter 0))
+    where
+        pCounter = P.counter (toPInfo p)
+
 counterGet :: MonadIO m => Path -> Metrics -> m Counter
 counterGet t m = liftIO $ do
-    cs <- readIORef (counters m)
-    maybe make return (Map.lookup t cs)
-  where
-    make = do
-        c <- Counter <$> Atomic.newCounter 0
-        atomicModifyIORef' (counters m) $ \cs -> (Map.insert t c cs, c)
-
-counterGet' :: MonadIO m => Path -> Metrics -> m Counter
-counterGet' t m = liftIO $ do
-    c <- Counter <$> Atomic.newCounter 0
-    atomicModifyIORef' (counters m) $ \cs ->
-        case Map.lookup t cs of
-            Nothing -> (Map.insert t c cs, c)
-            Just c' -> (cs , c')
+    getOrCreate (counters m) t (newCounter t)
 
 counterAdd :: MonadIO m => Word -> Path -> Metrics -> m ()
 counterAdd x p m = liftIO $ do
-    Counter c <- counterGet p m
-    Atomic.incrCounter_ (fromIntegral x) c
+    Counter pCounter (CD.Counter cdCounter) <- counterGet p m
+    Atomic.incrCounter_ (fromIntegral x) cdCounter
 
 counterIncr :: MonadIO m => Path -> Metrics -> m ()
 counterIncr = counterAdd 1
 
-counterValue :: MonadIO m => Counter -> m Word
-counterValue (Counter c) = liftIO $ fromIntegral <$> Atomic.readCounter c
-
 -----------------------------------------------------------------------------
 -- Gauge specifics
 
+newGauge :: MonadIO m => Path -> m Gauge
+newGauge p = liftIO $ liftA2 Gauge (P.register pGauge) (CD.Gauge <$> (Atomic.newCounter 0))
+    where
+        pGauge = P.gauge (toPInfo p)
+
 gaugeGet :: MonadIO m => Path -> Metrics -> m Gauge
 gaugeGet t m = liftIO $ do
-    gs <- readIORef (gauges m)
-    maybe make return (Map.lookup t gs)
-  where
-    make = do
-        g <- Gauge <$> Atomic.newCounter 0
-        atomicModifyIORef' (gauges m) $ \gs -> (Map.insert t g gs, g)
-
-gaugeGet' :: MonadIO m => Path -> Metrics -> m Gauge
-gaugeGet' t m = liftIO $ do
-    g <- Gauge <$> Atomic.newCounter 0
-    atomicModifyIORef' (gauges m) $ \gs ->
-        case Map.lookup t gs of
-            Nothing -> (Map.insert t g gs, g)
-            Just g' -> (gs , g')
+    getOrCreate (gauges m) t (newGauge t)
 
 gaugeSet :: MonadIO m => Int -> Path -> Metrics -> m ()
 gaugeSet x p m = liftIO $ do
-    Gauge g <- gaugeGet p m
+    Gauge pGauge cdGauge <- gaugeGet p m
     -- To play it safe, we want a full memory barrier, which 'writeCounter'
     -- does not provide, so we use a CAS loop instead. This is not worse
     -- than e.g. a CAS loop inherent to a comparable 'atomicModifyIORef'.
@@ -153,109 +146,3 @@ gaugeSub x = gaugeAdd (-x)
 
 gaugeValue :: MonadIO m => Gauge -> m Int
 gaugeValue (Gauge g) = liftIO $ Atomic.readCounter g
-
------------------------------------------------------------------------------
--- Label specifics
-
-labelGet :: MonadIO m => Path -> Metrics -> m Label
-labelGet t m = liftIO $ do
-    ls <- readIORef (labels m)
-    maybe make return (Map.lookup t ls)
-  where
-    make = do
-        l <- Label <$> newIORef T.empty
-        atomicModifyIORef' (labels m) $ \ls -> (Map.insert t l ls, l)
-
-labelGet' :: MonadIO m => Path -> Metrics -> m Label
-labelGet' t m = liftIO $ do
-    l <- Label <$> newIORef T.empty
-    atomicModifyIORef' (labels m) $ \ls ->
-        case Map.lookup t ls of
-            Nothing -> (Map.insert t l ls, l)
-            Just l' -> (ls , l')
-
-labelSet :: MonadIO m => Text -> Path -> Metrics -> m ()
-labelSet x p m = liftIO $ do
-    Label l <- labelGet p m
-    atomicModifyIORef' l $ const (x, ())
-
-labelValue :: MonadIO m => Label -> m Text
-labelValue (Label l) = liftIO $ readIORef l
-
------------------------------------------------------------------------------
--- Buckets specifics
-
-bucketsGet :: MonadIO m => Int -> Int -> Path -> Metrics -> m Buckets
-bucketsGet k n t m = liftIO $ do
-    bs <- readIORef (buckets m)
-    maybe make return (Map.lookup t bs)
-  where
-    make = do
-        b <- Buckets.create k n
-        atomicModifyIORef' (buckets m) $ \bs -> (Map.insert t b bs, b)
-
-bucketsGet' :: MonadIO m => Int -> Int -> Path -> Metrics -> m Buckets
-bucketsGet' k n t m = liftIO $ do
-    b <- Buckets.create k n
-    atomicModifyIORef' (buckets m) $ \bs ->
-        case Map.lookup t bs of
-            Nothing -> (Map.insert t b bs, b)
-            Just b' -> (bs , b')
-
-bucketsIncr :: MonadIO m => Int -> Int -> Word -> Path -> Metrics -> m ()
-bucketsIncr k n x p m = liftIO $ do
-    b <- bucketsGet k n p m
-    Buckets.incr b x
-
------------------------------------------------------------------------------
--- JSON rendering
-
-class Jsonable a where
-    toJson :: a -> IO Value
-
-instance Jsonable Counter where
-    toJson c = toJSON <$> counterValue c
-
-instance Jsonable Gauge where
-    toJson g = toJSON <$> gaugeValue g
-
-instance Jsonable Label where
-    toJson l = toJSON <$> labelValue l
-
-instance Jsonable Buckets where
-    toJson = Buckets.toJson
-
-render :: MonadIO m => Metrics -> m Value
-render m = liftIO $ do
-    c <- snapshot =<< readIORef (counters m)
-    g <- snapshot =<< readIORef (gauges m)
-    l <- snapshot =<< readIORef (labels m)
-    b <- snapshot =<< readIORef (buckets m)
-    h <- GC.toJson
-    let result = c `union` g `union` l `union` b
-    return $ maybe result (union result) h
-  where
-    snapshot :: Jsonable a => HashMap Path a -> IO Value
-    snapshot = fmap object . mapM (\(k, v) -> (_path k .=) <$> toJson v) . Map.toList
-
-    union :: Value -> Value -> Value
-    union (Object a) (Object b) = Object $ a `merge` b
-    union (Array  a) (Array  b) = Array  $ a <> b
-    union Null       b          = b
-    union a          _          = a
-
-merge :: Object -> Object -> Object
-merge a = expand (expand mempty a)
-  where
-    expand :: Object -> Object -> Object
-    expand = Map.foldrWithKey (\k v obj -> insert obj (T.splitOn "." k) v)
-
-    insert :: Object -> [Text] -> Value -> Object
-    insert obj [t]    v = Map.insert t v obj
-    insert obj (t:tt) v = Map.insert t (Object $ insert (subtree t obj) tt v) obj
-    insert obj []     _ = obj
-
-    subtree :: Text -> Object -> Object
-    subtree t o = case Map.lookup t o of
-        Just (Object x) -> x
-        _               -> mempty
