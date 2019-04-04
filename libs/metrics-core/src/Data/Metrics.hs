@@ -60,11 +60,14 @@ metrics = liftIO $ Metrics
     <*> newIORef Map.empty
 
 -- | Converts a CollectD style 'path' to a Metric name usable by prometheus
+--   This is to provide back compatibility with the previous collect-d metric names
+--   which often had paths and dot-separated names.
 --
--- Currently just replaces all "/" with "_" and lowercases the result
+-- Currently just replaces all "/" and "." with "_" and lowercases the result
 toInfo :: Path -> P.Info
 toInfo (Path p) = P.Info (p & T.replace "." "_"
-                           & T.toLower)
+                            & T.replace "/" "_"
+                            & T.toLower)
                         "description not provided"
 
 
@@ -81,7 +84,7 @@ getOrCreate mapRef key initializer = liftIO $ do
 -- P.Counter specifics
 
 newCounter :: Path -> IO P.Counter
-newCounter p = P.register $ P.counter (toInfo p )
+newCounter p = P.register $ P.counter (toInfo p)
 
 counterGet :: MonadIO m => Path -> Metrics -> m P.Counter
 counterGet p m = getOrCreate (counters m) p (newCounter p)
