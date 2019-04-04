@@ -29,6 +29,7 @@ module Network.Wire.Bot.Report
 
 import Imports
 import Data.Metrics
+import Data.Metrics.Buckets
 import Data.Time.Clock
 import Network.Wire.Client.API.Push (EventType (..), eventTypeText)
 import Network.Wire.Bot.Metrics
@@ -55,23 +56,28 @@ createReport t m (SectionS (Endo f)) = do
     return $! Report t d s v
   where
     s = f []
-    go :: Data -> Metric -> IO Data
     go (Data cs ls bs gs) metric = case metric of
         Counter _ p -> do
             v <- counterValue =<< counterGet p m
             return $! Data (HashMap.insert p v cs) ls bs gs
+        Label   _ p -> do
+            v <- labelValue =<< labelGet p m
+            return $! Data cs (HashMap.insert p v ls) bs gs
         Gauge   _ p -> do
             v <- gaugeValue =<< gaugeGet p m
             return $! Data cs ls bs (HashMap.insert p v gs)
+        Buckets _ p -> do
+            v <- snapshot =<< bucketsGet 0 0 p m
+            return $! Data cs ls (HashMap.insert p v bs) gs
 
 -------------------------------------------------------------------------------
 -- * Access Report Data
 
 data Data = Data
-    { _counters :: HashMap Path Double
+    { _counters :: HashMap Path Word
     , _labels   :: HashMap Path Text
-    , _buckets  :: HashMap Path (HashMap Int Double)
-    , _gauges   :: HashMap Path Double
+    , _buckets  :: HashMap Path (HashMap Int Word)
+    , _gauges   :: HashMap Path Int
     } deriving (Eq)
 
 instance Semigroup Data where
@@ -81,16 +87,16 @@ instance Semigroup Data where
 instance Monoid Data where
     mempty = Data mempty mempty mempty mempty
 
-reportCounter :: Report -> Path -> Double
+reportCounter :: Report -> Path -> Word
 reportCounter r p = fromMaybe 0 $ HashMap.lookup p (_counters (_data r))
 
 reportLabel :: Report -> Path -> Text
 reportLabel r p = fromMaybe "" $ HashMap.lookup p (_labels (_data r))
 
-reportGauge :: Report -> Path -> Double
+reportGauge :: Report -> Path -> Int
 reportGauge r p = fromMaybe 0 $ HashMap.lookup p (_gauges (_data r))
 
-reportBucket :: Report -> Path -> HashMap Int Double
+reportBucket :: Report -> Path -> HashMap Int Word
 reportBucket r p = fromMaybe mempty $ HashMap.lookup p (_buckets (_data r))
 
 -------------------------------------------------------------------------------
@@ -106,6 +112,8 @@ data Section = Section
 data Metric
     = Counter !Text !Path
     | Gauge   !Text !Path
+    | Buckets !Text !Path
+    | Label   !Text !Path
     deriving (Eq)
 
 section :: Text -> [Metric] -> SectionS

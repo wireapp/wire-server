@@ -8,9 +8,11 @@ module Network.Wire.Bot.Report.Text
 
 import Imports
 import Data.Text.Lazy.Builder as Text hiding (fromString)
+import Data.Text.Lazy.Builder.Int
 import Network.Wire.Bot.Report hiding (section)
 import System.Console.ANSI
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Lazy      as Lazy
 import qualified Data.Text.Lazy.IO   as Text
 
@@ -35,10 +37,17 @@ formatReport pretty r = toLazyText $
         <> foldMap metric (sectionMetrics s)
         <> "\n"
 
-    metric (Counter l p) = single l . fromString . show $ reportCounter r p
-    metric (Gauge   l p) = single l . fromString . show $ reportGauge r p
+    metric (Counter l p) = single l $ decimal  (reportCounter r p)
+    metric (Label   l p) = single l $ fromText (reportLabel r p)
+    metric (Gauge   l p) = single l $ decimal  (reportGauge r p)
+    metric (Buckets l p) = multi  l $ sort $ HashMap.toList (reportBucket r p)
 
     single k v = "\t" <> fromText k   <> ": " <> value v <> "\n"
+    multi  k v = "\t" <> subsection k <> "\n" <> foldMap pair v
+    pair (b,n) = "\t" <> decimal b    <> ": " <> value (decimal n) <> "\n"
+
+    subsection k = pp underline <> fromText k <> pp clear
+
     value v = pp (colour Green) <> v <> pp clear
 
 -- | Print a 'Report' to stdout.
