@@ -535,11 +535,11 @@ specDeleteUser = do
                 !!! const 204 === statusCode
 
             brigUser :: Maybe User
-              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
+              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
             samlUser :: Maybe UserId
-              <- aFewTimes (getUserIdViaRef' uref) isNothing
+              <- aFewTimes (getUserIdViaRef' uref) isJust
             scimUser :: Maybe (ScimC.User.StoredUser SparTag)
-              <- aFewTimes (getScimUser uid) isNothing
+              <- aFewTimes (getScimUser uid) isJust
 
             liftIO $ (brigUser, samlUser, scimUser)
               `shouldBe` (Nothing, Nothing, Nothing)
@@ -554,7 +554,7 @@ specDeleteUser = do
             -- Expect first call to succeed
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
-            -- Subsequent calls will return 404 aFewTimes
+            -- Subsequent calls will return 404 eventually
             aFewTimes (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
                 !!! const 404 === statusCode
 

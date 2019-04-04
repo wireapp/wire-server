@@ -765,7 +765,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- runSpar $ Intra.getBrigUser uid
+  musr <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
   pure $ case userIdentity =<< musr of
             Just (SSOIdentity ssoid _ _) -> Just ssoid
             Just (FullIdentity _ _)  -> Nothing
@@ -778,11 +778,11 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getSAMLUser uref) isNothing
+  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getSAMLUser uref) isJust
 
 -- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
 -- the other lookups above into the various user tables in the various cassandras.  we should
 -- probably clean this up a little, and also pick better names for everything.
 getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser SparTag))
 getScimUser uid = do
-  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isNothing
+  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isJust
