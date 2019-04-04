@@ -169,13 +169,7 @@ validateScimUser'
   -> Scim.User SparTag
   -> m ValidScimUser
 validateScimUser' idp richInfoLimit user = do
-    uref :: SAML.UserRef <- case Scim.externalId user of
-        Just subjectTxt -> do
-            let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-            subject <- validateSubject subjectTxt
-            pure $ SAML.UserRef issuer subject
-        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
-            (Just "externalId is required for SAML users")
+    uref :: SAML.UserRef <- mkUserRef idp (Scim.externalId user)
     handl <- validateHandle (Scim.userName user)
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
@@ -185,24 +179,6 @@ validateScimUser' idp richInfoLimit user = do
     pure $ ValidScimUser user uref handl mbName richInfo
 
   where
-    -- Validate a subject ID (@externalId@).
-    validateSubject :: Text -> m SAML.NameID
-    validateSubject txt = do
-        unameId :: SAML.UnqualifiedNameID <- do
-            let eEmail = SAML.mkUNameIDEmail txt
-                unspec = SAML.mkUNameIDUnspecified txt
-            pure . either (const unspec) id $ eEmail
-        case SAML.mkNameID unameId Nothing Nothing Nothing of
-            Right nameId -> pure nameId
-            Left err -> throwError $ Scim.ScimError
-                mempty
-                (Scim.Status 400)
-                Nothing
-                (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
-                -- This cannot happen at the time of writing this comment, but there may be
-                -- valid scenarios in the future where this is not an internal error, eg. URI
-                -- too long.  See 'mkNameID' for all possible errors.
-
     -- Validate a handle (@userName@).
     validateHandle :: Text -> m Handle
     validateHandle txt = case parseHandle txt of
@@ -228,6 +204,38 @@ validateScimUser' idp richInfoLimit user = do
                       " characters, but got " <> show size))
             { Scim.status = Scim.Status 413 }
         pure richInfo
+
+mkUserRef
+  :: forall m. (MonadError Scim.ScimError m)
+  => IdP
+  -> Maybe Text
+  -> m SAML.UserRef
+mkUserRef idp extid  = case extid of
+        Just subjectTxt -> do
+            let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            subject <- validateSubject subjectTxt
+            pure $ SAML.UserRef issuer subject
+        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just "externalId is required for SAML users")
+  where
+    -- Validate a subject ID (@externalId@).
+    validateSubject :: Text -> m SAML.NameID
+    validateSubject txt = do
+        unameId :: SAML.UnqualifiedNameID <- do
+            let eEmail = SAML.mkUNameIDEmail txt
+                unspec = SAML.mkUNameIDUnspecified txt
+            pure . either (const unspec) id $ eEmail
+        case SAML.mkNameID unameId Nothing Nothing Nothing of
+            Right nameId -> pure nameId
+            Left err -> throwError $ Scim.ScimError
+                mempty
+                (Scim.Status 400)
+                Nothing
+                (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
+                -- This cannot happen at the time of writing this comment, but there may be
+                -- valid scenarios in the future where this is not an internal error, eg. URI
+                -- too long.  See 'mkNameID' for all possible errors.
+
 
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
@@ -262,7 +270,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo -> UserId -> ValidScimUser -> m (Scim.StoredUser SparTag)
-updateValidScimUser tokinfo uid newScimUser = do
+updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
 
     -- TODO: currently the types in @hscim@ are constructed in such a way that
     -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
@@ -287,10 +295,17 @@ updateValidScimUser tokinfo uid newScimUser = do
         newScimStoredUser :: Scim.StoredUser SparTag
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
-        -- update 'SAML.UserRef'
+        -- update 'SAML.UserRef' on spar
         let newuref = newScimUser ^. vsuSAMLUserRef
-        lift . wrapMonadClient $ Data.insertSAMLUser newuref uid  -- on spar
-        bindok <- lift $ Intra.Brig.bindBrigUser uid newuref  -- on brig
+        lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
+        midp :: Maybe IdP <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+        forM_ midp $ \idp -> do
+          let eid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
+          olduref <- mkUserRef idp eid
+          lift . wrapMonadClient $ Data.deleteSAMLUser olduref
+
+        -- update 'SAML.UserRef' on spar
+        bindok <- lift $ Intra.Brig.bindBrigUser uid newuref
         unless bindok . throwError $
             Scim.serverError "Failed to update SAML UserRef on brig."
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
