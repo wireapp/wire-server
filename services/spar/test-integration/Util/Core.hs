@@ -209,8 +209,8 @@ pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
 
--- | Run a probe a couple of times, until a "good" value materializes or until patience runs
--- out.  The result may be good or not, depending on whether we run out of time.
+-- | Run a probe several times, until a "good" value materializes or until patience runs out.
+-- The result may be good or not, depending on whether we run out of time.
 aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
 aFewTimes action good = do
     env <- ask
