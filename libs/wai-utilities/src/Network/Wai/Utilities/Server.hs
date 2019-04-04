@@ -76,8 +76,8 @@ defaultServer h p l m = Server h p l m Nothing
 newSettings :: MonadIO m => Server -> m Settings
 newSettings (Server h p l m t) = do
     -- (Atomically) initialise the standard metrics, to avoid races.
-    void $ gaugeGet' (path "net.connections") m
-    void $ counterGet' (path "net.errors") m
+    void $ gaugeGet (path "net.connections") m
+    void $ counterGet (path "net.errors") m
     return $ setHost (fromString h)
            . setPort (fromIntegral p)
            . setBeforeMainLoop logStart

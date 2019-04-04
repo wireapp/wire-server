@@ -806,10 +806,10 @@ decrBotsAlive = getMetrics >>= liftIO . Metrics.gaugeDecr Metrics.botsAlive
 
 -- Note: Separate TVars to avoid contention.
 data BotMetrics = BotMetrics
-    { botEventsRcvd :: TVar (HashMap Metrics.Path Word)
-    , botEventsAckd :: TVar (HashMap Metrics.Path Word)
-    , botEventsIgnd :: TVar (HashMap Metrics.Path Word)
-    , botEventsMssd :: TVar (HashMap Metrics.Path Word)
+    { botEventsRcvd :: TVar (HashMap Metrics.Path Double)
+    , botEventsAckd :: TVar (HashMap Metrics.Path Double)
+    , botEventsIgnd :: TVar (HashMap Metrics.Path Double)
+    , botEventsMssd :: TVar (HashMap Metrics.Path Double)
     }
 
 newBotMetrics :: IO BotMetrics
