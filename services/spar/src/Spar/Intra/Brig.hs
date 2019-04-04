@@ -101,6 +101,11 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
+      -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
+      --    unique.
+      -- 2. do not throw an error if it is too long, but truncate it.  rationale: it's an
+      --    unlikely scenario, and if it happens user names can be changed manually by the
+      --    user.
       let subject = suid ^. SAML.uidSubject
           uname   = Text.take 128 . SAML.unsafeShowNameID $ subject
       when (Text.null uname) . throwSpar . SparBadUserName $
