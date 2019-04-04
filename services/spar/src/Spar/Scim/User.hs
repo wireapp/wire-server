@@ -365,7 +365,7 @@ updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scim
 
 
 deleteScimUser
-  :: ScimTokenInfo -> UserId -> ExceptT Scim.ScimError Spar ()
+  :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
 deleteScimUser ScimTokenInfo{stiTeam} uid = do
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     case mbBrigUser of
