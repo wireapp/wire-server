@@ -112,7 +112,7 @@ instance Scim.UserDB SparTag Spar where
             -> Scim.UserId SparTag
             -> Value
             -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-  patchUser = error "not implemented"
+  patchUser _ _ _ = throwError $ Scim.notFound "patch user" "not implemented"
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
   deleteUser = deleteScimUser
