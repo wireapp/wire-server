@@ -39,7 +39,6 @@ import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
-import Data.Range
 import Data.String.Conversions
 import Network.HTTP.Types.Method
 import Spar.Error
@@ -89,7 +88,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
 
--- | Create a user on brig.
+-- | Create a user on brig.  User name is derived from 'SAML.UserRef'.
 createBrigUser
   :: (HasCallStack, MonadSparToBrig m)
   => SAML.UserRef    -- ^ SSO identity
@@ -103,10 +102,10 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
     Just n -> pure n
     Nothing -> do
       let subject = suid ^. SAML.uidSubject
-          badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
-          mkName  = Name . fromRange <$>
-                    (fmap (Text.take 128) . SAML.shortShowNameID >=> checked @ST @1 @128) subject
-      maybe badName pure mkName
+          uname   = Text.take 128 . SAML.unsafeShowNameID $ subject
+      when (Text.null uname) . throwSpar . SparBadUserName $
+        "must not be empty: " <> SAML.encodeElem subject
+      pure $ Name uname
 
   let newUser :: NewUser
       newUser = NewUser
