@@ -22,7 +22,8 @@ module Spar.Scim.User
     ) where
 
 import Imports
-import Brig.Types.User       as Brig
+import Brig.Types.User as BrigTypes
+import Spar.Intra.Brig as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
 import Crypto.Hash
@@ -72,7 +73,7 @@ instance Scim.UserDB SparTag Spar where
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser SparTag]
-      <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
+      <- lift . wrapMonadClient . Data.getScimUsers $ BrigTypes.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
@@ -121,7 +122,8 @@ instance Scim.UserDB SparTag Spar where
 ----------------------------------------------------------------------------
 -- User creation and validation
 
--- | Validate a raw SCIM user record and extract data that we care about.
+-- | Validate a raw SCIM user record and extract data that we care about. See also:
+-- 'ValidScimUser''.
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
@@ -156,7 +158,7 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 --
 -- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
--- @externalId@ by different users.
+-- @externalId@ by different teams.
 --
 -- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
 -- numbers end up in our database, and implementing verification requires design decisions
@@ -173,11 +175,7 @@ validateScimUser' idp richInfoLimit user = do
     handl <- validateHandle (Scim.userName user)
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
-
-    -- NB: We assume that checking that the user does _not_ exist has already been done before;
-    -- the hscim library check does a 'get' before a 'create'.
     pure $ ValidScimUser user uref handl mbName richInfo
-
   where
     -- Validate a handle (@userName@).
     validateHandle :: Text -> m Handle
@@ -247,6 +245,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     assertUserRefUnused uref
+    assertHandleUnused handl buid
 
     -- Create SCIM user here in spar.
     storedUser <- lift $ toScimStoredUser buid user
@@ -288,6 +287,7 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
       <- Scim.getUser tokinfo uid
 
     assertUserRefNotUsedElsewhere (newScimUser ^. vsuSAMLUserRef) uid
+    assertHandleNotUsedElsewhere (newScimUser ^. vsuHandle) uid
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
@@ -311,6 +311,8 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
             -- (internal error?  race condition?)
 
+        -- TODO: rich info and/or user handle may not have changed.  in that case don't write
+        -- it.
         maybe (pure ()) (lift . Intra.Brig.setBrigUserName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
         lift . Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
@@ -396,7 +398,7 @@ deleteScimUser ScimTokenInfo{stiTeam} uid = do
           throwError $ Scim.notFound "user" (idToText uid)
         ssoId <- maybe (logThenServerError $ "no userSSOId for user " <> cs (idToText uid))
                        pure
-                       $ Brig.userSSOId brigUser
+                       $ BrigTypes.userSSOId brigUser
         uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
         lift . wrapMonadClient $ Data.deleteSAMLUser uref
         lift . wrapMonadClient $ Data.deleteScimUser uid
@@ -455,6 +457,15 @@ assertUserRefNotUsedElsewhere userRef wireUserId = do
   mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
+
+assertHandleUnused :: Handle -> UserId -> Scim.ScimHandler Spar ()
+assertHandleUnused hndl uid = lift $ Brig.checkHandle hndl uid
+
+assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
+assertHandleNotUsedElsewhere hndl uid = lift $ do
+  musr <- Brig.getBrigUser uid
+  unless ((userHandle =<< musr) == Just hndl) $ do
+    Brig.checkHandle hndl uid
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~

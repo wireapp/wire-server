@@ -12,6 +12,7 @@ module Spar.Intra.Brig
   , setBrigUserHandle
   , setBrigUserManagedBy
   , setBrigUserRichInfo
+  , checkHandle
   , bindBrigUser
   , deleteBrigUser
   , createBrigUser
@@ -253,6 +254,21 @@ setBrigUserRichInfo buid richInfo = do
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
+
+checkHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m ()
+checkHandle hnd buid = do
+  resp <- call
+    $ method HEAD
+    . paths ["users", "handles", toByteString' hnd]
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+  let sCode = statusCode resp
+  if | sCode < 300
+       -> pure ()
+     | inRange (400, 499) sCode
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
