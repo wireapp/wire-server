@@ -215,7 +215,7 @@ aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
 aFewTimes action good = do
     env <- ask
     liftIO $ retrying
-        (exponentialBackoff 50 <> limitRetries 15)
+        (exponentialBackoff 1000 <> limitRetries 10)
         (\_ -> pure . not . good)
         (\_ -> action `runReaderT` env)
 
