@@ -236,11 +236,6 @@ createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser SparTag)
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
-
-    -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
-    -- even called. However, it does that in an inefficient manner. We should remove the check
-    -- from @hscim@ and do it here instead.
-
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     assertUserRefUnused uref
@@ -248,16 +243,14 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Create SCIM user here in spar.
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
+
     -- Create SAML user here in spar, which in turn creates a brig user.
-    --
-    -- FUTUREWORK: it's annoying that we have duplicate checks (handles, rich info, etc are
-    -- validated both by Spar and by Brig), and we should somehow get rid of them. We could do
-    -- that by switching the order of 'createUser_' and 'insertScimUser', but then if Spar
-    -- crashes after 'insertScimUser', we would never finish creating that user.
     lift $ createUser_ buid uref mbName ManagedByScim
+
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
     lift $ Intra.Brig.setBrigUserHandle buid handl
+
     -- Set rich info on brig
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
 
