@@ -9,9 +9,6 @@ import Control.Exception (assert)
 import Criterion.Main
 import Data.Metrics
 
-import qualified Data.HashMap.Strict  as HashMap
-import qualified Data.Metrics.Buckets as Buckets
-
 main :: IO ()
 main = do
     m <- metrics
@@ -39,18 +36,6 @@ main = do
             , bench "value" $ whnfIO $ do
                 g <- gaugeGet (path "value") m
                 gaugeValue g
-            ]
-        , bgroup "Buckets"
-            [ bench "incr" $ whnfIO $
-                bucketsIncr 1 1 1 (path "incr") m
-            , bench "contention" $ whnfIO $ do
-                b <- bucketsGet 1 1 (path "contention") m
-                v <- Buckets.snapshot b
-                _ <- mapConcurrently (\n ->
-                    loop contentionIters (bucketsIncr 1 1 n (path "contention") m)
-                    ) [1..contentionConc]
-                v' <- Buckets.snapshot b
-                assert (HashMap.insertWith (+) 1 (contentionIters * contentionConc) v == v') (return v')
             ]
         ]
 
