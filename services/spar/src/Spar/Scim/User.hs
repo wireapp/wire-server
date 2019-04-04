@@ -335,7 +335,7 @@ toScimStoredUser' (SAML.Time now) baseuri uid usr =
       { Scim.resourceType = Scim.UserResource
       , Scim.created = now
       , Scim.lastModified = now
-      , Scim.version = calculateVersion (idToText uid) usr
+      , Scim.version = calculateVersion uid usr
         -- TODO: it looks like we need to add this to the HTTP header.
         -- https://tools.ietf.org/html/rfc7644#section-3.14
       , Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs (idToText uid)
@@ -360,7 +360,7 @@ updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scim
   where
     meta' = meta
       { Scim.lastModified = moddate
-      , Scim.version = calculateVersion (idToText scimuid) usr
+      , Scim.version = calculateVersion scimuid usr
       }
 
 
@@ -409,13 +409,13 @@ deleteScimUser ScimTokenInfo{stiTeam} uid = do
 -- JSON rendering will remain stable between releases, and therefore we can't satisfy the
 -- requirements of strong ETags ("same resources have the same version").
 calculateVersion
-  :: Text               -- ^ User ID
+  :: UserId
   -> Scim.User SparTag
   -> Scim.ETag
-calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
+calculateVersion uid usr = Scim.Weak (Text.pack (show h))
   where
     h :: Digest SHA256
-    h = hashlazy (Aeson.encode (Scim.WithId uidText usr))
+    h = hashlazy (Aeson.encode (Scim.WithId uid usr))
 
 {-|
 Check that the UserRef is not taken.
