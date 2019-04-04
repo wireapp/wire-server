@@ -535,11 +535,11 @@ specDeleteUser = do
                 !!! const 204 === statusCode
 
             brigUser :: Maybe User
-              <- eventually (runSpar $ Intra.getBrigUser uid) isNothing
+              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
             samlUser :: Maybe UserId
-              <- eventually (getUserIdViaRef' uref) isNothing
+              <- aFewTimes (getUserIdViaRef' uref) isNothing
             scimUser :: Maybe (ScimC.User.StoredUser SparTag)
-              <- eventually (getScimUser uid) isNothing
+              <- aFewTimes (getScimUser uid) isNothing
 
             liftIO $ (brigUser, samlUser, scimUser)
               `shouldBe` (Nothing, Nothing, Nothing)
@@ -554,8 +554,8 @@ specDeleteUser = do
             -- Expect first call to succeed
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
-            -- Subsequent calls will return 404 eventually
-            eventually (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
+            -- Subsequent calls will return 404 aFewTimes
+            aFewTimes (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
                 !!! const 404 === statusCode
 
         it "should free externalId and everything else in the scim user for re-use" $ do
@@ -566,7 +566,7 @@ specDeleteUser = do
             spar <- view teSpar
             deleteUser_ (Just tok) (Just uid) spar
                 !!! const 204 === statusCode
-            eventually (createUser_ (Just tok) user spar) ((== 201) . statusCode)
+            aFewTimes (createUser_ (Just tok) user spar) ((== 201) . statusCode)
                 !!! const 201 === statusCode
 
         -- FUTUREWORK: hscim has the the following test.  we should probably go through all

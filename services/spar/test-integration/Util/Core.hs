@@ -15,7 +15,7 @@ module Util.Core
   , passes, it, pending, pendingWith
   , shouldRespondWith
   , module Test.Hspec
-  , eventually
+  , aFewTimes
   -- * HTTP
   , call
   , endpointToReq
@@ -210,9 +210,9 @@ pendingWith = liftIO . Test.Hspec.pendingWith
 
 
 -- | Run a probe a couple of times, until a "good" value materializes or until patience runs
--- out.
-eventually :: TestSpar a -> (a -> Bool) -> TestSpar a
-eventually action good = do
+-- out.  The result may be good or not, depending on whether we run out of time.
+aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
+aFewTimes action good = do
     env <- ask
     liftIO $ retrying
         (exponentialBackoff 50 <> limitRetries 15)
@@ -778,11 +778,11 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  eventually (view teCql >>= \cql -> runClient cql $ Data.getSAMLUser uref) isNothing
+  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getSAMLUser uref) isNothing
 
 -- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
 -- the other lookups above into the various user tables in the various cassandras.  we should
 -- probably clean this up a little, and also pick better names for everything.
 getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser SparTag))
 getScimUser uid = do
-  eventually (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isNothing
+  aFewTimes (view teCql >>= \cql -> runClient cql $ Data.getScimUser uid) isNothing
