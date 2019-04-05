@@ -39,12 +39,12 @@ import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
+import Data.Range
 import Data.String.Conversions
 import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie
 
-import qualified Data.Text as Text
 import qualified SAML2.WebSSO as SAML
 
 
@@ -103,14 +103,13 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
     Nothing -> do
       -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
       --    unique.
-      -- 2. do not throw an error if it is too long, but truncate it.  rationale: it's an
-      --    unlikely scenario, and if it happens user names can be changed manually by the
-      --    user.
-      let subject = suid ^. SAML.uidSubject
-          uname   = Text.take 128 . SAML.unsafeShowNameID $ subject
-      when (Text.null uname) . throwSpar . SparBadUserName $
-        "must not be empty: " <> SAML.encodeElem subject
-      pure $ Name uname
+      let subj    = suid ^. SAML.uidSubject
+          subjtxt = SAML.unsafeShowNameID subj
+          muname  = checked @ST @1 @128 subjtxt
+          err     = SparBadUserName $ "must have >= 1, <= 128 chars: " <> cs subjtxt
+      case muname of
+        Just uname -> pure . Name . fromRange $ uname
+        Nothing    -> throwSpar err
 
   let newUser :: NewUser
       newUser = NewUser
