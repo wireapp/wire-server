@@ -12,7 +12,7 @@ module Spar.Intra.Brig
   , setBrigUserHandle
   , setBrigUserManagedBy
   , setBrigUserRichInfo
-  , checkHandle
+  , checkHandleAvailable
   , bindBrigUser
   , deleteBrigUser
   , createBrigUser
@@ -255,16 +255,18 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
-checkHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m ()
-checkHandle hnd buid = do
+checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m Bool
+checkHandleAvailable hnd buid = do
   resp <- call
     $ method HEAD
     . paths ["users", "handles", toByteString' hnd]
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
   let sCode = statusCode resp
-  if | sCode == 404
-       -> pure ()
+  if | sCode == 200  -- handle exists
+       -> pure False
+     | sCode == 404  -- handle not found
+       -> pure True
      | sCode < 500
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
      | otherwise

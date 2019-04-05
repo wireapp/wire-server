@@ -459,13 +459,18 @@ assertUserRefNotUsedElsewhere userRef wireUserId = do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 
 assertHandleUnused :: Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleUnused hndl uid = lift $ Brig.checkHandle hndl uid
+assertHandleUnused = assertHandleUnused' "externalId is already taken"
+
+assertHandleUnused' :: Text -> Handle -> UserId -> Scim.ScimHandler Spar ()
+assertHandleUnused' msg hndl uid = lift (Brig.checkHandleAvailable hndl uid) >>= \case
+  True  -> pure ()
+  False -> throwError Scim.conflict {Scim.detail = Just msg}
 
 assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleNotUsedElsewhere hndl uid = lift $ do
-  musr <- Brig.getBrigUser uid
-  unless ((userHandle =<< musr) == Just hndl) $ do
-    Brig.checkHandle hndl uid
+assertHandleNotUsedElsewhere hndl uid = do
+  musr <- lift $ Brig.getBrigUser uid
+  unless ((userHandle =<< musr) == Just hndl) $
+    assertHandleUnused' "externalId does not match UserId" hndl uid
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
