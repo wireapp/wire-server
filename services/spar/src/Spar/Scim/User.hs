@@ -34,7 +34,7 @@ import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
 
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createUser_, wrapMonadClient)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createUser_, wrapMonadClient, getUser)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -442,7 +442,7 @@ to a single `externalId`.
 -}
 assertUserRefUnused :: SAML.UserRef -> Scim.ScimHandler Spar ()
 assertUserRefUnused userRef = do
-  mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
+  mExistingUserId <- lift $ getUser userRef
   unless (isNothing mExistingUserId) $
     throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
@@ -454,7 +454,7 @@ to a single `externalId`.
 -}
 assertUserRefNotUsedElsewhere :: SAML.UserRef -> UserId -> Scim.ScimHandler Spar ()
 assertUserRefNotUsedElsewhere userRef wireUserId = do
-  mExistingUserId <- lift $ wrapMonadClient (Data.getSAMLUser userRef)
+  mExistingUserId <- lift $ getUser userRef
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 
