@@ -2,20 +2,21 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.Metrics
-    ( Path
+    (
+    -- * Types
+      Path
     , Metrics
     , Histogram
     , Counter
     , Gauge
 
-    , path
-    , metrics
-
+    -- * Counters
     , counterGet
     , counterAdd
     , counterIncr
     , counterValue
 
+    -- * Gauges
     , gaugeGet
     , gaugeAdd
     , gaugeSub
@@ -24,20 +25,26 @@ module Data.Metrics
     , gaugeSet
     , gaugeValue
 
+    -- * Histograms
+    -- ** Types
     , HistogramInfo
     , Buckets
     , Bucket
 
+    -- ** Describing Histograms
     , linearHistogram
-    , exponentialHistogram
     , customHistogram
     , deprecatedRequestDurationHistogram
 
+    -- ** Manipulating Histograms
     , histoGet
     , histoSubmit
     , histoValue
     , histoTimeAction
 
+    -- * Helper functions
+    , path
+    , metrics
     , render
     ) where
 
@@ -49,22 +56,31 @@ import qualified Data.Text            as T
 import qualified Data.HashMap.Strict  as HM
 import qualified Data.Map.Strict      as M
 import qualified Data.Metrics.GC      as GC
-
 import qualified Prometheus as P
 
+-- | Internal Counter type
 type Counter = P.Counter
+-- | Internal Gauge type
 type Gauge = P.Gauge
+-- | Internal Histogram type
 type Histogram = P.Histogram
 
+-- | Represents a descriptive metric path or name.
+--
+-- NOTE: Until all metrics are fully migrated to Prometheus this should be a valid
+-- name according to collectd; e.g. @net.resources./teams/invitations/info@
+-- All names are converted into valid prometheus names when needed via 'toInfo'
 newtype Path =
     Path
         { _path :: Text
         }
     deriving (Eq, Show, Hashable, Semigroup, Monoid)
 
+-- | Create a path
 path :: Text -> Path
 path = Path
 
+-- | Opaque storage of metrics
 data Metrics =
     Metrics
         { counters   :: IORef (HashMap Path Counter)
@@ -72,6 +88,7 @@ data Metrics =
         , histograms :: IORef (HashMap Path Histogram)
         }
 
+-- Initialize an empty set of metrics
 metrics :: MonadIO m => m Metrics
 metrics = liftIO $ Metrics
     <$> newIORef HM.empty
@@ -90,6 +107,9 @@ toInfo (Path p) = P.Info (p & T.replace "." "_"
                         "description not provided"
 
 
+-- | Checks whether a given key exists in a mutable hashmap (i.e. one inside an IORef)
+-- If it exists it is returned, if it does not then one is initialized using the provided
+-- initializer, then stored, then returned.
 getOrCreate :: (MonadIO m, Eq k, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
 getOrCreate mapRef key initializer = liftIO $ do
     hMap <- readIORef mapRef
@@ -102,51 +122,64 @@ getOrCreate mapRef key initializer = liftIO $ do
 -----------------------------------------------------------------------------
 -- Counter specifics
 
+-- | Create a counter for a 'Path'
 newCounter :: Path -> IO Counter
 newCounter p = P.register $ P.counter (toInfo p)
 
+-- | Access the counter for a given 'Path'
 counterGet :: MonadIO m => Path -> Metrics -> m Counter
 counterGet p m = getOrCreate (counters m) p (newCounter p)
 
+-- | Add the given amount to the counter at 'Path'
 counterAdd :: MonadIO m => Double -> Path -> Metrics -> m ()
 counterAdd x p m = liftIO $ do
     c <- counterGet p m
     void $ P.addCounter c x
 
+-- | Add 1 to the counter at 'Path'
 counterIncr :: MonadIO m => Path -> Metrics -> m ()
 counterIncr = counterAdd 1
 
+-- | Get the current value of the Counter
 counterValue :: MonadIO m => Counter -> m Double
 counterValue c = P.getCounter c
 
 -----------------------------------------------------------------------------
 -- Gauge specifics
 
+-- | Create a gauge for a 'Path'
 newGauge :: Path -> IO Gauge
 newGauge p = P.register $ P.gauge (toInfo p )
 
+-- | Access the gauge for a given 'Path'
 gaugeGet :: MonadIO m => Path -> Metrics -> m Gauge
 gaugeGet p m = getOrCreate (gauges m) p (newGauge p)
 
+-- | Set the 'Gauge' at 'Path' to the given value
 gaugeSet :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeSet x p m = liftIO $ do
     g <- gaugeGet p m
     P.setGauge g x
 
+-- | Add the given amount to the gauge at 'Path'
 gaugeAdd :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeAdd x p m = liftIO $ do
     g <- gaugeGet p m
     P.addGauge g x
 
+-- | Add 1 to the gauge at 'Path'
 gaugeIncr :: MonadIO m => Path -> Metrics -> m ()
 gaugeIncr = gaugeAdd 1
 
+-- | Subtract 1 to the gauge at 'Path'
 gaugeDecr :: MonadIO m => Path -> Metrics -> m ()
 gaugeDecr = gaugeAdd (-1)
 
+-- | Subtract the given amount from the gauge at 'Path'
 gaugeSub :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeSub x = gaugeAdd (-x)
 
+-- | Get the current value of the Gauge
 gaugeValue :: MonadIO m => Gauge -> m Double
 gaugeValue g = liftIO $ P.getGauge g
 
@@ -171,8 +204,11 @@ deprecatedRequestDurationHistogram pth = customHistogram pth requestDurationBuck
     where
       requestDurationBuckets = [0, 30, 42, 60, 85, 120, 170, 240, 339, 480, 679, 960, 1358]
 
+-- | A marker of a bucketing point
 type Bucket = Double
+-- | Description of discrete buckets which histogram samples will be allocated into
 type Buckets = [Bucket]
+-- | Describes a histogram metric
 data HistogramInfo =
     HistogramInfo
         { hiPath    :: Path
@@ -183,6 +219,8 @@ type RangeStart = Double
 type RangeEnd = Double
 type BucketWidth = Double
 
+-- | Creates a 'HistogramInfo' which has evenly sized buckets of the given 'BucketWidth'
+-- between 'RangeStart' and 'RangeEnd'
 linearHistogram :: Path -> RangeStart -> RangeEnd -> BucketWidth -> HistogramInfo
 linearHistogram pth start end width =
     HistogramInfo
@@ -197,22 +235,24 @@ linearHistogram pth start end width =
     buckets :: Buckets
     buckets = P.linearBuckets start width count
 
-exponentialHistogram :: Path -> Buckets -> HistogramInfo
-exponentialHistogram = HistogramInfo
-
+-- | Construct a histogram using a given list of buckets.
+-- It's recommended that you use 'linearHistogram' instead when possible.
 customHistogram :: Path -> Buckets -> HistogramInfo
 customHistogram pth buckets = HistogramInfo{hiPath=pth, hiBuckets=buckets}
 
+-- | Create a histo for a 'HistogramInfo'
 newHisto :: HistogramInfo -> IO Histogram
 newHisto HistogramInfo {hiPath, hiBuckets} =
     P.register $ P.histogram (toInfo hiPath) hiBuckets
 
+-- | Access the histogram for a given 'HistogramInfo'
 histoGet :: MonadIO m
-  => HistogramInfo -- ^ construct using 'makeLinearHistogram or 'makeExponentialHistogram'
+  => HistogramInfo
   -> Metrics
   -> m Histogram
 histoGet hi@HistogramInfo{hiPath} m = getOrCreate (histograms m) hiPath (newHisto hi)
 
+-- | Get the current distribution of a Histogram
 histoValue :: MonadIO m => Histogram -> m (M.Map Bucket Int)
 histoValue histo = liftIO $ P.getHistogram histo
 
@@ -222,7 +262,9 @@ histoSubmit val hi m = liftIO $ do
     h <- histoGet hi m
     P.observe h val
 
--- | TODO WRITE DOCS
+-- | Execute and time the provided monadic action and submit it as an entry
+-- to the provided Histogram metric.
+--
 -- NOTE: If the action throws an exception it will NOT be reported.
 -- This is particularly relevant for web handlers which signal their response
 -- with an exception.
@@ -234,6 +276,7 @@ histoTimeAction hi m act = do
 -----------------------------------------------------------------------------
 -- JSON rendering
 
+-- | This is used to serialize metrics into a JSON value for collectd
 class Jsonable a where
     toJson :: a -> IO Value
 
@@ -244,12 +287,13 @@ instance Jsonable Gauge where
     toJson g = toJSON <$> gaugeValue g
 
 instance Jsonable Histogram where
-    -- Note that we round the keys into integers here for back-compatibility because 
+    -- Note that we round the keys into integers here for back-compatibility because
     -- some metrics are constructed using the keys of this map (as integers) and having Double
     -- keys would break the dashboards. This will no longer matter once all dashboards using
     -- collectd have been migrated to use prometheus-backed metrics instead.
     toJson h = toJSON . M.mapKeys (round @Double @Integer) <$> histoValue h
 
+-- | Render metrics into a JSON value
 render :: MonadIO m => Metrics -> m Value
 render m = liftIO $ do
     c <- snapshot =<< readIORef (counters m)
@@ -268,6 +312,7 @@ render m = liftIO $ do
     union Null       b          = b
     union a          _          = a
 
+-- | Merge two 'Object's together
 merge :: Object -> Object -> Object
 merge a = expand (expand mempty a)
   where
