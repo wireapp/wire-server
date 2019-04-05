@@ -22,22 +22,6 @@ import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
 import qualified Network.Wai.Route.Tree as Tree
 
--- | *DEPRECATED*
--- These are the exact histogram bucket markers which the old *custom* metrics-core
--- library used. Some grafana graphs are still built around these exact number
--- e.g. see gally's POST duration graph:
---   https://staging-ie-grafana.zinfra.io/dashboard/db/galley
---
--- This is annoying and very fragile, prometheus has a better way of handling this, but
--- until we've converted all of the dashboards over to use prometheus rather than collect-d
--- we're stuck with these exact bucket counts.
---
--- Once we use prometheus metrics (e.g. there are no graphs in grafana which depend on metrics
--- prefixed with @collectd@) then you can delete this middleware entirely since the prometheus
--- middleware records request durations already.
-requestDurationBuckets :: Buckets
-requestDurationBuckets = [0, 30, 42, 60, 85, 120, 170, 240, 339, 480, 679, 960, 1358]
-
 withPathTemplate :: Paths -> (PathTemplate -> Middleware) -> Middleware
 withPathTemplate t f app r k = f (fromMaybe def tmp) app r k
   where
@@ -53,7 +37,7 @@ duration m (PathTemplate t) f rq k = do
     ed <- getTime Monotonic
     let p = mkPath [t, methodName rq, "time"]
     let timeElapsed = timeSpecAsMilliSecs $ ed `diffTimeSpec` st
-    let requestDurationHisto = customHistogram p requestDurationBuckets
+    let requestDurationHisto = deprecatedRequestDurationHistogram p 
     histoSubmit timeElapsed requestDurationHisto m
     return rs
 

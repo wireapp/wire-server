@@ -164,7 +164,7 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 -- should be combined with the 'catchErrors' middleware.
 measureRequests :: Metrics -> Paths -> Middleware
 measureRequests m rtree = withPathTemplate rtree $ \p ->
-      requestCounter m p . duration 30 12 m p
+      requestCounter m p . duration m p
 {-# INLINEABLE measureRequests #-}
 
 -- | Create a middleware that catches exceptions and turns

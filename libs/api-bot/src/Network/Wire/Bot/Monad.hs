@@ -778,9 +778,10 @@ timed p ma = do
     start <- liftIO getCurrentTime
     a <- ma
     stop <- liftIO getCurrentTime
-    let d = round . (* 1000) $ stop `diffUTCTime` start
+    let durationInMillis = realToFrac . (* 1000) $ stop `diffUTCTime` start
     m <- getMetrics
-    liftIO $ Metrics.bucketsIncr 30 12 d p m
+    let timeHisto = Metrics.deprecatedRequestDurationHistogram p
+    liftIO $ Metrics.histoSubmit durationInMillis timeHisto m
     return a
 
 incrAssertTotal :: MonadBotNet m => m ()
