@@ -27,6 +27,7 @@ module Data.Metrics
     , HistogramInfo
     , linearHistogram
     , exponentialHistogram
+    , customHistogram
 
     , Buckets
     , Bucket
@@ -175,6 +176,9 @@ linearHistogram pth start end width =
 
 exponentialHistogram :: Path -> Buckets -> HistogramInfo
 exponentialHistogram = HistogramInfo
+
+customHistogram :: Path -> Buckets -> HistogramInfo
+customHistogram pth buckets = HistogramInfo{hiPath=pth, hiBuckets=buckets}
 
 newHisto :: HistogramInfo -> IO Histogram
 newHisto HistogramInfo {hiPath, hiBuckets} =
