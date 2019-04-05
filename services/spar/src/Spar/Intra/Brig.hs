@@ -263,9 +263,9 @@ checkHandle hnd buid = do
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
   let sCode = statusCode resp
-  if | sCode < 300
+  if | sCode == 404
        -> pure ()
-     | inRange (400, 499) sCode
+     | sCode < 500
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
      | otherwise
        -> throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode

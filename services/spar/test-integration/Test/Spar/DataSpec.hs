@@ -123,7 +123,7 @@ spec = do
           uid  <- nextWireId
           do
             ()   <- runSparCass $ Data.insertSAMLUser uref uid
-            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isJust
+            muid <- runSparCass (Data.getSAMLUser uref)
             liftIO $ muid `shouldBe` Just uid
           do
             ()   <- runSparCass $ Data.deleteSAMLUser uref

@@ -535,11 +535,11 @@ specDeleteUser = do
                 !!! const 204 === statusCode
 
             brigUser :: Maybe User
-              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
+              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
             samlUser :: Maybe UserId
-              <- aFewTimes (getUserIdViaRef' uref) isJust
+              <- aFewTimes (getUserIdViaRef' uref) isNothing
             scimUser :: Maybe (ScimC.User.StoredUser SparTag)
-              <- aFewTimes (getScimUser uid) isJust
+              <- aFewTimes (getScimUser uid) isNothing
 
             liftIO $ (brigUser, samlUser, scimUser)
               `shouldBe` (Nothing, Nothing, Nothing)
