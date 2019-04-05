@@ -4,9 +4,9 @@
 module Data.Metrics
     ( Path
     , Metrics
-    , P.Counter
-    , P.Gauge
-    , Buckets
+    , Histogram
+    , Counter
+    , Gauge
 
     , path
     , metrics
@@ -24,8 +24,14 @@ module Data.Metrics
     , gaugeSet
     , gaugeValue
 
-    , bucketsGet
-    , bucketsIncr
+    , HistogramInfo
+    , linearHistogram
+    , exponentialHistogram
+
+    , Buckets
+    , Bucket
+    , histoGet
+    , histoSubmit
 
     , render
     ) where
@@ -33,25 +39,32 @@ module Data.Metrics
 import Imports hiding (lookup, union)
 import Data.Aeson
 import Data.Hashable
-import Data.Metrics.Buckets (Buckets)
 
 import qualified Data.Text            as T
 import qualified Data.HashMap.Strict  as Map
-import qualified Data.Metrics.Buckets as Buckets
 import qualified Data.Metrics.GC      as GC
 
 import qualified Prometheus as P
 
-newtype Path = Path { _path :: Text } deriving (Eq, Hashable, Semigroup, Monoid)
+type Counter = P.Counter
+type Gauge = P.Gauge
+type Histogram = P.Histogram
+
+newtype Path =
+    Path
+        { _path :: Text
+        }
+    deriving (Eq, Hashable, Semigroup, Monoid)
 
 path :: Text -> Path
 path = Path
 
-data Metrics = Metrics
-    { counters :: IORef (HashMap Path P.Counter)
-    , gauges   :: IORef (HashMap Path P.Gauge)
-    , buckets  :: IORef (HashMap Path Buckets)
-    }
+data Metrics =
+    Metrics
+        { counters   :: IORef (HashMap Path Counter)
+        , gauges     :: IORef (HashMap Path Gauge)
+        , histograms :: IORef (HashMap Path Histogram)
+        }
 
 metrics :: MonadIO m => m Metrics
 metrics = liftIO $ Metrics
@@ -81,12 +94,12 @@ getOrCreate mapRef key initializer = liftIO $ do
         atomicModifyIORef' mapRef $ \m -> (Map.insert key val m, val)
 
 -----------------------------------------------------------------------------
--- P.Counter specifics
+-- Counter specifics
 
-newCounter :: Path -> IO P.Counter
+newCounter :: Path -> IO Counter
 newCounter p = P.register $ P.counter (toInfo p)
 
-counterGet :: MonadIO m => Path -> Metrics -> m P.Counter
+counterGet :: MonadIO m => Path -> Metrics -> m Counter
 counterGet p m = getOrCreate (counters m) p (newCounter p)
 
 counterAdd :: MonadIO m => Double -> Path -> Metrics -> m ()
@@ -97,16 +110,16 @@ counterAdd x p m = liftIO $ do
 counterIncr :: MonadIO m => Path -> Metrics -> m ()
 counterIncr = counterAdd 1
 
-counterValue :: MonadIO m => P.Counter -> m Double
+counterValue :: MonadIO m => Counter -> m Double
 counterValue c = P.getCounter c
 
 -----------------------------------------------------------------------------
--- P.Gauge specifics
+-- Gauge specifics
 
-newGauge :: Path -> IO P.Gauge
+newGauge :: Path -> IO Gauge
 newGauge p = P.register $ P.gauge (toInfo p )
 
-gaugeGet :: MonadIO m => Path -> Metrics -> m P.Gauge
+gaugeGet :: MonadIO m => Path -> Metrics -> m Gauge
 gaugeGet p m = getOrCreate (gauges m) p (newGauge p)
 
 gaugeSet :: MonadIO m => Double -> Path -> Metrics -> m ()
@@ -128,25 +141,59 @@ gaugeDecr = gaugeAdd (-1)
 gaugeSub :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeSub x = gaugeAdd (-x)
 
-gaugeValue :: MonadIO m => P.Gauge -> m Double
+gaugeValue :: MonadIO m => Gauge -> m Double
 gaugeValue g = liftIO $ P.getGauge g
 
 -----------------------------------------------------------------------------
--- Buckets specifics
+-- Histogram specifics
 
-bucketsGet :: MonadIO m => Int -> Int -> Path -> Metrics -> m Buckets
-bucketsGet k n t m = liftIO $ do
-    bs <- readIORef (buckets m)
-    maybe make return (Map.lookup t bs)
+type Bucket = Double
+type Buckets = [Bucket]
+data HistogramInfo =
+    HistogramInfo
+        { hiPath    :: Path
+        , hiBuckets :: Buckets
+        }
+
+type RangeStart = Double
+type RangeEnd = Double
+type BucketWidth = Double
+
+linearHistogram :: Path -> RangeStart -> RangeEnd -> BucketWidth -> HistogramInfo
+linearHistogram pth start end width =
+    HistogramInfo
+    { hiPath    = pth
+    , hiBuckets = buckets
+    }
   where
-    make = do
-        b <- Buckets.create k n
-        atomicModifyIORef' (buckets m) $ \bs -> (Map.insert t b bs, b)
+    -- | How many buckets exist between start and end of the given width
+    --   We round up because more precision is better than less
+    count :: Int
+    count   = ceiling $ (end - start) / width
+    buckets :: Buckets
+    buckets = P.linearBuckets start width count
 
-bucketsIncr :: MonadIO m => Int -> Int -> Word -> Path -> Metrics -> m ()
-bucketsIncr k n x p m = liftIO $ do
-    b <- bucketsGet k n p m
-    Buckets.incr b x
+exponentialHistogram :: Path -> Buckets -> HistogramInfo
+exponentialHistogram = HistogramInfo
+
+newHisto :: HistogramInfo -> IO Histogram
+newHisto HistogramInfo {hiPath, hiBuckets} =
+    P.register $ P.histogram (toInfo hiPath) hiBuckets
+
+histoGet :: MonadIO m
+  => HistogramInfo -- ^ construct using 'makeLinearHistogram or 'makeExponentialHistogram'
+  -> Metrics
+  -> m Histogram
+histoGet hi@HistogramInfo{hiPath} m = getOrCreate (histograms m) hiPath (newHisto hi)
+
+histoValue :: MonadIO m => Histogram -> m (Map Bucket Int)
+histoValue histo = liftIO $ P.getHistogram histo
+
+-- | Report an individual value to be bucketed in the histogram
+histoSubmit :: MonadIO m => Double -> HistogramInfo -> Metrics -> m ()
+histoSubmit val hi m = liftIO $ do
+    h <- histoGet hi m
+    P.observe h val
 
 -----------------------------------------------------------------------------
 -- JSON rendering
@@ -154,23 +201,23 @@ bucketsIncr k n x p m = liftIO $ do
 class Jsonable a where
     toJson :: a -> IO Value
 
-instance Jsonable P.Counter where
+instance Jsonable Counter where
     toJson c = toJSON <$> counterValue c
 
-instance Jsonable P.Gauge where
+instance Jsonable Gauge where
     toJson g = toJSON <$> gaugeValue g
 
-instance Jsonable Buckets where
-    toJson = Buckets.toJson
+instance Jsonable Histogram where
+    toJson h = toJSON <$> histoValue h
 
 render :: MonadIO m => Metrics -> m Value
 render m = liftIO $ do
     c <- snapshot =<< readIORef (counters m)
     g <- snapshot =<< readIORef (gauges m)
-    b <- snapshot =<< readIORef (buckets m)
-    h <- GC.toJson
+    b <- snapshot =<< readIORef (histograms m)
+    gc <- GC.toJson
     let result = c `union` g `union` b
-    return $ maybe result (union result) h
+    return $ maybe result (union result) gc
   where
     snapshot :: Jsonable a => HashMap Path a -> IO Value
     snapshot = fmap object . mapM (\(k, v) -> (_path k .=) <$> toJson v) . Map.toList
