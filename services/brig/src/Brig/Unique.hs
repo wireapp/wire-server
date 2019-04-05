@@ -2,6 +2,7 @@
 -- to contention, i.e. where strong guarantees on uniqueness are desired.
 module Brig.Unique
     ( withClaim
+    , deleteClaim
     , lookupClaims
 
       -- * Re-exports
@@ -49,6 +50,18 @@ withClaim u v t io = do
 
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
+
+deleteClaim :: MonadClient m
+    => Id a
+    -> Text
+    -> Timeout
+    -> m ()
+deleteClaim u v t = do
+    let ttl = max minTtl (fromIntegral (t #> Second))
+    retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
+  where
+    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
 
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]
