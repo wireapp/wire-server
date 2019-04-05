@@ -36,7 +36,6 @@ import Ropes.Twilio (LookupDetail (..))
 import System.Logger.Message (val, msg, field, (~~))
 
 import qualified Data.Metrics        as Metrics
-import qualified Brig.Metrics        as PMetrics
 import qualified Data.Text           as Text
 import qualified Ropes.Nexmo         as Nexmo
 import qualified Ropes.Twilio        as Twilio
@@ -214,7 +213,6 @@ withSmsBudget phone go = do
             Log.info $ msg (val "SMS budget exhausted.")
                 ~~ field "phone" phone
             Metrics.counterIncr (Metrics.path "budget.sms.exhausted") =<< view metrics
-            PMetrics.withMetric_ PMetrics.budget_sms_exhausted_count PMetrics.incCounter
             throwM (PhoneBudgetExhausted t)
         BudgetedValue a b -> do
             Log.debug $ msg (val "SMS budget deducted.")
