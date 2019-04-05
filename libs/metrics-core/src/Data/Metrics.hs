@@ -25,14 +25,17 @@ module Data.Metrics
     , gaugeValue
 
     , HistogramInfo
+    , Buckets
+    , Bucket
+
     , linearHistogram
     , exponentialHistogram
     , customHistogram
 
-    , Buckets
-    , Bucket
     , histoGet
     , histoSubmit
+    , histoValue
+    , histoTimeAction
 
     , render
     ) where
@@ -55,7 +58,7 @@ newtype Path =
     Path
         { _path :: Text
         }
-    deriving (Eq, Hashable, Semigroup, Monoid)
+    deriving (Eq, Show, Hashable, Semigroup, Monoid)
 
 path :: Text -> Path
 path = Path
@@ -154,7 +157,7 @@ data HistogramInfo =
     HistogramInfo
         { hiPath    :: Path
         , hiBuckets :: Buckets
-        }
+        } deriving (Eq, Show)
 
 type RangeStart = Double
 type RangeEnd = Double
@@ -198,6 +201,15 @@ histoSubmit :: MonadIO m => Double -> HistogramInfo -> Metrics -> m ()
 histoSubmit val hi m = liftIO $ do
     h <- histoGet hi m
     P.observe h val
+
+-- | TODO WRITE DOCS
+-- NOTE: If the action throws an exception it will NOT be reported.
+-- This is particularly relevant for web handlers which signal their response
+-- with an exception.
+histoTimeAction :: (P.MonadMonitor m, MonadIO m) => HistogramInfo -> Metrics -> m a -> m a
+histoTimeAction hi m act = do
+    h <- histoGet hi m
+    P.observeDuration h act
 
 -----------------------------------------------------------------------------
 -- JSON rendering

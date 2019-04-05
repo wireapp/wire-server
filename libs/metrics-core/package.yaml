@@ -12,9 +12,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - Data.Metrics
-  - Data.Metrics.Buckets
   dependencies:
   - aeson >=0.6
   - atomic-primops >=0.8
