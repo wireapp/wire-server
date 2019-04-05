@@ -13,9 +13,11 @@ import Data.ByteString.Conversion
 import Data.Id (UserId)
 import Data.Ix (inRange)
 import Spar.Scim
+import Spar.Types (IdP)
 import Util
 
 import qualified SAML2.WebSSO.Types               as SAML
+import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
 import qualified Spar.Intra.Brig                  as Intra
 import qualified Web.Scim.Class.User              as ScimC.User
@@ -55,7 +57,7 @@ specCreateUser = describe "POST /Users" $ do
         testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
     it "handles rich info correctly (this also tests put, get)" $ testRichInfo
-    it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
+    it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
         pendingWith "factor this out of the PUT tests we already wrote."
@@ -218,6 +220,54 @@ testRichInfo = do
     -- post updates the backend as expected.
     liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
     probeUser (scimUserId scimStoredUser) richInfo'
+
+-- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
+-- @spar.user@; create it via scim.  This should to work despite the dangling database entry.
+testScimCreateVsUserRef :: HasCallStack => TestSpar ()
+testScimCreateVsUserRef = do
+    (tok, (_ownerid, _teamid, idp)) <- registerIdPAndScimToken
+    (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+        <- randomScimUserWithSubject
+    let uref   = SAML.UserRef tenant subj
+        subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+        tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+
+    uid <- createViaSaml idp uref
+    samlUserShouldSatisfy 'a' uref isJust
+
+    deleteViaBrig uid
+    samlUserShouldSatisfy 'b' uref isJust  -- brig doesn't talk to spar right now when users
+                                           -- are deleted there.  we need to work around this
+                                           -- fact for now.  (if the test fails here, this may
+                                           -- mean that you fixed the behavior and can
+                                           -- simplify this test.)
+
+    storedusr :: Scim.UserC.StoredUser SparTag
+        <- do
+          resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
+              <!! const 201 === statusCode
+          pure $ decodeBody' resp
+    samlUserShouldSatisfy 'c' uref (== Just (scimUserId storedusr))
+  where
+    samlUserShouldSatisfy :: Char -> SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy msg uref property = do
+        muid <- getUserIdViaRef' uref
+        liftIO $ (msg, muid) `shouldSatisfy` (property . snd)
+
+    createViaSaml :: IdP -> SAML.UserRef -> TestSpar UserId
+    createViaSaml idp uref@(SAML.UserRef _ subj) = do
+        (privCreds, authnReq) <- negotiateAuthnRequest idp
+        spmeta <- getTestSPMetadata
+        authnResp <- runSimpleSP $
+            SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+        submitAuthnResponse authnResp !!! const 200 === statusCode
+        fmap fromJust . runSparCass $ Data.getSAMLUser uref
+
+    deleteViaBrig :: UserId -> TestSpar ()
+    deleteViaBrig uid = do
+        brig <- view teBrig
+        (call . delete $ brig . paths ["i", "users", toByteString' uid])
+            !!! const 202 === statusCode
 
 ----------------------------------------------------------------------------
 -- Listing users
