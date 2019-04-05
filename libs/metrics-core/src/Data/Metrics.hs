@@ -31,7 +31,7 @@ module Data.Metrics
     , linearHistogram
     , exponentialHistogram
     , customHistogram
-    , deprecatedRequestDurationHistogram 
+    , deprecatedRequestDurationHistogram
 
     , histoGet
     , histoSubmit
@@ -46,7 +46,8 @@ import Data.Aeson
 import Data.Hashable
 
 import qualified Data.Text            as T
-import qualified Data.HashMap.Strict  as Map
+import qualified Data.HashMap.Strict  as HM
+import qualified Data.Map.Strict      as M
 import qualified Data.Metrics.GC      as GC
 
 import qualified Prometheus as P
@@ -73,9 +74,9 @@ data Metrics =
 
 metrics :: MonadIO m => m Metrics
 metrics = liftIO $ Metrics
-    <$> newIORef Map.empty
-    <*> newIORef Map.empty
-    <*> newIORef Map.empty
+    <$> newIORef HM.empty
+    <*> newIORef HM.empty
+    <*> newIORef HM.empty
 
 -- | Converts a CollectD style 'path' to a Metric name usable by prometheus
 --   This is to provide back compatibility with the previous collect-d metric names
@@ -92,11 +93,11 @@ toInfo (Path p) = P.Info (p & T.replace "." "_"
 getOrCreate :: (MonadIO m, Eq k, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
 getOrCreate mapRef key initializer = liftIO $ do
     hMap <- readIORef mapRef
-    maybe initialize return (Map.lookup key hMap)
+    maybe initialize return (HM.lookup key hMap)
   where
     initialize = do
         val <- initializer
-        atomicModifyIORef' mapRef $ \m -> (Map.insert key val m, val)
+        atomicModifyIORef' mapRef $ \m -> (HM.insert key val m, val)
 
 -----------------------------------------------------------------------------
 -- Counter specifics
@@ -212,7 +213,7 @@ histoGet :: MonadIO m
   -> m Histogram
 histoGet hi@HistogramInfo{hiPath} m = getOrCreate (histograms m) hiPath (newHisto hi)
 
-histoValue :: MonadIO m => Histogram -> m (Map Bucket Int)
+histoValue :: MonadIO m => Histogram -> m (M.Map Bucket Int)
 histoValue histo = liftIO $ P.getHistogram histo
 
 -- | Report an individual value to be bucketed in the histogram
@@ -243,7 +244,11 @@ instance Jsonable Gauge where
     toJson g = toJSON <$> gaugeValue g
 
 instance Jsonable Histogram where
-    toJson h = toJSON <$> histoValue h
+    -- Note that we round the keys into integers here for back-compatibility because 
+    -- some metrics are constructed using the keys of this map (as integers) and having Double
+    -- keys would break the dashboards. This will no longer matter once all dashboards using
+    -- collectd have been migrated to use prometheus-backed metrics instead.
+    toJson h = toJSON . M.mapKeys (round @Double @Integer) <$> histoValue h
 
 render :: MonadIO m => Metrics -> m Value
 render m = liftIO $ do
@@ -255,7 +260,7 @@ render m = liftIO $ do
     return $ maybe result (union result) gc
   where
     snapshot :: Jsonable a => HashMap Path a -> IO Value
-    snapshot = fmap object . mapM (\(k, v) -> (_path k .=) <$> toJson v) . Map.toList
+    snapshot = fmap object . mapM (\(k, v) -> (_path k .=) <$> toJson v) . HM.toList
 
     union :: Value -> Value -> Value
     union (Object a) (Object b) = Object $ a `merge` b
@@ -267,14 +272,14 @@ merge :: Object -> Object -> Object
 merge a = expand (expand mempty a)
   where
     expand :: Object -> Object -> Object
-    expand = Map.foldrWithKey (\k v obj -> insert obj (T.splitOn "." k) v)
+    expand = HM.foldrWithKey (\k v obj -> insert obj (T.splitOn "." k) v)
 
     insert :: Object -> [Text] -> Value -> Object
-    insert obj [t]    v = Map.insert t v obj
-    insert obj (t:tt) v = Map.insert t (Object $ insert (subtree t obj) tt v) obj
+    insert obj [t]    v = HM.insert t v obj
+    insert obj (t:tt) v = HM.insert t (Object $ insert (subtree t obj) tt v) obj
     insert obj []     _ = obj
 
     subtree :: Text -> Object -> Object
-    subtree t o = case Map.lookup t o of
+    subtree t o = case HM.lookup t o of
         Just (Object x) -> x
         _               -> mempty

@@ -16,6 +16,7 @@ library:
   - aeson >=0.6
   - atomic-primops >=0.8
   - base >=4.9
+  - containers
   - hashable >=1.2
   - prometheus-client
   - unordered-containers >=0.2
