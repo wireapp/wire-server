@@ -45,7 +45,6 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie
 
-import qualified Data.Text as Text
 import qualified SAML2.WebSSO as SAML
 
 
@@ -89,7 +88,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
 
--- | Create a user on brig.
+-- | Create a user on brig.  User name is derived from 'SAML.UserRef'.
 createBrigUser
   :: (HasCallStack, MonadSparToBrig m)
   => SAML.UserRef    -- ^ SSO identity
@@ -102,11 +101,15 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
-      let subject = suid ^. SAML.uidSubject
-          badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
-          mkName  = Name . fromRange <$>
-                    (fmap (Text.take 128) . SAML.shortShowNameID >=> checked @ST @1 @128) subject
-      maybe badName pure mkName
+      -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
+      --    unique.
+      let subj    = suid ^. SAML.uidSubject
+          subjtxt = SAML.unsafeShowNameID subj
+          muname  = checked @ST @1 @128 subjtxt
+          err     = SparBadUserName $ "must have >= 1, <= 128 chars: " <> cs subjtxt
+      case muname of
+        Just uname -> pure . Name . fromRange $ uname
+        Nothing    -> throwSpar err
 
   let newUser :: NewUser
       newUser = NewUser
