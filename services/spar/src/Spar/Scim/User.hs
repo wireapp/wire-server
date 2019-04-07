@@ -113,7 +113,7 @@ instance Scim.UserDB SparTag Spar where
             -> Scim.UserId SparTag
             -> Value
             -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-  patchUser _ _ _ = throwError $ Scim.notFound "patch user" "not implemented"
+  patchUser _ _ _ = throwError $ Scim.notFound "PATCH /Users" "not implemented"
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
   deleteUser = deleteScimUser
@@ -203,6 +203,10 @@ validateScimUser' idp richInfoLimit user = do
             { Scim.status = Scim.Status 413 }
         pure richInfo
 
+-- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
+--
+-- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
+-- recover the 'SAML.UserRef' of the scim user before the update from the database.
 mkUserRef
   :: forall m. (MonadError Scim.ScimError m)
   => IdP
@@ -225,14 +229,8 @@ mkUserRef idp extid  = case extid of
             pure . either (const unspec) id $ eEmail
         case SAML.mkNameID unameId Nothing Nothing Nothing of
             Right nameId -> pure nameId
-            Left err -> throwError $ Scim.ScimError
-                mempty
-                (Scim.Status 400)
-                Nothing
+            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
                 (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
-                -- This cannot happen at the time of writing this comment, but there may be
-                -- valid scenarios in the future where this is not an internal error, eg. URI
-                -- too long.  See 'mkNameID' for all possible errors.
 
 
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
@@ -244,6 +242,8 @@ createValidScimUser
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
+
+    -- ensure uniqueness constraints of all affected identifiers.
     assertUserRefUnused uref
     assertHandleUnused handl buid
 
@@ -295,7 +295,7 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
         newScimStoredUser :: Scim.StoredUser SparTag
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
-        -- update 'SAML.UserRef' on spar
+        -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef')
         let newuref = newScimUser ^. vsuSAMLUserRef
         lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
         midp :: Maybe IdP <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
@@ -304,7 +304,7 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
           olduref <- mkUserRef idp eid
           lift . wrapMonadClient $ Data.deleteSAMLUser olduref
 
-        -- update 'SAML.UserRef' on spar
+        -- update 'SAML.UserRef' on brig
         bindok <- lift $ Intra.Brig.bindBrigUser uid newuref
         unless bindok . throwError $
             Scim.serverError "Failed to update SAML UserRef on brig."
