@@ -52,9 +52,12 @@ withClaim u v t io = do
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
 deleteClaim :: MonadClient m
-    => Id a
-    -> Text
-    -> Timeout
+    => Id a     -- ^ The 'Id' associated with the claim.
+    -> Text     -- ^ The value on which to acquire the claim.
+    -> Timeout  -- ^ The minimum timeout (i.e. duration) of the rest of the claim.  (Each
+                --   claim can have more than one claimer (even though this is a feature we
+                --   never use), so removing a claim is an update operation on the database.
+                --   Therefore, we reset the TTL the same way we reset it in 'withClaim'.)
     -> m ()
 deleteClaim u v t = do
     let ttl = max minTtl (fromIntegral (t #> Second))
