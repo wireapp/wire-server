@@ -296,14 +296,22 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
         newScimStoredUser :: Scim.StoredUser SparTag
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
-        -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef')
+        -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef' if it exists and
+        -- is different from the new one)
         let newuref = newScimUser ^. vsuSAMLUserRef
-        lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
-        midp :: Maybe IdP <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
-        forM_ midp $ \idp -> do
+        molduref <- do
           let eid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
-          olduref <- mkUserRef idp eid
-          lift . wrapMonadClient $ Data.deleteSAMLUser olduref
+          (lift . wrapMonadClient . Data.getIdPConfig) `mapM` stiIdP >>= \case
+            Just (Just idp) -> Just <$> mkUserRef idp eid
+            _               -> pure Nothing
+        case molduref of
+          Just olduref -> when (olduref /= newuref) $ do
+            lift . wrapMonadClient $ Data.deleteSAMLUser olduref
+            lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
+          Nothing -> do
+            -- if there was no uref before.  (can't currently happen because we require saml
+            -- for scim to work, but this would be the right way to handle the case.)
+            lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
 
         -- update 'SAML.UserRef' on brig
         bindok <- lift $ Intra.Brig.bindBrigUser uid newuref
