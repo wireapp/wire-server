@@ -210,7 +210,8 @@ pendingWith = liftIO . Test.Hspec.pendingWith
 
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out.
--- The result may be good or not, depending on whether we run out of time.
+-- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
+-- if it does not satisfy the predicate.
 aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
 aFewTimes action good = do
     env <- ask

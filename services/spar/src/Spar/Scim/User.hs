@@ -447,7 +447,8 @@ assertUserRefUnused userRef = do
     throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
 {-|
-Check that the UserRef is not taken *by another user*.
+Check that the UserRef is not taken any user other than the passed 'UserId'
+(it is also acceptable if it is not taken by anybody).
 
 ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 to a single `externalId`.
@@ -459,7 +460,7 @@ assertUserRefNotUsedElsewhere userRef wireUserId = do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 
 assertHandleUnused :: Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleUnused = assertHandleUnused' "externalId is already taken"
+assertHandleUnused = assertHandleUnused' "userName is already taken"
 
 assertHandleUnused' :: Text -> Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleUnused' msg hndl uid = lift (Brig.checkHandleAvailable hndl uid) >>= \case
@@ -470,7 +471,7 @@ assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere hndl uid = do
   musr <- lift $ Brig.getBrigUser uid
   unless ((userHandle =<< musr) == Just hndl) $
-    assertHandleUnused' "externalId does not match UserId" hndl uid
+    assertHandleUnused' "userName does not match UserId" hndl uid
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~

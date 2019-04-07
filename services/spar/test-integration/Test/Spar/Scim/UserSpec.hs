@@ -222,7 +222,7 @@ testRichInfo = do
     probeUser (scimUserId scimStoredUser) richInfo'
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
--- @spar.user@; create it via scim.  This should to work despite the dangling database entry.
+-- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: HasCallStack => TestSpar ()
 testScimCreateVsUserRef = do
     (tok, (_ownerid, _teamid, idp)) <- registerIdPAndScimToken
