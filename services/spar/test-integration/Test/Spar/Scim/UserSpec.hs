@@ -240,7 +240,7 @@ testScimCreateVsUserRef = do
                                            -- are deleted there.  we need to work around this
                                            -- fact for now.  (if the test fails here, this may
                                            -- mean that you fixed the behavior and can
-                                           -- simplify this test.)
+                                           -- change this to 'isNothing'.)
 
     storedusr :: Scim.UserC.StoredUser SparTag
         <- do
