@@ -529,21 +529,25 @@ testUpdateSameHandle = do
 
 -- | Test that when a user's 'UserRef' is updated, the relevant index is also updated and Spar
 -- can find the user by the 'UserRef'.
-testUpdateUserRefIndex :: TestSpar ()
+testUpdateUserRefIndex :: HasCallStack => TestSpar ()
 testUpdateUserRefIndex = do
     -- Create a user via SCIM
     user <- randomScimUser
     (tok, (_, _, idp)) <- registerIdPAndScimToken
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
-    -- Overwrite the user with another randomly-generated user
-    user' <- randomScimUser
-    _ <- updateUser tok userid user'
-    vuser' <- either (error . show) pure $
-        validateScimUser' idp 999999 user'  -- 999999 = some big number
-    muserid' <- runSparCass $ Data.getSAMLUser (vuser' ^. vsuSAMLUserRef)
-    liftIO $ do
-        muserid' `shouldBe` Just userid
+
+    let checkUpdateUserRef :: Bool -> TestSpar ()
+        checkUpdateUserRef _changeUserRef = do
+            -- Overwrite the user with another randomly-generated user
+            user' <- randomScimUser
+            _ <- updateUser tok userid user'
+            vuser' <- either (error . show) pure $
+                validateScimUser' idp 999999 user'  -- 999999 = some big number
+            muserid' <- runSparCass $ Data.getSAMLUser (vuser' ^. vsuSAMLUserRef)
+            liftIO $ do
+                muserid' `shouldBe` Just userid
+    checkUpdateUserRef True
 
 -- | Test that when the user is updated via SCIM, the data in Brig is also updated.
 testBrigSideIsUpdated :: TestSpar ()
