@@ -255,6 +255,8 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
+-- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
+-- anything but authorization.
 checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m Bool
 checkHandleAvailable hnd buid = do
   resp <- call
