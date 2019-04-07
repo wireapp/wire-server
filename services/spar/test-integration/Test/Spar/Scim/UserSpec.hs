@@ -531,23 +531,32 @@ testUpdateSameHandle = do
 -- can find the user by the 'UserRef'.
 testUpdateUserRefIndex :: HasCallStack => TestSpar ()
 testUpdateUserRefIndex = do
+    (tok, (_, _, idp)) <- registerIdPAndScimToken
     -- Create a user via SCIM
     user <- randomScimUser
-    (tok, (_, _, idp)) <- registerIdPAndScimToken
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
+    uref <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user)
 
     let checkUpdateUserRef :: Bool -> TestSpar ()
-        checkUpdateUserRef _changeUserRef = do
+        checkUpdateUserRef changeUserRef = do
             -- Overwrite the user with another randomly-generated user
-            user' <- randomScimUser
+            user' <- let upd u = if changeUserRef
+                           then u
+                           else u { Scim.User.externalId = Scim.User.externalId user }
+                     in randomScimUser <&> upd
             _ <- updateUser tok userid user'
-            vuser' <- either (error . show) pure $
-                validateScimUser' idp 999999 user'  -- 999999 = some big number
-            muserid' <- runSparCass $ Data.getSAMLUser (vuser' ^. vsuSAMLUserRef)
+            uref' <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user')
+            muserid  <- runSparCass $ Data.getSAMLUser uref
+            muserid' <- runSparCass $ Data.getSAMLUser uref'
             liftIO $ do
-                muserid' `shouldBe` Just userid
+                (changeUserRef, muserid) `shouldBe`
+                    (changeUserRef, if changeUserRef then Nothing else Just userid)
+                (changeUserRef, muserid') `shouldBe`
+                    (changeUserRef, Just userid)
+
     checkUpdateUserRef True
+    checkUpdateUserRef False
 
 -- | Test that when the user is updated via SCIM, the data in Brig is also updated.
 testBrigSideIsUpdated :: TestSpar ()

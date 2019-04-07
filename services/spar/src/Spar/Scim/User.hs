@@ -19,6 +19,7 @@ module Spar.Scim.User
     ( -- * Internals (for testing)
       validateScimUser'
     , toScimStoredUser'
+    , mkUserRef
     ) where
 
 import Imports
