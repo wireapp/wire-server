@@ -209,12 +209,12 @@ mkUserRef
   -> Maybe Text
   -> m SAML.UserRef
 mkUserRef idp extid  = case extid of
-        Just subjectTxt -> do
-            let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-            subject <- validateSubject subjectTxt
-            pure $ SAML.UserRef issuer subject
-        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
-            (Just "externalId is required for SAML users")
+    Just subjectTxt -> do
+        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+        subject <- validateSubject subjectTxt
+        pure $ SAML.UserRef issuer subject
+    Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+        (Just "externalId is required for SAML users")
   where
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> m SAML.NameID
