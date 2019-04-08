@@ -532,14 +532,14 @@ testUpdateSameHandle = do
 testUpdateUserRefIndex :: HasCallStack => TestSpar ()
 testUpdateUserRefIndex = do
     (tok, (_, _, idp)) <- registerIdPAndScimToken
-    -- Create a user via SCIM
-    user <- randomScimUser
-    storedUser <- createUser tok user
-    let userid = scimUserId storedUser
-    uref <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user)
-
     let checkUpdateUserRef :: Bool -> TestSpar ()
         checkUpdateUserRef changeUserRef = do
+            -- Create a user via SCIM
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            uref <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user)
+
             -- Overwrite the user with another randomly-generated user
             user' <- let upd u = if changeUserRef
                            then u
