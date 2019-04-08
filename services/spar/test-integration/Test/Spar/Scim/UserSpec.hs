@@ -232,7 +232,7 @@ testScimCreateVsUserRef = do
         subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
         tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
 
-    uid <- createViaSaml idp uref
+    !(Just !uid) <- createViaSaml idp uref
     samlUserShouldSatisfy 'a' uref isJust
 
     deleteViaBrig uid
@@ -254,14 +254,14 @@ testScimCreateVsUserRef = do
         muid <- getUserIdViaRef' uref
         liftIO $ (msg, muid) `shouldSatisfy` (property . snd)
 
-    createViaSaml :: IdP -> SAML.UserRef -> TestSpar UserId
-    createViaSaml idp uref@(SAML.UserRef _ subj) = do
+    createViaSaml :: IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref@(SAML.UserRef issuer subj) = do
         (privCreds, authnReq) <- negotiateAuthnRequest idp
         spmeta <- getTestSPMetadata
         authnResp <- runSimpleSP $
             SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
         submitAuthnResponse authnResp !!! const 200 === statusCode
-        fromJust <$> getUserIdViaRef' uref
+        getUserIdViaRef' uref
 
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
