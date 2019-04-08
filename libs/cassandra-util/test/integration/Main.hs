@@ -15,7 +15,7 @@ main = do
 
   let casHost="127.0.0.1"
   let casPort=9042 
-  let casKey="castest"
+  let casKey="BRIG_CASSANDRA_KEYSPACE"
 
   lg <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
