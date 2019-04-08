@@ -188,8 +188,8 @@ gaugeValue g = liftIO $ P.getGauge g
 
 -- | *DEPRECATED*
 -- These are the exact histogram bucket markers which the old *custom* metrics-core
--- library used. Some grafana graphs are still built around these exact number
--- e.g. see gally's POST duration graph:
+-- library used. Some wire-internal grafana graphs are still built around these exact number
+-- e.g. (for wire employees only) see galley's POST duration graph:
 --   https://staging-ie-grafana.zinfra.io/dashboard/db/galley
 --
 -- This is annoying and very fragile, prometheus has a better way of handling this, but
