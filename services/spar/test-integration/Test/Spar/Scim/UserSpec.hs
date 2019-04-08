@@ -254,7 +254,7 @@ testScimCreateVsUserRef = do
         muid <- getUserIdViaRef' uref
         liftIO $ muid `shouldSatisfy` property
 
-    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar UserId
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp uref@(SAML.UserRef _ subj) = do
         (privCreds, authnReq) <- negotiateAuthnRequest idp
         spmeta <- getTestSPMetadata
