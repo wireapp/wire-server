@@ -59,11 +59,11 @@ import qualified Data.Metrics.GC      as GC
 import qualified Prometheus as P
 
 -- | Internal Counter type
-type Counter = P.Counter
+newtype Counter = Counter P.Counter
 -- | Internal Gauge type
-type Gauge = P.Gauge
+newtype Gauge = Gauge P.Gauge
 -- | Internal Histogram type
-type Histogram = P.Histogram
+newtype Histogram = Histogram P.Histogram
 
 -- | Represents a descriptive metric path or name.
 --
@@ -124,7 +124,7 @@ getOrCreate mapRef key initializer = liftIO $ do
 
 -- | Create a counter for a 'Path'
 newCounter :: Path -> IO Counter
-newCounter p = P.register $ P.counter (toInfo p)
+newCounter p = Counter <$> P.register (P.counter $ toInfo p)
 
 -- | Access the counter for a given 'Path'
 counterGet :: MonadIO m => Path -> Metrics -> m Counter
@@ -133,7 +133,7 @@ counterGet p m = getOrCreate (counters m) p (newCounter p)
 -- | Add the given amount to the counter at 'Path'
 counterAdd :: MonadIO m => Double -> Path -> Metrics -> m ()
 counterAdd x p m = liftIO $ do
-    c <- counterGet p m
+    Counter c <- counterGet p m
     void $ P.addCounter c x
 
 -- | Add 1 to the counter at 'Path'
@@ -142,14 +142,14 @@ counterIncr = counterAdd 1
 
 -- | Get the current value of the Counter
 counterValue :: MonadIO m => Counter -> m Double
-counterValue c = P.getCounter c
+counterValue (Counter c) = P.getCounter c
 
 -----------------------------------------------------------------------------
 -- Gauge specifics
 
 -- | Create a gauge for a 'Path'
 newGauge :: Path -> IO Gauge
-newGauge p = P.register $ P.gauge (toInfo p )
+newGauge p = Gauge <$> P.register (P.gauge $ toInfo p)
 
 -- | Access the gauge for a given 'Path'
 gaugeGet :: MonadIO m => Path -> Metrics -> m Gauge
@@ -158,13 +158,13 @@ gaugeGet p m = getOrCreate (gauges m) p (newGauge p)
 -- | Set the 'Gauge' at 'Path' to the given value
 gaugeSet :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeSet x p m = liftIO $ do
-    g <- gaugeGet p m
+    Gauge g <- gaugeGet p m
     P.setGauge g x
 
 -- | Add the given amount to the gauge at 'Path'
 gaugeAdd :: MonadIO m => Double -> Path -> Metrics -> m ()
 gaugeAdd x p m = liftIO $ do
-    g <- gaugeGet p m
+    Gauge g <- gaugeGet p m
     P.addGauge g x
 
 -- | Add 1 to the gauge at 'Path'
@@ -181,7 +181,7 @@ gaugeSub x = gaugeAdd (-x)
 
 -- | Get the current value of the Gauge
 gaugeValue :: MonadIO m => Gauge -> m Double
-gaugeValue g = liftIO $ P.getGauge g
+gaugeValue (Gauge g) = liftIO $ P.getGauge g
 
 -----------------------------------------------------------------------------
 -- Histogram specifics
@@ -243,7 +243,7 @@ customHistogram pth buckets = HistogramInfo{hiPath=pth, hiBuckets=buckets}
 -- | Create a histo for a 'HistogramInfo'
 newHisto :: HistogramInfo -> IO Histogram
 newHisto HistogramInfo {hiPath, hiBuckets} =
-    P.register $ P.histogram (toInfo hiPath) hiBuckets
+    Histogram <$> P.register (P.histogram (toInfo hiPath) hiBuckets)
 
 -- | Access the histogram for a given 'HistogramInfo'
 histoGet :: MonadIO m
@@ -254,12 +254,12 @@ histoGet hi@HistogramInfo{hiPath} m = getOrCreate (histograms m) hiPath (newHist
 
 -- | Get the current distribution of a Histogram
 histoValue :: MonadIO m => Histogram -> m (M.Map Bucket Int)
-histoValue histo = liftIO $ P.getHistogram histo
+histoValue (Histogram histo) = liftIO $ P.getHistogram histo
 
 -- | Report an individual value to be bucketed in the histogram
 histoSubmit :: MonadIO m => Double -> HistogramInfo -> Metrics -> m ()
 histoSubmit val hi m = liftIO $ do
-    h <- histoGet hi m
+    Histogram h <- histoGet hi m
     P.observe h val
 
 -- | Execute and time the provided monadic action and submit it as an entry
@@ -270,7 +270,7 @@ histoSubmit val hi m = liftIO $ do
 -- with an exception.
 histoTimeAction :: (P.MonadMonitor m, MonadIO m) => HistogramInfo -> Metrics -> m a -> m a
 histoTimeAction hi m act = do
-    h <- histoGet hi m
+    Histogram h <- histoGet hi m
     P.observeDuration h act
 
 -----------------------------------------------------------------------------
