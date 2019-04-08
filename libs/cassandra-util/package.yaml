@@ -42,8 +42,8 @@ library:
   - Cassandra.Schema
   - Cassandra.Settings
   - Cassandra.Util
-executables:
-  cassandra-util-integration:
+tests:
+  tests:
     main: Main.hs
     source-dirs: test/integration
     dependencies:
