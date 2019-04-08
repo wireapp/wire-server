@@ -261,7 +261,7 @@ testScimCreateVsUserRef = do
         authnResp <- runSimpleSP $
             SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
         submitAuthnResponse authnResp !!! const 200 === statusCode
-        fmap fromJust . runSparCass $ Data.getSAMLUser uref
+        fromJust <$> getUserIdViaRef' uref
 
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
