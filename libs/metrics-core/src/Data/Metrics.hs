@@ -171,7 +171,7 @@ gaugeAdd x p m = liftIO $ do
 gaugeIncr :: MonadIO m => Path -> Metrics -> m ()
 gaugeIncr = gaugeAdd 1
 
--- | Subtract 1 to the gauge at 'Path'
+-- | Subtract 1 from the gauge at 'Path'
 gaugeDecr :: MonadIO m => Path -> Metrics -> m ()
 gaugeDecr = gaugeAdd (-1)
 
