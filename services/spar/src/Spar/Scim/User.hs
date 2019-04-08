@@ -35,7 +35,7 @@ import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
 
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createUser_, wrapMonadClient, getUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createSamlUserWithId, wrapMonadClient, getUser)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -253,7 +253,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
 
     -- Create SAML user here in spar, which in turn creates a brig user.
-    lift $ createUser_ buid uref mbName ManagedByScim
+    lift $ createSamlUserWithId buid uref mbName ManagedByScim
 
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
