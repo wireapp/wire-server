@@ -198,7 +198,8 @@ gaugeValue (Gauge g) = liftIO $ P.getGauge g
 --
 -- Once we use prometheus metrics (e.g. there are no graphs in grafana which depend on metrics
 -- prefixed with @collectd@) then you can delete this middleware entirely since the prometheus
--- middleware records request durations already.
+-- middleware records request durations already. In fact it much of the `metrics-wai` package
+-- can likely be deleted at that point.
 deprecatedRequestDurationHistogram :: Path -> HistogramInfo
 deprecatedRequestDurationHistogram pth = customHistogram pth requestDurationBuckets
     where
