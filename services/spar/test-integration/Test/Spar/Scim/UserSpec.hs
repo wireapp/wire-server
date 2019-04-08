@@ -225,7 +225,7 @@ testRichInfo = do
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-    (tok, (_ownerid, _teamid, idp)) <- registerIdPAndScimToken
+    (_ownerid, teamid, idp) <- registerTestIdP
     (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
         <- randomScimUserWithSubject
     let uref   = SAML.UserRef tenant subj
@@ -242,6 +242,7 @@ testScimCreateVsUserRef = do
                                        -- mean that you fixed the behavior and can
                                        -- change this to 'isNothing'.)
 
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
     storedusr :: Scim.UserC.StoredUser SparTag
         <- do
           resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
