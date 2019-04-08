@@ -10,6 +10,7 @@ import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.String.Conversions (cs)
 import Data.Id (UserId)
 import Data.Ix (inRange)
 import Spar.Scim
@@ -249,19 +250,41 @@ testScimCreateVsUserRef = do
               <!! const 201 === statusCode
           pure $ decodeBody' resp
     samlUserShouldSatisfy uref (== Just (scimUserId storedusr))
+
+    -- now with a scim token in the team, we can't auto-provision via saml any more.
+    (_usr', uname') :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+        <- randomScimUserWithSubject
+    let uref'   = SAML.UserRef tenant' subj'
+        subj'   = either (error . show) id $ SAML.mkNameID uname' Nothing Nothing Nothing
+        tenant' = idp ^. SAML.idpMetadata . SAML.edIssuer
+    createViaSamlFails idp uref'
   where
     samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
     samlUserShouldSatisfy uref property = do
         muid <- getUserIdViaRef' uref
         liftIO $ muid `shouldSatisfy` property
 
-    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
-    createViaSaml idp uref@(SAML.UserRef _ subj) = do
+    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp (SAML.UserRef _ subj) = do
         (privCreds, authnReq) <- negotiateAuthnRequest idp
         spmeta <- getTestSPMetadata
         authnResp <- runSimpleSP $
             SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-        submitAuthnResponse authnResp !!! const 200 === statusCode
+        submitAuthnResponse authnResp <!! const 200 === statusCode
+
+    createViaSamlFails :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ()
+    createViaSamlFails idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:error:forbidden</title>"
+
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:success</title>"
         getUserIdViaRef' uref
 
     deleteViaBrig :: UserId -> TestSpar ()
