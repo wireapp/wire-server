@@ -12,6 +12,7 @@ module Spar.Intra.Brig
   , setBrigUserHandle
   , setBrigUserManagedBy
   , setBrigUserRichInfo
+  , checkHandleAvailable
   , bindBrigUser
   , deleteBrigUser
   , createBrigUser
@@ -257,6 +258,25 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
+-- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
+-- anything but authorization.
+checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m Bool
+checkHandleAvailable hnd buid = do
+  resp <- call
+    $ method HEAD
+    . paths ["users", "handles", toByteString' hnd]
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+  let sCode = statusCode resp
+  if | sCode == 200  -- handle exists
+       -> pure False
+     | sCode == 404  -- handle not found
+       -> pure True
+     | sCode < 500
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
+
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
 bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
@@ -276,9 +296,9 @@ deleteBrigUser buid = do
   if
     | sCode < 300 -> pure ()
     | inRange (400, 499) sCode
-      -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "failed to delete user"
-    | otherwise -> throwSpar . SparBrigError . cs
-      $ "delete user failed with status " <> show sCode
+      -> throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
+    | otherwise
+      -> throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool

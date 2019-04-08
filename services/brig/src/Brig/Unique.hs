@@ -2,6 +2,7 @@
 -- to contention, i.e. where strong guarantees on uniqueness are desired.
 module Brig.Unique
     ( withClaim
+    , deleteClaim
     , lookupClaims
 
       -- * Re-exports
@@ -49,6 +50,21 @@ withClaim u v t io = do
 
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
+
+deleteClaim :: MonadClient m
+    => Id a     -- ^ The 'Id' associated with the claim.
+    -> Text     -- ^ The value on which to acquire the claim.
+    -> Timeout  -- ^ The minimum timeout (i.e. duration) of the rest of the claim.  (Each
+                --   claim can have more than one claimer (even though this is a feature we
+                --   never use), so removing a claim is an update operation on the database.
+                --   Therefore, we reset the TTL the same way we reset it in 'withClaim'.)
+    -> m ()
+deleteClaim u v t = do
+    let ttl = max minTtl (fromIntegral (t #> Second))
+    retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
+  where
+    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
 
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]

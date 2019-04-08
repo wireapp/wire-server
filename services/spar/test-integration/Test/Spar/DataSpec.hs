@@ -7,7 +7,6 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Except
 import Data.Kind (Type)
-import Data.Text (unpack)
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -117,6 +116,19 @@ spec = do
           ()   <- runSparCass $ Data.insertSAMLUser uref uid'
           muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid'
+
+      describe "DELETE" $ do
+        it "works" $ do
+          uref <- nextUserRef
+          uid  <- nextWireId
+          do
+            ()   <- runSparCass $ Data.insertSAMLUser uref uid
+            muid <- runSparCass (Data.getSAMLUser uref)
+            liftIO $ muid `shouldBe` Just uid
+          do
+            ()   <- runSparCass $ Data.deleteSAMLUser uref
+            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
+            liftIO $ muid `shouldBe` Nothing
 
 
     describe "BindCookie" $ do
@@ -241,7 +253,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     storedUser1 <- createUser tok user1
     storedUser2 <- createUser tok user2
     -- Resolve the users' SSO ids
-    let getUid = read . unpack . Scim.Common.id . Scim.Meta.thing
+    let getUid = Scim.Common.id . Scim.Meta.thing
     ssoid1 <- getSsoidViaSelf (getUid storedUser1)
     ssoid2 <- getSsoidViaSelf (getUid storedUser2)
     -- Delete the team

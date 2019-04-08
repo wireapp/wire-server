@@ -9,6 +9,7 @@ module Spar.App
   , wrapMonadClientWithEnv
   , wrapMonadClient
   , verdictHandler
+  , getUser
   , insertUser
   , createUser, createUser_
   ) where

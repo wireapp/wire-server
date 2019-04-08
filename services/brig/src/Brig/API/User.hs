@@ -757,7 +757,7 @@ deleteAccount account@(accountUser -> user) = do
     -- Free unique keys
     for_ (userEmail  user) $ deleteKey . userEmailKey
     for_ (userPhone  user) $ deleteKey . userPhoneKey
-    for_ (userHandle user) freeHandle
+    for_ (userHandle user) $ freeHandle user
     -- Wipe data
     Data.clearProperties uid
     tombstone <- mkTombstone
