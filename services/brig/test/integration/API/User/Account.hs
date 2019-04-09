@@ -396,16 +396,17 @@ testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
     u1 <- randomUser b
     alice <- randomUser b
+    now <- liftIO getCurrentTime
     bob <- createAnonUserExpiry (Just 2) "bob" b
     liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
-    ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
+    ensureExpiry now (fromUTCTimeMillis <$> userExpire bob) "bob/register"
     resAlice <- getProfile (userId u1) (userId alice)
     resBob <- getProfile (userId u1) (userId bob)
     selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
     liftIO $ assertBool "Bob must not be in a deleted state initially" (fromMaybe True (not <$> deleted selfBob))
     liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
-    ensureExpiry (expire resBob) "bob/public"
-    ensureExpiry (expire selfBob) "bob/self"
+    ensureExpiry now (expire resBob) "bob/public"
+    ensureExpiry now (expire selfBob) "bob/self"
     awaitExpiry 5 (userId u1) (userId bob)
     resBob' <- getProfile (userId u1) (userId bob)
     liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
@@ -421,11 +422,10 @@ testCreateUserAnonExpiry b = do
             liftIO $ threadDelay 1000000
             awaitExpiry (n-1) zusr uid
 
-    ensureExpiry :: Maybe UTCTime -> String -> Http ()
-    ensureExpiry expiry s = case expiry of
+    ensureExpiry :: UTCTime -> Maybe UTCTime -> String -> Http ()
+    ensureExpiry now expiry s = case expiry of
                        Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
                        Just a -> do
-                          now <- liftIO getCurrentTime
                           let diff = diffUTCTime a now
                               minExp = 1 :: Integer -- 1 second
                               maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
