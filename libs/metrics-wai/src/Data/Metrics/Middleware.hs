@@ -22,7 +22,6 @@ import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
 import qualified Network.Wai.Route.Tree as Tree
 
-
 withPathTemplate :: Paths -> (PathTemplate -> Middleware) -> Middleware
 withPathTemplate t f app r k = f (fromMaybe def tmp) app r k
   where
@@ -31,13 +30,15 @@ withPathTemplate t f app r k = f (fromMaybe def tmp) app r k
         . T.decodeUtf8
       <$> treeLookup t (Tree.segments $ rawPathInfo r)
 
-duration :: Int -> Int -> Metrics -> PathTemplate -> Middleware
-duration start len m  (PathTemplate t) f rq k = do
+duration :: Metrics -> PathTemplate -> Middleware
+duration m (PathTemplate t) f rq k = do
     st <- getTime Monotonic
     rs <- f rq k
     ed <- getTime Monotonic
     let p = mkPath [t, methodName rq, "time"]
-    bucketsIncr start len (timeSpecAsMilliSecs $ ed `diffTimeSpec` st) p m
+    let timeElapsed = timeSpecAsMilliSecs $ ed `diffTimeSpec` st
+    let requestDurationHisto = deprecatedRequestDurationHistogram p 
+    histoSubmit timeElapsed requestDurationHisto m
     return rs
 
 -- Count Requests and their status code.
@@ -72,5 +73,5 @@ methodName :: Request -> Text
 methodName = T.decodeUtf8 . requestMethod
 {-# INLINE methodName #-}
 
-timeSpecAsMilliSecs :: TimeSpec -> Word
+timeSpecAsMilliSecs :: TimeSpec -> Double
 timeSpecAsMilliSecs t = fromIntegral (sec t * 1000 + nsec t `div` 1000000)

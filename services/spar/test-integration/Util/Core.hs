@@ -15,6 +15,7 @@ module Util.Core
   , passes, it, pending, pendingWith
   , shouldRespondWith
   , module Test.Hspec
+  , aFewTimes
   -- * HTTP
   , call
   , endpointToReq
@@ -62,8 +63,9 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , getSsoidViaSelf, getSsoidViaSelf', getSelf
+  , getSsoidViaSelf, getSsoidViaSelf'
   , getUserIdViaRef, getUserIdViaRef'
+  , getScimUser
   ) where
 
 import Imports hiding (head)
@@ -97,6 +99,7 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.App (toLevel)
 import Spar.API.Types
 import Spar.Run
+import Spar.Scim.Types
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
@@ -121,12 +124,13 @@ import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
+import qualified System.Logger.Extended as Log
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
-import qualified System.Logger.Extended as Log
+import qualified Web.Scim.Class.User as ScimC.User
 
 
 -- | Call 'mkEnv' with options from config files.
@@ -203,6 +207,18 @@ pending = liftIO Test.Hspec.pending
 
 pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
+
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out.
+-- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
+-- if it does not satisfy the predicate.
+aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
+aFewTimes action good = do
+    env <- ask
+    liftIO $ retrying
+        (exponentialBackoff 1000 <> limitRetries 10)
+        (\_ -> pure . not . good)
+        (\_ -> action `runReaderT` env)
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
@@ -750,7 +766,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- getSelf uid
+  musr <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
   pure $ case userIdentity =<< musr of
             Just (SSOIdentity ssoid _ _) -> Just ssoid
             Just (FullIdentity _ _)  -> Nothing
@@ -758,36 +774,16 @@ getSsoidViaSelf' uid = do
             Just (PhoneIdentity _)   -> Nothing
             Nothing                  -> Nothing
 
-getSelf :: HasCallStack => UserId -> TestSpar (Maybe User)
-getSelf uid = do
-  let probe :: HasCallStack => TestSpar (Maybe User)
-      probe = do
-        env <- ask
-        fmap selfToUser . call . get $
-          ( (env ^. teBrig)
-          . header "Z-User" (toByteString' uid)
-          . path "/self"
-          . expect2xx
-          )
-
-      selfToUser :: HasCallStack => ResponseLBS -> Maybe User
-      selfToUser (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-        = Just $ selfUser selfprof
-      selfToUser _ = Nothing
-
-  env <- ask
-  liftIO $ retrying
-    (exponentialBackoff 50 <> limitRetries 5)
-    (\_ -> pure . isNothing)
-    (\_ -> probe `runReaderT` env)
-
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  env <- ask
-  liftIO $ retrying
-    (exponentialBackoff 50 <> limitRetries 5)
-    (\_ -> pure . isNothing)
-    (\_ -> runClient (env ^. teCql) $ Data.getSAMLUser uref)
+  aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
+
+-- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
+-- the other lookups above into the various user tables in the various cassandras.  we should
+-- probably clean this up a little, and also pick better names for everything.
+getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser SparTag))
+getScimUser uid = do
+  aFewTimes (runSparCass $ Data.getScimUser uid) isJust

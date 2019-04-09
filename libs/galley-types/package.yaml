@@ -50,7 +50,7 @@ library:
   - condition: flag(cql)
     cpp-options: -DWITH_CQL
     dependencies:
-    - cql >=3.0
+    - cassandra-util
 tests:
   galley-types-tests:
     main: Main.hs

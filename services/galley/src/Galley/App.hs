@@ -28,14 +28,14 @@ module Galley.App
 
       -- * Utilities
     , ifNothing
-    , fromBody
+    , fromJsonBody
     , fromProtoBody
     ) where
 
 import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
-import Cassandra hiding (Error, Set)
+import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
@@ -48,6 +48,7 @@ import Data.Misc (Fingerprint, Rsa)
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
 import Galley.Options
+import Galley.API.Error
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai
@@ -62,11 +63,9 @@ import qualified Cassandra                as C
 import qualified Cassandra.Settings       as C
 import qualified Data.List.NonEmpty       as NE
 import qualified Data.ProtocolBuffers     as Proto
-import qualified Data.Text.Lazy           as Lazy
 import qualified Galley.Aws               as Aws
 import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
-import qualified System.Logger            as Logger
 import qualified System.Logger.Extended   as Logger
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
@@ -202,14 +201,14 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-fromBody :: FromJSON a => Request -> (Lazy.Text -> Error) -> Galley a
-fromBody r f = exceptT (throwM . f) return (parseBody r)
-{-# INLINE fromBody #-}
+fromJsonBody :: FromJSON a => JsonRequest a -> Galley a
+fromJsonBody r = exceptT (throwM . invalidPayload) return (parseBody r)
+{-# INLINE fromJsonBody #-}
 
-fromProtoBody :: Proto.Decode a => Request -> (Lazy.Text -> Error) -> Galley a
-fromProtoBody r f = do
+fromProtoBody :: Proto.Decode a => Request -> Galley a
+fromProtoBody r = do
     b <- readBody r
-    either (throwM . f . fromString) return (runGetLazy Proto.decodeMessage b)
+    either (throwM . invalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
 {-# INLINE fromProtoBody #-}
 
 ifNothing :: Error -> Maybe a -> Galley a

@@ -12,3 +12,7 @@ maxConns: 5000
 
 # File containing upstream secrets.
 secretsConfig: doc/example.config
+
+# Logging settings
+logLevel: Info
+logNetStrings: false

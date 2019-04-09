@@ -12,6 +12,7 @@ import Network.Wire.Bot
 import Network.Wire.Bot.Report
 import Network.Wire.Simulations.LoadTest
 import Options.Applicative.Extended
+import Data.Metrics (deprecatedRequestDurationHistogram)
 
 import qualified System.Logger as Log
 
@@ -46,9 +47,12 @@ main = do
             <> eventTypeSection TConvMemberStateUpdate
             <> eventTypeSection TConvOtrMessageAdd
             <> section "Timings"
-                [ Buckets "Post Message" postMessageTime
-                , Buckets "Post Asset" postAssetTime
-                , Buckets "Get Asset" getAssetTime
+                [ Histogram "Post Message" postMessageTime
+                                           (deprecatedRequestDurationHistogram postMessageTime)
+                , Histogram "Post Asset" postAssetTime
+                                         (deprecatedRequestDurationHistogram postAssetTime)
+                , Histogram "Get Asset" getAssetTime
+                                        (deprecatedRequestDurationHistogram getAssetTime)
                 ]
 
 parseOptions :: IO LoadTestSettings

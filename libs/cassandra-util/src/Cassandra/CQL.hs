@@ -1,36 +1,32 @@
+-- | This module just exports components from cassandra's Database.CQL.Protocol.
+
 module Cassandra.CQL (module C) where
 
-import Database.CQL.Protocol as C
-    ( Cql (..)
-    , Error (..)
-    , Value (..)
-    , Ascii (..)
-    , Blob (..)
-    , Counter (..)
-    , TimeUuid (..)
-    , Set (..)
-    , Map (..)
-    , Keyspace (..)
-    , Table (..)
-    , PagingState
-    , QueryId
-    , ColumnType (..)
-    , CompressionAlgorithm (..)
-    , Consistency (..)
-    , Tuple
-    , TupleType
-    , Record (..)
-    , recordInstance
-    , QueryString (..)
-    , QueryParams (..)
-    , SchemaChange
-    , BatchQuery (..)
-    , BatchType  (..)
-    , Batch      (..)
-    , Version    (..)
-    , Tagged     (..)
-    , retag
-    , R
-    , W
-    , S
-    )
+import Database.CQL.Protocol as C (
+  Keyspace(Keyspace),
+  Tagged(Tagged),
+  TimeUuid(TimeUuid),
+  Blob(Blob),
+  Ascii(Ascii),
+  Set(Set),
+  QueryString(QueryString),
+  QueryParams(QueryParams),
+  Consistency(One, Quorum, All),
+  BatchType(BatchLogged, BatchUnLogged),
+  Value(CqlInt, CqlBlob, CqlText, CqlUdt, CqlBigInt, CqlList, CqlAscii, CqlDouble, CqlBoolean),
+  ColumnType(IntColumn, BlobColumn, TextColumn, BigIntColumn, UdtColumn, TimestampColumn, ListColumn, AsciiColumn, DoubleColumn, MaybeColumn, UuidColumn, BooleanColumn),
+  Version(V3),
+  R,
+  W,
+  S,
+  Cql,
+  unKeyspace,
+  ctype,
+  toCql,
+  fromCql,
+  fromAscii,
+  fromSet,
+  fromBlob,
+  fromTimeUuid,
+  retag,
+  untag)

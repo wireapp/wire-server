@@ -1,18 +1,15 @@
-module CargoHold.API (runServer) where
+module CargoHold.API (sitemap) where
 
 import Imports hiding (head)
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (finally)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Predicate
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, Request, responseLBS)
@@ -20,11 +17,9 @@ import Network.Wai.Conduit (sourceRequestBody)
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import URI.ByteString
-import Util.Options
 
 import qualified CargoHold.API.V3              as V3
 import qualified CargoHold.API.V3.Resumable    as Resumable
@@ -34,25 +29,8 @@ import qualified CargoHold.TUS                 as TUS
 import qualified CargoHold.Types.V3            as V3
 import qualified CargoHold.Types.V3.Resumable  as V3
 import qualified Data.Swagger.Build.Api        as Doc
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Utilities.Server  as Server
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-runServer :: Opts -> IO ()
-runServer o = do
-    e <- newEnv o
-    s <- Server.newSettings (server e)
-    runSettingsWithShutdown s (pipeline e) 5
-        `finally` closeEnv e
-  where
-    rtree      = compile sitemap
-    server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.appLogger) (e^.metrics)
-               . GZip.gzip GZip.def
-               $ serve e
-
-    serve e r k = runHandler e r (Server.route rtree r k) k
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
@@ -97,8 +75,7 @@ sitemap = do
     post "/assets/v3/resumable" (continue createResumableV3) $
         header "Z-User"
         .&. header "Upload-Length"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @V3.ResumableSettings
 
     -- TODO (Compliance): Require and check Tus-Resumable header
     -- against supported version(s).
@@ -260,8 +237,8 @@ resumableOptionsV3 _ = do
     maxTotal <- view (settings.setMaxTotalBytes)
     return $ TUS.optionsResponse (fromIntegral maxTotal) empty
 
-createResumableV3 :: UserId ::: V3.TotalSize ::: Media "application" "json" ::: Request -> Handler Response
-createResumableV3 (u ::: size ::: _ ::: req) = do
+createResumableV3 :: UserId ::: V3.TotalSize ::: JsonRequest V3.ResumableSettings -> Handler Response
+createResumableV3 (u ::: size ::: req) = do
     sets <- parseBody req !>> Error.clientError
     res  <- Resumable.create (V3.UserPrincipal u) sets size
     let key = res^.V3.resumableAsset.V3.assetKey
@@ -269,13 +246,14 @@ createResumableV3 (u ::: size ::: _ ::: req) = do
     let loc = "/assets/v3/resumable/" <> toByteString' key
     return . TUS.createdResponse loc expiry $ json res
 
-statusResumableV3 :: UserId ::: V3.AssetKey  -> Handler Response
+statusResumableV3 :: UserId ::: V3.AssetKey -> Handler Response
 statusResumableV3 (u ::: a) = do
     stat <- Resumable.status (V3.UserPrincipal u) a
     return $ case stat of
         Nothing -> setStatus status404 empty
         Just st -> TUS.headResponse st empty
 
+-- Request = raw bytestring
 uploadResumableV3 :: UserId ::: V3.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: V3.AssetKey  ::: Request -> Handler Response
 uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
     (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
@@ -316,7 +294,10 @@ botDeleteV3 (bot ::: key) = do
 --------------------------------------------------------------------------------
 -- Helpers
 
-uploadSimpleV3 :: V3.Principal -> Request -> Handler Response
+uploadSimpleV3
+    :: V3.Principal
+    -> Request                 -- Raw bytestring
+    -> Handler Response
 uploadSimpleV3 prc req = do
     let src = sourceRequestBody req
     asset <- V3.upload prc src

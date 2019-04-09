@@ -10,7 +10,7 @@ module Work where
 
 import Imports
 import Brig.Types hiding (Client)
-import Cassandra hiding (pageSize)
+import Cassandra
 import Data.Id
 import System.Logger (Logger)
 import UnliftIO.Async (pooledMapConcurrentlyN)

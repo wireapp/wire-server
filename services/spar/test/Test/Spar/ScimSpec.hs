@@ -32,7 +32,7 @@ import qualified Web.Scim.Schema.User.Name as ScimN
 spec :: Spec
 spec = describe "toScimStoredUser'" $ do
   it "works" $ do
-    let usr :: Scim.User ScimUserExtra
+    let usr :: Scim.User SparTag
         usr = Scim.User
           { Scim.schemas = [Scim.User20,
                             Scim.CustomSchema "urn:wire:scim:schemas:profile:1.0"]
@@ -80,7 +80,7 @@ spec = describe "toScimStoredUser'" $ do
           URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
 
-        result :: ScimC.StoredUser ScimUserExtra
+        result :: ScimC.StoredUser SparTag
         result = toScimStoredUser' now' baseuri uid usr
 
     Scim.meta result `shouldBe` meta

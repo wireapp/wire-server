@@ -69,14 +69,14 @@ registerScimToken teamid midpid = do
 --
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
-randomScimUser :: MonadRandom m => m (Scim.User.User ScimUserExtra)
+randomScimUser :: MonadRandom m => m (Scim.User.User SparTag)
 randomScimUser = fst <$> randomScimUserWithSubject
 
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
 randomScimUserWithSubject
     :: (HasCallStack, MonadRandom m)
-    => m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
+    => m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
     fieldCount <- getRandomR (0, 3)
     fields <- replicateM fieldCount $
@@ -87,7 +87,7 @@ randomScimUserWithSubject = do
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo
     :: MonadRandom m
-    => RichInfo -> m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
+    => RichInfo -> m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
     suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
@@ -140,8 +140,8 @@ randomScimPhone = do
 createUser
     :: HasCallStack
     => ScimToken
-    -> Scim.User.User ScimUserExtra
-    -> TestSpar (Scim.StoredUser ScimUserExtra)
+    -> Scim.User.User SparTag
+    -> TestSpar (Scim.StoredUser SparTag)
 createUser tok user = do
     env <- ask
     r <- createUser_
@@ -156,8 +156,8 @@ updateUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> Scim.User.User ScimUserExtra
-    -> TestSpar (Scim.StoredUser ScimUserExtra)
+    -> Scim.User.User SparTag
+    -> TestSpar (Scim.StoredUser SparTag)
 updateUser tok userid user = do
     env <- ask
     r <- updateUser_
@@ -173,7 +173,7 @@ deleteUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> TestSpar (Scim.StoredUser ScimUserExtra)
+    -> TestSpar (Scim.StoredUser SparTag)
 deleteUser tok userid = do
     env <- ask
     r <- deleteUser_
@@ -188,7 +188,7 @@ listUsers
     :: HasCallStack
     => ScimToken
     -> Maybe Scim.Filter
-    -> TestSpar [(Scim.StoredUser ScimUserExtra)]
+    -> TestSpar [(Scim.StoredUser SparTag)]
 listUsers tok mbFilter = do
     env <- ask
     r <- listUsers_
@@ -207,7 +207,7 @@ getUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> TestSpar (Scim.StoredUser ScimUserExtra)
+    -> TestSpar (Scim.StoredUser SparTag)
 getUser tok userid = do
     env <- ask
     r <- getUser_
@@ -265,7 +265,7 @@ listTokens zusr = do
 -- | Create a user.
 createUser_
     :: Maybe ScimToken               -- ^ Authentication
-    -> Scim.User.User ScimUserExtra  -- ^ User data
+    -> Scim.User.User SparTag        -- ^ User data
     -> SparReq                       -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 createUser_ auth user spar_ = do
@@ -290,7 +290,7 @@ updateUser_
     :: Maybe ScimToken               -- ^ Authentication
     -> Maybe UserId                  -- ^ User to update; when not provided, the request will
                                      --   return 4xx
-    -> Scim.User.User ScimUserExtra  -- ^ User data
+    -> Scim.User.User SparTag        -- ^ User data
     -> SparReq                       -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 updateUser_ auth muid user spar_ = do
@@ -406,11 +406,8 @@ acceptScim :: Request -> Request
 acceptScim = accept "application/scim+json"
 
 -- | Get ID of a user returned from SCIM.
-scimUserId :: Scim.StoredUser ScimUserExtra -> UserId
-scimUserId storedUser = either err id (readEither id_)
-  where
-    id_ = cs (Scim.id (Scim.thing storedUser))
-    err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
+scimUserId :: Scim.StoredUser SparTag -> UserId
+scimUserId = Scim.id . Scim.thing
 
 -- | There are a number of user types that all partially map on each other. This class
 -- provides a uniform interface to data stored in those types.
@@ -446,21 +443,24 @@ instance IsUser ValidScimUser where
     maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
     maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
 
-instance IsUser (Scim.StoredUser ScimUserExtra) where
-    maybeUserId = Just scimUserId
-    maybeHandle = maybeHandle <&> \f -> f . Scim.value . Scim.thing
-    maybeName = maybeName <&> \f -> f . Scim.value . Scim.thing
-    maybeTenant = maybeTenant <&> \f -> f . Scim.value . Scim.thing
-    maybeSubject = maybeSubject <&> \f -> f . Scim.value . Scim.thing
-    maybeSubjectRaw = maybeSubjectRaw <&> \f -> f . Scim.value . Scim.thing
+instance IsUser (WrappedScimStoredUser SparTag) where
+    maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
+    maybeHandle = maybeHandle <&> _wrappedStoredUserToWrappedUser
+    maybeName = maybeName <&> _wrappedStoredUserToWrappedUser
+    maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
+    maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
+    maybeSubjectRaw = maybeSubjectRaw <&> _wrappedStoredUserToWrappedUser
 
-instance IsUser (Scim.User.User ScimUserExtra) where
+_wrappedStoredUserToWrappedUser :: (WrappedScimUser tag -> a) -> (WrappedScimStoredUser tag -> a)
+_wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thing . fromWrappedScimStoredUser
+
+instance IsUser (WrappedScimUser SparTag) where
     maybeUserId = Nothing
-    maybeHandle = Just (Just . Handle . Scim.User.userName)
-    maybeName = Just (fmap Name . Scim.User.displayName)
+    maybeHandle = Just (Just . Handle . Scim.User.userName . fromWrappedScimUser)
+    maybeName = Just (fmap Name . Scim.User.displayName. fromWrappedScimUser)
     maybeTenant = Nothing
     maybeSubject = Nothing
-    maybeSubjectRaw = Just Scim.User.externalId
+    maybeSubjectRaw = Just $ Scim.User.externalId . fromWrappedScimUser
 
 instance IsUser User where
     maybeUserId = Just userId

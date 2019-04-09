@@ -45,7 +45,7 @@ run o = do
         middlewares :: Middleware
         middlewares = waiPrometheusMiddleware sitemap
                     . measured
-                    . catchErrors l m
+                    . catchErrors l [Right m]
                     . GZip.gunzip
                     . GZip.gzip GZip.def
     runSettingsWithShutdown s (middlewares app) 5 `finally` do

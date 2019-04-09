@@ -57,7 +57,6 @@ data TestSetup = TestSetup
 
 makeLenses ''TestSetup
 
-
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
   where

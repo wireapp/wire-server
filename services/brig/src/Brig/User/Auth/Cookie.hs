@@ -100,9 +100,8 @@ renewCookie :: Cookie ZAuth.UserToken -> AppIO (Cookie ZAuth.UserToken)
 renewCookie old = do
     let t = cookieValue old
     let u = ZAuth.userTokenOf t
-    new <- newCookie u (cookieType old) (cookieLabel old)
     -- Insert new cookie
-    DB.insertCookie u new Nothing
+    new <- newCookie u (cookieType old) (cookieLabel old)
     -- Link the old cookie to the new (successor), keeping it
     -- around only for another renewal period so as not to build
     -- an ever growing chain of superseded cookies.

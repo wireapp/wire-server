@@ -12,6 +12,7 @@ module Spar.Intra.Brig
   , setBrigUserHandle
   , setBrigUserManagedBy
   , setBrigUserRichInfo
+  , checkHandleAvailable
   , bindBrigUser
   , deleteBrigUser
   , createBrigUser
@@ -45,7 +46,6 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie
 
-import qualified Data.Text as Text
 import qualified SAML2.WebSSO as SAML
 
 
@@ -89,7 +89,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
 
--- | Create a user on brig.
+-- | Create a user on brig.  User name is derived from 'SAML.UserRef'.
 createBrigUser
   :: (HasCallStack, MonadSparToBrig m)
   => SAML.UserRef    -- ^ SSO identity
@@ -102,11 +102,15 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
-      let subject = suid ^. SAML.uidSubject
-          badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
-          mkName  = Name . fromRange <$>
-                    (fmap (Text.take 128) . SAML.shortShowNameID >=> checked @ST @1 @128) subject
-      maybe badName pure mkName
+      -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
+      --    unique.
+      let subj    = suid ^. SAML.uidSubject
+          subjtxt = SAML.unsafeShowNameID subj
+          muname  = checked @ST @1 @128 subjtxt
+          err     = SparBadUserName $ "must have >= 1, <= 128 chars: " <> cs subjtxt
+      case muname of
+        Just uname -> pure . Name . fromRange $ uname
+        Nothing    -> throwSpar err
 
   let newUser :: NewUser
       newUser = NewUser
@@ -254,6 +258,25 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
+-- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
+-- anything but authorization.
+checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m Bool
+checkHandleAvailable hnd buid = do
+  resp <- call
+    $ method HEAD
+    . paths ["users", "handles", toByteString' hnd]
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+  let sCode = statusCode resp
+  if | sCode == 200  -- handle exists
+       -> pure False
+     | sCode == 404  -- handle not found
+       -> pure True
+     | sCode < 500
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
+
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
 bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
@@ -273,9 +296,9 @@ deleteBrigUser buid = do
   if
     | sCode < 300 -> pure ()
     | inRange (400, 499) sCode
-      -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "failed to delete user"
-    | otherwise -> throwSpar . SparBrigError . cs
-      $ "delete user failed with status " <> show sCode
+      -> throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
+    | otherwise
+      -> throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool

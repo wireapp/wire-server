@@ -4,18 +4,19 @@ import Imports
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.Phone
-import Brig.Types.Intra (reAuthPassword)
+import Brig.Types.Intra (reAuthPassword, ReAuthUser)
 import Brig.Types.User.Auth
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response)
+import Network.Wai (Response)
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Response (json, empty)
+import Network.Wai.Utilities.Request (jsonRequest, JsonRequest)
 import Network.Wai.Utilities.Swagger (document)
 
 import qualified Brig.API.User                 as User
@@ -54,8 +55,7 @@ routes = do
     --
 
     post "/login/send" (continue sendLoginCode) $
-        contentType "application" "json"
-        .&. request
+        jsonRequest @SendLoginCode
 
     document "POST" "sendLoginCode" $ do
         Doc.summary "Send a login code to a verified phone number."
@@ -73,10 +73,9 @@ routes = do
     --
 
     post "/login" (continue login) $
-        request
+        jsonRequest @Login
         .&. def False (query "persist")
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "login" $ do
         Doc.summary "Authenticate a user to obtain a cookie and first access token."
@@ -129,7 +128,8 @@ routes = do
     --
 
     post "/cookies/remove" (continue rmCookies) $
-        header "Z-User" .&. request .&. contentType "application" "json"
+        header "Z-User"
+        .&. jsonRequest @RemoveCookies
 
     document "POST" "rmCookies" $ do
         Doc.summary "Revoke stored cookies."
@@ -139,24 +139,22 @@ routes = do
     -- Internal
 
     post "/i/sso-login" (continue ssoLogin) $
-        request
+        jsonRequest @SsoLogin
         .&. def False (query "persist")
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     get "/i/users/login-code" (continue getLoginCode) $
         accept "application" "json"
         .&. param "phone"
 
     get "/i/users/:id/reauthenticate" (continue reAuthUser) $
-        contentType "application" "json"
-        .&. capture "id"
-        .&. request
+        capture "id"
+        .&. jsonRequest @ReAuthUser
 
 -- Handlers
 
-sendLoginCode :: JSON ::: Request -> Handler Response
-sendLoginCode (_ ::: req) = do
+sendLoginCode :: JsonRequest SendLoginCode -> Handler Response
+sendLoginCode req = do
     SendLoginCode phone call force <- parseJsonBody req
     checkWhitelist (Right phone)
     c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
@@ -167,20 +165,20 @@ getLoginCode (_ ::: phone) = do
     code <- lift $ Auth.lookupLoginCode phone
     maybe (throwStd loginCodeNotFound) (return . json) code
 
-reAuthUser :: JSON ::: UserId ::: Request -> Handler Response
-reAuthUser (_ ::: uid ::: req) = do
+reAuthUser :: UserId ::: JsonRequest ReAuthUser -> Handler Response
+reAuthUser (uid ::: req) = do
     body <- parseJsonBody req
     User.reauthenticate uid (reAuthPassword body) !>> reauthError
     return empty
 
-login :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
+login :: JsonRequest Login ::: Bool ::: JSON -> Handler Response
 login (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
     a <- Auth.login l typ !>> loginError
     tokenResponse a
 
-ssoLogin :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
+ssoLogin :: JsonRequest SsoLogin ::: Bool ::: JSON -> Handler Response
 ssoLogin (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
@@ -200,8 +198,8 @@ listCookies (u ::: ll ::: _) = do
     cs <- lift $ Auth.listCookies u (maybe [] fromList ll)
     return . json $ CookieList cs
 
-rmCookies :: UserId ::: Request ::: JSON -> Handler Response
-rmCookies (uid ::: req ::: _) = do
+rmCookies :: UserId ::: JsonRequest RemoveCookies -> Handler Response
+rmCookies (uid ::: req) = do
     RemoveCookies pw lls ids <- parseJsonBody req
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty

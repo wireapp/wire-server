@@ -17,9 +17,10 @@ library:
   exposed-modules:
   - Cannon.API
   - Cannon.Dict
+  - Cannon.Options
+  - Cannon.Run
   - Cannon.Types
   - Cannon.WS
-  - Cannon.Options
   dependencies:
   - base >=4.6 && <5
   - aeson >=0.11
@@ -40,6 +41,7 @@ library:
   - metrics-wai >=0.4
   - mtl >=2.2
   - mwc-random >=0.13
+  - prometheus-client
   - retry >=0.7
   - singletons >=2.0
   - strict >=0.3.2

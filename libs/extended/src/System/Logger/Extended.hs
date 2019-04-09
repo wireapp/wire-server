@@ -2,7 +2,8 @@
 {-# LANGUAGE DerivingStrategies         #-}
 -- | Tinylog convenience things.
 module System.Logger.Extended
-    ( mkLogger
+    ( module Log
+    , mkLogger
     , mkLogger'
     , LoggerT(..)
     , runWithLogger
@@ -12,7 +13,7 @@ import Imports
 import Control.Monad.Catch
 import Database.CQL.IO
 
-import qualified System.Logger as Log
+import System.Logger as Log
 import qualified System.Logger.Class as LC
 
 mkLogger :: Log.Level -> Bool -> IO Log.Logger
@@ -37,7 +38,7 @@ mkLogger' = Log.new
 -- may need it elsewhere in the future and here it's easier to find.
 newtype LoggerT m a = LoggerT {runLoggerT :: ReaderT Log.Logger m a}
     deriving newtype
-        (Functor
+        ( Functor
         , Applicative
         , Monad
         , MonadIO

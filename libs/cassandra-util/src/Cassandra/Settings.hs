@@ -1,37 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- | This module exports types and functions from Database.CQL.IO, while adding a few wire specific functions.
 module Cassandra.Settings
-    ( Settings
-    , defSettings
-    , setProtocolVersion
-    , setCompression
-    , setContacts
-    , addContact
-    , setKeyspace
-    , setPortNumber
-    , setIdleTimeout
-    , setMaxConnections
-    , setMaxStreams
-    , setPoolStripes
-    , setConnectTimeout
-    , setSendTimeout
-    , setMaxTimeouts
-    , setPrepareStrategy
-    , setResponseTimeout
-    , setRetrySettings
-    , setPolicy
-    , setLogger
-    , mkLogger
-    , initialContactsDisco
-    , initialContactsPlain
-    ) where
+  ( module C
+  , initialContactsDisco
+  , initialContactsPlain
+  ) where
 
 import Imports
 import Control.Lens
 import Data.Aeson.Lens
-import Database.CQL.IO hiding (values)
-import Database.CQL.IO.Tinylog (mkLogger)
+import Database.CQL.IO as C (Settings, Policy, setLogger, setPolicy, setRetrySettings, setResponseTimeout, setPrepareStrategy, setMaxTimeouts, setSendTimeout, setConnectTimeout, setPoolStripes, setMaxStreams, setMaxConnections, setIdleTimeout, setPortNumber, setKeyspace, addContact, setContacts, setCompression, setProtocolVersion, defSettings)
+import Database.CQL.IO.Tinylog as C (mkLogger)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
 import Network.Wreq

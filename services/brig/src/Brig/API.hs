@@ -1,10 +1,9 @@
 {-# LANGUAGE RecordWildCards   #-}
 
-module Brig.API (runServer) where
+module Brig.API (sitemap) where
 
 import Imports hiding (head)
 import Brig.App
-import Brig.AWS (sesQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
@@ -17,54 +16,41 @@ import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (finally)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Misc (IpAddr (..))
 import Data.Range
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
+import Network.Wai (Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
 import qualified Data.List1                    as List1
-import qualified Control.Concurrent.Async      as Async
 import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
 import qualified Brig.Data.User                as Data
-import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
-import qualified Brig.AWS                      as AWS
-import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.InternalEvent.Process    as Internal
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Galley.Types.Swagger          as Doc
 import qualified Galley.Types.Teams            as Team
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Utilities         as Utilities
 import qualified Data.ByteString.Lazy          as Lazy
 import qualified Data.Map.Strict               as Map
-import qualified Network.Wai.Utilities.Server  as Server
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Brig.Provider.API             as Provider
@@ -72,31 +58,6 @@ import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
 import qualified System.Logger.Class           as Log
-
-runServer :: Opts -> IO ()
-runServer o = do
-    e <- newEnv o
-    s <- Server.newSettings (server e)
-    emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
-        Async.async $
-        AWS.execute (e^.awsEnv) $
-        AWS.listen q (runAppT e . SesNotification.onEvent)
-    internalEventListener <- Async.async $
-        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
-    runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        mapM_ Async.cancel emailListener
-        Async.cancel internalEventListener
-        closeEnv e
-  where
-    rtree      = compile (sitemap o)
-    endpoint   = brig o
-    server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
-               . catchErrors (e^.applog) (e^.metrics)
-               . GZip.gunzip . GZip.gzip GZip.def
-               $ serve e
-
-    serve e r k = runHandler e r (Server.route rtree r k) k
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -114,20 +75,17 @@ sitemap o = do
 
     post "/i/users/:id/auto-connect" (continue autoConnect) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. capture "id"
         .&. opt (header "Z-Connection")
-        .&. request
+        .&. jsonRequest @UserSet
 
     post "/i/users" (continue createUserNoVerify) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @NewUser
 
     put "/i/self/email" (continue changeSelfEmailNoSend) $
-        contentType "application" "json"
-        .&. header "Z-User"
-        .&. request
+        header "Z-User"
+        .&. jsonRequest @EmailUpdate
 
     delete "/i/users/:id" (continue deleteUserNoVerify) $
         capture "id"
@@ -138,8 +96,7 @@ sitemap o = do
 
     post "/i/users/connections-status" (continue getConnectionsStatus) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @ConnectionsStatusRequest
         .&. opt (query "filter")
 
     get "/i/users" (continue listActivatedAccounts) $
@@ -151,9 +108,8 @@ sitemap o = do
         .&. (param "email" ||| param "phone")
 
     put "/i/users/:id/status" (continue changeAccountStatus) $
-        contentType "application" "json"
-        .&. capture "id"
-        .&. request
+        capture "id"
+        .&. jsonRequest @AccountStatusUpdate
 
     get "/i/users/:id/status" (continue getAccountStatus) $
         accept "application" "json"
@@ -193,8 +149,7 @@ sitemap o = do
 
     post "/i/users/phone-prefixes" (continue addPhonePrefix) $
       accept "application" "json"
-      .&. contentType "application" "json"
-      .&. request
+      .&. jsonRequest @ExcludedPrefix
 
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
@@ -209,25 +164,21 @@ sitemap o = do
     put "/i/users/:uid/sso-id" (continue updateSSOId) $
       capture "uid"
       .&. accept "application" "json"
-      .&. contentType "application" "json"
-      .&. request
+      .&. jsonRequest @UserSSOId
 
     put "/i/users/:uid/managed-by" (continue updateManagedBy) $
       capture "uid"
       .&. accept "application" "json"
-      .&. contentType "application" "json"
-      .&. request
+      .&. jsonRequest @ManagedByUpdate
 
     put "/i/users/:uid/rich-info" (continue updateRichInfo) $
       capture "uid"
       .&. accept "application" "json"
-      .&. contentType "application" "json"
-      .&. request
+      .&. jsonRequest @RichInfoUpdate
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
-      .&. contentType "application" "json"
-      .&. request
+      .&. jsonRequest @UserSet
 
     -- /users -----------------------------------------------------------------
 
@@ -270,9 +221,8 @@ sitemap o = do
 
     post "/users/handles" (continue checkHandles) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. header "Z-User"
-        .&. request
+        .&. jsonRequest @CheckHandles
 
     document "POST" "checkUserHandles" $ do
         Doc.summary "Check availability of user handles"
@@ -328,8 +278,7 @@ sitemap o = do
     ---
 
     post "/users/prekeys" (continue getMultiPrekeyBundles) $
-        request
-        .&. contentType "application" "json"
+        jsonRequest @UserClients
         .&. accept "application" "json"
 
     document "POST" "getMultiPrekeyBundles" $ do
@@ -432,10 +381,9 @@ sitemap o = do
     ---
 
     put "/self" (continue updateUser) $
-        contentType "application" "json"
-        .&. header "Z-User"
+        header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @UserUpdate
 
     document "PUT" "updateSelf" $ do
         Doc.summary "Update your profile"
@@ -457,10 +405,9 @@ sitemap o = do
     ---
 
     put "/self/email" (continue changeSelfEmail) $
-        contentType "application" "json"
-        .&. header "Z-User"
+        header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @EmailUpdate
 
     document "PUT" "changeEmail" $ do
         Doc.summary "Change your email address"
@@ -476,10 +423,9 @@ sitemap o = do
     ---
 
     put "/self/phone" (continue changePhone) $
-        contentType "application" "json"
-        .&. header "Z-User"
+        header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @PhoneUpdate
 
     document "PUT" "changePhone" $ do
         Doc.summary "Change your phone number"
@@ -501,9 +447,8 @@ sitemap o = do
     ---
 
     put "/self/password" (continue changePassword) $
-        contentType "application" "json"
-        .&. header "Z-User"
-        .&. request
+        header "Z-User"
+        .&. jsonRequest @PasswordChange
 
     document "PUT" "changePassword" $ do
         Doc.summary "Change your password"
@@ -516,10 +461,9 @@ sitemap o = do
     --
 
     put "/self/locale" (continue changeLocale) $
-        contentType "application" "json"
-        .&. header "Z-User"
+        header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @LocaleUpdate
 
     document "PUT" "changeLocale" $ do
         Doc.summary "Change your locale"
@@ -530,10 +474,9 @@ sitemap o = do
     --
 
     put "/self/handle" (continue changeHandle) $
-        contentType "application" "json"
-        .&. header "Z-User"
+        header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @HandleUpdate
 
     document "PUT" "changeHandle" $ do
         Doc.summary "Change your handle"
@@ -576,8 +519,7 @@ sitemap o = do
 
     delete "/self" (continue deleteUser) $
         header "Z-User"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @DeleteUser
         .&. accept "application" "json"
 
     document "DELETE" "deleteUser" $ do
@@ -598,8 +540,7 @@ sitemap o = do
     ---
 
     post "/delete" (continue verifyDeleteUser) $
-        request
-        .&. contentType "application" "json"
+        jsonRequest @VerifyDeleteUser
         .&. accept "application" "json"
 
     document "POST" "verifyDeleteUser" $ do
@@ -613,10 +554,9 @@ sitemap o = do
 
     post "/connections" (continue createConnection) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @ConnectionRequest
 
     document "POST" "createConnection" $ do
         Doc.summary "Create a connection to another user."
@@ -655,11 +595,10 @@ sitemap o = do
 
     put "/connections/:id" (continue updateConnection) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
         .&. capture "id"
-        .&. request
+        .&. jsonRequest @ConnectionUpdate
 
     document "PUT" "updateConnection" $ do
         Doc.summary "Update a connection."
@@ -692,12 +631,11 @@ sitemap o = do
     --- Clients
 
     post "/clients" (continue addClient) $
-        request
+        jsonRequest @NewClient
         .&. header "Z-User"
         .&. header "Z-Connection"
         .&. opt (header "X-Forwarded-For")
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "registerClient" $ do
         Doc.summary "Register a new client."
@@ -712,11 +650,10 @@ sitemap o = do
     ---
 
     put "/clients/:client" (continue updateClient) $
-        request
+        jsonRequest @UpdateClient
         .&. header "Z-User"
         .&. capture "client"
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "PUT" "updateClient" $ do
         Doc.summary "Update a registered client."
@@ -730,12 +667,11 @@ sitemap o = do
     ---
 
     delete "/clients/:client" (continue rmClient) $
-        request
+        jsonRequest @RmClient
         .&. header "Z-User"
         .&. header "Z-Connection"
         .&. capture "client"
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "DELETE" "deleteClient" $ do
         Doc.summary "Delete an existing client."
@@ -790,8 +726,7 @@ sitemap o = do
         header "Z-User"
         .&. header "Z-Connection"
         .&. capture "key"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @PropertyValue
 
     document "PUT" "setProperty" $ do
         Doc.summary "Set a user property."
@@ -864,8 +799,7 @@ sitemap o = do
 
     post "/register" (continue createUser) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @NewUserPublic
 
     document "POST" "register" $ do
         Doc.summary "Register a new user."
@@ -906,8 +840,7 @@ sitemap o = do
 
     post "/activate" (continue activateKey) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @Activate
 
     document "POST" "activate" $ do
         Doc.summary "Activate (i.e. confirm) an email address or phone number."
@@ -923,8 +856,7 @@ sitemap o = do
     ---
 
     post "/activate/send" (continue sendActivationCode) $
-        contentType "application" "json"
-        .&. request
+        jsonRequest @SendActivationCode
 
     document "POST" "sendActivationCode" $ do
         Doc.summary "Send (or resend) an email or phone activation code."
@@ -941,8 +873,7 @@ sitemap o = do
 
     post "/password-reset" (continue beginPasswordReset) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @NewPasswordReset
 
     document "POST" "beginPasswordReset" $ do
         Doc.summary "Initiate a password reset."
@@ -956,8 +887,7 @@ sitemap o = do
 
     post "/password-reset/complete" (continue completePasswordReset) $
         accept "application" "json"
-        .&. contentType "application" "json"
-        .&. request
+        .&. jsonRequest @CompletePasswordReset
 
     document "POST" "completePasswordReset" $ do
         Doc.summary "Complete a password reset."
@@ -970,9 +900,8 @@ sitemap o = do
 
     post "/password-reset/:key" (continue deprecatedCompletePasswordReset) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. capture "key"
-        .&. request
+        .&. jsonRequest @PasswordReset
 
     document "POST" "deprecatedCompletePasswordReset" $ do
         Doc.deprecated
@@ -983,9 +912,8 @@ sitemap o = do
 
     post "/onboarding/v3" (continue onboarding) $
         accept "application" "json"
-        .&. contentType "application" "json"
         .&. header "Z-User"
-        .&. request
+        .&. jsonRequest @AddressBook
 
     document "POST" "onboardingV3" $ do
         Doc.summary "Upload contacts and invoke matching. Returns the list of Matches"
@@ -1004,11 +932,11 @@ sitemap o = do
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: UserId ::: ConnId ::: PropertyKey ::: Request ::: JSON -> Handler Response
-setProperty (u ::: c ::: k ::: req ::: _) = do
+setProperty :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
+setProperty (u ::: c ::: k ::: req) = do
     unless (Text.compareLength (Ascii.toText (propertyKeyName k)) maxKeyLen <= EQ) $
         throwStd propertyKeyTooLarge
-    lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody req)
+    lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody (fromJsonRequest req))
     unless (Lazy.length lbs <= maxValueLen) $
         throwStd propertyValueTooLarge
     val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
@@ -1047,7 +975,7 @@ getPrekey (u ::: c ::: _) = do
 getPrekeyBundle :: UserId ::: JSON -> Handler Response
 getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 
-getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
+getMultiPrekeyBundles :: JsonRequest UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
     maxSize <- fromIntegral . setMaxConvSize <$> view settings
@@ -1055,7 +983,7 @@ getMultiPrekeyBundles (req ::: _) = do
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
-addClient :: Request ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON ::: JSON -> Handler Response
+addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClient (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
     clt <- API.addClient usr con (ipAddr <$> ip) new !>> clientError
@@ -1063,13 +991,13 @@ addClient (req ::: usr ::: con ::: ip ::: _) = do
            . addHeader "Location" (toByteString' $ clientId clt)
            $ json clt
 
-rmClient :: Request ::: UserId ::: ConnId ::: ClientId ::: JSON ::: JSON -> Handler Response
+rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
 
-updateClient :: Request ::: UserId ::: ClientId ::: JSON ::: JSON -> Handler Response
+updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClient (req ::: usr ::: clt ::: _) = do
     body <- parseJsonBody req
     API.updateClient usr clt body !>> clientError
@@ -1078,8 +1006,8 @@ updateClient (req ::: usr ::: clt ::: _) = do
 listClients :: UserId ::: JSON -> Handler Response
 listClients (usr ::: _) = json <$> lift (API.lookupClients usr)
 
-internalListClients :: JSON ::: JSON ::: Request -> Handler Response
-internalListClients (_ ::: _ ::: req) = do
+internalListClients :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListClients (_ ::: req) = do
     UserSet usrs <- parseJsonBody req
     ucs <- Map.fromList <$> lift (API.lookupUsersClientIds $ Set.toList usrs)
     return $ json (UserClients ucs)
@@ -1117,8 +1045,8 @@ getRichInfo (self ::: user ::: _) = do
 listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
-autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
-autoConnect (_ ::: _ ::: uid ::: conn ::: req) = do
+autoConnect :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
+autoConnect (_ ::: uid ::: conn ::: req) = do
     UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
@@ -1128,8 +1056,8 @@ autoConnect (_ ::: _ ::: uid ::: conn ::: req) = do
     conns <- API.autoConnect uid to conn !>> connError
     return $ json conns
 
-createUser :: JSON ::: JSON ::: Request -> Handler Response
-createUser (_ ::: _ ::: req) = do
+createUser :: JSON ::: JsonRequest NewUserPublic -> Handler Response
+createUser (_ ::: req) = do
     NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
@@ -1167,8 +1095,8 @@ createUser (_ ::: _ ::: req) = do
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMemberSSO _) l = Team.sendMemberWelcomeMail e t n l
 
-createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
-createUserNoVerify (_ ::: _ ::: req) = do
+createUserNoVerify :: JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerify (_ ::: req) = do
     (uData :: NewUser)  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
@@ -1190,8 +1118,8 @@ deleteUserNoVerify uid = do
     lift $ API.deleteUserNoVerify uid
     return $ setStatus status202 empty
 
-changeSelfEmailNoSend :: JSON ::: UserId ::: Request -> Handler Response
-changeSelfEmailNoSend (_ ::: u ::: req) = changeEmail u req False
+changeSelfEmailNoSend :: UserId ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailNoSend (u ::: req) = changeEmail u req False
 
 checkUserExists :: UserId ::: UserId -> Handler Response
 checkUserExists (self ::: uid) = do
@@ -1257,14 +1185,14 @@ getPasswordResetCode (_ ::: emailOrPhone) = do
   where
     found (k, c) = json $ object [ "key" .= k, "code" .= c ]
 
-updateUser :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-updateUser (_ ::: uid ::: conn ::: req) = do
+updateUser :: UserId ::: ConnId ::: JsonRequest UserUpdate -> Handler Response
+updateUser (uid ::: conn ::: req) = do
     uu <- parseJsonBody req
     lift $ API.updateUser uid conn uu
     return empty
 
-changeAccountStatus :: JSON ::: UserId ::: Request -> Handler Response
-changeAccountStatus (_ ::: usr ::: req) = do
+changeAccountStatus :: UserId ::: JsonRequest AccountStatusUpdate -> Handler Response
+changeAccountStatus (usr ::: req) = do
     status <- suStatus <$> parseJsonBody req
     API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
     return empty
@@ -1276,8 +1204,8 @@ getAccountStatus (_ ::: usr) = do
         Just s  -> json $ object ["status" .= s]
         Nothing -> setStatus status404 empty
 
-changePhone :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changePhone (_ ::: u ::: _ ::: req) = do
+changePhone :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
+changePhone (u ::: _ ::: req) = do
     phone <- puPhone <$> parseJsonBody req
     (adata, pn) <- API.changePhone u phone !>> changePhoneError
     loc   <- lift $ API.lookupLocale u
@@ -1300,14 +1228,14 @@ checkPasswordExists self = do
     exists <- lift $ isJust <$> API.lookupPassword self
     return $ if exists then empty else setStatus status404 empty
 
-changePassword :: JSON ::: UserId ::: Request -> Handler Response
-changePassword (_ ::: u ::: req) = do
+changePassword :: UserId ::: JsonRequest PasswordChange -> Handler Response
+changePassword (u ::: req) = do
     cp <- parseJsonBody req
     API.changePassword u cp !>> changePwError
     return empty
 
-changeLocale :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changeLocale (_ ::: u ::: conn ::: req) = do
+changeLocale :: UserId ::: ConnId ::: JsonRequest LocaleUpdate -> Handler Response
+changeLocale (u ::: conn ::: req) = do
     l <- parseJsonBody req
     lift $ API.changeLocale u conn l
     return empty
@@ -1326,8 +1254,8 @@ checkHandle (_ ::: h) = do
         -- Handle is free and can be taken
         -> return $ setStatus status404 empty
 
-checkHandles :: JSON ::: JSON ::: UserId ::: Request -> Handler Response
-checkHandles (_ ::: _ ::: _ ::: req) = do
+checkHandles :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
+checkHandles (_ ::: _ ::: req) = do
     CheckHandles hs num <- parseJsonBody req
     let handles = mapMaybe parseHandle (fromRange hs)
     free <- lift $ API.checkHandles handles (fromRange num)
@@ -1340,18 +1268,18 @@ getHandleInfo (_ ::: _ ::: h) = do
         Just  u -> json (UserHandleInfo u)
         Nothing -> setStatus status404 empty
 
-changeHandle :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changeHandle (_ ::: u ::: conn ::: req) = do
+changeHandle :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
+changeHandle (u ::: conn ::: req) = do
     HandleUpdate h <- parseJsonBody req
     handle <- validateHandle h
     API.changeHandle u conn handle !>> changeHandleError
     return empty
 
-activateKey :: JSON ::: JSON ::: Request -> Handler Response
-activateKey (_ ::: _ ::: req) = parseJsonBody req >>= activate
+activateKey :: JSON ::: JsonRequest Activate -> Handler Response
+activateKey (_ ::: req) = parseJsonBody req >>= activate
 
-beginPasswordReset :: JSON ::: JSON ::: Request -> Handler Response
-beginPasswordReset (_ ::: _ ::: req) = do
+beginPasswordReset :: JSON ::: JsonRequest NewPasswordReset -> Handler Response
+beginPasswordReset (_ ::: req) = do
     NewPasswordReset target <- parseJsonBody req
     checkWhitelist target
     (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -1361,21 +1289,21 @@ beginPasswordReset (_ ::: _ ::: req) = do
         Right phone -> sendPasswordResetSms  phone pair loc
     return $ setStatus status201 empty
 
-completePasswordReset :: JSON ::: JSON ::: Request -> Handler Response
-completePasswordReset (_ ::: _ ::: req) = do
+completePasswordReset :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordReset (_ ::: req) = do
     CompletePasswordReset{..} <- parseJsonBody req
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
     return empty
 
-sendActivationCode :: JSON ::: Request -> Handler Response
-sendActivationCode (_ ::: req) = do
+sendActivationCode :: JsonRequest SendActivationCode -> Handler Response
+sendActivationCode req = do
     SendActivationCode{..} <- parseJsonBody req
     checkWhitelist saUserKey
     API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
     return empty
 
-changeSelfEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changeSelfEmail (_ ::: u ::: _ ::: req) = changeEmail u req True
+changeSelfEmail :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmail (u ::: _ ::: req) = changeEmail u req True
 
 -- Deprecated and to be removed after new versions of brig and galley are
 -- deployed. Reason for deprecation: it returns N^2 things (which is not
@@ -1389,25 +1317,25 @@ deprecatedGetConnectionsStatus (users ::: flt) = do
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
 getConnectionsStatus
-    :: JSON ::: JSON ::: Request ::: Maybe Relation
+    :: JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation
     -> Handler Response
-getConnectionsStatus (_ ::: _ ::: req ::: flt) = do
+getConnectionsStatus (_ ::: req ::: flt) = do
     ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
     r <- lift $ API.lookupConnectionStatus csrFrom csrTo
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
-createConnection :: JSON ::: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-createConnection (_ ::: _ ::: self ::: conn ::: req) = do
+createConnection :: JSON ::: UserId ::: ConnId ::: JsonRequest ConnectionRequest -> Handler Response
+createConnection (_ ::: self ::: conn ::: req) = do
     cr <- parseJsonBody req
     rs <- API.createConnection self cr conn !>> connError
     return $ case rs of
         ConnectionCreated c -> setStatus status201 $ json c
         ConnectionExists  c -> json c
 
-updateConnection :: JSON ::: JSON ::: UserId ::: ConnId ::: UserId ::: Request -> Handler Response
-updateConnection (_ ::: _ ::: self ::: conn ::: other ::: req) = do
+updateConnection :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest ConnectionUpdate -> Handler Response
+updateConnection (_ ::: self ::: conn ::: other ::: req) = do
     newStatus <- cuStatus <$> parseJsonBody req
     mc <- API.updateConnection self other newStatus (Just conn) !>> connError
     return $ case mc of
@@ -1460,8 +1388,8 @@ deleteFromPhonePrefix prefix = do
     void . lift $ API.phonePrefixDelete prefix
     return empty
 
-addPhonePrefix :: JSON ::: JSON ::: Request -> Handler Response
-addPhonePrefix (_ ::: _ ::: req) = do
+addPhonePrefix :: JSON ::: JsonRequest ExcludedPrefix -> Handler Response
+addPhonePrefix (_ ::: req) = do
     prefix :: ExcludedPrefix <- parseJsonBody req
     void . lift $ API.phonePrefixInsert prefix
     return empty
@@ -1488,22 +1416,22 @@ isTeamOwner (uid ::: tid) = do
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
 
-updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
-updateSSOId (uid ::: _ ::: _ ::: req) = do
+updateSSOId :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
+updateSSOId (uid ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
     success <- lift $ Data.updateSSOId uid ssoid
     if success
       then return empty
       else return . setStatus status404 $ plain "User does not exist or has no team."
 
-updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
-updateManagedBy (uid ::: _ ::: _ ::: req) = do
+updateManagedBy :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
+updateManagedBy (uid ::: _ ::: req) = do
     ManagedByUpdate managedBy <- parseJsonBody req
     lift $ Data.updateManagedBy uid managedBy
     return empty
 
-updateRichInfo :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
-updateRichInfo (uid ::: _ ::: _ ::: req) = do
+updateRichInfo :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
+updateRichInfo (uid ::: _ ::: req) = do
     richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
     maxSize <- setRichInfoLimit <$> view settings
     when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
@@ -1512,22 +1440,22 @@ updateRichInfo (uid ::: _ ::: _ ::: req) = do
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
-deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
-deleteUser (u ::: r ::: _ ::: _) = do
+deleteUser :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
+deleteUser (u ::: r ::: _) = do
     body <- parseJsonBody r
     res <- API.deleteUser u (deleteUserPassword body) !>> deleteUserError
     return $ case res of
         Nothing  -> setStatus status200 empty
         Just ttl -> setStatus status202 (json (DeletionCodeTimeout ttl))
 
-verifyDeleteUser :: Request ::: JSON ::: JSON -> Handler Response
+verifyDeleteUser :: JsonRequest VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUser (r ::: _) = do
     body <- parseJsonBody r
     API.verifyDeleteUser body !>> deleteUserError
     return (setStatus status200 empty)
 
-onboarding :: JSON ::: JSON ::: UserId ::: Request -> Handler Response
-onboarding (_ ::: _ ::: uid ::: r) = do
+onboarding :: JSON ::: UserId ::: JsonRequest AddressBook -> Handler Response
+onboarding (_ ::: uid ::: r) = do
     ab <- parseJsonBody r
     json <$> API.onboarding uid ab !>> connError
 
@@ -1538,8 +1466,8 @@ getContactList (_ ::: uid) = do
 
 -- Deprecated
 
-deprecatedCompletePasswordReset :: JSON ::: JSON ::: PasswordResetKey ::: Request -> Handler Response
-deprecatedCompletePasswordReset (_ ::: _ ::: k ::: req) = do
+deprecatedCompletePasswordReset :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
+deprecatedCompletePasswordReset (_ ::: k ::: req) = do
     pwr <- parseJsonBody req
     API.completePasswordReset (PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
     return empty
@@ -1563,7 +1491,7 @@ activate (Activate tgt code dryrun)
     respond (Just ident) first = setStatus status200 $ json (ActivationResponse ident first)
     respond Nothing      _     = setStatus status200 empty
 
-changeEmail :: UserId -> Request -> Bool -> Handler Response
+changeEmail :: UserId -> JsonRequest EmailUpdate -> Bool -> Handler Response
 changeEmail u req sendOutEmail = do
     email <- euEmail <$> parseJsonBody req
     API.changeEmail u email !>> changeEmailError >>= \case

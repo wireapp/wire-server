@@ -37,6 +37,7 @@ library:
   - Gundeck.Push.Native.Types
   - Gundeck.Push.Websocket
   - Gundeck.React
+  - Gundeck.Run
   - Gundeck.Util
   - Gundeck.Util.DelayQueue
   - Gundeck.Util.Redis
@@ -77,6 +78,7 @@ library:
   - mtl >=2.2
   - network-uri >=2.6
   - optparse-applicative >=0.10
+  - prometheus-client
   - psqueues >=0.2.2
   - redis-io >=0.4
   - resourcet >=1.1

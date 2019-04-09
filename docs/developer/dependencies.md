@@ -51,6 +51,12 @@ extra-lib-dirs:
 - /usr/local/opt/icu4c/lib
 ```
 
+_Note_: if you're getting `fatal error: 'libxml/parser.h' file not found` and you're on macOS Mojave, try doing:
+
+```bash
+sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -target /
+```
+
 ## Haskell Stack
 
 When you're done, ensure `stack --version` is >= 1.6.5

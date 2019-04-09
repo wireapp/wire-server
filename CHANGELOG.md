@@ -1,3 +1,36 @@
+# 2019-04-09 #710
+
+## API changes
+
+- Do not allow provisioning saml users if SCIM is configured (#706)
+
+## Documentation changes
+
+- Docs for user deletion via SCIM. (#691)
+- Docs for jump-to-definition with Emacs (#693)
+- Add missing config options in demo (#694)
+- Move the connections doc, add haddocks (#695)
+
+## Bug fixes
+
+- Fix templating in outgoing SMSs. (#696)
+- Saml implicit user creation no longer chokes on odd but legal names. (#702)
+- Fix: user deletion via scim (#698)
+
+## Internal changes
+
+- Remove redundant cassandra write in renewCookie (#676)
+- Add Prometheus middleware for wire-services (#672)
+- Improve logging of spar errors (#654)
+- Upgrade cql-io-1.1.0 (#697)
+- Switch metrics-core to be backed by Prometheus (#704)
+- Refactorings:
+    - #665, #687, #685, #686
+
+## Changes (potentially) requiring action for self-hosters
+
+- Switch proxy to use YAML-only config (#684)
+
 # 2019-03-25 #674
 
 ## API changes

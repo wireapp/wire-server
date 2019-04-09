@@ -21,7 +21,6 @@ import Proxy.Options
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified System.Logger as Logger
 import qualified System.Logger.Extended as Logger
 
 data Env = Env
@@ -38,7 +37,7 @@ makeLenses ''Env
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- Logger.mkLogger'
+    g <- Logger.mkLogger (o^.logLevel) (o^.logNetStrings)
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)

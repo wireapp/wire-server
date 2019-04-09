@@ -49,7 +49,7 @@ import Data.Range
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 #ifdef WITH_CQL
 import Data.ByteString.Lazy (toStrict)
-import Database.CQL.Protocol hiding (unpack)
+import Cassandra
 #endif
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck (Arbitrary(..))
