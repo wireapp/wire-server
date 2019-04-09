@@ -72,7 +72,7 @@ monitoring :: Media "application" "json" -> Cannon Response
 monitoring = const $ do
     m <- monitor
     s <- D.size =<< clients
-    gaugeSet s (path "net.websocket.clients") m
+    gaugeSet (fromIntegral s) (path "net.websocket.clients") m
     json <$> Metrics.render m
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
