@@ -109,7 +109,7 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
 
             -- We caught a 'SparScimError' exception. It is left as-is.
             Right err@(Left (SAML.CustomError (SparScimError x))) ->
-                pure $ Left (SAML.CustomError (SparScimError x))
+                pure err
 
             -- We caught some other Spar exception. It is wrapped into Scim.serverError.
             --
