@@ -10,6 +10,7 @@ import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.String.Conversions (cs)
 import Data.Id (UserId)
 import Data.Ix (inRange)
 import Spar.Scim
@@ -223,45 +224,68 @@ testRichInfo = do
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
-testScimCreateVsUserRef :: HasCallStack => TestSpar ()
+testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-    (tok, (_ownerid, _teamid, idp)) <- registerIdPAndScimToken
+    (_ownerid, teamid, idp) <- registerTestIdP
     (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
         <- randomScimUserWithSubject
     let uref   = SAML.UserRef tenant subj
         subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
         tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
 
-    uid <- createViaSaml idp uref
-    samlUserShouldSatisfy 'a' uref isJust
+    !(Just !uid) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
 
     deleteViaBrig uid
-    samlUserShouldSatisfy 'b' uref isJust  -- brig doesn't talk to spar right now when users
-                                           -- are deleted there.  we need to work around this
-                                           -- fact for now.  (if the test fails here, this may
-                                           -- mean that you fixed the behavior and can
-                                           -- change this to 'isNothing'.)
+    samlUserShouldSatisfy uref isJust  -- brig doesn't talk to spar right now when users
+                                       -- are deleted there.  we need to work around this
+                                       -- fact for now.  (if the test fails here, this may
+                                       -- mean that you fixed the behavior and can
+                                       -- change this to 'isNothing'.)
 
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
     storedusr :: Scim.UserC.StoredUser SparTag
         <- do
           resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
               <!! const 201 === statusCode
           pure $ decodeBody' resp
-    samlUserShouldSatisfy 'c' uref (== Just (scimUserId storedusr))
-  where
-    samlUserShouldSatisfy :: Char -> SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
-    samlUserShouldSatisfy msg uref property = do
-        muid <- getUserIdViaRef' uref
-        liftIO $ (msg, muid) `shouldSatisfy` (property . snd)
+    samlUserShouldSatisfy uref (== Just (scimUserId storedusr))
 
-    createViaSaml :: IdP -> SAML.UserRef -> TestSpar UserId
-    createViaSaml idp uref@(SAML.UserRef _ subj) = do
+    -- now with a scim token in the team, we can't auto-provision via saml any more.
+    (_usr', uname') :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+        <- randomScimUserWithSubject
+    let uref'   = SAML.UserRef tenant' subj'
+        subj'   = either (error . show) id $ SAML.mkNameID uname' Nothing Nothing Nothing
+        tenant' = idp ^. SAML.idpMetadata . SAML.edIssuer
+    createViaSamlFails idp uref'
+  where
+    samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy uref property = do
+        muid <- getUserIdViaRef' uref
+        liftIO $ muid `shouldSatisfy` property
+
+    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp (SAML.UserRef _ subj) = do
         (privCreds, authnReq) <- negotiateAuthnRequest idp
         spmeta <- getTestSPMetadata
         authnResp <- runSimpleSP $
             SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-        submitAuthnResponse authnResp !!! const 200 === statusCode
-        fmap fromJust . runSparCass $ Data.getSAMLUser uref
+        submitAuthnResponse authnResp <!! const 200 === statusCode
+
+    createViaSamlFails :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ()
+    createViaSamlFails idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:error:forbidden</title>"
+
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:success</title>"
+        getUserIdViaRef' uref
 
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
@@ -529,7 +553,7 @@ testUpdateSameHandle = do
 
 -- | Test that when a user's 'UserRef' is updated, the relevant index is also updated and Spar
 -- can find the user by the 'UserRef'.
-testUpdateUserRefIndex :: HasCallStack => TestSpar ()
+testUpdateUserRefIndex :: TestSpar ()
 testUpdateUserRefIndex = do
     (tok, (_, _, idp)) <- registerIdPAndScimToken
     let checkUpdateUserRef :: Bool -> TestSpar ()
