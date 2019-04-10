@@ -1,0 +1,19 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: cql-parser
+version: '0.1'
+synopsis: CQL query parser
+category: Database
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2019 Wire Swiss GmbH
+license: AGPL-3
+dependencies:
+- base >=4.6 && <5.0
+- cql >=3.0.0
+- imports
+- text >=0.11
+- uuid
+- megaparsec ==7.*
+library:
+  source-dirs: src

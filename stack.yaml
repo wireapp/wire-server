@@ -7,6 +7,7 @@ packages:
 - libs/brig-types
 - libs/cargohold-types
 - libs/cassandra-util
+- libs/cql-parser
 - libs/extended
 - libs/imports
 - libs/galley-types
@@ -43,6 +44,7 @@ extra-deps:
   commit: 6b98b894c127eed4a5bde646ebf20febcfa656fa    # master (Apr 2, 2019)
 - git: https://gitlab.com/fisx/tinylog
   commit: fd7155aaf6f090f48004a8f7857ce9d3cb4f9417    # https://gitlab.com/twittner/tinylog/merge_requests/6
+- megaparsec-7.0.4
 
 flags:
   types-common:
