@@ -71,6 +71,7 @@ library:
   - currency-codes >=2.0
   - conduit >=1.2.8
   - cryptobox-haskell >=0.1.1
+  - cql-parser
   - data-default >=0.5
   - data-timeout >=0.3
   - either >=4.3

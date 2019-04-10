@@ -17,6 +17,7 @@ import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
 import UnliftIO (mapConcurrently)
 
+import qualified Database.CQL.QQ as QQ
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
@@ -593,8 +594,9 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
   where
     queryAll len = do
         let cql :: PrepQuery R () IndexRow
-            cql = "SELECT name, provider, service \
-                  \FROM service_prefix"
+            cql = [QQ.cql| SELECT name, provider, service
+                          FROM service_prefix
+                  |]
         p <- retry x1 $ paginate cql $ paramsP One () len
         return $! p { result = trim size (result p) }
 
