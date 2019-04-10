@@ -1,10 +1,10 @@
-
-module Database.CQL.Parser () where
+module Database.CQL.Parser (parseCql) where
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Imports
 import Data.Text (pack)
+import Data.Bifunctor
 
 example :: Text
 example = "select id, user from user"
@@ -43,7 +43,7 @@ pFrom :: Parser ()
 pFrom = void $ string' "from" <* space
 
 
-pStatement :: Parser Statement 
+pStatement :: Parser Statement
 pStatement = do
     pSelect
     fields <- pFields
@@ -55,4 +55,5 @@ pStatement = do
 func :: Text -> Statement
 func input = either (error . errorBundlePretty) (id) (parse (pStatement <* space <* eof) "" input)
 
-
+parseCql :: Text -> Either String Statement
+parseCql input = first errorBundlePretty $ parse (pStatement <* space <* eof) "" input

@@ -15,5 +15,6 @@ dependencies:
 - text >=0.11
 - uuid
 - megaparsec ==7.*
+- template-haskell
 library:
   source-dirs: src
