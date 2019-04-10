@@ -12,7 +12,6 @@ module Spar.API
     -- * API types
   , API, OutsideWorldAPI
     -- ** Individual API pieces
-  , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq
   , APIAuthResp
