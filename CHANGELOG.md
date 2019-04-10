@@ -27,7 +27,7 @@
 - Refactorings:
     - #665, #687, #685, #686
 
-## Changes requiring action for self-hosters
+## Changes (potentially) requiring action for self-hosters
 
 - Switch proxy to use YAML-only config (#684)
 
