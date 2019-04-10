@@ -1,4 +1,4 @@
-module Database.CQL.Parser (parseCql) where
+module Database.CQL.Parser  where
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -7,19 +7,15 @@ import Data.Text (pack)
 import Data.Bifunctor
 
 example :: Text
-example = "select id, user from user"
+example = " sElEcT id, user fRom user  "
+
+statement :: Statement
 statement = Select [Field "id"] (TableName "user")
 
 data Statement = Select [Field] TableName deriving (Show, Eq)
 
 newtype Field = Field Text deriving (Show, Eq, Ord)
 newtype TableName = TableName Text deriving (Show, Eq, Ord)
-
-
-main :: IO ()
-main = do
-    putStrLn "I'm alive!"
-
 
 type Parser = Parsec Void Text
 
@@ -37,14 +33,15 @@ pFields :: Parser [Field]
 pFields = pField `sepBy` (char ',' <* space) <* space
 
 pSelect :: Parser ()
-pSelect = void $ string' "select" <* space
+pSelect = void $ string' "select" <* space1
 
 pFrom :: Parser ()
-pFrom = void $ string' "from" <* space
+pFrom = void $ string' "from" <* space1
 
 
 pStatement :: Parser Statement
 pStatement = do
+    space
     pSelect
     fields <- pFields
     pFrom
