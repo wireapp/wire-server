@@ -20,6 +20,6 @@ tests db = do
 
 testIdentity :: DB.ClientState -> IO [Identity Text]
 testIdentity db = do
-  let q = "SELECT cql_version from system.local" :: QueryString R () (Identity Text)
-  let p = QueryParams One False () Nothing Nothing Nothing Nothing
-  runClient db $ query q p
+  let identityQuery = "SELECT cql_version from system.local" :: QueryString R () (Identity Text)
+  let identityParams = QueryParams One False () Nothing Nothing Nothing Nothing
+  runClient db $ query identityQuery identityParams
