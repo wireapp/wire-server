@@ -39,7 +39,7 @@ compile:
 
 .PHONY: clean
 clean: init
-	stack clean cargohold
+	stack clean $(NAME)
 	-rm -rf dist
 	-rm -f .metadata
 

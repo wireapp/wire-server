@@ -25,7 +25,7 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean cannon
+	stack clean $(NAME)
 	-rm -rf dist
 	-rm -f .metadata
 

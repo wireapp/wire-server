@@ -46,7 +46,7 @@ compile:
 
 .PHONY: clean
 clean:
-	stack clean gundeck
+	stack clean $(NAME)
 	-rm -rf dist
 	-rm -f .metadata
 

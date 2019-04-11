@@ -30,7 +30,7 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean galley
+	stack clean $(NAME)
 	-rm -rf dist
 	-rm -f .metadata
 
