@@ -98,14 +98,37 @@ metrics = liftIO $ Metrics
 -- | Converts a CollectD style 'path' to a Metric name usable by prometheus
 --   This is to provide back compatibility with the previous collect-d metric names
 --   which often had paths and dot-separated names.
---
--- Currently just replaces all "/" and "." with "_" and lowercases the result
 toInfo :: Path -> P.Info
-toInfo (Path p) = P.Info (p & T.replace "." "_"
-                            & T.replace "/" "_"
-                            & T.toLower)
-                        "description not provided"
+toInfo (Path p) =
+    P.Info (p
+            & T.map sanitize
+            & ensureValidStartingChar
+            & collapseMultipleUnderscores
+            & T.toLower)
+           "description not provided"
+  where
+    ensureValidStartingChar :: Text -> Text
+    ensureValidStartingChar = T.dropWhile (not . validStartingChar)
 
+    -- | prometheus metric names must start with an alphabetic char or a ':'
+    validStartingChar :: Char -> Bool
+    validStartingChar c = isAlpha c || c == ':'
+
+    -- | Clean up paths which might end up with superfluous underscores
+    -- e.g. a path like "path./user" might convert to "path__user"
+    -- so we clean it up to "path_user".
+    -- This will cause the following metrics to be collapsed together:
+    -- "/user" and "/_user" will become "_user"; but I'm not aware of any cases where this
+    -- would occur, new metrics should be created with 'good' names and the old 'path-based'
+    -- names will be made redundant by the new prometheus middleware.
+    collapseMultipleUnderscores :: Text -> Text
+    collapseMultipleUnderscores = T.intercalate "_" . filter (not . T.null) . T.splitOn "_"
+
+    sanitize :: Char -> Char
+    sanitize ':' = ':'
+    sanitize c
+        | isAlphaNum c = c
+        | otherwise = '_'
 
 -- | Checks whether a given key exists in a mutable hashmap (i.e. one inside an IORef)
 -- If it exists it is returned, if it does not then one is initialized using the provided
