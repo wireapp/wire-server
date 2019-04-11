@@ -99,6 +99,9 @@ metrics = liftIO $ Metrics
 --   This is to provide back compatibility with the previous collect-d metric names
 --   which often had paths and dot-separated names.
 --
+-- See the spec for valid prometheus names:
+-- https://prometheus.io/docs/concepts/data_model/
+--
 -- E.g. we sanitize a metric name like "net.resources._conversations_:cnv-members_:usr.DELETE.time.960"
 -- into: "net_resources_conversations_:cnv_members_:usr_delete_time_960"
 toInfo :: Path -> P.Info
@@ -115,7 +118,7 @@ toInfo (Path p) =
 
     -- | prometheus metric names must start with an alphabetic char or a ':'
     validStartingChar :: Char -> Bool
-    validStartingChar c = isAlpha c || c == ':'
+    validStartingChar c = isAlpha c || c `elem` ['_', ':']
 
     -- | Clean up paths which might end up with superfluous underscores
     -- e.g. a path like "path./user" might convert to "path__user"
