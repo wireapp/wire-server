@@ -18,8 +18,7 @@ WIRE_VERSION    := 6
 EXTRA_MODULES   := zrest drain
 
 DOCKER          ?= true
-# FIXME: use quay.io/wire
-DOCKER_USER     ?= wire.com
+DOCKER_USER     ?= quay.io/wire
 IMAGE_VERSION   := $(RESTUND_VERSION)w$(WIRE_VERSION)b$(BUILD_NUMBER)
 ACI             := restund-$(IMAGE_VERSION)_linux_amd64.aci
 
