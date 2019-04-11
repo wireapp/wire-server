@@ -18,6 +18,7 @@ WIRE_VERSION    := 6
 EXTRA_MODULES   := zrest drain
 
 DOCKER          ?= true
+DOCKER_USER     ?= quay.io/wire
 IMAGE_VERSION   := $(RESTUND_VERSION)w$(WIRE_VERSION)b$(BUILD_NUMBER)
 ACI             := restund-$(IMAGE_VERSION)_linux_amd64.aci
 
@@ -68,7 +69,7 @@ concourse: $(RESTUND_SRC) $(RE_SRC) extra_modules
 
 .PHONY: build-docker
 build-docker: $(RESTUND_SRC) $(RE_SRC) extra_modules
-	docker build -t wire.com/restund:$(IMAGE_VERSION) \
+	docker build -t $(DOCKER_USER)/restund:$(IMAGE_VERSION) \
 		--build-arg re_version=$(RE_VERSION) \
 		--build-arg restund_version=$(RESTUND_VERSION) \
 		--build-arg extra_modules="$(EXTRA_MODULES)" \
@@ -76,7 +77,7 @@ build-docker: $(RESTUND_SRC) $(RE_SRC) extra_modules
 
 $(ACI): build-docker
 	docker save -o restund-$(IMAGE_VERSION).docker \
-		wire.com/restund:$(IMAGE_VERSION)
+		$(DOCKER_USER)/restund:$(IMAGE_VERSION)
 	docker2aci -debug restund-$(IMAGE_VERSION).docker
 	actool -debug patch-manifest -overwrite \
 		--ports='$(subst $(space),:,$(ACI_PORTS))' \
