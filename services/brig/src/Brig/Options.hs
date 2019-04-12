@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Brig.Options where
 
@@ -9,10 +10,11 @@ import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
+import Data.Barbie
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON(..))
+import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
 import System.Logger (Level)
 
@@ -21,7 +23,7 @@ import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
     { timeoutDiff :: DiffTime
-    } deriving (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
+    } deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Read Timeout where
     readsPrec i s =
@@ -226,9 +228,15 @@ data Opts = Opts
     , optMutableSettings :: !MutableSettings   -- ^ Mutable runtime settings
     } deriving (Show, Generic)
 
-data MutableSettings = MutableSettings
-    { msEmailVisibility :: !EmailVisibility
-    } deriving (Eq, Show, Generic)
+-- | We use the Higher Kinded Data pattern here because it's very useful for handling
+--   partial 'PUT' payloads in the API layer as @MutableSettings Maybe@
+data MutableSettings' f = MutableSettings
+    { setEmailVisibility :: !(f EmailVisibility)
+    } deriving (Generic)
+      deriving anyclass (FunctorB, ProductB, TraversableB, ConstraintsB, ProductBC)
+type MutableSettings = MutableSettings' Identity
+deriving instance AllBF Show f MutableSettings' => Show (MutableSettings' f)
+deriving instance AllBF Eq   f MutableSettings' => Eq   (MutableSettings' f)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
@@ -270,6 +278,7 @@ instance FromJSON Timeout where
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
-instance FromJSON MutableSettings
+instance (FromJSON (f EmailVisibility)) => FromJSON (MutableSettings' f)
+instance (ToJSON (f EmailVisibility)) => ToJSON (MutableSettings' f)
 
 instance FromJSON Opts

@@ -63,6 +63,7 @@ library:
   - auto-update >=0.1
   - base-prelude
   - base16-bytestring >=0.1
+  - barbies
   - bilge >=0.21.1
   - blaze-builder >=0.3
   - brig-types >=0.91.1
