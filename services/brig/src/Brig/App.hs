@@ -24,6 +24,7 @@ module Brig.App
     , nexmoCreds
     , twilioCreds
     , settings
+    , mutableSettings
     , currentTime
     , geoDb
     , zauthEnv
@@ -134,6 +135,7 @@ data Env = Env
     , _httpManager   :: Manager
     , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
+    , _mutableSettings :: TVar Opt.MutableSettings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
@@ -172,6 +174,7 @@ newEnv o = do
     g   <- geoSetup lgr w $ Opt.geoDb o
     (turn, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
+    mSett <- newTVarIO $ Opt.optMutableSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
     stomp <- case (Opt.stomp o, Opt.setStomp sett) of
@@ -185,35 +188,36 @@ newEnv o = do
         StompQueue q -> pure (StompQueue q)
         SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
-        { _cargohold     = mkEndpoint $ Opt.cargohold o
-        , _galley        = mkEndpoint $ Opt.galley o
-        , _gundeck       = mkEndpoint $ Opt.gundeck o
-        , _casClient     = cas
-        , _smtpEnv       = emailSMTP
-        , _awsEnv        = aws
-        , _stompEnv      = stomp
-        , _metrics       = mtr
-        , _applog        = lgr
-        , _internalEvents = eventsQueue
-        , _requestId     = def
-        , _usrTemplates  = utp
-        , _provTemplates = ptp
-        , _tmTemplates   = ttp
-        , _templateBranding = branding
-        , _httpManager   = mgr
-        , _extGetManager = ext
-        , _settings      = sett
-        , _nexmoCreds    = nxm
-        , _twilioCreds   = twl
-        , _geoDb         = g
-        , _turnEnv       = turn
-        , _turnEnvV2     = turnV2
-        , _fsWatcher     = w
-        , _currentTime   = clock
-        , _zauthEnv      = zau
-        , _digestMD5     = md5
-        , _digestSHA256  = sha256
-        , _indexEnv      = mkIndexEnv o lgr mgr mtr
+        { _cargohold         = mkEndpoint $ Opt.cargohold o
+        , _galley            = mkEndpoint $ Opt.galley o
+        , _gundeck           = mkEndpoint $ Opt.gundeck o
+        , _casClient         = cas
+        , _smtpEnv           = emailSMTP
+        , _awsEnv            = aws
+        , _stompEnv          = stomp
+        , _metrics           = mtr
+        , _applog            = lgr
+        , _internalEvents    = eventsQueue
+        , _requestId         = def
+        , _usrTemplates      = utp
+        , _provTemplates     = ptp
+        , _tmTemplates       = ttp
+        , _templateBranding  = branding
+        , _httpManager       = mgr
+        , _extGetManager     = ext
+        , _settings          = sett
+        , _mutableSettings   = mSett
+        , _nexmoCreds        = nxm
+        , _twilioCreds       = twl
+        , _geoDb             = g
+        , _turnEnv           = turn
+        , _turnEnvV2         = turnV2
+        , _fsWatcher         = w
+        , _currentTime       = clock
+        , _zauthEnv          = zau
+        , _digestMD5         = md5
+        , _digestSHA256      = sha256
+        , _indexEnv          = mkIndexEnv o lgr mgr mtr
         }
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)

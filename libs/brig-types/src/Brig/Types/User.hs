@@ -178,8 +178,19 @@ data EmailVisibility
     -- ^ Never show emails to anyone other than yourself
     deriving (Eq, Show)
 
-instance ToJSON EmailVisibility where
+instance FromJSON EmailVisibility where
+    parseJSON = withText "EmailVisibility" $ \case
+        "visible_to_all_teams" -> pure EmailVisibleToAllTeams
+        "visible_to_same_team" -> pure EmailVisibleToSameTeam
+        "visible_to_self"      -> pure EmailVisibleToSelf
+        _ -> fail
+            $  "unexpected value for EmailVisibility settings: "
+            <> "expected one of [visible_to_all_teams, visible_to_same_team, visible_to_self]"
 
+instance ToJSON EmailVisibility where
+    toJSON EmailVisibleToAllTeams = "visible_to_all_teams"
+    toJSON EmailVisibleToSameTeam = "visible_to_same_team"
+    toJSON EmailVisibleToSelf     = "visible_to_self"
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity

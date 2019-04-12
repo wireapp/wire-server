@@ -189,41 +189,46 @@ instance FromJSON TurnOpts
 -- | Options that are consumed on startup
 data Opts = Opts
     -- services
-    { brig          :: !Endpoint           -- ^ Host and port to bind to
-    , cargohold     :: !Endpoint           -- ^ Cargohold address
-    , galley        :: !Endpoint           -- ^ Galley address
-    , gundeck       :: !Endpoint           -- ^ Gundeck address
+    { brig          :: !Endpoint               -- ^ Host and port to bind to
+    , cargohold     :: !Endpoint               -- ^ Cargohold address
+    , galley        :: !Endpoint               -- ^ Galley address
+    , gundeck       :: !Endpoint               -- ^ Gundeck address
 
     -- external
-    , cassandra     :: !CassandraOpts      -- ^ Cassandra settings
-    , elasticsearch :: !ElasticSearchOpts  -- ^ ElasticSearch settings
-    , aws           :: !AWSOpts            -- ^ AWS settings
-    , stomp         :: !(Maybe StompOpts)  -- ^ STOMP broker settings
+    , cassandra     :: !CassandraOpts          -- ^ Cassandra settings
+    , elasticsearch :: !ElasticSearchOpts      -- ^ ElasticSearch settings
+    , aws           :: !AWSOpts                -- ^ AWS settings
+    , stomp         :: !(Maybe StompOpts)      -- ^ STOMP broker settings
 
     -- Email & SMS
-    , emailSMS      :: !EmailSMSOpts       -- ^ Email and SMS settings
+    , emailSMS      :: !EmailSMSOpts           -- ^ Email and SMS settings
 
     -- ZAuth
-    , zauth         :: !ZAuthOpts          -- ^ ZAuth settings
+    , zauth         :: !ZAuthOpts              -- ^ ZAuth settings
 
     -- Misc.
-    , discoUrl      :: !(Maybe Text)       -- ^ Disco URL
-    , geoDb         :: !(Maybe FilePath)   -- ^ GeoDB file path
-    , internalEvents :: !InternalEventsOpts -- ^ Event queue for
-                                            --   Brig-generated events (e.g.
-                                            --   user deletion)
+    , discoUrl      :: !(Maybe Text)           -- ^ Disco URL
+    , geoDb         :: !(Maybe FilePath)       -- ^ GeoDB file path
+    , internalEvents :: !InternalEventsOpts     -- ^ Event queue for
+                                                --   Brig-generated events (e.g.
+                                                --   user deletion)
 
     -- Logging
-    , logLevel      :: !Level              -- ^ Log level (Debug, Info, etc)
-    , logNetStrings :: !Bool               -- ^ Use netstrings encoding (see
-                                           --   <http://cr.yp.to/proto/netstrings.txt>)
+    , logLevel      :: !Level                  -- ^ Log level (Debug, Info, etc)
+    , logNetStrings :: !Bool                   -- ^ Use netstrings encoding (see
+                                               --   <http://cr.yp.to/proto/netstrings.txt>)
 
     -- TURN
-    , turn          :: !TurnOpts           -- ^ TURN server settings
+    , turn          :: !TurnOpts               -- ^ TURN server settings
 
     -- Runtime settings
-    , optSettings :: !Settings             -- ^ Runtime settings
+    , optSettings :: !Settings                 -- ^ Runtime settings
+    , optMutableSettings :: !MutableSettings   -- ^ Mutable runtime settings
     } deriving (Show, Generic)
+
+data MutableSettings = MutableSettings
+    { msEmailVisibility :: !EmailVisibility
+    } deriving (Eq, Show, Generic)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
@@ -265,5 +270,6 @@ instance FromJSON Timeout where
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
+instance FromJSON MutableSettings
 
 instance FromJSON Opts
