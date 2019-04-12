@@ -103,12 +103,41 @@ connectedProfile u = UserProfile
     , profileDeleted  = userDeleted u
     , profileExpire   = userExpire u
     , profileTeam     = userTeam u
+    -- We don't want to show the email by default;
+    -- However we do allow adding it back in intentionally later.
+    , profileEmail    = Nothing
     }
 
 publicProfile :: User -> UserProfile
-publicProfile u = (connectedProfile u)
-    { profileLocale = Nothing
-    }
+publicProfile u =
+    -- Note that we explicitly unpack and repack the types here rather than using
+    -- RecordWildCards or something similar because we want changes to the public profile
+    -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
+    let UserProfile { profileId
+                    , profileHandle
+                    , profileName
+                    , profilePict
+                    , profileAssets
+                    , profileAccentId
+                    , profileService
+                    , profileDeleted
+                    , profileExpire
+                    , profileTeam
+                    } = connectedProfile u
+    in UserProfile
+       { profileLocale   = Nothing
+       , profileEmail    = Nothing
+       , profileId
+       , profileHandle
+       , profileName
+       , profilePict
+       , profileAssets
+       , profileAccentId
+       , profileService
+       , profileDeleted
+       , profileExpire
+       , profileTeam
+       }
 
 -- | The data of an existing user.
 data User = User
@@ -133,6 +162,24 @@ data User = User
         -- can't be edited via normal means)
     }
     deriving (Eq, Show)
+
+
+-- | Configurations for whether to show a user's email to others.
+data EmailVisibility
+    = EmailVisibleToAllTeams
+    {- ^ Anyone on a team can see the email of anyone else who is on a team.
+         Regardless of if they're on the SAME team.
+         This may sound strange; but certain on-premise hosters have many different teams
+         and still want them to see each-other's emails.
+    -}
+    | EmailVisibleToSameTeam
+    -- ^ If users are on the same team it's okay to show each-other's emails
+    | EmailVisibleToSelf
+    -- ^ Never show emails to anyone other than yourself
+    deriving (Eq, Show)
+
+instance ToJSON EmailVisibility where
+
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -160,6 +207,7 @@ data UserProfile = UserProfile
     , profileLocale   :: !(Maybe Locale)
     , profileExpire   :: !(Maybe UTCTimeMillis)
     , profileTeam     :: !(Maybe TeamId)
+    , profileEmail    :: !(Maybe Email)
     }
     deriving (Eq, Show)
 
@@ -213,6 +261,7 @@ instance FromJSON UserProfile where
                     <*> o .:? "locale"
                     <*> o .:? "expires_at"
                     <*> o .:? "team"
+                    <*> o .:? "email"
 
 instance ToJSON UserProfile where
     toJSON u = object
@@ -227,6 +276,7 @@ instance ToJSON UserProfile where
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
+        # "email"      .= profileEmail u
         # []
 
 instance FromJSON SelfProfile where

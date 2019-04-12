@@ -839,7 +839,9 @@ lookupProfiles self others = do
     css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
     return $ map (toProfile css) users
   where
+    toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
+    toProfile :: Map UserId Relation -> User -> UserProfile
     toProfile css u =
         let cs = Map.lookup (userId u) css
         in if userId u == self || cs == Just Accepted || cs == Just Sent
