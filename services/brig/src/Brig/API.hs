@@ -74,6 +74,9 @@ sitemap o = do
     get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
         accept "application" "json"
 
+    get "/i/settings" (continue $ API.getSettings) $
+        accept "application" "json"
+
     put "/i/settings" (continue $ API.putSettings) $
          jsonRequest @(MutableSettings' Maybe)
 

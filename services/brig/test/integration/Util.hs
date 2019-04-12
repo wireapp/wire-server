@@ -12,6 +12,7 @@ import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
+import Brig.Options (MutableSettings', MutableSettings)
 import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadThrow)
 import Control.Retry
@@ -29,8 +30,9 @@ import Gundeck.Types.Notification
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
-import Test.Tasty.Cannon
+import Test.Tasty.Cannon hiding (bracket)
 import Util.AWS
+import UnliftIO.Exception (bracket)
 
 import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
@@ -548,3 +550,20 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
+
+
+-- | This allows you to set a setting for a test then set the setting back afterwards.
+-- Currently only works with settings inside 'MutableSettings' but feel free to port more
+-- settings there over time.
+withSettingsOverrides :: Brig -> MutableSettings' Maybe -> Http a -> Http a
+withSettingsOverrides brig overrides action  = bracket setup teardown (const action)
+  where
+    setup :: Http MutableSettings
+    setup = do
+        existingSettings <- get (brig . paths ["i", "settings"] . Bilge.json overrides) 
+            <!! const 200 === statusCode
+        decodeBody existingSettings
+
+    teardown :: MutableSettings -> Http ()
+    teardown existingSettings = put (brig . paths ["i", "settings"] . Bilge.json existingSettings) 
+                !!! const 200 === statusCode
