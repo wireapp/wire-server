@@ -1,0 +1,26 @@
+stern:
+  host: 127.0.0.1
+  port: 8091
+
+brig:
+  host: 127.0.0.1
+  port: 8082
+
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
+galeb:
+  host: 127.0.0.1
+  port: 8089
+
+ibis:
+  host: 127.0.0.1
+  port: 8090
+
+logLevel: Info
+logNetStrings: false

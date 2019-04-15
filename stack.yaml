@@ -33,6 +33,7 @@ packages:
 - tools/bonanza
 - tools/makedeb
 - tools/api-simulations
+- tools/stern
 - tools/db/service-backfill
 - tools/db/auto-whitelist
 
