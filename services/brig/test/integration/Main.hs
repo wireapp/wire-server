@@ -24,6 +24,7 @@ import qualified API.Team              as Team
 import qualified API.TURN              as TURN
 import qualified API.User              as User
 import qualified API.Metrics           as Metrics
+import qualified API.Settings          as Settings
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
@@ -67,9 +68,11 @@ runTests iConf bConf otherArgs = do
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
+    settingsApi <- Settings.tests mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
-        [ userApi
+        [ settingsApi
+        , userApi
         , providerApi
         , searchApis
         , teamApis

@@ -232,7 +232,7 @@ data Opts = Opts
 --   partial 'PUT' payloads in the API layer as @MutableSettings Maybe@
 data MutableSettings' f = MutableSettings
     { setEmailVisibility :: !(f EmailVisibility)
-    } deriving (Generic)
+    } deriving stock (Generic)
       deriving anyclass (FunctorB, ProductB, TraversableB, ConstraintsB, ProductBC)
 type MutableSettings = MutableSettings' Identity
 deriving instance AllBF Show f MutableSettings' => Show (MutableSettings' f)
