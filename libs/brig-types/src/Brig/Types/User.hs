@@ -163,30 +163,6 @@ data User = User
     }
     deriving (Eq, Show)
 
-
--- | Configurations for whether to show a user's email to others.
-data EmailVisibility
-    = EmailVisibleIfOnTeam
-    {- ^ Anyone can see the email of someone who is on ANY team.
-         This may sound strange; but certain on-premise hosters have many different teams
-         and still want them to see each-other's emails.
-    -}
-    | EmailVisibleToSelf
-    -- ^ Show your email only to yourself
-    deriving (Eq, Show)
-
-instance FromJSON EmailVisibility where
-    parseJSON = withText "EmailVisibility" $ \case
-        "visible_if_on_team" -> pure EmailVisibleIfOnTeam
-        "visible_to_self"      -> pure EmailVisibleToSelf
-        _ -> fail
-            $  "unexpected value for EmailVisibility settings: "
-            <> "expected one of [visible_if_on_team, visible_to_self]"
-
-instance ToJSON EmailVisibility where
-    toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
-    toJSON EmailVisibleToSelf     = "visible_to_self"
-
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
 

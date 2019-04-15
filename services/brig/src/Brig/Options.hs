@@ -10,6 +10,7 @@ import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
+import Data.Aeson (withText)
 import Data.Barbie
 import Data.Id
 import Data.Scientific (toBoundedInteger)
@@ -187,6 +188,29 @@ data TurnOpts = TurnOpts
     } deriving (Show, Generic)
 
 instance FromJSON TurnOpts
+
+-- | Configurations for whether to show a user's email to others.
+data EmailVisibility
+    = EmailVisibleIfOnTeam
+    {- ^ Anyone can see the email of someone who is on ANY team.
+         This may sound strange; but certain on-premise hosters have many different teams
+         and still want them to see each-other's emails.
+    -}
+    | EmailVisibleToSelf
+    -- ^ Show your email only to yourself
+    deriving (Eq, Show)
+
+instance FromJSON EmailVisibility where
+    parseJSON = withText "EmailVisibility" $ \case
+        "visible_if_on_team" -> pure EmailVisibleIfOnTeam
+        "visible_to_self"      -> pure EmailVisibleToSelf
+        _ -> fail
+            $  "unexpected value for EmailVisibility settings: "
+            <> "expected one of [visible_if_on_team, visible_to_self]"
+
+instance ToJSON EmailVisibility where
+    toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
+    toJSON EmailVisibleToSelf     = "visible_to_self"
 
 -- | Options that are consumed on startup
 data Opts = Opts

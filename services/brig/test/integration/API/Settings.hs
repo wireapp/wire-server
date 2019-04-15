@@ -10,7 +10,6 @@ import qualified Galley.Types.Teams          as Team
 
 import Data.Id
 import qualified Brig.Options as Opt
-import           Brig.Types.User (EmailVisibility(..))
 
 import Test.Tasty.HUnit
 
@@ -32,24 +31,24 @@ tests manager brig galley = return $ do
             [ testGroup "/users/"
                 [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
-                . withEmailVisibility EmailVisibleIfOnTeam brig
-                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam)
+                . withEmailVisibility Opt.EmailVisibleIfOnTeam brig
+                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible Opt.EmailVisibleIfOnTeam)
 
                 , testCase "EmailVisibleToSelf"
                 . runHttpT manager
-                . withEmailVisibility EmailVisibleToSelf brig
-                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf)
+                . withEmailVisibility Opt.EmailVisibleToSelf brig
+                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible Opt.EmailVisibleToSelf)
                 ]
             , testGroup "/users/:id"
                 [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
-                . withEmailVisibility EmailVisibleIfOnTeam brig
-                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam)
+                . withEmailVisibility Opt.EmailVisibleIfOnTeam brig
+                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible Opt.EmailVisibleIfOnTeam)
 
                 , testCase "EmailVisibleToSelf"
                 . runHttpT manager
-                . withEmailVisibility EmailVisibleToSelf brig
-                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf)
+                . withEmailVisibility Opt.EmailVisibleToSelf brig
+                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible Opt.EmailVisibleToSelf)
                 ]
             ]
         ]
@@ -59,14 +58,14 @@ data UserRelationship = SameTeam | DifferentTeam | NoTeam
 -- Should we show the email for this user type?
 type EmailVisibilityAssertion = UserRelationship -> Bool
 
-expectEmailVisible :: EmailVisibility -> UserRelationship -> Bool
-expectEmailVisible EmailVisibleIfOnTeam SameTeam = True
-expectEmailVisible EmailVisibleIfOnTeam DifferentTeam = True
-expectEmailVisible EmailVisibleIfOnTeam NoTeam = False
+expectEmailVisible :: Opt.EmailVisibility -> UserRelationship -> Bool
+expectEmailVisible Opt.EmailVisibleIfOnTeam SameTeam = True
+expectEmailVisible Opt.EmailVisibleIfOnTeam DifferentTeam = True
+expectEmailVisible Opt.EmailVisibleIfOnTeam NoTeam = False
 
-expectEmailVisible EmailVisibleToSelf SameTeam = False
-expectEmailVisible EmailVisibleToSelf DifferentTeam = False
-expectEmailVisible EmailVisibleToSelf NoTeam = False
+expectEmailVisible Opt.EmailVisibleToSelf SameTeam = False
+expectEmailVisible Opt.EmailVisibleToSelf DifferentTeam = False
+expectEmailVisible Opt.EmailVisibleToSelf NoTeam = False
 
 jsonField :: FromJSON a => Text -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
@@ -124,7 +123,7 @@ testGetUserEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
     emailResult r = decodeBody r >>= jsonField "email"
 
 
-withEmailVisibility :: EmailVisibility -> Brig -> Http () -> Http ()
+withEmailVisibility :: Opt.EmailVisibility -> Brig -> Http () -> Http ()
 withEmailVisibility emailVisibilityOverride brig t =
     withSettingsOverrides brig newSettings t
   where
