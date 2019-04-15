@@ -35,4 +35,4 @@ getSettings :: JSON -> Handler Response
 getSettings _ = do
     mSet <- view mutableSettings >>= readTVarIO
     return . setStatus status200
-           $ json (mSet)
+           $ json mSet

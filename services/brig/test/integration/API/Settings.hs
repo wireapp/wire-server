@@ -29,27 +29,49 @@ tests :: Manager -> Brig -> Galley -> IO TestTree
 tests manager brig galley = do
     return
         $ testGroup "settings"
-        $ [ testGroup "EmailVisibleToAllTeams"
-                      [ testCase "" . void
-                            $ runHttpT manager
-                                       (withEmailVisibility EmailVisibleToAllTeams
-                                                            brig
-                                                            (testEmailVisibleTeam brig galley))
-                      ]
-          , testGroup "EmailVisibleToSameTeam" []
-          , testGroup "EmailVisibleToSelf" []
+        $ [ testCase "EmailVisibleIfOnTeam"
+            . runHttpT manager
+            . withEmailVisibility EmailVisibleIfOnTeam brig $
+                (testEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam))
+          , testCase "EmailVisibleToSelf"
+            . runHttpT manager
+            . withEmailVisibility EmailVisibleToSelf brig $
+                (testEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf))
           ]
 
-testEmailVisibleTeam :: Brig -> Galley -> Http ()
-testEmailVisibleTeam brig galley = do
+data UserRelationship = SameTeam | DifferentTeam | NoTeam
+
+-- Should we show the email for this user type?
+type EmailVisibilityAssertion = UserRelationship -> Bool
+
+expectEmailVisible :: EmailVisibility -> UserRelationship -> Bool
+expectEmailVisible EmailVisibleIfOnTeam SameTeam = True
+expectEmailVisible EmailVisibleIfOnTeam DifferentTeam = True
+expectEmailVisible EmailVisibleIfOnTeam NoTeam = False
+
+expectEmailVisible EmailVisibleToSelf SameTeam = False
+expectEmailVisible EmailVisibleToSelf DifferentTeam = False
+expectEmailVisible EmailVisibleToSelf NoTeam = False
+
+testEmailShowsEmailsIfExpected :: Brig -> Galley -> EmailVisibilityAssertion -> Http ()
+testEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
     (creatorId, tid) <- createUserWithTeam brig galley
+    (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
     userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
-    userB <- createTeamMember brig galley creatorId tid Team.fullPermissions
-    let uids = C8.intercalate "," $ toByteString' <$> [userId userA, userId userB]
+    userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
+    nonTeamUser <- createUser "joe" brig
+    let uids = C8.intercalate "," $ toByteString' <$> [userId userA, userId userB, userId nonTeamUser]
         expected :: Set (Maybe UserId, Maybe Email)
         expected = Set.fromList
-                   [ (Just $ userId userA, userEmail userA)
-                   , (Just $ userId userB, userEmail userB)
+                   [ ( Just $ userId userA
+                     , if shouldShowEmail SameTeam then userEmail userA
+                                                   else Nothing)
+                   , ( Just $ userId userB
+                     , if shouldShowEmail DifferentTeam then userEmail userB
+                                                        else Nothing)
+                   , ( Just $ userId nonTeamUser
+                     , if shouldShowEmail NoTeam then userEmail nonTeamUser
+                                                 else Nothing)
                    ]
     get (brig . zUser (userId userB) . path "users" . queryItem "ids" uids) !!! do
         const 200 === statusCode
