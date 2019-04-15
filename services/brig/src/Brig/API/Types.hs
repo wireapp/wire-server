@@ -104,6 +104,7 @@ data PasswordResetError
     = PasswordResetInProgress (Maybe Timeout)
     | InvalidPasswordResetKey
     | InvalidPasswordResetCode
+    | NewPasswordMustDiffer
 
 data LoginError
     = LoginFailed

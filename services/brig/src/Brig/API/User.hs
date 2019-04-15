@@ -638,10 +638,21 @@ completePasswordReset ident code pw = do
     muid :: Maybe UserId <- lift $ Data.verifyPasswordResetCode (key, code)
     case muid of
         Nothing  -> throwE InvalidPasswordResetCode
-        Just uid -> lift $ do
-            Data.updatePassword uid pw
-            Data.deletePasswordResetCode key
-            revokeAllCookies uid
+        Just uid -> do
+            checkNewIsDifferent uid pw
+            lift $ do
+                Data.updatePassword uid pw
+                Data.deletePasswordResetCode key
+                revokeAllCookies uid
+
+-- | Pull the current password of a user and compare it against the one about to be installed.
+-- If the two are the same, throw an error.  If no current password can be found, do nothing.
+checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
+checkNewIsDifferent uid pw = do
+    mcurrpw <- lift $ Data.lookupPassword uid
+    case mcurrpw of
+        Just currpw | verifyPassword pw currpw -> throwE NewPasswordMustDiffer
+        _ -> pure ()
 
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError AppIO PasswordResetKey
 mkPasswordResetKey ident = case ident of
