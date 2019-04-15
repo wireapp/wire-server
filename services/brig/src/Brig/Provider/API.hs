@@ -398,12 +398,12 @@ beginPasswordReset req = do
 
 completePasswordReset :: JsonRequest CompletePasswordReset -> Handler Response
 completePasswordReset req = do
-    CompletePasswordReset key val pwd <- parseJsonBody req
-    c <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
-    case Code.codeAccount c of
+    CompletePasswordReset key val newpwd <- parseJsonBody req
+    code <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
+    case Id <$> Code.codeAccount code of
         Nothing -> throwE $ pwResetError InvalidPasswordResetCode
-        Just  p -> do
-            DB.updateAccountPassword (Id p) pwd
+        Just pid -> do
+            DB.updateAccountPassword pid newpwd
             Code.delete key Code.PasswordReset
     return empty
 

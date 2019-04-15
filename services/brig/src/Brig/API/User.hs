@@ -606,19 +606,19 @@ mkActivationKey (ActivatePhone p) = do
 -- Password Management
 
 changePassword :: UserId -> PasswordChange -> ExceptT ChangePasswordError AppIO ()
-changePassword u cp = do
-    activated <- lift $ Data.isActivated u
+changePassword uid cp = do
+    activated <- lift $ Data.isActivated uid
     unless activated $
         throwE ChangePasswordNoIdentity
-    currpw <- lift $ Data.lookupPassword u
+    currpw <- lift $ Data.lookupPassword uid
     let newpw = cpNewPassword cp
     case (currpw, cpOldPassword cp) of
-        (Nothing,        _) -> lift $ Data.updatePassword u newpw
+        (Nothing,        _) -> lift $ Data.updatePassword uid newpw
         (Just  _,  Nothing) -> throwE InvalidCurrentPassword
         (Just pw, Just pw') -> do
             unless (verifyPassword pw' pw) $
                 throwE InvalidCurrentPassword
-            lift $ Data.updatePassword u newpw >> revokeAllCookies u
+            lift $ Data.updatePassword uid newpw >> revokeAllCookies uid
 
 beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError AppIO (UserId, PasswordResetPair)
 beginPasswordReset target = do
