@@ -26,18 +26,33 @@ import qualified Data.ByteString.Char8       as C8
 import qualified Data.Set                    as Set
 
 tests :: Manager -> Brig -> Galley -> IO TestTree
-tests manager brig galley = do
-    return
-        $ testGroup "settings"
-        $ [ testCase "EmailVisibleIfOnTeam"
-            . runHttpT manager
-            . withEmailVisibility EmailVisibleIfOnTeam brig $
-                (testEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam))
-          , testCase "EmailVisibleToSelf"
-            . runHttpT manager
-            . withEmailVisibility EmailVisibleToSelf brig $
-                (testEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf))
-          ]
+tests manager brig galley = return $ do
+    testGroup "settings"
+        [ testGroup "setEmailVisibility"
+            [ testGroup "/users/"
+                [ testCase "EmailVisibleIfOnTeam"
+                . runHttpT manager
+                . withEmailVisibility EmailVisibleIfOnTeam brig
+                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam)
+
+                , testCase "EmailVisibleToSelf"
+                . runHttpT manager
+                . withEmailVisibility EmailVisibleToSelf brig
+                $ testUsersEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf)
+                ]
+            , testGroup "/users/:id"
+                [ testCase "EmailVisibleIfOnTeam"
+                . runHttpT manager
+                . withEmailVisibility EmailVisibleIfOnTeam brig
+                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleIfOnTeam)
+
+                , testCase "EmailVisibleToSelf"
+                . runHttpT manager
+                . withEmailVisibility EmailVisibleToSelf brig
+                $ testGetUserEmailShowsEmailsIfExpected brig galley (expectEmailVisible EmailVisibleToSelf)
+                ]
+            ]
+        ]
 
 data UserRelationship = SameTeam | DifferentTeam | NoTeam
 
@@ -53,8 +68,11 @@ expectEmailVisible EmailVisibleToSelf SameTeam = False
 expectEmailVisible EmailVisibleToSelf DifferentTeam = False
 expectEmailVisible EmailVisibleToSelf NoTeam = False
 
-testEmailShowsEmailsIfExpected :: Brig -> Galley -> EmailVisibilityAssertion -> Http ()
-testEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
+jsonField :: FromJSON a => Text -> Value -> Maybe a
+jsonField f u = u ^? key f >>= maybeFromJSON
+
+testUsersEmailShowsEmailsIfExpected :: Brig -> Galley -> EmailVisibilityAssertion -> Http ()
+testUsersEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
     (creatorId, tid) <- createUserWithTeam brig galley
     (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
     userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
@@ -78,11 +96,32 @@ testEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
         const (Just expected) === result
   where
     result r =  Set.fromList
-             .  map (field "id" &&& field "email")
+             .  map (jsonField "id" &&& jsonField "email")
             <$> decodeBody r
 
-    field :: FromJSON a => Text -> Value -> Maybe a
-    field f u = u ^? key f >>= maybeFromJSON
+testGetUserEmailShowsEmailsIfExpected :: Brig -> Galley -> EmailVisibilityAssertion -> Http ()
+testGetUserEmailShowsEmailsIfExpected brig galley shouldShowEmail = do
+    (creatorId, tid) <- createUserWithTeam brig galley
+    (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
+    userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
+    userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
+    nonTeamUser <- createUser "joe" brig
+    let expectations :: [(UserId, Maybe Email)]
+        expectations =
+            [ (userId userA, if shouldShowEmail SameTeam then userEmail userA
+                                                         else Nothing)
+            , (userId userB, if shouldShowEmail DifferentTeam then userEmail userB
+                                                              else Nothing)
+            , (userId nonTeamUser, if shouldShowEmail NoTeam then userEmail nonTeamUser
+                                                             else Nothing)
+            ]
+    forM_ expectations $ \(uid, expectedEmail) ->
+        get (brig . zUser (userId userB) . paths ["users", toByteString' uid]) !!! do
+            const 200 === statusCode
+            const expectedEmail === emailResult
+  where
+    emailResult :: Response (Maybe LByteString) -> Maybe Email
+    emailResult r = decodeBody r >>= jsonField "email"
 
 
 withEmailVisibility :: EmailVisibility -> Brig -> Http () -> Http ()
