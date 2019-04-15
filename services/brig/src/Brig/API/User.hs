@@ -635,13 +635,13 @@ beginPasswordReset target = do
 completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
 completePasswordReset ident code pw = do
     key <- mkPasswordResetKey ident
-    usr <- lift $ Data.verifyPasswordResetCode (key, code)
-    case usr of
-        Nothing -> throwE InvalidPasswordResetCode
-        Just  u -> lift $ do
-            Data.updatePassword u pw
+    muid :: Maybe UserId <- lift $ Data.verifyPasswordResetCode (key, code)
+    case muid of
+        Nothing  -> throwE InvalidPasswordResetCode
+        Just uid -> lift $ do
+            Data.updatePassword uid pw
             Data.deletePasswordResetCode key
-            revokeAllCookies u
+            revokeAllCookies uid
 
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError AppIO PasswordResetKey
 mkPasswordResetKey ident = case ident of
