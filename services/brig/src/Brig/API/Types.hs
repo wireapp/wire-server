@@ -104,7 +104,7 @@ data PasswordResetError
     = PasswordResetInProgress (Maybe Timeout)
     | InvalidPasswordResetKey
     | InvalidPasswordResetCode
-    | NewPasswordMustDiffer
+    | ResetPasswordMustDiffer
 
 data LoginError
     = LoginFailed
@@ -116,6 +116,7 @@ data LoginError
 data ChangePasswordError
     = InvalidCurrentPassword
     | ChangePasswordNoIdentity
+    | ChangePasswordMustDiffer
 
 data ChangePhoneError
     = PhoneExists !Phone

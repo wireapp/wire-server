@@ -403,6 +403,9 @@ completePasswordReset req = do
     case Id <$> Code.codeAccount code of
         Nothing -> throwE $ pwResetError InvalidPasswordResetCode
         Just pid -> do
+            oldpass <- DB.lookupPassword pid >>= maybeBadCredentials
+            when (verifyPassword newpwd oldpass) $ do
+                throwStd newPasswordMustDiffer
             DB.updateAccountPassword pid newpwd
             Code.delete key Code.PasswordReset
     return empty
@@ -453,6 +456,8 @@ updateAccountPassword (pid ::: req) = do
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (cpOldPassword upd) pass) $
         throwStd badCredentials
+    when (verifyPassword (cpNewPassword upd) pass) $
+        throwStd newPasswordMustDiffer
     DB.updateAccountPassword pid (cpNewPassword upd)
     return empty
 

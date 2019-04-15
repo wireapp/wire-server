@@ -618,6 +618,8 @@ changePassword uid cp = do
         (Just pw, Just pw') -> do
             unless (verifyPassword pw' pw) $
                 throwE InvalidCurrentPassword
+            when (verifyPassword newpw pw) $
+                throwE ChangePasswordMustDiffer
             lift $ Data.updatePassword uid newpw >> revokeAllCookies uid
 
 beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError AppIO (UserId, PasswordResetPair)
@@ -651,7 +653,7 @@ checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError
 checkNewIsDifferent uid pw = do
     mcurrpw <- lift $ Data.lookupPassword uid
     case mcurrpw of
-        Just currpw | verifyPassword pw currpw -> throwE NewPasswordMustDiffer
+        Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
         _ -> pure ()
 
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError AppIO PasswordResetKey

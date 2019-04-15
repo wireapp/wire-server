@@ -206,22 +206,29 @@ testPasswordResetProvider db brig = do
     prv <- randomProvider db brig
 
     let email = providerEmail prv
-    initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
     let newPw = PlainTextPassword "newsupersecret"
+    initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
 
-    -- Get the code directly from the DB
-    gen <- Code.mkGen (Code.ForEmail email)
-    Just vcode <- lookupCode db gen Code.PasswordReset
-
-    let passwordResetData = CompletePasswordReset (Code.codeKey vcode)
-                                                  (Code.codeValue vcode)
-                                                  newPw
-    completePasswordResetProvider brig passwordResetData !!! const 200 === statusCode
+    -- password reset with same password fails.
+    resetPw defProviderPassword email !!! const 409 === statusCode
+    -- password reset with different password works.
+    resetPw newPw email !!! const 200 === statusCode
 
     loginProvider brig email defProviderPassword !!!
         const 403 === statusCode
     loginProvider brig email newPw !!!
         const 200 === statusCode
+  where
+    resetPw :: PlainTextPassword -> Email -> Http ResponseLBS
+    resetPw newPw email = do
+        -- Get the code directly from the DB
+        gen <- Code.mkGen (Code.ForEmail email)
+        Just vcode <- lookupCode db gen Code.PasswordReset
+
+        let passwordResetData = CompletePasswordReset (Code.codeKey vcode)
+                                                      (Code.codeValue vcode)
+                                                      newPw
+        completePasswordResetProvider brig passwordResetData
 
 testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetAfterEmailUpdateProvider db brig = do
@@ -260,8 +267,12 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
     let newPass = PlainTextPassword "newpass"
     let pwChangeFail = PasswordChange (PlainTextPassword "notcorrect") newPass
     updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
-    let pwChange = pwChangeFail { cpOldPassword = defProviderPassword }
+    let pwChange = PasswordChange defProviderPassword newPass
     updateProviderPassword brig pid pwChange !!! const 200 === statusCode
+
+    -- put /provider/password gives 409 if new password is the same.
+    let pwChange' = PasswordChange newPass newPass
+    updateProviderPassword brig pid pwChange' !!! const 409 === statusCode
 
     -- Check the login process again
     loginProvider brig newEmail defProviderPassword !!! const 403 === statusCode
