@@ -213,7 +213,7 @@ invalidPwResetKey :: Wai.Error
 invalidPwResetKey = Wai.Error status400 "invalid-key" "Invalid email or mobile number for password reset."
 
 newPasswordMustDiffer :: Wai.Error
-newPasswordMustDiffer = Wai.Error status400 "password-must-differ" "For password reset, new and old password must be different."
+newPasswordMustDiffer = Wai.Error status409 "password-must-differ" "For password reset, new and old password must be different."
 
 invalidPhone :: Wai.Error
 invalidPhone = Wai.Error status400 "invalid-phone" "Invalid mobile phone number."

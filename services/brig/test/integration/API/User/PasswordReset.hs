@@ -36,7 +36,7 @@ testPasswordReset brig = do
     -- reset password again to the same new password, get 400 "must be different"
     do  initiatePasswordReset brig email !!! const 201 === statusCode
         passwordResetData <- preparePasswordReset brig email uid newpw
-        completePasswordReset brig passwordResetData !!! const 400 === statusCode
+        completePasswordReset brig passwordResetData !!! const 409 === statusCode
 
 testPasswordResetAfterEmailUpdate :: Brig -> Http ()
 testPasswordResetAfterEmailUpdate brig = do
