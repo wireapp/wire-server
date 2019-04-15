@@ -3,14 +3,14 @@
 set -e
 
 #
-# This bash script can be used to create an active user by using an internal 
+# This bash script can be used to create an active user by using an internal
 # brig endpoint. Note that this is not exposed over nginz and can only be used
 # if you have direct access to brig
 #
 
 # Usage:
-#   --csv			Output users in CSV format
-#   --count=INT		Generate several users (by default it's just one)
+#   --csv                      Output users in CSV format
+#   --count=INT                Generate several users (by default it's just one)
 
 CSV=false
 COUNT=1
