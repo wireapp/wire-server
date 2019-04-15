@@ -47,7 +47,7 @@ do
         -H'Content-type: application/json' \
         -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
 
-    UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*"id":"\([0-9a-z-]\+\)".*/\1/')
+    UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
     if [ "$CSV" == "false" ]
         then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD
