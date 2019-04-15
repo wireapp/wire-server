@@ -562,10 +562,10 @@ withSettingsOverrides brig overrides action  = bracket setup teardown (const act
     setup = do
         existingSettings <- get (brig . paths ["i", "settings"] . Bilge.json overrides)
             <!! const 200 === statusCode
-        put (brig . paths ["i", "settings"] . Bilge.json overrides)
+        patch (brig . paths ["i", "settings"] . Bilge.json overrides)
             !!! const 200 === statusCode
         decodeBody existingSettings
 
     teardown :: MutableSettings -> Http ()
-    teardown existingSettings = put (brig . paths ["i", "settings"] . Bilge.json existingSettings)
+    teardown existingSettings = patch (brig . paths ["i", "settings"] . Bilge.json existingSettings)
                 !!! const 200 === statusCode

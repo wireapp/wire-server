@@ -77,7 +77,7 @@ sitemap o = do
     get "/i/settings" (continue $ API.getSettings) $
         accept "application" "json"
 
-    put "/i/settings" (continue $ API.putSettings) $
+    patch "/i/settings" (continue $ API.patchSettings) $
          jsonRequest @(MutableSettings' Maybe)
 
     post "/i/users/:id/auto-connect" (continue autoConnect) $

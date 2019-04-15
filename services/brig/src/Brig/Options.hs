@@ -229,7 +229,7 @@ data Opts = Opts
     } deriving (Show, Generic)
 
 -- | We use the Higher Kinded Data pattern here because it's very useful for handling
---   partial 'PUT' payloads in the API layer as @MutableSettings Maybe@
+--   partial 'PATCH' payloads in the API layer as @MutableSettings' Maybe@
 data MutableSettings' f = MutableSettings
     { setEmailVisibility :: !(f EmailVisibility)
     } deriving stock (Generic)

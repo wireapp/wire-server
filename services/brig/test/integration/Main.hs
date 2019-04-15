@@ -71,13 +71,13 @@ runTests iConf bConf otherArgs = do
     settingsApi <- Settings.tests mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
-        [ settingsApi
-        , userApi
+        [ userApi
         , providerApi
         , searchApis
         , teamApis
         , turnApi
         , metricsApi
+        , settingsApi
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

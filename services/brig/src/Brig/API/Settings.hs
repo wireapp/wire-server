@@ -1,5 +1,5 @@
 module Brig.API.Settings
-    ( putSettings
+    ( patchSettings
     , getSettings
     ) where
 
@@ -15,8 +15,8 @@ import           Network.Wai               (Response)
 import           Network.Wai.Utilities     (JsonRequest, empty, json, parseBody', setStatus)
 
 -- | Update the provided settings accordingly
-putSettings :: JsonRequest (MutableSettings' Maybe) -> Handler Response
-putSettings body = do
+patchSettings :: JsonRequest (MutableSettings' Maybe) -> Handler Response
+patchSettings body = do
     newSettings <- parseBody' body
     mSettingsVar <- view mutableSettings
     atomically $ do
@@ -30,7 +30,7 @@ putSettings body = do
     fromMaybe' a ma = maybe a Identity ma
 
 
--- | Update the provided settings accordingly
+-- | Get the current settings
 getSettings :: JSON -> Handler Response
 getSettings _ = do
     mSet <- view mutableSettings >>= readTVarIO
