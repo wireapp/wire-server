@@ -13,12 +13,10 @@ import Options.Applicative
 import Util.Options
 import Util.Options.Common
 import Util.Test
--- import Test.Tasty
--- import Test.Tasty.Options
+import Test.Tasty
+import Test.Tasty.Options
 
-import Forecastle
-import Forecastle.HUnit
--- import TestSetup
+import TestSetup
 import qualified API.V3
 import qualified Metrics
 

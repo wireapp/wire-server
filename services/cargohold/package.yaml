@@ -86,7 +86,6 @@ executables:
     - cargohold-types
     - base ==4.*
     - cryptohash-md5 >=0.11.7.2
-    - forecastle
     - http-client-tls >=0.2
     - lens >=3.8
     - optparse-applicative
