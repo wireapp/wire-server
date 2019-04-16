@@ -1,28 +1,37 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Forecastle
-    ( tManager
+    ( test
+    , testGroup
+    , withEnv
+
+    , tManager
     , tGalley
     , tBrig
     , tCannon
     , tCargoHold
     , tAwsEnv
-    , test
-    , testGroup
-    , withEnv
+
     , TestM'
     , TestM(..)
-    , TestSetup(..)
     , GalleyR(..)
     , CargoHoldR(..)
     , BrigR(..)
     , CannonR(..)
+
+    , ContainsTypes
     , module Test.Hspec
     ) where
 
 import Imports
 import Bilge
 import Control.Monad.Catch
+import Data.Kind
 
 import Data.Generics.Product
 
@@ -31,12 +40,16 @@ import Control.Lens
 
 import Test.Hspec
 
+type family ContainsTypes e (ts :: [Type]) = (constraints :: Constraint) where
+  ContainsTypes e '[] = ()
+  ContainsTypes e (t:ts) = (HasType t e, ContainsTypes e ts)
+
 newtype GalleyR = GalleyR { runGalleyR :: Request -> Request }
 newtype BrigR = BrigR { runBrigR :: Request -> Request }
 newtype CannonR = CannonR { runCannonR :: Request -> Request }
 newtype CargoHoldR = CargoHoldR { runCargoHoldR :: Request -> Request }
 
-type TestM' a = TestM TestSetup a
+type TestM' e a = TestM e a
 newtype TestM e a =
   TestM { runTestM :: ReaderT e IO a
         } deriving newtype
@@ -52,34 +65,25 @@ newtype TestM e a =
         )
 
 instance (HasType Manager e) => MonadHttp (TestM e) where
-    getManager = view tManager
+    getManager = tManager
 
-data TestSetup = TestSetup
-    { tsManager     :: Manager
-    , tsGalley      :: GalleyR
-    , tsBrig        :: BrigR
-    , tsCannon      :: CannonR
-    , tsCargoHoldR  :: CargoHoldR
-    , tsAwsEnv      :: Maybe AWS.Env
-    } deriving (Generic)
+tManager :: HasType Manager e => TestM e Manager
+tManager = view (typed @Manager)
 
-tManager :: HasType Manager e => Lens' e Manager
-tManager = typed @Manager
+tGalley :: ContainsTypes e '[GalleyR] => TestM e (Request -> Request)
+tGalley = view (typed @GalleyR . coerced)
 
-tGalley :: HasType GalleyR e => Lens' e (Request -> Request)
-tGalley = typed @GalleyR . coerced
+tBrig :: HasType BrigR e => TestM e (Request -> Request)
+tBrig = view (typed @BrigR . coerced)
 
-tBrig :: HasType BrigR e => Lens' e (Request -> Request)
-tBrig = typed @BrigR . coerced
+tCannon :: HasType CannonR e => TestM e (Request -> Request)
+tCannon = view (typed @CannonR . coerced)
 
-tCannon :: HasType CannonR e => Lens' e (Request -> Request)
-tCannon = typed @CannonR . coerced
+tCargoHold :: HasType CargoHoldR e => TestM e (Request -> Request)
+tCargoHold = view (typed @CargoHoldR . coerced)
 
-tCargoHold :: HasType CargoHoldR e => Lens' e (Request -> Request)
-tCargoHold = typed @CargoHoldR . coerced
-
-tAwsEnv :: HasType (Maybe AWS.Env) e => Traversal' e AWS.Env
-tAwsEnv = typed @(Maybe AWS.Env) . _Just
+tAwsEnv :: HasType (Maybe AWS.Env) e => TestM e (Maybe AWS.Env)
+tAwsEnv = preview (typed @(Maybe AWS.Env) . _Just)
 
 type TestDescription = String
 test :: HasType Manager e => IO e -> TestDescription -> TestM e a -> Spec

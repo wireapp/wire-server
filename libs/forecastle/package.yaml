@@ -13,15 +13,37 @@ extra-source-files:
 - README.md
 dependencies:
 - base >=4.7 && <5
+- HUnit
+- QuickCheck
+- aeson
 - amazonka
+- base64-bytestring
 - bilge
+- brig-types
+- bytestring
+- bytestring-conversion
+- cereal
+- containers
+- currency-codes
 - exceptions
+- galley-types
+- generic-lens
+- gundeck-types
 - hspec
 - imports
 - lens
+- lens-aeson
 - mtl
-- generic-lens
-- HUnit
+- proto-lens
+- protobuf
+- retry
+- tasty
+- tasty-cannon
+- tasty-hunit
+- text
+- types-common
+- unordered-containers
+- uuid
 library:
   source-dirs: src
 stability: experimental
