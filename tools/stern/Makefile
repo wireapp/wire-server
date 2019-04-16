@@ -1,4 +1,4 @@
-LANG := en_US.UTF-8
+LANG         := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := stern
 VERSION      ?=
@@ -7,8 +7,8 @@ BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES  := stern
-DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+DOCKER_USER  ?= quay.io/wire
+DOCKER_TAG   ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
