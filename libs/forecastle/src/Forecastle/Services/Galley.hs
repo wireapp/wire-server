@@ -948,7 +948,7 @@ selfConv :: UserId -> Id C
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
-retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> TestM e a -> TestM e a
+retryWhileN :: Int -> (a -> Bool) -> TestM e a -> TestM e a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)

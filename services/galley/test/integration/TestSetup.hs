@@ -1,8 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 module TestSetup
-    ( test
-    , tsManager
+    ( tsManager
     , tsGalley
     , tsBrig
     , tsCannon
@@ -13,17 +12,11 @@ module TestSetup
     ) where
 
 import Imports
-import Test.Tasty          (TestName, TestTree)
-import Test.Tasty.HUnit    (Assertion, testCase)
-import Control.Lens        (makeLenses, view)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Bilge (Manager, MonadHttp(..), Request)
+import Bilge (Manager)
+import Forecastle
+import Control.Lens (makeLenses)
 
 import qualified Galley.Aws          as Aws
-
-type GalleyR      = Request -> Request
-type BrigR        = Request -> Request
-type CannonR      = Request -> Request
 
 data TestSetup = TestSetup
     { _tsManager     :: Manager
@@ -32,7 +25,7 @@ data TestSetup = TestSetup
     , _tsCannon      :: CannonR
     , _tsAwsEnv      :: Maybe Aws.Env
     , _tsMaxConvSize :: Word16
-    }
+    } deriving Generic
 
 makeLenses ''TestSetup
 
@@ -51,11 +44,3 @@ newtype TestM a =
 
 instance MonadHttp TestM where
     getManager = view tsManager
-
-test :: IO TestSetup -> TestName -> TestM a -> TestTree
-test s n h = testCase n runTest
-  where
-    runTest :: Assertion
-    runTest = do
-        setup <- s
-        void . flip runReaderT setup . runTestM $ h
