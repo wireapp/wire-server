@@ -6,7 +6,8 @@
 {-# LANGUAGE PolyKinds #-}
 
 module Forecastle
-    ( withEnv
+    ( runTestM
+    , runTestM_
 
     , tManager
     , tGalley
@@ -45,7 +46,7 @@ newtype CannonR = CannonR { runCannonR :: Request -> Request }
 newtype CargoHoldR = CargoHoldR { runCargoHoldR :: Request -> Request }
 
 newtype TestM e a =
-  TestM { runTestM :: ReaderT e IO a
+  TestM { runTestM' :: ReaderT e IO a
         } deriving newtype
         ( Functor
         , Applicative
@@ -76,7 +77,9 @@ tCannon = view (typed @CannonR . coerced)
 tCargoHold :: ContainsTypes e '[CargoHoldR] => TestM e (Request -> Request)
 tCargoHold = view (typed @CargoHoldR . coerced)
 
--- | Can be used with 'it'; e.g. it "does something with env" . withEnv $ myTestM
-withEnv :: TestM e () -> e -> IO ()
-withEnv t testEnv =
-    void . flip runReaderT testEnv . runTestM $ t
+-- | Run a test in IO
+runTestM :: TestM e a -> e -> IO a
+runTestM t testEnv = flip runReaderT testEnv . runTestM' $ t
+
+runTestM_ :: TestM e a -> e -> IO ()
+runTestM_ t testEnv = void $ runTestM t testEnv

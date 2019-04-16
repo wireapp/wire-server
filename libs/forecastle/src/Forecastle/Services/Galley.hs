@@ -46,9 +46,6 @@ type TestConstraints ts e = (ContainsTypes e ts, HasCallStack)
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
-fromBS :: ((TestConstraints '[GalleyR, Manager] e), FromByteString a) => ByteString -> TestM e a
-fromBS = maybe (fail "fromBS: no parse") return . fromByteString
-
 createTeam :: (TestConstraints '[Manager, GalleyR] e) => Text -> UserId -> [TeamMember] -> TestM e TeamId
 createTeam name owner mems = do
     g <- tGalley
@@ -900,6 +897,9 @@ decodeBody r = do
 decodeBody' :: (FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
 decodeBody' s = fromMaybe (error $ "decodeBody: " ++ s) . decodeBody
 
+fromBS :: ((TestConstraints '[GalleyR, Manager] e), FromByteString a) => ByteString -> TestM e a
+fromBS = maybe (fail "fromBS: no parse") return . fromByteString
+
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
       maybe id (queryItem "size" . C.pack . show) size
@@ -939,7 +939,7 @@ genRandom = liftIO . Q.generate $ Q.arbitrary
 defPassword :: Text
 defPassword = "secret"
 
-randomEmail :: TestM e Email
+randomEmail :: MonadIO m => m Email
 randomEmail = do
     uid <- liftIO nextRandom
     return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
@@ -948,7 +948,7 @@ selfConv :: UserId -> Id C
 selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
-retryWhileN :: Int -> (a -> Bool) -> TestM e a -> TestM e a
+retryWhileN :: MonadIO m => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)

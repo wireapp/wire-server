@@ -14,4 +14,4 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
         setup <- s
-        void . flip runReaderT setup . runTestM $ h
+        runTestM_ h setup
