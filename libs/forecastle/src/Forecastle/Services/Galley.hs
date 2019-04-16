@@ -576,7 +576,7 @@ assertNotConvMember u c =
 -------------------------------------------------------------------------------
 -- Common Assertions
 
-assertConvEquals :: ((TestConstraints '[GalleyR, Manager] e), MonadIO m) => Conversation -> Conversation -> TestM e ()
+assertConvEquals :: (MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
     assertEqual "id"              (cnvId        c1) (cnvId        c2)
     assertEqual "type"            (cnvType      c1) (cnvType      c2)

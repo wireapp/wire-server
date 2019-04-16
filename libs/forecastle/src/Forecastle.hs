@@ -6,9 +6,7 @@
 {-# LANGUAGE PolyKinds #-}
 
 module Forecastle
-    ( test
-    , testGroup
-    , withEnv
+    ( withEnv
 
     , tManager
     , tGalley
@@ -25,7 +23,6 @@ module Forecastle
     , CannonR(..)
 
     , ContainsTypes
-    , module Test.Hspec
     ) where
 
 import Imports
@@ -37,8 +34,6 @@ import Data.Generics.Product
 
 import qualified Network.AWS as AWS
 import Control.Lens
-
-import Test.Hspec
 
 type family ContainsTypes e (ts :: [Type]) = (constraints :: Constraint) where
   ContainsTypes e '[] = ()
@@ -84,16 +79,6 @@ tCargoHold = view (typed @CargoHoldR . coerced)
 
 tAwsEnv :: HasType (Maybe AWS.Env) e => TestM e (Maybe AWS.Env)
 tAwsEnv = preview (typed @(Maybe AWS.Env) . _Just)
-
-type TestDescription = String
-test :: HasType Manager e => IO e -> TestDescription -> TestM e a -> Spec
-test setupEnv desc h = before setupEnv $ specify desc t
-  where
-    t s = do
-        void . flip runReaderT s . runTestM $ h
-
-testGroup :: TestDescription -> [SpecWith a] -> SpecWith a
-testGroup desc specs = describe desc (sequence_ specs)
 
 -- | Can be used with 'it'; e.g. it "does something with env" . withEnv $ myTestM
 withEnv :: TestM e () -> e -> IO ()

@@ -1,17 +1,17 @@
 module API.MessageTimer (tests) where
 
 import Imports hiding (head)
-import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Data.List1
 import Data.Misc
 import Galley.Types
 import Network.Wai.Utilities.Error
-import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import TestSetup
-import Control.Lens (view)
+import Forecastle
+import Forecastle.Tasty.HUnit
+import Forecastle.Services.Galley
 
 import qualified Galley.Types.Teams       as Teams
 import qualified Test.Tasty.Cannon        as WS
@@ -29,7 +29,7 @@ tests s = testGroup "Per-conversation message timer"
 
 messageTimerInit
     :: Maybe Milliseconds    -- ^ Timer value
-    -> TestM ()
+    -> TestM TestSetup ()
 messageTimerInit mtimer = do
     -- Create a conversation with a timer
     [alice, bob, jane] <- randomUsers 3
@@ -41,7 +41,7 @@ messageTimerInit mtimer = do
     getConv jane cid !!!
         const mtimer === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChange :: TestM ()
+messageTimerChange :: TestM TestSetup ()
 messageTimerChange = do
     -- Create a conversation without a timer
     [alice, bob, jane] <- randomUsers 3
@@ -68,7 +68,7 @@ messageTimerChange = do
     getConv jane cid !!!
         const timer1year === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChangeGuest :: TestM ()
+messageTimerChangeGuest :: TestM TestSetup ()
 messageTimerChangeGuest = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers 3
@@ -88,7 +88,7 @@ messageTimerChangeGuest = do
     getConv guest cid !!!
         const timer1sec === (cnvMessageTimer <=< decodeBody)
 
-messageTimerChangeO2O :: TestM ()
+messageTimerChangeO2O :: TestM TestSetup ()
 messageTimerChangeO2O = do
     -- Create a 1:1 conversation
     [alice, bob] <- randomUsers 2
@@ -103,9 +103,9 @@ messageTimerChangeO2O = do
     getConv alice cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
 
-messageTimerEvent :: TestM ()
+messageTimerEvent :: TestM TestSetup ()
 messageTimerEvent = do
-    ca <- view tsCannon
+    ca <- tCannon
     -- Create a conversation
     [alice, bob] <- randomUsers 2
     connectUsers alice (singleton bob)

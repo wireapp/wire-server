@@ -12,6 +12,7 @@ import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Forecastle
+import Forecastle.Tasty.HUnit
 import Forecastle.Services.Galley as Util
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
@@ -32,7 +33,7 @@ import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
 
-tests :: IO TestSetup -> SpecWith ()
+tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
     [ test s "create team" testCreateTeam
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
