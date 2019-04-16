@@ -41,12 +41,14 @@ type ResponseLBS = Response (Maybe LByteString)
 -------------------------------------------------------------------------------
 -- API Operations
 
-type TestConstraints ts e = (ContainsTypes e ts, HasCallStack)
-
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
-createTeam :: (TestConstraints '[Manager, GalleyR] e) => Text -> UserId -> [TeamMember] -> TestM e TeamId
+createTeam :: (HasCallStack, ContainsTypes e '[Manager, GalleyR])
+           => Text
+           -> UserId
+           -> [TeamMember]
+           -> TestM e TeamId
 createTeam name owner mems = do
     g <- tGalley
     let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
@@ -56,7 +58,10 @@ createTeam name owner mems = do
         const True === isJust . getHeader "Location"
     fromBS (getHeader' "Location" resp)
 
-changeTeamStatus :: (TestConstraints '[GalleyR, Manager] e) => TeamId -> TeamStatus -> TestM e ()
+changeTeamStatus :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                 => TeamId
+                 -> TeamStatus
+                 -> TestM e ()
 changeTeamStatus tid s = do
       g <- tGalley
       put
@@ -64,13 +69,19 @@ changeTeamStatus tid s = do
         . json (TeamStatusUpdate s Nothing)
         ) !!! const 200 === statusCode
 
-createTeamInternal :: (TestConstraints '[GalleyR, Manager] e) => Text -> UserId -> TestM e TeamId
+createTeamInternal :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                   => Text
+                   -> UserId
+                   -> TestM e TeamId
 createTeamInternal name owner = do
     tid <- createTeamInternalNoActivate name owner
     changeTeamStatus tid Active
     return tid
 
-createTeamInternalNoActivate :: (TestConstraints '[GalleyR, Manager] e) => Text -> UserId -> TestM e TeamId
+createTeamInternalNoActivate :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                             => Text
+                             -> UserId
+                             -> TestM e TeamId
 createTeamInternalNoActivate name owner = do
     g <- tGalley
     tid <- randomId
@@ -80,7 +91,12 @@ createTeamInternalNoActivate name owner = do
         const True === isJust . getHeader "Location"
     return tid
 
-createTeamInternalWithCurrency :: (TestConstraints '[GalleyR, Manager] e) => Text -> UserId -> Currency.Alpha -> TestM e TeamId
+createTeamInternalWithCurrency
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+    => Text
+    -> UserId
+    -> Currency.Alpha
+    -> TestM e TeamId
 createTeamInternalWithCurrency name owner cur = do
     g <- tGalley
     tid <- createTeamInternalNoActivate name owner
@@ -88,54 +104,90 @@ createTeamInternalWithCurrency name owner cur = do
         const 200 === statusCode
     return tid
 
-getTeam :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> TestM e Team
+getTeam :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+        => UserId
+        -> TeamId
+        -> TestM e Team
 getTeam usr tid = do
     g <- tGalley
     r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMembers :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> TestM e TeamMemberList
+getTeamMembers :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+               => UserId
+               -> TeamId
+               -> TestM e TeamMemberList
 getTeamMembers usr tid = do
     g <- tGalley
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMember :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> UserId -> TestM e TeamMember
+getTeamMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+              => UserId
+              -> TeamId
+              -> UserId
+              -> TestM e TeamMember
 getTeamMember usr tid mid = do
     g <- tGalley
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMemberInternal :: (TestConstraints '[GalleyR, Manager] e) => TeamId -> UserId -> TestM e TeamMember
+getTeamMemberInternal :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                      => TeamId
+                      -> UserId
+                      -> TestM e TeamMember
 getTeamMemberInternal tid mid = do
     g <- tGalley
     r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-addTeamMember :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> TeamMember -> TestM e ()
+addTeamMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+              => UserId
+              -> TeamId
+              -> TeamMember
+              -> TestM e ()
 addTeamMember usr tid mem = do
     g <- tGalley
     let payload = json (newNewTeamMember mem)
     post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" .payload) !!!
         const 200 === statusCode
 
-addTeamMemberInternal :: (TestConstraints '[GalleyR, Manager] e) => TeamId -> TeamMember -> TestM e ()
+addTeamMemberInternal :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                      => TeamId
+                      -> TeamMember
+                      -> TestM e ()
 addTeamMemberInternal tid mem = do
     g <- tGalley
     let payload = json (newNewTeamMember mem)
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM e ConvId
+createTeamConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+               => UserId
+               -> TeamId
+               -> [UserId]
+               -> Maybe Text
+               -> Maybe (Set Access)
+               -> Maybe Milliseconds
+               -> TestM e ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer
 
-createTeamConvAccess :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> TestM e ConvId
+createTeamConvAccess
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+    => UserId
+    -> TeamId
+    -> [UserId]
+    -> Maybe Text
+    -> Maybe (Set Access)
+    -> Maybe AccessRole
+    -> Maybe Milliseconds
+    -> TestM e ConvId
 createTeamConvAccess u tid us name acc role mtimer = do
     r <- createTeamConvAccessRaw u tid us name acc role mtimer <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
 createTeamConvAccessRaw
-    :: (TestConstraints '[GalleyR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
     => UserId
     -> TeamId
     -> [UserId]
@@ -157,7 +209,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer = do
           . json conv
           )
 
-updateTeamConv :: (TestConstraints '[GalleyR, Manager] e)
+updateTeamConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                => UserId
                -> ConvId
                -> ConversationRename
@@ -173,7 +225,15 @@ updateTeamConv zusr convid upd = do
          )
 
 -- | See Note [managed conversations]
-createManagedConv :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM e ConvId
+createManagedConv
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+    => UserId
+    -> TeamId
+    -> [UserId]
+    -> Maybe Text
+    -> Maybe (Set Access)
+    -> Maybe Milliseconds
+    -> TestM e ConvId
 createManagedConv u tid us name acc mtimer = do
     g <- tGalley
     let tinfo = ConvTeamInfo tid True
@@ -190,7 +250,7 @@ createManagedConv u tid us name acc mtimer = do
     fromBS (getHeader' "Location" r)
 
 createOne2OneTeamConv
-    :: (TestConstraints '[GalleyR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
     => UserId
     -> UserId
     -> Maybe Text
@@ -202,7 +262,7 @@ createOne2OneTeamConv u1 u2 n tid = do
                NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: (TestConstraints '[GalleyR, Manager] e)
+postConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
          => UserId
          -> [UserId]
          -> Maybe Text
@@ -216,7 +276,7 @@ postConv u us name a r mtimer = do
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt
-    :: (TestConstraints '[GalleyR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
     => UserId
     -> [UserId]
     -> Maybe Text
@@ -230,12 +290,14 @@ postConvWithReceipt u us name a r mtimer rcpt = do
     let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt)
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
-postSelfConv :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TestM e ResponseLBS
+postSelfConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+             => UserId
+             -> TestM e ResponseLBS
 postSelfConv u = do
     g <- tGalley
     post $ g . path "/conversations/self" . zUser u . zConn "conn" . zType "access"
 
-postO2OConv :: (TestConstraints '[GalleyR, Manager] e)
+postO2OConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
             => UserId
             -> UserId
             -> Maybe Text
@@ -245,7 +307,7 @@ postO2OConv u1 u2 n = do
     let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConnectConv :: (TestConstraints '[GalleyR, Manager] e)
+postConnectConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                 => UserId
                 -> UserId
                 -> Text
@@ -261,7 +323,7 @@ postConnectConv a b name msg email = do
       . zType "access"
       . json (Connect b (Just msg) (Just name) email)
 
-putConvAccept :: (TestConstraints '[GalleyR, Manager] e)
+putConvAccept :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
               => UserId
               -> ConvId
               -> TestM e ResponseLBS
@@ -273,7 +335,7 @@ putConvAccept invited cid = do
       . zType "access"
       . zConn "conn"
 
-postOtrMessage :: (TestConstraints '[GalleyR, Manager] e)
+postOtrMessage :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                => (Request -> Request)
                -> UserId
                -> ClientId
@@ -290,7 +352,7 @@ postOtrMessage f u d c rec = do
       . json (mkOtrPayload d rec)
 
 postOtrBroadcastMessage
-    :: (TestConstraints '[GalleyR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
     => (Request -> Request)
     -> UserId
     -> ClientId
@@ -318,7 +380,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn :: (FromByteString a, ToByteString a) => a -> Text
     fn = fromJust . fromByteString . toByteString'
 
-postProtoOtrMessage :: (TestConstraints '[GalleyR, Manager] e)
+postProtoOtrMessage :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                     => UserId
                     -> ClientId
                     -> ConvId
@@ -333,7 +395,7 @@ postProtoOtrMessage u d c rec = do
     . contentProtobuf
     . bytes m
 
-postProtoOtrBroadcast :: (TestConstraints '[GalleyR, Manager] e)
+postProtoOtrBroadcast :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                       => UserId
                       -> ClientId
                       -> OtrRecipients
@@ -353,7 +415,7 @@ mkOtrProtoMessage sender rec =
         sndr = Proto.fromClientId sender
     in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
 
-getConvs :: (TestConstraints '[GalleyR, Manager] e)
+getConvs :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
          => UserId
          -> Maybe (Either [ConvId] ConvId)
          -> Maybe Int32
@@ -367,7 +429,10 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
-getConv :: (TestConstraints '[GalleyR, Manager] e) => UserId -> ConvId -> TestM e ResponseLBS
+getConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+        => UserId
+        -> ConvId
+        -> TestM e ResponseLBS
 getConv u c = do
     g <- tGalley
     get $ g
@@ -376,7 +441,7 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvIds :: (TestConstraints '[GalleyR, Manager] e)
+getConvIds :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
            => UserId
            -> Maybe (Either [ConvId] ConvId)
            -> Maybe Int32
@@ -390,7 +455,7 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
-postMembers :: (TestConstraints '[GalleyR, Manager] e)
+postMembers :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
             => UserId
             -> List1 UserId
             -> ConvId
@@ -405,7 +470,7 @@ postMembers u us c = do
          . zType "access"
          . json i
 
-deleteMember :: (TestConstraints '[GalleyR, Manager] e)
+deleteMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
              => UserId
              -> UserId
              -> ConvId
@@ -418,7 +483,7 @@ deleteMember u1 u2 c = do
       . zConn "conn"
       . zType "access"
 
-getSelfMember :: (TestConstraints '[GalleyR, Manager] e)
+getSelfMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
               => UserId
               -> ConvId
               -> TestM e ResponseLBS
@@ -430,7 +495,7 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: (TestConstraints '[GalleyR, Manager] e)
+putMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
           => UserId
           -> MemberUpdate
           -> ConvId
@@ -444,7 +509,7 @@ putMember u m c = do
       . zType "access"
       . json m
 
-postJoinConv :: (TestConstraints '[GalleyR, Manager] e)
+postJoinConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
              => UserId
              -> ConvId
              -> TestM e ResponseLBS
@@ -456,7 +521,7 @@ postJoinConv u c = do
       . zConn "conn"
       . zType "access"
 
-postJoinCodeConv :: (TestConstraints '[GalleyR, Manager] e)
+postJoinCodeConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                  => UserId
                  -> ConversationCode
                  -> TestM e ResponseLBS
@@ -469,7 +534,7 @@ postJoinCodeConv u j = do
       . zType "access"
       . json j
 
-putAccessUpdate :: (TestConstraints '[GalleyR, Manager] e)
+putAccessUpdate :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                 => UserId
                 -> ConvId
                 -> ConversationAccessUpdate
@@ -483,7 +548,7 @@ putAccessUpdate u c acc = do
       . zType "access"
       . json acc
 
-putMessageTimerUpdate :: (TestConstraints '[GalleyR, Manager] e)
+putMessageTimerUpdate :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                       => UserId
                       -> ConvId
                       -> ConversationMessageTimerUpdate
@@ -497,7 +562,7 @@ putMessageTimerUpdate u c acc = do
       . zType "access"
       . json acc
 
-postConvCode :: (TestConstraints '[GalleyR, Manager] e)
+postConvCode :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
              => UserId
              -> ConvId
              -> TestM e ResponseLBS
@@ -509,7 +574,7 @@ postConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-postConvCodeCheck :: (TestConstraints '[GalleyR, Manager] e)
+postConvCodeCheck :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                   => ConversationCode
                   -> TestM e ResponseLBS
 postConvCodeCheck code = do
@@ -518,7 +583,7 @@ postConvCodeCheck code = do
       . path "/conversations/code-check"
       . json code
 
-getConvCode :: (TestConstraints '[GalleyR, Manager] e)
+getConvCode :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
             => UserId
             -> ConvId
             -> TestM e ResponseLBS
@@ -530,7 +595,7 @@ getConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-deleteConvCode :: (TestConstraints '[GalleyR, Manager] e)
+deleteConvCode :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                => UserId
                -> ConvId
                -> TestM e ResponseLBS
@@ -542,7 +607,7 @@ deleteConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-deleteClientInternal :: (TestConstraints '[GalleyR, Manager] e)
+deleteClientInternal :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
                      => UserId
                      -> ClientId
                      -> TestM e ResponseLBS
@@ -553,18 +618,24 @@ deleteClientInternal u c = do
       . zConn "conn"
       . paths ["i", "clients", toByteString' c]
 
-deleteUser :: (TestConstraints '[GalleyR, Manager] e) => UserId -> TestM e ()
+deleteUser :: (HasCallStack, ContainsTypes e '[GalleyR, Manager]) => UserId -> TestM e ()
 deleteUser u = do
     g <- tGalley
     delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
-assertConvMember :: (TestConstraints '[GalleyR, Manager] e) => UserId -> ConvId -> TestM e ()
+assertConvMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                 => UserId
+                 -> ConvId
+                 -> TestM e ()
 assertConvMember u c =
     getSelfMember u c !!! do
         const 200      === statusCode
         const (Just u) === (fmap memId <$> decodeBody)
 
-assertNotConvMember :: (TestConstraints '[GalleyR, Manager] e) => UserId -> ConvId -> TestM e ()
+assertNotConvMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+                    => UserId
+                    -> ConvId
+                    -> TestM e ()
 assertNotConvMember u c =
     getSelfMember u c !!! do
         const 200         === statusCode
@@ -587,7 +658,7 @@ assertConvEquals c1 c2 = liftIO $ do
     selfMember   = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
-assertConv :: (TestConstraints '[GalleyR, Manager] e)
+assertConv :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
            => Response (Maybe Lazy.ByteString)
            -> ConvType
            -> UserId
@@ -624,7 +695,14 @@ assertConv r t c s us n mt = do
 wsAssertOtr :: ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr = wsAssertOtr' "data"
 
-wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' :: Text
+             -> ConvId
+             -> UserId
+             -> ClientId
+             -> ClientId
+             -> Text
+             -> Notification
+             -> IO ()
 wsAssertOtr' evData conv usr from to txt n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
@@ -642,7 +720,12 @@ wsAssertMemberJoin conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members new))
 
-wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate
+    :: ConvId
+    -> UserId
+    -> ConversationAccessUpdate
+    -> Notification
+    -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
@@ -651,7 +734,12 @@ wsAssertConvAccessUpdate conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdConvAccessUpdate new)
 
-wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate
+    :: ConvId
+    -> UserId
+    -> ConversationMessageTimerUpdate
+    -> Notification
+    -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
@@ -672,7 +760,10 @@ wsAssertMemberLeave conv usr old n = do
     sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
     sorted x = x
 
-assertNoMsg :: (TestConstraints '[GalleyR, Manager] e) => WS.WebSocket -> (Notification -> Assertion) -> TestM e ()
+assertNoMsg :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+            => WS.WebSocket
+            -> (Notification -> Assertion)
+            -> TestM e ()
 assertNoMsg ws f = do
     x <- WS.awaitMatch (1 # Second) ws f
     liftIO $ case x of
@@ -721,18 +812,21 @@ zType = header "Z-Type"
 
 -- TODO: it'd be nicer to just take a list here and handle the cases with 0
 -- users differently
-connectUsers :: (TestConstraints '[BrigR, Manager] e) => UserId -> List1 UserId -> TestM e ()
+connectUsers :: (HasCallStack, ContainsTypes e '[BrigR, Manager])
+             => UserId
+             -> List1 UserId
+             -> TestM e ()
 connectUsers u us = void $ connectUsersWith expect2xx u us
 
 connectUsersUnchecked
-    :: (TestConstraints '[BrigR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[BrigR, Manager])
     => UserId
     -> List1 UserId
     -> TestM e (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
 connectUsersUnchecked = connectUsersWith id
 
 connectUsersWith
-    :: (TestConstraints '[BrigR, Manager] e)
+    :: (HasCallStack, ContainsTypes e '[BrigR, Manager])
     => (Request -> Request)
     -> UserId
     -> List1 UserId
@@ -758,7 +852,7 @@ connectUsersWith fn u us = mapM connectTo us
         return (r1, r2)
 
 -- | A copy of 'putConnection' from Brig integration tests.
-putConnection :: (TestConstraints '[BrigR, Manager] e)
+putConnection :: (HasCallStack, ContainsTypes e '[BrigR, Manager])
               => UserId
               -> UserId
               -> Relation
@@ -774,13 +868,17 @@ putConnection from to r = do
     where
       payload = RequestBodyLBS . encode $ object [ "status" .= r ]
 
-randomUsers :: (TestConstraints '[GalleyR, BrigR, Manager] e) => Int -> TestM e [UserId]
+randomUsers :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager])
+            => Int
+            -> TestM e [UserId]
 randomUsers n = replicateM n randomUser
 
-randomUser :: (TestConstraints '[GalleyR, BrigR, Manager] e) => TestM e UserId
+randomUser :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager]) => TestM e UserId
 randomUser = randomUser' True
 
-randomUser' :: (TestConstraints '[GalleyR, BrigR, Manager] e) => Bool -> TestM e UserId
+randomUser' :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager])
+            => Bool
+            -> TestM e UserId
 randomUser' hasPassword = do
     b <- tBrig
     e <- randomEmail
@@ -789,7 +887,7 @@ randomUser' hasPassword = do
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-ephemeralUser :: (TestConstraints '[GalleyR, BrigR, Manager] e) => TestM e UserId
+ephemeralUser :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager]) => TestM e UserId
 ephemeralUser = do
     b <- tBrig
     name <- UUID.toText <$> liftIO nextRandom
@@ -798,7 +896,10 @@ ephemeralUser = do
     let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
     return $ Brig.Types.userId user
 
-randomClient :: (TestConstraints '[GalleyR, BrigR, Manager] e) => UserId -> LastPrekey -> TestM e ClientId
+randomClient :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager])
+             => UserId
+             -> LastPrekey
+             -> TestM e ClientId
 randomClient usr lk = do
     b <- tBrig
     q <- post (b . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
@@ -809,7 +910,11 @@ randomClient usr lk = do
         { newClientPassword = Just (PlainTextPassword defPassword)
         }
 
-ensureDeletedState :: (TestConstraints '[Manager, BrigR] e) => Bool -> UserId -> UserId -> TestM e ()
+ensureDeletedState :: (HasCallStack, ContainsTypes e '[Manager, BrigR])
+                   => Bool
+                   -> UserId
+                   -> UserId
+                   -> TestM e ()
 ensureDeletedState check from u = do
     b <- tBrig
     get ( b
@@ -819,7 +924,7 @@ ensureDeletedState check from u = do
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
 
 -- TODO: Refactor, as used also in brig
-deleteClient :: (TestConstraints '[Manager, BrigR] e)
+deleteClient :: (HasCallStack, ContainsTypes e '[Manager, BrigR])
              => UserId
              -> ClientId
              -> Maybe PlainTextPassword
@@ -838,7 +943,9 @@ deleteClient u c pw = do
           ]
 
 -- TODO: Refactor, as used also in brig
-isUserDeleted :: (TestConstraints '[GalleyR, Manager, BrigR] e) => UserId -> TestM e Bool
+isUserDeleted :: (HasCallStack, ContainsTypes e '[GalleyR, Manager, BrigR])
+              => UserId
+              -> TestM e Bool
 isUserDeleted u = do
     b <- tBrig
     r <- get (b . paths ["i", "users", toByteString' u, "status"]) <!!
@@ -856,7 +963,10 @@ isUserDeleted u = do
         Success a -> Just a
         _         -> Nothing
 
-isMember :: (TestConstraints '[GalleyR, Manager] e) => UserId -> ConvId -> TestM e Bool
+isMember :: (HasCallStack, ContainsTypes e '[GalleyR, Manager])
+         => UserId
+         -> ConvId
+         -> TestM e Bool
 isMember usr cnv = do
     g <- tGalley
     res <- get $ g
@@ -878,7 +988,9 @@ someLastPrekeys =
     , lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
     ]
 
-randomUserWithClient :: (TestConstraints '[GalleyR, BrigR, Manager] e) => LastPrekey -> TestM e (UserId, ClientId)
+randomUserWithClient :: (HasCallStack, ContainsTypes e '[GalleyR, BrigR, Manager])
+                     => LastPrekey
+                     -> TestM e (UserId, ClientId)
 randomUserWithClient lk = do
     u <- randomUser
     c <- randomClient u lk
@@ -897,7 +1009,7 @@ decodeBody r = do
 decodeBody' :: (FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
 decodeBody' s = fromMaybe (error $ "decodeBody: " ++ s) . decodeBody
 
-fromBS :: ((TestConstraints '[GalleyR, Manager] e), FromByteString a) => ByteString -> TestM e a
+fromBS :: (HasCallStack, ContainsTypes e '[GalleyR, Manager], FromByteString a) => ByteString -> TestM e a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
