@@ -13,9 +13,7 @@ module Forecastle
     , tBrig
     , tCannon
     , tCargoHold
-    , tAwsEnv
 
-    , TestM'
     , TestM(..)
     , GalleyR(..)
     , CargoHoldR(..)
@@ -32,9 +30,11 @@ import Data.Kind
 
 import Data.Generics.Product
 
-import qualified Network.AWS as AWS
+-- import qualified Network.AWS as AWS
 import Control.Lens
 
+-- | 'ContainsTypes' builds a constraint which asserts that the given type 'e' is a record
+-- containing each of the provided types.
 type family ContainsTypes e (ts :: [Type]) = (constraints :: Constraint) where
   ContainsTypes e '[] = ()
   ContainsTypes e (t:ts) = (HasType t e, ContainsTypes e ts)
@@ -44,7 +44,6 @@ newtype BrigR = BrigR { runBrigR :: Request -> Request }
 newtype CannonR = CannonR { runCannonR :: Request -> Request }
 newtype CargoHoldR = CargoHoldR { runCargoHoldR :: Request -> Request }
 
-type TestM' e a = TestM e a
 newtype TestM e a =
   TestM { runTestM :: ReaderT e IO a
         } deriving newtype
@@ -59,26 +58,23 @@ newtype TestM e a =
         , MonadUnliftIO
         )
 
-instance (HasType Manager e) => MonadHttp (TestM e) where
+instance (ContainsTypes e '[Manager]) => MonadHttp (TestM e) where
     getManager = tManager
 
-tManager :: HasType Manager e => TestM e Manager
+tManager :: ContainsTypes e '[Manager] => TestM e Manager
 tManager = view (typed @Manager)
 
 tGalley :: ContainsTypes e '[GalleyR] => TestM e (Request -> Request)
 tGalley = view (typed @GalleyR . coerced)
 
-tBrig :: HasType BrigR e => TestM e (Request -> Request)
+tBrig :: ContainsTypes e '[BrigR] => TestM e (Request -> Request)
 tBrig = view (typed @BrigR . coerced)
 
-tCannon :: HasType CannonR e => TestM e (Request -> Request)
+tCannon :: ContainsTypes e '[CannonR] => TestM e (Request -> Request)
 tCannon = view (typed @CannonR . coerced)
 
-tCargoHold :: HasType CargoHoldR e => TestM e (Request -> Request)
+tCargoHold :: ContainsTypes e '[CargoHoldR] => TestM e (Request -> Request)
 tCargoHold = view (typed @CargoHoldR . coerced)
-
-tAwsEnv :: HasType (Maybe AWS.Env) e => TestM e (Maybe AWS.Env)
-tAwsEnv = preview (typed @(Maybe AWS.Env) . _Just)
 
 -- | Can be used with 'it'; e.g. it "does something with env" . withEnv $ myTestM
 withEnv :: TestM e () -> e -> IO ()
