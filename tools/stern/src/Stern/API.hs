@@ -277,6 +277,34 @@ sitemap = do
             Doc.optional
         Doc.response 200 "Operation succeeded" Doc.end
 
+    get "/teams" (continue getTeamInfoByMemberEmail) $
+        param "email"
+
+    document "GET" "getTeamInfoByMemberEmail" $ do
+        summary "Fetch a team information given a member's email"
+        Doc.parameter Doc.Query "email" Doc.string' $
+            Doc.description "A verified email address"
+        Doc.response 200 "Team Information" Doc.end
+
+    get "/teams/:tid" (continue getTeamInfo) $
+        capture "tid"
+
+    document "GET" "getTeamInfo" $ do
+        summary "Gets information about a team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.response 200 "Team Information" Doc.end
+
+    --- Swagger ---
+    get "/stern/api-docs"
+        (\(_ ::: url) k ->
+            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
+            in k $ responseLBS status200 [jsonContent] doc) $
+        accept "application" "json"
+        .&. query "base_url"
+
+    -- The following endpoint are only relevant internally at Wire
+
     get "/teams/:tid/invoices/:inr" (continue getTeamInvoice) $
         capture "tid"
         .&. capture "inr"
@@ -289,15 +317,6 @@ sitemap = do
         Doc.parameter Doc.Path "inr" Doc.string' $
             Doc.description "Invoice Number"
         Doc.response 307 "Redirect to PDF download" Doc.end
-
-    get "/teams/:tid" (continue getTeamInfo) $
-        capture "tid"
-
-    document "GET" "getTeamInfo" $ do
-        summary "Gets information about a team"
-        Doc.parameter Doc.Path "tid" Doc.bytes' $
-            description "Team ID"
-        Doc.response 200 "Team Information" Doc.end
 
     get "/teams/:tid/billing" (continue getTeamBillingInfo) $
         capture "tid"
@@ -342,15 +361,6 @@ sitemap = do
         Doc.response 200 "Updated Team Billing Information" Doc.end
         Doc.returns (Doc.ref Doc.teamBillingInfo)
 
-    get "/teams" (continue getTeamInfoByMemberEmail) $
-        param "email"
-
-    document "GET" "getTeamInfoByMemberEmail" $ do
-        summary "Fetch a team information given a member's email"
-        Doc.parameter Doc.Query "email" Doc.string' $
-            Doc.description "A verified email address"
-        Doc.response 200 "Team Information" Doc.end
-
     get "/i/consent" (continue getConsentLog) $
         param "email"
 
@@ -369,14 +379,6 @@ sitemap = do
         Doc.parameter Doc.Query "id" Doc.bytes' $ do
             Doc.description "A user's ID"
         Doc.response 200 "Meta Info" Doc.end
-
-    --- Swagger ---
-    get "/stern/api-docs"
-        (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
-            in k $ responseLBS status200 [jsonContent] doc) $
-        accept "application" "json"
-        .&. query "base_url"
 
 -----------------------------------------------------------------------------
 -- Handlers

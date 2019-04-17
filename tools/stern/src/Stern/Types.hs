@@ -41,6 +41,30 @@ instance ToJSON TeamInfo where
         , "members" .= m
         ]
 
+newtype UserProperties = UserProperties
+    { unUserProperties :: M.HashMap PropertyKey PropertyValue
+    } deriving (Eq, Show, ToJSON)
+
+-- | NOTE: The following datatypes are defined by services used only internally at Wire and not
+-- relevant for generic wire-server installations. Thus, they are (re)defined here.
+--
+-- For internal reference, these models are defined here
+-- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/ConsentLog.java
+-- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/ConsentResult.java
+-- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/MarketoResult.java
+-- Note that we define them simply as JSON objects since we use them as a read-only and all info is to
+-- be displayed to clients. Thus, it seems harmless (and easier) to just consume the whole object and
+-- simply use whatever galeb's JSON object looks like
+newtype ConsentLog = ConsentLog
+    { unConsentLog :: Object
+    } deriving (Eq, Show, ToJSON, FromJSON)
+newtype ConsentValue = ConsentValue
+    { unConsentValue :: Object
+    } deriving (Eq, Show, ToJSON, FromJSON)
+newtype MarketoResult = MarketoResult
+    { unMarketoResult :: Object
+    } deriving (Eq, Show, ToJSON, FromJSON)
+
 newtype InvoiceId = InvoiceId { unInvoiceId :: Text }
     deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON)
 
@@ -69,22 +93,3 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
     } deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
-
--- These Datatypes are actually defined here
--- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/ConsentLog.java
--- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/ConsentResult.java
--- https://github.com/zinfra/galeb/blob/develop/src/main/java/com/wire/galeb/models/MarketoResult.java
--- However, given that we use this as a read-only and all info is to be displayed to clients, it seems
--- harmless (and easier) to just consume the whole object and simply use whatever galeb's JSON object is
-newtype ConsentLog = ConsentLog
-    { unConsentLog :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
-newtype ConsentValue = ConsentValue
-    { unConsentValue :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
-newtype MarketoResult = MarketoResult
-    { unMarketoResult :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
-newtype UserProperties = UserProperties
-    { unUserProperties :: M.HashMap PropertyKey PropertyValue
-    } deriving (Eq, Show, ToJSON)
