@@ -277,18 +277,14 @@ sitemap = do
             Doc.optional
         Doc.response 200 "Operation succeeded" Doc.end
 
-    get "/teams/:tid/invoices/:inr" (continue getTeamInvoice) $
-        capture "tid"
-        .&. capture "inr"
-        .&. accept "application" "json"
+    get "/teams" (continue getTeamInfoByMemberEmail) $
+        param "email"
 
-    document "GET" "getTeamInvoice" $ do
-        summary "Get a specific invoice by Number"
-        Doc.parameter Doc.Path "tid" Doc.bytes' $
-            Doc.description "Team ID"
-        Doc.parameter Doc.Path "inr" Doc.string' $
-            Doc.description "Invoice Number"
-        Doc.response 307 "Redirect to PDF download" Doc.end
+    document "GET" "getTeamInfoByMemberEmail" $ do
+        summary "Fetch a team information given a member's email"
+        Doc.parameter Doc.Query "email" Doc.string' $
+            Doc.description "A verified email address"
+        Doc.response 200 "Team Information" Doc.end
 
     get "/teams/:tid" (continue getTeamInfo) $
         capture "tid"
@@ -299,11 +295,36 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Team Information" Doc.end
 
+    --- Swagger ---
+    get "/stern/api-docs"
+        (\(_ ::: url) k ->
+            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
+            in k $ responseLBS status200 [jsonContent] doc) $
+        accept "application" "json"
+        .&. query "base_url"
+
+    -- The following endpoint are only relevant internally at Wire
+
+    get "/teams/:tid/invoices/:inr" (continue getTeamInvoice) $
+        capture "tid"
+        .&. capture "inr"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamInvoice" $ do
+        summary "Get a specific invoice by Number"
+        notes "Relevant only internally at Wire"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            Doc.description "Team ID"
+        Doc.parameter Doc.Path "inr" Doc.string' $
+            Doc.description "Invoice Number"
+        Doc.response 307 "Redirect to PDF download" Doc.end
+
     get "/teams/:tid/billing" (continue getTeamBillingInfo) $
         capture "tid"
 
     document "GET" "getTeamBillingInfo" $ do
         summary "Gets billing information about a team"
+        notes "Relevant only internally at Wire"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
         Doc.response 200 "Team Billing Information" Doc.end
@@ -318,6 +339,7 @@ sitemap = do
     document "PUT" "updateTeamBillingInfo" $ do
         summary "Updates billing information about a team. Non \
                 \specified fields will NOT be updated"
+        notes "Relevant only internally at Wire"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
         Doc.body (Doc.ref Doc.teamBillingInfoUpdate) $
@@ -335,6 +357,7 @@ sitemap = do
                 \only be used on teams that do NOT have any \
                 \billing information set. To update team billing \
                 \info, use the update endpoint"
+        notes "Relevant only internally at Wire"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
         Doc.body (Doc.ref Doc.teamBillingInfo) $
@@ -342,20 +365,12 @@ sitemap = do
         Doc.response 200 "Updated Team Billing Information" Doc.end
         Doc.returns (Doc.ref Doc.teamBillingInfo)
 
-    get "/teams" (continue getTeamInfoByMemberEmail) $
-        param "email"
-
-    document "GET" "getTeamInfoByMemberEmail" $ do
-        summary "Fetch a team information given a member's email"
-        Doc.parameter Doc.Query "email" Doc.string' $
-            Doc.description "A verified email address"
-        Doc.response 200 "Team Information" Doc.end
-
     get "/i/consent" (continue getConsentLog) $
         param "email"
 
     document "GET" "getConsentLog" $ do
         summary "Fetch the consent log given an email address of a non-user"
+        notes "Relevant only internally at Wire"
         Doc.parameter Doc.Query "email" Doc.string' $ do
             Doc.description "An email address"
         Doc.response 200 "Consent Log" Doc.end
@@ -366,17 +381,10 @@ sitemap = do
 
     document "GET" "getUserMetaInfo" $ do
         summary "Fetch a user's meta info given a user id: TEMPORARY!"
+        notes "Relevant only internally at Wire"
         Doc.parameter Doc.Query "id" Doc.bytes' $ do
             Doc.description "A user's ID"
         Doc.response 200 "Meta Info" Doc.end
-
-    --- Swagger ---
-    get "/stern/api-docs"
-        (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
-            in k $ responseLBS status200 [jsonContent] doc) $
-        accept "application" "json"
-        .&. query "base_url"
 
 -----------------------------------------------------------------------------
 -- Handlers
