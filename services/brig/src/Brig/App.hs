@@ -47,7 +47,7 @@ module Brig.App
     ) where
 
 import Imports
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (MonadHttp, Manager, newManager, RequestId (..), handleRequestWithManager)
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
 import Brig.Queue.Types (Queue (..))
@@ -415,8 +415,10 @@ instance MonadIO m => MonadLogger (AppT m) where
 instance MonadIO m => MonadLogger (ExceptT err (AppT m)) where
     log l m = lift (LC.log l m)
 
-instance Monad m => MonadHttp (AppT m) where
-    getManager = view httpManager
+instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
+    handleRequestWithCont req cont = do
+        m <- view httpManager
+        handleRequestWithManager m req cont
 
 instance MonadIO m => MonadZAuth (AppT m) where
     liftZAuth za = view zauthEnv >>= \e -> runZAuth e za

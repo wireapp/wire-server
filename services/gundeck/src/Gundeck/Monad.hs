@@ -69,7 +69,9 @@ instance MonadLogger Gundeck where
         Logger.log (e^.applog) l (reqIdMsg (e^.reqId) . m)
 
 instance MonadHttp Gundeck where
-    getManager = view manager
+  handleRequestWithCont req cont = do
+      m <- view manager 
+      handleRequestWithManager m req cont
 
 instance HasRequestId Gundeck where
     getRequestId = view reqId

@@ -17,7 +17,7 @@ import Test.Tasty          (TestName, TestTree)
 import Test.Tasty.HUnit    (Assertion, testCase)
 import Control.Lens        (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Bilge (Manager, MonadHttp(..), Request)
+import Bilge (Manager, MonadHttp(..), Request, handleRequestWithManager)
 
 import qualified Galley.Aws          as Aws
 
@@ -50,7 +50,9 @@ newtype TestM a =
              )
 
 instance MonadHttp TestM where
-    getManager = view tsManager
+    handleRequestWithCont req cont = do
+        m <- view tsManager
+        handleRequestWithManager m req cont
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest

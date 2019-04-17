@@ -68,7 +68,7 @@ runTests iConf bConf otherArgs = do
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
-    settingsApi <- Settings.tests mg b g
+    settingsApi <- Settings.tests undefined mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi

@@ -33,6 +33,9 @@ dependencies:
 - transformers-base >=0.4
 - types-common >=0.7
 - unliftio-core >=0.1
+- unliftio
+- wai
+- wai-extra
 library:
   source-dirs: src
   exposed-modules:

@@ -12,7 +12,7 @@ module Network.Wire.Client.HTTP
 import Imports
 import Bilge
 import Control.Error
-import Control.Exception (throwIO)
+import UnliftIO.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error)
@@ -42,30 +42,31 @@ instance FromJSON Error where
 -------------------------------------------------------------------------------
 -- Performing Requests
 
-clientRequest :: MonadClient m
+clientRequest :: forall m a. (MonadClient m, MonadUnliftIO m, MonadMask m)
               => Request                       -- ^ The request to send.
               -> NonEmpty Status               -- ^ Expected response codes.
               -> (Response BodyReader -> IO a) -- ^ Handler function.
               -> m a
 clientRequest rq expected f = do
-    s <- getServer
-    l <- getLogger
-    m <- getManager
-    liftIO $ recovering retry3x handlers (const (exec l s m))
+    recovering retry3x handlers (const exec)
   where
     idempotent = Rq.method rq `elem` ["GET", "PUT", "DELETE", "HEAD", "OPTIONS"]
     canRetry c = idempotent && c `elem` [408, 420, 500, 502, 503, 504]
     retry3x    = limitRetries 3 <> exponentialBackoff 1000000
+    handlers :: [RetryStatus -> Handler m Bool]
     handlers   = [ const $ Handler (\(e :: ClientException) -> case e of
                         ErrorResponse c _ _ -> return (canRetry c)
                         x                   -> throwIO x)
                  , const $ Handler (\(e :: SomeException)   -> throwIO e)
                  ]
-    exec l s m = do
+    exec :: m a
+    exec = do
+        s <- getServer
+        l <- getLogger
         let rq' = rq & setServer s
                      & header hUserAgent "api-client"
         Log.debug l $ Log.msg (show rq')
-        withResponse rq' m $ \rs -> do
+        handleRequestWithCont rq' $ \rs -> do
             Log.debug l $ Log.msg $ show (rs { responseBody = "" :: String })
             if responseStatus rs `elem` toList expected
                 then f rs

@@ -32,11 +32,12 @@ class (Functor m, MonadClient m) => MonadSession m where
     setAuth :: Auth -> m ()
 
 instance MonadHttp Session where
-    getManager = Session $ lift getManager
+    handleRequestWithCont req cont = Session . lift $ handleRequestWithCont req cont
 
 instance MonadClient Session where
     getServer = Session $ lift getServer
     getLogger = Session $ lift getLogger
+    liftClient m = Session $ lift m
 
 instance MonadSession Session where
     getAuth = Session State.get
@@ -62,11 +63,11 @@ sessionRequest rq expected f =
     exec :: (Response BodyReader -> IO b) -> m b
     exec h = do
         Auth _ t <- getAuth
-        clientRequest (token t rq) (status401 <| expected) h
+        liftClient $ clientRequest (token t rq) (status401 <| expected) h
 
     retry :: ClientException -> m a
     retry e = do
-        a  <- getAuth >>= refreshAuth
+        a  <- getAuth >>= liftClient . refreshAuth
         maybe (liftIO $ throwIO e) setAuth a
         exec f
 

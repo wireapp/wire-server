@@ -118,7 +118,9 @@ instance MonadLogger Galley where
         Logger.log (e^.applog) l (reqIdMsg (e^.reqId) . m)
 
 instance MonadHttp Galley where
-    getManager = view manager
+    handleRequestWithCont req cont = do
+        m <- view manager
+        handleRequestWithManager m req cont
 
 instance HasRequestId Galley where
     getRequestId = view reqId
