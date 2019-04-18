@@ -70,16 +70,6 @@ If the email or phone has been verified already, `POST /activate` will return st
 
 There is a maximum of 3 activation attempts per activation code. On the third failed attempt the code is invalidated and a new one must be requested.
 
-An opaque `"key"` might be used instead of `"email"` if the verification email contains it. If it does, the email headers will look like this:
-
-```
-X-Zeta-Purpose: Activation
-X-Zeta-Key: ...
-X-Zeta-Code: 123456
-```
-
-TODO: why? When do we send the key vs. just the 6-digit code?
-
 ### Activation event {#RefActivationEvent}
 
 When the user becomes activated, they receive an event:
@@ -111,6 +101,27 @@ GET /self
 ```
 
 If the profile includes `"email"` or `"phone"`, the account is activated.
+
+## Automating activation via email {#RefActivationEmailHeaders}
+
+Our email verification messages contain headers that can be used to automate the activation process. One of these sets of headers will be present:
+
+```
+X-Zeta-Purpose: Activation
+X-Zeta-Key: ...
+X-Zeta-Code: 123456
+```
+
+```
+X-Zeta-Purpose: Verification
+X-Zeta-Code: 123456
+```
+
+In the first case, the opaque `"key"` might be used instead of `"email"` in the `POST /activate` request.
+
+TODO: why? When do we send the key vs. just the 6-digit code?
+
+TODO: would be nice to give more motivation for the headers.
 
 ## Phone/email whitelist {#RefActivationWhitelist}
 
