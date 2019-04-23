@@ -210,7 +210,7 @@ instance FromJSON EmailVisibility where
 
 instance ToJSON EmailVisibility where
     toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
-    toJSON EmailVisibleToSelf     = "visible_to_self"
+    toJSON EmailVisibleToSelf   = "visible_to_self"
 
 -- | Options that are consumed on startup
 data Opts = Opts
