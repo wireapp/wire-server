@@ -10,7 +10,7 @@ RUN cd /src/libzauth/libzauth-c \
 # Nginz container
 FROM alpine:3.8
 
-ENV NGINX_VERSION 1.14.2
+ENV NGINX_VERSION 1.16.0
 
 # Install libzauth
 COPY --from=libzauth-builder /usr/local/include/zauth.h /usr/local/include/zauth.h
