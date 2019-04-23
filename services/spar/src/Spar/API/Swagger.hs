@@ -110,6 +110,9 @@ instance ToSchema a => ToSchema (SAML.IdPConfig a) where
 instance ToSchema SAML.IdPMetadata where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+instance ToSchema IdPMetadataInfo where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted samlSchemaOptions
+
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 

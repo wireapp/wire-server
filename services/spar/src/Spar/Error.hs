@@ -69,6 +69,7 @@ data SparCustomError
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
 
+  | SparNewIdPBadMeta LT
   | SparNewIdPBadMetaUrl LT
   | SparNewIdPBadMetaSig
   | SparNewIdPBadReqUrl LT
@@ -154,6 +155,7 @@ renderSparError SAML.UnknownError                                          = Rig
 renderSparError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 renderSparError (SAML.InvalidCert msg)                                     = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)
 -- Errors related to IdP creation
+renderSparError (SAML.CustomError (SparNewIdPBadMeta msg))                 = Right $ Wai.Error status400 "idp-error" ("Bad metadata xml: " <> msg)
 renderSparError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Right $ Wai.Error status400 "idp-error" ("Bad or unresponsive metadata url: " <> msg)
 renderSparError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
 renderSparError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)

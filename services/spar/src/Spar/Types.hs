@@ -23,7 +23,7 @@ import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, IdPId, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import URI.ByteString
+import URI.ByteString as URI
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
@@ -61,6 +61,31 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+-- | JSON-encoded information about metadata: either @{"value": <xml>}@ or @{"uri": <url>}@.
+data IdPMetadataInfo =
+    IdPMetadataValue SAML.IdPMetadata
+  | IdPMetadataURI URI
+  deriving (Eq, Show, Generic)
+
+instance FromJSON IdPMetadataInfo where
+  parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
+    look <- (,) <$> (obj .:? "value") <*> (obj .:? "uri")
+    case look of
+      (Just xml, Nothing) -> either fail (pure . IdPMetadataValue)
+                           $ SAML.decode xml
+      (Nothing, Just url) -> either (fail . show) (pure . IdPMetadataURI)
+                           $ URI.parseURI URI.laxURIParserOptions (cs @Text @_ url)
+      (Nothing, Nothing)  -> fail "empty object"
+      (Just _, Just _)    -> fail "only one of value, uri can be given"
+
+-- NB: this is not used anywhere except for in the roundtrip tests.
+instance ToJSON IdPMetadataInfo where
+  toJSON (IdPMetadataValue xml) =
+    object [ "value" .= SAML.encode xml ]
+  toJSON (IdPMetadataURI uri) =
+    object [ "uri" .= (cs @_ @Text . Builder.toLazyByteString . URI.serializeURIRef $ uri) ]
+
 
 ----------------------------------------------------------------------------
 -- SCIM

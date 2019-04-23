@@ -42,8 +42,10 @@ dependencies:
   - ghc-prim
   - hscim
   - HsOpenSSL
+  - HsOpenSSL-x509-system
   - http-api-data
   - http-client
+  - http-client-openssl
   - http-client-tls
   - http-types
   - imports

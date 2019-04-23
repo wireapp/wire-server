@@ -128,12 +128,15 @@ type APIAuthResp
 type APIIDP
      = Header "Z-User" UserId :> IdpGet
   :<|> Header "Z-User" UserId :> IdpGetAll
-  :<|> Header "Z-User" UserId :> IdpCreate
+  :<|> Header "Z-User" UserId :> IdpCreateXML  -- (for backwards compatibility)
+  :<|> Header "Z-User" UserId :> "xml" :> IdpCreateXML
+  :<|> Header "Z-User" UserId :> "json" :> IdpCreateJSON
   :<|> Header "Z-User" UserId :> IdpDelete
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
-type IdpCreate  = ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
+type IdpCreateXML  = ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
+type IdpCreateJSON = ReqBody '[JSON] IdPMetadataInfo :> PostCreated '[JSON] IdP
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 type APIINTERNAL

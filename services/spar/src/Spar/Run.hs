@@ -18,8 +18,11 @@ import Data.Default (def)
 import Data.List.NonEmpty as NE
 import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
+import Network.HTTP.Client.OpenSSL (opensslManagerSettings)
+import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Application, Middleware)
 import Network.Wai.Utilities.Request (lookupRequestId)
+import OpenSSL.Session (SSLOption (..))
 import Spar.API (app, API)
 import Spar.API.Swagger ()
 import Spar.App
@@ -36,6 +39,8 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
+import qualified OpenSSL.Session          as SSL
+import qualified OpenSSL.X509.SystemStore as SSL
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified System.Logger.Extended as Log
@@ -85,7 +90,7 @@ mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
-  sparCtxHttpManager <- newManager defaultManagerSettings
+  sparCtxHttpManager <- initHttpManager
   let sparCtxHttpBrig =
           Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
         . Bilge.port (sparCtxOpts ^. to brig . epPort)
@@ -112,6 +117,24 @@ mkApp sparCtxOpts = do
         then Just out
         else Nothing
   pure (wrappedApp, let sparCtxRequestId = RequestId "N/A" in Env {..})
+
+-- | FUTUREWORK: code duplication between here and brig.  move both to bilge?
+initHttpManager :: IO Manager
+initHttpManager = do
+    -- See Note [SSL context] (in brig)
+    ctx <- SSL.context
+    SSL.contextAddOption ctx SSL_OP_NO_TLSv1
+    SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+    SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+    SSL.contextSetCiphers ctx "HIGH"
+    SSL.contextSetVerificationMode ctx $
+        SSL.VerifyPeer True True Nothing
+    SSL.contextLoadSystemCerts ctx
+    newManager (opensslManagerSettings (pure ctx))
+        { managerConnCount           = 1024
+        , managerIdleConnectionCount = 4096
+        , managerResponseTimeout     = responseTimeoutMicro 10000000
+        }
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do

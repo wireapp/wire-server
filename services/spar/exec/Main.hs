@@ -1,8 +1,9 @@
 module Main where
 
 import Imports
+import OpenSSL (withOpenSSL)
 import Spar.Run
 import Spar.Options
 
 main :: IO ()
-main = runServer =<< getOpts
+main = withOpenSSL $ runServer =<< getOpts

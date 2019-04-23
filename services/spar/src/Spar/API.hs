@@ -17,7 +17,8 @@ module Spar.API
   , APIAuthResp
   , IdpGet
   , IdpGetAll
-  , IdpCreate
+  , IdpCreateXML
+  , IdpCreateJSON
   , IdpDelete
   ) where
 
@@ -31,15 +32,16 @@ import Data.Time
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
-import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.API.Types
 import Spar.App
 import Spar.Error
-import Spar.Types
+import Spar.Orphans ()
 import Spar.Scim
 import Spar.Scim.Swagger ()
+import Spar.Types
 
+import qualified Bilge as Bilge
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
@@ -73,7 +75,9 @@ apiIDP :: ServerT APIIDP Spar
 apiIDP
      = idpGet
   :<|> idpGetAll
-  :<|> idpCreate
+  :<|> idpCreateXML
+  :<|> idpCreateXML
+  :<|> idpCreateJSON
   :<|> idpDelete
 
 apiINTERNAL :: ServerT APIINTERNAL Spar
@@ -186,12 +190,33 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
-idpCreate zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
+idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
   idp <- validateNewIdP idpmeta teamid
   SAML.storeIdPConfig idp
   pure idp
+
+idpCreateJSON :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
+idpCreateJSON zusr (IdPMetadataValue xml) =
+  idpCreateXML zusr xml
+idpCreateJSON zusr (IdPMetadataURI uri) =
+  enforceHttps uri >> doHttp >>= getBody >>= decodeBody >>= idpCreateXML zusr
+  where
+    doHttp :: Spar (Bilge.Response (Maybe LBS))
+    doHttp = either (throwSpar . SparNewIdPBadMetaUrl . cs) Bilge.get $ Bilge.useURIBS uri
+
+    getBody :: Bilge.Response (Maybe LBS) -> Spar LBS
+    getBody resp = do
+      let bdy = Bilge.responseBody resp
+          err = cs $ (show $ Bilge.responseStatus resp) <> "; " <> maybe "" cs bdy
+      if Bilge.statusCode resp == 200 && isJust bdy
+        then pure $ fromJust bdy
+        else throwSpar $ SparNewIdPBadMetaUrl err
+
+    decodeBody :: LBS -> Spar SAML.IdPMetadata
+    decodeBody = either (throwSpar . SparNewIdPBadMeta . cs) pure . SAML.decode . cs
+
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
@@ -219,8 +244,7 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
 
   let requri = _idpMetadata ^. SAML.edRequestURI
-  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
-    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
+  enforceHttps requri
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
@@ -237,6 +261,12 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
     -- creating users in victim teams.
 
   pure SAML.IdPConfig {..}
+
+enforceHttps :: URI.URI -> Spar ()
+enforceHttps uri = do
+  unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
+    throwSpar . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
+
 
 ----------------------------------------------------------------------------
 -- Internal API
