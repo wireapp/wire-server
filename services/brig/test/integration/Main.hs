@@ -44,6 +44,10 @@ instance FromJSON Config
 
 runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
 runTests iConf bConf otherArgs = do
+    -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
+    -- for config.
+    -- Involves removing a bunch of 'optOrEnv' calls
+    brigOpts <- maybe (fail "failed to parse options file") pure bConf
     let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
     b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
@@ -62,22 +66,22 @@ runTests iConf bConf otherArgs = do
     emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
+    settingsApi <- Settings.tests brigOpts mg b g
     userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
-    settingsApi <- Settings.tests undefined mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
-        [ userApi
+        [ settingsApi
+        , userApi
         , providerApi
         , searchApis
         , teamApis
         , turnApi
         , metricsApi
-        , settingsApi
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
