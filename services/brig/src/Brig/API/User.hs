@@ -837,15 +837,15 @@ lookupProfiles :: UserId   -- ^ User 'A' on whose behalf the profiles are reques
 lookupProfiles self others = do
     users <- Data.lookupUsers others >>= mapM userGC
     css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
-    Identity emailVisibility <- view mutableSettings >>= readTVarIO >>= pure . setEmailVisibility
-    return $ map (toProfile emailVisibility css) users
+    emailVisibility' <- view (settings . emailVisibility)
+    return $ map (toProfile emailVisibility' css) users
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
     toProfile :: EmailVisibility -> Map UserId Relation -> User -> UserProfile
-    toProfile emailVisibility css u =
+    toProfile emailVisibility' css u =
         let cs = Map.lookup (userId u) css
-            profileEmail' = getEmailForProfile u emailVisibility
+            profileEmail' = getEmailForProfile u emailVisibility'
             baseProfile = if userId u == self || cs == Just Accepted || cs == Just Sent
                             then connectedProfile u
                             else publicProfile u

@@ -9,9 +9,9 @@ import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
+import qualified Control.Lens as Lens
 import Data.Aeson.Types (typeMismatch)
 import Data.Aeson (withText)
-import Data.Barbie
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
@@ -249,18 +249,7 @@ data Opts = Opts
 
     -- Runtime settings
     , optSettings :: !Settings                 -- ^ Runtime settings
-    , optMutableSettings :: !MutableSettings   -- ^ Mutable runtime settings
     } deriving (Show, Generic)
-
--- | We use the Higher Kinded Data pattern here because it's very useful for handling
---   partial 'PATCH' payloads in the API layer as @MutableSettings' Maybe@
-data MutableSettings' f = MutableSettings
-    { setEmailVisibility :: !(f EmailVisibility)
-    } deriving stock (Generic)
-      deriving anyclass (FunctorB, ProductB, TraversableB, ConstraintsB, ProductBC)
-type MutableSettings = MutableSettings' Identity
-deriving instance AllBF Show f MutableSettings' => Show (MutableSettings' f)
-deriving instance AllBF Eq   f MutableSettings' => Eq   (MutableSettings' f)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
@@ -290,6 +279,7 @@ data Settings = Settings
                                            --   NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId) -- ^ Filter ONLY services with
                                                       --   the given provider id
+    , setEmailVisibility       :: !EmailVisibility -- ^ Whether to expose user emails and to whom
     } deriving (Show, Generic)
 
 instance FromJSON Timeout where
@@ -302,7 +292,8 @@ instance FromJSON Timeout where
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
-instance (FromJSON (f EmailVisibility)) => FromJSON (MutableSettings' f)
-instance (ToJSON (f EmailVisibility)) => ToJSON (MutableSettings' f)
 
 instance FromJSON Opts
+
+Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
+Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings

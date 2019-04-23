@@ -12,7 +12,6 @@ ghc-options:
 - -funbox-strict-fields
 dependencies:
 - aeson >=0.11
-- barbies
 - base ==4.*
 - base64-bytestring >=1.0
 - bloodhound >=0.13

@@ -24,7 +24,6 @@ module Brig.App
     , nexmoCreds
     , twilioCreds
     , settings
-    , mutableSettings
     , currentTime
     , geoDb
     , zauthEnv
@@ -135,7 +134,6 @@ data Env = Env
     , _httpManager   :: Manager
     , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
-    , _mutableSettings :: TVar Opt.MutableSettings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
@@ -174,7 +172,6 @@ newEnv o = do
     g   <- geoSetup lgr w $ Opt.geoDb o
     (turn, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
-    mSett <- newTVarIO $ Opt.optMutableSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
     stomp <- case (Opt.stomp o, Opt.setStomp sett) of
@@ -206,7 +203,6 @@ newEnv o = do
         , _httpManager       = mgr
         , _extGetManager     = ext
         , _settings          = sett
-        , _mutableSettings   = mSett
         , _nexmoCreds        = nxm
         , _twilioCreds       = twl
         , _geoDb             = g

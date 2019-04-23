@@ -66,13 +66,13 @@ runTests iConf bConf otherArgs = do
     emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
-    settingsApi <- Settings.tests brigOpts mg b g
     userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
+    settingsApi <- Settings.tests brigOpts mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ settingsApi

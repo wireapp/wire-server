@@ -4,7 +4,6 @@ import           Imports
 import           Bilge              hiding (accept, timeout)
 import           Brig.Options (Opts)
 import           Brig.Run (mkApp)
-import           Data.Barbie        (buniq)
 import           Test.Tasty         hiding (Timeout)
 import           Util
 import           API.Team.Util
@@ -99,11 +98,8 @@ testUsersEmailVisibleIfExpected opts brig galley visibilitySetting = do
                                  else Nothing
                            )
                          ]
-    (brigApp, _) <- liftIO
-        $ mkApp (opts
-                 { Opt.optMutableSettings = (Opt.MutableSettings (Identity visibilitySetting))
-                 })
-    liftIO $ flip WaiTest.runSession brigApp $ do
+    let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
+    withSettingsOverrides newOpts $ do
         get (brig . zUser (userId userB) . path "users" . queryItem "ids" uids) !!! do
             const 200 === statusCode
             const (Just expected) === result
@@ -127,11 +123,8 @@ testGetUserEmailShowsEmailsIfExpected opts brig galley visibilitySetting = do
                                                              else Nothing)
             ]
 
-    (brigApp, _) <- liftIO
-        $ mkApp (opts
-                 { Opt.optMutableSettings = (Opt.MutableSettings (Identity visibilitySetting))
-                 })
-    liftIO $ flip WaiTest.runSession brigApp $ do
+    let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
+    withSettingsOverrides newOpts $ do
         forM_ expectations $ \(uid, expectedEmail) ->
             get (brig . zUser (userId userB) . paths ["users", toByteString' uid]) !!! do
                 const 200 === statusCode
@@ -139,14 +132,3 @@ testGetUserEmailShowsEmailsIfExpected opts brig galley visibilitySetting = do
   where
     emailResult :: Response (Maybe LByteString) -> Maybe Email
     emailResult r = decodeBody r >>= jsonField "email"
-
-
-withEmailVisibility :: Opt.EmailVisibility -> Brig -> Http () -> Http ()
-withEmailVisibility emailVisibilityOverride brig t =
-    withSettingsOverrides brig newSettings t
-  where
-    newSettings :: Opt.MutableSettings' Maybe
-    newSettings =
-        (buniq Nothing)
-        { Opt.setEmailVisibility = Just emailVisibilityOverride
-        }

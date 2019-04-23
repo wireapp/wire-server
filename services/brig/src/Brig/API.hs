@@ -38,7 +38,6 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
-import qualified Brig.API.Settings             as API
 import qualified Brig.Data.User                as Data
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
@@ -73,12 +72,6 @@ sitemap o = do
 
     get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
         accept "application" "json"
-
-    get "/i/settings" (continue $ API.getSettings) $
-        accept "application" "json"
-
-    patch "/i/settings" (continue $ API.patchSettings) $
-         jsonRequest @(MutableSettings' Maybe)
 
     post "/i/users/:id/auto-connect" (continue autoConnect) $
         accept "application" "json"
