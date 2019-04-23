@@ -56,7 +56,7 @@ module Util.Core
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
   , callIdpGetAll, callIdpGetAll'
-  , callIdpCreate, callIdpCreate'
+  , callIdpCreate, callIdpCreate', callIdpCreateRaw, callIdpCreateRaw'
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , ssoToUidSpar
@@ -708,6 +708,20 @@ callIdpCreate' sparreq_ muid metadata = do
     . maybe id zUser muid
     . path "/identity-providers/"
     . body (RequestBodyLBS . cs $ SAML.encode metadata)
+    . header "Content-Type" "application/xml"
+
+callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> LBS -> m IdP
+callIdpCreateRaw sparreq_ muid metadata = do
+  resp <- callIdpCreateRaw' (sparreq_ . expect2xx) muid metadata
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJSON @IdP resp
+
+callIdpCreateRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> LBS -> m ResponseLBS
+callIdpCreateRaw' sparreq_ muid metadata = do
+  post $ sparreq_
+    . maybe id zUser muid
+    . path "/identity-providers/"
+    . body (RequestBodyLBS metadata)
     . header "Content-Type" "application/xml"
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()

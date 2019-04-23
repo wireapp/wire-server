@@ -552,7 +552,7 @@ specCRUDIdentityProvider = do
             <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
-            `shouldRespondWith` ((== 403) . statusCode)
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       context "client is team owner" $ do
         context "no idps registered" $ do
@@ -585,7 +585,8 @@ specCRUDIdentityProvider = do
             `shouldRespondWith` checkErr (== 404) "not-found"
 
 
-    describe "PUT /identity-providers/:idp" $ do
+    -- there are no routes for PUT yet.
+    xdescribe "PUT /identity-providers/:idp" $ do
       xdescribe "need to implement `callIdpGet'` for these tests" $ do
         let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
             callIdpPut' = undefined  -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
@@ -602,6 +603,12 @@ specCRUDIdentityProvider = do
 
 
     describe "POST /identity-providers" $ do
+      context "bad xml" $ do
+        it "responds with a 'client error'" $ do
+          env <- ask
+          callIdpCreateRaw' (env ^. teSpar) Nothing "@@ bad xml ###"
+            `shouldRespondWith` checkErr (== 400) ""
+
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
