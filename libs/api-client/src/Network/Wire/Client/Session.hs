@@ -37,7 +37,6 @@ instance MonadHttp Session where
 instance MonadClient Session where
     getServer = Session $ lift getServer
     getLogger = Session $ lift getLogger
-    liftClient m = Session $ lift m
 
 instance MonadSession Session where
     getAuth = Session State.get

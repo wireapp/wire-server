@@ -7,6 +7,7 @@ module Network.Wire.Client.Monad
     , setServer
     , Client
     , MonadClient (..)
+    , liftClient
     , asyncClient
     , runClient
     , ClientException (..)
@@ -50,13 +51,15 @@ data Server = Server
 class (MonadHttp m, MonadLogger m, MonadIO m) => MonadClient m where
     getServer :: m Server
     getLogger :: m Logger
-    -- | Allows running operations in Client monad which has MonadUnliftIO which is invalid
-    -- to implement on 'Session'
-    liftClient :: Client a -> m a
-    liftClient m = do
-        s <- getServer
-        l <- getLogger
-        liftIO $ runClient s l m
+
+-- | Allows running a 'Client' inside a 'MonadClient'.
+-- This is sometimes useful to regain a MonadUnliftIO instance
+-- which is invalid for the 'MonadClient' itself.
+liftClient :: MonadClient m => Client a -> m a
+liftClient m = do
+    s <- getServer
+    l <- getLogger
+    liftIO $ runClient s l m
 
 instance MonadHttp Client where
     handleRequestWithCont req handler = do
@@ -66,7 +69,6 @@ instance MonadHttp Client where
 instance MonadClient Client where
     getServer = Client $ asks clientServer
     getLogger = Client $ asks clientLogger
-    liftClient = id
 
 instance MonadLogger Client where
     log l m = getLogger >>= \lg -> Logger.log lg l m
