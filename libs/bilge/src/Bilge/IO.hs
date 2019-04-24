@@ -11,6 +11,7 @@ module Bilge.IO
       HttpT        (..)
     , Http
     , MonadHttp    (..)
+    , handleRequest
     , Debug        (..)
     , runHttpT
     , http
@@ -33,8 +34,6 @@ module Bilge.IO
     , patch
     , patch'
     , consumeBody
-
-    , handleRequestWithManager
 
     -- * Re-exports
     , ManagerSettings (..)
@@ -91,24 +90,16 @@ newtype HttpT m a = HttpT
                )
 
 class MonadHttp m where
-    handleRequest :: Request -> m (Response (Maybe LByteString))
-    handleRequest req = handleRequestWithCont req consumeBody
     handleRequestWithCont :: Request -> (Response BodyReader -> IO a) -> m a
     {-# MINIMAL handleRequestWithCont #-}
+
+handleRequest :: MonadHttp m => Request -> m (Response (Maybe LByteString))
+handleRequest req = handleRequestWithCont req consumeBody
 
 instance MonadIO m => MonadHttp (HttpT m) where
   handleRequestWithCont req h = do
       m <- ask
       liftIO $ withResponse req m h
-
--- | Given a 'Manager' provides a valid implementation of 'handleRequestWithCont'
-handleRequestWithManager
-    :: MonadIO m
-    => Manager
-    -> Request
-    -> (Response BodyReader -> IO a)
-    -> m a
-handleRequestWithManager manager req handler = liftIO $ withResponse req manager handler
 
 -- | Returns the entire ByteString immediately on first read
 -- then empty ByteString on all subsequent reads.

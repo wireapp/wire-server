@@ -71,7 +71,7 @@ module Network.Wire.Bot.Monad
     ) where
 
 import Imports hiding (log, rem)
-import Bilge (MonadHttp (..), Manager, handleRequestWithManager)
+import Bilge (MonadHttp (..), Manager, withResponse)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (retry)
@@ -204,9 +204,9 @@ instance MonadBaseControl IO BotNet where
     restoreM       = BotNet . restoreM
 
 instance MonadHttp BotNet where
-    handleRequestWithCont req cont = do
-        m <- serverManager <$> getServer
-        handleRequestWithManager m req cont
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotNet where
     getServer = BotNet $ asks botNetServer
@@ -245,9 +245,9 @@ instance MonadBaseControl IO BotSession where
     restoreM       = BotSession . restoreM
 
 instance MonadHttp BotSession where
-    handleRequestWithCont req cont = do
-        m <- serverManager <$> getServer
-        handleRequestWithManager m req cont
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotSession where
     getServer = liftBotNet getServer

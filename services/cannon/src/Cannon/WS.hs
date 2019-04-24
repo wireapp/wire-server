@@ -150,9 +150,9 @@ instance MonadLogger WS where
         liftIO $ Logger.log g l (r . m)
 
 instance MonadHttp WS where
-    handleRequestWithCont req cont = do
-        m <- asks manager
-        handleRequestWithManager m req cont
+    handleRequestWithCont req handler = do
+        manager <- asks manager
+        liftIO $ withResponse req manager handler
 
 instance HasRequestId WS where
     getRequestId = WS $ asks reqId

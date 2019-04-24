@@ -63,8 +63,8 @@ liftClient m = do
 
 instance MonadHttp Client where
     handleRequestWithCont req handler = do
-        m <- asks (serverManager . clientServer)
-        liftIO $ handleRequestWithManager m req handler
+        manager <- asks (serverManager . clientServer)
+        liftIO $ withResponse req manager handler
 
 instance MonadClient Client where
     getServer = Client $ asks clientServer
