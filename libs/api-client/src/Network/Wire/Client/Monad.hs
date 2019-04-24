@@ -28,7 +28,7 @@ data Env = Env
     }
 
 newtype Client a = Client (ReaderT Env IO a)
-    deriving (Functor
+    deriving ( Functor
              , Applicative
              , Monad
              , MonadIO
