@@ -282,10 +282,7 @@ catchVerdictErrors = (`catchError` hndlr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky verdict = do
-  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
-  SAML.logger SAML.Debug (show result)
-  pure result
+verdictHandlerResult bindCky verdict = catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
