@@ -282,7 +282,13 @@ catchVerdictErrors = (`catchError` hndlr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = (>>= logVerdictHandlerResult) . catchVerdictErrors . \case
+verdictHandlerResult bindCky verdict = do
+  result <- catchVerdictErrors $ verdictHandlerResult' bindCky verdict
+  SAML.logger SAML.Debug (show hres)
+  pure results
+
+verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResultCore bindCky = \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
     pure $ VerifyHandlerDenied reasons
@@ -317,11 +323,6 @@ verdictHandlerResult bindCky = (>>= logVerdictHandlerResult) . catchVerdictError
     case mcky of
       Just cky -> pure $ VerifyHandlerGranted cky uid
       Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
-
-logVerdictHandlerResult :: VerdictHandlerResult -> Spar VerdictHandlerResult
-logVerdictHandlerResult hres = do
-    SAML.logger SAML.Debug (show hres)
-    pure hres
 
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
