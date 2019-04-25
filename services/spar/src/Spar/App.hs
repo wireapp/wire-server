@@ -343,10 +343,10 @@ verdictHandlerWeb = pure . \case
       , errBody         = easyHtml $
                           "<head>" <>
                           "  <title>wire:sso:error:" <> cs errlbl <> "</title>" <>
-                          "   <script type=\"text/javascript\">" <>
-                          "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
-                          "   </script>" <>
+                          "  <script type=\"text/javascript\">" <>
+                          "    const receiverOrigin = '*';" <>
+                          "    window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
+                          "  </script>" <>
                           "</head>"
       , errHeaders      = []
       }
@@ -364,10 +364,10 @@ verdictHandlerWeb = pure . \case
       , errBody         = easyHtml $
                           "<head>" <>
                           "  <title>wire:sso:success</title>" <>
-                          "   <script type=\"text/javascript\">" <>
-                          "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
-                          "   </script>" <>
+                          "  <script type=\"text/javascript\">" <>
+                          "    const receiverOrigin = '*';" <>
+                          "    window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "  </script>" <>
                           "</head>"
       , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
       }
