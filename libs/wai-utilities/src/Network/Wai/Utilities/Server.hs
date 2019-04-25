@@ -222,7 +222,7 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
         else pure ("body omitted because log level was less sensitive than Debug", req)
     app req' $ \resp -> do
         forM_ (sanitizeReq (req', bdy)) $ \(req'', bdy') ->
-            when (statusCode (responseStatus resp) >= 400) $ logBody req'' bdy'
+            when (statusCode (responseStatus resp) >= 400) $ logMostlyEverything req'' bdy' resp
         cont resp
   where
     cloneBody :: Request -> IO (LByteString, Request)
@@ -231,12 +231,14 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
         requestBody' <- emitLByteString bdy
         pure (bdy, req { requestBody = requestBody' })
 
-    logBody :: Request -> LByteString -> IO ()
-    logBody req bdy = Log.debug lgr logMsg
+    logMostlyEverything :: Request -> LByteString -> Response -> IO ()
+    logMostlyEverything req bdy resp = Log.debug lgr logMsg
       where
         logMsg = field "request" (fromMaybe "N/A" $ lookupRequestId req)
                . field "request_details" (show req)
                . field "request_body" bdy
+               . field "response_status" (show $ responseStatus resp)
+               . field "response_headers" (show $ responseHeaders resp)
                . msg (val "full request details")
 
 -- | Compute a stream from a lazy bytestring suitable for putting into the 'Response'.  This
