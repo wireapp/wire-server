@@ -110,24 +110,22 @@ If the profile includes `"email"` or `"phone"`, the account is activated.
 
 ## Automating activation via email {#RefActivationEmailHeaders}
 
-Our email verification messages contain headers that can be used to automate the activation process. One of these sets of headers will be present:
+Our email verification messages contain headers that can be used to automate the activation process.
 
-```
-X-Zeta-Purpose: Activation
-X-Zeta-Key: ...
-X-Zeta-Code: 123456
-```
+An email caused by `POST /activate/send` will contain this set of headers:
 
 ```
 X-Zeta-Purpose: Verification
 X-Zeta-Code: 123456
 ```
 
-In the first case, the opaque `"key"` might be used instead of `"email"` in the `POST /activate` request.
+An email caused by `POST /register` will contain this set of headers (the opaque `"key"` might be used instead of `"email"` in the `POST /activate` request):
 
-TODO: why? When do we send the key vs. just the 6-digit code?
-
-TODO: would be nice to give more motivation for the headers.
+```
+X-Zeta-Purpose: Activation
+X-Zeta-Key: ...
+X-Zeta-Code: 123456
+```
 
 ## Phone/email whitelist {#RefActivationWhitelist}
 
