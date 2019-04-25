@@ -10,13 +10,13 @@ A user that has been provisioned via single sign-on is always considered to be a
 
 ## Activated vs. non-activated users {#RefActivationBenefits}
 
-Most functionality is available to all users, but non-activated users can not [connect](connection.md) to others, nor can connection requests be made to anonymous accounts from verified accounts. As a result:
+Non-activated users can not [connect](connection.md) to others, nor can connection requests be made to anonymous accounts from verified accounts. As a result:
 
 * A non-activated user cannot add other users to conversations. The only way to participate in a conversation is to either create a new conversation with link access or to use a link provided by another user.
 
 * A non-activated user cannot get auto-connected to others as a result of an address book upload.
 
-* A non-activated user can only ever see the public profiles of other users, i.e. no email addresses, phone numbers or other personal information.
+The only flow where it makes sense for non-activated users to exist is the [wireless flow](registration.md#RefRegistrationWireless) used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/)
 
 ## API {#RefActivationApi}
 
