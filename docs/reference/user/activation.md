@@ -10,7 +10,7 @@ A user that has been provisioned via single sign-on is always considered to be a
 
 ## Activated vs. non-activated users {#RefActivationBenefits}
 
-Most functionality is available to all users, but non-activated users can not [connect](connection.md) to others, nor can connection requests be made to anonymous accounts from verified accounts. As the result,
+Most functionality is available to all users, but non-activated users can not [connect](connection.md) to others, nor can connection requests be made to anonymous accounts from verified accounts. As a result:
 
 * A non-activated user cannot add other users to conversations. The only way to participate in a conversation is to either create a new conversation with link access or to use a link provided by another user.
 
