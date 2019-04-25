@@ -1,0 +1,28 @@
+stern:
+  host: 127.0.0.1
+  port: 8091
+
+brig:
+  host: 127.0.0.1
+  port: 8082
+
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
+# Both ibis and galeb should be made optional for
+# installations where these services are not available
+galeb:
+  host: 127.0.0.1
+  port: 8089
+
+ibis:
+  host: 127.0.0.1
+  port: 8090
+
+logLevel: Info
+logNetStrings: false
