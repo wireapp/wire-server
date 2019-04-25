@@ -4,7 +4,7 @@ module Imports
     -- * Base
       module Prelude
     , module Control.Applicative
-    , module Control.Monad
+    , module Control.Monad, whenM, unlessM
     , module Data.Functor
     , module Data.Bifunctor
     , module Data.Function
@@ -107,6 +107,7 @@ import Data.List hiding (insert, delete)  -- 'insert' and 'delete' are
                                           -- common in database modules
 import Data.String
 import Control.Monad hiding (mapM_, sequence_, forM_, msum, mapM, sequence, forM)
+import Control.Monad.Extra (whenM, unlessM)
 import Debug.Trace
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
