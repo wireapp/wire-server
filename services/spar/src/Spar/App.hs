@@ -283,9 +283,9 @@ catchVerdictErrors = (`catchError` hndlr)
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult bindCky verdict = do
-  result <- catchVerdictErrors $ verdictHandlerResult' bindCky verdict
-  SAML.logger SAML.Debug (show hres)
-  pure results
+  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
+  SAML.logger SAML.Debug (show result)
+  pure result
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
