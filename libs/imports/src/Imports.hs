@@ -4,7 +4,7 @@ module Imports
     -- * Base
       module Prelude
     , module Control.Applicative
-    , module Control.Monad, whenM, unlessM
+    , module Control.Monad
     , module Data.Functor
     , module Data.Bifunctor
     , module Data.Function
@@ -65,6 +65,10 @@ module Imports
     , Map, Set, HashMap, HashSet
     , ByteString, LByteString
     , Text, LText
+
+    -- * Extra Helpers
+    , whenM
+    , unlessM
     ) where
 
 import Orphans ()
