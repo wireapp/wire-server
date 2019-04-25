@@ -11,6 +11,7 @@ import Prometheus
 secondInMicroseconds :: Int
 secondInMicroseconds = 1000000
 
+-- | Spawn an unkillable daemon thread which reports runtime memory statistics to Prometheus
 spawnGCMetricsCollector :: IO ()
 spawnGCMetricsCollector = whenM getRTSStatsEnabled . void $ do
     allocatedBytesGauge <- register
