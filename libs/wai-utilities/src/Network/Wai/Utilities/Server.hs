@@ -32,6 +32,7 @@ import Control.Monad.Catch hiding (onException, onError)
 import Data.Aeson (encode)
 import Data.ByteString.Builder
 import Data.Metrics.Middleware
+import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
@@ -98,12 +99,19 @@ newSettings (Server h p l m t) = do
 -- connections up to the given number of seconds.
 runSettingsWithShutdown :: Settings -> Application -> Word16 -> IO ()
 runSettingsWithShutdown s app secs = do
+    initialization
     latch <- newEmptyMVar
     let s' = setInstallShutdownHandler (catchSignals latch) s
     srv <- async $ runSettings s' app `finally` void (tryPutMVar latch ())
     takeMVar latch
     await srv secs
   where
+    -- | Code which should be run on server boot-up.
+    -- This is run synchronously so ensure that you fork inside the tasks themselves if necessary.
+    initialization :: IO ()
+    initialization = do
+        spawnGCMetricsCollector
+
     catchSignals latch closeSocket = do
         let shutdown = closeSocket >> putMVar latch ()
         void $ installHandler sigINT  (Sig.CatchOnce shutdown) Nothing
