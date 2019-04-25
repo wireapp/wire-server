@@ -22,7 +22,7 @@ Most functionality is available to all users, but non-activated users can not [c
 
 ### Requesting an activation code {#RefActivationRequest}
 
-During the [standard registration flow](registration.md#RefRegistrationStandard), an activation code will be sent to provided email/phone. However, it is also possible to request an activation code _before_ registering an account:
+During the [standard registration flow](registration.md#RefRegistrationStandard), the user submits an email address or phone number by making a request to `POST /activate/send`. A six-digit activation code will be sent to that email address / phone number. Sample request and response:
 
 ```
 POST /activate/send
@@ -33,13 +33,17 @@ POST /activate/send
 }
 ```
 
-The activation code can then be submitted during registration, see [preverified accounts](registration.md#RefRegistrationPreverified).
+```
+200 OK
+```
 
-The same endpoint can also be used to re-request an activation code. Please use this sparingly! To avoid unnecessary activation code requests, users should be warned that it might take up to a few minutes for an email or text message to arrive.
+The user can submit the activation code during registration to prove that they own the email address / phone number.
+
+The same `POST /activate/send` endpoint can be used to re-request an activation code. Please use this ability sparingly! To avoid unnecessary activation code requests, users should be warned that it might take up to a few minutes for an email or text message to arrive.
 
 ### Activating an existing account {#RefActivationSubmit}
 
-An existing account can be activated by submitting an activation code to `POST /activate`. Sample request and response:
+If the account [has not been activated during verification](registration.md#RefRegistrationNoPreverification), it can be activated afterwards by submitting an activation code to `POST /activate`. Sample request and response:
 
 ```
 POST /activate
@@ -58,6 +62,8 @@ POST /activate
 ```
 
 ```
+200 OK
+
 {
     "phone": "+1234567890",
 
