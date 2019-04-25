@@ -1,12 +1,16 @@
 # Connection {#RefConnection}
 
-A connection is a _directed_ edge from one user to another that is attributed with a relation state and some meta information. If a user has a connection to another user, it can be in one of the six [connection states](#RefConnectionStates).
-
-Connections give users control over their privacy and a degree of spam protection. The state of connection between two users controls whether a user can:
-
-* See the full profile (including email address and phone number) of the other user.
+Two users can be _connected_ or not. If the users are connected, each of them can:
 
 * Add the other user to a conversation (which is also a requirement for having a 1-1 conversation or doing a call).
+
+* See the locale of the other user.
+
+By default users with personal accounts are not connected. A user can send another user a _connection request_, which can be ignored or accepted by the other user. A user can also block an existing connection.
+
+Members of the same team are always considered connected, see [Connections between team members](#RefConnectionTeam).
+
+Internally, connection status is a _directed_ edge from one user to another that is attributed with a relation state and some meta information. If a user has a connection to another user, it can be in one of the six [connection states](#RefConnectionStates).
 
 TODO describe autoconnection and onboarding.
 
@@ -30,6 +34,8 @@ When a connection is in this state it indicates that the user does not want to b
 
 Blocking a user does not prevent receiving further messages of that user in existing group conversations where the blocked user is a member.
 
+When user A blocks user B, the connection restrictions apply to both users -- e.g. A can not add B to conversations, even though it's A who blocked B and not vice-versa.
+
 ### Ignored {#RefConnectionIgnored}
 
 The recipient of a connection request may decide to explicitly "ignore" the request In this state the sender can continue to send further connection attempts. The recipient can change their mind and accept the request later.
@@ -40,7 +46,9 @@ This is a state that the sender can change to if the connection has not yet been
 
 ### Accepted {#RefConnectionAccepted}
 
-A connection in this state is fully accepted by a user. The user thus allows the user at the other end of the connection to add him to conversations, view his full profile information, etc.
+A connection in this state is fully accepted by a user. The user thus allows the user at the other end of the connection to add him to conversations.
+
+For two users to be considered "connected", both A->B and B->A connections have to be in the "Accepted" state.
 
 ## Transitions between connection states {#RefConnectionTransitions}
 
