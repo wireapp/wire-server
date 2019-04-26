@@ -174,6 +174,9 @@ reasonsToLabel :: [SAML.DeniedReason] -> ST
 reasonsToLabel [] = "server-error"
 reasonsToLabel (reason:_) = reasonToLabel reason
 
+-- | This list needs to match
+-- https://github.com/wireapp/wire-webapp/blob/6df99f764d76594e16ec36dbc18782b3760fc65f/src/script/auth/module/action/BackendError.ts#L92
+-- (TODO: what about the other clients?)
 reasonToLabel :: SAML.DeniedReason -> ST
 reasonToLabel = ("forbidden-" <>) . \case
   SAML.DeniedStatusFailure {}
