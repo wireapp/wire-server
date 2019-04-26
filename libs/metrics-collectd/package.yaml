@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: metrics-collectd
 version: '0.1.32'
@@ -10,7 +10,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 ghc-prof-options:
 - -prof
-- -auto-all
+- -fprof-auto
 dependencies:
 - base ==4.*
 - imports
