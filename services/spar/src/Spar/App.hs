@@ -403,7 +403,7 @@ verdictHandlerMobile granted denied = \case
       , errHeaders = [ ("Location", cs $ renderURI uri)
                      , ("Content-Type", "application/json")
                      ]
-      , errBody = Aeson.encode errs
+      , errBody = Aeson.encode errs  -- TODO: should this be some more helpful json?  or logged?
       }
 
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
