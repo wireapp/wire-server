@@ -333,7 +333,7 @@ verdictHandlerResultCore bindCky = \case
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
-    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerDenied reasons   -> forbiddenPage (reasonsToLabel reasons) (explainDeniedReason <$> reasons)
     VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
@@ -352,7 +352,7 @@ verdictHandlerWeb = pure . \case
       }
       where
         errval = object [ "type" .= ("AUTH_ERROR" :: ST)
-                        , "payload" .= object [ "label" .= ("forbidden" :: ST)
+                        , "payload" .= object [ "label" .= errlbl
                                               , "errors" .= reasons
                                               ]
                         ]
