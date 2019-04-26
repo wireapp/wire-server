@@ -1,18 +1,34 @@
-(incomplete)
-
 # Reference documentation
 
 What you need to know as a user of the Wire backend: concepts, features, and API. We strive to keep these up to date.
 
 ## Users
 
-We support the following functionality related to users and user profiles:
+User lifecycle:
+
+* [User registration](reference/user/registration.md) `{#RefRegistration}`
+* [User activation](reference/user/activation.md) `{#RefActivation}`
+
+User profiles and metadata:
 
 * [Connections between users](reference/user/connection.md) `{#RefConnection}`
 * [Rich info](reference/user/rich-info.md) `{#RefRichInfo}`
-* TODO
 
-## Provisioning
+TODO.
+
+## Teams
+
+TODO.
+
+## Messaging
+
+TODO.
+
+## Single sign-on
+
+TODO.
+
+## SCIM provisioning
 
 We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It's in the beta stage.
 

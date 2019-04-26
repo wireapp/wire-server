@@ -359,6 +359,8 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
+        -- Team members are alwasy considered connected, so we only check 'ensureConnected'
+        -- for non-team-members.
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
 

@@ -55,6 +55,7 @@ data ActivationEvent
 maxAttempts :: Int32
 maxAttempts = 3
 
+-- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey :: ActivationKey
             -> ActivationCode
             -> Maybe UserId

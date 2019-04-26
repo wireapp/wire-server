@@ -119,6 +119,7 @@ import qualified Brig.InternalEvent.Types   as Internal
 -------------------------------------------------------------------------------
 -- Create User
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
@@ -513,6 +514,7 @@ onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
     return (uid, Just (PhoneIdentity phone), False)
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do

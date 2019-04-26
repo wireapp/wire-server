@@ -16,8 +16,8 @@ data Event
 data UserEvent
     = UserCreated !UserAccount
     | UserActivated !UserAccount
-        -- ^ A user is activated when the first user identity
-        -- (email address or phone number) is verified.
+        -- ^ A user is activated when the first user identity (email address or phone number)
+        -- is verified. {#RefActivationEvent}
     | UserSuspended !UserId
         -- ^ Account & API access of a user has been suspended.
     | UserResumed !UserId

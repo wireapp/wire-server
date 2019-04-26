@@ -4,9 +4,9 @@
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE RecordWildCards            #-}
 
--- | Relations between users.
+-- | > docs/reference/user/connection.md {#RefConnection}
 --
--- See {#RefConnection}.
+-- Types for connections between users.
 module Brig.Types.Connection
     ( module Brig.Types.Connection
     , module C
@@ -30,9 +30,9 @@ import Data.Text as Text
 newtype Message = Message { messageText :: Text }
     deriving (Eq, Ord, Show, ToJSON)
 
--- | Possible relations between two users.
+-- | Possible relations between two users. For detailed descriptions of these states, see:
 --
--- See {#RefConnectionStates} for detailed descriptions of these states.
+-- > docs/reference/user/connection.md {#RefConnectionStates}
 data Relation
     = Accepted
     | Blocked

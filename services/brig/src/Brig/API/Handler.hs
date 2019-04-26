@@ -79,7 +79,7 @@ type JSON = Media "application" "json"
 parseJsonBody :: FromJSON a => JsonRequest a -> Handler a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
--- | If a whitelist is configured, consult it, otherwise a no-op.
+-- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> Handler ()
 checkWhitelist key = do
     eb <- setWhitelist <$> view settings
