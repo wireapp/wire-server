@@ -388,9 +388,10 @@ verdictHandlerMobile granted denied = \case
          either (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
                 (pure . successPage cky)
     VerifyHandlerDenied reasons
-      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+      -> let lbl = reasonsToLabel reasons
+         in mkVerdictDeniedFormatMobile denied lbl &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
-                (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
+                (pure . forbiddenPage lbl (explainDeniedReason <$> reasons))
     VerifyHandlerError lbl msg
       -> mkVerdictDeniedFormatMobile denied lbl &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
