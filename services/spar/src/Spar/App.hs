@@ -285,7 +285,7 @@ catchVerdictErrors = (`catchError` hndlr)
       waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-        Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+        Left (serr :: ServantErr) -> VerifyHandlerError (reasonsToLabel mempty) (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
