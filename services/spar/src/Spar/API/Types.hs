@@ -40,15 +40,12 @@ type OutsideWorldAPI = OutsideWorld API
 
 type APISSO
      = OmitDocs :> "api-docs" :> Get '[JSON] Swagger
-  :<|> APIMeta
+  :<|> "metadata" :> SAML.APIMeta
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
   :<|> APIAuthResp
 
 type CheckOK = Verb 'HEAD 200
-
-type APIMeta
-     = "metadata" :> SAML.APIMeta
 
 type APIAuthReqPrecheck
      = QueryParam "success_redirect" URI.URI
