@@ -18,6 +18,8 @@ BRIG_HOST="http://localhost:8082"
 COUNT="1"
 CSV="false"
 
+# Option parsing:
+# https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
 while getopts ":n:h:c" opt; do
   case ${opt} in
     n ) COUNT="$OPTARG"
