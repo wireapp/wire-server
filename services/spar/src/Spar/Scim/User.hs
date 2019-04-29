@@ -252,7 +252,9 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
 
-    -- Create SAML user here in spar, which in turn creates a brig user.
+    -- Create SAML user here in spar, which in turn creates a brig user. The user is created
+    -- with 'ManagedByScim', which signals to client apps that the user should not be editable
+    -- from the app (and ideally brig should also enforce this). See {#DevScimOneWaySync}.
     lift $ createSamlUserWithId buid uref mbName ManagedByScim
 
     -- Set user handle on brig (which can't be done during user creation yet).
