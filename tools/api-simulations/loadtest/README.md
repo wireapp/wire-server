@@ -75,5 +75,5 @@ but you may edit the script to point elsewhere if required.
 E.g. to create 100 users on a brig running at `localhost:8082` and generate a valid users file:
 
 ```shell
-./deploy/services-demo/create_test_user.sh http://localhost:8082 100 > users.csv
+./deploy/services-demo/create_test_user.sh -c -n 100 -h http://localhost:8082 > users.csv
 ```

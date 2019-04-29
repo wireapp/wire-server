@@ -8,17 +8,38 @@ set -e
 # if you have direct access to brig
 #
 
-USAGE="USAGE: $0 <brig-host e.g. http://localhost:8082> <num-users to create e.g. 100>
-Outputs a headerless CSV of:
-User-Id,Email,Password"
+USAGE="USAGE: $0
+    -n <N>:  Create <N> users. default: 1
+    -h <host>: Base URI of brig. default: http://localhost:8082
+    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: false
+"
 
-if [[ $# -ne 2 ]]; then
-    echo "$USAGE" 1>&2
-    exit 1
-fi
+BRIG_HOST="http://localhost:8082"
+COUNT="1"
+CSV="false"
 
-BRIG_HOST="$1"
-COUNT="$2"
+while getopts ":n:h:c" opt; do
+  case ${opt} in
+    n ) COUNT="$OPTARG"
+      ;;
+    h ) BRIG_HOST="$OPTARG"
+      ;;
+    c ) CSV="true"
+      ;;
+    : ) echo "-$OPTARG" requires an argument 1>&2
+        exit 1
+      ;;
+    \? ) echo "$USAGE" 1>&2
+         exit 1
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+
+if [ "$#" -ne 0 ]; then
+  echo "$USAGE" 1>&2
+  exit 1
+fi;
 
 # Generate users
 
@@ -34,5 +55,8 @@ do
 
     UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    echo -e "$UUID,$EMAIL,$PASSWORD"
+    if [ "$CSV" == "false" ]
+        then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD
+        else echo -e $UUID","$EMAIL","$PASSWORD
+    fi
 done
