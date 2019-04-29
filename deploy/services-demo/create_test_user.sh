@@ -8,32 +8,17 @@ set -e
 # if you have direct access to brig
 #
 
-# Usage:
-#   --csv                      Output users in CSV format
-#   --count=INT                Generate several users (by default it's just one)
+USAGE="USAGE: $0 <brig-host e.g. http://localhost:8082> <num-users to create e.g. 100>
+Outputs a headerless CSV of:
+User-Id,Email,Password"
 
-CSV=false
-COUNT=1
-
-# Parse CLI options
-
-if ! [ $# -eq 0 ]; then
-    TEMP=`getopt -o "" -l csv,count: -n 'create_test_user.sh' -- "$@"`
-    eval set -- "$TEMP"
-
-    while true ; do
-        case "$1" in
-            --csv) CSV=true ; shift ;;
-            --count)
-                case "$2" in
-                    "") shift 2 ;;
-                    *) COUNT=$2 ; shift 2 ;;
-                esac ;;
-            --) shift ; break ;;
-            *) echo "Unrecognized option $1" ; exit 1 ;;
-        esac
-    done
+if [[ $# -ne 2 ]]; then
+    echo "$USAGE" 1>&2
+    exit 1
 fi
+
+BRIG_HOST="$1"
+COUNT="$2"
 
 # Generate users
 
@@ -43,14 +28,11 @@ do
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \
-        -XPOST "http://localhost:8082/i/users" \
+        -XPOST "$BRIG_HOST/i/users" \
         -H'Content-type: application/json' \
         -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
 
     UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    if [ "$CSV" == "false" ]
-        then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD
-        else echo -e $UUID","$EMAIL","$PASSWORD
-    fi
+    echo -e "$UUID,$EMAIL,$PASSWORD"
 done

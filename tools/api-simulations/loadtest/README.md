@@ -63,3 +63,17 @@ Run `api-loadtest -h` to get the most up to date documentation.
                            single conversation); applies to everything except
                            sending or receiving messages (default: 10)
 ```
+
+# Creating Users for Load Test
+
+You can create test users against a given `brig` by running the following
+command from the root of `wire-server`:
+
+By default the script creates users on a `brig` running at `localhost:8082`;
+but you may edit the script to point elsewhere if required.
+
+E.g. to create 100 users on a brig running at `localhost:8082` and generate a valid users file:
+
+```shell
+./deploy/services-demo/create_test_user.sh http://localhost:8082 100 > users.csv
+```
