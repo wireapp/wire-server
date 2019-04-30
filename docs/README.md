@@ -47,3 +47,16 @@ If you're not a member of the Wire backend team, you might still find these docu
 * [Development setup](developer/dependencies.md) `{#DevDeps}`
 * [Editor setup](developer/editor-setup.md) `{#DevEditor}`
 * TODO
+
+## Cassandra
+
+We use [Cassandra](http://cassandra.apache.org/) as the primary data store. It is scalable, has very fast reads and writes, and is conceptually simple (or at least simpler than SQL databases).
+
+Some helpful links:
+
+* [Query syntax](https://docs.datastax.com/en/cql/3.3/cql/cql_reference/cqlReferenceTOC.html)
+
+* How deletes work in Cassandra:
+
+  - [Understanding Deletes](https://medium.com/@foundev/domain-modeling-around-deletes-1cc9b6da0d24)
+  - [Cassandra Compaction and Tombstone Behavior](http://engblog.polyvore.com/2015/03/cassandra-compaction-and-tombstone.html)
