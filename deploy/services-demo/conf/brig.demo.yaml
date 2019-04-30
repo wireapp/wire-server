@@ -54,6 +54,7 @@ emailSMS:
       legal: https://wire.com/legal/
       forgot: https://wire.com/forgot/
       support: https://support.wire.com/
+
   user:
     activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
     smsActivationUrl: http://127.0.0.1:8080/v/${code}
