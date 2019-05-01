@@ -89,7 +89,7 @@ get_backoffice
 
 if [ "$docker_deployment" = "false" ]; then
     run_haskell_service stern ${blue}
-    run_nginx ${green}
+    # run_nginx ${green}
 else
     docker-compose --file "$DOCKER_FILE" up
 fi
