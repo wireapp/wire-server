@@ -36,7 +36,7 @@ We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It
 [RFC 7643]: https://tools.ietf.org/html/rfc7643
 
 * [Using the SCIM API with curl](reference/provisioning/scim-via-curl.md) `{#RefScimViaCurl}`
-* TODO
+* [Authentication via SCIM tokens](reference/provisioning/scim-token.md) `{#RefScimToken}`
 
 # Developer documentation
 
