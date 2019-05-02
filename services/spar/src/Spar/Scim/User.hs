@@ -58,7 +58,7 @@ import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.ResourceType     as Scim
 import qualified Web.Scim.Schema.User             as Scim
-
+import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -351,7 +351,9 @@ toScimStoredUser'
   -> Scim.User SparTag
   -> Scim.StoredUser SparTag
 toScimStoredUser' (SAML.Time now) baseuri uid usr =
-    Scim.WithMeta meta (Scim.WithId uid usr)
+    Scim.WithMeta meta $
+    Scim.WithId uid $
+    usr { Scim.User.schemas = userSchemas }
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
