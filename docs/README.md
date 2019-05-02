@@ -46,6 +46,7 @@ If you're not a member of the Wire backend team, you might still find these docu
 
 * [Development setup](developer/dependencies.md) `{#DevDeps}`
 * [Editor setup](developer/editor-setup.md) `{#DevEditor}`
+* [Storing SCIM-related data](developer/scim/storage.md) `{#DevScimStorage}`
 * TODO
 
 ## Cassandra
