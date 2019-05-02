@@ -6,8 +6,10 @@ a running instance of wire-server.
 Example usage: 
 
 ```
-api-loadtest --api-host=test.api --api-port=8080 --conversations-total=40 --conversation-passive-bots=20  --conversation-bots=30  --bot-messages=50  --report-dir=. --message-length=50 --max-events=2000  --enable-asserts --users-file=2000-users.csv
+api-loadtest --api-host=test.api --api-port=8080 --conversations-total=40 --conversation-passive-bots=20  --conversation-bots=30  --bot-messages=50  --report-dir=. --message-length=50 --max-events=2000  --enable-asserts --users-file=users.csv
 ```
+
+See [Creating Users for Load Test](#creating-users-for-load-test) for details on creating a `users.csv` file.
 
 
 ## Available Options
