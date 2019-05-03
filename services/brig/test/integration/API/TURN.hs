@@ -24,13 +24,16 @@ type TurnUpdater = String -> IO ()
 tests :: Manager -> Brig -> FilePath -> FilePath -> IO TestTree
 tests m b turn turnV2 = do
     return $ testGroup "turn"
-        [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
+        [ test m "basic /calls/config - 200"            $ resetTurn' >> testCallsConfig b
         -- FIXME: requires tests to run on same host as brig
-        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn turn)
-        , test m "multiple servers /calls/config/v2 - 200" $ resetTurn >> testCallsConfigMultipleV2 b (setTurn turnV2)
+        , test m "multiple servers /calls/config - 200" $ resetTurn' >> testCallsConfigMultiple b (setTurn turn)
+        , test m "multiple servers /calls/config/v2 - 200" $ resetTurn' >> testCallsConfigMultipleV2 b (setTurn turnV2)
         ]
   where
-    resetTurn = liftIO $ setTurn turn "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
+    resetTurn' = resetTurn turn turnV2
+
+resetTurn :: MonadIO m => FilePath -> FilePath -> m ()
+resetTurn turn turnV2 = liftIO $ setTurn turn "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
