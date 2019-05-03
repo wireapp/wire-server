@@ -6,6 +6,8 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 4 "Store SCIM authentication tokens" $ do
+    -- docs/developer/scim/storage.md {#DevScimStorageTokens}
+
     -- Tables containing tokens used for authenticating user provisioning
     -- tools (e.g. Okta).
     --

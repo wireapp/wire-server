@@ -69,7 +69,9 @@ In order to view the API, you need to create a regular user. For that purpose, y
 
 ### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
 
-Yes. You need to specify an email address that the smoketests can log in to via IMAP for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+Yes. You need to specify an email address that the smoketests can log in to via IMAP for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35)).
+
+If you wish to send verification SMS/calls (to support registration using phone numbers), you need to create an account and configure Twilio: you need to specify the sid and token from the Twilio account in the "wire-server/blob/develop/deploy/services-demo/resources/twilio-credentials.yaml". And specify your Twilio number in smsSender in file "wire-server/deploy/services-demo/conf/brig.demo.yaml" at `emailSMS.general.smsSender`. 
 
 Note: This demo setup comes bundled with a postfix email sending docker image; however due to the minimal setup, emails will likely land in the Spam/Junk folder of the target email address, if you configure a common email provider. To get the smoketester to check the Spam folder as well, use e.g. (in the case of gmail) `--mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam'`.
 

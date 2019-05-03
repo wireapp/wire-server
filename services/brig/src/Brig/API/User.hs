@@ -119,6 +119,7 @@ import qualified Brig.InternalEvent.Types   as Internal
 -------------------------------------------------------------------------------
 -- Create User
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
@@ -287,6 +288,9 @@ createUser new@NewUser{..} = do
 
 -------------------------------------------------------------------------------
 -- Update Profile
+
+-- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
+-- {#DevScimOneWaySync}
 
 updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
 updateUser uid conn uu = do
@@ -513,6 +517,7 @@ onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
     return (uid, Just (PhoneIdentity phone), False)
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do
@@ -606,19 +611,21 @@ mkActivationKey (ActivatePhone p) = do
 -- Password Management
 
 changePassword :: UserId -> PasswordChange -> ExceptT ChangePasswordError AppIO ()
-changePassword u cp = do
-    activated <- lift $ Data.isActivated u
+changePassword uid cp = do
+    activated <- lift $ Data.isActivated uid
     unless activated $
         throwE ChangePasswordNoIdentity
-    currpw <- lift $ Data.lookupPassword u
+    currpw <- lift $ Data.lookupPassword uid
     let newpw = cpNewPassword cp
     case (currpw, cpOldPassword cp) of
-        (Nothing,        _) -> lift $ Data.updatePassword u newpw
+        (Nothing,        _) -> lift $ Data.updatePassword uid newpw
         (Just  _,  Nothing) -> throwE InvalidCurrentPassword
         (Just pw, Just pw') -> do
             unless (verifyPassword pw' pw) $
                 throwE InvalidCurrentPassword
-            lift $ Data.updatePassword u newpw >> revokeAllCookies u
+            when (verifyPassword newpw pw) $
+                throwE ChangePasswordMustDiffer
+            lift $ Data.updatePassword uid newpw >> revokeAllCookies uid
 
 beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError AppIO (UserId, PasswordResetPair)
 beginPasswordReset target = do
@@ -635,13 +642,24 @@ beginPasswordReset target = do
 completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
 completePasswordReset ident code pw = do
     key <- mkPasswordResetKey ident
-    usr <- lift $ Data.verifyPasswordResetCode (key, code)
-    case usr of
-        Nothing -> throwE InvalidPasswordResetCode
-        Just  u -> lift $ do
-            Data.updatePassword u pw
-            Data.deletePasswordResetCode key
-            revokeAllCookies u
+    muid :: Maybe UserId <- lift $ Data.verifyPasswordResetCode (key, code)
+    case muid of
+        Nothing  -> throwE InvalidPasswordResetCode
+        Just uid -> do
+            checkNewIsDifferent uid pw
+            lift $ do
+                Data.updatePassword uid pw
+                Data.deletePasswordResetCode key
+                revokeAllCookies uid
+
+-- | Pull the current password of a user and compare it against the one about to be installed.
+-- If the two are the same, throw an error.  If no current password can be found, do nothing.
+checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
+checkNewIsDifferent uid pw = do
+    mcurrpw <- lift $ Data.lookupPassword uid
+    case mcurrpw of
+        Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
+        _ -> pure ()
 
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError AppIO PasswordResetKey
 mkPasswordResetKey ident = case ident of

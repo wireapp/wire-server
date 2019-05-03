@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: metrics-wai
 version: '0.5.7'
@@ -27,4 +27,4 @@ dependencies:
 - wai-routing
 library:
   source-dirs: src
-  ghc-prof-options: -auto-all
+  ghc-prof-options: -fprof-auto

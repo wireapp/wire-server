@@ -143,6 +143,9 @@ publicProfile u =
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
+        -- ^ User identity. For endpoints like @/self@, it will be present in the response iff
+        -- the user is activated, and the email/phone contained in it will be guaranteedly
+        -- verified. {#RefActivation}
     , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]

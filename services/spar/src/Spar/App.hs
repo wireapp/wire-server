@@ -270,6 +270,13 @@ data VerdictHandlerResult
   = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
   | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
   | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
+    deriving (Eq, Show)
+
+verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult bindCky verdict = do
+  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
+  SAML.logger SAML.Debug (show result)
+  pure result
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
@@ -282,15 +289,13 @@ catchVerdictErrors = (`catchError` hndlr)
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
-verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = catchVerdictErrors . \case
-  denied@(SAML.AccessDenied reasons) -> do
-    SAML.logger SAML.Debug (show denied)
+verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResultCore bindCky = \case
+  SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
 
-  granted@(SAML.AccessGranted userref) -> do
+  SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      SAML.logger SAML.Debug (show granted)
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
       viaSparCass   <- getUser userref
         -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
@@ -318,6 +323,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
     case mcky of
       Just cky -> pure $ VerifyHandlerGranted cky uid
       Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

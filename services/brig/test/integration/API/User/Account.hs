@@ -668,12 +668,16 @@ testPasswordSet brig = do
 testPasswordChange :: Brig -> Http ()
 testPasswordChange brig = do
     (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
-    put (brig . path "/self/password" . contentJson . zUser uid . body pwChange) !!!
-        (const 200 === statusCode)
+    put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
+        !!! const 200 === statusCode
 
     -- login with new password
     login brig (PasswordLogin (LoginByEmail email) newPass Nothing) PersistentCookie
         !!! const 200 === statusCode
+
+    -- try to change the password to itself should fail
+    put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')
+        !!! const 409 === statusCode
 
     -- Setting a password for an anonymous / unverified user should fail
     uid2 <- userId <$> createAnonUser "foo2" brig
@@ -684,6 +688,11 @@ testPasswordChange brig = do
 
     pwChange = RequestBodyLBS . encode $ object
         [ "old_password" .= defPassword
+        , "new_password" .= newPass
+        ]
+
+    pwChange' = RequestBodyLBS . encode $ object
+        [ "old_password" .= newPass
         , "new_password" .= newPass
         ]
 
