@@ -58,7 +58,7 @@ import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.ResourceType     as Scim
 import qualified Web.Scim.Schema.User             as Scim
-
+import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -252,7 +252,9 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
 
-    -- Create SAML user here in spar, which in turn creates a brig user.
+    -- Create SAML user here in spar, which in turn creates a brig user. The user is created
+    -- with 'ManagedByScim', which signals to client apps that the user should not be editable
+    -- from the app (and ideally brig should also enforce this). See {#DevScimOneWaySync}.
     lift $ createSamlUserWithId buid uref mbName ManagedByScim
 
     -- Set user handle on brig (which can't be done during user creation yet).
@@ -349,7 +351,9 @@ toScimStoredUser'
   -> Scim.User SparTag
   -> Scim.StoredUser SparTag
 toScimStoredUser' (SAML.Time now) baseuri uid usr =
-    Scim.WithMeta meta (Scim.WithId uid usr)
+    Scim.WithMeta meta $
+    Scim.WithId uid $
+    usr { Scim.User.schemas = userSchemas }
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -525,7 +529,7 @@ toScimEmail (Email eLocal eDomain) =
 -- Note [error handling]
 -- ~~~~~~~~~~~~~~~~~
 --
--- There are two problems with error handling here:
+-- FUTUREWORK: There are two problems with error handling here:
 --
 -- 1. We want all errors originating from SCIM handlers to be thrown as SCIM
 --    errors, not as Spar errors. Currently errors thrown from things like
@@ -534,4 +538,5 @@ toScimEmail (Email eLocal eDomain) =
 --    on what is expected by apps that use the SCIM interface.
 --
 -- 2. We want generic error descriptions in response bodies, while still
---    logging nice error messages internally.
+--    logging nice error messages internally. The current messages might
+--    be giving too many internal details away.

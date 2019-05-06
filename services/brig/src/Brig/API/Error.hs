@@ -61,6 +61,7 @@ pwResetError InvalidPasswordResetCode           = StdError invalidPwResetCode
 pwResetError (PasswordResetInProgress Nothing)  = StdError duplicatePwResetCode
 pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode ()
     [("Retry-After", toByteString' t)]
+pwResetError ResetPasswordMustDiffer            = StdError resetPasswordMustDiffer
 
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode
@@ -94,6 +95,7 @@ changePhoneError (PhoneExists     _) = StdError userKeyExists
 changePwError :: ChangePasswordError -> Error
 changePwError InvalidCurrentPassword   = StdError badCredentials
 changePwError ChangePasswordNoIdentity = StdError noIdentity
+changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
 
 changeHandleError :: ChangeHandleError -> Error
 changeHandleError ChangeHandleNoIdentity  = StdError noIdentity
@@ -211,6 +213,12 @@ invalidEmail = Wai.Error status400 "invalid-email" "Invalid e-mail address."
 invalidPwResetKey :: Wai.Error
 invalidPwResetKey = Wai.Error status400 "invalid-key" "Invalid email or mobile number for password reset."
 
+resetPasswordMustDiffer :: Wai.Error
+resetPasswordMustDiffer = Wai.Error status409 "password-must-differ" "For password reset, new and old password must be different."
+
+changePasswordMustDiffer :: Wai.Error
+changePasswordMustDiffer = Wai.Error status409 "password-must-differ" "For password change, new and old password must be different."
+
 invalidPhone :: Wai.Error
 invalidPhone = Wai.Error status400 "invalid-phone" "Invalid mobile phone number."
 
@@ -258,6 +266,9 @@ accountEphemeral = Wai.Error status403 "ephemeral" "Account is ephemeral."
 
 badCredentials :: Wai.Error
 badCredentials = Wai.Error status403 "invalid-credentials" "Authentication failed."
+
+newPasswordMustDiffer :: Wai.Error
+newPasswordMustDiffer = Wai.Error status409 "password-must-differ" "For provider password change or reset, new and old password must be different."
 
 notFound :: LText -> Wai.Error
 notFound = Wai.Error status404 "not-found"

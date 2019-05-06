@@ -50,6 +50,7 @@ spec = do
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
     it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -81,6 +82,19 @@ testCreateUser = do
         . expect2xx
         )
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+
+-- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
+-- were not present in the original record during creation.
+testSchemaIsAdded :: TestSpar ()
+testSchemaIsAdded = do
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    scimStoredUser <- createUser tok (user {Scim.User.schemas = []})
+    -- Check that the created user has the right schemas
+    liftIO $
+        Scim.User.schemas (Scim.value (Scim.thing scimStoredUser)) `shouldBe`
+        userSchemas
 
 -- | Test that @externalId@ (for SSO login) is required when creating a user.
 testExternalIdIsRequired :: TestSpar ()

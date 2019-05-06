@@ -54,6 +54,7 @@ This repository contains the following source code:
    - **makedeb**: Create Debian packages
    - **bonanza**: Transform and forward log data
    - **db/**: Migration tools (e.g. when new tables are added)
+   - **stern/**: Backoffice tool (basic [Swagger](https://swagger.io/) based interface)
 
 - **libs**: Shared libraries
 

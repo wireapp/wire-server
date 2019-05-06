@@ -34,7 +34,7 @@ fast: init
 
 .PHONY: clean
 clean:
-	stack clean spar
+	stack clean $(NAME)
 	rm -f .metadata
 
 .PHONY: compile

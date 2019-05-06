@@ -3,14 +3,14 @@
 set -e
 
 #
-# This bash script can be used to create an active user by using an internal 
+# This bash script can be used to create an active user by using an internal
 # brig endpoint. Note that this is not exposed over nginz and can only be used
 # if you have direct access to brig
 #
 
 # Usage:
-#   --csv			Output users in CSV format
-#   --count=INT		Generate several users (by default it's just one)
+#   --csv                      Output users in CSV format
+#   --count=INT                Generate several users (by default it's just one)
 
 CSV=false
 COUNT=1
@@ -47,7 +47,7 @@ do
         -H'Content-type: application/json' \
         -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
 
-    UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*"id":"\([0-9a-z-]\+\)".*/\1/')
+    UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
     if [ "$CSV" == "false" ]
         then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD

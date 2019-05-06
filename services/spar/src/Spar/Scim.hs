@@ -51,10 +51,16 @@ module Spar.Scim
     ) where
 
 import Imports
+
+import Control.Lens
+import Control.Monad.Catch (try)
 import Control.Monad.Except
+import Data.String.Conversions (cs)
 import Servant
 import Servant.API.Generic
-import Spar.App (Spar)
+import Spar.App (Spar(..), Env(..))
+import Spar.Error (SparError, SparCustomError(SparScimError),
+                   throwSpar, sparToServantErrWithLogging)
 import Spar.Scim.Types
 import Spar.Scim.Auth
 import Spar.Scim.User
@@ -79,9 +85,53 @@ apiScim :: ServerT APIScim Spar
 apiScim = hoistScim (toServant (Scim.siteServer configuration))
      :<|> apiScimToken
   where
-    hoistScim = hoistServer (Proxy @(Scim.SiteAPI SparTag))
-                            (Scim.fromScimHandler fromError)
-    fromError = throwError . SAML.CustomServant . Scim.scimToServantErr
+    hoistScim = hoistServer
+        (Proxy @(Scim.SiteAPI SparTag))
+        (wrapScimErrors . Scim.fromScimHandler (throwSpar . SparScimError))
+
+    -- Wrap /all/ errors into the format required by SCIM, even server exceptions that have
+    -- nothing to do with SCIM.
+    --
+    -- FIXME: this doesn't catch impure exceptions (e.g. thrown with 'error').
+    -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
+    -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
+    -- for why it's hard to catch impure exceptions.
+    wrapScimErrors :: Spar a -> Spar a
+    wrapScimErrors = over _Spar $ \act -> \env -> do
+        result :: Either SomeException (Either SparError a) <- try (act env)
+
+        case result of
+            -- We caught an exception that's not a Spar exception at all. It is wrapped into
+            -- Scim.serverError.
+            Left someException ->
+                pure $ Left . SAML.CustomError . SparScimError $
+                    Scim.serverError (cs (displayException someException))
+
+            -- We caught a 'SparScimError' exception. It is left as-is.
+            Right err@(Left (SAML.CustomError (SparScimError _))) ->
+                pure err
+
+            -- We caught some other Spar exception. It is wrapped into Scim.serverError.
+            --
+            -- TODO: does it have to be logged?
+            Right (Left sparError) -> do
+                err <- sparToServantErrWithLogging (sparCtxLogger env) sparError
+                pure $ Left . SAML.CustomError . SparScimError $
+                    Scim.serverError (cs (errBody err))
+
+            -- No exceptions! Good.
+            Right (Right x) -> pure $ Right x
+
+----------------------------------------------------------------------------
+-- Orphan instances
 
 instance Scim.Group.GroupDB SparTag Spar where
   -- TODO
+
+----------------------------------------------------------------------------
+-- Utilities
+
+-- | An isomorphism that unwraps the Spar stack (@Spar . ReaderT . ExceptT@) into a
+-- newtype-less form that's easier to work with.
+_Spar :: Iso' (Spar a) (Env -> IO (Either SparError a))
+_Spar = coerced

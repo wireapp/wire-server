@@ -797,6 +797,7 @@ sitemap o = do
 
     -- /register, /activate, /password-reset ----------------------------------
 
+    -- docs/reference/user/registration.md {#RefRegistration}
     post "/register" (continue createUser) $
         accept "application" "json"
         .&. jsonRequest @NewUserPublic
@@ -838,6 +839,7 @@ sitemap o = do
 
     ---
 
+    -- docs/reference/user/activation.md {#RefActivationSubmit}
     post "/activate" (continue activateKey) $
         accept "application" "json"
         .&. jsonRequest @Activate
@@ -855,6 +857,7 @@ sitemap o = do
 
     ---
 
+    -- docs/reference/user/activation.md {#RefActivationRequest}
     post "/activate/send" (continue sendActivationCode) $
         jsonRequest @SendActivationCode
 
@@ -1056,6 +1059,7 @@ autoConnect (_ ::: uid ::: conn ::: req) = do
     conns <- API.autoConnect uid to conn !>> connError
     return $ json conns
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: JSON ::: JsonRequest NewUserPublic -> Handler Response
 createUser (_ ::: req) = do
     NewUserPublic new <- parseJsonBody req
@@ -1275,6 +1279,7 @@ changeHandle (u ::: conn ::: req) = do
     API.changeHandle u conn handle !>> changeHandleError
     return empty
 
+-- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey :: JSON ::: JsonRequest Activate -> Handler Response
 activateKey (_ ::: req) = parseJsonBody req >>= activate
 
@@ -1295,6 +1300,7 @@ completePasswordReset (_ ::: req) = do
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
     return empty
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: JsonRequest SendActivationCode -> Handler Response
 sendActivationCode req = do
     SendActivationCode{..} <- parseJsonBody req
