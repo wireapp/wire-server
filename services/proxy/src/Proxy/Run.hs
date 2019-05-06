@@ -23,5 +23,4 @@ run o = do
     let app r k  = runProxy e r (route rtree r k)
     let middleware = waiPrometheusMiddleware (sitemap e)
                    . measured
-                   . catchErrors (e^.applog) [Right m]
     runSettings s (middleware app) `finally` destroyEnv e

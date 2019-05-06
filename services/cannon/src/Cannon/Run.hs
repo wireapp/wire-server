@@ -9,7 +9,6 @@ import Cannon.Options
 import Cannon.WS hiding (env)
 import Control.Lens ((^.))
 import Control.Monad.Catch (finally)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
@@ -42,8 +41,7 @@ run o = do
         measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
         middleware :: Wai.Middleware
-        middleware = waiPrometheusMiddleware sitemap
-                   . measured
+        middleware = measured
                    . catchErrors g [Right m]
                    . Gzip.gzip Gzip.def
         start    =  middleware app

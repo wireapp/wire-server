@@ -3,7 +3,6 @@ module CargoHold.Run (run) where
 import           Imports
 import           Control.Lens                       ((^.))
 import           Control.Monad.Catch                (finally)
-import           Data.Metrics.WaiRoute              (treeToPaths)
 import           Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import           Data.Text                          (unpack)
 import           Util.Options
@@ -27,7 +26,6 @@ run o = do
     server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
     middleware :: Env -> Wai.Middleware
     middleware e = waiPrometheusMiddleware sitemap
-                 . measureRequests (e^.metrics) (treeToPaths rtree)
                  . catchErrors (e^.appLogger) [Right $ e^.metrics]
                  . GZip.gzip GZip.def
 
