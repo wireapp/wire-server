@@ -71,6 +71,10 @@ Run `api-loadtest -h` to get the most up to date documentation.
 You can create test users against a given `brig` by running the following
 command from the root of `wire-server`:
 
+```bash
+./deploy/services-demo/create_test_user.sh 
+```
+
 By default the script creates users on a `brig` running at `localhost:8082`;
 but you may edit the script to point elsewhere if required.
 
