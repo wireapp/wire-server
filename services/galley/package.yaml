@@ -167,6 +167,7 @@ executables:
     - data-timeout
     - errors
     - exceptions
+    - forecastle
     - galley
     - galley-types
     - gundeck-types

@@ -22,7 +22,8 @@ import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
 import System.Logger.Class
 import Test.Tasty.HUnit
-import TestSetup
+import Forecastle
+import TestSetup (TestSetup, tsAwsEnv)
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Currency as Currency
@@ -34,25 +35,25 @@ import qualified Network.AWS.SQS as SQS
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger as L
 
-ensureQueueEmpty :: TestM ()
+ensureQueueEmpty :: TestM TestSetup ()
 ensureQueueEmpty  = view tsAwsEnv >>= ensureQueueEmptyIO
 
 ensureQueueEmptyIO :: MonadIO m => Maybe Aws.Env -> m ()
 ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
 ensureQueueEmptyIO Nothing    = return ()
 
-assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
+assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM TestSetup ()
 assertQueue label check = view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env $ fetchMessage label check
     Nothing -> return ()
 
 -- Try to assert an event in the queue for a `timeout` amount of seconds
-tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
+tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM TestSetup ()
 tryAssertQueue timeout label check = view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
     Nothing -> return ()
 
-assertQueueEmpty :: (HasCallStack) => TestM ()
+assertQueueEmpty :: (HasCallStack) => TestM TestSetup ()
 assertQueueEmpty = view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env ensureNoMessages
     Nothing -> return ()

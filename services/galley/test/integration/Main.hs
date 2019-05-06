@@ -21,6 +21,7 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 import TestSetup (TestSetup(..))
+import Forecastle
 
 import qualified API
 import qualified API.SQS                as SQS
@@ -71,9 +72,9 @@ main = withOpenSSL $ runTests go
         let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
         gConf <- handleParseError =<< decodeFileEither gFile
         iConf <- handleParseError =<< decodeFileEither iFile
-        g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-        b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-        c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+        g <- GalleyR . mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+        b <- BrigR . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+        c <- CannonR . mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
         -- unset this env variable in galley's config to disable testing SQS team events
         q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"

@@ -1,0 +1,49 @@
+defaults: 
+  local: ../../package-defaults.yaml
+name: forecastle
+version: '0.0.1'
+synopsis: Library for shared test helpers
+description: Library for shared test helpers
+category: Testing
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+extra-source-files:
+- README.md
+dependencies:
+- base >=4.7 && <5
+- HUnit
+- QuickCheck
+- aeson
+- amazonka
+- base64-bytestring
+- bilge
+- brig-types
+- bytestring
+- bytestring-conversion
+- cereal
+- containers
+- currency-codes
+- exceptions
+- galley-types
+- generic-lens
+- gundeck-types
+- hspec
+- imports
+- lens
+- lens-aeson
+- mtl
+- proto-lens
+- protobuf
+- retry
+- tasty
+- tasty-cannon
+- tasty-hunit
+- text
+- types-common
+- unordered-containers
+- uuid
+library:
+  source-dirs: src
+stability: experimental
