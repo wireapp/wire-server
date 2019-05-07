@@ -141,6 +141,9 @@ user = defineModel "User" $ do
         description "User ID"
     property "name" string' $
         description "Name"
+    property "email" string' $ do
+        description "Email"
+        optional
     property "assets" (array (ref asset)) $
         description "Profile assets"
     property "accent_id" int32' $ do

@@ -300,6 +300,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary RichField where
     arbitrary = RichField <$> arbitrary <*> arbitrary

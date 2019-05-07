@@ -110,6 +110,7 @@ optSettings:
   setDefaultLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
+  setEmailVisibility: visible_to_self
 
 logLevel: Debug
 logNetStrings: false

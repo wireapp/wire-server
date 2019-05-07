@@ -35,6 +35,7 @@ dependencies:
 - tinylog >=0.10
 - types-common-journal >=0.1
 - uuid >=1.3.5
+- wai-extra >=3.0
 - yaml >=0.8.22
 library:
   source-dirs: src
@@ -137,7 +138,6 @@ library:
   - vault >=0.3
   - vector >=0.11
   - wai >=3.0
-  - wai-extra >=3.0
   - wai-middleware-gunzip >=0.0.2
   - wai-predicates >=0.8
   - wai-routing >=0.12

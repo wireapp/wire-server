@@ -227,7 +227,9 @@ instance SPHandler SparError Spar where
       throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
-  getManager = asks sparCtxHttpManager
+  handleRequestWithCont req handler = do
+    manager <- asks sparCtxHttpManager
+    liftIO $ withResponse req manager handler
 
 instance Intra.MonadSparToBrig Spar where
   call modreq = do
