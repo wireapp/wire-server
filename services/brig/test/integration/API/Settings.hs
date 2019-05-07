@@ -7,7 +7,6 @@ import           Brig.Run (mkApp)
 import           Test.Tasty         hiding (Timeout)
 import           Util
 import           API.Team.Util
-import           API.TURN
 import qualified Galley.Types.Teams as Team
 
 import Data.Id
@@ -40,25 +39,22 @@ tests defOpts manager brig galley = return $ do
                 [
                 testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
-                $ resetTurn' >> testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam
+                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam
                 , testCase "EmailVisibleToSelf"
                 . runHttpT manager
-                $ resetTurn' >> testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleToSelf
+                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleToSelf
                 ]
             , testGroup "/users/:id"
                 [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
-                $ resetTurn' >> testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam
+                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam
 
                 , testCase "EmailVisibleToSelf"
                 . runHttpT manager
-                $ resetTurn' >> testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleToSelf
+                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleToSelf
                 ]
             ]
         ]
-    where
-      resetTurn' = resetTurn turnFile turnFileV2
-      (turnFile, turnFileV2) = (Opt.servers &&& Opt.serversV2) $ Opt.turn defOpts
 
 data UserRelationship = SameTeam | DifferentTeam | NoTeam
 
