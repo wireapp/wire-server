@@ -15,6 +15,7 @@ module Network.Wai.Utilities.Server
     , catchErrors
     , OnErrorMetrics
     , heavyDebugLogging
+    , lazyResponseBody
 
       -- * Utilities
     , onError
@@ -270,6 +271,18 @@ emitLByteString lbs = do
     tvar <- newTVarIO (cs lbs)
     -- | Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
+
+-- | This flushes the response!  If you want to keep using the response, you need to construct
+-- a new one with a fresh body stream.
+lazyResponseBody :: Response -> IO LByteString
+lazyResponseBody rs = case responseToStream rs of
+    (_, _, cont :: (StreamingBody -> IO ()) -> IO ()) -> do
+        tvar <- atomically $ newTVar mempty
+        let pushstream builder = atomically $ modifyTVar tvar (<> builder)
+        cont $ \streamingBody ->
+            streamingBody pushstream (pure ())
+        atomically $ toLazyByteString <$> readTVar tvar
+
 
 --------------------------------------------------------------------------------
 -- Utilities
