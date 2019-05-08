@@ -6,7 +6,6 @@ import Cannon.Types
 import Cannon.WS hiding (env)
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import Data.String.Conversions (cs)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
@@ -18,7 +17,6 @@ import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Request (parseBody')
-import Network.Wai.Utilities.Server (lazyResponseBody)
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.WebSockets
 import System.Logger (msg, val)
@@ -139,13 +137,7 @@ await (u ::: a ::: c ::: r) = do
     e <- wsenv
     case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
         Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-        Just rs -> do
-            let st = responseStatus rs
-            if statusCode st < 500
-                then return rs
-                else do
-                    rsbody :: LText <- liftIO $ cs <$> lazyResponseBody rs
-                    throwM $ Error st "server-error" rsbody
+        Just rs -> return rs
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions
