@@ -65,11 +65,10 @@ continue l ws clock k = liftIO $ do
     case result of
         (Left  (Left x)) ->
             let text = client (key2bytes k) . msg (val "read: " +++ show x) in
-            case fromException x of
-                Just ConnectionClosed -> Logger.debug l text
-                _                     -> Logger.warn  l text
-        (Right (Left x)) -> Logger.warn l $
-            client (key2bytes k) . msg (val "write: " +++ show x)
+            Logger.debug l text
+        (Right (Left x)) ->
+            let text = client (key2bytes k) . msg (val "write: " +++ show x) in
+            Logger.debug l text
         _                -> return ()
 
 terminate :: Key -> Websocket -> WS ()
