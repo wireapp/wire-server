@@ -137,7 +137,7 @@ rejectOnError p x = do
         NotSupported              -> rejectRequest p (f "protocol not supported" "N/A")
         MalformedRequest _ m      -> rejectRequest p (f "malformed-request" (Text.pack m))
         OtherHandshakeException m -> rejectRequest p (f "other-error" (Text.pack m))
-        _                         -> throwM x
+        _                         -> pure ()
     throwM x
 
 ioErrors :: MonadIO m => Logger -> Key -> [Handler m ()]
