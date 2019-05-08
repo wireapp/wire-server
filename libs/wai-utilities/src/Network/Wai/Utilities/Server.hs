@@ -15,6 +15,7 @@ module Network.Wai.Utilities.Server
     , catchErrors
     , OnErrorMetrics
     , heavyDebugLogging
+    , rethrow5xx
     , lazyResponseBody
 
       -- * Utilities
@@ -185,7 +186,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- See 'catchErrors'.
 catchErrors :: Logger -> OnErrorMetrics -> Middleware
 catchErrors l m app req k =
-    app req k `catch` errorResponse
+    rethrow5xx app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
@@ -271,6 +272,19 @@ emitLByteString lbs = do
     tvar <- newTVarIO (cs lbs)
     -- | Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
+
+-- | Run the 'Applicatino'; check the response status; if >=500, throw a 'Wai.Error' with
+-- label @"server-error"@ and the body as the error message.
+rethrow5xx :: Middleware
+rethrow5xx app req k = app req k'
+  where
+    k' resp = do
+        let st = responseStatus resp
+        if statusCode st < 500
+            then k resp
+            else do
+                rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
+                throwM $ Wai.Error st "server-error" rsbody
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.
