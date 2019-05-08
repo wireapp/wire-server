@@ -68,6 +68,13 @@ data IdPMetadataInfo =
   | IdPMetadataURI URI
   deriving (Eq, Show, Generic)
 
+instance SAML.HasXML IdPMetadataInfo where
+  parse = fmap IdPMetadataValue . SAML.parse
+  render = error "instance SAML.HasXML IdPMetadataInfo: render not implemented"
+    -- FUTUREWORK: split up HasXML in saml-web-sso into FromXML and ToXML, then we probably
+    -- can actually not implement this (this even as an error).  should be a nice,
+    -- backwards-compatible change!
+
 instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
     look <- (,) <$> (obj .:? "value") <*> (obj .:? "uri")

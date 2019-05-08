@@ -17,8 +17,7 @@ module Spar.API
   , APIAuthResp
   , IdpGet
   , IdpGetAll
-  , IdpCreateXML
-  , IdpCreateJSON
+  , IdpCreate
   , IdpDelete
   ) where
 
@@ -75,9 +74,7 @@ apiIDP :: ServerT APIIDP Spar
 apiIDP
      = idpGet
   :<|> idpGetAll
-  :<|> idpCreateXML
-  :<|> idpCreateXML
-  :<|> idpCreateJSON
+  :<|> idpCreate
   :<|> idpDelete
 
 apiINTERNAL :: ServerT APIINTERNAL Spar
@@ -197,10 +194,10 @@ idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idp
   SAML.storeIdPConfig idp
   pure idp
 
-idpCreateJSON :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreateJSON zusr (IdPMetadataValue xml) =
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
+idpCreate zusr (IdPMetadataValue xml) =
   idpCreateXML zusr xml
-idpCreateJSON zusr (IdPMetadataURI uri) =
+idpCreate zusr (IdPMetadataURI uri) =
   enforceHttps uri >> doHttp >>= getBody >>= decodeBody >>= idpCreateXML zusr
   where
     doHttp :: Spar (Bilge.Response (Maybe LBS))
