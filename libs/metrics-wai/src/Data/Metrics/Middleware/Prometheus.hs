@@ -59,7 +59,7 @@ instrumentHandlerValue ::
 instrumentHandlerValue f app req respond = do
   start <- getTime Monotonic
   app req $ \case
-    res@(ResponseRaw {}) -> respond res
+    res@(ResponseRaw {}) -> respond res  -- See Note [Raw Response]
     res -> do
       end <- getTime Monotonic
       let method = Just $ decodeUtf8 (Wai.requestMethod req)
