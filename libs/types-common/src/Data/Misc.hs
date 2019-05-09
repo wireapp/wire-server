@@ -25,6 +25,7 @@ module Data.Misc
 
       -- * HttpsUrl
     , HttpsUrl (..), mkHttpsUrl
+    , HttpHeader (..), mkHttpHeader
 
       -- * Fingerprint
     , Fingerprint (..)
@@ -51,6 +52,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.ByteString.Lazy (toStrict)
 import Cassandra
 #endif
+import Network.HTTP.Types.Header
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck (Arbitrary(..))
 #endif
@@ -200,6 +202,38 @@ mkHttpsUrl uri = if uri ^. uriSchemeL . schemeBSL == "https"
 
 instance Show HttpsUrl where
     showsPrec i = showsPrec i . httpsUrl
+
+instance ToByteString HttpsUrl where
+    builder = serializeURIRef . httpsUrl
+
+instance FromByteString HttpsUrl where
+    parser = either fail pure . mkHttpsUrl =<< uriParser strictURIParserOptions
+
+instance FromJSON HttpsUrl where
+    parseJSON = withText "HttpsUrl" $
+        either fail return . runParser parser . encodeUtf8
+
+instance ToJSON HttpsUrl where
+    toJSON = toJSON . decodeUtf8 . toByteString'
+
+#ifdef WITH_CQL
+instance Cql HttpsUrl where
+    ctype = Tagged BlobColumn
+    toCql = CqlBlob . toByteString
+
+    fromCql (CqlBlob t) = runParser parser (toStrict t)
+    fromCql _           = fail "HttpsUrl: Expected CqlBlob"
+#endif
+
+--------------------------------------------------------------------------------
+-- Http Header
+
+newtype HttpHeader = HttpHeader
+    { unHttpHeader :: Header
+    } deriving Eq
+
+instance Show HttpsUrl where
+    showsPrec i = showsPrec i . unHttpHeader
 
 instance ToByteString HttpsUrl where
     builder = serializeURIRef . httpsUrl

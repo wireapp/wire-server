@@ -473,6 +473,7 @@ addService (pid ::: req) = do
     let pubkey  = newServiceKey new
     let assets  = newServiceAssets new
     let tags    = fromRange (newServiceTags new)
+    let headers = newServiceHeaders new
 
     (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
     token    <- maybe randServiceToken return (newServiceToken new)

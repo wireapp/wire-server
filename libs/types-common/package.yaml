@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: types-common
 version: '0.16.0'
@@ -45,6 +45,7 @@ library:
   - errors >=2.0
   - ghc-prim
   - hashable >=1.2
+  - http-types >=0.12
   - iproute >=1.5
   - optparse-applicative >=0.10
   - lens >=4.10
