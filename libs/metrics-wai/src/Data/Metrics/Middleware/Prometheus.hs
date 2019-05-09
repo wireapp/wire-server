@@ -2,6 +2,7 @@ module Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware) where
 
 import           Imports
 import qualified Network.Wai                       as Wai
+import           Network.Wai.Internal
 import           Network.Wai.Routing.Route         (Routes, prepare)
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Data.Text                         as T
@@ -57,7 +58,9 @@ instrumentHandlerValue ::
   -> Wai.Application -- ^ The instrumented app
 instrumentHandlerValue f app req respond = do
   start <- getTime Monotonic
-  app req $ \res -> do
+  app req $ \case
+   res@(ResponseRaw {}) -> respond res
+   res -> do
     end <- getTime Monotonic
     let method = Just $ decodeUtf8 (Wai.requestMethod req)
     let status = Just $ T.pack (show (HTTP.statusCode (Wai.responseStatus res)))
