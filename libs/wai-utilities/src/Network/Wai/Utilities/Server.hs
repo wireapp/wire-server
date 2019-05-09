@@ -50,14 +50,15 @@ import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
-import qualified Network.Wai.Utilities.Error as Wai
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.Text.Lazy.Encoding     as LT
+import qualified Network.Wai.Internal        as WaiInt
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
@@ -186,7 +187,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- See 'catchErrors'.
 catchErrors :: Logger -> OnErrorMetrics -> Middleware
 catchErrors l m app req k =
-    rethrow5xx app req k `catch` errorResponse
+    rethrow5xx l app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
@@ -275,9 +276,16 @@ emitLByteString lbs = do
 
 -- | Run the 'Applicatino'; check the response status; if >=500, throw a 'Wai.Error' with
 -- label @"server-error"@ and the body as the error message.
-rethrow5xx :: Middleware
-rethrow5xx app req k = app req k'
+rethrow5xx :: Logger -> Middleware
+rethrow5xx logger app req k = app req k'
   where
+    k' resp@(WaiInt.ResponseRaw {}) = do  -- See Note [Raw Response]
+        let logMsg = field "canoncalpath" (show $ pathInfo req)
+                   . field "rawpath" (rawPathInfo req)
+                   . field "request" (fromMaybe "N/A" $ lookupRequestId req)
+                   . msg (val "ResponseRaw - cannot collect metrics and log info on errors")
+        Log.log logger Log.Debug logMsg
+        k resp
     k' resp = do
         let st = responseStatus resp
         if statusCode st < 500
