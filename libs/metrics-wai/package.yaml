@@ -17,6 +17,7 @@ dependencies:
 - imports
 - metrics-core >=0.3
 - containers
+- prometheus-client
 - servant
 - string-conversions
 - text >=0.11
