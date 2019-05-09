@@ -59,13 +59,13 @@ instrumentHandlerValue ::
 instrumentHandlerValue f app req respond = do
   start <- getTime Monotonic
   app req $ \case
-   res@(ResponseRaw {}) -> respond res
-   res -> do
-    end <- getTime Monotonic
-    let method = Just $ decodeUtf8 (Wai.requestMethod req)
-    let status = Just $ T.pack (show (HTTP.statusCode (Wai.responseStatus res)))
-    observeSeconds (f req) method status start end
-    respond res
+    res@(ResponseRaw {}) -> respond res
+    res -> do
+      end <- getTime Monotonic
+      let method = Just $ decodeUtf8 (Wai.requestMethod req)
+      let status = Just $ T.pack (show (HTTP.statusCode (Wai.responseStatus res)))
+      observeSeconds (f req) method status start end
+      respond res
 
 observeSeconds :: Text -> Maybe Text -> Maybe Text -> TimeSpec -> TimeSpec -> IO ()
 observeSeconds handler method status start end = do
