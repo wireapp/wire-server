@@ -137,7 +137,7 @@ await (u ::: a ::: c ::: r) = do
     e <- wsenv
     case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
         Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-        Just rs -> return rs
+        Just rs -> return rs -- ensure all middlewares ignore RawResponse - see Note [Raw Response]
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions
