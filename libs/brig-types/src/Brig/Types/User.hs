@@ -103,17 +103,49 @@ connectedProfile u = UserProfile
     , profileDeleted  = userDeleted u
     , profileExpire   = userExpire u
     , profileTeam     = userTeam u
+    -- We don't want to show the email by default;
+    -- However we do allow adding it back in intentionally later.
+    , profileEmail    = Nothing
     }
 
 publicProfile :: User -> UserProfile
-publicProfile u = (connectedProfile u)
-    { profileLocale = Nothing
-    }
+publicProfile u =
+    -- Note that we explicitly unpack and repack the types here rather than using
+    -- RecordWildCards or something similar because we want changes to the public profile
+    -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
+    let UserProfile { profileId
+                    , profileHandle
+                    , profileName
+                    , profilePict
+                    , profileAssets
+                    , profileAccentId
+                    , profileService
+                    , profileDeleted
+                    , profileExpire
+                    , profileTeam
+                    } = connectedProfile u
+    in UserProfile
+       { profileLocale   = Nothing
+       , profileEmail    = Nothing
+       , profileId
+       , profileHandle
+       , profileName
+       , profilePict
+       , profileAssets
+       , profileAccentId
+       , profileService
+       , profileDeleted
+       , profileExpire
+       , profileTeam
+       }
 
 -- | The data of an existing user.
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
+        -- ^ User identity. For endpoints like @/self@, it will be present in the response iff
+        -- the user is activated, and the email/phone contained in it will be guaranteedly
+        -- verified. {#RefActivation}
     , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]
@@ -160,6 +192,7 @@ data UserProfile = UserProfile
     , profileLocale   :: !(Maybe Locale)
     , profileExpire   :: !(Maybe UTCTimeMillis)
     , profileTeam     :: !(Maybe TeamId)
+    , profileEmail    :: !(Maybe Email)
     }
     deriving (Eq, Show)
 
@@ -213,6 +246,7 @@ instance FromJSON UserProfile where
                     <*> o .:? "locale"
                     <*> o .:? "expires_at"
                     <*> o .:? "team"
+                    <*> o .:? "email"
 
 instance ToJSON UserProfile where
     toJSON u = object
@@ -227,6 +261,7 @@ instance ToJSON UserProfile where
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
+        # "email"      .= profileEmail u
         # []
 
 instance FromJSON SelfProfile where

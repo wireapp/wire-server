@@ -160,6 +160,8 @@ renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> Temp
 renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
+        -- To make automated processing possible, the activation code is also added to
+        -- headers. {#RefActivationEmailHeaders}
         , mailHeaders = [ ("Subject", toStrict subj)
                         , ("X-Zeta-Purpose", "Verification")
                         , ("X-Zeta-Code", Ascii.toText code)
@@ -192,6 +194,8 @@ renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> TemplateBr
 renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
+        -- To make automated processing possible, the activation code is also added to
+        -- headers. {#RefActivationEmailHeaders}
         , mailHeaders = [ ("Subject", toStrict subj)
                         , ("X-Zeta-Purpose", "Activation")
                         , ("X-Zeta-Key", Ascii.toText key)

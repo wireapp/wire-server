@@ -1,0 +1,30 @@
+networks:
+  docker-ephemeral_bo_demo_wire:
+    external: false
+
+version: '2'
+services:
+  stern:
+    image: quay.io/wire/stern
+    ports:
+      - 127.0.0.1:8091:8091
+    volumes:
+      - ./:/configs
+    entrypoint:
+      - /usr/bin/stern
+      - -c
+      - /configs/conf/stern.demo-docker.yaml
+    working_dir: /configs
+    networks:
+      - docker-ephemeral_bo_demo_wire
+
+  nginx:
+    image: bo:1.0.0
+    depends_on:
+      - stern
+    ports:
+      - 127.0.0.1:8080:8080
+    volumes:
+      - ./conf:/etc/nginx
+    networks:
+      - docker-ephemeral_bo_demo_wire

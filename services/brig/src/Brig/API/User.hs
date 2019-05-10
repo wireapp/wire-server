@@ -119,6 +119,7 @@ import qualified Brig.InternalEvent.Types   as Internal
 -------------------------------------------------------------------------------
 -- Create User
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
@@ -287,6 +288,9 @@ createUser new@NewUser{..} = do
 
 -------------------------------------------------------------------------------
 -- Update Profile
+
+-- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
+-- {#DevScimOneWaySync}
 
 updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
 updateUser uid conn uu = do
@@ -513,6 +517,7 @@ onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
     return (uid, Just (PhoneIdentity phone), False)
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do
@@ -850,14 +855,29 @@ lookupProfiles :: UserId   -- ^ User 'A' on whose behalf the profiles are reques
 lookupProfiles self others = do
     users <- Data.lookupUsers others >>= mapM userGC
     css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
-    return $ map (toProfile css) users
+    emailVisibility' <- view (settings . emailVisibility)
+    return $ map (toProfile emailVisibility' css) users
   where
+    toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
-    toProfile css u =
+    toProfile :: EmailVisibility -> Map UserId Relation -> User -> UserProfile
+    toProfile emailVisibility' css u =
         let cs = Map.lookup (userId u) css
-        in if userId u == self || cs == Just Accepted || cs == Just Sent
-            then connectedProfile u
-            else publicProfile u
+            profileEmail' = getEmailForProfile u emailVisibility'
+            baseProfile = if userId u == self || cs == Just Accepted || cs == Just Sent
+                            then connectedProfile u
+                            else publicProfile u
+         in baseProfile{ profileEmail = profileEmail'}
+
+-- | Gets the email if it's visible to the requester according to configured settings
+getEmailForProfile :: User -- ^ The user who's profile is being requested
+                   -> EmailVisibility
+                   -> Maybe Email
+getEmailForProfile _ EmailVisibleToSelf = Nothing
+getEmailForProfile u EmailVisibleIfOnTeam =
+    if isJust (userTeam u)
+        then userEmail u
+        else Nothing
 
 -- | Obtain a profile for a user as he can see himself.
 lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)

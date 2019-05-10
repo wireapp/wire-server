@@ -43,6 +43,17 @@ emailSMS:
     templateDir: resources/templates
     emailSender: backend-demo@mail.wiredemo.example.com
     smsSender: "<insert-sender-number-here>"
+    templateBranding:
+      brand: Wire
+      brandUrl: https://wire.com
+      brandLabelUrl: wire.com # This is the text in the label for the above URL
+      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+      brandService: Wire Service Provider
+      copyright: © WIRE SWISS GmbH
+      misuse: misuse@wire.com
+      legal: https://wire.com/legal/
+      forgot: https://wire.com/forgot/
+      support: https://support.wire.com/
 
   user:
     activationUrl: http://brig:8080/activate?key=${key}&code=${code}
@@ -99,6 +110,7 @@ optSettings:
   setDefaultLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
+  setEmailVisibility: visible_to_self
 
 logLevel: Debug
 logNetStrings: false

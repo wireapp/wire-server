@@ -1,3 +1,33 @@
+# 2019-04-09 #746
+
+## Documentation changes
+
+* Improved Cassandra documentation in `docs/README.md`
+* Improved documentation on SCIM storage in `docs/README.md`
+* Improved documentation on SCIM Tokens in `docs/reference/provisioning/scim-token.md`
+
+## Bug fixes
+
+* Sanitize metric names to be valid prometheus names in metrics-core
+* Add missing a `.git` suffix on gitlab dependencies in stack.yaml
+* Time bounds checks now allow 60s of tolerance; this is helpful in cases of drifting clocks (#730)
+
+## Features
+
+* Services now provide Prometheus metrics on `/i/metrics`
+* Garbage Collection and memory statistics are available alongside other prometheus metrics
+
+## Internal Changes
+
+* Alpine Builder is no longer built with `--profile`
+* SCIM users now have an additional wire-specific schema attached.
+
+## Changes (potentially) requiring action
+* `/i/monitoring` is *DEPRECATED*. Please use prometheus metrics provided by `/i/metrics` instead.
+* On password reset the new password must be different than the old one
+* Stern is now available as a new tool for performing adminstrative tasks via API (#720)
+* SCIM handler errors are now reported according to SCIM error schema (#575)
+
 # 2019-04-09 #710
 
 ## API changes

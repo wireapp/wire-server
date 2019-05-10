@@ -17,6 +17,7 @@ license: AGPL-3
 dependencies:
 - base
 - aeson
+- extra
 - unliftio
 - unliftio-core
 - containers

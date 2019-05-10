@@ -65,6 +65,10 @@ module Imports
     , Map, Set, HashMap, HashSet
     , ByteString, LByteString
     , Text, LText
+
+    -- * Extra Helpers
+    , whenM
+    , unlessM
     ) where
 
 import Orphans ()
@@ -107,6 +111,7 @@ import Data.List hiding (insert, delete)  -- 'insert' and 'delete' are
                                           -- common in database modules
 import Data.String
 import Control.Monad hiding (mapM_, sequence_, forM_, msum, mapM, sequence, forM)
+import Control.Monad.Extra (whenM, unlessM)
 import Debug.Trace
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)

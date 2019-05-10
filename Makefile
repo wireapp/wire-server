@@ -8,14 +8,32 @@ default: fast
 init:
 	mkdir -p dist
 
+# Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
+# Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
+# Build everything (Haskell services and nginz)
+.PHONY: services
+services: init install
+	$(MAKE) -C services/nginz
+
+# Build haddocks
+.PHONY: haddock
+haddock:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+
+# Build haddocks only for wire-server
+.PHONY: haddock-shallow
+haddock-shallow:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+
+# Clean
 .PHONY: clean
 clean:
 	stack clean
@@ -23,20 +41,8 @@ clean:
 	-rm -rf dist
 	-rm -f .metadata
 
-.PHONY: services
-services: init install
-	$(MAKE) -C services/nginz
-
-.PHONY: haddock
-haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
-
-.PHONY: haddock-shallow
-haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
-
 #################################
-## integration tests
+## running integration tests
 
 # Build services with --fast and run tests
 .PHONY: integration

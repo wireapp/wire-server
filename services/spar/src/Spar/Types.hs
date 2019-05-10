@@ -65,8 +65,12 @@ deriveJSON deriveJSONOptions ''IdPList
 ----------------------------------------------------------------------------
 -- SCIM
 
--- | A bearer token that authorizes a provisioning tool to perform actions
--- with a team. Each token corresponds to one team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
+--
+-- A bearer token that authorizes a provisioning tool to perform actions with a team. Each
+-- token corresponds to one team.
+--
+-- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
 newtype ScimToken = ScimToken { fromScimToken :: Text }
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
