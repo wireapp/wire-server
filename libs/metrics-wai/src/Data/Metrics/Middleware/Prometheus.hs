@@ -8,11 +8,9 @@ import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Data.Text                         as T
 import qualified Data.Text.Encoding                as T
 import           Data.Maybe (fromMaybe)
-import           Data.Ratio ((%))
 import           Data.Text (Text)
 import           Data.Text.Encoding (decodeUtf8)
 import qualified Network.HTTP.Types as HTTP
-import qualified Prometheus as Prom
 import           System.Clock
 
 import Data.Metrics.WaiRoute (treeToPaths)
@@ -64,19 +62,5 @@ instrumentHandlerValue f app req respond = do
       end <- getTime Monotonic
       let method = Just $ decodeUtf8 (Wai.requestMethod req)
       let status = Just $ T.pack (show (HTTP.statusCode (Wai.responseStatus res)))
-      observeSeconds (f req) method status start end
+      Promth.observeSeconds (f req) method status start end
       respond res
-
-observeSeconds :: Text -> Maybe Text -> Maybe Text -> TimeSpec -> TimeSpec -> IO ()
-observeSeconds handler method status start end = do
-    let latency = fromRational $ toRational (toNanoSecs (end `diffTimeSpec` start) % 1000000000)
-    Prom.withLabel requestLatency
-                   (handler, fromMaybe "" method, fromMaybe "" status)
-                   (flip Prom.observe latency)
-
-{-# NOINLINE requestLatency #-}
-requestLatency :: Prom.Vector Prom.Label3 Prom.Histogram
-requestLatency = Prom.unsafeRegister $ Prom.vector ("handler", "method", "status_code")
-                                     $ Prom.histogram info Prom.defaultBuckets
-    where info = Prom.Info "http_request_duration_seconds"
-                           "The HTTP request latencies in seconds."
