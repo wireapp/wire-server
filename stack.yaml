@@ -38,6 +38,10 @@ packages:
 - tools/db/auto-whitelist
 
 extra-deps:
+- git: https://github.com/wireapp/prometheus-haskell
+  commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737
+  subdirs:
+  - wai-middleware-prometheus
 - git: https://github.com/wireapp/saml2-web-sso
   commit: c0bcbe8ae5bb6fdc0b5b94f640f63a615c068cbf    # master (Apr 25, 2019)
 - git: https://github.com/wireapp/hscim
