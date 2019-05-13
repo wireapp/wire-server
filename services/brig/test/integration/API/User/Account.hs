@@ -861,7 +861,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login

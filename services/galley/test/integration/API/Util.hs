@@ -675,7 +675,7 @@ ephemeralUser = do
     return $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
-randomClient = randomClientWithType PermanentClient 201
+randomClient = randomClientWithType PermanentClientType 201
 
 randomClientWithType:: HasCallStack => ClientType -> Int -> UserId -> LastPrekey -> TestM ClientId
 randomClientWithType cType rStatus usr lk = do

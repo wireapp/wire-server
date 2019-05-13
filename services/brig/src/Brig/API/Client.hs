@@ -81,7 +81,7 @@ rmClient u con clt pw =
     maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
     fn client = do
-        unless (clientType client == TemporaryClient) $
+        unless (clientType client == TemporaryClientType) $
             Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
         lift $ execDelete u (Just con) client
 

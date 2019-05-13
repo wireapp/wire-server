@@ -85,8 +85,8 @@ addClient u newId c loc = do
     return (new, old, total)
   where
     limit = case newClientType c of
-        PermanentClient -> Just maxPermClients
-        TemporaryClient -> Nothing
+        PermanentClientType -> Just maxPermClients
+        TemporaryClientType -> Nothing
 
     exists = (==) newId . clientId
 

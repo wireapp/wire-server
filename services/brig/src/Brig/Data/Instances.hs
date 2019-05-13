@@ -146,11 +146,11 @@ instance Cql AccountStatus where
 
 instance Cql ClientType where
     ctype = Tagged IntColumn
-    toCql TemporaryClient = CqlInt 0
-    toCql PermanentClient = CqlInt 1
+    toCql TemporaryClientType = CqlInt 0
+    toCql PermanentClientType = CqlInt 1
 
-    fromCql (CqlInt 0) = return TemporaryClient
-    fromCql (CqlInt 1) = return PermanentClient
+    fromCql (CqlInt 0) = return TemporaryClientType
+    fromCql (CqlInt 1) = return PermanentClientType
     fromCql _          = fail "ClientType: Int [0, 1] expected"
 
 instance Cql ClientClass where

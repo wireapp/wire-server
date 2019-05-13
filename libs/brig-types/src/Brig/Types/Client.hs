@@ -21,8 +21,8 @@ import Data.Misc (Location, PlainTextPassword (..))
 -- * Data Types:
 
 data ClientType
-    = TemporaryClient
-    | PermanentClient
+    = TemporaryClientType
+    | PermanentClientType
     | LegalHoldClientType
     deriving (Eq, Ord, Show)
 
@@ -119,14 +119,14 @@ instance FromJSON PubClient where
                   <*> o .:? "class"
 
 instance ToJSON ClientType where
-    toJSON TemporaryClient = String "temporary"
-    toJSON PermanentClient = String "permanent"
+    toJSON TemporaryClientType = String "temporary"
+    toJSON PermanentClientType = String "permanent"
     toJSON LegalHoldClientType = String "legalholdtype"
 
 instance FromJSON ClientType where
     parseJSON = withText "ClientType" $ \txt -> case txt of
-        "temporary" -> return TemporaryClient
-        "permanent" -> return PermanentClient
+        "temporary" -> return TemporaryClientType
+        "permanent" -> return PermanentClientType
         "legalhold" -> return LegalHoldClientType
         _           -> fail "Must be one of {'temporary', 'permanent'}."
 
