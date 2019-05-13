@@ -93,6 +93,11 @@ i-%:
 #################################
 ## docker targets
 
+.PHONY: docker-prebuilder
+docker-prebuilder:
+	# `docker-prebuilder` needs to be built or pulled only once (unless native dependencies change)
+	$(MAKE) -C build/alpine prebuilder
+
 .PHONY: docker-deps
 docker-deps:
 	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
