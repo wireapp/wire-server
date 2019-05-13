@@ -20,17 +20,33 @@ import Data.Misc (Location, PlainTextPassword (..))
 
 -- * Data Types:
 
+-- [Note: LegalHold]
+--
+-- Short feature description:
+-- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
+-- team on a per-user basis
+-- * A LegalHoldClient is a client outside that user's control (but under the
+--   control of that team's business)
+-- * Users need to click "accept" before a LegalHoldClient is added to their
+--   account.
+-- * Any user interacting with a user which has a LegalHoldClient will upon
+--   first interaction receive a warning, and on an ongoing basis see a visual
+--   indication in all conversations where such a device is active.
+--
+-- API changes:
+-- TODO documentation
+
 data ClientType
     = TemporaryClientType
     | PermanentClientType
-    | LegalHoldClientType
+    | LegalHoldClientType -- see Note [LegalHold]
     deriving (Eq, Ord, Show)
 
 data ClientClass
     = PhoneClient
     | TabletClient
     | DesktopClient
-    | LegalHoldClient
+    | LegalHoldClient -- see Note [LegalHold]
     deriving (Eq, Ord, Show)
 
 data NewClient = NewClient
@@ -121,14 +137,14 @@ instance FromJSON PubClient where
 instance ToJSON ClientType where
     toJSON TemporaryClientType = String "temporary"
     toJSON PermanentClientType = String "permanent"
-    toJSON LegalHoldClientType = String "legalholdtype"
+    toJSON LegalHoldClientType = String "legalhold"
 
 instance FromJSON ClientType where
     parseJSON = withText "ClientType" $ \txt -> case txt of
         "temporary" -> return TemporaryClientType
         "permanent" -> return PermanentClientType
-        "legalhold" -> return LegalHoldClientType
-        _           -> fail "Must be one of {'temporary', 'permanent'}."
+        "legalhold" -> return LegalHoldClientType -- TODO: disallow at FromJSON?
+        _           -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
 
 instance ToJSON ClientClass where
     toJSON PhoneClient   = String "phone"
@@ -141,7 +157,8 @@ instance FromJSON ClientClass where
         "phone"     -> return PhoneClient
         "tablet"    -> return TabletClient
         "desktop"   -> return DesktopClient
-        "legalhold" -> return LegalHoldClient
+        "legalhold" -> return LegalHoldClient -- TODO: disallow at FromJSON?
+
         _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 instance ToJSON NewClient where
