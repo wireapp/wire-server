@@ -35,8 +35,8 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Teams API"
-    [ test s "create team" testDisallowLegalHoldDeviceCreation
+tests s = testGroup "Teams LegalHold API"
+    [ test s "create client" testDisallowLegalHoldDeviceCreation
     ]
 
 timeout :: WS.Timeout
@@ -44,9 +44,18 @@ timeout = 3 # Second
 
 testDisallowLegalHoldDeviceCreation :: TestM ()
 testDisallowLegalHoldDeviceCreation = do
+    -- regular users cannot create LegalHoldClients
     let lk = (someLastPrekeys !! 0)
     u <- randomUser
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail
     void $ randomClientWithType LegalHoldClientType 400 u lk
+
+    -- team users cannot create LegalHoldClients
+    owner <- Util.randomUser
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
+
+    -- TODO: requests to /clients with type=LegalHoldClientType should fail
+    void $ randomClientWithType LegalHoldClientType 400 owner lk
 

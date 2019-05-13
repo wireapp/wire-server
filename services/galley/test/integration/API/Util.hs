@@ -677,7 +677,7 @@ ephemeralUser = do
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient = randomClientWithType PermanentClientType 201
 
-randomClientWithType:: HasCallStack => ClientType -> Int -> UserId -> LastPrekey -> TestM ClientId
+randomClientWithType :: HasCallStack => ClientType -> Int -> UserId -> LastPrekey -> TestM ClientId
 randomClientWithType cType rStatus usr lk = do
     b <- view tsBrig
     q <- post (b . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
