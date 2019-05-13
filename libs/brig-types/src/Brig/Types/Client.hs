@@ -66,7 +66,7 @@ newClient t k = NewClient
     , newClientLastKey  = k
     , newClientType     = t
     , newClientLabel    = Nothing
-    , newClientClass    = Nothing
+    , newClientClass    = if t == LegalHoldClientType then Just LegalHoldClient else Nothing
     , newClientCookie   = Nothing
     , newClientPassword = Nothing
     , newClientModel    = Nothing
