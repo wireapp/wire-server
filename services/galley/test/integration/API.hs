@@ -24,6 +24,7 @@ import API.SQS
 import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
+import qualified API.Teams.LegalHold      as Teams.LegalHold
 import qualified API.MessageTimer         as MessageTimer
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
@@ -35,7 +36,7 @@ import qualified Data.Code                as Code
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests"
-    [ mainTests, Teams.tests s, MessageTimer.tests s ]
+    [ mainTests, Teams.tests s, Teams.LegalHold.tests s, MessageTimer.tests s ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status

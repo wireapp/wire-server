@@ -23,12 +23,14 @@ import Data.Misc (Location, PlainTextPassword (..))
 data ClientType
     = TemporaryClient
     | PermanentClient
+    | LegalHoldClientType
     deriving (Eq, Ord, Show)
 
 data ClientClass
     = PhoneClient
     | TabletClient
     | DesktopClient
+    | LegalHoldClient
     deriving (Eq, Ord, Show)
 
 data NewClient = NewClient
@@ -119,24 +121,28 @@ instance FromJSON PubClient where
 instance ToJSON ClientType where
     toJSON TemporaryClient = String "temporary"
     toJSON PermanentClient = String "permanent"
+    toJSON LegalHoldClientType = String "legalholdtype"
 
 instance FromJSON ClientType where
     parseJSON = withText "ClientType" $ \txt -> case txt of
         "temporary" -> return TemporaryClient
         "permanent" -> return PermanentClient
+        "legalhold" -> return LegalHoldClientType
         _           -> fail "Must be one of {'temporary', 'permanent'}."
 
 instance ToJSON ClientClass where
     toJSON PhoneClient   = String "phone"
     toJSON TabletClient  = String "tablet"
     toJSON DesktopClient = String "desktop"
+    toJSON LegalHoldClient = String "legalhold"
 
 instance FromJSON ClientClass where
     parseJSON = withText "ClientClass" $ \txt -> case txt of
-        "phone"   -> return PhoneClient
-        "tablet"  -> return TabletClient
-        "desktop" -> return DesktopClient
-        _         -> fail "Must be one of {'phone', 'tablet', 'desktop'}."
+        "phone"     -> return PhoneClient
+        "tablet"    -> return TabletClient
+        "desktop"   -> return DesktopClient
+        "legalhold" -> return LegalHoldClient
+        _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 instance ToJSON NewClient where
     toJSON c = object
