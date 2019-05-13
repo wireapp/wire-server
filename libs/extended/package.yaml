@@ -15,6 +15,7 @@ copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base
+- bytestring
 - extra
 - imports
 - optparse-applicative
