@@ -19,7 +19,7 @@ services:
       - docker-ephemeral_bo_demo_wire
 
   nginx:
-    image: bo:1.0.0
+    image: quay.io/wire/backoffice-frontend:1.0.0
     depends_on:
       - stern
     ports:
