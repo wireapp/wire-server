@@ -27,7 +27,7 @@ module CargoHold.App
     ) where
 
 import Imports hiding (log)
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (Manager, MonadHttp, RequestId(..), newManager, withResponse)
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
 import CargoHold.Options as Opt
@@ -165,13 +165,15 @@ instance MonadLogger (ExceptT e App) where
     log l = lift . log l
 
 instance MonadHttp App where
-    getManager = view httpManager
+    handleRequestWithCont req handler = do
+        manager <- view httpManager
+        liftIO $ withResponse req manager handler
 
 instance HasRequestId App where
     getRequestId = view requestId
 
 instance MonadHttp (ExceptT e App) where
-    getManager = lift Bilge.getManager
+    handleRequestWithCont req handler = lift $ Bilge.handleRequestWithCont req handler
 
 instance HasRequestId (ExceptT e App) where
     getRequestId = lift getRequestId

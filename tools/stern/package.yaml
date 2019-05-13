@@ -11,6 +11,7 @@ license: AGPL-3
 dependencies:
 - imports
 - extended
+- unliftio
 library:
   source-dirs: src
   ghc-options:

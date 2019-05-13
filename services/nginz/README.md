@@ -45,9 +45,9 @@ Once you have all necessary dependencies, `make` in this directory should work.
 gpg: Can't check signature: public key not found
 ```
 
-This means that you haven't imported the public key that was used to sign nginx. Look for the keys at https://nginx.org/en/pgp_keys.html and make sure to import them after with:
+This means that you haven't imported the public key that was used to sign nginx. Look for the keys at https://nginx.org/en/pgp_keys.html and make sure to import ALL of them with:
 
-`gpg --import <path_to_key>`
+`gpg --import <paths_to_keys>`
 
 Alternatively, you can ask GPG to find the key by its ID (printed in the error message):
 

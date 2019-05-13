@@ -98,6 +98,7 @@ executables:
     ghc-options:
     - -threaded
     - -with-rtsopts=-T
+    - -rtsopts
     dependencies:
     - base
     - galley

@@ -18,10 +18,11 @@ import Bilge.Response
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
 import Control.Error hiding (err)
-import Control.Monad.Catch hiding (tryJust)
+import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.Except
 import Data.Text.Lazy (pack)
 import System.Logger.Class
+import UnliftIO.Exception (try)
 
 import qualified Network.HTTP.Client  as HTTP
 
@@ -45,7 +46,7 @@ instance Show RPCException where
       . showString ", cause = "   . shows c
       . showString "}"
 
-rpc :: (MonadIO m, MonadHttp m, HasRequestId m, MonadLogger m, MonadThrow m)
+rpc :: (MonadUnliftIO m, MonadHttp m, HasRequestId m, MonadLogger m, MonadThrow m)
     => LText
     -> (Request -> Request)
     -> m (Response (Maybe LByteString))
@@ -56,16 +57,15 @@ rpc sys = rpc' sys empty
 -- context.
 -- Note: 'syncIO' is wrapped around the IO action performing the request
 --       and any exceptions caught are re-thrown in an 'RPCException'.
-rpc' :: (MonadIO m, MonadHttp m, HasRequestId m, MonadThrow m)
+rpc' :: (MonadUnliftIO m, MonadHttp m, HasRequestId m, MonadThrow m)
      => LText -- ^ A label for the remote system in case of 'RPCException's.
      -> Request
      -> (Request -> Request)
      -> m (Response (Maybe LByteString))
 rpc' sys r f = do
-    mgr <- getManager
     rId <- getRequestId
     let rq = f . requestId rId $ r
-    res <- liftIO . try $ runHttpT mgr $ httpLbs rq id
+    res <- try $ httpLbs rq id
     case res of
         Left  x -> throwM $ RPCException sys rq x
         Right x -> return x

@@ -54,6 +54,7 @@ emailSMS:
       legal: https://wire.com/legal/
       forgot: https://wire.com/forgot/
       support: https://support.wire.com/
+
   user:
     activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
     smsActivationUrl: http://127.0.0.1:8080/v/${code}
@@ -98,7 +99,7 @@ optSettings:
   setActivationTimeout: 1209600     # 1 day
   setTeamInvitationTimeout: 1814400 # 21 days
   setUserMaxConnections: 1000
-  setCookieDomain: 127.0.0.1
+  setCookieDomain: localhost
   setCookieInsecure: false
   setUserCookieRenewAge: 1209600 # 14 days
   setUserCookieLimit: 32
@@ -109,6 +110,7 @@ optSettings:
   setDefaultLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
+  setEmailVisibility: visible_to_self
 
 logLevel: Debug
 logNetStrings: false

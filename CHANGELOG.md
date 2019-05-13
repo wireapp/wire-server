@@ -1,3 +1,27 @@
+# 2019-04-09 #756
+
+## Documentation changes
+
+* Group provisioning (#724)
+* Instructions for running load tests (#738)
+* Twilio configuration (#733)
+
+## Bug fixes
+
+Cannon no longer reports 500s in the prometheus metrics when establishing websocket connections. (#751, #754)
+
+## Features
+
+Per-installation flag: Allow displaying emails of users in a team (code from #724, see description in #719)
+
+## Internal Changes
+
+Docker image building improvements (#755)
+
+## Changes (potentially) requiring action for self-hosters
+
+Config value `setEmailVisibility` must be set in brig's config file (if you're not sure, `visible_to_self` is the preferred default)
+
 # 2019-04-09 #746
 
 ## Documentation changes
