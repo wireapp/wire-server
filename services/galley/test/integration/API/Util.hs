@@ -697,6 +697,14 @@ ensureDeletedState check from u = do
         . zConn "conn"
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
 
+getClients :: UserId -> TestM ResponseLBS
+getClients u = do
+    b <- view tsBrig
+    get $ b
+      . paths ["clients"]
+      . zUser u
+      . zConn "conn"
+
 -- TODO: Refactor, as used also in brig
 deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
 deleteClient u c pw = do

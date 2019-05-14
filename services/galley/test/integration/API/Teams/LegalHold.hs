@@ -8,7 +8,7 @@ import API.Util
 -- import Data.Aeson hiding (json)
 -- import Data.Aeson.Lens
 -- import Data.ByteString.Conversion
--- import Data.Id
+import Data.Id
 -- import Data.List1
 -- import Data.Misc (PlainTextPassword (..))
 -- import Data.Range
@@ -17,6 +17,7 @@ import API.Util
 -- import Galley.Types.Teams.Intra
 -- import Gundeck.Types.Notification
 import Test.Tasty
+import Test.Tasty.HUnit (assertBool)
 import TestSetup
 import API.SQS
 import Brig.Types.Client
@@ -32,11 +33,25 @@ import qualified API.Util as Util
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
-    [ test s "create client" testDisallowLegalHoldDeviceCreation
+    [ test s "create" testCreateLegalHoldDevice
+    , test s "create twice" testCreateTwoLegalHoldDevices
+    , test s "create via POST /clients" testCreateLegalHoldDeviceOldAPI
     ]
 
-testDisallowLegalHoldDeviceCreation :: TestM ()
-testDisallowLegalHoldDeviceCreation = do
+
+testCreateLegalHoldDevice :: TestM ()
+testCreateLegalHoldDevice = do
+    -- TODO: test valid creation of a legal hold device here.  make sure it works.
+    pure ()
+
+
+testCreateTwoLegalHoldDevices :: TestM ()
+testCreateTwoLegalHoldDevices = do
+    -- TODO: test that creating a second valid a legal hold device is rejected.
+    pure ()
+
+testCreateLegalHoldDeviceOldAPI :: TestM ()
+testCreateLegalHoldDeviceOldAPI = do
     -- regular users cannot create LegalHoldClients
     let lk = (someLastPrekeys !! 0)
     u <- randomUser
@@ -51,5 +66,27 @@ testDisallowLegalHoldDeviceCreation = do
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail (400 instead of 201)
     void $ randomClientWithType LegalHoldClientType 201 owner lk
+    exactlyOneLegalHoldDevice owner
 
-    -- TODO: also check this with a team and a user both cleared for legalhold.
+    -- TODO: the remainder of this test can be removed once `POST /clients` does not work any
+    -- more for legal hold devices.
+    void $ randomClientWithType LegalHoldClientType 201 owner lk  -- overwrite
+    exactlyOneLegalHoldDevice owner
+
+
+
+-- TODO: DELETE /client/:cid => bad.
+
+
+----------------------------------------------------------------------
+-- helpers
+
+exactlyOneLegalHoldDevice :: UserId -> TestM ()
+exactlyOneLegalHoldDevice uid = do
+    clients :: [Client]
+        <- getClients uid >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
+    liftIO $ do
+        let numdevs = length $ clientType <$> clients
+        assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
+        assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+    -- TODO: ...  and can we just use hspec?

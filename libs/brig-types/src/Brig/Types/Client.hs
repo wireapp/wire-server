@@ -144,6 +144,7 @@ instance FromJSON ClientType where
         "temporary" -> return TemporaryClientType
         "permanent" -> return PermanentClientType
         "legalhold" -> return LegalHoldClientType -- TODO: disallow at FromJSON?
+                                                  -- TODO: update swagger docs
         _           -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
 
 instance ToJSON ClientClass where
@@ -158,7 +159,7 @@ instance FromJSON ClientClass where
         "tablet"    -> return TabletClient
         "desktop"   -> return DesktopClient
         "legalhold" -> return LegalHoldClient -- TODO: disallow at FromJSON?
-
+                                              -- TODO: update swagger docs
         _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 instance ToJSON NewClient where
