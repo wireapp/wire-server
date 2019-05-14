@@ -87,6 +87,7 @@ addClient u newId c loc = do
     limit = case newClientType c of
         PermanentClientType -> Just maxPermClients
         TemporaryClientType -> Nothing
+        LegalHoldClientType -> Nothing
 
     exists = (==) newId . clientId
 
