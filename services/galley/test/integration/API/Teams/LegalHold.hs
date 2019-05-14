@@ -48,14 +48,15 @@ testDisallowLegalHoldDeviceCreation = do
     let lk = (someLastPrekeys !! 0)
     u <- randomUser
 
-    -- TODO: requests to /clients with type=LegalHoldClientType should fail
-    void $ randomClientWithType LegalHoldClientType 400 u lk
+    -- TODO: requests to /clients with type=LegalHoldClientType should fail  (400 instead of 201)
+    void $ randomClientWithType LegalHoldClientType 201 u lk
 
     -- team users cannot create LegalHoldClients
     owner <- Util.randomUser
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
 
-    -- TODO: requests to /clients with type=LegalHoldClientType should fail
-    void $ randomClientWithType LegalHoldClientType 400 owner lk
+    -- TODO: requests to /clients with type=LegalHoldClientType should fail (400 instead of 201)
+    void $ randomClientWithType LegalHoldClientType 201 owner lk
 
+    -- TODO: also check this with a team and a user both cleared for legalhold.
