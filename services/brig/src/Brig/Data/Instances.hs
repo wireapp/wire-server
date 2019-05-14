@@ -148,21 +148,25 @@ instance Cql ClientType where
     ctype = Tagged IntColumn
     toCql TemporaryClientType = CqlInt 0
     toCql PermanentClientType = CqlInt 1
+    toCql LegalHoldClientType = CqlInt 2
 
     fromCql (CqlInt 0) = return TemporaryClientType
     fromCql (CqlInt 1) = return PermanentClientType
-    fromCql _          = fail "ClientType: Int [0, 1] expected"
+    fromCql (CqlInt 2) = return LegalHoldClientType
+    fromCql _          = fail "ClientType: Int [0, 2] expected"
 
 instance Cql ClientClass where
     ctype = Tagged IntColumn
-    toCql PhoneClient   = CqlInt 0
-    toCql TabletClient  = CqlInt 1
-    toCql DesktopClient = CqlInt 2
+    toCql PhoneClient     = CqlInt 0
+    toCql TabletClient    = CqlInt 1
+    toCql DesktopClient   = CqlInt 2
+    toCql LegalHoldClient = CqlInt 3
 
     fromCql (CqlInt 0) = return PhoneClient
     fromCql (CqlInt 1) = return TabletClient
     fromCql (CqlInt 2) = return DesktopClient
-    fromCql _          = fail "ClientClass: Int [0, 2] expected"
+    fromCql (CqlInt 3) = return LegalHoldClient
+    fromCql _          = fail "ClientClass: Int [0, 3] expected"
 
 instance Cql PrekeyId where
     ctype = Tagged IntColumn
