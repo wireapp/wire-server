@@ -1,4 +1,4 @@
-# 2019-04-09 #756
+# 2019-05-13 #756
 
 ## Documentation changes
 
@@ -22,7 +22,7 @@ Docker image building improvements (#755)
 
 Config value `setEmailVisibility` must be set in brig's config file (if you're not sure, `visible_to_self` is the preferred default)
 
-# 2019-04-09 #746
+# 2019-05-02 #746
 
 ## Documentation changes
 
