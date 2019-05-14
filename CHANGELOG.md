@@ -2,7 +2,7 @@
 
 ## Documentation changes
 
-* Group provisioning (#724)
+* Group provisioning (#748)
 * Instructions for running load tests (#738)
 * Twilio configuration (#733)
 
