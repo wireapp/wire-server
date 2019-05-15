@@ -119,6 +119,7 @@ testRemoveLegalHoldDevice = do
 
 
 
+
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
     -- bad key
@@ -219,6 +220,15 @@ createTeam = do
     teamid <- Util.createTeamInternal "foo" ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
+
+defNewLegalHoldService :: MonadIO m => Config -> m NewLegalHoldService
+defNewLegalHoldService config = liftIO $ do
+    key <- readServiceKey (publicKey config)
+    return NewLegalHoldService
+        { newLegalHoldServiceUrl     = defServiceUrl
+        , newLegalHoldServiceKey     = key
+        , newLegalHoldServiceToken   = Nothing
+        }
 
 postSettings :: NewLegalHoldService -> TestM ResponseLBS
 postSettings = undefined
