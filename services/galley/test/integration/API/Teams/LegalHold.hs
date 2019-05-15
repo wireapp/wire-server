@@ -1,35 +1,71 @@
 module API.Teams.LegalHold (tests) where
 
 import Imports
-import API.Util hiding (createTeam)
--- import Bilge hiding (timeout)
--- import Bilge.Assert
--- import Control.Lens hiding ((#), (.=))
--- import Data.Aeson hiding (json)
--- import Data.Aeson.Lens
--- import Data.ByteString.Conversion
-import Data.Id
--- import Data.List1
--- import Data.Misc (PlainTextPassword (..))
--- import Data.Range
--- import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
--- import Galley.Types.Teams
--- import Galley.Types.Teams.Intra
--- import Gundeck.Types.Notification
-import Test.Tasty
-import Test.Tasty.HUnit (assertBool)
-import TestSetup
-import API.SQS
-import Brig.Types.Client
 
+import API.SQS
+import API.Util hiding (createTeam)
+import Bilge.Assert
+import Bilge hiding (trace, accept, timeout, head)
+import Brig.Types.Client
+-- import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
+import Brig.Types.Provider
+-- import Brig.Types.Provider.Tag
+-- import Control.Arrow ((&&&))
+-- import Control.Concurrent.Chan
+-- import Control.Lens ((^.))
+-- import Control.Monad.Catch
+import Data.Aeson
+-- import Data.Aeson hiding (json)
+import Data.ByteString.Conversion
+import Data.Id
+-- import Data.Id hiding (client)
+-- import Data.List1 (List1)
+-- import Data.Misc (PlainTextPassword(..))
+import Data.PEM
+-- import Data.Range
+-- import Data.Text.Encoding (encodeUtf8)
+-- import Data.Time.Clock
+-- import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
+-- import Galley.Types (Access (..), AccessRole (..), ConversationAccessUpdate (..), NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
+-- import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
+-- import Galley.Types (ConvMembers (..), OtherMember (..))
+-- import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
+-- import Gundeck.Types.Notification
+-- import Network.HTTP.Types.Status (status200, status201, status400)
+-- import Network.Wai (Application, responseLBS, strictRequestBody)
+-- import OpenSSL.PEM (writePublicKey)
+-- import OpenSSL.RSA (generateRSAKey')
 import qualified API.Util as Util
--- import qualified Data.Currency as Currency
--- import qualified Data.List1 as List1
--- import qualified Data.Set as Set
--- import qualified Data.Text as T
--- import qualified Data.UUID as UUID
--- import qualified Galley.Types as Conv
--- import qualified Network.Wai.Utilities.Error as Error
+-- import qualified Brig.Code                         as Code
+-- import qualified Brig.Types.Intra                  as Intra
+-- import qualified Brig.Types.Provider.External      as Ext
+-- import qualified Cassandra                         as DB
+-- import qualified Control.Concurrent.Async          as Async
+-- import qualified Data.ByteString                   as BS
+-- import qualified Data.ByteString.Char8             as C8
+-- import qualified Data.ByteString.Lazy.Char8        as LC8
+-- import qualified Data.HashMap.Strict               as HashMap
+-- import qualified Data.List1                        as List1
+-- import qualified Data.Set                          as Set
+-- import qualified Data.Text.Ascii                   as Ascii
+-- import qualified Data.Text                         as Text
+-- import qualified Data.Text.Encoding                as Text
+-- import qualified Data.UUID                         as UUID
+-- import qualified Data.ZAuth.Token                  as ZAuth
+-- import qualified Galley.Types.Teams                as Team
+-- import qualified Network.Wai.Handler.Warp          as Warp
+-- import qualified Network.Wai.Handler.Warp.Internal as Warp
+-- import qualified Network.Wai.Handler.WarpTLS       as Warp
+-- import qualified Network.Wai.Route                 as Wai
+-- import qualified Network.Wai.Utilities.Error       as Error
+-- import qualified Test.Tasty.Cannon                 as WS
+-- import System.IO.Temp (withSystemTempFile)
+import TestSetup
+import Test.Tasty
+-- import Test.Tasty hiding (Timeout)
+-- import Test.Tasty.HUnit
+import Test.Tasty.HUnit (assertBool)
+-- import Web.Cookie (SetCookie (..), parseSetCookie)
 
 
 tests :: IO TestSetup -> TestTree
@@ -69,12 +105,12 @@ tests s = testGroup "Teams LegalHold API"
 
 
 -- TODO: delete this function when we're done fixing all the test cases.
-ignore :: Monad m => a -> m ()
-ignore a = traceShow "\n*** ignored test case!!\n" $ pure ()
+ignore :: Monad m => m () -> m ()
+ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
 
 
 testCreateLegalHoldDevice :: TestM ()
-testCreateLegalHoldDevice = do
+testCreateLegalHoldDevice = ignore $ do
     pure ()
 
     -- team admin, owner can do it.  (implemented via new internal permission bit.)
@@ -140,26 +176,27 @@ instance ToJSON NewLegalHoldService where
     toJSON = undefined
 
 instance FromJSON NewLegalHoldService where
-    fromJSON = undefined
+    parseJSON = undefined
 
 
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
-    (owner, tid) <- createTeam
-
     -- bad key
     let Just newUrl = fromByteString "https://new.localhost/"
         Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
-        newBad :: _ = new { newServiceKey = ServiceKeyPEM k }
-        newService = NewLegalHoldService newUrl newBad Nothing
+        newService = NewLegalHoldService newUrl (ServiceKeyPEM k) Nothing
     postSettings newService !!! const 400 === statusCode
 
+    (_owner, _tid) <- createTeam
+
+
+{-
     -- ...
     let Just newUrl = fromByteString "https://new.localhost/"
         newService = NewLegalHoldService newUrl _ Nothing
     postSettings newService !!! const 400 === statusCode
-
+-}
 
 
 --     POST /teams/{tid}/legalhold/settings
@@ -173,19 +210,6 @@ testCreateLegalHoldTeamSettings = do
     -- /status returns 5xx if unavailable
     -- legal hold device identity is authentic: the public key in the create request payload needs to match a signature in the /status response.
     -- after this, corresp. entry in cassandra will exist in a table with index TeamId.  (the entry must contain the public key from the request.)
-
-
-
-testAddGetServiceBadKey :: Config -> DB.ClientState -> Brig -> Http ()
-testAddGetServiceBadKey config db brig = do
-    prv <- randomProvider db brig
-    let pid = providerId prv
-    -- Add service
-    new <- defNewService config
-    -- Specially crafted key that passes basic validation
-    let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
-    let newBad = new { newServiceKey = ServiceKeyPEM k }
-    addService brig pid newBad !!! const 400 === statusCode
 
 
 
@@ -256,6 +280,9 @@ createTeam = do
     teamid <- Util.createTeamInternal "foo" ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
+
+postSettings :: NewLegalHoldService -> TestM ResponseLBS
+postSettings = undefined
 
 exactlyOneLegalHoldDevice :: UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
