@@ -20,20 +20,11 @@ import Test.Tasty.Options
 import Util.Options
 import Util.Options.Common
 import Util.Test
-import TestSetup (TestSetup(..))
+import TestSetup
 
 import qualified API
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
-
-data IntegrationConfig = IntegrationConfig
-  -- internal endpoints
-  { galley    :: Endpoint
-  , brig      :: Endpoint
-  , cannon    :: Endpoint
-  } deriving (Show, Generic)
-
-instance FromJSON IntegrationConfig
 
 newtype ServiceConfigFile = ServiceConfigFile String
     deriving (Eq, Ord, Typeable)
@@ -71,6 +62,10 @@ main = withOpenSSL $ runTests go
         let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
         gConf <- handleParseError =<< decodeFileEither gFile
         iConf <- handleParseError =<< decodeFileEither iFile
+        -- FUTUREWORK: we don't support process env setup any more, so both gconf and iConf
+        -- must be 'Just'.  the following code could be simplified a lot, but this should
+        -- probably happen after (or at least while) unifying the integration test suites into
+        -- a single library.
         g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
         b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
         c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
@@ -80,7 +75,7 @@ main = withOpenSSL $ runTests go
         convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
         awsEnv <- initAwsEnv e q
         SQS.ensureQueueEmptyIO awsEnv
-        return $ TestSetup m g b c awsEnv convMaxSize
+        return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal

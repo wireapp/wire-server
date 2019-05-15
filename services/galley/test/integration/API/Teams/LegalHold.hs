@@ -17,6 +17,7 @@ import Test.Tasty
 import Test.Tasty.HUnit (assertBool)
 import Brig.Types.Team.LegalHold
 import Galley.Types.Teams
+import Control.Lens
 
 import qualified API.Util as Util
 import qualified Data.ByteString                   as BS
@@ -243,7 +244,7 @@ exactlyOneLegalHoldDevice uid = do
 
 defNewLegalHoldService :: TestM NewLegalHoldService
 defNewLegalHoldService = do
-    config <- undefined  -- get it from TestM?
+    config <- view (tsIConf . to provider)
     key <- liftIO $ readServiceKey (publicKey config)
     return NewLegalHoldService
         { newLegalHoldServiceUrl     = defServiceUrl
@@ -253,17 +254,6 @@ defNewLegalHoldService = do
 
 defServiceUrl :: HttpsUrl
 defServiceUrl = fromJust (fromByteString "https://localhost/test")
-
--- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
-data Config = Config
-    { privateKey   :: FilePath
-    , publicKey    :: FilePath
-    , cert         :: FilePath
-    , botHost      :: Text
-    , botPort      :: Int
-    } deriving (Show, Generic)
-
-instance FromJSON Config
 
 -- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
 readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
