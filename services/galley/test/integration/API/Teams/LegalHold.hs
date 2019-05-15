@@ -47,6 +47,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
     , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
     , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
+    , test s "GET, PUT /i/teams/{tid}/legalhold?enabled={true,false}" testEnablePerTeam
 
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
@@ -60,6 +61,9 @@ tests s = testGroup "Teams LegalHold API"
         (maybe others?)
     conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
     GET /team/{tid}/members - show legal hold status of all members
+
+  TODO: feature flag!  (not sure tests are needed for this.)
+
 -}
 
     ]
@@ -164,6 +168,13 @@ testRemoveLegalHoldFromTeam = do
     -- only allowed if feature is on globally
     -- only allowed if team has feature bit set
     -- after this, corresp. entry in cassandra will *NOT* exist
+
+
+testEnablePerTeam :: TeamM ()
+testEnablePerTeam = do
+    pure ()
+
+    -- TODO: ...
 
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
