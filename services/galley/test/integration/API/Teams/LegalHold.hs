@@ -7,65 +7,16 @@ import API.Util hiding (createTeam)
 import Bilge.Assert
 import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
--- import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
 import Brig.Types.Provider
--- import Brig.Types.Provider.Tag
--- import Control.Arrow ((&&&))
--- import Control.Concurrent.Chan
--- import Control.Lens ((^.))
--- import Control.Monad.Catch
 import Data.Aeson
--- import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
--- import Data.Id hiding (client)
--- import Data.List1 (List1)
--- import Data.Misc (PlainTextPassword(..))
 import Data.PEM
--- import Data.Range
--- import Data.Text.Encoding (encodeUtf8)
--- import Data.Time.Clock
--- import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
--- import Galley.Types (Access (..), AccessRole (..), ConversationAccessUpdate (..), NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
--- import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
--- import Galley.Types (ConvMembers (..), OtherMember (..))
--- import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
--- import Gundeck.Types.Notification
--- import Network.HTTP.Types.Status (status200, status201, status400)
--- import Network.Wai (Application, responseLBS, strictRequestBody)
--- import OpenSSL.PEM (writePublicKey)
--- import OpenSSL.RSA (generateRSAKey')
-import qualified API.Util as Util
--- import qualified Brig.Code                         as Code
--- import qualified Brig.Types.Intra                  as Intra
--- import qualified Brig.Types.Provider.External      as Ext
--- import qualified Cassandra                         as DB
--- import qualified Control.Concurrent.Async          as Async
--- import qualified Data.ByteString                   as BS
--- import qualified Data.ByteString.Char8             as C8
--- import qualified Data.ByteString.Lazy.Char8        as LC8
--- import qualified Data.HashMap.Strict               as HashMap
--- import qualified Data.List1                        as List1
--- import qualified Data.Set                          as Set
--- import qualified Data.Text.Ascii                   as Ascii
--- import qualified Data.Text                         as Text
--- import qualified Data.Text.Encoding                as Text
--- import qualified Data.UUID                         as UUID
--- import qualified Data.ZAuth.Token                  as ZAuth
--- import qualified Galley.Types.Teams                as Team
--- import qualified Network.Wai.Handler.Warp          as Warp
--- import qualified Network.Wai.Handler.Warp.Internal as Warp
--- import qualified Network.Wai.Handler.WarpTLS       as Warp
--- import qualified Network.Wai.Route                 as Wai
--- import qualified Network.Wai.Utilities.Error       as Error
--- import qualified Test.Tasty.Cannon                 as WS
--- import System.IO.Temp (withSystemTempFile)
 import TestSetup
 import Test.Tasty
--- import Test.Tasty hiding (Timeout)
--- import Test.Tasty.HUnit
 import Test.Tasty.HUnit (assertBool)
--- import Web.Cookie (SetCookie (..), parseSetCookie)
+
+import qualified API.Util as Util
 
 
 tests :: IO TestSetup -> TestTree
@@ -164,19 +115,6 @@ testRemoveLegalHoldDevice = do
     -- when still pending, notify clients they no longer need approval if deleted when still pending
 
 
-
--- | This type is analogous to 'NewService' for bots.
-data NewLegalHoldService = NewLegalHoldService
-    { newLegalHoldServiceUrl     :: !HttpsUrl
-    , newLegalHoldServiceKey     :: !ServiceKeyPEM
-    , newLegalHoldServiceToken   :: !(Maybe ServiceToken)
-    }
-
-instance ToJSON NewLegalHoldService where
-    toJSON = undefined
-
-instance FromJSON NewLegalHoldService where
-    parseJSON = undefined
 
 
 
