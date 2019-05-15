@@ -1,7 +1,7 @@
 module API.Teams.LegalHold (tests) where
 
 import Imports
-import API.Util
+import API.Util hiding (createTeam)
 -- import Bilge hiding (timeout)
 -- import Bilge.Assert
 -- import Control.Lens hiding ((#), (.=))
@@ -38,8 +38,7 @@ tests s = testGroup "Teams LegalHold API"
       test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
     , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
     , test s "PUT /teams/{tid}/legalhold/{uid}/approve" testApproveLegalHoldDevice
-    , test s "user denies approval (TODO: how does this work on the api?  change description string here.)"
-          testDenyApprovalLegalHoldDevice
+    , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
     , test s "DELETE /teams/{tid}/legalhold/{uid}" testRemoveLegalHoldDevice
 
@@ -112,14 +111,6 @@ testApproveLegalHoldDevice = do
     -- all of user's communication peers receive an event
 
 
-testDenyApprovalLegalHoldDevice :: TestM ()
-testDenyApprovalLegalHoldDevice = do
-    pure ()
-
-    -- no legal hold device will be created.
-    -- TODO: how does user deny approval?
-
-
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
     pure ()
@@ -137,16 +128,66 @@ testRemoveLegalHoldDevice = do
     -- when still pending, notify clients they no longer need approval if deleted when still pending
 
 
+
+-- | This type is analogous to 'NewService' for bots.
+data NewLegalHoldService = NewLegalHoldService
+    { newLegalHoldServiceUrl     :: !HttpsUrl
+    , newLegalHoldServiceKey     :: !ServiceKeyPEM
+    , newLegalHoldServiceToken   :: !(Maybe ServiceToken)
+    }
+
+instance ToJSON NewLegalHoldService where
+    toJSON = undefined
+
+instance FromJSON NewLegalHoldService where
+    fromJSON = undefined
+
+
+
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
+    (owner, tid) <- createTeam
+
+    -- bad key
+    let Just newUrl = fromByteString "https://new.localhost/"
+        Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
+        newBad :: _ = new { newServiceKey = ServiceKeyPEM k }
+        newService = NewLegalHoldService newUrl newBad Nothing
+    postSettings newService !!! const 400 === statusCode
+
+    -- ...
+    let Just newUrl = fromByteString "https://new.localhost/"
+        newService = NewLegalHoldService newUrl _ Nothing
+    postSettings newService !!! const 400 === statusCode
+
+
+
+--     POST /teams/{tid}/legalhold/settings
+
     pure ()
 
     -- only allowed for users with corresp. permission bit
     -- only allowed if feature is on globally
     -- only allowed if team has feature bit set
-    -- checks /status of legal hold service and returns 5xx if unavailable
+    -- checks /status of legal hold service
+    -- /status returns 5xx if unavailable
     -- legal hold device identity is authentic: the public key in the create request payload needs to match a signature in the /status response.
     -- after this, corresp. entry in cassandra will exist in a table with index TeamId.  (the entry must contain the public key from the request.)
+
+
+
+testAddGetServiceBadKey :: Config -> DB.ClientState -> Brig -> Http ()
+testAddGetServiceBadKey config db brig = do
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    -- Add service
+    new <- defNewService config
+    -- Specially crafted key that passes basic validation
+    let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
+    let newBad = new { newServiceKey = ServiceKeyPEM k }
+    addService brig pid newBad !!! const 400 === statusCode
+
+
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -170,7 +211,7 @@ testRemoveLegalHoldFromTeam = do
     -- after this, corresp. entry in cassandra will *NOT* exist
 
 
-testEnablePerTeam :: TeamM ()
+testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
     pure ()
 
@@ -187,9 +228,7 @@ testCreateLegalHoldDeviceOldAPI = do
     void $ randomClientWithType LegalHoldClientType 201 u lk
 
     -- team users cannot create LegalHoldClients
-    owner <- Util.randomUser
-    _tid   <- Util.createTeamInternal "foo" owner
-    assertQueue "create team" tActivate
+    (owner, _) <- createTeam
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail (400 instead of 201)
     void $ randomClientWithType LegalHoldClientType 201 owner lk
@@ -210,6 +249,13 @@ testDeleteLegalHoldDeviceOldAPI = do
 
 ----------------------------------------------------------------------
 -- helpers
+
+createTeam :: TestM (UserId, TeamId)
+createTeam = do
+    ownerid <- Util.randomUser
+    teamid <- Util.createTeamInternal "foo" ownerid
+    assertQueue "create team" tActivate
+    pure (ownerid, teamid)
 
 exactlyOneLegalHoldDevice :: UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do

@@ -283,6 +283,7 @@ rolePerms RoleExternalPartner = Set.fromList
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
 
+-- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
     deriving (Eq, Show)
 

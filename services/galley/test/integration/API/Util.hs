@@ -44,6 +44,7 @@ type ResponseLBS = Response (Maybe LByteString)
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
+-- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
 createTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
 createTeam name owner mems = do
     g <- view tsGalley
