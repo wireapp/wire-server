@@ -31,24 +31,140 @@ import qualified API.Util as Util
 -- import qualified Galley.Types as Conv
 -- import qualified Network.Wai.Utilities.Error as Error
 
+
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
-    [ test s "create" testCreateLegalHoldDevice
-    , test s "create twice" testCreateTwoLegalHoldDevices
-    , test s "create via POST /clients" testCreateLegalHoldDeviceOldAPI
+    [ -- device handling (CRUD)
+      test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
+    , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
+    , test s "PUT /teams/{tid}/legalhold/{uid}/approve" testApproveLegalHoldDevice
+    , test s "user denies approval (TODO: how does this work on the api?  change description string here.)"
+          testDenyApprovalLegalHoldDevice
+    , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
+    , test s "DELETE /teams/{tid}/legalhold/{uid}" testRemoveLegalHoldDevice
+
+      -- legal hold settings
+    , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
+    , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
+    , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
+
+      -- behavior of existing end-points
+    , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
+    , test s "DELETE /clients/{cid}" testDeleteLegalHoldDeviceOldAPI
+
+{- TODO:
+    zauth/libzauth level: Allow access to legal hold service tokens
+        conversations/{cnv}/otr/messages
+        /notifications
+        /access
+        (maybe others?)
+    conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
+    GET /team/{tid}/members - show legal hold status of all members
+-}
+
     ]
+
+
+-- TODO: delete this function when we're done fixing all the test cases.
+ignore :: Monad m => a -> m ()
+ignore a = traceShow "\n*** ignored test case!!\n" $ pure ()
 
 
 testCreateLegalHoldDevice :: TestM ()
 testCreateLegalHoldDevice = do
-    -- TODO: test valid creation of a legal hold device here.  make sure it works.
     pure ()
+
+    -- team admin, owner can do it.  (implemented via new internal permission bit.)
+    -- member can't do it.
+    -- fail if legal hold service is disabled for team
+    -- fail if legal hold service is disabled via feature flag
+    -- all of user's clients receive an event
+    -- contacts team's legal hold service and establishes a cryptobox
+    -- responds with public key etc of legal hold device
+    -- requests approval from monitored user asynchronously; request contains pre-keys
 
 
 testCreateTwoLegalHoldDevices :: TestM ()
 testCreateTwoLegalHoldDevices = do
-    -- TODO: test that creating a second valid a legal hold device is rejected.
     pure ()
+
+    -- creating a second valid a legal hold device is rejected.
+    -- also when the legal hold status of a user is 'pending".
+
+
+testApproveLegalHoldDevice :: TestM ()
+testApproveLegalHoldDevice = do
+    pure ()
+
+    -- only user themself can do it
+    -- fail if no legal hold service registered
+    -- fail if legal Hold feature flag disabled
+    -- generates and stores legalhold tokens/cookies
+    -- synchronously sends tokens/cookies to team's legal hold service
+    -- expect return payload from service to contain device creation information (NewClient)
+    -- adds device to user's list of devices
+    -- sends an event to all user's clients
+    -- sends an event to team settings (however that works; it's a client-independent event i think)
+    -- all of user's communication peers receive an event
+
+
+testDenyApprovalLegalHoldDevice :: TestM ()
+testDenyApprovalLegalHoldDevice = do
+    pure ()
+
+    -- no legal hold device will be created.
+    -- TODO: how does user deny approval?
+
+
+testGetLegalHoldDeviceStatus :: TestM ()
+testGetLegalHoldDeviceStatus = do
+    pure ()
+
+    -- Show whether enabled, pending, disabled
+
+
+testRemoveLegalHoldDevice :: TestM ()
+testRemoveLegalHoldDevice = do
+    pure ()
+
+    -- Remove Legal hold device from user.
+    -- send event to all of user's devices
+    -- send event to all communication peers
+    -- when still pending, notify clients they no longer need approval if deleted when still pending
+
+
+testCreateLegalHoldTeamSettings :: TestM ()
+testCreateLegalHoldTeamSettings = do
+    pure ()
+
+    -- only allowed for users with corresp. permission bit
+    -- only allowed if feature is on globally
+    -- only allowed if team has feature bit set
+    -- checks /status of legal hold service and returns 5xx if unavailable
+    -- legal hold device identity is authentic: the public key in the create request payload needs to match a signature in the /status response.
+    -- after this, corresp. entry in cassandra will exist in a table with index TeamId.  (the entry must contain the public key from the request.)
+
+
+testGetLegalHoldTeamSettings :: TestM ()
+testGetLegalHoldTeamSettings = do
+    pure ()
+
+    -- only allowed for users with corresp. permission bit
+    -- only allowed if feature is on globally
+    -- only allowed if team has feature bit set
+    -- returns 404 if team is not under legal hold
+    -- returns table entry if team is under legal hold
+
+
+testRemoveLegalHoldFromTeam :: TestM ()
+testRemoveLegalHoldFromTeam = do
+    pure ()
+
+    -- only allowed for users with corresp. permission bit
+    -- only allowed if feature is on globally
+    -- only allowed if team has feature bit set
+    -- after this, corresp. entry in cassandra will *NOT* exist
+
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
@@ -74,8 +190,11 @@ testCreateLegalHoldDeviceOldAPI = do
     exactlyOneLegalHoldDevice owner
 
 
+testDeleteLegalHoldDeviceOldAPI :: TestM ()
+testDeleteLegalHoldDeviceOldAPI = do
+    pure ()
 
--- TODO: DELETE /client/:cid => bad.
+    -- legal hold device cannot be deleted by anybody, ever.
 
 
 ----------------------------------------------------------------------
@@ -89,4 +208,3 @@ exactlyOneLegalHoldDevice uid = do
         let numdevs = length $ clientType <$> clients
         assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
         assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
-    -- TODO: ...  and can we just use hspec?
