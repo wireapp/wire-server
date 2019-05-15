@@ -18,6 +18,7 @@ import Test.Tasty.HUnit (assertBool)
 import Brig.Types.Team.LegalHold
 
 import qualified API.Util as Util
+import qualified Data.ByteString                   as BS
 
 
 tests :: IO TestSetup -> TestTree
@@ -122,14 +123,17 @@ testRemoveLegalHoldDevice = do
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
+    (owner, tid) <- createTeam
     -- bad key
     let Just newUrl = fromByteString "https://new.localhost/"
         Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
-        newService = NewLegalHoldService newUrl (ServiceKeyPEM k) Nothing
-    postSettings newService !!! const 400 === statusCode
+        badService = NewLegalHoldService newUrl (ServiceKeyPEM k) Nothing
+    postSettings owner tid badService !!! const 400 === statusCode
 
-    (_owner, _tid) <- createTeam
 
+    let config = undefined -- TODO add to the TestM monad?
+    newService <- defNewLegalHoldService config
+    postSettings owner tid newService !!! const 201 === statusCode
 
 {-
     -- ...
@@ -212,7 +216,7 @@ testDeleteLegalHoldDeviceOldAPI = do
 
 
 ----------------------------------------------------------------------
--- helpers
+-- API helpers
 
 createTeam :: TestM (UserId, TeamId)
 createTeam = do
@@ -221,16 +225,7 @@ createTeam = do
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
 
-defNewLegalHoldService :: MonadIO m => Config -> m NewLegalHoldService
-defNewLegalHoldService config = liftIO $ do
-    key <- readServiceKey (publicKey config)
-    return NewLegalHoldService
-        { newLegalHoldServiceUrl     = defServiceUrl
-        , newLegalHoldServiceKey     = key
-        , newLegalHoldServiceToken   = Nothing
-        }
-
-postSettings :: NewLegalHoldService -> TestM ResponseLBS
+postSettings :: UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings = undefined
 
 exactlyOneLegalHoldDevice :: UserId -> TestM ()
@@ -241,3 +236,36 @@ exactlyOneLegalHoldDevice uid = do
         let numdevs = length $ clientType <$> clients
         assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
         assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+
+--------------------------------------------------------------------
+-- setup helpers
+
+defNewLegalHoldService :: MonadIO m => Config -> m NewLegalHoldService
+defNewLegalHoldService config = liftIO $ do
+    key <- readServiceKey (publicKey config)
+    return NewLegalHoldService
+        { newLegalHoldServiceUrl     = defServiceUrl
+        , newLegalHoldServiceKey     = key
+        , newLegalHoldServiceToken   = Nothing
+        }
+
+defServiceUrl :: HttpsUrl
+defServiceUrl = fromJust (fromByteString "https://localhost/test")
+
+-- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
+data Config = Config
+    { privateKey   :: FilePath
+    , publicKey    :: FilePath
+    , cert         :: FilePath
+    , botHost      :: Text
+    , botPort      :: Int
+    } deriving (Show, Generic)
+
+instance FromJSON Config
+
+-- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
+readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
+readServiceKey fp = liftIO $ do
+    bs <- BS.readFile fp
+    let Right [k] = pemParseBS bs
+    return (ServiceKeyPEM k)

@@ -181,6 +181,7 @@ executables:
     - mtl
     - network
     - optparse-applicative
+    - pem
     - protobuf
     - proto-lens
     - QuickCheck

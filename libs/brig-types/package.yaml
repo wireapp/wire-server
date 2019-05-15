@@ -33,6 +33,7 @@ library:
   - Brig.Types.Search
   - Brig.Types.Swagger
   - Brig.Types.Team.Invitation
+  - Brig.Types.Team.LegalHold
   - Brig.Types.TURN
   - Brig.Types.TURN.Internal
   - Brig.Types.User
