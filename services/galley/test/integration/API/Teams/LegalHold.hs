@@ -264,3 +264,43 @@ readServiceKey fp = liftIO $ do
     bs <- BS.readFile fp
     let Right [k] = pemParseBS bs
     return (ServiceKeyPEM k)
+
+
+-- | Run a test case with an external service application.
+withTestService
+    :: Config
+    -> DB.ClientState
+    -> Brig
+    -> (Chan e -> Application)
+    -> (ServiceRef -> Chan e -> Http a)
+    -> Http a
+withTestService config db brig mkApp go = do
+    sref <- registerService config db brig
+    runService config mkApp (go sref)
+
+registerService :: Config -> DB.ClientState -> Brig -> Http ServiceRef
+registerService config db brig = do
+    prv <- randomProvider db brig
+    new <- defNewService config
+    let Just url = fromByteString $
+          encodeUtf8 (botHost config) <> ":" <>
+          C8.pack (show (botPort config))
+    svc <- addGetService brig (providerId prv) (new { newServiceUrl = url })
+    let pid = providerId prv
+    let sid = serviceId svc
+    enableService brig pid sid
+    return (newServiceRef sid pid)
+
+runService
+    :: Config
+    -> (Chan e -> Application)
+    -> (Chan e -> Http a)
+    -> Http a
+runService config mkApp go = do
+    let tlss = Warp.tlsSettings (cert config) (privateKey config)
+    let defs = Warp.defaultSettings { Warp.settingsPort = botPort config }
+    buf <- liftIO newChan
+    srv <- liftIO . Async.async $
+        Warp.runTLS tlss defs $
+            mkApp buf
+    go buf `finally` liftIO (Async.cancel srv)
