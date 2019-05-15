@@ -16,6 +16,7 @@ import TestSetup
 import Test.Tasty
 import Test.Tasty.HUnit (assertBool)
 import Brig.Types.Team.LegalHold
+import Galley.Types.Teams
 
 import qualified API.Util as Util
 import qualified Data.ByteString                   as BS
@@ -124,36 +125,36 @@ testRemoveLegalHoldDevice = do
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
     -- bad key
-    let Just newUrl = fromByteString "https://new.localhost/"
-        Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
-        badService = NewLegalHoldService newUrl (ServiceKeyPEM k) Nothing
+    newService <- defNewLegalHoldService
+    let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
+        badService = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
     postSettings owner tid badService !!! const 400 === statusCode
 
+    -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    let config = undefined -- TODO add to the TestM monad?
-    newService <- defNewLegalHoldService config
-    postSettings owner tid newService !!! const 201 === statusCode
-
-{-
-    -- ...
-    let Just newUrl = fromByteString "https://new.localhost/"
-        newService = NewLegalHoldService newUrl _ Nothing
-    postSettings newService !!! const 400 === statusCode
--}
-
-
---     POST /teams/{tid}/legalhold/settings
-
-    pure ()
+    -- TODO: not allowed if team has feature bit not set
 
     -- only allowed for users with corresp. permission bit
-    -- only allowed if feature is on globally
-    -- only allowed if team has feature bit set
-    -- checks /status of legal hold service
-    -- /status returns 5xx if unavailable
-    -- legal hold device identity is authentic: the public key in the create request payload needs to match a signature in the /status response.
-    -- after this, corresp. entry in cassandra will exist in a table with index TeamId.  (the entry must contain the public key from the request.)
+    postSettings member tid newService !!! const 403 === statusCode
+    postSettings owner tid newService !!! const 201 === statusCode
+
+    -- TODO: checks /status of legal hold service
+
+    -- TODO: responds with 5xx if service under /status is unavailable
+
+    -- TODO: (is this one even a thing?) legal hold device identity is authentic: the public
+    --       key in the create request payload needs to match a signature in the /status
+    --       response.
+
+    -- TODO: when response has been received, corresp. entry in cassandra will exist in a
+    --       table with index TeamId.  (the entry must contain the public key from the
+    --       request.)
+
+    pure ()
 
 
 
@@ -240,9 +241,10 @@ exactlyOneLegalHoldDevice uid = do
 --------------------------------------------------------------------
 -- setup helpers
 
-defNewLegalHoldService :: MonadIO m => Config -> m NewLegalHoldService
-defNewLegalHoldService config = liftIO $ do
-    key <- readServiceKey (publicKey config)
+defNewLegalHoldService :: TestM NewLegalHoldService
+defNewLegalHoldService = do
+    config <- undefined  -- get it from TestM?
+    key <- liftIO $ readServiceKey (publicKey config)
     return NewLegalHoldService
         { newLegalHoldServiceUrl     = defServiceUrl
         , newLegalHoldServiceKey     = key
