@@ -8,7 +8,6 @@ import Bilge.Assert
 import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
 import Brig.Types.Provider
-import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.PEM
@@ -158,10 +157,10 @@ testCreateLegalHoldTeamSettings = do
     pure ()
 
 
-
-
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
+    _ <- getSettings undefined undefined
+    -- ...
     pure ()
 
     -- only allowed for users with corresp. permission bit
@@ -230,6 +229,9 @@ createTeam = do
 postSettings :: UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings = undefined
 
+getSettings :: UserId -> TeamId -> TestM ResponseLBS
+getSettings = undefined
+
 exactlyOneLegalHoldDevice :: UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
     clients :: [Client]
@@ -238,6 +240,7 @@ exactlyOneLegalHoldDevice uid = do
         let numdevs = length $ clientType <$> clients
         assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
         assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+
 
 --------------------------------------------------------------------
 -- setup helpers
@@ -255,7 +258,7 @@ defNewLegalHoldService = do
 defServiceUrl :: HttpsUrl
 defServiceUrl = fromJust (fromByteString "https://localhost/test")
 
--- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
+-- | FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
 readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
     bs <- BS.readFile fp
