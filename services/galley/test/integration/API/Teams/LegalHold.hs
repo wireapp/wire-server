@@ -15,6 +15,7 @@ import Data.PEM
 import TestSetup
 import Test.Tasty
 import Test.Tasty.HUnit (assertBool)
+import Brig.Types.Team.LegalHold
 
 import qualified API.Util as Util
 
