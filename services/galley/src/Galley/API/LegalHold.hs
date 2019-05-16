@@ -26,9 +26,11 @@ import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
 -- import UnliftIO (mapConcurrently)
 import Brig.Types.Team.LegalHold
+import Galley.Types.Teams
+import Network.HTTP.Types.Status (status201)
 
 -- import qualified Data.Set as Set
--- import qualified Galley.Data as Data
+import qualified Galley.Data as Data
 -- import qualified Galley.External as External
 -- import qualified Galley.Queue as Q
 -- import qualified Galley.Types as Conv
@@ -37,4 +39,10 @@ import Brig.Types.Team.LegalHold
 -- import qualified Galley.Intra.Spar as Spar
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
-createSettings = undefined
+createSettings (zusr ::: tid ::: req ::: _) = do
+    !_service <- fromJsonBody req
+
+    membs <- Data.teamMembers tid
+    void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+
+    pure $ responseLBS status201 [] mempty

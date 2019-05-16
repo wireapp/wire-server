@@ -2,7 +2,7 @@ module Galley.API.Error where
 
 import Imports
 import Data.Text.Lazy (pack)
-import Galley.Types.Teams (Perm)
+import Galley.Types.Teams (IsPerm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
@@ -57,7 +57,7 @@ unknownClient = Error status403 "unknown-client" "Sending client not known"
 invalidRange :: LText -> Error
 invalidRange = Error status400 "client-error"
 
-operationDenied :: Perm -> Error
+operationDenied :: (IsPerm perm, Show perm) => perm -> Error
 operationDenied p = Error
     status403
     "operation-denied"

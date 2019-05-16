@@ -70,7 +70,7 @@ bindingTeamMembers tid = do
 -- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
 -- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
+permissionCheck :: (Foldable m, IsPerm perm, Show perm) => UserId -> perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
     case find ((u ==) . view userId) t of
         Just m -> do

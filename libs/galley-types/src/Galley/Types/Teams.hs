@@ -70,6 +70,7 @@ module Galley.Types.Teams
     , intToPerms
 
     , HiddenPerm(..)
+    , IsPerm
 
     , Role (..)
     , defaultRole
