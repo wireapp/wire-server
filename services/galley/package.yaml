@@ -186,6 +186,7 @@ executables:
     - proto-lens
     - QuickCheck
     - retry
+    - string-conversions
     - tagged
     - transformers
     - tasty >=0.8

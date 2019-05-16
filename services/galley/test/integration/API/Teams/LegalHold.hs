@@ -22,6 +22,76 @@ import qualified API.Util as Util
 import qualified Data.ByteString                   as BS
 
 
+import qualified Network.Wai.Utilities.Response as Wai
+import Data.Void
+import Network.Wai
+import Data.String.Conversions (cs)
+import TestSetup
+import Bilge hiding (accept, timeout, head, trace)
+import Bilge.Assert
+import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
+import Brig.Types.Provider
+import Brig.Types.Provider.Tag
+import Control.Arrow ((&&&))
+import Control.Concurrent.Chan
+-- import Control.Concurrent.Timeout (timeout, threadDelay)
+import Control.Lens ((^.))
+import Control.Monad.Catch
+import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion
+import Data.Id hiding (client)
+import Data.List1 (List1)
+import Data.Misc (PlainTextPassword(..))
+import Data.PEM
+import Data.Range
+import Data.Text.Encoding (encodeUtf8)
+import Data.Time.Clock
+import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
+import Galley.Types (
+    Access (..), AccessRole (..), ConversationAccessUpdate (..),
+    NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
+import Galley.Types (ConvMembers (..), OtherMember (..))
+import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
+import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
+import Gundeck.Types.Notification
+import Network.HTTP.Types.Status (status200, status201, status400)
+import Network.Wai (Application, responseLBS, strictRequestBody)
+import OpenSSL.PEM (writePublicKey)
+import OpenSSL.RSA (generateRSAKey')
+import System.IO.Temp (withSystemTempFile)
+import Test.Tasty hiding (Timeout)
+import Test.Tasty.HUnit
+import Web.Cookie (SetCookie (..), parseSetCookie)
+-- import Util
+
+-- import qualified API.Team.Util                     as Team
+import qualified Brig.Code                         as Code
+import qualified Brig.Types.Intra                  as Intra
+import qualified Brig.Types.Provider.External      as Ext
+import qualified Cassandra                         as DB
+import qualified Control.Concurrent.Async          as Async
+import qualified Data.ByteString                   as BS
+import qualified Data.ByteString.Char8             as C8
+import qualified Data.ByteString.Lazy.Char8        as LC8
+import qualified Data.HashMap.Strict               as HashMap
+import qualified Data.List1                        as List1
+import qualified Data.Set                          as Set
+import qualified Data.Text.Ascii                   as Ascii
+import qualified Data.Text                         as Text
+import qualified Data.Text.Encoding                as Text
+import qualified Data.UUID                         as UUID
+import qualified Data.ZAuth.Token                  as ZAuth
+import qualified Galley.Types.Teams                as Team
+import qualified Network.Wai.Handler.Warp          as Warp
+import qualified Network.Wai.Handler.WarpTLS       as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Route                 as Wai
+import qualified Network.Wai.Utilities.Error       as Error
+import qualified Test.Tasty.Cannon                 as WS
+
+
+
+
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
     [ -- device handling (CRUD)
@@ -129,7 +199,7 @@ testCreateLegalHoldTeamSettings = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
     -- bad key
-    newService <- defNewLegalHoldService
+    newService <- newLegalHoldService
     let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
         badService = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
     postSettings owner tid badService !!! const 400 === statusCode
@@ -142,19 +212,44 @@ testCreateLegalHoldTeamSettings = do
     postSettings member tid newService !!! const 403 === statusCode
     postSettings owner tid newService !!! const 201 === statusCode
 
-    -- TODO: checks /status of legal hold service
+    -- checks /status of legal hold service
+    do  let lhapp :: Bool -> Chan Void -> Application
+            lhapp False _ _   kont = kont $ Wai.json False
+            lhapp True  _ req kont = do
+                if | pathInfo req /= ["status"] -> kont $ Wai.json False
+                   | requestMethod req /= "GET" -> kont $ Wai.json False
+                   | otherwise -> kont . responseLBS status200 [] $
+                        "{...}"  -- TODO
 
-    -- TODO: responds with 5xx if service under /status is unavailable
+            lhtest :: Bool -> Chan Void -> TestM ()
+            lhtest False _ = pure ()
 
-    -- TODO: (is this one even a thing?) legal hold device identity is authentic: the public
-    --       key in the create request payload needs to match a signature in the /status
-    --       response.
 
-    -- TODO: when response has been received, corresp. entry in cassandra will exist in a
-    --       table with index TeamId.  (the entry must contain the public key from the
-    --       request.)
+  -- uniqueness of services between tests is probably important?  how does the ServiceRef arg
+  -- work in Providers?  do we need to add a unique path to the url here?  or is it fine as it
+  -- is, since service URLs don't have to be unique, just public keys and tokens do?
 
-    pure ()
+
+
+            lhtest True _ = undefined  -- TODO
+
+                -- TODO: (is this one even a thing?) legal hold device identity is authentic: the public
+                --       key in the create request payload needs to match a signature in the /status
+                --       response.
+
+                -- TODO: when response has been received, corresp. entry in cassandra will exist in a
+                --       table with index TeamId.  (the entry must contain the public key from the
+                --       request.)
+
+
+
+        -- if no valid service response can be obtained, responds with 400
+        withTestService (lhapp False) (lhtest False)
+
+        -- if valid service response can be obtained, writes a pending entry to cassandra
+        -- synchronously and respond with 201
+        withTestService (lhapp True) (lhtest True)
+
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -219,20 +314,20 @@ testDeleteLegalHoldDeviceOldAPI = do
 ----------------------------------------------------------------------
 -- API helpers
 
-createTeam :: TestM (UserId, TeamId)
+createTeam :: HasCallStack => TestM (UserId, TeamId)
 createTeam = do
     ownerid <- Util.randomUser
     teamid <- Util.createTeamInternal "foo" ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
 
-postSettings :: UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
+postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings = undefined
 
-getSettings :: UserId -> TeamId -> TestM ResponseLBS
+getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings = undefined
 
-exactlyOneLegalHoldDevice :: UserId -> TestM ()
+exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
     clients :: [Client]
         <- getClients uid >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
@@ -245,58 +340,36 @@ exactlyOneLegalHoldDevice uid = do
 --------------------------------------------------------------------
 -- setup helpers
 
-defNewLegalHoldService :: TestM NewLegalHoldService
-defNewLegalHoldService = do
+-- | Create a new legal hold service creation request with the URL from the integration test
+-- config.
+newLegalHoldService :: HasCallStack => TestM NewLegalHoldService
+newLegalHoldService = do
     config <- view (tsIConf . to provider)
     key <- liftIO $ readServiceKey (publicKey config)
+    let Just url = fromByteString $
+            encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config))
     return NewLegalHoldService
-        { newLegalHoldServiceUrl     = defServiceUrl
+        { newLegalHoldServiceUrl     = url
         , newLegalHoldServiceKey     = key
         , newLegalHoldServiceToken   = Nothing
         }
 
-defServiceUrl :: HttpsUrl
-defServiceUrl = fromJust (fromByteString "https://localhost/test")
-
 -- | FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
-readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
+readServiceKey :: (HasCallStack, MonadIO m) => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
     bs <- BS.readFile fp
     let Right [k] = pemParseBS bs
     return (ServiceKeyPEM k)
 
-
--- | Run a test case with an external service application.
+-- | Run a test with an mock legal hold service application.  The mock service can expose
+-- internal details to the test (for both read and write) via a 'Chan'.
 withTestService
-    :: Config
-    -> DB.ClientState
-    -> Brig
-    -> (Chan e -> Application)
-    -> (ServiceRef -> Chan e -> Http a)
-    -> Http a
-withTestService config db brig mkApp go = do
-    sref <- registerService config db brig
-    runService config mkApp (go sref)
-
-registerService :: Config -> DB.ClientState -> Brig -> Http ServiceRef
-registerService config db brig = do
-    prv <- randomProvider db brig
-    new <- defNewService config
-    let Just url = fromByteString $
-          encodeUtf8 (botHost config) <> ":" <>
-          C8.pack (show (botPort config))
-    svc <- addGetService brig (providerId prv) (new { newServiceUrl = url })
-    let pid = providerId prv
-    let sid = serviceId svc
-    enableService brig pid sid
-    return (newServiceRef sid pid)
-
-runService
-    :: Config
-    -> (Chan e -> Application)
-    -> (Chan e -> Http a)
-    -> Http a
-runService config mkApp go = do
+    :: HasCallStack
+    => (Chan e -> Application)  -- ^ the mock service
+    -> (Chan e -> TestM a)      -- ^ the test
+    -> TestM a
+withTestService mkApp go = do
+    config <- view (tsIConf . to provider)
     let tlss = Warp.tlsSettings (cert config) (privateKey config)
     let defs = Warp.defaultSettings { Warp.settingsPort = botPort config }
     buf <- liftIO newChan
