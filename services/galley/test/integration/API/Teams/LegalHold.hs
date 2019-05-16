@@ -252,24 +252,29 @@ testGetLegalHoldTeamSettings = ignore $ do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
     newService <- newLegalHoldService
-    postSettings owner tid newService !!! const 201 === statusCode
 
-    -- TODO: not allowed if feature is disabled globally in galley config yaml
+    let lhapp :: Chan () -> Application
+        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
 
-    -- TODO: not allowed if team has feature bit not set
+    withTestService lhapp $ \_ -> do
+        postSettings owner tid newService !!! const 201 === statusCode
 
-    -- returns 403 if user is not in team.
-    getSettings stranger tid !!! const 403 === statusCode
+        -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    -- returns 404 if team is not under legal hold
-    getSettings member tid !!! const 404 === statusCode
+        -- TODO: not allowed if team has feature bit not set
 
-    -- returns legal hold service info if team is under legal hold and user is in team (even
-    -- no permissions).
-    resp <- getSettingsTyped member tid
-    liftIO $ do
-        assertBool "url mismatch"
-            (newLegalHoldServiceUrl newService == legalHoldServiceUrl resp)
+        -- returns 403 if user is not in team.
+        getSettings stranger tid !!! const 403 === statusCode
+
+        -- returns 404 if team is not under legal hold
+        getSettings member tid !!! const 404 === statusCode
+
+        -- returns legal hold service info if team is under legal hold and user is in team (even
+        -- no permissions).
+        resp <- getSettingsTyped member tid
+        liftIO $ do
+            assertBool "url mismatch"
+                (newLegalHoldServiceUrl newService == legalHoldServiceUrl resp)
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
