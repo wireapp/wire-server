@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-
 module API.Teams.LegalHold (tests) where
 
 import Imports
@@ -24,72 +22,69 @@ import qualified API.Util as Util
 import qualified Data.ByteString                   as BS
 
 
-import qualified Network.Wai.Utilities.Response as Wai
-import Data.Void
+-- import qualified Network.Wai.Utilities.Response as Wai
+-- import Data.Void
 import Network.Wai
 import Data.String.Conversions (cs)
-import TestSetup
-import Bilge hiding (accept, timeout, head, trace)
-import Bilge.Assert
-import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
-import Brig.Types.Provider
-import Brig.Types.Provider.Tag
-import Control.Arrow ((&&&))
+-- import TestSetup
+-- import Bilge hiding (accept, timeout, head, trace)
+-- import Bilge.Assert
+-- import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
+-- import Brig.Types.Provider
+-- import Brig.Types.Provider.Tag
+-- import Control.Arrow ((&&&))
 import Control.Concurrent.Chan
 -- import Control.Concurrent.Timeout (timeout, threadDelay)
-import Control.Lens ((^.))
+-- import Control.Lens ((^.))
 import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
-import Data.ByteString.Conversion
-import Data.Id hiding (client)
-import Data.List1 (List1)
-import Data.Misc (PlainTextPassword(..))
-import Data.PEM
-import Data.Range
+-- import Data.ByteString.Conversion
+-- import Data.Id hiding (client)
+-- import Data.List1 (List1)
+-- import Data.Misc (PlainTextPassword(..))
+-- import Data.PEM
+-- import Data.Range
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Clock
-import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
-import Galley.Types (
-    Access (..), AccessRole (..), ConversationAccessUpdate (..),
-    NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
-import Galley.Types (ConvMembers (..), OtherMember (..))
-import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
-import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
-import Gundeck.Types.Notification
-import Network.HTTP.Types.Status (status200, status201, status400, status403, status404, status500)
+-- import Data.Time.Clock
+-- import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
+-- import Galley.Types (ConvMembers (..), OtherMember (..))
+-- import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
+-- import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
+-- import Gundeck.Types.Notification
+import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
-import OpenSSL.PEM (writePublicKey)
-import OpenSSL.RSA (generateRSAKey')
-import System.IO.Temp (withSystemTempFile)
-import Test.Tasty hiding (Timeout)
+-- import OpenSSL.PEM (writePublicKey)
+-- import OpenSSL.RSA (generateRSAKey')
+-- import System.IO.Temp (withSystemTempFile)
+-- import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
-import Web.Cookie (SetCookie (..), parseSetCookie)
+-- import Web.Cookie (SetCookie (..), parseSetCookie)
 -- import Util
 
 -- import qualified API.Team.Util                     as Team
-import qualified Brig.Code                         as Code
-import qualified Brig.Types.Intra                  as Intra
-import qualified Brig.Types.Provider.External      as Ext
-import qualified Cassandra                         as DB
+-- import qualified Brig.Code                         as Code
+-- import qualified Brig.Types.Intra                  as Intra
+-- import qualified Brig.Types.Provider.External      as Ext
+-- import qualified Cassandra                         as DB
 import qualified Control.Concurrent.Async          as Async
-import qualified Data.ByteString                   as BS
-import qualified Data.ByteString.Char8             as C8
-import qualified Data.ByteString.Lazy.Char8        as LC8
-import qualified Data.HashMap.Strict               as HashMap
-import qualified Data.List1                        as List1
-import qualified Data.Set                          as Set
-import qualified Data.Text.Ascii                   as Ascii
-import qualified Data.Text                         as Text
-import qualified Data.Text.Encoding                as Text
-import qualified Data.UUID                         as UUID
-import qualified Data.ZAuth.Token                  as ZAuth
-import qualified Galley.Types.Teams                as Team
+-- import qualified Data.ByteString                   as BS
+-- import qualified Data.ByteString.Char8             as C8
+-- import qualified Data.ByteString.Lazy.Char8        as LC8
+-- import qualified Data.HashMap.Strict               as HashMap
+-- import qualified Data.List1                        as List1
+-- import qualified Data.Set                          as Set
+-- import qualified Data.Text.Ascii                   as Ascii
+-- import qualified Data.Text                         as Text
+-- import qualified Data.Text.Encoding                as Text
+-- import qualified Data.UUID                         as UUID
+-- import qualified Data.ZAuth.Token                  as ZAuth
+-- import qualified Galley.Types.Teams                as Team
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Route                 as Wai
-import qualified Network.Wai.Utilities.Error       as Error
-import qualified Test.Tasty.Cannon                 as WS
+-- import qualified Network.Wai.Route                 as Wai
+-- import qualified Network.Wai.Utilities.Error       as Error
+-- import qualified Test.Tasty.Cannon                 as WS
 
 
 
@@ -360,13 +355,24 @@ createTeam = do
     pure (ownerid, teamid)
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
-postSettings = undefined
+postSettings uid tid new = do
+    g <- view tsGalley
+    post $ g
+         . paths ["teams", toByteString' tid, "legalhold", "settings"]
+         . zUser uid . zConn "conn"
+         . zType "access"
+         . json new
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
 getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! const 200 === statusCode)
 
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getSettings = undefined
+getSettings uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "legalhold", "settings"]
+        . zUser uid . zConn "conn"
+        . zType "access"
 
 deleteSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 deleteSettings = undefined
