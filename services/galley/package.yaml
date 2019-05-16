@@ -206,6 +206,7 @@ executables:
     - wai-route
     - wai-utilities
     - warp
+    - warp-tls >=3.2
     - yaml
     - unliftio
   galley-schema:
