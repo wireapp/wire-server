@@ -5,6 +5,7 @@ module Brig.Types.Team.LegalHold where
 import Imports
 import Brig.Types.Provider
 import Data.Aeson
+import Data.Json.Util
 import Data.Id
 
 -- | This type is analogous to 'NewService' for bots.
@@ -16,10 +17,17 @@ data NewLegalHoldService = NewLegalHoldService
   deriving (Eq, Show)
 
 instance ToJSON NewLegalHoldService where
-    toJSON = undefined
+    toJSON s = object
+        $ "base_url"    .= newLegalHoldServiceUrl s
+        # "public_key"  .= newLegalHoldServiceKey s
+        # "auth_token"  .= newLegalHoldServiceToken s
+        # []
 
 instance FromJSON NewLegalHoldService where
-    parseJSON = undefined
+    parseJSON = withObject "NewLegalHoldService" $ \o -> NewLegalHoldService
+                   <$> o .: "base_url"
+                   <*> o .: "public_key"
+                   <*> o .: "auth_token"
 
 type LegalHoldId = Id "legalhold"
 
@@ -31,10 +39,17 @@ data LegalHoldService = LegalHoldService
   deriving (Eq, Show)
 
 instance ToJSON LegalHoldService where
-    toJSON = undefined
+    toJSON s = object
+        $ "base_url"    .= legalHoldServiceUrl s
+        # "public_key"  .= legalHoldServiceKey s
+        # "auth_token"  .= legalHoldServiceToken s
+        # []
 
 instance FromJSON LegalHoldService where
-    parseJSON = undefined
+    parseJSON = withObject "LegalHoldService" $ \o -> LegalHoldService
+                   <$> o .: "base_url"
+                   <*> o .: "public_key"
+                   <*> o .: "auth_token"
 
 
 -- | this is what the team members can see when they get status info.  (TODO: is this right?
