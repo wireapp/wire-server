@@ -38,8 +38,8 @@ packages:
 - tools/db/auto-whitelist
 
 extra-deps:
-- git: https://github.com/wireapp/prometheus-haskell
-  commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737
+- git: https://github.com/wireapp/prometheus-haskell  # https://github.com/fimad/prometheus-haskell/pull/44
+  commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737    # (related: https://github.com/fimad/prometheus-haskell/pull/45)
   subdirs:
   - wai-middleware-prometheus
 - git: https://github.com/wireapp/saml2-web-sso
