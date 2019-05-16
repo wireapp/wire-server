@@ -72,6 +72,7 @@ module Galley.Types.Teams
     , Role (..)
     , defaultRole
     , rolePermissions
+    , roleIntPermissions
 
     , BindingNewTeam (..)
     , NonBindingNewTeam (..)
@@ -255,30 +256,32 @@ defaultRole :: Role
 defaultRole = RoleMember
 
 rolePermissions :: Role -> Permissions
-rolePermissions role = Permissions p p  where p = rolePerms role
+rolePermissions role = Permissions p p
+  where
+    p = rolePerms role
 
-rolePerms :: Role -> Set Perm
-rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
-    [ GetBilling
-    , SetBilling
-    , DeleteTeam
-    ]
-rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
-    [ AddTeamMember
-    , RemoveTeamMember
-    , SetTeamData
-    , SetMemberPermissions
-    ]
-rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
-    [ DeleteConversation
-    , AddRemoveConvMember
-    , ModifyConvMetadata
-    , GetMemberPermissions
-    ]
-rolePerms RoleExternalPartner = Set.fromList
-    [ CreateConversation
-    , GetTeamConversations
-    ]
+    rolePerms :: Role -> Set Perm
+    rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
+        [ GetBilling
+        , SetBilling
+        , DeleteTeam
+        ]
+    rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
+        [ AddTeamMember
+        , RemoveTeamMember
+        , SetTeamData
+        , SetMemberPermissions
+        ]
+    rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
+        [ DeleteConversation
+        , AddRemoveConvMember
+        , ModifyConvMetadata
+        , GetMemberPermissions
+        ]
+    rolePerms RoleExternalPartner = Set.fromList
+        [ CreateConversation
+        , GetTeamConversations
+        ]
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
@@ -397,11 +400,42 @@ serviceWhitelistPermissions = Set.fromList
     , SetTeamData
     ]
 
-hasPermission :: TeamMember -> Perm -> Bool
-hasPermission tm p = p `Set.member` (tm^.permissions.self)
+-- | See Note [team roles]
+data IntPermissions = IntPermissions
+    { _intSelf :: Set IntPerm
+    , _intCopy :: Set IntPerm
+    } deriving (Eq, Ord, Show)
 
-mayGrantPermission :: TeamMember -> Perm -> Bool
-mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
+-- | See Note [team roles]
+data IntPerm = ChangeLegalHoldTeamSettings | ChangeLegalHoldForUser
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | See Note [team roles]
+roleIntPermissions :: Role -> IntPermissions
+roleIntPermissions role = IntPermissions p p
+  where
+    p = roleIntPerms role
+
+    roleIntPerms :: Role -> Set IntPerm
+    roleIntPerms RoleOwner = roleIntPerms RoleAdmin
+    roleIntPerms RoleAdmin = Set.fromList [ChangeLegalHoldTeamSettings, ChangeLegalHoldForUser]
+    roleIntPerms RoleMember = mempty
+    roleIntPerms RoleExternalPartner = mempty
+
+-- | See Note [team roles]
+class IsPerm perm where
+    hasPermission :: TeamMember -> perm -> Bool
+    mayGrantPermission :: TeamMember -> perm -> Bool
+
+instance IsPerm Perm where
+    hasPermission tm p = p `Set.member` (tm^.permissions.self)
+    mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
+
+instance IsPerm IntPerm where
+    hasPermission = undefined -- ...  (like the Perm instance, but compute the role from the
+                              -- perms first, and then call roleIntPerms on the result.)
+    mayGrantPermission = undefined -- ...
+
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
@@ -439,6 +473,8 @@ mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
 -- that all team admins must have this new permission, we will have to
 -- identify all existing team admins. And if it turns out that some users
 -- don't fit into one of those three team roles, we're screwed.
+--
+-- TODO: explain 'IntPerm'
 
 isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
