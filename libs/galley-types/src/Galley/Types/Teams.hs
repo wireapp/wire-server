@@ -69,10 +69,11 @@ module Galley.Types.Teams
     , intToPerm
     , intToPerms
 
+    , HiddenPerm(..)
+
     , Role (..)
     , defaultRole
     , rolePermissions
-    , roleIntPermissions
 
     , BindingNewTeam (..)
     , NonBindingNewTeam (..)
@@ -113,7 +114,7 @@ module Galley.Types.Teams
 
 import Imports
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens (makeLenses, view, (^.))
+import Control.Lens (makeLenses, view, (^.), to)
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
@@ -126,6 +127,7 @@ import Data.Time (UTCTime)
 import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 #ifdef WITH_CQL
 import qualified Control.Error.Util as Err
@@ -256,32 +258,32 @@ defaultRole :: Role
 defaultRole = RoleMember
 
 rolePermissions :: Role -> Permissions
-rolePermissions role = Permissions p p
-  where
-    p = rolePerms role
+rolePermissions role = Permissions p p  where p = rolePerms role
 
-    rolePerms :: Role -> Set Perm
-    rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
-        [ GetBilling
-        , SetBilling
-        , DeleteTeam
-        ]
-    rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
-        [ AddTeamMember
-        , RemoveTeamMember
-        , SetTeamData
-        , SetMemberPermissions
-        ]
-    rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
-        [ DeleteConversation
-        , AddRemoveConvMember
-        , ModifyConvMetadata
-        , GetMemberPermissions
-        ]
-    rolePerms RoleExternalPartner = Set.fromList
-        [ CreateConversation
-        , GetTeamConversations
-        ]
+-- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
+-- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
+rolePerms :: Role -> Set Perm
+rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
+    [ GetBilling
+    , SetBilling
+    , DeleteTeam
+    ]
+rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
+    [ AddTeamMember
+    , RemoveTeamMember
+    , SetTeamData
+    , SetMemberPermissions
+    ]
+rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
+    [ DeleteConversation
+    , AddRemoveConvMember
+    , ModifyConvMetadata
+    , GetMemberPermissions
+    ]
+rolePerms RoleExternalPartner = Set.fromList
+    [ CreateConversation
+    , GetTeamConversations
+    ]
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
@@ -366,6 +368,70 @@ makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
 
+
+-- Note [hidden team roles]
+--
+-- The problem: the mapping between 'Role' and 'Permissions' is fixed by external contracts:
+-- client apps treat permission bit matrices as opaque role identifiers, so if we add new
+-- permission flags, things will break there.
+--
+-- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
+-- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
+-- permission bits and the old ones that we share with the client apps.
+
+-- | See Note [hidden team roles]
+data HiddenPerm = ChangeLegalHoldTeamSettings | ChangeLegalHoldForUser
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | See Note [hidden team roles]
+data HiddenPermissions = HiddenPermissions
+    { _hself :: Set HiddenPerm
+    , _hcopy :: Set HiddenPerm
+    } deriving (Eq, Ord, Show)
+
+makeLenses ''HiddenPermissions
+
+-- | Compute 'Role' from 'Permissions', and 'HiddenPermissions' from the 'Role'.  If
+-- 'Permissions' matches no 'Role', return no hidden permission bits.
+hiddenPermissionsFromPermissions :: Permissions -> HiddenPermissions
+hiddenPermissionsFromPermissions =
+    maybe (HiddenPermissions mempty mempty) roleHiddenPermissions . permissionsRole
+  where
+    permissionsRole :: Permissions -> Maybe Role
+    permissionsRole (Permissions p p') | p /= p' = Nothing
+    permissionsRole (Permissions p _) = permsRole p
+      where
+        permsRole :: Set Perm -> Maybe Role
+        permsRole perms = Maybe.listToMaybe
+            [ role | role <- [minBound..], rolePerms role == perms ]
+
+    roleHiddenPermissions :: Role -> HiddenPermissions
+    roleHiddenPermissions role = HiddenPermissions p p
+      where
+        p = roleHiddenPerms role
+
+        roleHiddenPerms :: Role -> Set HiddenPerm
+        roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
+        roleHiddenPerms RoleAdmin = Set.fromList [ChangeLegalHoldTeamSettings, ChangeLegalHoldForUser]
+        roleHiddenPerms RoleMember = mempty
+        roleHiddenPerms RoleExternalPartner = mempty
+
+-- | See Note [hidden team roles]
+class IsPerm perm where
+    hasPermission :: TeamMember -> perm -> Bool
+    mayGrantPermission :: TeamMember -> perm -> Bool
+
+instance IsPerm Perm where
+    hasPermission tm p = p `Set.member` (tm^.permissions.self)
+    mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
+
+instance IsPerm HiddenPerm where
+    hasPermission tm p =
+        p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hself)
+    mayGrantPermission tm p =
+        p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hcopy)
+
+
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms = Set.toList $
     Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
@@ -399,42 +465,6 @@ serviceWhitelistPermissions = Set.fromList
     , AddRemoveConvMember
     , SetTeamData
     ]
-
--- | See Note [team roles]
-data IntPermissions = IntPermissions
-    { _intSelf :: Set IntPerm
-    , _intCopy :: Set IntPerm
-    } deriving (Eq, Ord, Show)
-
--- | See Note [team roles]
-data IntPerm = ChangeLegalHoldTeamSettings | ChangeLegalHoldForUser
-    deriving (Eq, Ord, Show, Enum, Bounded)
-
--- | See Note [team roles]
-roleIntPermissions :: Role -> IntPermissions
-roleIntPermissions role = IntPermissions p p
-  where
-    p = roleIntPerms role
-
-    roleIntPerms :: Role -> Set IntPerm
-    roleIntPerms RoleOwner = roleIntPerms RoleAdmin
-    roleIntPerms RoleAdmin = Set.fromList [ChangeLegalHoldTeamSettings, ChangeLegalHoldForUser]
-    roleIntPerms RoleMember = mempty
-    roleIntPerms RoleExternalPartner = mempty
-
--- | See Note [team roles]
-class IsPerm perm where
-    hasPermission :: TeamMember -> perm -> Bool
-    mayGrantPermission :: TeamMember -> perm -> Bool
-
-instance IsPerm Perm where
-    hasPermission tm p = p `Set.member` (tm^.permissions.self)
-    mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
-
-instance IsPerm IntPerm where
-    hasPermission = undefined -- ...  (like the Perm instance, but compute the role from the
-                              -- perms first, and then call roleIntPerms on the result.)
-    mayGrantPermission = undefined -- ...
 
 
 -- Note [team roles]
@@ -473,8 +503,6 @@ instance IsPerm IntPerm where
 -- that all team admins must have this new permission, we will have to
 -- identify all existing team admins. And if it turns out that some users
 -- don't fit into one of those three team roles, we're screwed.
---
--- TODO: explain 'IntPerm'
 
 isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
