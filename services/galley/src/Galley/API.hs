@@ -1,6 +1,7 @@
 module Galley.API where
 
 import Imports hiding (head)
+import Brig.Types.Team.LegalHold
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
@@ -33,6 +34,7 @@ import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
+import qualified Galley.API.LegalHold          as LegalHold
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
@@ -272,6 +274,19 @@ sitemap = do
             description "Conversation ID"
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied DeleteConversation)
+
+   --
+
+    post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. jsonRequest @NewLegalHoldService
+        .&. accept "application" "json"
+
+{-
+    document "POST" "LegalHold.createSettings" $ do
+        ...  -- TODO
+-}
 
    --
 
