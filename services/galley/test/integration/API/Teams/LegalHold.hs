@@ -252,27 +252,84 @@ testCreateLegalHoldTeamSettings = do
 
 
 
+-- type LegalHoldId = Id "legalhold"
+
+data LegalHoldService = LegalHoldService
+    { legalHoldServiceUrl   :: !HttpsUrl
+    , legalHoldServiceKey   :: !ServiceKeyPEM
+    , legalHoldServiceToken :: !ServiceToken
+    }
+  deriving (Eq, Show, Generic)
+
+instance Aeson.FromJSON LegalHoldService
+instance Aeson.ToJSON LegalHoldService
+
+-- | this is what the team members can see when they get status info.  (TODO: is this right?
+-- either way make it at least a newtype.)
+type ViewLegalHoldService = LegalHoldService
+
+
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
-    _ <- getSettings undefined undefined
-    -- ...
-    pure ()
+    (owner, tid) <- createTeam
+    stranger <- randomUser
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
+    newService <- newLegalHoldService
+    postSettings owner tid newService !!! const 201 === statusCode
 
-    -- only allowed for users with corresp. permission bit
-    -- only allowed if feature is on globally
-    -- only allowed if team has feature bit set
+    -- TODO: not allowed if feature is disabled globally in galley config yaml
+
+    -- TODO: not allowed if team has feature bit not set
+
+    -- returns 401 if user is not in team.
+    getSettings stranger tid !!! const 401 === statusCode
+
     -- returns 404 if team is not under legal hold
-    -- returns table entry if team is under legal hold
+    getSettings member tid !!! const 404 === statusCode
+
+    -- returns legal hold service info if team is under legal hold and user is in team (even
+    -- no permissions).
+    rawResp <- getSettings member tid <!! const 200 === statusCode
+    let resp :: ViewLegalHoldService
+        resp = jsonBody rawResp
+    liftIO $ do
+        assertBool "url mismatch"
+            (newLegalHoldServiceUrl newService == legalHoldServiceUrl resp)
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
-    pure ()
+    (owner, tid) <- createTeam
+    stranger <- randomUser
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
-    -- only allowed for users with corresp. permission bit
-    -- only allowed if feature is on globally
-    -- only allowed if team has feature bit set
-    -- after this, corresp. entry in cassandra will *NOT* exist
+    -- returns 404 if team is not under legal hold
+    deleteSettings owner tid !!! const 404 === statusCode
+
+    newService <- newLegalHoldService
+    postSettings owner tid newService !!! const 201 === statusCode
+
+    -- TODO: not allowed if feature is disabled globally in galley config yaml
+
+    -- TODO: not allowed if team has feature bit not set
+
+    -- returns 401 if user is not in team or has unsufficient permissions.
+    deleteSettings stranger tid !!! const 401 === statusCode
+    deleteSettings member tid !!! const 401 === statusCode
+
+    -- returns 204 if legal hold is successfully removed from team
+    deleteSettings owner tid !!! const 204 === statusCode
+
+    -- deletion is successful (both witnessed on the API and in the backend)
+    getSettings owner tid !!! const 404 === statusCode
+
+    -- TODO: do we also want to check the DB?
+
+    -- TODO: do we really want any trace of the fact that this team has been under legal hold
+    -- to go away?  or should a team that has been under legal hold in the past be observably
+    -- different for the members from one that never has?
 
 
 testEnablePerTeam :: TestM ()
@@ -327,6 +384,9 @@ postSettings = undefined
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings = undefined
 
+deleteSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+deleteSettings = undefined
+
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
     clients :: [Client]
@@ -335,6 +395,9 @@ exactlyOneLegalHoldDevice uid = do
         let numdevs = length $ clientType <$> clients
         assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
         assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+
+jsonBody :: Aeson.FromJSON v => ResponseLBS -> v
+jsonBody = either (error . show) id . Aeson.eitherDecode . fromJust . responseBody
 
 
 --------------------------------------------------------------------
