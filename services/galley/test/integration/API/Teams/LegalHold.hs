@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module API.Teams.LegalHold (tests) where
 
 import Imports
@@ -54,8 +56,8 @@ import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import Gundeck.Types.Notification
-import Network.HTTP.Types.Status (status200, status201, status400)
-import Network.Wai (Application, responseLBS, strictRequestBody)
+import Network.HTTP.Types.Status (status200, status201, status400, status403, status404, status500)
+import Network.Wai as Wai
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import System.IO.Temp (withSystemTempFile)
@@ -202,46 +204,43 @@ testCreateLegalHoldTeamSettings = do
     newService <- newLegalHoldService
     let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
         badService = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
-    postSettings owner tid badService !!! const 400 === statusCode
+        -- TODO: make a bad service with a syntactically valid, but wrong certificate.
 
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
     -- TODO: not allowed if team has feature bit not set
 
-    -- only allowed for users with corresp. permission bit
+    -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode
-    postSettings owner tid newService !!! const 201 === statusCode
 
-    -- checks /status of legal hold service
-    do  let lhapp :: Bool -> Chan Void -> Application
-            lhapp False _ _   kont = kont $ Wai.json False
-            lhapp True  _ req kont = do
-                if | pathInfo req /= ["status"] -> kont $ Wai.json False
-                   | requestMethod req /= "GET" -> kont $ Wai.json False
-                   | otherwise -> kont . responseLBS status200 [] $
-                        "{...}"  -- TODO
+    -- checks /status of legal hold service (boolean argument says whether the service is
+    -- behaving or not)
+    do  let lhapp :: HasCallStack => Bool -> Chan Void -> Application
+            lhapp False _ _   cont = cont respondBad
+            lhapp True  _ req cont = do
+                if | pathInfo req /= ["status"] -> cont respondBad
+                   | requestMethod req /= "GET" -> cont respondBad
+                   | otherwise -> cont respondOk
 
-            lhtest :: Bool -> Chan Void -> TestM ()
-            lhtest False _ = pure ()
+            respondOk :: Wai.Response
+            respondOk = responseLBS status200 mempty mempty
 
+            respondBad :: Wai.Response
+            respondBad = responseLBS status404 mempty mempty
 
-  -- uniqueness of services between tests is probably important?  how does the ServiceRef arg
-  -- work in Providers?  do we need to add a unique path to the url here?  or is it fine as it
-  -- is, since service URLs don't have to be unique, just public keys and tokens do?
+            lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
+            lhtest False _ = do
+                postSettings owner tid newService !!! const 400 === statusCode
 
-
-
-            lhtest True _ = undefined  -- TODO
-
-                -- TODO: (is this one even a thing?) legal hold device identity is authentic: the public
-                --       key in the create request payload needs to match a signature in the /status
-                --       response.
-
-                -- TODO: when response has been received, corresp. entry in cassandra will exist in a
-                --       table with index TeamId.  (the entry must contain the public key from the
-                --       request.)
-
-
+            lhtest True _ = do
+                postSettings owner tid badService !!! const 400 === statusCode
+                postSettings owner tid newService !!! const 201 === statusCode
+                service <- getSettingsTyped owner tid
+                liftIO $ do
+                    assertEqual "legalHoldServiceUrl"   (newLegalHoldServiceUrl newService)   (legalHoldServiceUrl service)
+                    assertEqual "legalHoldServiceKey"   (newLegalHoldServiceKey newService)   (legalHoldServiceKey service)
+                    assertEqual "legalHoldServiceToken" (newLegalHoldServiceToken newService) (legalHoldServiceToken service)
+                -- TODO: check cassandra as well?
 
         -- if no valid service response can be obtained, responds with 400
         withTestService (lhapp False) (lhtest False)
@@ -249,24 +248,6 @@ testCreateLegalHoldTeamSettings = do
         -- if valid service response can be obtained, writes a pending entry to cassandra
         -- synchronously and respond with 201
         withTestService (lhapp True) (lhtest True)
-
-
-
--- type LegalHoldId = Id "legalhold"
-
-data LegalHoldService = LegalHoldService
-    { legalHoldServiceUrl   :: !HttpsUrl
-    , legalHoldServiceKey   :: !ServiceKeyPEM
-    , legalHoldServiceToken :: !ServiceToken
-    }
-  deriving (Eq, Show, Generic)
-
-instance Aeson.FromJSON LegalHoldService
-instance Aeson.ToJSON LegalHoldService
-
--- | this is what the team members can see when they get status info.  (TODO: is this right?
--- either way make it at least a newtype.)
-type ViewLegalHoldService = LegalHoldService
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -282,17 +263,15 @@ testGetLegalHoldTeamSettings = do
 
     -- TODO: not allowed if team has feature bit not set
 
-    -- returns 401 if user is not in team.
-    getSettings stranger tid !!! const 401 === statusCode
+    -- returns 403 if user is not in team.
+    getSettings stranger tid !!! const 403 === statusCode
 
     -- returns 404 if team is not under legal hold
     getSettings member tid !!! const 404 === statusCode
 
     -- returns legal hold service info if team is under legal hold and user is in team (even
     -- no permissions).
-    rawResp <- getSettings member tid <!! const 200 === statusCode
-    let resp :: ViewLegalHoldService
-        resp = jsonBody rawResp
+    resp <- getSettingsTyped member tid
     liftIO $ do
         assertBool "url mismatch"
             (newLegalHoldServiceUrl newService == legalHoldServiceUrl resp)
@@ -315,9 +294,9 @@ testRemoveLegalHoldFromTeam = do
 
     -- TODO: not allowed if team has feature bit not set
 
-    -- returns 401 if user is not in team or has unsufficient permissions.
-    deleteSettings stranger tid !!! const 401 === statusCode
-    deleteSettings member tid !!! const 401 === statusCode
+    -- returns 403 if user is not in team or has unsufficient permissions.
+    deleteSettings stranger tid !!! const 403 === statusCode
+    deleteSettings member tid !!! const 403 === statusCode
 
     -- returns 204 if legal hold is successfully removed from team
     deleteSettings owner tid !!! const 204 === statusCode
@@ -330,6 +309,8 @@ testRemoveLegalHoldFromTeam = do
     -- TODO: do we really want any trace of the fact that this team has been under legal hold
     -- to go away?  or should a team that has been under legal hold in the past be observably
     -- different for the members from one that never has?
+
+    -- TODO: also remove all devices from users in this team!!
 
 
 testEnablePerTeam :: TestM ()
@@ -381,6 +362,9 @@ createTeam = do
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings = undefined
 
+getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
+getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! const 200 === statusCode)
+
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings = undefined
 
@@ -414,7 +398,7 @@ newLegalHoldService = do
     return NewLegalHoldService
         { newLegalHoldServiceUrl     = url
         , newLegalHoldServiceKey     = key
-        , newLegalHoldServiceToken   = Nothing
+        , newLegalHoldServiceToken   = ServiceToken "tok"
         }
 
 -- | FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
@@ -424,8 +408,9 @@ readServiceKey fp = liftIO $ do
     let Right [k] = pemParseBS bs
     return (ServiceKeyPEM k)
 
--- | Run a test with an mock legal hold service application.  The mock service can expose
--- internal details to the test (for both read and write) via a 'Chan'.
+-- | Run a test with an mock legal hold service application.  The mock service is also binding
+-- to a TCP socket for the backend to connect to.  The mock service can expose internal
+-- details to the test (for both read and write) via a 'Chan'.  This is not concurrency-proof!
 withTestService
     :: HasCallStack
     => (Chan e -> Application)  -- ^ the mock service
