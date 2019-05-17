@@ -274,7 +274,7 @@ emitLByteString lbs = do
     -- | Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
 
--- | Run the 'Applicatino'; check the response status; if >=500, throw a 'Wai.Error' with
+-- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
 -- label @"server-error"@ and the body as the error message.
 rethrow5xx :: Logger -> Middleware
 rethrow5xx logger app req k = app req k'
