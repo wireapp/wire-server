@@ -194,8 +194,6 @@ testCreateLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
-
-    -- bad key
     newService <- newLegalHoldService
     let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
         badService = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
@@ -208,41 +206,44 @@ testCreateLegalHoldTeamSettings = do
     -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode
 
+    -- rejected if service is not available
+    postSettings owner tid newService !!! const 400 === statusCode
+
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
-    do  let lhapp :: HasCallStack => Bool -> Chan Void -> Application
-            lhapp False _ _   cont = cont respondBad
-            lhapp True  _ req cont = do
-                if | pathInfo req /= ["status"] -> cont respondBad
-                   | requestMethod req /= "GET" -> cont respondBad
-                   | otherwise -> cont respondOk
+    let lhapp :: HasCallStack => Bool -> Chan Void -> Application
+        lhapp False _ _   cont = cont respondBad
+        lhapp True  _ req cont = do
+            if | pathInfo req /= ["status"] -> cont respondBad
+               | requestMethod req /= "GET" -> cont respondBad
+               | otherwise -> cont respondOk
 
-            respondOk :: Wai.Response
-            respondOk = responseLBS status200 mempty mempty
+        respondOk :: Wai.Response
+        respondOk = responseLBS status200 mempty mempty
 
-            respondBad :: Wai.Response
-            respondBad = responseLBS status404 mempty mempty
+        respondBad :: Wai.Response
+        respondBad = responseLBS status404 mempty mempty
 
-            lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
-            lhtest False _ = do
-                postSettings owner tid newService !!! const 400 === statusCode
+        lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
+        lhtest False _ = do
+            postSettings owner tid newService !!! const 400 === statusCode
 
-            lhtest True _ = do
-                postSettings owner tid badService !!! const 400 === statusCode
-                postSettings owner tid newService !!! const 201 === statusCode
-                service <- getSettingsTyped owner tid
-                liftIO $ do
-                    assertEqual "legalHoldServiceUrl"   (newLegalHoldServiceUrl newService)   (legalHoldServiceUrl service)
-                    assertEqual "legalHoldServiceKey"   (newLegalHoldServiceKey newService)   (legalHoldServiceKey service)
-                    assertEqual "legalHoldServiceToken" (newLegalHoldServiceToken newService) (legalHoldServiceToken service)
-                -- TODO: check cassandra as well?
+        lhtest True _ = do
+            postSettings owner tid badService !!! const 400 === statusCode
+            postSettings owner tid newService !!! const 201 === statusCode
+            service <- getSettingsTyped owner tid
+            liftIO $ do
+                assertEqual "legalHoldServiceUrl"   (newLegalHoldServiceUrl newService)   (legalHoldServiceUrl service)
+                assertEqual "legalHoldServiceKey"   (newLegalHoldServiceKey newService)   (legalHoldServiceKey service)
+                assertEqual "legalHoldServiceToken" (newLegalHoldServiceToken newService) (legalHoldServiceToken service)
+            -- TODO: check cassandra as well?
 
-        -- if no valid service response can be obtained, responds with 400
-        withTestService (lhapp False) (lhtest False)
+    -- if no valid service response can be obtained, responds with 400
+    withTestService (lhapp False) (lhtest False)
 
-        -- if valid service response can be obtained, writes a pending entry to cassandra
-        -- synchronously and respond with 201
-        withTestService (lhapp True) (lhtest True)
+    -- if valid service response can be obtained, writes a pending entry to cassandra
+    -- synchronously and respond with 201
+    withTestService (lhapp True) (lhtest True)
 
 
 testGetLegalHoldTeamSettings :: TestM ()
