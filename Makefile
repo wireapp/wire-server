@@ -93,6 +93,11 @@ i-%:
 #################################
 ## docker targets
 
+.PHONY: docker-prebuilder
+docker-prebuilder:
+	# `docker-prebuilder` needs to be built or pulled only once (unless native dependencies change)
+	$(MAKE) -C build/alpine prebuilder
+
 .PHONY: docker-deps
 docker-deps:
 	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
@@ -106,7 +111,7 @@ docker-builder:
 .PHONY: docker-intermediate
 docker-intermediate:
 	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
-	docker build -t $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .;
+	docker build -t $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/alpine-builder --build-arg deps=$(DOCKER_USER)/alpine-deps .;
 	docker tag $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/alpine-intermediate:latest;
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/alpine-intermediate:latest; fi;
 
