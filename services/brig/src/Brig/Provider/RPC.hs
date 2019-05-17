@@ -80,15 +80,6 @@ extReq scon ps =
     url = httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
 
-extHost :: URI -> Maybe ByteString
-extHost u = u^.authorityL <&> view (authorityHostL.hostBSL)
-
-extPort :: URI -> Maybe Word16
-extPort u = do
-    a <- u^.authorityL
-    p <- a^.authorityPortL
-    return (fromIntegral (p^.portNumberL))
-
 extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
 extHandleAll f ma = catches ma
     [ Handler $ \(ex :: SomeAsyncException) -> throwM ex
