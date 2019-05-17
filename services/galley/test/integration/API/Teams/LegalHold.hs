@@ -204,10 +204,10 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: not allowed if team has feature bit not set
 
     -- not allowed for users with corresp. permission bit missing
-    postSettings member tid newService !!! const 403 === statusCode
+    postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
 
     -- rejected if service is not available
-    postSettings owner tid newService !!! const 400 === statusCode
+    postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
@@ -226,10 +226,10 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest False _ = do
-            postSettings owner tid newService !!! const 400 === statusCode
+            postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
         lhtest True _ = do
-            postSettings owner tid badService !!! const 400 === statusCode
+            postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
             service <- getSettingsTyped owner tid
             liftIO $ do

@@ -108,3 +108,12 @@ invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot u
 
 codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+
+legalHoldServiceInvalidKey :: Error
+legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+
+legalHoldServiceUnavailable :: Error
+legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
+
+legalHoldServiceBadResponse :: Error
+legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"
