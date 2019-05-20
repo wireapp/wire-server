@@ -263,8 +263,6 @@ testGetLegalHoldTeamSettings = do
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
 
     withTestService lhapp $ \_ -> do
-        postSettings owner tid newService !!! const 201 === statusCode
-
         -- TODO: not allowed if feature is disabled globally in galley config yaml
 
         -- TODO: not allowed if team has feature bit not set
@@ -275,6 +273,8 @@ testGetLegalHoldTeamSettings = do
         -- returns 404 if team is not under legal hold
         getSettings owner tid !!! const 404 === statusCode
         getSettings member tid !!! const 404 === statusCode
+
+        postSettings owner tid newService !!! const 201 === statusCode
 
         -- returns legal hold service info if team is under legal hold and user is in team (even
         -- no permissions).
