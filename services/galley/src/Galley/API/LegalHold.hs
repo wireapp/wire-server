@@ -33,13 +33,6 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
-getSettings :: UserId ::: TeamId -> Galley Response
-getSettings (zusr ::: tid) = do
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
-
-    json <$> LegalHoldData.getSettings tid
-
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
@@ -54,6 +47,21 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     LegalHoldData.createSettings (legalHoldService tid fpr service)
     pure $ responseLBS status201 [] mempty
+
+getSettings :: UserId ::: TeamId -> Galley Response
+getSettings (zusr ::: tid) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
+
+    json <$> LegalHoldData.getSettings tid
+
+removeSettings :: UserId ::: TeamId -> Galley Response
+removeSettings (zusr ::: tid) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+
+    LegalHoldData.removeSettings tid
+    pure $ responseLBS status204 [] mempty
 
 -- | Get /status from legal hold service; throw 'Wai.Error' with 400 if things go wrong.
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()

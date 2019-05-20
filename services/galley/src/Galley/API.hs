@@ -288,6 +288,10 @@ sitemap = do
         .&. capture "tid"
         .&. accept "application" "json"
 
+    delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettings) $
+        zauthUserId
+        .&. capture "tid"
+
 {-
     document "POST" "LegalHold.createSettings" $ do
         ...  -- TODO
