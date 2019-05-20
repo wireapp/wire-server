@@ -438,3 +438,8 @@ withTestService mkApp go = do
         Warp.runTLS tlss defs $
             mkApp buf
     go buf `finally` liftIO (Async.cancel srv)
+
+
+-- TODO: adding two new legal hold settings on one team is not possible (409)
+-- TODO: deleting lh settings deletes all lh devices
+-- TODO: PATCH lh settings for updating URL or pubkey.
