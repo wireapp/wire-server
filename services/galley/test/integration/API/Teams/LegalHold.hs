@@ -273,6 +273,7 @@ testGetLegalHoldTeamSettings = do
         getSettings stranger tid !!! const 403 === statusCode
 
         -- returns 404 if team is not under legal hold
+        getSettings owner tid !!! const 404 === statusCode
         getSettings member tid !!! const 404 === statusCode
 
         -- returns legal hold service info if team is under legal hold and user is in team (even
@@ -293,7 +294,7 @@ testRemoveLegalHoldFromTeam = do
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
     -- returns 404 if team is not under legal hold
-    deleteSettings owner tid !!! const 404 === statusCode
+    deleteSettings owner tid !!! const 204 === statusCode
 
     newService <- newLegalHoldService
     postSettings owner tid newService !!! const 201 === statusCode
@@ -363,8 +364,8 @@ testDeleteLegalHoldDeviceOldAPI = do
 createTeam :: HasCallStack => TestM (UserId, TeamId)
 createTeam = do
     ownerid <- Util.randomUser
-    let teamName = cs $ show ownerid  -- doens't matter what, but needs to be unique!
-    teamid <- Util.createTeamInternal teamName ownerid
+    let tname :: Text = cs $ show ownerid  -- doesn't matter what, but needs to be unique!
+    teamid <- Util.createTeamInternal tname ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
 
