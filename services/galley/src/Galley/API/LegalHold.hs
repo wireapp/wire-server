@@ -1,6 +1,7 @@
 module Galley.API.LegalHold where
 
 import Imports
+import Data.Aeson (encode)
 import Galley.API.Error
 import Bilge.Retry
 import Brig.Types.Provider
@@ -38,15 +39,16 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
 
-    service :: NewLegalHoldService
+    newService :: NewLegalHoldService
         <- fromJsonBody req
     (_key :: ServiceKey, fpr :: Fingerprint Rsa)
-        <- validateServiceKey (newLegalHoldServiceKey service)
+        <- validateServiceKey (newLegalHoldServiceKey newService)
                >>= maybe (throwM legalHoldServiceInvalidKey) pure
-    checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl service)
+    checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
-    LegalHoldData.createSettings (legalHoldService tid fpr service)
-    pure $ responseLBS status201 [] mempty
+    let service = legalHoldService tid fpr newService
+    LegalHoldData.createSettings service
+    pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
