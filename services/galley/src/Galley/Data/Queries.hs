@@ -222,3 +222,15 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+
+-- LegalHold ----------------------------------------------------------------
+insertLegalHoldSettings :: PrepQuery W (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken) ()
+insertLegalHoldSettings =
+  "insert into legalhold_service (team_id, base_url, fingerprint, auth_token) values (?, ?, ?, ?)"
+
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken)
+selectLegalHoldSettings =
+   "select team_id, base_url, fingerprint, auth_token from legalhold_service where team_id = ?"
+
+removeLegalHoldSettings :: PrepQuery W (Identity TeamId) ()
+removeLegalHoldSettings = "delete from legalhold_service where team_id = ?"
