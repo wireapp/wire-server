@@ -383,8 +383,9 @@ makeLenses ''TeamCreationTime
 -- | See Note [hidden team roles]
 data HiddenPerm
     = ChangeLegalHoldTeamSettings
-    | ChangeLegalHoldForUser
     | ViewLegalHoldTeamSettings
+    | ChangeLegalHoldUserSettings
+    | ViewLegalHoldUserSettings
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
@@ -416,13 +417,15 @@ hiddenPermissionsFromPermissions =
 
         roleHiddenPerms :: Role -> Set HiddenPerm
         roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
-        roleHiddenPerms RoleAdmin =
+        roleHiddenPerms RoleAdmin = (roleHiddenPerms RoleMember <>) $
             Set.fromList [ ChangeLegalHoldTeamSettings
-                         , ChangeLegalHoldForUser
-                         , ViewLegalHoldTeamSettings
+                         , ChangeLegalHoldUserSettings
                          ]
-        roleHiddenPerms RoleMember = mempty
-        roleHiddenPerms RoleExternalPartner = mempty
+        roleHiddenPerms RoleMember = roleHiddenPerms RoleExternalPartner
+        roleHiddenPerms RoleExternalPartner =
+            Set.fromList [ ViewLegalHoldTeamSettings
+                         , ViewLegalHoldUserSettings
+                         ]
 
 -- | See Note [hidden team roles]
 class IsPerm perm where
