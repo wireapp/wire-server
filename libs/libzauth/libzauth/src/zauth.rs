@@ -48,6 +48,8 @@ pub enum TokenType {
     Access,
     Bot,
     Provider,
+    LegalHoldUser,
+    LegalHoldAccess,
     Unknown
 }
 
@@ -55,11 +57,13 @@ impl FromStr for TokenType {
     type Err = ();
     fn from_str(s: &str) -> Result<TokenType, ()> {
         match s {
-            "u" => Ok(TokenType::User),
-            "a" => Ok(TokenType::Access),
-            "b" => Ok(TokenType::Bot),
-            "p" => Ok(TokenType::Provider),
-            _   => Ok(TokenType::Unknown)
+            "u"  => Ok(TokenType::User),
+            "a"  => Ok(TokenType::Access),
+            "b"  => Ok(TokenType::Bot),
+            "p"  => Ok(TokenType::Provider),
+            "lu" => Ok(TokenType::LegalHoldUser),
+            "la" => Ok(TokenType::LegalHoldAccess),
+            _    => Ok(TokenType::Unknown)
         }
     }
 }
@@ -137,7 +141,7 @@ impl<'r> Token<'r> {
 
     pub fn verify(&self, store: &Keystore) -> Result<(), Error> {
         match self.token_type {
-            TokenType::Access | TokenType::User | TokenType::Provider =>
+            TokenType::Access | TokenType::User | TokenType::Provider | TokenType::LegalHoldUser | TokenType::LegalHoldAccess =>
                 if self.is_expired() {
                     Err(Error::Expired)
                 } else {
@@ -155,11 +159,13 @@ impl<'r> Token<'r> {
 
     pub fn has_access(&self, acl: &Acl, path: &str) -> bool {
         match self.token_type {
-            TokenType::User     => acl.allowed("u", path),
-            TokenType::Access   => acl.allowed("a", path),
-            TokenType::Bot      => acl.allowed("b", path),
-            TokenType::Provider => acl.allowed("p", path),
-            TokenType::Unknown  => false
+            TokenType::User             => acl.allowed("u", path),
+            TokenType::Access           => acl.allowed("a", path),
+            TokenType::Bot              => acl.allowed("b", path),
+            TokenType::Provider         => acl.allowed("p", path),
+            TokenType::LegalHoldUser    => acl.allowed("lu", path),
+            TokenType::LegalHoldAccess  => acl.allowed("la", path),
+            TokenType::Unknown          => false
         }
     }
 
@@ -202,6 +208,12 @@ mod tests {
 
     const PROVIDER_TOKEN: &'static str =
         "qcJ9zxFHMaiqj-tauhywI435BBs8t6wFyXAShkSQqaHK9r36k012rJYJIE7TTCHlFaGOzsk6E7h5G8JkLVjFDg==.v=1.k=1.d=1467640768.t=p.l=.p=84fa6cbf-0845-42cf-93b5-1e2195c68e11";
+
+    const LEGAL_HOLD_ACCESS_TOKEN: &'static str =
+        "6wca6kIO7_SFAev_Pl2uS6cBdkKuGk6MIh8WBK_ivZnwtRVrXF2pEHiocUWQZDy8YTrEweTJrqxUDptA7M1SBA==.v=1.k=1.d=1558361639.t=la.l=.u=4763099d-ab9b-4720-a1a3-558877f8b3e2.c=17967041325642812284";
+
+    const LEGAL_HOLD_USER_TOKEN: &'static str =
+        "GsydW1LQvwGYBGFErvqcqJvcipumtcdfVL4Li83KwR1ucnm-IrPM40SKl9Rhsdv0sqF_MF_eyTqMe_XpXR81Cg==.v=1.k=1.d=1558361914.t=lu.l=.u=ca754009-bc1e-4ef7-8384-dfec056bcc97.r=64";
 
     #[test]
     fn parse_access() {
@@ -267,4 +279,31 @@ mod tests {
         assert_eq!(t.token_type, TokenType::Provider);
         assert_eq!(t.lookup('p'), Some("84fa6cbf-0845-42cf-93b5-1e2195c68e11"))
     }
+
+    #[test]
+    fn parse_legal_hold_access() {
+        let t = Token::parse(LEGAL_HOLD_ACCESS_TOKEN).unwrap();
+        assert_eq!(t.signature.0[..], "6wca6kIO7_SFAev_Pl2uS6cBdkKuGk6MIh8WBK_ivZnwtRVrXF2pEHiocUWQZDy8YTrEweTJrqxUDptA7M1SBA==".from_base64().unwrap()[..]);
+        assert_eq!(t.version, 1);
+        assert_eq!(t.key_idx, 1);
+        assert_eq!(t.timestamp, 1558361639);
+        assert_eq!(t.token_tag, None);
+        assert_eq!(t.token_type, TokenType::LegalHoldAccess);
+        assert_eq!(t.lookup('u'), Some("4763099d-ab9b-4720-a1a3-558877f8b3e2"));
+        assert_eq!(t.lookup('c'), Some("17967041325642812284"))
+    }
+
+    #[test]
+    fn parse_legal_hold_user() {
+        let t = Token::parse(LEGAL_HOLD_USER_TOKEN).unwrap();
+        assert_eq!(t.signature.0[..], "GsydW1LQvwGYBGFErvqcqJvcipumtcdfVL4Li83KwR1ucnm-IrPM40SKl9Rhsdv0sqF_MF_eyTqMe_XpXR81Cg==".from_base64().unwrap()[..]);
+        assert_eq!(t.version, 1);
+        assert_eq!(t.key_idx, 1);
+        assert_eq!(t.timestamp, 1558361914);
+        assert_eq!(t.token_tag, None);
+        assert_eq!(t.token_type, TokenType::LegalHoldUser);
+        assert_eq!(t.lookup('u'), Some("ca754009-bc1e-4ef7-8384-dfec056bcc97"));
+        assert_eq!(t.lookup('r'), Some("64"))
+    }
+
 }
