@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Brig.Types.Team.LegalHold where
 
@@ -6,7 +7,6 @@ import Imports
 import Brig.Types.Provider
 import Data.Aeson
 import Data.Json.Util
-import Data.Id
 
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService
@@ -29,8 +29,6 @@ instance FromJSON NewLegalHoldService where
                    <*> o .: "public_key"
                    <*> o .: "auth_token"
 
-type LegalHoldId = Id "legalhold"
-
 data LegalHoldService = LegalHoldService
     { legalHoldServiceUrl   :: !HttpsUrl
     , legalHoldServiceKey   :: !ServiceKeyPEM
@@ -51,7 +49,8 @@ instance FromJSON LegalHoldService where
                    <*> o .: "public_key"
                    <*> o .: "auth_token"
 
-
 -- | this is what the team members can see when they get status info.  (TODO: is this right?
 -- either way make it at least a newtype.)
-type ViewLegalHoldService = LegalHoldService
+newtype ViewLegalHoldService = ViewLegalHoldService LegalHoldService
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON, FromJSON)

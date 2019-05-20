@@ -8,15 +8,16 @@ import Bilge.Assert
 import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
 import Brig.Types.Provider
+import Brig.Types.Team.LegalHold
+import Control.Lens
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Id
 import Data.PEM
+import Galley.Types.Teams
 import TestSetup
 import Test.Tasty
 import Test.Tasty.HUnit (assertBool)
-import Brig.Types.Team.LegalHold
-import Galley.Types.Teams
-import Control.Lens
 
 import qualified API.Util as Util
 import qualified Data.ByteString                   as BS
@@ -212,8 +213,8 @@ testCreateLegalHoldTeamSettings = do
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application
-        lhapp False _ _   cont = cont respondBad
-        lhapp True  _ req cont = do
+        lhapp _isworking@False _ _   cont = cont respondBad
+        lhapp _isworking@True  _ req cont = do
             if | pathInfo req /= ["status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> cont respondOk
@@ -225,13 +226,13 @@ testCreateLegalHoldTeamSettings = do
         respondBad = responseLBS status404 mempty mempty
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
-        lhtest False _ = do
+        lhtest _isworking@False _ = do
             postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
-        lhtest True _ = do
+        lhtest _isworking@True _ = do
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
-            service <- getSettingsTyped owner tid
+            ViewLegalHoldService service <- getSettingsTyped owner tid
             liftIO $ do
                 assertEqual "legalHoldServiceUrl"   (newLegalHoldServiceUrl newService)   (legalHoldServiceUrl service)
                 assertEqual "legalHoldServiceKey"   (newLegalHoldServiceKey newService)   (legalHoldServiceKey service)
@@ -275,7 +276,7 @@ testGetLegalHoldTeamSettings = ignore $ do
         resp <- getSettingsTyped member tid
         liftIO $ do
             assertBool "url mismatch"
-                (newLegalHoldServiceUrl newService == legalHoldServiceUrl resp)
+                (newLegalHoldServiceUrl newService == legalHoldServiceUrl (coerce resp))
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
