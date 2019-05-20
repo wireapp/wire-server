@@ -17,6 +17,9 @@ module Data.ZAuth.Creation
     , sessionToken
     , botToken
     , providerToken
+    , legalHoldAccessToken
+    , legalHoldAccessToken1
+    , legalHoldUserToken
 
       -- * Generic
     , withIndex
@@ -95,6 +98,22 @@ accessToken1 dur usr = do
     g <- Create $ asks randGen
     d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
     accessToken dur usr d
+
+legalHoldUserToken :: Integer -> UUID -> Word32 -> Create (Token LegalHoldUser)
+legalHoldUserToken dur usr rnd = do
+    d <- expiry dur
+    newToken d LU Nothing (mkLegalHoldUser usr rnd)
+
+legalHoldAccessToken :: Integer -> UUID -> Word64 -> Create (Token LegalHoldAccess)
+legalHoldAccessToken dur usr con = do
+    d <- expiry dur
+    newToken d LA Nothing (mkLegalHoldAccess usr con)
+
+legalHoldAccessToken1 :: Integer -> UUID -> Create (Token LegalHoldAccess)
+legalHoldAccessToken1 dur usr = do
+    g <- Create $ asks randGen
+    d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
+    legalHoldAccessToken dur usr d
 
 botToken :: UUID -> UUID -> UUID -> Create (Token Bot)
 botToken pid bid cnv = newToken (-1) B Nothing (mkBot pid bid cnv)
