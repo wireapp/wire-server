@@ -296,30 +296,34 @@ testRemoveLegalHoldFromTeam = do
     -- is idempotent
     deleteSettings owner tid !!! const 204 === statusCode
 
-    newService <- newLegalHoldService
-    postSettings owner tid newService !!! const 201 === statusCode
+    let lhapp :: Chan () -> Application
+        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
 
-    -- TODO: not allowed if feature is disabled globally in galley config yaml
+    withTestService lhapp $ \_ -> do
+        newService <- newLegalHoldService
+        postSettings owner tid newService !!! const 201 === statusCode
 
-    -- TODO: not allowed if team has feature bit not set
+        -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    -- returns 403 if user is not in team or has unsufficient permissions.
-    deleteSettings stranger tid !!! const 403 === statusCode
-    deleteSettings member tid !!! const 403 === statusCode
+        -- TODO: not allowed if team has feature bit not set
 
-    -- returns 204 if legal hold is successfully removed from team
-    deleteSettings owner tid !!! const 204 === statusCode
+        -- returns 403 if user is not in team or has unsufficient permissions.
+        deleteSettings stranger tid !!! const 403 === statusCode
+        deleteSettings member tid !!! const 403 === statusCode
 
-    -- deletion is successful (both witnessed on the API and in the backend)
-    getSettings owner tid !!! const 404 === statusCode
+        -- returns 204 if legal hold is successfully removed from team
+        deleteSettings owner tid !!! const 204 === statusCode
 
-    -- TODO: do we also want to check the DB?
+        -- deletion is successful (both witnessed on the API and in the backend)
+        getSettings owner tid !!! const 404 === statusCode
 
-    -- TODO: do we really want any trace of the fact that this team has been under legal hold
-    -- to go away?  or should a team that has been under legal hold in the past be observably
-    -- different for the members from one that never has?
+        -- TODO: do we also want to check the DB?
 
-    -- TODO: also remove all devices from users in this team!!
+        -- TODO: do we really want any trace of the fact that this team has been under legal hold
+        -- to go away?  or should a team that has been under legal hold in the past be observably
+        -- different for the members from one that never has?
+
+        -- TODO: also remove all devices from users in this team!!
 
 
 testEnablePerTeam :: TestM ()
