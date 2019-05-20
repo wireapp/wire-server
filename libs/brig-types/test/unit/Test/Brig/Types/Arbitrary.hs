@@ -19,7 +19,7 @@ import Imports
 import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyPEM)
+import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyPEM(..))
 import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
@@ -27,13 +27,13 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
 import URI.ByteString.QQ (uri)
-import Data.Coerce
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
 import Data.List.Extra (nubOn)
 import Data.Misc
+import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
 import Data.Text.Ascii
@@ -49,6 +49,7 @@ import Text.Hostname
 import Brig.Types.Team.LegalHold
 
 import qualified Data.Set as Set
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as ST
 import qualified System.Random
 
@@ -450,6 +451,34 @@ instance Arbitrary ViewLegalHoldService where
 instance Arbitrary HttpsUrl where
     arbitrary = pure $ HttpsUrl [uri|https://example.com|]
 
-instance Arbitrary ServiceKeyPEM where arbitrary = coerce @ServiceKeyPEM <$> arbitrary
-deriving instance Arbitrary (Fingerprint Rsa) -- where arbitrary = coerce <$> arbitrary
-deriving instance Arbitrary ServiceToken
+instance Arbitrary ServiceKeyPEM where
+    arbitrary = pure $ ServiceKeyPEM k
+      where Right [k] = pemParseBS . BS.unlines $
+              [ "-----BEGIN CERTIFICATE-----"
+              , "MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE"
+              , "RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp"
+              , "cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW"
+              , "EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy"
+              , "WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs"
+              , "aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x"
+              , "HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB"
+              , "AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A"
+              , "QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP"
+              , "wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua"
+              , "qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi"
+              , "fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU"
+              , "zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN"
+              , "AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog"
+              , "BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v"
+              , "OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY"
+              , "XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+"
+              , "hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj"
+              , "T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g="
+              , "-----END CERTIFICATE-----"
+              ]
+
+instance Arbitrary (Fingerprint Rsa) where
+    arbitrary = Fingerprint <$> arbitrary
+
+instance Arbitrary ServiceToken where
+    arbitrary = ServiceToken <$> arbitrary

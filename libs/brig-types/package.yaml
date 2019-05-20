@@ -84,6 +84,7 @@ tests:
     - galley-types
     - iproute
     - iso639
+    - pem
     - QuickCheck
     - quickcheck-instances
     - random
