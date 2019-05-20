@@ -288,6 +288,8 @@ testGetLegalHoldTeamSettings = do
             assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl resp)
             assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint resp)
 
+    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
+
 
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
@@ -318,7 +320,7 @@ testRemoveLegalHoldFromTeam = do
         deleteSettings owner tid !!! const 204 === statusCode
 
         -- deletion is successful (both witnessed on the API and in the backend)
-        getSettings owner tid !!! const 404 === statusCode
+        getSettings owner tid !!! const 412 === statusCode
 
         -- TODO: do we also want to check the DB?
 
