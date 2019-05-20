@@ -293,7 +293,7 @@ testRemoveLegalHoldFromTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
-    -- returns 404 if team is not under legal hold
+    -- is idempotent
     deleteSettings owner tid !!! const 204 === statusCode
 
     newService <- newLegalHoldService
