@@ -283,6 +283,11 @@ sitemap = do
         .&. jsonRequest @NewLegalHoldService
         .&. accept "application" "json"
 
+    get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
 {-
     document "POST" "LegalHold.createSettings" $ do
         ...  -- TODO
