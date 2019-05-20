@@ -251,6 +251,8 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
 
+    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
+
 
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
