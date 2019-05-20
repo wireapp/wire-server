@@ -247,6 +247,9 @@ testCreateLegalHoldTeamSettings = do
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
 
+    -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
+    -- TODO: should we expect any other events?
+
 
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
@@ -360,7 +363,8 @@ testDeleteLegalHoldDeviceOldAPI = do
 createTeam :: HasCallStack => TestM (UserId, TeamId)
 createTeam = do
     ownerid <- Util.randomUser
-    teamid <- Util.createTeamInternal "foo" ownerid
+    let teamName = cs $ show ownerid  -- doens't matter what, but needs to be unique!
+    teamid <- Util.createTeamInternal teamName ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
 
