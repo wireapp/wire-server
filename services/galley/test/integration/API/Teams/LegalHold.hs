@@ -251,7 +251,9 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
 
-    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
+    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the
+                      -- right ones.  (i think this has to od with the plumbing that is the
+                      -- same in all settings-related tests.)
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -329,6 +331,8 @@ testRemoveLegalHoldFromTeam = do
         -- different for the members from one that never has?
 
         -- TODO: also remove all devices from users in this team!!
+
+    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
 
 
 testEnablePerTeam :: TestM ()
