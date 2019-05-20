@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE FlexibleInstances   #-}
@@ -18,13 +19,15 @@ import Imports
 import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyPEM)
 import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
+import URI.ByteString.QQ (uri)
+import Data.Coerce
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
@@ -43,6 +46,7 @@ import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
+import Brig.Types.Team.LegalHold
 
 import qualified Data.Set as Set
 import qualified Data.Text as ST
@@ -432,3 +436,20 @@ alphaNumChars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
 
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound..]
+
+
+instance Arbitrary NewLegalHoldService where
+    arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ViewLegalHoldService where
+    arbitrary = ViewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary HttpsUrl where
+    arbitrary = pure $ HttpsUrl [uri|https://example.com|]
+
+instance Arbitrary ServiceKeyPEM where arbitrary = coerce @ServiceKeyPEM <$> arbitrary
+deriving instance Arbitrary (Fingerprint Rsa) -- where arbitrary = coerce <$> arbitrary
+deriving instance Arbitrary ServiceToken

@@ -10,6 +10,7 @@ module Test.Brig.Types.Common where
 
 import Imports
 import Brig.Types.Common
+import Brig.Types.Team.LegalHold
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
@@ -36,6 +37,9 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
     , run @TeamMemberDeleteData Proxy
+    , run @NewLegalHoldService Proxy
+    , run @LegalHoldService Proxy
+    , run @ViewLegalHoldService Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
