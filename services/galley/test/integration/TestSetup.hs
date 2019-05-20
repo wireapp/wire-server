@@ -3,7 +3,6 @@
 module TestSetup
     ( IntegrationConfig(..)
     , LegalHoldConfig(..)
-    , test
     , tsGConf
     , tsIConf
     , tsManager
@@ -18,8 +17,6 @@ module TestSetup
 
 import Imports
 import Data.Aeson
-import Test.Tasty          (TestName, TestTree)
-import Test.Tasty.HUnit    (Assertion, testCase)
 import Control.Lens        (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Bilge (Manager, MonadHttp(..), Request, withResponse)
@@ -83,11 +80,3 @@ instance MonadHttp TestM where
     handleRequestWithCont req handler = do
         manager <- view tsManager
         liftIO $ withResponse req manager handler
-
-test :: IO TestSetup -> TestName -> TestM a -> TestTree
-test s n h = testCase n runTest
-  where
-    runTest :: Assertion
-    runTest = do
-        setup <- s
-        void . flip runReaderT setup . runTestM $ h

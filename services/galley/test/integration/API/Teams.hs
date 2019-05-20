@@ -19,7 +19,8 @@ import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import TestSetup (test,  TestSetup, TestM, tsCannon, tsGalley)
+import TestHelpers (test)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
 import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 

@@ -86,6 +86,7 @@ import qualified Network.Wai.Handler.Warp.Internal as Warp
 -- import qualified Network.Wai.Route                 as Wai
 -- import qualified Network.Wai.Utilities.Error       as Error
 -- import qualified Test.Tasty.Cannon                 as WS
+import TestHelpers
 
 
 

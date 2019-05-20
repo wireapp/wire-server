@@ -18,6 +18,7 @@ import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestHelpers
 import TestSetup
 import API.SQS
 
