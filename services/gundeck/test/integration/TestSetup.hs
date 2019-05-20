@@ -58,9 +58,9 @@ data TestSetup = TestSetup
 makeLenses ''TestSetup
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
-test s n h = testCase n runTest
+test mkSetup testName testAction = testCase testName runTest
   where
     runTest :: Assertion
     runTest = do
-        setup <- s
-        void . runHttpT (setup ^. tsManager) . flip runReaderT setup . runTestM $ h
+        setup <- mkSetup
+        void . runHttpT (setup ^. tsManager) . flip runReaderT setup . runTestM $ testAction
