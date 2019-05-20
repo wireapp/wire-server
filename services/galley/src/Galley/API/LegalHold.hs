@@ -48,15 +48,15 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     LegalHoldData.createSettings (legalHoldService tid fpr service)
     pure $ responseLBS status201 [] mempty
 
-getSettings :: UserId ::: TeamId -> Galley Response
-getSettings (zusr ::: tid) = do
+getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
+getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
 
     json <$> LegalHoldData.getSettings tid
 
-removeSettings :: UserId ::: TeamId -> Galley Response
-removeSettings (zusr ::: tid) = do
+removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
+removeSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
 

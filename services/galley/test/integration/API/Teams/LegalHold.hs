@@ -248,7 +248,7 @@ testCreateLegalHoldTeamSettings = do
 
 
 testGetLegalHoldTeamSettings :: TestM ()
-testGetLegalHoldTeamSettings = ignore $ do
+testGetLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     stranger <- randomUser
     member <- randomUser
@@ -280,7 +280,7 @@ testGetLegalHoldTeamSettings = ignore $ do
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
-testRemoveLegalHoldFromTeam = ignore $ do
+testRemoveLegalHoldFromTeam = do
     (owner, tid) <- createTeam
     stranger <- randomUser
     member <- randomUser

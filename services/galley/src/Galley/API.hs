@@ -291,13 +291,9 @@ sitemap = do
     delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettings) $
         zauthUserId
         .&. capture "tid"
+        .&. accept "application" "json"
 
-{-
-    document "POST" "LegalHold.createSettings" $ do
-        ...  -- TODO
--}
-
-   --
+   ---
 
     get "/bot/conversation" (continue getBotConversation) $
         zauth ZAuthBot
