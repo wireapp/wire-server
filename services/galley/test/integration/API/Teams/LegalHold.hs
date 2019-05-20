@@ -385,7 +385,12 @@ getSettings uid tid = do
         . zType "access"
 
 deleteSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-deleteSettings = undefined
+deleteSettings uid tid = do
+    g <- view tsGalley
+    delete $ g
+           . paths ["teams", toByteString' tid, "legalhold", "settings"]
+           . zUser uid . zConn "conn"
+           . zType "access"
 
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
