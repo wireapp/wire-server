@@ -381,7 +381,10 @@ makeLenses ''TeamCreationTime
 -- permission bits and the old ones that we share with the client apps.
 
 -- | See Note [hidden team roles]
-data HiddenPerm = ChangeLegalHoldTeamSettings | ChangeLegalHoldForUser
+data HiddenPerm
+    = ChangeLegalHoldTeamSettings
+    | ChangeLegalHoldForUser
+    | ViewLegalHoldTeamSettings
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
@@ -413,7 +416,11 @@ hiddenPermissionsFromPermissions =
 
         roleHiddenPerms :: Role -> Set HiddenPerm
         roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
-        roleHiddenPerms RoleAdmin = Set.fromList [ChangeLegalHoldTeamSettings, ChangeLegalHoldForUser]
+        roleHiddenPerms RoleAdmin =
+            Set.fromList [ ChangeLegalHoldTeamSettings
+                         , ChangeLegalHoldForUser
+                         , ViewLegalHoldTeamSettings
+                         ]
         roleHiddenPerms RoleMember = mempty
         roleHiddenPerms RoleExternalPartner = mempty
 
