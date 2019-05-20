@@ -20,7 +20,7 @@ import Brig.RPC
 import Brig.Types.Provider (HttpsUrl (..))
 import Brig.Types.Provider.External
 import Control.Error
-import Control.Lens (view, set, (^.), (<&>))
+import Control.Lens (view, set, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
