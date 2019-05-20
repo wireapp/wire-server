@@ -16,6 +16,7 @@ import Galley.API.Create
 import Galley.API.Update
 import Galley.API.Teams
 import Galley.API.Query
+import Galley.API.Swagger (swagger)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -276,6 +277,13 @@ sitemap = do
         errorResponse (Error.operationDenied DeleteConversation)
 
    --
+
+    -- i added servant-based swagger docs here because (a) it was faster to write than
+    -- learning our legacy approach and (b) swagger2 is more useful for the client teams.  we
+    -- can discuss at the end of the sprint whether to keep it here, move it elsewhere, or
+    -- abandon it entirely.
+    get "/teams/api-docs" (continue . const . pure . json $ swagger) $
+        accept "application" "json"
 
     post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
         zauthUserId
