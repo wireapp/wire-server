@@ -11,9 +11,9 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Control.Lens
 import Data.ByteString.Conversion
-import Data.Coerce (coerce)
 import Data.Id
 import Data.PEM
+import Galley.API.LegalHold (validateServiceKey)
 import Galley.Types.Teams
 import TestSetup
 import Test.Tasty
@@ -232,11 +232,12 @@ testCreateLegalHoldTeamSettings = do
         lhtest _isworking@True _ = do
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
-            ViewLegalHoldService service <- getSettingsTyped owner tid
+            service <- getSettingsTyped owner tid
             liftIO $ do
-                assertEqual "legalHoldServiceUrl"   (newLegalHoldServiceUrl newService)   (legalHoldServiceUrl service)
-                assertEqual "legalHoldServiceKey"   (newLegalHoldServiceKey newService)   (legalHoldServiceKey service)
-                assertEqual "legalHoldServiceToken" (newLegalHoldServiceToken newService) (legalHoldServiceToken service)
+                Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
+                assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)
+                assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
+                assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
             -- TODO: check cassandra as well?
 
     -- if no valid service response can be obtained, responds with 400
@@ -275,8 +276,10 @@ testGetLegalHoldTeamSettings = do
         -- no permissions).
         resp <- getSettingsTyped member tid
         liftIO $ do
-            assertBool "url mismatch"
-                (newLegalHoldServiceUrl newService == legalHoldServiceUrl (coerce resp))
+            Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
+            assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam resp)
+            assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl resp)
+            assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint resp)
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
