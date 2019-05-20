@@ -163,21 +163,25 @@ pub extern fn zauth_token_delete(t: *mut ZauthToken) {
 #[no_mangle]
 #[derive(Clone, Copy, Debug)]
 pub enum ZauthTokenType {
-    User     = 0,
-    Bot      = 1,
-    Access   = 2,
-    Provider = 4,
-    Unknown  = 3
+    User            = 0,
+    Bot             = 1,
+    Access          = 2,
+    Provider        = 4,
+    LegalHoldUser   = 5,
+    LegalHoldAccess = 6,
+    Unknown         = 3
 }
 
 impl From<TokenType> for ZauthTokenType {
     fn from(t: TokenType) -> ZauthTokenType {
         match t {
-            TokenType::User     => ZauthTokenType::User,
-            TokenType::Access   => ZauthTokenType::Access,
-            TokenType::Bot      => ZauthTokenType::Bot,
-            TokenType::Provider => ZauthTokenType::Provider,
-            TokenType::Unknown  => ZauthTokenType::Unknown
+            TokenType::User              => ZauthTokenType::User,
+            TokenType::Access            => ZauthTokenType::Access,
+            TokenType::Bot               => ZauthTokenType::Bot,
+            TokenType::Provider          => ZauthTokenType::Provider,
+            TokenType::LegalHoldUser     => ZauthTokenType::LegalHoldUser,
+            TokenType::LegalHoldAccess   => ZauthTokenType::LegalHoldAccess,
+            TokenType::Unknown           => ZauthTokenType::Unknown
         }
     }
 }

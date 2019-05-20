@@ -30,11 +30,13 @@ typedef enum {
 } ZauthResult;
 
 typedef enum {
-        ZAUTH_TOKEN_TYPE_USER     = 0,
-        ZAUTH_TOKEN_TYPE_BOT      = 1,
-        ZAUTH_TOKEN_TYPE_ACCESS   = 2,
-        ZAUTH_TOKEN_TYPE_UNKNOWN  = 3,
-        ZAUTH_TOKEN_TYPE_PROVIDER = 4,
+        ZAUTH_TOKEN_TYPE_USER               = 0,
+        ZAUTH_TOKEN_TYPE_BOT                = 1,
+        ZAUTH_TOKEN_TYPE_ACCESS             = 2,
+        ZAUTH_TOKEN_TYPE_UNKNOWN            = 3,
+        ZAUTH_TOKEN_TYPE_PROVIDER           = 4,
+        ZAUTH_TOKEN_TYPE_LEGAL_HOLD_USER    = 5,
+        ZAUTH_TOKEN_TYPE_LEGAL_HOLD_ACCESS  = 6,
 } ZauthTokenType;
 
 typedef struct ZauthAcl      ZauthAcl;
