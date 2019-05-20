@@ -25,6 +25,7 @@ import Ssl.Util
 import qualified Bilge
 import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Galley.Data                  as Data
+import qualified Galley.Data.LegalHold        as LegalHoldData
 import qualified Network.HTTP.Client          as Http
 import qualified OpenSSL.EVP.Digest           as SSL
 import qualified OpenSSL.EVP.PKey             as SSL
@@ -45,6 +46,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
                >>= maybe (throwM legalHoldServiceInvalidKey) pure
     checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl service)
 
+    LegalHoldData.createSettings (legalHoldService service)
     pure $ responseLBS status201 [] mempty
 
 
