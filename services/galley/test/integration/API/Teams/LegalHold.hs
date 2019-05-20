@@ -270,9 +270,9 @@ testGetLegalHoldTeamSettings = do
         -- returns 403 if user is not in team.
         getSettings stranger tid !!! const 403 === statusCode
 
-        -- returns 404 if team is not under legal hold
-        getSettings owner tid !!! const 404 === statusCode
-        getSettings member tid !!! const 404 === statusCode
+        -- returns 412 if team is not under legal hold
+        getSettings owner tid !!! const 412 === statusCode
+        getSettings member tid !!! const 412 === statusCode
 
         postSettings owner tid newService !!! const 201 === statusCode
 

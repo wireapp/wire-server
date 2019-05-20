@@ -53,7 +53,10 @@ getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
 
-    json <$> LegalHoldData.getSettings tid
+    mresult <- LegalHoldData.getSettings tid
+    case mresult of
+        Nothing -> throwM legalHoldNotEnabled
+        Just result -> pure $ json result
 
 removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do

@@ -117,3 +117,6 @@ legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hol
 
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"
+
+legalHoldNotEnabled :: Error
+legalHoldNotEnabled = Error status412 "team-not-under-legalhold" "legal hold not enabled for this team"
