@@ -15,12 +15,6 @@ dependencies:
 - ssl-util
 library:
   source-dirs: src
-  exposed-modules:
-  - Galley.Run
-  - Galley.Options
-  - Galley.Aws
-  - Galley.Data
-  - Galley.Intra.Journal
   dependencies:
   - aeson >=0.11
   - amazonka >=1.4.5
