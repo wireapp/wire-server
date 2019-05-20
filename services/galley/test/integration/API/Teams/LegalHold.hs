@@ -256,7 +256,7 @@ testGetLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     stranger <- randomUser
     member <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     newService <- newLegalHoldService
 
     let lhapp :: Chan () -> Application
