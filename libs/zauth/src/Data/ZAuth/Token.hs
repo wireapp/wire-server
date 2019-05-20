@@ -46,6 +46,16 @@ module Data.ZAuth.Token
     , provider
     , mkProvider
 
+
+    -- * LegalHold body
+    , LegalHoldUser
+    , legalHoldUser
+    , mkLegalHoldUser
+
+    , LegalHoldAccess
+    , legalHoldAccess
+    , mkLegalHoldAccess
+
     , writeData
     ) where
 
@@ -61,7 +71,16 @@ import Data.ByteString.Lazy.Char8 (split, break, drop)
 import Data.UUID
 import Sodium.Crypto.Sign (Signature (..))
 
-data Type = A | U | B | P deriving (Eq, Show)
+-- | A = Access (Used as short-lived token for Users)
+-- U = User (Used as a cookie for Users to refresh access tokens)
+-- B = Bot
+-- P = Provider
+-- LA = LegalHold Access (Used as short-lived token for LegalHold Service)
+-- LU = LegalHold User (Used as a cookie for LegalHold Service to refresh access tokens)
+data Type = A | U | B | P | LA | LU deriving (Eq, Show)
+
+-- | Tag: Tokens for Users with no tag are refreshable themselves and called "UserToken"
+-- Tokens for Users with the tag 'S' are non-refreshable themselves and called "SessionToken"
 data Tag  = S deriving (Eq, Show)
 
 data Token a = Token
@@ -98,6 +117,14 @@ newtype Provider = Provider
     { _provider :: UUID
     } deriving (Eq, Show)
 
+newtype LegalHoldUser = LegalHoldUser
+    { _legalHoldUser :: User
+    } deriving (Eq, Show)
+
+newtype LegalHoldAccess = LegalHoldAccess
+    { _legalHoldAccess :: Access
+    } deriving (Eq, Show)
+
 type Properties = [(LByteString, LByteString)]
 
 signature :: Getter (Token a) Signature
@@ -114,6 +141,8 @@ makeLenses ''Access
 makeLenses ''User
 makeLenses ''Bot
 makeLenses ''Provider
+makeLenses ''LegalHoldUser
+makeLenses ''LegalHoldAccess
 
 instance FromByteString (Token Access) where
     parser = takeLazyByteString >>= \b ->
@@ -139,6 +168,18 @@ instance FromByteString (Token Provider) where
             Nothing -> fail "Invalid provider token"
             Just  t -> return t
 
+instance FromByteString (Token LegalHoldAccess) where
+    parser = takeLazyByteString >>= \b ->
+        case readToken readLegalHoldAccessBody b of
+            Nothing -> fail "Invalid access token"
+            Just  t -> return t
+
+instance FromByteString (Token LegalHoldUser) where
+    parser = takeLazyByteString >>= \b ->
+        case readToken readLegalHoldUserBody b of
+            Nothing -> fail "Invalid user token"
+            Just  t -> return t
+
 instance ToByteString a => ToByteString (Token a) where
     builder = writeToken
 
@@ -162,6 +203,12 @@ mkBot = Bot
 
 mkProvider :: UUID -> Provider
 mkProvider = Provider
+
+mkLegalHoldAccess :: UUID -> Word64 -> LegalHoldAccess
+mkLegalHoldAccess uid cid = LegalHoldAccess $ Access uid cid
+
+mkLegalHoldUser :: UUID -> Word32 -> LegalHoldUser
+mkLegalHoldUser uid r = LegalHoldUser $ User uid r
 
 -----------------------------------------------------------------------------
 -- Reading
@@ -190,6 +237,8 @@ readHeader p = Header
     readType "u" = Just U
     readType "b" = Just B
     readType "p" = Just P
+    readType "la" = Just LA
+    readType "lu" = Just LU
     readType _   = Nothing
 
     readTag "s" = Just S
@@ -213,6 +262,12 @@ readBotBody t = Bot
 
 readProviderBody :: Properties -> Maybe Provider
 readProviderBody t = Provider <$> (lookup "p" t >>= fromLazyASCIIBytes)
+
+readLegalHoldAccessBody :: Properties -> Maybe LegalHoldAccess
+readLegalHoldAccessBody t = LegalHoldAccess <$> readAccessBody t
+
+readLegalHoldUserBody :: Properties -> Maybe LegalHoldUser
+readLegalHoldUserBody t = LegalHoldUser <$> readUserBody t
 
 -----------------------------------------------------------------------------
 -- Writing
@@ -249,11 +304,21 @@ instance ToByteString Bot where
 instance ToByteString Provider where
     builder t = field "p" (toLazyASCIIBytes $ t^.provider)
 
+instance ToByteString LegalHoldAccess where
+    builder t = field "u" (toLazyASCIIBytes $ t^.legalHoldAccess.userId) <> dot <>
+                field "c" (t^.legalHoldAccess.connection)
+
+instance ToByteString LegalHoldUser where
+    builder t = field "u" (toLazyASCIIBytes $ t^.legalHoldUser.user) <> dot <>
+                field "r" (Hex (t^.legalHoldUser.rand))
+
 instance ToByteString Type where
     builder A = char8 'a'
     builder U = char8 'u'
     builder B = char8 'b'
     builder P = char8 'p'
+    builder LA = char8 'l' <> char8 'a'
+    builder LU = char8 'l' <> char8 'u'
 
 instance ToByteString Tag where
     builder S = char8 's'

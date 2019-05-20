@@ -22,6 +22,12 @@ instance Arbitrary (Token Bot) where
 instance Arbitrary (Token Provider) where
     arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary (Token LegalHoldAccess) where
+    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary (Token LegalHoldUser) where
+    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+
 instance Arbitrary Header where
     arbitrary = mkHeader
         <$> arbitrary
@@ -41,6 +47,12 @@ instance Arbitrary Bot where
 
 instance Arbitrary Provider where
     arbitrary = mkProvider <$> arbitrary
+
+instance Arbitrary LegalHoldAccess where
+    arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitrary
+
+instance Arbitrary LegalHoldUser where
+    arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitrary
 
 instance Arbitrary ByteString where
     arbitrary = fromString <$> arbitrary `suchThat` (not . any (== '.'))
