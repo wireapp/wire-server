@@ -198,9 +198,11 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest _isworking@False _ = do
+            liftIO $ threadDelay 5000000 -- TODO: does this help integrations tests in distributed environment?
             postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
         lhtest _isworking@True _ = do
+            liftIO $ threadDelay 5000000 -- TODO: does this help integrations tests in distributed environment?
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
             service <- getSettingsTyped owner tid
