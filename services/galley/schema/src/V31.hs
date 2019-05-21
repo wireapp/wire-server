@@ -9,6 +9,7 @@ migration = Migration 31 "Add legalhold service table" $ do
     schema' [r|
         CREATE TABLE legalhold_service (
             team_id      uuid,
+            enabled      boolean,
             base_url     blob,
             fingerprint  blob,
             auth_token   ascii,

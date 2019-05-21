@@ -34,9 +34,14 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
+-- | Enable or disable legal hold for a team.
 setLegalHoldEnabled :: TeamId ::: JsonRequest LegalHoldEnabled ::: JSON -> Galley Response
 setLegalHoldEnabled (tid ::: req ::: _) = do
     LegalHoldEnabled { legalHoldEnabled } <- fromJsonBody req
+    LegalHoldData.setEnabled tid legalHoldEnabled
+    -- TODO: How do we remove all devices from all users?
+    -- Do we also delete the settings from the table?
+    pure $ responseLBS status204 [] mempty
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
@@ -51,7 +56,9 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
     let service = legalHoldService tid fpr newService
-    LegalHoldData.createSettings service
+    lhEnabled <- LegalHoldData.createSettings service
+    when (not lhEnabled) $ throwM legalHoldNotEnabled
+
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response

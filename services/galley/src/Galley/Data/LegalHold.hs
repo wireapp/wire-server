@@ -1,5 +1,6 @@
 module Galley.Data.LegalHold
-    ( createSettings
+    ( setEnabled
+    , createSettings
     , getSettings
     , removeSettings
     ) where
