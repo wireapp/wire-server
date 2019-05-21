@@ -454,31 +454,20 @@ instance Arbitrary HttpsUrl where
 instance Arbitrary ServiceKeyPEM where
     arbitrary = pure $ ServiceKeyPEM k
       where Right [k] = pemParseBS . BS.unlines $
-              [ "-----BEGIN CERTIFICATE-----"
-              , "MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE"
-              , "RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp"
-              , "cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW"
-              , "EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy"
-              , "WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs"
-              , "aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x"
-              , "HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB"
-              , "AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A"
-              , "QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP"
-              , "wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua"
-              , "qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi"
-              , "fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU"
-              , "zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN"
-              , "AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog"
-              , "BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v"
-              , "OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY"
-              , "XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+"
-              , "hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj"
-              , "T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g="
-              , "-----END CERTIFICATE-----"
+              [ "-----BEGIN PUBLIC KEY-----"
+              , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+              , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+              , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+              , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+              , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+              , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+              , "nQIDAQAB"
+              , "-----END PUBLIC KEY-----"
               ]
 
 instance Arbitrary (Fingerprint Rsa) where
-    arbitrary = Fingerprint <$> arbitrary
+    arbitrary = pure $ Fingerprint
+        "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 instance Arbitrary ServiceToken where
     arbitrary = ServiceToken <$> arbitrary
