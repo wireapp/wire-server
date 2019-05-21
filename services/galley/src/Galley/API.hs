@@ -876,6 +876,10 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
+    get "/i/teams/:tid/legalhold" (continue getLegalHoldEnabled) $
+        capture "tid"
+        .&. accept "application" "json"
+
     put "/i/teams/:tid/legalhold" (continue setLegalHoldEnabled) $
         capture "tid"
         .&. jsonRequest @LegalHoldEnabled

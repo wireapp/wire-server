@@ -35,6 +35,12 @@ import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
 -- | Enable or disable legal hold for a team.
+getLegalHoldEnabled :: TeamId ::: JSON -> Galley Response
+getLegalHoldEnabled (tid ::: _) = do
+    legalHoldEnabled <- LegalHoldData.getEnabled tid
+    pure . json $ LegalHoldEnabled legalHoldEnabled
+
+-- | Enable or disable legal hold for a team.
 setLegalHoldEnabled :: TeamId ::: JsonRequest LegalHoldEnabled ::: JSON -> Galley Response
 setLegalHoldEnabled (tid ::: req ::: _) = do
     LegalHoldEnabled { legalHoldEnabled } <- fromJsonBody req

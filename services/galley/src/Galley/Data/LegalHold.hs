@@ -1,5 +1,6 @@
 module Galley.Data.LegalHold
     ( setEnabled
+    , getEnabled
     , createSettings
     , getSettings
     , removeSettings
@@ -12,6 +13,11 @@ import Galley.Data.Queries
 import Galley.Data.Instances ()
 
 import Brig.Types.Team.LegalHold
+
+-- | Return whether a given team is allowed to enable/disable legalhold
+getEnabled :: MonadClient m => TeamId -> m Bool
+getEnabled tid = maybe False runIdentity <$> do
+    retry x1 $ query1 getLegalHoldEnabled (params Quorum (Identity tid))
 
 -- | Determines whether a given team is allowed to enable/disable legalhold
 setEnabled :: MonadClient m => TeamId -> Bool -> m ()

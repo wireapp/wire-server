@@ -226,6 +226,10 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 -- LegalHold ----------------------------------------------------------------
 
+getLegalHoldEnabled :: PrepQuery R (Identity TeamId) (Identity Bool)
+getLegalHoldEnabled =
+  "select enabled from legalhold_service where team_id = ?"
+
 setLegalHoldEnabled :: PrepQuery W (Bool, TeamId) ()
 setLegalHoldEnabled =
   "update legalhold_service set enabled = ? where team_id = ?"
