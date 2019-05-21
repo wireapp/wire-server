@@ -46,10 +46,8 @@ normalizeWaiRequestRoute paths req = pathInfo
     pathInfo :: Text
     pathInfo  = T.decodeUtf8 $ fromMaybe (Wai.rawPathInfo req) mPathInfo
 
-
--- the following code is copied and mutated from wai-middleware-prometheus.  something like
--- this should be moved there.
-
+-- | This can be refactored away once https://github.com/fimad/prometheus-haskell/pull/45 has
+-- been released on hackage.
 instrumentHandlerValue ::
      (Wai.Request -> Text) -- ^ The function used to derive the "handler" value in Prometheus
   -> Wai.Application -- ^ The app to instrument
