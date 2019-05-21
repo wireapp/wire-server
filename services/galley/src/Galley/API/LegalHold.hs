@@ -34,6 +34,10 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
+setLegalHoldEnabled :: TeamId ::: JsonRequest LegalHoldEnabled ::: JSON -> Galley Response
+setLegalHoldEnabled (tid ::: req ::: _) = do
+    LegalHoldEnabled { legalHoldEnabled } <- fromJsonBody req
+
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid

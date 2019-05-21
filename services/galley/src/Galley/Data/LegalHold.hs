@@ -12,10 +12,18 @@ import Galley.Data.Instances ()
 
 import Brig.Types.Team.LegalHold
 
-createSettings :: MonadClient m => LegalHoldService -> m ()
-createSettings (LegalHoldService tid url fpr tok) = do
-    retry x5 $ write insertLegalHoldSettings (params Quorum (tid, url, fpr, tok))
+-- | Determines whether a given team is allowed to enable/disable legalhold
+setEnabled :: MonadClient m => TeamId -> Bool -> m ()
+setEnabled tid isLegalHoldEnabled = do
+    retry x5 $ write setLegalHoldEnabled (params Quorum (isLegalHoldEnabled, tid))
 
+-- | Returns 'False' if legal hold is not enabled for this team
+createSettings :: MonadClient m => LegalHoldService -> m Bool
+createSettings (LegalHoldService tid url fpr tok) = do
+    results <- retry x1 $ trans insertLegalHoldSettings (params Quorum (tid, url, fpr, tok))
+    pure . not . null $ results
+
+-- | Returns 'Nothing' if no settings are saved OR if legal hold is disabled for this team.
 getSettings :: MonadClient m => TeamId -> m (Maybe LegalHoldService)
 getSettings tid = fmap toLegalHoldService <$> do
      retry x1 $ query1 selectLegalHoldSettings (params Quorum (Identity tid))

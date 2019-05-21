@@ -10,6 +10,20 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc
 
+data LegalHoldEnabled = LegalHoldEnabled
+    { legalHoldEnabled :: !Bool
+    }
+  deriving (Eq, Show)
+
+instance ToJSON LegalHoldEnabled where
+    toJSON s = object
+        $ "legal_hold_enabled" .= legalHoldEnabled s
+        # []
+
+instance FromJSON LegalHoldEnabled where
+    parseJSON = withObject "NewLegalHoldService" $ \o -> 
+        LegalHoldEnabled <$> o .: "legal_hold_enabled"
+
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService
     { newLegalHoldServiceUrl     :: !HttpsUrl
