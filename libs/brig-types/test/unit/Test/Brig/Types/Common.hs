@@ -37,6 +37,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
     , run @TeamMemberDeleteData Proxy
+    , run @LegalHoldEnabled Proxy
     , run @NewLegalHoldService Proxy
     , run @LegalHoldService Proxy
     , run @ViewLegalHoldService Proxy
