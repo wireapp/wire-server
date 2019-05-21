@@ -159,7 +159,7 @@ testRemoveLegalHoldDevice = do
 
 
 testCreateLegalHoldTeamSettings :: TestM ()
-testCreateLegalHoldTeamSettings = ignore $ do
+testCreateLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -224,7 +224,7 @@ testCreateLegalHoldTeamSettings = ignore $ do
 
 
 testGetLegalHoldTeamSettings :: TestM ()
-testGetLegalHoldTeamSettings = ignore $ do
+testGetLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     stranger <- randomUser
     member <- randomUser
@@ -261,7 +261,7 @@ testGetLegalHoldTeamSettings = ignore $ do
 
 
 testRemoveLegalHoldFromTeam :: TestM ()
-testRemoveLegalHoldFromTeam = ignore $ do
+testRemoveLegalHoldFromTeam = do
     (owner, tid) <- createTeam
     stranger <- randomUser
     member <- randomUser
@@ -310,7 +310,7 @@ testEnablePerTeam = do
 
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
-testCreateLegalHoldDeviceOldAPI = ignore $ do
+testCreateLegalHoldDeviceOldAPI = do
     -- regular users cannot create LegalHoldClients
     let lk = (someLastPrekeys !! 0)
     u <- randomUser
