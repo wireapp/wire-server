@@ -118,5 +118,7 @@ legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hol
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"
 
-legalHoldNotEnabled :: Error
-legalHoldNotEnabled = Error status412 "team-not-under-legalhold" "legal hold not enabled for this team"
+legalHoldNotRegistered :: Error
+legalHoldNotRegistered = Error status412 "legalhold-not-registered" "no legal hold service is configured for this team"
+    -- legal hold can be enabled for this team or not.  this message just states that settings
+    -- have not been posted.

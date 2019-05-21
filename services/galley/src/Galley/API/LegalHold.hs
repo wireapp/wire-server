@@ -57,7 +57,7 @@ getSettings (zusr ::: tid ::: _) = do
 
     mresult <- LegalHoldData.getSettings tid
     case mresult of
-        Nothing -> throwM legalHoldNotEnabled
+        Nothing -> throwM legalHoldNotRegistered
         Just result -> pure $ json result
 
 removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
