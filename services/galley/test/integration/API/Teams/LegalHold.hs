@@ -160,6 +160,7 @@ testRemoveLegalHoldDevice = do
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
+    liftIO $ putStrLn "XXX starting problematic test..."
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -172,9 +173,11 @@ testCreateLegalHoldTeamSettings = do
 
     -- TODO: not allowed if team has feature bit not set
 
+    liftIO $ putStrLn "XXX check member can't do this..."
     -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
 
+    liftIO $ putStrLn "XXX check behaviour if service unavailable..."
     -- rejected if service is not available
     postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
@@ -208,9 +211,11 @@ testCreateLegalHoldTeamSettings = do
                 assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
             -- TODO: check cassandra as well?
 
+    liftIO $ putStrLn "XXX check lhapp False False..."
     -- if no valid service response can be obtained, responds with 400
     withTestService (lhapp False) (lhtest False)
 
+    liftIO $ putStrLn "XXX check lhapp True True..."
     -- if valid service response can be obtained, writes a pending entry to cassandra
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
@@ -218,9 +223,11 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
 
+    liftIO $ putStrLn "XXX beforeQueueEmpty..."
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the
                       -- right ones.  (i think this has to od with the plumbing that is the
                       -- same in all settings-related tests.)
+    liftIO $ putStrLn "XXX done..."
 
 
 testGetLegalHoldTeamSettings :: TestM ()
