@@ -2,6 +2,7 @@ module Galley.Data.Queries where
 
 import Imports
 import Brig.Types.Code
+import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
@@ -226,13 +227,13 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 -- LegalHold ----------------------------------------------------------------
 
-getLegalHoldEnabled :: PrepQuery R (Identity TeamId) (Identity Bool)
-getLegalHoldEnabled =
-  "select enabled from legalhold_team_config where team_id = ?"
+selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldStatus)
+selectLegalHoldTeamConfig =
+  "select status from legalhold_team_config where team_id = ?"
 
-setLegalHoldEnabled :: PrepQuery W (Bool, TeamId) ()
-setLegalHoldEnabled =
-  "update legalhold_team_config set enabled = ? where team_id = ?"
+setLegalHoldTeamConfig :: PrepQuery W (Bool, TeamId) ()
+setLegalHoldTeamConfig =
+  "update legalhold_team_config set status = ? where team_id = ?"
 
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) ()
 insertLegalHoldSettings =

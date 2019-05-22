@@ -9,20 +9,35 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc
+import qualified Data.Text as T
+
+data LegalHoldStatus = LegalHoldEnabled | LegalHoldDisabled
+   deriving (Eq, Show, Ord, Enum, Bounded)
+
+instance ToJSON LegalHoldStatus where
+    toJSON LegalHoldEnabled = "enabled"
+    toJSON LegalHoldDisabled = "disabled"
+
+instance FromJSON LegalHoldStatus where
+    parseJSON = withText "LegalHoldStatus" $ \case
+      "enabled" -> pure LegalHoldEnabled
+      "disabled" -> pure LegalHoldDisabled
+      x -> fail $ "unexpected status type: " <> T.unpack x
+
 
 data LegalHoldTeamConfig = LegalHoldTeamConfig
-    { legalHoldTeamConfigEnabled :: !Bool
+    { legalHoldTeamConfigStatus :: !LegalHoldStatus
     }
   deriving (Eq, Show)
 
 instance ToJSON LegalHoldTeamConfig where
     toJSON s = object
-        $ "enabled" .= legalHoldTeamConfigEnabled s
+        $ "status" .= legalHoldTeamConfigStatus s
         # []
 
 instance FromJSON LegalHoldTeamConfig where
     parseJSON = withObject "LegalHoldTeamConfig" $ \o ->
-        LegalHoldTeamConfig <$> o .: "enabled"
+        LegalHoldTeamConfig <$> o .: "status"
 
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService

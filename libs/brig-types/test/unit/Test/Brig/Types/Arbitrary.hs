@@ -438,6 +438,9 @@ alphaNumChars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound..]
 
+instance Arbitrary LegalHoldStatus where
+    arbitrary = genEnumBounded
+
 instance Arbitrary LegalHoldTeamConfig where
     arbitrary = LegalHoldTeamConfig <$> arbitrary
 
