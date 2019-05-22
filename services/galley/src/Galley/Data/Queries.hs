@@ -12,6 +12,7 @@ import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Text.RawString.QQ
 
 import qualified Data.Text.Lazy as LT
 
@@ -224,13 +225,32 @@ insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
 
 -- LegalHold ----------------------------------------------------------------
-insertLegalHoldSettings :: PrepQuery W (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken) ()
-insertLegalHoldSettings =
-  "insert into legalhold_service (team_id, base_url, fingerprint, auth_token) values (?, ?, ?, ?)"
 
-selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken)
+getLegalHoldEnabled :: PrepQuery R (Identity TeamId) (Identity Bool)
+getLegalHoldEnabled =
+  "select enabled from legalhold_team_config where team_id = ?"
+
+setLegalHoldEnabled :: PrepQuery W (Bool, TeamId) ()
+setLegalHoldEnabled =
+  "update legalhold_team_config set enabled = ? where team_id = ?"
+
+insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) ()
+insertLegalHoldSettings =
+  [r|
+    update legalhold_service
+    set base_url    = ?,
+        fingerprint = ?,
+        auth_token  = ?
+    where team_id = ?
+  |]
+
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken)
 selectLegalHoldSettings =
-   "select team_id, base_url, fingerprint, auth_token from legalhold_service where team_id = ?"
+   [r|
+   select base_url, fingerprint, auth_token
+     from legalhold_service
+     where team_id = ?
+   |]
 
 removeLegalHoldSettings :: PrepQuery W (Identity TeamId) ()
 removeLegalHoldSettings = "delete from legalhold_service where team_id = ?"

@@ -10,6 +10,20 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc
 
+data LegalHoldTeamConfig = LegalHoldTeamConfig
+    { legalHoldTeamConfigEnabled :: !Bool
+    }
+  deriving (Eq, Show)
+
+instance ToJSON LegalHoldTeamConfig where
+    toJSON s = object
+        $ "enabled" .= legalHoldTeamConfigEnabled s
+        # []
+
+instance FromJSON LegalHoldTeamConfig where
+    parseJSON = withObject "LegalHoldTeamConfig" $ \o ->
+        LegalHoldTeamConfig <$> o .: "enabled"
+
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService
     { newLegalHoldServiceUrl     :: !HttpsUrl

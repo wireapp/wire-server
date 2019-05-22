@@ -13,6 +13,7 @@ dependencies:
 - extended
 - safe >=0.3
 - ssl-util
+- raw-strings-qq >=1.0
 library:
   source-dirs: src
   dependencies:
@@ -218,7 +219,6 @@ executables:
     - base
     - cassandra-util
     - optparse-applicative
-    - raw-strings-qq >=1.0
     - text
     - tinylog
     when:

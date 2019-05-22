@@ -122,3 +122,6 @@ legalHoldNotRegistered :: Error
 legalHoldNotRegistered = Error status412 "legalhold-not-registered" "no legal hold service is configured for this team"
     -- legal hold can be enabled for this team or not.  this message just states that settings
     -- have not been posted.
+
+legalHoldNotEnabled :: Error
+legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
