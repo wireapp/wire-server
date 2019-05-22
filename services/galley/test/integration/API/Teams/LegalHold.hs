@@ -337,10 +337,9 @@ testRemoveLegalHoldFromTeam = do
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
-    pure ()
-
-    -- TODO: ...
-
+    (_, tid) <- createTeam
+    LegalHoldTeamConfig isEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    liftIO $ assertBool "Teams should start with LegalGold disabled" isEnabled
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
@@ -381,6 +380,19 @@ createTeam = do
     teamid <- Util.createTeamInternal tname ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
+
+getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
+getEnabled tid = do
+    g <- view tsGalley
+    get $ g
+         . paths ["i", "teams", toByteString' tid, "legalhold"]
+
+-- putEnabled :: HasCallStack => TeamId -> Bool -> TestM ResponseLBS
+-- putEnabled tid enabled = do
+--     g <- view tsGalley
+--     put $ g
+--          . paths ["i", "teams", toByteString' tid, "legalhold"]
+--          . json (LegalHoldTeamConfig enabled)
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings uid tid new = do

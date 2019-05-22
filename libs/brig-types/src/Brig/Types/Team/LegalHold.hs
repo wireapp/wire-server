@@ -10,19 +10,19 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc
 
-data LegalHoldEnabled = LegalHoldEnabled
-    { legalHoldEnabled :: !Bool
+data LegalHoldTeamConfig = LegalHoldTeamConfig
+    { legalHoldTeamConfigEnabled :: !Bool
     }
   deriving (Eq, Show)
 
-instance ToJSON LegalHoldEnabled where
+instance ToJSON LegalHoldTeamConfig where
     toJSON s = object
-        $ "legal_hold_enabled" .= legalHoldEnabled s
+        $ "enabled" .= legalHoldTeamConfigEnabled s
         # []
 
-instance FromJSON LegalHoldEnabled where
-    parseJSON = withObject "NewLegalHoldService" $ \o -> 
-        LegalHoldEnabled <$> o .: "legal_hold_enabled"
+instance FromJSON LegalHoldTeamConfig where
+    parseJSON = withObject "LegalHoldTeamConfig" $ \o ->
+        LegalHoldTeamConfig <$> o .: "enabled"
 
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService

@@ -37,14 +37,14 @@ import qualified Ssl.Util                     as SSL
 -- | Enable or disable legal hold for a team.
 getEnabled :: TeamId ::: JSON -> Galley Response
 getEnabled (tid ::: _) = do
-    legalHoldEnabled <- LegalHoldData.getEnabled tid
-    pure . json $ LegalHoldEnabled legalHoldEnabled
+    legalHoldTeamConfigEnabled <- LegalHoldData.getEnabled tid
+    pure . json $ LegalHoldTeamConfig legalHoldTeamConfigEnabled
 
 -- | Enable or disable legal hold for a team.
-setEnabled :: TeamId ::: JsonRequest LegalHoldEnabled ::: JSON -> Galley Response
+setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setEnabled (tid ::: req ::: _) = do
-    LegalHoldEnabled { legalHoldEnabled } <- fromJsonBody req
-    LegalHoldData.setEnabled tid legalHoldEnabled
+    LegalHoldTeamConfig { legalHoldTeamConfigEnabled } <- fromJsonBody req
+    LegalHoldData.setEnabled tid legalHoldTeamConfigEnabled
     -- TODO: How do we remove all devices from all users?
     -- Do we also delete the settings from the table?
     pure $ responseLBS status204 [] mempty
