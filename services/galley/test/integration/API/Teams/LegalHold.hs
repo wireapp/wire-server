@@ -203,13 +203,16 @@ testCreateLegalHoldTeamSettings = do
 
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    -- TODO: not allowed if team has feature bit not set
-
     -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
 
+    -- not allowed to create if team setting is disabled
+    postSettings owner tid newService !!! const 403 === statusCode
+    putEnabled tid True !!! const 204 === statusCode -- enable it for this team
+
     -- rejected if service is not available
     postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
+
 
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
@@ -275,6 +278,10 @@ testGetLegalHoldTeamSettings = do
         -- returns 403 if user is not in team.
         getSettings stranger tid !!! const 403 === statusCode
 
+        -- returns 403 if legalhold disabled for team
+        getSettings owner tid !!! const 403 === statusCode
+        putEnabled tid True !!! const 204 === statusCode -- enable for team
+
         -- returns 412 if team is not under legal hold
         getSettings owner tid !!! const 412 === statusCode
         getSettings member tid !!! const 412 === statusCode
@@ -338,8 +345,16 @@ testRemoveLegalHoldFromTeam = do
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
     (_, tid) <- createTeam
-    LegalHoldTeamConfig isEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
-    liftIO $ assertBool "Teams should start with LegalGold disabled" isEnabled
+    LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    liftIO $ assertBool "Teams should start with LegalHold disabled" (not isInitiallyEnabled)
+
+    putEnabled tid True !!! const 204 === statusCode
+    LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    liftIO $ assertBool "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter
+
+    putEnabled tid False !!! const 204 === statusCode
+    LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    liftIO $ assertBool "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
@@ -387,12 +402,12 @@ getEnabled tid = do
     get $ g
          . paths ["i", "teams", toByteString' tid, "legalhold"]
 
--- putEnabled :: HasCallStack => TeamId -> Bool -> TestM ResponseLBS
--- putEnabled tid enabled = do
---     g <- view tsGalley
---     put $ g
---          . paths ["i", "teams", toByteString' tid, "legalhold"]
---          . json (LegalHoldTeamConfig enabled)
+putEnabled :: HasCallStack => TeamId -> Bool -> TestM ResponseLBS
+putEnabled tid enabled = do
+    g <- view tsGalley
+    put $ g
+         . paths ["i", "teams", toByteString' tid, "legalhold"]
+         . json (LegalHoldTeamConfig enabled)
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings uid tid new = do

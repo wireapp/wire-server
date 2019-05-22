@@ -37,7 +37,12 @@ import qualified Data.Code                as Code
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests"
-    [ mainTests, Teams.tests s, Teams.LegalHold.tests s, MessageTimer.tests s ]
+    [
+      Teams.LegalHold.tests s
+      , mainTests
+      , Teams.tests s
+      , MessageTimer.tests s
+    ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status

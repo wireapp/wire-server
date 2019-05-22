@@ -234,24 +234,23 @@ setLegalHoldEnabled :: PrepQuery W (Bool, TeamId) ()
 setLegalHoldEnabled =
   "update legalhold_service set enabled = ? where team_id = ?"
 
-insertLegalHoldSettings :: PrepQuery W (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken) Row
+insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) Row
 insertLegalHoldSettings =
   [r|
     update legalhold_service
-    set base_url    = ?
-        fingerprint = ?
+    set base_url    = ?,
+        fingerprint = ?,
         auth_token  = ?
     where team_id = ?
     if enabled = true
   |]
 
-selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (TeamId, HttpsUrl, Fingerprint Rsa, ServiceToken)
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (Maybe HttpsUrl, Maybe (Fingerprint Rsa), Maybe ServiceToken, Bool)
 selectLegalHoldSettings =
    [r|
-   select team_id, base_url, fingerprint, auth_token
+   select base_url, fingerprint, auth_token, enabled
      from legalhold_service
      where team_id = ?
-   if enabled = true
    |]
 
 removeLegalHoldSettings :: PrepQuery W (Identity TeamId) ()

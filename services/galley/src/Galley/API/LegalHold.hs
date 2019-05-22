@@ -53,6 +53,7 @@ createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON
 createSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    unlessM (LegalHoldData.getEnabled tid) $ throwM legalHoldNotEnabled
 
     newService :: NewLegalHoldService
         <- fromJsonBody req
@@ -74,8 +75,9 @@ getSettings (zusr ::: tid ::: _) = do
 
     mresult <- LegalHoldData.getSettings tid
     case mresult of
-        Nothing -> throwM legalHoldNotRegistered
-        Just result -> pure $ json result
+        Left LegalHoldData.LegalHoldServiceNotRegistered -> throwM legalHoldNotRegistered
+        Left LegalHoldData.LegalHoldDisabledForTeam      -> throwM legalHoldNotEnabled
+        Right result -> pure $ json result
 
 removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do
