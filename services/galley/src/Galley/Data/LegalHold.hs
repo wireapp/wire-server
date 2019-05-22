@@ -16,8 +16,11 @@ import Galley.Data.Instances ()
 import Brig.Types.Team.LegalHold
 
 -- | Return whether a given team is allowed to enable/disable legalhold
+-- TODO: Currently defaults to ENABLED if no record is found;
+-- This is ONLY for quick iteration during development and should be 
+-- switched to False before release
 getEnabled :: MonadClient m => TeamId -> m Bool
-getEnabled tid = maybe False runIdentity <$> do
+getEnabled tid = maybe True runIdentity <$> do
     retry x1 $ query1 getLegalHoldEnabled (params Quorum (Identity tid))
 
 -- | Determines whether a given team is allowed to enable/disable legalhold
