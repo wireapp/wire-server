@@ -37,8 +37,8 @@ import qualified Data.Code                as Code
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests"
-    [ mainTests
-    , Teams.LegalHold.tests s
+    [ Teams.LegalHold.tests s
+    , mainTests
     , Teams.tests s
     , MessageTimer.tests s
     ]
