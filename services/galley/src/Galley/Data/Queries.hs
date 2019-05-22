@@ -231,8 +231,8 @@ selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldSt
 selectLegalHoldTeamConfig =
   "select status from legalhold_team_config where team_id = ?"
 
-setLegalHoldTeamConfig :: PrepQuery W (Bool, TeamId) ()
-setLegalHoldTeamConfig =
+updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
+updateLegalHoldTeamConfig =
   "update legalhold_team_config set status = ? where team_id = ?"
 
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) ()

@@ -11,7 +11,7 @@ import Data.Json.Util
 import Data.Misc
 import qualified Data.Text as T
 
-data LegalHoldStatus = LegalHoldEnabled | LegalHoldDisabled
+data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
    deriving (Eq, Show, Ord, Enum, Bounded)
 
 instance ToJSON LegalHoldStatus where

@@ -43,11 +43,11 @@ type GalleyRoutes
           :> Get '[JSON] ViewLegalHoldService
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
           :> Verb 'DELETE 204 '[] NoContent
-  :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-          :> Verb 'GET 200 '[] LegalHoldTeamConfig
-  :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-          :> ReqBody '[JSON] LegalHoldTeamConfig
-          :> Verb 'PUT 200 '[] NoContent
+  -- :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+  --         :> Verb 'GET 200 '[] LegalHoldTeamConfig
+  -- :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+  --         :> ReqBody '[JSON] LegalHoldTeamConfig
+  --         :> Verb 'PUT 200 '[] NoContent
 
 
 instance ToParamSchema (Id a) where

@@ -1,6 +1,6 @@
 module Galley.Data.LegalHold
-    ( setEnabled
-    , getEnabled
+    ( setLegalHoldTeamConfig
+    , getLegalHoldTeamConfig
     , createSettings
     , getSettings
     , removeSettings
@@ -11,6 +11,7 @@ import Cassandra
 import Data.Id
 import Galley.Data.Queries
 import Galley.Data.Instances ()
+import Brig.Types.Instances ()
 
 import Brig.Types.Team.LegalHold
 
@@ -24,7 +25,7 @@ getLegalHoldTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
 -- | Determines whether a given team is allowed to enable/disable legalhold
 setLegalHoldTeamConfig :: MonadClient m => TeamId -> LegalHoldTeamConfig -> m ()
 setLegalHoldTeamConfig tid LegalHoldTeamConfig{legalHoldTeamConfigStatus} = do
-    retry x5 $ write setLegalHoldEnabled (params Quorum (legalHoldTeamConfigStatus, tid))
+    retry x5 $ write updateLegalHoldTeamConfig (params Quorum (legalHoldTeamConfigStatus, tid))
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team
