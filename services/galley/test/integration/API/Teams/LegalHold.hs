@@ -105,7 +105,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
     , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
     , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
-    , test s "GET, PUT /i/teams/{tid}/legalhold?enabled={true,false}" testEnablePerTeam
+    , test s "GET, PUT /i/teams/{tid}/legalhold" testEnablePerTeam
 
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
@@ -315,6 +315,7 @@ testRemoveLegalHoldFromTeam = do
 
     withTestService lhapp $ \_ -> do
         newService <- newLegalHoldService
+        putEnabled tid True !!! const 204 === statusCode -- enable for team
         postSettings owner tid newService !!! const 201 === statusCode
 
         -- TODO: not allowed if feature is disabled globally in galley config yaml
@@ -354,7 +355,9 @@ testEnablePerTeam = do
 
     putEnabled tid False !!! const 204 === statusCode
     LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
-    liftIO $ assertBool "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset
+    liftIO $ assertBool "Calling 'putEnabled False' should disable LegalHold" (not isEnabledAfterUnset)
+    -- TODO: Check that disabling legalhold for a team removes the LH device from all team
+    -- members
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
@@ -494,5 +497,5 @@ withTestService mkApp go = do
 
 
 -- TODO: adding two new legal hold settings on one team is not possible (409)
--- TODO: deleting lh settings deletes all lh devices
+-- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.

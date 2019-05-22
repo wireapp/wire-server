@@ -228,13 +228,13 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 getLegalHoldEnabled :: PrepQuery R (Identity TeamId) (Identity Bool)
 getLegalHoldEnabled =
-  "select enabled from legalhold_service where team_id = ?"
+  "select enabled from legalhold_team_config where team_id = ?"
 
 setLegalHoldEnabled :: PrepQuery W (Bool, TeamId) ()
 setLegalHoldEnabled =
-  "update legalhold_service set enabled = ? where team_id = ?"
+  "update legalhold_team_config set enabled = ? where team_id = ?"
 
-insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) Row
+insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) ()
 insertLegalHoldSettings =
   [r|
     update legalhold_service
@@ -242,13 +242,12 @@ insertLegalHoldSettings =
         fingerprint = ?,
         auth_token  = ?
     where team_id = ?
-    if enabled = true
   |]
 
-selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (Maybe HttpsUrl, Maybe (Fingerprint Rsa), Maybe ServiceToken, Bool)
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken)
 selectLegalHoldSettings =
    [r|
-   select base_url, fingerprint, auth_token, enabled
+   select base_url, fingerprint, auth_token
      from legalhold_service
      where team_id = ?
    |]

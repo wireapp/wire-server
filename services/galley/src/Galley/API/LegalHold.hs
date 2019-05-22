@@ -34,6 +34,10 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
+assertLegalHoldEnabled :: TeamId -> Galley ()
+assertLegalHoldEnabled tid = do
+    unlessM (LegalHoldData.getEnabled tid) $ throwM legalHoldNotEnabled
+
 -- | Enable or disable legal hold for a team.
 getEnabled :: TeamId ::: JSON -> Galley Response
 getEnabled (tid ::: _) = do
@@ -53,7 +57,7 @@ createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON
 createSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
-    unlessM (LegalHoldData.getEnabled tid) $ throwM legalHoldNotEnabled
+    assertLegalHoldEnabled tid
 
     newService :: NewLegalHoldService
         <- fromJsonBody req
@@ -63,21 +67,19 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
     let service = legalHoldService tid fpr newService
-    lhEnabled <- LegalHoldData.createSettings service
-    when (not lhEnabled) $ throwM legalHoldNotEnabled
-
+    LegalHoldData.createSettings service
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
+    assertLegalHoldEnabled tid
 
     mresult <- LegalHoldData.getSettings tid
     case mresult of
-        Left LegalHoldData.LegalHoldServiceNotRegistered -> throwM legalHoldNotRegistered
-        Left LegalHoldData.LegalHoldDisabledForTeam      -> throwM legalHoldNotEnabled
-        Right result -> pure $ json result
+        Nothing -> throwM legalHoldNotRegistered
+        Just result -> pure $ json result
 
 removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do

@@ -1,17 +1,15 @@
-module V31 (migration) where
+module V32 (migration) where
 
 import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 31 "Add legalhold service table" $ do
+migration = Migration 32 "Add legalhold team configuration table" $ do
     schema' [r|
-        CREATE TABLE legalhold_service (
+        CREATE TABLE legalhold_team_config (
             team_id      uuid,
-            base_url     blob,
-            fingerprint  blob,
-            auth_token   ascii,
+            enabled      boolean,
             PRIMARY KEY (team_id)
         ) WITH compaction = {'class': 'LeveledCompactionStrategy'}
           AND gc_grace_seconds = 864000;
