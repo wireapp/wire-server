@@ -214,6 +214,11 @@ testCreateLegalHoldTeamSettings = do
     postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
 
+    -- TODO: what about posting when disabled?  should that be an error?  (it's a race condition.)
+
+
+
+
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application

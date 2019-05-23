@@ -68,25 +68,42 @@ instance FromJSON LegalHoldService where
                    <*> o .: "fingerprint"
                    <*> o .: "auth_token"
 
-data ViewLegalHoldService = ViewLegalHoldService
-    { viewLegalHoldServiceTeam        :: !TeamId
-    , viewLegalHoldServiceUrl         :: !HttpsUrl
-    , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
-    }
+data ViewLegalHoldService
+    = ViewLegalHoldService
+        { viewLegalHoldServiceTeam        :: !TeamId
+        , viewLegalHoldServiceUrl         :: !HttpsUrl
+        , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
+        }
+    | ViewLegalHoldServiceNotConfigured
+    | ViewLegalHoldServiceDisabled
   deriving (Eq, Show)
 
 instance ToJSON ViewLegalHoldService where
-    toJSON s = object
-        $ "team_id"     .= viewLegalHoldServiceTeam s
-        # "base_url"    .= viewLegalHoldServiceUrl s
-        # "fingerprint" .= viewLegalHoldServiceFingerprint s
-        # []
+    toJSON s = case s of
+        ViewLegalHoldService {} -> object
+            $ "status"      .= String "configured"
+            # "team_id"     .= viewLegalHoldServiceTeam s
+            # "base_url"    .= viewLegalHoldServiceUrl s
+            # "fingerprint" .= viewLegalHoldServiceFingerprint s
+            # []
+        ViewLegalHoldServiceNotConfigured -> object
+            $ "status"      .= String "not_configured"
+            # []
+        ViewLegalHoldServiceDisabled -> object
+            $ "status"      .= String "disabled"
+            # []
 
 instance FromJSON ViewLegalHoldService where
-    parseJSON = withObject "LegalHoldService" $ \o -> ViewLegalHoldService
-                   <$> o .: "team_id"
-                   <*> o .: "base_url"
-                   <*> o .: "fingerprint"
+    parseJSON = withObject "LegalHoldService" $ \o -> do
+        status :: Text <- o .: "team_id"
+        case status of
+            "configured" -> ViewLegalHoldService
+                <$> o .: "team_id"
+                <*> o .: "base_url"
+                <*> o .: "fingerprint"
+            "not_configured" -> pure ViewLegalHoldServiceNotConfigured
+            "disabled" -> pure ViewLegalHoldServiceDisabled
+            _ -> fail "status (one of configured, not_configured, disabled)"
 
 
 legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> LegalHoldService
