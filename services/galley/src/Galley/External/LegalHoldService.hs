@@ -123,3 +123,5 @@ requestNewDevice tid uid = do
     reqParams =
         Bilge.paths ["initiate"]
       . Bilge.json (InitiateRequest uid tid)
+      . Bilge.method POST
+      . Bilge.expect2xx

@@ -3,36 +3,23 @@ module Galley.API.LegalHold where
 import Imports
 import Data.Aeson (encode)
 import Galley.API.Error
-import Bilge.Retry
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
-import Control.Exception.Enclosed (handleAny)
-import Control.Lens
 import Control.Monad.Catch
-import Control.Retry
-import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
+import qualified Galley.External.LegalHoldService as LHService
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities as Wai
-import Ssl.Util
 
-import qualified Bilge
-import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
-import qualified Network.HTTP.Client          as Http
-import qualified OpenSSL.EVP.Digest           as SSL
-import qualified OpenSSL.EVP.PKey             as SSL
-import qualified OpenSSL.PEM                  as SSL
-import qualified OpenSSL.RSA                  as SSL
-import qualified Ssl.Util                     as SSL
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = do
@@ -72,9 +59,9 @@ createSettings (zusr ::: tid ::: req ::: _) = do
         <- fromJsonBody req
 
     (_key :: ServiceKey, fpr :: Fingerprint Rsa)
-        <- validateServiceKey (newLegalHoldServiceKey newService)
+        <- LHService.validateServiceKey (newLegalHoldServiceKey newService)
                >>= maybe (throwM legalHoldServiceInvalidKey) pure
-    checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
+    LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
     let service = legalHoldService tid fpr newService
     LegalHoldData.createSettings service
@@ -106,11 +93,6 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
+    lhDevice <- LHService.requestNewDevice tid uid
 
-    mresult <- LegalHoldData.getSettings tid
-    legalHoldService <- case mresult of
-        Nothing -> throwM legalHoldNotRegistered
-        Just lhs -> pure lhs
-    undefined
-
-
+    pure $ responseLBS status200 [] mempty
