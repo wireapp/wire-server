@@ -2,7 +2,7 @@ module Galley.Data.Queries where
 
 import Imports
 import Brig.Types.Code
-import Brig.Types.Team.LegalHold (LegalHoldStatus)
+import Brig.Types.Team.LegalHold (LegalHoldStatus, UserLegalHoldStatus)
 import Brig.Types.Client.Prekey
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)

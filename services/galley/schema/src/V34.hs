@@ -1,11 +1,11 @@
-module V33 (migration) where
+module V34 (migration) where
 
 import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 33 "Add LegalHold user status table" $ do
+migration = Migration 34 "Add LegalHold user status table" $ do
     schema' [r|
         CREATE TABLE legalhold_user_status (
                 user      uuid,

@@ -61,7 +61,7 @@ selectPendingPrekeys uid =
   where
     fromTuple (keyId, key) = Prekey keyId key
 
-getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatus
-getUserLegalHoldStatus uid = fmap fromTuple <$> retry x1 (query1 Q.selectUserLegalHoldStatus)
+getUserLegalHoldStatus :: MonadClient m => UserId -> m (Maybe UserLegalHoldStatus)
+getUserLegalHoldStatus uid = fmap fromTuple <$> retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (Identity uid)))
   where
     fromTuple = undefined
