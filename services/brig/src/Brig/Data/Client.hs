@@ -24,6 +24,7 @@ import Brig.App (AppIO, currentTime, awsEnv)
 import Brig.AWS
 import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
+import Brig.Types.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)

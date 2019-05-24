@@ -22,7 +22,7 @@ import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Galley.API.LegalHold (validateServiceKey)
+import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.Types.Teams
 import Network.HTTP.Types.Status (status200, status404)
@@ -105,7 +105,14 @@ testSwaggerJsonConsistency = ignore $ do
 
 testCreateLegalHoldDevice :: TestM ()
 testCreateLegalHoldDevice = ignore $ do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    putEnabled tid LegalHoldEnabled !!! const 204 === statusCode -- enable it for this team
+    requestDevice member member tid !!! const 403 === statusCode
+    requestDevice owner member tid !!! const 200 === statusCode
+    userStatus :: Int <- jsonBody <$> getUserStatus member tid <!! const 200 === statusCode
+    liftIO $ assertEqual "" userStatus undefined
 
     -- team admin, owner can do it.  (implemented via new internal permission bit.)
     -- member can't do it.
@@ -420,6 +427,14 @@ deleteSettings uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
+getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getUserStatus uid tid = do
+    g <- view tsGalley
+    get $ g
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+           . zUser uid . zConn "conn"
+           . zType "access"
+
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
     clients :: [Client]
@@ -441,17 +456,16 @@ jsonBody = either (error . show) id . Aeson.eitherDecode . fromJust . responseBo
 --     }
 --   deriving (Eq, Show, Generic)
 
-postDevice :: HasCallStack => UserId -> TeamId -> UserId -> NewLegalHoldDevice -> TestM ResponseLBS
-postDevice poster tid uid devSettings = do
-    g <- view tsGalley
-    post
-        $ g
-        . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
-        . zUser poster . zConn "conn"
-        . zType "access"
-
 getDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
 getDevice = undefined
+
+requestDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+requestDevice zusr uid tid = do
+    g <- view tsGalley
+    post $ g
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+           . zUser zusr . zConn "conn"
+           . zType "access"
 
 deleteDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
 deleteDevice = undefined

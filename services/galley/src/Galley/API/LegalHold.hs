@@ -5,6 +5,7 @@ import Data.Aeson (encode)
 import Galley.API.Error
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
+import Brig.Types.Client.Prekey
 import Control.Monad.Catch
 import Data.Id
 import Data.Misc
@@ -86,6 +87,15 @@ removeSettings (zusr ::: tid ::: _) = do
     LegalHoldData.removeSettings tid
     pure $ responseLBS status204 [] mempty
 
+-- | Request to provision a device on the legal hold service for a user
+getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
+getUserStatus (zusr ::: tid ::: uid ::: _) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
+    assertLegalHoldEnabled tid
+
+    lhStatus <- LegalHoldData.getUserLegalHoldStatus uid
+    pure $ json lhStatus
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -93,12 +103,15 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
+
     lhDevice <- LHService.requestNewDevice tid uid
     let NewLegalHoldClient
           { newLegalHoldClientPrekeys = prekeys
           , newLegalHoldClientLastKey = lastKey
           } = lhDevice
 
-    -- TODO: What do we  last key??
-    LegalHoldData.insertPendingPrekeys uid prekeys
+    -- TODO: Do we distinguish the last key somehow?
+    LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastKey : prekeys)
+
+    -- informClientsAboutPendingLH
     pure $ responseLBS status200 [] mempty

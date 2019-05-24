@@ -145,3 +145,19 @@ instance ToJSON InitiateRequest where
         # "teamId"    .= teamId
         # []
 
+data UserLegalHoldStatus
+    = UserLegalHoldEnabled
+    | UserLegalHoldPending
+    | UserLegalHoldDisabled
+
+instance ToJSON UserLegalHoldStatus where
+    toJSON UserLegalHoldEnabled = "enabled"
+    toJSON UserLegalHoldPending = "pending"
+    toJSON UserLegalHoldDisabled = "disabled"
+
+instance FromJSON UserLegalHoldStatus where
+    parseJSON = withText "LegalHoldStatus" $ \case
+      "enabled" -> pure UserLegalHoldEnabled
+      "pending" -> pure UserLegalHoldPending
+      "disabled" -> pure UserLegalHoldDisabled
+      x -> fail $ "unexpected status type: " <> T.unpack x

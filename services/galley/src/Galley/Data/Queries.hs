@@ -266,3 +266,8 @@ selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
 selectPendingPrekeys = [r|
         select key, data from prekeys where user = ?
     |]
+
+selectUserLegalHoldStatus :: PrepQuery R (Identity UserId) (Identity UserLegalHoldStatus)
+selectUserLegalHoldStatus = [r|
+        select status from legalhold_user_status where user = ?
+    |]

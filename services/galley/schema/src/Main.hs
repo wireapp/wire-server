@@ -20,6 +20,8 @@ import qualified V29
 import qualified V30
 import qualified V31
 import qualified V32
+import qualified V33
+import qualified V34
 
 main :: IO ()
 main = do
@@ -40,6 +42,7 @@ main = do
         , V31.migration
         , V32.migration
         , V33.migration
+        , V34.migration
         -- When adding migrations here, don't forget to update
         -- 'schemaVersion' in Galley.Data
         ]
