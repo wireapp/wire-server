@@ -2,11 +2,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Brig.Types.Instances () where
 
+#ifdef WITH_CQL
 import Imports
 import Brig.Types.Team.LegalHold
 import Cassandra.CQL
 
-#ifdef WITH_CQL
 instance Cql LegalHoldStatus where
     ctype = Tagged IntColumn
 

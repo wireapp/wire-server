@@ -56,4 +56,7 @@ flags:
   galley-types:
     cql: True
 
+  brig-types:
+    cql: True
+
 allow-newer: False

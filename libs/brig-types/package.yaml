@@ -84,5 +84,5 @@ tests:
 flags:
   cql:
     description: Enable cql instances
-    manual: true
-    default: true
+    manual: false
+    default: false
