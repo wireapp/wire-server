@@ -70,6 +70,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     newService :: NewLegalHoldService
         <- fromJsonBody req
+
     (_key :: ServiceKey, fpr :: Fingerprint Rsa)
         <- validateServiceKey (newLegalHoldServiceKey newService)
                >>= maybe (throwM legalHoldServiceInvalidKey) pure

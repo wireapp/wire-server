@@ -5,6 +5,7 @@ module Brig.Types.Team.LegalHold where
 
 import Imports
 import Brig.Types.Provider
+import Brig.Types.Client.Prekey
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
@@ -109,3 +110,37 @@ legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fp
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr _) = ViewLegalHoldService tid u fpr
+
+data NewLegalHoldClient = NewLegalHoldClient
+    { newLegalHoldClientPrekeys  :: [Prekey]
+    , newLegalHoldClientLastKey  :: !LastPrekey
+    }
+    deriving stock (Eq, Show)
+
+instance ToJSON NewLegalHoldClient where
+    toJSON c = object
+        $ "prekeys"  .= newLegalHoldClientPrekeys c
+        -- TODO: Currently the LH Service uses 'last_prekey'; but internally we usually
+        -- use lastkey
+        -- TODO: Ask Dejan about the 'fingeprint' field of the 'initiate' response.
+        -- What is it for? Should we be using it for something?
+        # "lastkey"  .= newLegalHoldClientLastKey c
+        # []
+
+instance FromJSON NewLegalHoldClient where
+    parseJSON = withObject "NewLegalHoldClient" $ \o ->
+        NewLegalHoldClient <$> o .:  "prekeys"
+                           <*> o .:  "lastkey"
+
+-- Request to LH Service to initiate creation of a device
+data InitiateRequest = InitiateRequest
+    { userId :: !UserId
+    , teamId :: !TeamId
+    } deriving stock (Show, Eq)
+
+instance ToJSON InitiateRequest where
+    toJSON InitiateRequest{userId, teamId} = object
+        $ "userId"    .= userId
+        # "teamId"    .= teamId
+        # []
+

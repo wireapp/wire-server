@@ -432,6 +432,29 @@ exactlyOneLegalHoldDevice uid = do
 jsonBody :: Aeson.FromJSON v => ResponseLBS -> v
 jsonBody = either (error . show) id . Aeson.eitherDecode . fromJust . responseBody
 
+---------------------------------------------------------------------
+--- Device helpers
+
+-- data NewLegalHoldDevice = NewLegalHoldDevice
+--     { newLegalHoldDeviceTeam  :: TeamId
+--     , newLegalHoldDeviceUser  :: UserId
+--     }
+--   deriving (Eq, Show, Generic)
+
+postDevice :: HasCallStack => UserId -> TeamId -> UserId -> NewLegalHoldDevice -> TestM ResponseLBS
+postDevice poster tid uid devSettings = do
+    g <- view tsGalley
+    post
+        $ g
+        . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+        . zUser poster . zConn "conn"
+        . zType "access"
+
+getDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
+getDevice = undefined
+
+deleteDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
+deleteDevice = undefined
 
 --------------------------------------------------------------------
 -- setup helpers
@@ -479,7 +502,6 @@ withTestService mkApp go = do
 -- TODO: adding two new legal hold settings on one team is not possible (409)
 -- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.
-
 
 ----------------------------------------------------------------------
 -- this is copied verbatim from /libs/brig-types/test/unit/Test/Brig/Types/Arbitrary.hs
