@@ -105,7 +105,7 @@ instance ToSchema ViewLegalHoldService where
           , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
           ]
 
-        sample = ViewLegalHoldService (Id tid) lhuri fpr
+        sample = ViewLegalHoldService $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr
           where
             Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
             Right lhuri = mkHttpsUrl [uri|https://example.com/|]

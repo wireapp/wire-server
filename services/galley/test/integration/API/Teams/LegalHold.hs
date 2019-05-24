@@ -214,9 +214,10 @@ testCreateLegalHoldTeamSettings = do
             service <- getSettingsTyped owner tid
             liftIO $ do
                 Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
-                assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)
-                assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
-                assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
+                let ViewLegalHoldService info = service
+                assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam info)
+                assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl info)
+                assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint info)
             -- TODO: check cassandra as well?
 
     liftIO $ putStrLn "XXX check lhapp False False..."
@@ -270,12 +271,13 @@ testGetLegalHoldTeamSettings = do
 
         -- returns legal hold service info if team is under legal hold and user is in team (even
         -- no permissions).
-        resp <- getSettingsTyped member tid
+        service <- getSettingsTyped member tid
         liftIO $ do
             Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
-            assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam resp)
-            assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl resp)
-            assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint resp)
+            let ViewLegalHoldService info = service
+            assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam info)
+            assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl info)
+            assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint info)
 
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
 
@@ -495,7 +497,11 @@ instance Arbitrary LegalHoldService where
     arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ViewLegalHoldService where
-    arbitrary = ViewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = oneof
+        [ ViewLegalHoldService <$> (ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary)
+        , pure ViewLegalHoldServiceNotConfigured
+        , pure ViewLegalHoldServiceDisabled
+        ]
 
 instance Arbitrary HttpsUrl where
     arbitrary = pure $ HttpsUrl [uri|https://example.com|]
