@@ -1,4 +1,4 @@
-module V32 (migration) where
+module V33 (migration) where
 
 import Imports
 import Cassandra.Schema

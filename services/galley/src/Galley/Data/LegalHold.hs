@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Galley.Data.LegalHold
     ( setLegalHoldTeamConfig
     , getLegalHoldTeamConfig
@@ -54,11 +55,8 @@ insertPendingPrekeys uid keys = retry x5 . batch $
   where
     toTuple (Prekey keyId key) = (uid, keyId, key)
 
-
 selectPendingPrekeys :: MonadClient m => UserId -> m [Prekey]
 selectPendingPrekeys uid =
-    fmap fromTuple <$>
-      retry x1
-        (query Q.selectPendingPrekeys (params Quorum (Identity uid)))
+    fmap fromTuple <$> retry x1 (query Q.selectPendingPrekeys (params Quorum (Identity uid)))
   where
     fromTuple (keyId, key) = Prekey keyId key

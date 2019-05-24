@@ -94,5 +94,11 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
     lhDevice <- LHService.requestNewDevice tid uid
+    let NewLegalHoldClient
+          { newLegalHoldClientPrekeys = prekeys
+          , newLegalHoldClientLastKey = lastKey
+          } = lhDevice
 
+    -- TODO: What do we  last key??
+    LegalHoldData.insertPendingPrekeys uid prekeys
     pure $ responseLBS status200 [] mempty
