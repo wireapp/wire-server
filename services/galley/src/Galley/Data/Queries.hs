@@ -3,6 +3,7 @@ module Galley.Data.Queries where
 import Imports
 import Brig.Types.Code
 import Brig.Types.Team.LegalHold (LegalHoldStatus)
+import Brig.Types.Client.Prekey
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
@@ -255,3 +256,13 @@ selectLegalHoldSettings =
 
 removeLegalHoldSettings :: PrepQuery W (Identity TeamId) ()
 removeLegalHoldSettings = "delete from legalhold_service where team_id = ?"
+
+insertPendingPrekeys :: PrepQuery W (UserId, PrekeyId, Text) ()
+insertPendingPrekeys = [r|
+        insert into prekeys (user, key, data) values (?, ?, ?)
+    |]
+
+selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
+selectPendingPrekeys = [r|
+        select key, data from prekeys where user = ?
+    |]

@@ -111,6 +111,7 @@ legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fp
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr _) = ViewLegalHoldService tid u fpr
 
+-- TODO: Do we need a Client ID?
 data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]
     , newLegalHoldClientLastKey  :: !LastPrekey
