@@ -55,7 +55,7 @@ tests s = testGroup "Teams LegalHold API"
       -- device handling (CRUD)
     , test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
     , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
-    , test s "PUT /teams/{tid}/legalhold/{uid}/approve" testApproveLegalHoldDevice
+    , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
     , test s "DELETE /teams/{tid}/legalhold/{uid}" testRemoveLegalHoldDevice
@@ -151,6 +151,10 @@ testCreateTwoLegalHoldDevices = do
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
     pure ()
+
+    when False $ void $ approveLegalHoldDevice undefined undefined
+      -- just something silly to keep the name to suppress the `-Wunused-top-binds` noise and
+      -- to remind everybody it's already there.
 
     -- only user themself can do it
     -- fail if no legal hold service registered
@@ -444,6 +448,9 @@ deleteSettings uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
+getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
+getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getUserStatus uid tid = do
     g <- view tsGalley
@@ -452,8 +459,13 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
-getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+approveLegalHoldDevice :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice uid tid = do
+    g <- view tsGalley
+    put $ g
+           . paths ["teams", toByteString' tid, "legalhold", "approve"]
+           . zUser uid . zConn "conn"
+           . zType "access"
 
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
