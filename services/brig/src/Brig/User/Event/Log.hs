@@ -39,3 +39,6 @@ instance ToBytes PropertyEvent where
 instance ToBytes ClientEvent where
     bytes (ClientAdded u _)   = val "user.client-add: " +++ toByteString u
     bytes (ClientRemoved u _) = val "user.client-remove: " +++ toByteString u
+    bytes (LegalHoldClientRequested
+      (LegalHoldClientRequestedData requester _ _ _)) =
+          val "user.client-request-legal-hold: " +++ toByteString requester

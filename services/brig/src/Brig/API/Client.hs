@@ -146,3 +146,9 @@ pubClient c = PubClient
     { pubClientId    = clientId c
     , pubClientClass = clientClass c
     }
+
+legalHoldClientRequested :: UserId -> UserId -> LastPrekey -> [Prekey] -> AppIO ()
+legalHoldClientRequested origin uid lastPrekey prekeys = do
+    let eventData = LegalHoldClientRequestedData origin uid lastPrekey prekeys
+    let lhClientEvent = LegalHoldClientRequested eventData
+    Intra.onClientEvent uid Nothing lhClientEvent
