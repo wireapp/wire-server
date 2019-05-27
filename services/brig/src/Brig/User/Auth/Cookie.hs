@@ -47,14 +47,14 @@ import qualified Brig.ZAuth               as ZAuth
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
 
-newCookie
-    :: UserId
+newCookie :: ZAuth.UserTokenLike t
+    => UserId
     -> CookieType
     -> Maybe CookieLabel
-    -> AppIO (Cookie ZAuth.UserToken)
+    -> AppIO (Cookie t)
 newCookie u typ label = do
     now <- liftIO =<< view currentTime
-    tok <- if typ == PersistentCookie
+    (tok :: t) <- if typ == PersistentCookie
             then ZAuth.newUserToken u
             else ZAuth.newSessionToken u
     let c = Cookie
@@ -71,7 +71,7 @@ newCookie u typ label = do
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
-nextCookie :: Cookie ZAuth.UserToken -> AppIO (Maybe (Cookie ZAuth.UserToken))
+nextCookie :: ZAuth.UserTokenLike t => Cookie t -> AppIO (Maybe (Cookie t))
 nextCookie c = do
     s   <- view settings
     now <- liftIO =<< view currentTime
@@ -97,7 +97,7 @@ nextCookie c = do
                     return c' { cookieValue = t }
 
 -- | Renew the given cookie with a fresh token.
-renewCookie :: Cookie ZAuth.UserToken -> AppIO (Cookie ZAuth.UserToken)
+renewCookie :: ZAuth.UserTokenLike t => Cookie t -> AppIO (Cookie t)
 renewCookie old = do
     let t = cookieValue old
     let u = ZAuth.userTokenOf t

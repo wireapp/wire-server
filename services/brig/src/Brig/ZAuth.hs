@@ -34,13 +34,13 @@ module Brig.ZAuth
     , legalHoldAccessTokenTimeout
 
       -- * Token Creation
+    , Token
     , UserToken
     , AccessToken
     , ProviderToken
     , BotToken
     , LegalHoldUserToken
     , LegalHoldAccessToken
-    , Token
     , mkUserToken
     , newUserToken
     , newSessionToken
@@ -48,9 +48,15 @@ module Brig.ZAuth
     , newProviderToken
     , newBotToken
     , renewAccessToken
+
+      -- * TODO find a better name?
+    , UserTokenLike
+
+    -- TODO remove
     , newLegalHoldUserToken
     , newLegalHoldAccessToken
     , renewLegalHoldAccessToken
+
 
       -- * Token Validation
     , validateToken
@@ -191,22 +197,49 @@ mkEnv sk pk sets = do
     let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
     return $! Env zc zv sets
 
-mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
-mkUserToken u r t = liftZAuth $ do
+
+class UserTokenLike t where
+    -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
+    userTokenOf :: t -> UserId
+    mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m t
+    userTokenRand :: t -> Word32
+    newUserToken :: MonadZAuth m => UserId -> m t
+    newSessionToken :: MonadZAuth m => UserId -> m t
+    -- newAccessToken :: ()
+    -- renewAccessToken :: ()
+    -- accessTokenTimeout :: ()
+    -- accessTokenTimeoutSeconds :: ()
+
+instance UserTokenLike UserToken where
+    mkUserToken = mkUserToken'
+    userTokenOf = userTokenOf'
+    userTokenRand = userTokenRand'
+    newUserToken = newUserToken'
+    newSessionToken = newSessionToken'
+
+instance UserTokenLike LegalHoldUserToken where
+    mkUserToken = mkLegalHoldUserToken
+    userTokenOf = undefined
+    userTokenRand = undefined
+    newUserToken = undefined
+    newSessionToken = undefined
+
+mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
+mkUserToken' u r t = liftZAuth $ do
     z <- ask
     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
         ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) r)
 
-newUserToken :: MonadZAuth m => UserId -> m UserToken
-newUserToken u = liftZAuth $ do
+newUserToken' :: MonadZAuth m => UserId -> m UserToken
+newUserToken' u = liftZAuth $ do
     z <- ask
     r <- liftIO randomValue
     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
         let UserTokenTimeout ttl = z^.settings.userTokenTimeout
         in ZC.userToken ttl (toUUID u) r
 
-newSessionToken :: MonadZAuth m => UserId -> m UserToken
-newSessionToken u = liftZAuth $ do
+newSessionToken' :: MonadZAuth m => UserId -> m UserToken
+newSessionToken' u = liftZAuth $ do
     z <- ask
     r <- liftIO randomValue
     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
@@ -279,8 +312,8 @@ validateToken t = liftZAuth $ do
 accessTokenOf :: AccessToken -> UserId
 accessTokenOf t = Id (t^.body.userId)
 
-userTokenOf :: UserToken -> UserId
-userTokenOf t = Id (t^.body.user)
+userTokenOf' :: UserToken -> UserId
+userTokenOf' t = Id (t^.body.user)
 
 legalHoldAccessTokenOf :: LegalHoldAccessToken -> UserId
 legalHoldAccessTokenOf t = Id (t^.body.legalHoldAccess.userId)
@@ -288,8 +321,8 @@ legalHoldAccessTokenOf t = Id (t^.body.legalHoldAccess.userId)
 legalHoldUserTokenOf :: LegalHoldUserToken -> UserId
 legalHoldUserTokenOf t = Id (t^.body.legalHoldUser.user)
 
-userTokenRand :: UserToken -> Word32
-userTokenRand t = t^.body.rand
+userTokenRand' :: UserToken -> Word32
+userTokenRand' t = t^.body.rand
 
 tokenKeyIndex :: Token a -> Int
 tokenKeyIndex t = t^.header.key
