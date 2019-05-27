@@ -204,11 +204,17 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
-renew :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
+renew :: JSON ::: Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a) -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
 renew (_ ::: Just ut ::: at) = do
     a <- Auth.renewAccess ut at !>> zauthError
     tokenResponse a
+
+-- renewLegalHold :: JSON ::: Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken -> Handler Response
+-- renewLegalHold (_ ::: Nothing :::  _) = throwStd authMissingCookie
+-- renewLegalHold (_ ::: Just ut ::: at) = do
+--     a <- Auth.renewAccess ut at !>> zauthError
+--     tokenResponse a
 
 -- Utilities
 

@@ -2,6 +2,7 @@ module Brig.User.Auth.Cookie
     ( -- * Cookie Essentials
       newCookie
     , newAccessToken
+    , newLegalHoldAccessToken
     , nextCookie
     , renewCookie
     , lookupCookie
@@ -119,6 +120,16 @@ newAccessToken c mt = do
     return $ bearerToken (ZAuth.accessTokenOf t')
                          (toByteString t')
                          (ZAuth.accessTokenTimeoutSeconds ttl)
+
+newLegalHoldAccessToken :: Cookie ZAuth.LegalHoldUserToken -> Maybe ZAuth.LegalHoldAccessToken -> AppIO AccessToken
+newLegalHoldAccessToken c mt = do
+    t' <- case mt of
+       Nothing -> ZAuth.newLegalHoldAccessToken (cookieValue c)
+       Just  t -> ZAuth.renewLegalHoldAccessToken t
+    ttl <- view (zauthEnv.ZAuth.settings.ZAuth.legalHoldAccessTokenTimeout)
+    return $ bearerToken (ZAuth.legalHoldAccessTokenOf t')
+                         (toByteString t')
+                         (ZAuth.legalHoldAccessTokenTimeoutSeconds ttl)
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.

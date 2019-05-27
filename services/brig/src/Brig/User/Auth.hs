@@ -43,6 +43,11 @@ data Access = Access
     , accessCookie :: !(Maybe (Cookie ZAuth.UserToken))
     }
 
+data LegalHoldAccess = LegalHoldAccess
+    { legalHoldAccessToken  :: !AccessToken
+    , legalHoldAccessCookie :: !(Maybe (Cookie ZAuth.LegalHoldUserToken))
+    }
+
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
 sendLoginCode phone call force = do
     pk <- maybe (throwE $ SendLoginInvalidPhone phone)
@@ -98,6 +103,17 @@ renewAccess ut at = do
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
+
+-- TODO: less code duplication?
+renewAccessLegalHold
+    :: ZAuth.LegalHoldUserToken
+    -> Maybe ZAuth.LegalHoldAccessToken
+    -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
+renewAccessLegalHold ut at = do
+    (_, ck) <- legalHoldvalidateTokens ut at
+    ck' <- lift $ nextCookie ck
+    at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
+    return $ LegalHoldAccess at' ck'
 
 revokeAccess
     :: UserId
@@ -180,6 +196,21 @@ validateTokens ut at = do
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
+
+legalHoldvalidateTokens
+    :: ZAuth.LegalHoldUserToken
+    -> Maybe ZAuth.LegalHoldAccessToken
+    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie ZAuth.LegalHoldUserToken)
+legalHoldvalidateTokens ut at = do
+    unless (maybe True ((ZAuth.legalHoldUserTokenOf ut ==) . ZAuth.legalHoldAccessTokenOf) at) $
+        throwE ZAuth.Invalid
+    ExceptT (ZAuth.validateToken ut)
+    forM_ at $ \a ->
+        ExceptT (ZAuth.validateToken a)
+            `catchE` \e ->
+                unless (e == ZAuth.Expired) (throwE e)
+    ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
+    return (ZAuth.legalHoldUserTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access

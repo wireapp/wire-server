@@ -38,6 +38,9 @@ module Brig.ZAuth
     , AccessToken
     , ProviderToken
     , BotToken
+    , LegalHoldUserToken
+    , LegalHoldAccessToken
+    , Token
     , mkUserToken
     , newUserToken
     , newSessionToken
@@ -56,6 +59,8 @@ module Brig.ZAuth
       -- * Token Inspection
     , accessTokenOf
     , userTokenOf
+    , legalHoldAccessTokenOf
+    , legalHoldUserTokenOf
     , userTokenRand
     , tokenExpires
     , tokenExpiresUTC
@@ -250,12 +255,12 @@ newLegalHoldUserToken u = liftZAuth $ do
         let LegalHoldUserTokenTimeout ttl = z^.settings.legalHoldUserTokenTimeout
         in ZC.legalHoldUserToken ttl (toUUID u) r
 
-newLegalHoldAccessToken :: MonadZAuth m => UserToken -> m LegalHoldAccessToken
+newLegalHoldAccessToken :: MonadZAuth m => LegalHoldUserToken -> m LegalHoldAccessToken
 newLegalHoldAccessToken xt = liftZAuth $ do
     z <- ask
     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
         let LegalHoldAccessTokenTimeout ttl = z^.settings.legalHoldAccessTokenTimeout
-        in ZC.legalHoldAccessToken1 ttl (xt^.body.user)
+        in ZC.legalHoldAccessToken1 ttl (xt^.body.legalHoldUser.user)
 
 renewLegalHoldAccessToken :: MonadZAuth m => LegalHoldAccessToken -> m LegalHoldAccessToken
 renewLegalHoldAccessToken old = liftZAuth $ do
@@ -276,6 +281,12 @@ accessTokenOf t = Id (t^.body.userId)
 
 userTokenOf :: UserToken -> UserId
 userTokenOf t = Id (t^.body.user)
+
+legalHoldAccessTokenOf :: LegalHoldAccessToken -> UserId
+legalHoldAccessTokenOf t = Id (t^.body.legalHoldAccess.userId)
+
+legalHoldUserTokenOf :: LegalHoldUserToken -> UserId
+legalHoldUserTokenOf t = Id (t^.body.legalHoldUser.user)
 
 userTokenRand :: UserToken -> Word32
 userTokenRand t = t^.body.rand
