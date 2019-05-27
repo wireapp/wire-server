@@ -71,13 +71,13 @@ import Data.ByteString.Lazy.Char8 (split, break, drop)
 import Data.UUID
 import Sodium.Crypto.Sign (Signature (..))
 
--- | A = Access (Used as short-lived token for Users)
--- U = User (Used as a cookie for Users to refresh access tokens)
--- B = Bot
--- P = Provider
--- LA = LegalHold Access (Used as short-lived token for LegalHold Service)
--- LU = LegalHold User (Used as a cookie for LegalHold Service to refresh access tokens)
-data Type = A | U | B | P | LA | LU deriving (Eq, Show)
+data Type = A -- ^ Access (Used as short-lived token for Users)
+          | U -- ^ User (Used as a cookie for Users to refresh access tokens)
+          | B -- ^ Bot
+          | P -- ^ Provider
+          | LA -- ^ LegalHold Access (Used as short-lived token for LegalHold Service)
+          | LU -- ^ LegalHold User (Used as a cookie for LegalHold Service to refresh access tokens)
+          deriving (Eq, Show)
 
 -- | Tag: Tokens for Users with no tag are refreshable themselves and called "UserToken"
 -- Tokens for Users with the tag 'S' are non-refreshable themselves and called "SessionToken"
