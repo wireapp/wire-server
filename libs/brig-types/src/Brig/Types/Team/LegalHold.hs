@@ -133,14 +133,13 @@ instance FromJSON NewLegalHoldClient where
         NewLegalHoldClient <$> o .:  "prekeys"
                            <*> o .:  "lastkey"
 
--- Request to LH Service to initiate creation of a device
-data InitiateRequest = InitiateRequest
+data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     { userId :: !UserId
     , teamId :: !TeamId
     } deriving stock (Show, Eq)
 
-instance ToJSON InitiateRequest where
-    toJSON InitiateRequest{userId, teamId} = object
+instance ToJSON RequestNewLegalHoldClient where
+    toJSON (RequestNewLegalHoldClient userId teamId) = object
         $ "userId"    .= userId
         # "teamId"    .= teamId
         # []
