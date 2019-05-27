@@ -97,7 +97,7 @@ ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
 --
 -- TODO: it's also failing, but not with a terribly helpful message.  need to investigate!
 testSwaggerJsonConsistency :: TestM ()
-testSwaggerJsonConsistency = ignore $ do
+testSwaggerJsonConsistency = do
     liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
 
 

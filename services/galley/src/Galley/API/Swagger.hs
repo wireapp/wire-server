@@ -1,4 +1,6 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-patterns #-}
+-- it's ok to not warn about unmatched patterns; 'validateEveryToJSON' will crash on them
+-- before too long.
 
 -- | swagger2 docs for galley generated with servant-swagger.  for now, this module contains
 -- all of the servant code as well.
@@ -10,24 +12,18 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 
+import Control.Lens
+import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
-import Control.Lens hiding (allOf)
-import Data.Aeson
-import Data.HashMap.Strict.InsOrd
+import Data.Aeson (Value(..))
 import Data.Id
 import Data.Misc
-import Data.PEM
 import Data.Proxy
-import Data.String.Conversions (cs)
-import Data.UUID
+import Data.Text as Text (unlines)
 import Data.UUID (UUID)
 import Servant.API hiding (Header)
 import Servant.Swagger
-import URI.ByteString.QQ (uri)
-
-import qualified Data.Text as Text
-import qualified Data.ByteString.Char8 as BS
 
 
 -- TODO: document exceptions properly.
@@ -43,14 +39,25 @@ swagger :: Swagger
 swagger = toSwagger (Proxy @GalleyRoutes)
 
 
-type GalleyRoutes = GalleyRoutesPublic :<|> GalleyRoutesInternal -- :<|> GalleyRoutesNotImplemented
+type GalleyRoutes = GalleyRoutesPublic :<|> GalleyRoutesInternal
 
 type GalleyRoutesPublic
      = "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
-          :> ReqBody '[JSON] NewLegalHoldService :> Post '[JSON] ViewLegalHoldService
+          :> ReqBody '[JSON] NewLegalHoldService
+          :> Post '[JSON] ViewLegalHoldService
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
           :> Get '[JSON] ViewLegalHoldService
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
+          :> Verb 'DELETE 204 '[] NoContent
+
+  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
+          :> ReqBody '[JSON] RequestNewLegalHoldClient
+          :> Post '[JSON] NewLegalHoldClient
+  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "approve"
+          :> Verb 'PUT 204 '[] NoContent
+  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
+          :> Get '[JSON] UserLegalHoldStatus
+  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
           :> Verb 'DELETE 204 '[] NoContent
 
 type GalleyRoutesInternal
@@ -59,12 +66,6 @@ type GalleyRoutesInternal
   :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
           :> ReqBody '[JSON] LegalHoldTeamConfig
           :> Put '[] NoContent
-
-{-
-type GalleyRoutesNotImplemented
-     = "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
-          :> ReqBody '[JSON] NewLegalHoldService :> Post '[JSON] ViewLegalHoldService
--}
 
 
 instance ToParamSchema (Id a) where
@@ -77,89 +78,130 @@ instance ToSchema HttpsUrl where
     declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema ServiceKeyPEM where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example .~ Just pem
+        pem = String . Text.unlines $
+            [ "-----BEGIN PUBLIC KEY-----"
+            , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+            , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+            , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+            , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+            , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+            , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+            , "nQIDAQAB"
+            , "-----END PUBLIC KEY-----"
+            ]
 
 instance ToSchema (Fingerprint Rsa) where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
 
 instance ToSchema ServiceToken where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
 
 instance ToSchema NewLegalHoldService where
-    declareNamedSchema _ = pure $ NamedSchema (Just "NewLegalHoldService") $ mempty
-        & properties .~ properties_
-        & example .~ example_
+    declareNamedSchema = genericDeclareNamedSchema opts
       where
-        properties_ :: InsOrdHashMap Text (Referenced Schema)
-        properties_ = fromList
-          [ ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
-                -- Ref (Reference "HttpsUrl")  -- (ghc can't see if this reference is dangling or not)
-          , ("public_key", Inline (toSchema (Proxy @ServiceKeyPEM)))
-          , ("auth_token", Inline (toSchema (Proxy @ServiceToken)))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just . toJSON
-                 $ NewLegalHoldService lhuri (ServiceKeyPEM key) (ServiceToken "uUKFJdUcvYP")
-          where
-            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-            Right [key] = pemParseBS . BS.unlines $
-              [ "-----BEGIN PUBLIC KEY-----"
-              , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
-              , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
-              , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
-              , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
-              , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
-              , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
-              , "nQIDAQAB"
-              , "-----END PUBLIC KEY-----"
-              ]
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldServiceKey"   -> "public_key"
+              "newLegalHoldServiceUrl"   -> "base_url"
+              "newLegalHoldServiceToken" -> "auth_token"
+          }
 
 instance ToSchema ViewLegalHoldService where
-    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
-        & properties .~ properties_
-        & example .~ example_
+    declareNamedSchema = genericDeclareNamedSchema opts
       where
-        properties_ :: InsOrdHashMap Text (Referenced Schema)
-        properties_ = fromList
-          [ ("team_id", Inline (toSchema (Proxy @TeamId)))
-          , ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
-          , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just . toJSON
-                 $ ViewLegalHoldService (Id tid) lhuri fpr
-          where
-            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
-            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "viewLegalHoldServiceFingerprint" -> "fingerprint"
+              "viewLegalHoldServiceUrl"         -> "base_url"
+              "viewLegalHoldServiceTeam"        -> "team_id"
+          }
 
 instance ToSchema LegalHoldTeamConfig where
-    declareNamedSchema _ = pure $ NamedSchema (Just "LegalHoldTeamConfig") $ mempty
-        & properties .~ properties_
-        & example .~ example_
+    declareNamedSchema = genericDeclareNamedSchema opts
       where
-        properties_ :: InsOrdHashMap Text (Referenced Schema)
-        properties_ = fromList
-          [ ("status", Inline (toSchema (Proxy @LegalHoldStatus)
-              & description .~ Just (enumTextField (Proxy @LegalHoldStatus) <> "; " <>
-                                     "determines whether admins of a team " <>
-                                     "are allowed to enable LH for their users")))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just . toJSON
-                 $ LegalHoldTeamConfig LegalHoldDisabled
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "legalHoldTeamConfigStatus" -> "status"
+          }
 
 instance ToSchema LegalHoldStatus where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { constructorTagModifier = \case
+              "LegalHoldDisabled" -> "disabled"
+              "LegalHoldEnabled"  -> "enabled"
+          }
 
--- | TODO: find the idiomatic way to do this!
-enumTextField :: (Bounded a, Enum a) => Proxy a -> Text
-enumTextField Proxy = "one of " <>
-    (Text.intercalate ", " $ cs . encode <$> [(minBound @LegalHoldStatus)..])
+        tweak = fmap $ schema . description .~ Just descr
+          where
+            descr = "determines whether admins of a team " <>
+                    "are allowed to enable LH for their users."
 
+instance ToSchema RequestNewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "userId" -> "user_id"
+              "teamId" -> "team_id"
+          }
+
+instance ToSchema NewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldClientPrekeys" -> "prekeys"
+              "newLegalHoldClientLastKey" -> "lastkey"
+          }
+
+instance ToSchema UserLegalHoldStatus where
+    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { constructorTagModifier = \case
+              "UserLegalHoldEnabled"  -> "enabled"
+              "UserLegalHoldPending"  -> "pending"
+              "UserLegalHoldDisabled" -> "disabled"
+          }
+
+        tweak = fmap $ schema . description .~ Just descr
+          where
+            descr = "states whether a user is under legal hold, " <>
+                    "or whether legal hold is pending approval."
+
+instance ToSchema PrekeyId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
+      where
+        tweak = fmap $ schema . description .~ Just descr
+          where
+            descr = "in the range [0..65535]."
+
+instance ToSchema Prekey where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "prekeyId" -> "id"
+              "prekeyKey" -> "key"
+          }
+
+instance ToSchema LastPrekey where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
+
+
+
+{-
+import Test.Hspec
+import Brig.Types.Test.Arbitrary ()
+
+main :: IO ()
+main = hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
+-}
 
 {-
 -- import Data.String.Conversions

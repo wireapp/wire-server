@@ -23,6 +23,8 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 
+-- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
+
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
     [ run @Handle Proxy
@@ -37,10 +39,14 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
     , run @TeamMemberDeleteData Proxy
+    , run @LegalHoldStatus Proxy
     , run @LegalHoldTeamConfig Proxy
     , run @NewLegalHoldService Proxy
     , run @LegalHoldService Proxy
     , run @ViewLegalHoldService Proxy
+    , run @NewLegalHoldClient Proxy
+    , run @RequestNewLegalHoldClient Proxy
+    , run @UserLegalHoldStatus Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
