@@ -135,8 +135,6 @@ testCreateLegalHoldDevice = ignore $ do
         assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
 
     -- fail if legal hold service is disabled via feature flag
-    -- contacts team's legal hold service and establishes a cryptobox
-    -- responds with public key etc of legal hold device ??
 
     -- all of user's clients receive an event
     -- requests approval from monitored user asynchronously; request contains pre-keys
