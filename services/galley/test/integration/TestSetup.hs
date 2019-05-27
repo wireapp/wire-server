@@ -11,6 +11,7 @@ module TestSetup
     , tsCannon
     , tsAwsEnv
     , tsMaxConvSize
+    , tsCass
     , TestM(..)
     , TestSetup(..)
     ) where
@@ -23,6 +24,7 @@ import Bilge (Manager, MonadHttp(..), Request, withResponse)
 import Util.Options
 import Galley.Options      (Opts)
 
+import qualified Cassandra           as Cql
 import qualified Galley.Aws          as Aws
 
 type GalleyR      = Request -> Request
@@ -59,6 +61,7 @@ data TestSetup = TestSetup
     , _tsCannon      :: CannonR
     , _tsAwsEnv      :: Maybe Aws.Env
     , _tsMaxConvSize :: Word16
+    , _tsCass        :: Cql.ClientState
     }
 
 makeLenses ''TestSetup

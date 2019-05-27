@@ -39,11 +39,13 @@ import Test.Tasty.HUnit (assertBool)
 
 import qualified API.Util                          as Util
 import qualified Control.Concurrent.Async          as Async
+import qualified Cassandra.Exec                    as Cql
 import qualified Data.Aeson                        as Aeson
 import qualified Data.ByteString                   as BS
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
+import qualified Galley.Data.LegalHold             as LegalHoldData
 
 
 tests :: IO TestSetup -> TestTree
@@ -104,6 +106,9 @@ testCreateLegalHoldDevice = ignore $ do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    -- Can't request a device if team feature flag is disabled
+    requestDevice owner member tid !!! const 403 === statusCode
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
     do userStatus <- getUserStatusTyped member tid
@@ -119,13 +124,21 @@ testCreateLegalHoldDevice = ignore $ do
        liftIO $ assertEqual "requestDevice should set user status to Pending"
                   userStatus UserLegalHoldPending
 
-    -- team admin, owner can do it.  (implemented via new internal permission bit.)
-    -- member can't do it.
-    -- fail if legal hold service is disabled for team
+    do requestDevice owner member tid !!! const 200 === statusCode
+       userStatus <- getUserStatusTyped member tid
+       liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+                  userStatus UserLegalHoldPending
+
+    cassState <- view tsCass
+    liftIO $ do
+        storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
+        assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
+
     -- fail if legal hold service is disabled via feature flag
-    -- all of user's clients receive an event
     -- contacts team's legal hold service and establishes a cryptobox
-    -- responds with public key etc of legal hold device
+    -- responds with public key etc of legal hold device ??
+
+    -- all of user's clients receive an event
     -- requests approval from monitored user asynchronously; request contains pre-keys
 
 
