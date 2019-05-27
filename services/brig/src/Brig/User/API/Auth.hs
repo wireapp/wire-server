@@ -136,6 +136,28 @@ routes = do
         Doc.body (Doc.ref Doc.removeCookies) Doc.end
         Doc.errorResponse badCredentials
 
+
+    post "/legalhold/access" (continue renewLegalHold) $
+        accept "application" "json" .&. legalHoldTokenRequest
+
+    document "POST" "newAccessToken" $ do
+        Doc.summary "Obtain an access tokens for a cookie."
+        Doc.notes "You can provide only a cookie or a cookie and token. \
+              \Every other combination is invalid. \
+              \Access tokens can be given as query parameter or authorisation \
+              \header, with the latter being preferred."
+        Doc.returns (Doc.ref Doc.accessToken)
+        Doc.parameter Doc.Header "cookie" Doc.bytes' $ do
+            Doc.description "The 'zuid' cookie header"
+            Doc.optional
+        Doc.parameter Doc.Header "Authorization" Doc.bytes' $ do
+            Doc.description "The access-token as 'Authorization' header."
+            Doc.optional
+        Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
+            Doc.description "The access-token as query parameter."
+            Doc.optional
+        Doc.errorResponse badCredentials
+
     -- Internal
 
     post "/i/sso-login" (continue ssoLogin) $
@@ -204,19 +226,26 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
-renew :: JSON ::: Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a) -> Handler Response
+renew :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
 renew (_ ::: Just ut ::: at) = do
     a <- Auth.renewAccess ut at !>> zauthError
     tokenResponse a
 
--- renewLegalHold :: JSON ::: Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken -> Handler Response
--- renewLegalHold (_ ::: Nothing :::  _) = throwStd authMissingCookie
--- renewLegalHold (_ ::: Just ut ::: at) = do
---     a <- Auth.renewAccess ut at !>> zauthError
---     tokenResponse a
+renewLegalHold :: JSON ::: Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken -> Handler Response
+renewLegalHold (_ ::: Nothing :::  _) = throwStd authMissingCookie
+renewLegalHold (_ ::: Just ut ::: at) = do
+    undefined
+    -- a <- Auth.renewAccess ut at !>> zauthError
+    -- tokenResponse a
 
 -- Utilities
+
+
+-- | A predicate that captures user and access tokens for a request handler.
+legalHoldTokenRequest :: (HasCookies r, HasHeaders r, HasQuery r)
+    => Predicate r P.Error (Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken)
+legalHoldTokenRequest = undefined --TODO
 
 -- | A predicate that captures user and access tokens for a request handler.
 tokenRequest :: (HasCookies r, HasHeaders r, HasQuery r)

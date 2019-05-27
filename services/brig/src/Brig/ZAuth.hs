@@ -240,12 +240,12 @@ newProviderToken pid = liftZAuth $ do
         let ProviderTokenTimeout ttl = z^.settings.providerTokenTimeout
         in ZC.providerToken ttl (toUUID pid)
 
--- TODO: needed?
--- mkLegalHoldUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m LegalHoldUserToken
--- mkLegalHoldUserToken u r t = liftZAuth $ do
---     z <- ask
---     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
---         ZC.newToken (utcTimeToPOSIXSeconds t) LU Nothing (mkUser (toUUID u) r)
+mkLegalHoldUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m LegalHoldUserToken
+mkLegalHoldUserToken u r t = liftZAuth $ do
+    z <- ask
+    -- liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
+    --     ZC.newToken (utcTimeToPOSIXSeconds t) LU Nothing (mkUser (toUUID u) r)
+    undefined --TODO
 
 newLegalHoldUserToken :: MonadZAuth m => UserId -> m LegalHoldUserToken
 newLegalHoldUserToken u = liftZAuth $ do

@@ -111,9 +111,10 @@ renewAccessLegalHold
     -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
 renewAccessLegalHold ut at = do
     (_, ck) <- legalHoldvalidateTokens ut at
-    ck' <- lift $ nextCookie ck
-    at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
-    return $ LegalHoldAccess at' ck'
+    -- ck' <- lift $ nextCookie ck
+    -- at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
+    -- return $ LegalHoldAccess at' ck'
+    undefined
 
 revokeAccess
     :: UserId
@@ -209,8 +210,9 @@ legalHoldvalidateTokens ut at = do
         ExceptT (ZAuth.validateToken a)
             `catchE` \e ->
                 unless (e == ZAuth.Expired) (throwE e)
-    ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
-    return (ZAuth.legalHoldUserTokenOf ut, ck)
+    -- ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
+    -- return (ZAuth.legalHoldUserTokenOf ut, ck)
+    undefined
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access
