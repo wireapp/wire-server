@@ -18,7 +18,7 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
-import Test.Brig.Types.Arbitrary ()
+import Brig.Types.Test.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit

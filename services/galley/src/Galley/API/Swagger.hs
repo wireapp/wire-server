@@ -19,35 +19,52 @@ import Data.Id
 import Data.Misc
 import Data.PEM
 import Data.Proxy
+import Data.String.Conversions (cs)
 import Data.UUID
 import Data.UUID (UUID)
 import Servant.API hiding (Header)
 import Servant.Swagger
 import URI.ByteString.QQ (uri)
 
+import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
+
+
+-- TODO: document exceptions properly.
+
+-- TODO: document zusr authentication thingy somehow.
+
+-- TODO: factor out the servant handlers from the functions in Gally.API.LegalHold, and build
+--       them together to an Application.  don't run it yet, but that would give us some extra
+--       confidence that the swagger docs is in sync with the implementation.
 
 
 swagger :: Swagger
 swagger = toSwagger (Proxy @GalleyRoutes)
 
--- TODO: title, desc
 
--- TODO: document exceptions properly.
--- TODO: document zusr authentication thingy somehow.
+type GalleyRoutes = GalleyRoutesPublic :<|> GalleyRoutesInternal -- :<|> GalleyRoutesNotImplemented
 
-type GalleyRoutes
+type GalleyRoutesPublic
      = "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
           :> ReqBody '[JSON] NewLegalHoldService :> Post '[JSON] ViewLegalHoldService
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
           :> Get '[JSON] ViewLegalHoldService
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
           :> Verb 'DELETE 204 '[] NoContent
-  -- :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-  --         :> Verb 'GET 200 '[] LegalHoldTeamConfig
-  -- :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-  --         :> ReqBody '[JSON] LegalHoldTeamConfig
-  --         :> Verb 'PUT 200 '[] NoContent
+
+type GalleyRoutesInternal
+     = "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+          :> Get '[JSON] LegalHoldTeamConfig
+  :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+          :> ReqBody '[JSON] LegalHoldTeamConfig
+          :> Put '[] NoContent
+
+{-
+type GalleyRoutesNotImplemented
+     = "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
+          :> ReqBody '[JSON] NewLegalHoldService :> Post '[JSON] ViewLegalHoldService
+-}
 
 
 instance ToParamSchema (Id a) where
@@ -70,8 +87,8 @@ instance ToSchema ServiceToken where
 
 instance ToSchema NewLegalHoldService where
     declareNamedSchema _ = pure $ NamedSchema (Just "NewLegalHoldService") $ mempty
-        & properties   .~ properties_
-        & example      .~ example_
+        & properties .~ properties_
+        & example .~ example_
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
@@ -100,8 +117,8 @@ instance ToSchema NewLegalHoldService where
 
 instance ToSchema ViewLegalHoldService where
     declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
-        & properties   .~ properties_
-        & example .~ Just (toJSON sample)
+        & properties .~ properties_
+        & example .~ example_
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
@@ -110,11 +127,38 @@ instance ToSchema ViewLegalHoldService where
           , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
           ]
 
-        sample = ViewLegalHoldService (Id tid) lhuri fpr
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ ViewLegalHoldService (Id tid) lhuri fpr
           where
             Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
             Right lhuri = mkHttpsUrl [uri|https://example.com/|]
             fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+instance ToSchema LegalHoldTeamConfig where
+    declareNamedSchema _ = pure $ NamedSchema (Just "LegalHoldTeamConfig") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("status", Inline (toSchema (Proxy @LegalHoldStatus)
+              & description .~ Just (enumTextField (Proxy @LegalHoldStatus) <> "; " <>
+                                     "determines whether admins of a team " <>
+                                     "are allowed to enable LH for their users")))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ LegalHoldTeamConfig LegalHoldDisabled
+
+instance ToSchema LegalHoldStatus where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+-- | TODO: find the idiomatic way to do this!
+enumTextField :: (Bounded a, Enum a) => Proxy a -> Text
+enumTextField Proxy = "one of " <>
+    (Text.intercalate ", " $ cs . encode <$> [(minBound @LegalHoldStatus)..])
 
 
 {-

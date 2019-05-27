@@ -68,6 +68,7 @@ library:
   - split >=0.2
   - ssl-util >=0.1
   - stm >=2.4
+  - string-conversions
   - swagger >=0.1
   - swagger2
   - text >=0.11

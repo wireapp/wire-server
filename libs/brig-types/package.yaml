@@ -48,6 +48,14 @@ library:
     cpp-options: -DWITH_CQL
     dependencies:
     - cassandra-util
+  - condition: flag(arbitrary)
+    cpp-options: -DWITH_ARBITRARY
+    dependencies:
+    - extra
+    - QuickCheck >=2.9
+    - quickcheck-instances >=0.3.16
+    - random
+    - uri-bytestring
 tests:
   brig-types-tests:
     main: Main.hs
@@ -86,3 +94,7 @@ flags:
     description: Enable cql instances
     manual: false
     default: false
+  arbitrary:
+    description: Enable quickcheck arbitrary instances
+    manual: true
+    default: true

@@ -11,6 +11,7 @@ import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
+import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Catch
@@ -516,46 +517,3 @@ withTestService mkApp go = do
 -- TODO: adding two new legal hold settings on one team is not possible (409)
 -- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.
-
-----------------------------------------------------------------------
--- this is copied verbatim from /libs/brig-types/test/unit/Test/Brig/Types/Arbitrary.hs
---
--- we should really move it to Brig.Types.Test.Arbitrary in the production code of the
--- library, like we did in spar.  then we could just re-use it in the tests both there and
--- here.
-
-instance Arbitrary NewLegalHoldService where
-    arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary LegalHoldService where
-    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary ViewLegalHoldService where
-    arbitrary = ViewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary HttpsUrl where
-    arbitrary = pure $ HttpsUrl [uri|https://example.com|]
-
-instance Arbitrary ServiceKeyPEM where
-    arbitrary = pure $ ServiceKeyPEM k
-      where Right [k] = pemParseBS . BS.unlines $
-              [ "-----BEGIN PUBLIC KEY-----"
-              , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
-              , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
-              , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
-              , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
-              , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
-              , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
-              , "nQIDAQAB"
-              , "-----END PUBLIC KEY-----"
-              ]
-
-instance Arbitrary (Fingerprint Rsa) where
-    arbitrary = pure $ Fingerprint
-        "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
-
-instance Arbitrary ServiceToken where
-    arbitrary = ServiceToken <$> arbitrary
-
-instance Arbitrary AsciiBase64Url where
-    arbitrary = encodeBase64Url <$> arbitrary
