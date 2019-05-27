@@ -62,7 +62,7 @@ requestNewDevice tid uid = do
   where
     reqParams =
         Bilge.paths ["initiate"]
-      . Bilge.json (InitiateRequest uid tid)
+      . Bilge.json (RequestNewLegalHoldClient uid tid)
       . Bilge.method POST
       . Bilge.expect2xx
 
