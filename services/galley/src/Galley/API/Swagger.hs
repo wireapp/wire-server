@@ -26,6 +26,7 @@ import Servant.API hiding (Header)
 import Servant.Swagger
 import URI.ByteString.QQ (uri)
 
+import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
 
 
@@ -142,7 +143,9 @@ instance ToSchema LegalHoldTeamConfig where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
           [ ("status", Inline (toSchema (Proxy @LegalHoldStatus)
-                          & description .~ Just (enumTextField (Proxy @LegalHoldStatus))))
+              & description .~ Just (enumTextField (Proxy @LegalHoldStatus) <> "; " <>
+                                     "determines whether admins of a team " <>
+                                     "are allowed to enable LH for their users")))
           ]
 
         example_ :: Maybe Value
@@ -154,7 +157,8 @@ instance ToSchema LegalHoldStatus where
 
 -- | TODO: find the idiomatic way to do this!
 enumTextField :: (Bounded a, Enum a) => Proxy a -> Text
-enumTextField Proxy = "one of " <> (cs . show $ toJSON <$> [(minBound @LegalHoldStatus)..])
+enumTextField Proxy = "one of " <>
+    (Text.intercalate ", " $ cs . encode <$> [(minBound @LegalHoldStatus)..])
 
 
 {-
