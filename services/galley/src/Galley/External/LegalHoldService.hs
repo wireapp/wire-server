@@ -42,6 +42,7 @@ checkLegalHoldServiceStatus fpr (HttpsUrl url) = do
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
         = maybe id Bilge.host (Bilge.extHost url)
+        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
         . Bilge.paths ["status"]
         . Bilge.method GET
         . Bilge.secure
