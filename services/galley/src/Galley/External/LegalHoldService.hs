@@ -34,18 +34,15 @@ import qualified Ssl.Util                     as SSL
 
 -- | Get /status from legal hold service; throw 'Wai.Error' with 400 if things go wrong.
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
-checkLegalHoldServiceStatus fpr (HttpsUrl url) = do
-    rs <- makeVerifiedRequest fpr reqBuilder
+checkLegalHoldServiceStatus fpr url = do
+    rs <- makeVerifiedRequest fpr url reqBuilder
     if | Bilge.statusCode rs < 400 -> pure ()
        | otherwise -> throwM legalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
-        = maybe id Bilge.host (Bilge.extHost url)
-        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
-        . Bilge.paths ["status"]
+        = Bilge.paths ["status"]
         . Bilge.method GET
-        . Bilge.secure
         . Bilge.expect2xx
 
 -- | Copied unchanged from "Brig.Provider.API".  It would be nice to move (part of) this to
@@ -85,26 +82,29 @@ makeLHServiceRequest tid reqBuilder = do
          , legalHoldServiceFingerprint = fpr
          , legalHoldServiceToken = serviceToken
          } = lhSettings
-    makeVerifiedRequest fpr $ mkReqBuilder baseUrl serviceToken
+    makeVerifiedRequest fpr baseUrl $ mkReqBuilder serviceToken
   where
-    mkReqBuilder (HttpsUrl url) token =
+    mkReqBuilder token =
         reqBuilder
-        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
-        . Bilge.secure
         -- TODO: Verify this is correct:
         . Bilge.header "Authentication" (toByteString' token)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLHServiceRequest' instead.
-makeVerifiedRequest :: Fingerprint Rsa -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
-makeVerifiedRequest fpr reqBuilder = do
+makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
     (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
     let verified = verifyFingerprints [fpr]
     extHandleAll (const $ throwM legalHoldServiceUnavailable) $ do
         recovering x3 httpHandlers $ const $ liftIO $
-            withVerifiedSslConnection verified mgr reqBuilder $ \req ->
+            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $ \req ->
                 Http.httpLbs req mgr
   where
+    reqBuilderMods =
+        maybe id Bilge.host (Bilge.extHost url)
+        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
+        . Bilge.secure
+
     x3 :: RetryPolicy
     x3 = limitRetries 3 <> exponentialBackoff 100000
 
