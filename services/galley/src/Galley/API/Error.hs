@@ -112,8 +112,9 @@ codeNotFound = Error status404 "no-conversation-code" "conversation code not fou
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
+-- TODO: Switch to 503
 legalHoldServiceUnavailable :: Error
-legalHoldServiceUnavailable = Error status503 "legalhold-unavailable" "legal hold service does not respond"
+legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
 
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"

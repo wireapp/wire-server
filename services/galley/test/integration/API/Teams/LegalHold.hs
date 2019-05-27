@@ -196,7 +196,7 @@ testCreateLegalHoldTeamSettings = do
 
     liftIO $ putStrLn "XXX check behaviour if service unavailable..."
     -- rejected if service is not available
-    postSettings owner tid newService !!! const 503 === statusCode  -- TODO: test err label
+    postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
 
     -- checks /status of legal hold service (boolean argument says whether the service is
