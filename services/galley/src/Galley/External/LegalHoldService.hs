@@ -1,7 +1,10 @@
 module Galley.External.LegalHoldService
-    ( checkLegalHoldServiceStatus
-    , validateServiceKey
+    ( -- * api
+      checkLegalHoldServiceStatus
     , requestNewDevice
+
+      -- * helpers
+    , validateServiceKey
     ) where
 
 import Imports
@@ -32,7 +35,11 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
 
--- | Get /status from legal hold service; throw 'Wai.Error' with 400 if things go wrong.
+
+----------------------------------------------------------------------
+-- api
+
+-- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
 checkLegalHoldServiceStatus fpr url = do
     rs <- makeVerifiedRequest fpr url reqBuilder
@@ -45,33 +52,29 @@ checkLegalHoldServiceStatus fpr url = do
         . Bilge.method GET
         . Bilge.expect2xx
 
--- | Copied unchanged from "Brig.Provider.API".  It would be nice to move (part of) this to
--- ssl-util, but it has types from brig-types and types-common.
-validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
-validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
-    case join (SSL.toPublicKey <$> pk) of
-        Nothing  -> return Nothing
-        Just pk' -> do
-            Just sha <- SSL.getDigestByName "SHA256"
-            let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
-            if size < minRsaKeySize
-                then return Nothing
-                else do
-                    fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
-                    let bits = fromIntegral size * 8
-                    let key = ServiceKey RsaServiceKey bits pem
-                    return $ Just (key, fpr)
+-- | @POST /initiate@.
+requestNewDevice :: TeamId -> UserId -> Galley NewLegalHoldClient
+requestNewDevice tid uid = do
+    resp <- makeLegalHoldServiceRequest tid reqParams
+    case decode (responseBody resp) of
+        Nothing -> throwM legalHoldServiceBadResponse
+        Just client -> pure client
   where
-    readPublicKey = handleAny
-        (const $ return Nothing)
-        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
+    reqParams =
+        Bilge.paths ["initiate"]
+      . Bilge.json (InitiateRequest uid tid)
+      . Bilge.method POST
+      . Bilge.expect2xx
 
-    minRsaKeySize :: Int
-    minRsaKeySize = 256 -- Bytes (= 2048 bits)
 
--- | Lookup LH service settings for a team and make a verified request
-makeLHServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
-makeLHServiceRequest tid reqBuilder = do
+----------------------------------------------------------------------
+-- helpers
+
+-- | Lookup legal hold service settings for a team and make a request to the service.  Pins
+-- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
+-- authenticate the request.
+makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeLegalHoldServiceRequest tid reqBuilder = do
     maybeLHSettings <- LegalHoldData.getSettings tid
     lhSettings <- case maybeLHSettings of
         Nothing -> throwM legalHoldServiceUnavailable
@@ -90,7 +93,7 @@ makeLHServiceRequest tid reqBuilder = do
         . Bilge.header "Authentication" (toByteString' token)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
--- If the team has a device registered use 'makeLHServiceRequest' instead.
+-- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
 makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
     (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
@@ -114,15 +117,30 @@ makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
         , Handler $ \(ex :: SomeException)      -> f ex
         ]
 
-requestNewDevice :: TeamId -> UserId -> Galley NewLegalHoldClient
-requestNewDevice tid uid = do
-    resp <- makeLHServiceRequest tid reqParams
-    case decode (responseBody resp) of
-        Nothing -> throwM legalHoldServiceBadResponse
-        Just client -> pure client
+-- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
+-- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
+-- like that.)
+--
+-- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
+-- brig-types and types-common.
+validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
+validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
+    case join (SSL.toPublicKey <$> pk) of
+        Nothing  -> return Nothing
+        Just pk' -> do
+            Just sha <- SSL.getDigestByName "SHA256"
+            let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
+            if size < minRsaKeySize
+                then return Nothing
+                else do
+                    fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
+                    let bits = fromIntegral size * 8
+                    let key = ServiceKey RsaServiceKey bits pem
+                    return $ Just (key, fpr)
   where
-    reqParams =
-        Bilge.paths ["initiate"]
-      . Bilge.json (InitiateRequest uid tid)
-      . Bilge.method POST
-      . Bilge.expect2xx
+    readPublicKey = handleAny
+        (const $ return Nothing)
+        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
+
+    minRsaKeySize :: Int
+    minRsaKeySize = 256 -- Bytes (= 2048 bits)
