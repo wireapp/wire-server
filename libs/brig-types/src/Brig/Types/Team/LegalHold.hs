@@ -140,8 +140,8 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
 
 instance ToJSON RequestNewLegalHoldClient where
     toJSON (RequestNewLegalHoldClient userId teamId) = object
-        $ "userId"    .= userId
-        # "teamId"    .= teamId
+        $ "user_id"    .= userId
+        # "team_id"    .= teamId
         # []
 
 instance FromJSON RequestNewLegalHoldClient where
