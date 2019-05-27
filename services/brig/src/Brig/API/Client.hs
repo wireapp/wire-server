@@ -5,6 +5,7 @@ module Brig.API.Client
     , updateClient
     , rmClient
     , pubClient
+    , legalHoldClientRequested
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
@@ -148,7 +149,7 @@ pubClient c = PubClient
     }
 
 legalHoldClientRequested :: UserId -> UserId -> LastPrekey -> [Prekey] -> AppIO ()
-legalHoldClientRequested origin uid lastPrekey prekeys = do
-    let eventData = LegalHoldClientRequestedData origin uid lastPrekey prekeys
+legalHoldClientRequested origin uid lastPrekey' prekeys = do
+    let eventData = LegalHoldClientRequestedData origin uid lastPrekey' prekeys
     let lhClientEvent = LegalHoldClientRequested eventData
     Intra.onClientEvent uid Nothing lhClientEvent

@@ -12,6 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
+import Brig.User.Event
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
@@ -999,6 +1000,14 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
+
+-- TODO: Add route!
+legalHoldClientRequested :: JsonRequest LegalHoldClientRequestedData ::: JSON -> Handler Response
+legalHoldClientRequested (req ::: _) = do
+    LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys <- parseJsonBody req
+    -- TODO: Better error checking
+    lift $ API.legalHoldClientRequested requester targetUser lastPrekey' prekeys
+    return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClient (req ::: usr ::: clt ::: _) = do
