@@ -259,15 +259,29 @@ removeLegalHoldSettings = "delete from legalhold_service where team_id = ?"
 
 insertPendingPrekeys :: PrepQuery W (UserId, PrekeyId, Text) ()
 insertPendingPrekeys = [r|
-        insert into prekeys (user, key, data) values (?, ?, ?)
+        insert into legalhold_pending_prekeys (user, key, data) values (?, ?, ?)
+    |]
+
+dropPendingPrekeys :: PrepQuery W (Identity UserId) ()
+dropPendingPrekeys = [r|
+        delete from legalhold_pending_prekeys
+          where user = ?
+          if exists
     |]
 
 selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
 selectPendingPrekeys = [r|
-        select key, data from prekeys where user = ?
+        select key, data from legalhold_pending_prekeys where user = ?
     |]
 
 selectUserLegalHoldStatus :: PrepQuery R (Identity UserId) (Identity UserLegalHoldStatus)
 selectUserLegalHoldStatus = [r|
         select status from legalhold_user_status where user = ?
+    |]
+
+updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, UserId) ()
+updateUserLegalHoldStatus = [r|
+        update legalhold_user_status
+          set status = ?
+          where user = ?
     |]

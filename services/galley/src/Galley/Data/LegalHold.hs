@@ -7,6 +7,9 @@ module Galley.Data.LegalHold
     , removeSettings
     , Galley.Data.LegalHold.insertPendingPrekeys
     , Galley.Data.LegalHold.selectPendingPrekeys
+    , Galley.Data.LegalHold.dropPendingPrekeys
+    , getUserLegalHoldStatus
+    , setUserLegalHoldStatus
     ) where
 
 import Imports
@@ -61,7 +64,16 @@ selectPendingPrekeys uid =
   where
     fromTuple (keyId, key) = Prekey keyId key
 
-getUserLegalHoldStatus :: MonadClient m => UserId -> m (Maybe UserLegalHoldStatus)
-getUserLegalHoldStatus uid = fmap fromTuple <$> retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (Identity uid)))
-  where
-    fromTuple = undefined
+dropPendingPrekeys :: MonadClient m => UserId -> m ()
+dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))
+
+getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatus
+getUserLegalHoldStatus uid = do
+    result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (Identity uid)))
+    pure $ case result of
+        Nothing -> UserLegalHoldDisabled
+        Just (Identity status) -> status
+
+setUserLegalHoldStatus :: MonadClient m => UserId -> UserLegalHoldStatus -> m ()
+setUserLegalHoldStatus uid status =
+    retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, uid)))

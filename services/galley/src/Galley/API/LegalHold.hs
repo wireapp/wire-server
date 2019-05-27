@@ -104,14 +104,24 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
 
-    lhDevice <- LHService.requestNewDevice tid uid
-    let NewLegalHoldClient
-          { newLegalHoldClientPrekeys = prekeys
-          , newLegalHoldClientLastKey = lastKey
-          } = lhDevice
+    userLHStatus <- LegalHoldData.getUserLegalHoldStatus uid
+    case userLHStatus of
+        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        UserLegalHoldPending -> requestDeviceFromService
+        UserLegalHoldDisabled -> requestDeviceFromService
+  where
+    requestDeviceFromService :: Galley Response
+    requestDeviceFromService = do
+        LegalHoldData.dropPendingPrekeys uid
+        lhDevice <- LHService.requestNewDevice tid uid
+        let NewLegalHoldClient
+              { newLegalHoldClientPrekeys = prekeys
+              , newLegalHoldClientLastKey = lastKey
+              } = lhDevice
 
-    -- TODO: Do we distinguish the last key somehow?
-    LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastKey : prekeys)
+        -- We don't distinguish the last key here; brig will do so when the device is added
+        LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastKey : prekeys)
+        LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
 
-    -- informClientsAboutPendingLH
-    pure $ responseLBS status200 [] mempty
+        -- informClientsAboutPendingLH
+        pure $ responseLBS status204 [] mempty
