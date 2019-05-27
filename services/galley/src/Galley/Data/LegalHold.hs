@@ -1,15 +1,22 @@
+{-# LANGUAGE ViewPatterns #-}
 module Galley.Data.LegalHold
     ( setLegalHoldTeamConfig
     , getLegalHoldTeamConfig
     , createSettings
     , getSettings
     , removeSettings
+    , Galley.Data.LegalHold.insertPendingPrekeys
+    , Galley.Data.LegalHold.selectPendingPrekeys
+    , Galley.Data.LegalHold.dropPendingPrekeys
+    , getUserLegalHoldStatus
+    , setUserLegalHoldStatus
     ) where
 
 import Imports
 import Cassandra
 import Data.Id
-import Galley.Data.Queries
+import Brig.Types.Client.Prekey
+import Galley.Data.Queries as Q
 import Galley.Data.Instances ()
 import Brig.Types.Instances ()
 
@@ -43,3 +50,30 @@ getSettings tid = fmap toLegalHoldService <$> do
 
 removeSettings :: MonadClient m => TeamId -> m ()
 removeSettings tid = retry x5 (write removeLegalHoldSettings (params Quorum (Identity tid)))
+
+insertPendingPrekeys :: MonadClient m => UserId -> [Prekey] -> m ()
+insertPendingPrekeys uid keys = retry x5 . batch $
+    forM_ keys $ \key ->
+        addPrepQuery Q.insertPendingPrekeys (toTuple key)
+  where
+    toTuple (Prekey keyId key) = (uid, keyId, key)
+
+selectPendingPrekeys :: MonadClient m => UserId -> m [Prekey]
+selectPendingPrekeys uid =
+    fmap fromTuple <$> retry x1 (query Q.selectPendingPrekeys (params Quorum (Identity uid)))
+  where
+    fromTuple (keyId, key) = Prekey keyId key
+
+dropPendingPrekeys :: MonadClient m => UserId -> m ()
+dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))
+
+getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatus
+getUserLegalHoldStatus uid = do
+    result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (Identity uid)))
+    pure $ case result of
+        Nothing -> UserLegalHoldDisabled
+        Just (Identity status) -> status
+
+setUserLegalHoldStatus :: MonadClient m => UserId -> UserLegalHoldStatus -> m ()
+setUserLegalHoldStatus uid status =
+    retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, uid)))

@@ -5,6 +5,7 @@ module Brig.Types.Team.LegalHold where
 
 import Imports
 import Brig.Types.Provider
+import Brig.Types.Client.Prekey
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
@@ -109,3 +110,54 @@ legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fp
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr _) = ViewLegalHoldService tid u fpr
+
+-- TODO: Do we need a Client ID?
+data NewLegalHoldClient = NewLegalHoldClient
+    { newLegalHoldClientPrekeys  :: [Prekey]
+    , newLegalHoldClientLastKey  :: !LastPrekey
+    }
+    deriving stock (Eq, Show)
+
+instance ToJSON NewLegalHoldClient where
+    toJSON c = object
+        $ "prekeys"  .= newLegalHoldClientPrekeys c
+        -- TODO: Currently the LH Service uses 'last_prekey'; but internally we usually
+        -- use lastkey
+        -- TODO: Ask Dejan about the 'fingeprint' field of the 'initiate' response.
+        -- What is it for? Should we be using it for something?
+        # "lastkey"  .= newLegalHoldClientLastKey c
+        # []
+
+instance FromJSON NewLegalHoldClient where
+    parseJSON = withObject "NewLegalHoldClient" $ \o ->
+        NewLegalHoldClient <$> o .:  "prekeys"
+                           <*> o .:  "lastkey"
+
+data RequestNewLegalHoldClient = RequestNewLegalHoldClient
+    { userId :: !UserId
+    , teamId :: !TeamId
+    } deriving stock (Show, Eq)
+
+instance ToJSON RequestNewLegalHoldClient where
+    toJSON (RequestNewLegalHoldClient userId teamId) = object
+        $ "userId"    .= userId
+        # "teamId"    .= teamId
+        # []
+
+data UserLegalHoldStatus
+    = UserLegalHoldEnabled
+    | UserLegalHoldPending
+    | UserLegalHoldDisabled
+    deriving (Show, Eq, Bounded, Enum)
+
+instance ToJSON UserLegalHoldStatus where
+    toJSON UserLegalHoldEnabled = "enabled"
+    toJSON UserLegalHoldPending = "pending"
+    toJSON UserLegalHoldDisabled = "disabled"
+
+instance FromJSON UserLegalHoldStatus where
+    parseJSON = withText "LegalHoldStatus" $ \case
+      "enabled" -> pure UserLegalHoldEnabled
+      "pending" -> pure UserLegalHoldPending
+      "disabled" -> pure UserLegalHoldDisabled
+      x -> fail $ "unexpected status type: " <> T.unpack x

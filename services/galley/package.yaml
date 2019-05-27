@@ -161,6 +161,7 @@ executables:
     - brig-types
     - bytestring
     - bytestring-conversion
+    - cassandra-util
     - cereal
     - containers
     - currency-codes

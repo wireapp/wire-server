@@ -3,6 +3,7 @@ module Main (main) where
 import Imports hiding (local)
 import Bilge hiding (header, body)
 import Control.Lens
+import Cassandra.Util
 import Data.ByteString.Conversion
 import Data.Proxy
 import Data.Tagged
@@ -24,6 +25,7 @@ import TestSetup
 import qualified API
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
+import qualified System.Logger   as Logger
 
 newtype ServiceConfigFile = ServiceConfigFile String
     deriving (Eq, Ord, Typeable)
@@ -74,7 +76,16 @@ main = withOpenSSL $ runTests go
         convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
         awsEnv <- initAwsEnv e q
         SQS.ensureQueueEmptyIO awsEnv
-        return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize
+
+        -- Initialize cassandra
+        let ch = fromJust gConf ^. optCassandra.casEndpoint.epHost
+        let cp = fromJust gConf ^. optCassandra.casEndpoint.epPort
+        let ck = fromJust gConf ^. optCassandra.casKeyspace
+
+        lg <- Logger.new Logger.defSettings
+        db <- defInitCassandra ck ch cp lg
+
+        return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal

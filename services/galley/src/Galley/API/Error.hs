@@ -112,6 +112,7 @@ codeNotFound = Error status404 "no-conversation-code" "conversation code not fou
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
+-- TODO: Switch to 503
 legalHoldServiceUnavailable :: Error
 legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
 
@@ -125,3 +126,6 @@ legalHoldNotRegistered = Error status412 "legalhold-not-registered" "no legal ho
 
 legalHoldNotEnabled :: Error
 legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+
+userLegalHoldAlreadyEnabled :: Error
+userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"

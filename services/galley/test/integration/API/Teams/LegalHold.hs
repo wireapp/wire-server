@@ -17,13 +17,11 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (cs)
-import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Galley.API.LegalHold (validateServiceKey)
+import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.Types.Teams
 import Network.HTTP.Types.Status (status200, status404)
@@ -33,22 +31,21 @@ import Servant.Swagger (validateEveryToJSON)
 import System.Environment (withArgs)
 import TestHelpers
 import Test.Hspec (hspec)
-import Test.QuickCheck hiding ((===))
 import Test.QuickCheck.Instances ()
 import TestSetup
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.HUnit (assertBool)
-import URI.ByteString.QQ (uri)
 
 import qualified API.Util                          as Util
 import qualified Control.Concurrent.Async          as Async
+import qualified Cassandra.Exec                    as Cql
 import qualified Data.Aeson                        as Aeson
 import qualified Data.ByteString                   as BS
-import qualified Data.ByteString.Char8             as BS
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
+import qualified Galley.Data.LegalHold             as LegalHoldData
 
 
 tests :: IO TestSetup -> TestTree
@@ -106,15 +103,40 @@ testSwaggerJsonConsistency = ignore $ do
 
 testCreateLegalHoldDevice :: TestM ()
 testCreateLegalHoldDevice = ignore $ do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    -- team admin, owner can do it.  (implemented via new internal permission bit.)
-    -- member can't do it.
-    -- fail if legal hold service is disabled for team
+    -- Can't request a device if team feature flag is disabled
+    requestDevice owner member tid !!! const 403 === statusCode
+    putEnabled tid LegalHoldEnabled -- enable it for this team
+
+    do userStatus <- getUserStatusTyped member tid
+       liftIO $ assertEqual "User legal hold status should start as disabled" userStatus UserLegalHoldDisabled
+
+    do requestDevice member member tid !!! const 403 === statusCode
+       userStatus <- getUserStatusTyped member tid
+       liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
+                  userStatus UserLegalHoldDisabled
+
+    do requestDevice owner member tid !!! const 200 === statusCode
+       userStatus <- getUserStatusTyped member tid
+       liftIO $ assertEqual "requestDevice should set user status to Pending"
+                  userStatus UserLegalHoldPending
+
+    do requestDevice owner member tid !!! const 200 === statusCode
+       userStatus <- getUserStatusTyped member tid
+       liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+                  userStatus UserLegalHoldPending
+
+    cassState <- view tsCass
+    liftIO $ do
+        storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
+        assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
+
     -- fail if legal hold service is disabled via feature flag
+
     -- all of user's clients receive an event
-    -- contacts team's legal hold service and establishes a cryptobox
-    -- responds with public key etc of legal hold device
     -- requests approval from monitored user asynchronously; request contains pre-keys
 
 
@@ -181,7 +203,7 @@ testCreateLegalHoldTeamSettings = do
     -- not allowed to create if team setting is disabled
     -- TODO: uncomment the following once 'disabled' is the default
     -- postSettings owner tid newService !!! const 403 === statusCode
-    putEnabled tid LegalHoldEnabled !!! const 204 === statusCode -- enable it for this team
+    putEnabled tid LegalHoldEnabled -- enable it for this team
 
     liftIO $ putStrLn "XXX check behaviour if service unavailable..."
     -- rejected if service is not available
@@ -192,10 +214,10 @@ testCreateLegalHoldTeamSettings = do
     -- behaving or not)
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application
         lhapp _isworking@False _ _   cont = cont respondBad
-        lhapp _isworking@True  _ req cont = do
+        lhapp _isworking@True  _ req cont = trace "APP" $ do
             if | pathInfo req /= ["status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
-               | otherwise -> cont respondOk
+               | otherwise -> trace "hit" $ cont respondOk
 
         respondOk :: Wai.Response
         respondOk = responseLBS status200 mempty mempty
@@ -261,7 +283,7 @@ testGetLegalHoldTeamSettings = do
         -- returns 403 if legalhold disabled for team
         -- TODO: Uncomment when 'disabled' is the default
         -- > getSettings owner tid !!! const 403 === statusCode
-        putEnabled tid LegalHoldEnabled !!! const 204 === statusCode -- enable for team
+        putEnabled tid LegalHoldEnabled -- enable it for this team
 
         -- returns 412 if team is not under legal hold
         getSettings owner tid !!! const 412 === statusCode
@@ -296,7 +318,7 @@ testRemoveLegalHoldFromTeam = do
 
     withTestService lhapp $ \_ -> do
         newService <- newLegalHoldService
-        putEnabled tid LegalHoldEnabled !!! const 204 === statusCode -- enable for team
+        putEnabled tid LegalHoldEnabled -- enable it for this team
         postSettings owner tid newService !!! const 201 === statusCode
 
         -- TODO: not allowed if feature is disabled globally in galley config yaml
@@ -330,11 +352,11 @@ testEnablePerTeam = ignore $ do
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
 
-    putEnabled tid LegalHoldDisabled !!! const 204 === statusCode
+    putEnabled tid LegalHoldEnabled -- enable it for this team
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
-    putEnabled tid LegalHoldDisabled !!! const 204 === statusCode
+    putEnabled tid LegalHoldEnabled -- enable it for this team
     LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
     -- TODO: Check that disabling legalhold for a team removes the LH device from all team
@@ -386,12 +408,13 @@ getEnabled tid = do
     get $ g
          . paths ["i", "teams", toByteString' tid, "legalhold"]
 
-putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ResponseLBS
+putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = do
     g <- view tsGalley
-    put $ g
+    void . put $ g
          . paths ["i", "teams", toByteString' tid, "legalhold"]
          . json (LegalHoldTeamConfig enabled)
+         . expect2xx
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings uid tid new = do
@@ -421,6 +444,17 @@ deleteSettings uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
+getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getUserStatus uid tid = do
+    g <- view tsGalley
+    get $ g
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+           . zUser uid . zConn "conn"
+           . zType "access"
+
+getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
+getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
     clients :: [Client]
@@ -433,6 +467,28 @@ exactlyOneLegalHoldDevice uid = do
 jsonBody :: Aeson.FromJSON v => ResponseLBS -> v
 jsonBody = either (error . show) id . Aeson.eitherDecode . fromJust . responseBody
 
+---------------------------------------------------------------------
+--- Device helpers
+
+-- data NewLegalHoldDevice = NewLegalHoldDevice
+--     { newLegalHoldDeviceTeam  :: TeamId
+--     , newLegalHoldDeviceUser  :: UserId
+--     }
+--   deriving (Eq, Show, Generic)
+
+-- getDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
+-- getDevice = undefined
+
+requestDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+requestDevice zusr uid tid = do
+    g <- view tsGalley
+    post $ g
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+           . zUser zusr . zConn "conn"
+           . zType "access"
+
+-- deleteDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
+-- deleteDevice = undefined
 
 --------------------------------------------------------------------
 -- setup helpers

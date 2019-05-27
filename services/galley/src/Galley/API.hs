@@ -301,6 +301,18 @@ sitemap = do
         .&. capture "tid"
         .&. accept "application" "json"
 
+    get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
+    post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDevice) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
    ---
 
     get "/bot/conversation" (continue getBotConversation) $

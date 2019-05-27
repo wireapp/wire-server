@@ -168,12 +168,6 @@ instance Cql ClientClass where
     fromCql (CqlInt 3) = return LegalHoldClient
     fromCql _          = fail "ClientClass: Int [0, 3] expected"
 
-instance Cql PrekeyId where
-    ctype = Tagged IntColumn
-    toCql = CqlInt . fromIntegral . keyId
-    fromCql (CqlInt i) = return $ PrekeyId (fromIntegral i)
-    fromCql _            = fail "PrekeyId: Int expected"
-
 instance Cql PropertyValue where
     ctype = Tagged BlobColumn
     toCql = toCql . Blob . JSON.encode . propertyValueJson
