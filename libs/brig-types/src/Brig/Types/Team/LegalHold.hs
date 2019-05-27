@@ -121,10 +121,6 @@ data NewLegalHoldClient = NewLegalHoldClient
 instance ToJSON NewLegalHoldClient where
     toJSON c = object
         $ "prekeys"  .= newLegalHoldClientPrekeys c
-        -- TODO: Currently the LH Service uses 'last_prekey'; but internally we usually
-        -- use lastkey
-        -- TODO: Ask Dejan about the 'fingeprint' field of the 'initiate' response.
-        -- What is it for? Should we be using it for something?
         # "lastkey"  .= newLegalHoldClientLastKey c
         # []
 
