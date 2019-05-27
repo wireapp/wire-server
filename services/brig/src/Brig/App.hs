@@ -360,7 +360,7 @@ initCassandra o g = do
             . Cas.setPoolStripes 4
             . Cas.setSendTimeout 3
             . Cas.setResponseTimeout 10
-            . Cas.setProtocolVersion Cas.V3
+            . Cas.setProtocolVersion Cas.V4
             $ Cas.defSettings
     runClient p $ versionCheck schemaVersion
     return p

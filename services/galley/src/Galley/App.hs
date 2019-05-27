@@ -149,7 +149,7 @@ initCassandra o l = do
             . C.setPoolStripes 4
             . C.setSendTimeout 3
             . C.setResponseTimeout 10
-            . C.setProtocolVersion C.V3
+            . C.setProtocolVersion C.V4
             $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
