@@ -375,9 +375,10 @@ testEnablePerTeam = do
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
-    putEnabled tid LegalHoldEnabled -- enable it for this team
+    putEnabled tid LegalHoldDisabled -- disable again
     LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
+
     -- TODO: Check that disabling legalhold for a team removes the LH device from all team
     -- members
 
