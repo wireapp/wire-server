@@ -12,7 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
-import Brig.Types.Client.LegalHold (LegalHoldClientRequest(..))
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)

@@ -8,7 +8,7 @@ import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Client.Prekey (LastPrekey, Prekey)
-import Brig.Types.Client.LegalHold (LegalHoldClientRequest(..))
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Galley.App
 import Galley.Intra.Util
 import Galley.Types (UserClients, filterClients)

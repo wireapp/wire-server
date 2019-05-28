@@ -490,6 +490,14 @@ instance Arbitrary NewLegalHoldClient where
 instance Arbitrary UserLegalHoldStatus where
     arbitrary = elements [minBound..]
 
+instance Arbitrary LegalHoldClientRequest where
+    arbitrary = 
+        LegalHoldClientRequest 
+            <$> arbitrary 
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+
 instance Arbitrary LastPrekey where
     arbitrary = lastPrekey <$> arbitrary
 
