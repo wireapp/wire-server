@@ -112,17 +112,12 @@ codeNotFound = Error status404 "no-conversation-code" "conversation code not fou
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
--- TODO: Switch to 503
+-- TODO: Switch to 503 (actually, do we want 5xx here?  is that bad for metrics and logging and alerting?)
 legalHoldServiceUnavailable :: Error
 legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
 
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"
-
-legalHoldNotRegistered :: Error
-legalHoldNotRegistered = Error status412 "legalhold-not-registered" "no legal hold service is configured for this team"
-    -- legal hold can be enabled for this team or not.  this message just states that settings
-    -- have not been posted.
 
 legalHoldNotEnabled :: Error
 legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"

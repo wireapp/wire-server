@@ -12,18 +12,42 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 
-import Control.Lens
 import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
+import Control.Lens
+import Data.Aeson (toJSON)
 import Data.Aeson (Value(..))
+import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.Misc
 import Data.Proxy
 import Data.Text as Text (unlines)
+import Data.UUID (fromText)
 import Data.UUID (UUID)
 import Servant.API hiding (Header)
 import Servant.Swagger
+import URI.ByteString.QQ (uri)
+
+{-
+import Data.String.Conversions
+import System.Process (system)
+import Data.Aeson (encode)
+import Test.Hspec (hspec)
+import Brig.Types.Test.Arbitrary ()
+
+main :: IO ()
+main = do
+  writeFile "/tmp/x" . cs $ encode swagger
+  void $ system "cat /tmp/x | json_pp && curl -X POST -d @/tmp/x -H 'Content-Type:application/json' http://online.swagger.io/validator/debug | json_pp"
+  hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
+  -- see also: https://github.com/swagger-api/validator-badge
+
+  -- alternatives:
+  -- https://github.com/navidsh/maven.swagger.validator
+  -- https://editor.swagger.io/  (this finds dangling refs.  good.)
+  -- https://apidevtools.org/swagger-parser/online/  (also finds dangling refs, but it's *very slow*)
+-}
 
 
 -- TODO: document exceptions properly.
@@ -110,6 +134,34 @@ instance ToSchema NewLegalHoldService where
           }
 
 instance ToSchema ViewLegalHoldService where
+    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 2
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("status", Inline (toSchema (Proxy @Text)))
+               -- This is an enum, but it can't be generated, since it is not an instance of
+               -- 'Bounded' and 'Enum'.  (TODO: make it an enum in swagger anyway, i'm sure
+               -- there is such a thing.  to make sure you're getting it right, define @data
+               -- TempStatus = Disabled | NotConf | Conf@ and generate the swagger docs, then
+               -- as an exercise create the same docs with swagger2 machinery.)
+          , ("info", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr)
+          where
+            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+instance ToSchema ViewLegalHoldServiceInfo where
     declareNamedSchema = genericDeclareNamedSchema opts
       where
         opts = defaultSchemaOptions
@@ -192,32 +244,3 @@ instance ToSchema Prekey where
 
 instance ToSchema LastPrekey where
     declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
-
-
-
-{-
-import Test.Hspec
-import Brig.Types.Test.Arbitrary ()
-
-main :: IO ()
-main = hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
--}
-
-{-
--- import Data.String.Conversions
--- import System.Process (system)
-
--- | dump to file and validate online
---
--- TODO: this shouldn't be in the production code.
-main :: IO ()
-main = do
-  writeFile "/tmp/x" . cs $ encode swagger
-  void $ system "cat /tmp/x | json_pp && curl -X POST -d @/tmp/x -H 'Content-Type:application/json' http://online.swagger.io/validator/debug | json_pp"
-  -- see also: https://github.com/swagger-api/validator-badge
-
-  -- alternatives:
-  -- https://github.com/navidsh/maven.swagger.validator
-  -- https://editor.swagger.io/  (this finds dangling refs.  good.)
-  -- https://apidevtools.org/swagger-parser/online/  (also finds dangling refs, but it's *very slow*)
--}
