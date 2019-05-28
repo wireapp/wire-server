@@ -38,6 +38,7 @@ packages:
 - tools/db/auto-whitelist
 
 extra-deps:
+- servant-swagger-1.1.6
 - git: https://github.com/wireapp/prometheus-haskell
   commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737
   subdirs:
