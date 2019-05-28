@@ -17,26 +17,26 @@ import Data.Aeson
 import Data.Id
 
 newtype PrekeyId = PrekeyId { keyId :: Word16 }
-    deriving (Eq, Ord, Show, ToJSON, FromJSON)
+    deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic)
 
 data Prekey = Prekey
     { prekeyId  :: !PrekeyId
     , prekeyKey :: !Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data PrekeyBundle = PrekeyBundle
     { prekeyUser    :: !UserId
     , prekeyClients :: ![ClientPrekey]
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ClientPrekey = ClientPrekey
     { prekeyClient :: !ClientId
     , prekeyData   :: !Prekey
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 newtype LastPrekey = LastPrekey
     { unpackLastPrekey :: Prekey }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 lastPrekey :: Text -> LastPrekey
 lastPrekey = LastPrekey . Prekey lastPrekeyId
