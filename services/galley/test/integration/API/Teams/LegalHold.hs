@@ -243,7 +243,7 @@ testCreateLegalHoldTeamSettings = do
             liftIO $ threadDelay 5000000 -- TODO: does this help integrations tests in distributed environment?
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
-            service <- getSettingsTyped owner tid
+            ViewLegalHoldService service <- getSettingsTyped owner tid
             liftIO $ do
                 Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
                 assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)
@@ -302,12 +302,12 @@ testGetLegalHoldTeamSettings = do
 
         -- returns legal hold service info if team is under legal hold and user is in team (even
         -- no permissions).
-        resp <- getSettingsTyped member tid
+        ViewLegalHoldService service <- getSettingsTyped member tid
         liftIO $ do
             Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
-            assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam resp)
-            assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl resp)
-            assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint resp)
+            assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam service)
+            assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
+            assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
 
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
 

@@ -84,32 +84,62 @@ instance FromJSON LegalHoldService where
                    <*> o .: "fingerprint"
                    <*> o .: "auth_token"
 
-data ViewLegalHoldService = ViewLegalHoldService
-    { viewLegalHoldServiceTeam        :: !TeamId
-    , viewLegalHoldServiceUrl         :: !HttpsUrl
-    , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
-    }
+data ViewLegalHoldService
+    = ViewLegalHoldService ViewLegalHoldServiceInfo
+    | ViewLegalHoldServiceNotConfigured
+    | ViewLegalHoldServiceDisabled
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON ViewLegalHoldService where
-    toJSON s = object
-        $ "team_id"     .= viewLegalHoldServiceTeam s
-        # "base_url"    .= viewLegalHoldServiceUrl s
-        # "fingerprint" .= viewLegalHoldServiceFingerprint s
-        # []
+    toJSON s = case s of
+        ViewLegalHoldService info -> object
+            $ "status" .= String "configured"
+            # "info"   .= toJSON info
+            # []
+        ViewLegalHoldServiceNotConfigured -> object
+            $ "status" .= String "not_configured"
+            # []
+        ViewLegalHoldServiceDisabled -> object
+            $ "status" .= String "disabled"
+            # []
 
 instance FromJSON ViewLegalHoldService where
-    parseJSON = withObject "LegalHoldService" $ \o -> ViewLegalHoldService
-                   <$> o .: "team_id"
-                   <*> o .: "base_url"
-                   <*> o .: "fingerprint"
+    parseJSON = withObject "LegalHoldService" $ \o -> do
+        status :: Text <- o .: "status"
+        case status of
+            "configured"     -> ViewLegalHoldService <$> (o .: "info")
+            "not_configured" -> pure ViewLegalHoldServiceNotConfigured
+            "disabled"       -> pure ViewLegalHoldServiceDisabled
+            _ -> fail "status (one of configured, not_configured, disabled)"
 
+data ViewLegalHoldServiceInfo
+    = ViewLegalHoldServiceInfo
+        { viewLegalHoldServiceTeam        :: !TeamId
+        , viewLegalHoldServiceUrl         :: !HttpsUrl
+        , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
+        }
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON ViewLegalHoldServiceInfo where
+    toJSON info = object
+        $ "team_id"     .= viewLegalHoldServiceTeam info
+        # "base_url"    .= viewLegalHoldServiceUrl info
+        # "fingerprint" .= viewLegalHoldServiceFingerprint info
+        # []
+
+instance FromJSON ViewLegalHoldServiceInfo where
+    parseJSON = withObject "LegalHoldServiceInfo" $ \o -> do
+        ViewLegalHoldServiceInfo
+            <$> o .: "team_id"
+            <*> o .: "base_url"
+            <*> o .: "fingerprint"
 
 legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> LegalHoldService
 legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fpr t
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
-viewLegalHoldService (LegalHoldService tid u fpr _) = ViewLegalHoldService tid u fpr
+viewLegalHoldService (LegalHoldService tid u fpr _) =
+    ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr
 
 -- TODO: Do we need a Client ID?
 data NewLegalHoldClient = NewLegalHoldClient
