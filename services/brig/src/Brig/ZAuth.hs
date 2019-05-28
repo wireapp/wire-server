@@ -198,12 +198,12 @@ mkEnv sk pk sets = do
     return $! Env zc zv sets
 
 class UserTokenLike t where
-    -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
     userTokenOf :: (Token t) -> UserId
     mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token t)
     userTokenRand :: (Token t) -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token t)
     newSessionToken :: MonadZAuth m => UserId -> m (Token t)
+    -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
     -- newAccessToken :: ()
     -- renewAccessToken :: ()
     -- accessTokenTimeout :: ()
@@ -216,12 +216,13 @@ instance UserTokenLike User where
     newUserToken = newUserToken'
     newSessionToken = newSessionToken'
 
+    -- TODO 
 instance UserTokenLike LegalHoldUser where
     mkUserToken = mkLegalHoldUserToken
-    userTokenOf = undefined
-    userTokenRand = undefined
-    newUserToken = undefined
-    newSessionToken = undefined
+    userTokenOf = legalHoldUserTokenOf
+    userTokenRand = legalHoldUserTokenRand
+    newUserToken = newLegalHoldUserToken
+    newSessionToken = undefined -- TODO: sessions tokens are not intended to be supported for the legal hold case. Throw an error leading to a 4xx when this is tried? Alternatively refactor the User/Auth/Cookie.hs `newCookie` function so that this function isn't needed on the `UserTokenLike` class.
 
 mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
 mkUserToken' u r t = liftZAuth $ do
@@ -322,6 +323,9 @@ legalHoldUserTokenOf t = Id (t^.body.legalHoldUser.user)
 
 userTokenRand' :: UserToken -> Word32
 userTokenRand' t = t^.body.rand
+
+legalHoldUserTokenRand :: LegalHoldUserToken -> Word32
+legalHoldUserTokenRand t = t^.body.legalHoldUser.rand
 
 tokenKeyIndex :: Token a -> Int
 tokenKeyIndex t = t^.header.key

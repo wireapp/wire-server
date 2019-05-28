@@ -136,7 +136,7 @@ routes = do
         Doc.body (Doc.ref Doc.removeCookies) Doc.end
         Doc.errorResponse badCredentials
 
-
+    -- for the LegalHoldService to refresh its tokens.
     post "/legalhold/access" (continue renewLegalHold) $
         accept "application" "json" .&. legalHoldTokenRequest
 
@@ -159,6 +159,11 @@ routes = do
         Doc.errorResponse badCredentials
 
     -- Internal
+
+    -- galley can query this endpoint at the right moment in the LegalHold flow
+    post "/i/legalhold-login" (continue legalHoldLogin) $
+        jsonRequest @LegalHoldLogin
+        .&. accept "application" "json"
 
     post "/i/sso-login" (continue ssoLogin) $
         jsonRequest @SsoLogin
@@ -205,6 +210,14 @@ ssoLogin (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
     a <- Auth.ssoLogin l typ !>> loginError
+    tokenResponse a
+
+legalHoldLogin :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
+legalHoldLogin (req ::: _) = do
+    l <- parseJsonBody req
+    let typ = PersistentCookie -- Session cookie isn't a supported use case here
+    a <- undefined -- TODO create and return a LegalHoldUserToken as cookie and a LegalHoldAccessToken as (brig's) AccessToken
+    --a <- Auth.ssoLogin l typ !>> loginError
     tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
