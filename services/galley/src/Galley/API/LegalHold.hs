@@ -42,7 +42,7 @@ getEnabled (tid ::: _) = do
     legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
     pure . json . fromMaybe defConfig $ legalHoldTeamConfig
       where
-        defConfig = LegalHoldTeamConfig LegalHoldEnabled
+        defConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
 setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
