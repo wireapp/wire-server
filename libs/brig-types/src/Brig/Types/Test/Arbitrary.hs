@@ -455,7 +455,14 @@ instance Arbitrary LegalHoldService where
     arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ViewLegalHoldService where
-    arbitrary = ViewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = oneof
+        [ ViewLegalHoldService <$> arbitrary
+        , pure ViewLegalHoldServiceNotConfigured
+        , pure ViewLegalHoldServiceDisabled
+        ]
+
+instance Arbitrary ViewLegalHoldServiceInfo where
+    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary HttpsUrl where
     arbitrary = pure $ HttpsUrl [uri|https://example.com|]

@@ -24,15 +24,15 @@ import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
-assertLegalHoldEnabled tid = do
+assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
+
+isLegalHoldEnabled :: TeamId -> Galley Bool
+isLegalHoldEnabled tid = do
     lhConfig <- LegalHoldData.getLegalHoldTeamConfig tid
     case lhConfig of
         Just LegalHoldTeamConfig{legalHoldTeamConfigStatus=LegalHoldEnabled}
-          -> return ()
-        -- TODO: throw 'legalHoldNotEnabled' here before releasing. This behaviour is only
-        -- here for testing.
-        Nothing -> return ()
-        _ -> throwM legalHoldNotEnabled
+          -> return True
+        _ -> return True  -- TODO: must be false. this behaviour is only here for testing.
 
 -- | Enable or disable legal hold for a team.
 getEnabled :: TeamId ::: JSON -> Galley Response
@@ -40,7 +40,7 @@ getEnabled (tid ::: _) = do
     legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
     pure . json . fromMaybe defConfig $ legalHoldTeamConfig
       where
-        defConfig = LegalHoldTeamConfig LegalHoldEnabled
+        defConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
 setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
@@ -73,12 +73,13 @@ getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
-    assertLegalHoldEnabled tid
+    isenabled <- isLegalHoldEnabled tid
 
     mresult <- LegalHoldData.getSettings tid
-    case mresult of
-        Nothing -> throwM legalHoldNotRegistered
-        Just result -> pure $ json result
+    pure . json $ case (isenabled, mresult) of
+        (False, _)          -> ViewLegalHoldServiceDisabled
+        (True, Nothing)     -> ViewLegalHoldServiceNotConfigured
+        (True, Just result) -> viewLegalHoldService result
 
 removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do
