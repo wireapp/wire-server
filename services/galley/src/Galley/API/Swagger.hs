@@ -150,7 +150,7 @@ instance ToSchema ViewLegalHoldService where
                -- there is such a thing.  to make sure you're getting it right, define @data
                -- TempStatus = Disabled | NotConf | Conf@ and generate the swagger docs, then
                -- as an exercise create the same docs with swagger2 machinery.)
-          , ("info", Ref (Reference "ViewLegalHoldServiceInfo"))
+          , ("info", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
           ]
 
         example_ :: Maybe Value
