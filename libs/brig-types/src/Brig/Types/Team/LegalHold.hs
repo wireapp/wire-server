@@ -94,7 +94,7 @@ instance ToJSON ViewLegalHoldService where
     toJSON s = case s of
         ViewLegalHoldService info -> object
             $ "status" .= String "configured"
-            # "info"   .= toJSON info
+            # "info"   .= info
             # []
         ViewLegalHoldServiceNotConfigured -> object
             $ "status" .= String "not_configured"

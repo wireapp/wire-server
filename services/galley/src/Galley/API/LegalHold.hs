@@ -23,10 +23,7 @@ import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
-assertLegalHoldEnabled tid = do
-    isLegalHoldEnabled tid >>= \case
-        True  -> pure ()
-        False -> throwM legalHoldNotEnabled
+assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
 
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do

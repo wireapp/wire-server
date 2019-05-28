@@ -144,7 +144,12 @@ instance ToSchema ViewLegalHoldService where
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
-          [ ("status", Inline (toSchema (Proxy @Text)))  -- TODO: this is an enum, but it can't be generated!
+          [ ("status", Inline (toSchema (Proxy @Text)))
+               -- This is an enum, but it can't be generated, since it is not an instance of
+               -- 'Bounded' and 'Enum'.  (TODO: make it an enum in swagger anyway, i'm sure
+               -- there is such a thing.  to make sure you're getting it right, define @data
+               -- TempStatus = Disabled | NotConf | Conf@ and generate the swagger docs, then
+               -- as an exercise create the same docs with swagger2 machinery.)
           , ("info", Ref (Reference "ViewLegalHoldServiceInfo"))
           ]
 

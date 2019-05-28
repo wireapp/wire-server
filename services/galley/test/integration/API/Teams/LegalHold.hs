@@ -351,8 +351,8 @@ testRemoveLegalHoldFromTeam = do
         deleteSettings owner tid !!! const 204 === statusCode
 
         -- deletion is successful (both witnessed on the API and in the backend)
-        getSettings owner tid >>= \resp ->
-            liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
+        resp <- getSettings owner tid
+        liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
 
         -- TODO: do we also want to check the DB?
 
