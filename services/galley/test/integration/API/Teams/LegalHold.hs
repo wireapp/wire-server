@@ -30,7 +30,7 @@ import Network.Wai as Wai
 import Servant.Swagger (validateEveryToJSON)
 import System.Environment (withArgs)
 import TestHelpers
-import Test.Hspec (hspec)
+import Test.Hspec (hspec, context)
 import Test.QuickCheck.Instances ()
 import TestSetup
 import Test.Tasty
@@ -98,7 +98,12 @@ ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
 -- TODO: it's also failing, but not with a terribly helpful message.  need to investigate!
 testSwaggerJsonConsistency :: TestM ()
 testSwaggerJsonConsistency = do
-    liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
+    liftIO . withArgs [] . hspec . context ctxmsg $ validateEveryToJSON (Proxy @GalleyRoutes)
+  where
+    ctxmsg = "swagger descriptions - failure of this test may be due to a new or altered " <>
+             "field on a type which must also be reflected in the swagger schema for that " <>
+             "type.  you can get better error messages if you upgrade to " <>
+             "servant-swagger-1.1.6 or newer."
 
 
 testCreateLegalHoldDevice :: TestM ()

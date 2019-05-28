@@ -80,7 +80,7 @@ instance ToSchema HttpsUrl where
 instance ToSchema ServiceKeyPEM where
     declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
       where
-        tweak = fmap $ schema . example .~ Just pem
+        tweak = fmap $ schema . example ?~ pem
         pem = String . Text.unlines $
             [ "-----BEGIN PUBLIC KEY-----"
             , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
@@ -136,7 +136,7 @@ instance ToSchema LegalHoldStatus where
               "LegalHoldEnabled"  -> "enabled"
           }
 
-        tweak = fmap $ schema . description .~ Just descr
+        tweak = fmap $ schema . description ?~ descr
           where
             descr = "determines whether admins of a team " <>
                     "are allowed to enable LH for their users."
@@ -169,7 +169,7 @@ instance ToSchema UserLegalHoldStatus where
               "UserLegalHoldDisabled" -> "disabled"
           }
 
-        tweak = fmap $ schema . description .~ Just descr
+        tweak = fmap $ schema . description ?~ descr
           where
             descr = "states whether a user is under legal hold, " <>
                     "or whether legal hold is pending approval."
@@ -177,7 +177,7 @@ instance ToSchema UserLegalHoldStatus where
 instance ToSchema PrekeyId where
     declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
       where
-        tweak = fmap $ schema . description .~ Just descr
+        tweak = fmap $ schema . description ?~ descr
           where
             descr = "in the range [0..65535]."
 
