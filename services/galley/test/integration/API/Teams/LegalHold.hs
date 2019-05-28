@@ -203,15 +203,14 @@ testCreateLegalHoldTeamSettings = do
 
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    -- TODO: not allowed if team has feature bit not set
-
     liftIO $ putStrLn "XXX check member can't do this..."
     -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
 
     -- not allowed to create if team setting is disabled
-    -- TODO: uncomment the following once 'disabled' is the default
-    -- postSettings owner tid newService !!! const 403 === statusCode
+    -- TODO: remove the following 'ignore' once 'disabled' is the default
+    ignore $ postSettings owner tid newService !!! const 403 === statusCode
+
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
     liftIO $ putStrLn "XXX check behaviour if service unavailable..."
@@ -356,7 +355,7 @@ testRemoveLegalHoldFromTeam = do
 
 
 testEnablePerTeam :: TestM ()
-testEnablePerTeam = ignore $ do
+testEnablePerTeam = do
     (_, tid) <- createTeam
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
@@ -481,8 +480,10 @@ exactlyOneLegalHoldDevice uid = do
         assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
         assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
 
-jsonBody :: Aeson.FromJSON v => ResponseLBS -> v
-jsonBody = either (error . show) id . Aeson.eitherDecode . fromJust . responseBody
+jsonBody :: (HasCallStack, Aeson.FromJSON v) => ResponseLBS -> v
+jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
+  where
+    bdy = fromJust $ responseBody resp
 
 ---------------------------------------------------------------------
 --- Device helpers
