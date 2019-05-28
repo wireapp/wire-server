@@ -109,9 +109,6 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         UserLegalHoldPending -> provisionLHDevice
         UserLegalHoldDisabled -> provisionLHDevice
   where
-    okResponse :: Galley Response
-    okResponse = pure $ responseLBS status204 [] mempty
-
     provisionLHDevice :: Galley Response
     provisionLHDevice = do
         (lastPrekey', prekeys) <- requestDeviceFromService
@@ -119,7 +116,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
         LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
         notifyClientsAboutLegalHoldRequest zusr uid lastPrekey' prekeys
-        okResponse
+        pure $ responseLBS status204 [] mempty
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
