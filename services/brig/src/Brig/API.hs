@@ -12,7 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
-import Brig.User.Event
+import Brig.Types.Client.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
@@ -182,7 +182,7 @@ sitemap o = do
       .&. jsonRequest @UserSet
 
     post "/i/clients/legalhold/request" (continue legalHoldClientRequested) $
-      jsonRequest @LegalHoldClientRequestedData
+      jsonRequest @LegalHoldClientRequest
       .&. accept "application" "json"
 
     -- /users -----------------------------------------------------------------
@@ -1005,9 +1005,9 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
 
-legalHoldClientRequested :: JsonRequest LegalHoldClientRequestedData ::: JSON -> Handler Response
+legalHoldClientRequested :: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
 legalHoldClientRequested (req ::: _) = do
-    LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys <- parseJsonBody req
+    LegalHoldClientRequest requester targetUser lastPrekey' prekeys <- parseJsonBody req
     lift $ API.legalHoldClientRequested requester targetUser lastPrekey' prekeys
     return $ setStatus status200 empty
 

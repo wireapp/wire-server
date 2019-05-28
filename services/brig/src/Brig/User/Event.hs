@@ -6,8 +6,6 @@ import Imports
 import Brig.Types
 import Brig.Types.Intra
 import Data.Id
-import Data.Aeson
-import Data.Json.Util ((#))
 
 data Event
     = UserEvent       !UserEvent
@@ -73,22 +71,6 @@ data LegalHoldClientRequestedData =
     , lhcLastPrekey :: !LastPrekey
     , lhcPrekeys    :: ![Prekey]
     }
-
-instance FromJSON LegalHoldClientRequestedData where
-  parseJSON = withObject "LegalHoldClientRequestedData" $ \o ->
-    LegalHoldClientRequestedData
-        <$> o .: "requester"
-        <*> o .: "target_user"
-        <*> o .: "last_prekey"
-        <*> o .: "prekeys"
-
-instance ToJSON LegalHoldClientRequestedData where
-  toJSON (LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys) = object
-        $  "requester" .= requester
-        #  "target_user" .= targetUser
-        #  "last_prekey" .= lastPrekey'
-        #  "prekeys" .= prekeys
-        # []
 
 emailRemoved :: UserId -> Email -> UserEvent
 emailRemoved u e = UserIdentityRemoved u (Just e) Nothing
