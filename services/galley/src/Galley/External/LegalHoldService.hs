@@ -24,6 +24,7 @@ import Data.Misc
 import Galley.App
 import Network.HTTP.Types
 import Ssl.Util
+import System.Logger as Logger
 
 import qualified Bilge
 import qualified Galley.Data.LegalHold        as LegalHoldData
@@ -56,9 +57,12 @@ checkLegalHoldServiceStatus fpr url = do
 requestNewDevice :: TeamId -> UserId -> Galley NewLegalHoldClient
 requestNewDevice tid uid = do
     resp <- makeLegalHoldServiceRequest tid reqParams
-    case decode (responseBody resp) of
-        Nothing -> throwM legalHoldServiceBadResponse
-        Just client -> pure client
+    case eitherDecode (responseBody resp) of
+        Left e -> do
+            lg <- view applog
+            Logger.err lg . msg $ "Error decoding NewLegalHoldClient: " <> e
+            throwM legalHoldServiceBadResponse
+        Right client -> pure client
   where
     reqParams =
         Bilge.paths ["initiate"]
