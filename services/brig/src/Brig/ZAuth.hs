@@ -197,27 +197,26 @@ mkEnv sk pk sets = do
     let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
     return $! Env zc zv sets
 
-
 class UserTokenLike t where
     -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
-    userTokenOf :: t -> UserId
-    mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m t
-    userTokenRand :: t -> Word32
-    newUserToken :: MonadZAuth m => UserId -> m t
-    newSessionToken :: MonadZAuth m => UserId -> m t
+    userTokenOf :: (Token t) -> UserId
+    mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token t)
+    userTokenRand :: (Token t) -> Word32
+    newUserToken :: MonadZAuth m => UserId -> m (Token t)
+    newSessionToken :: MonadZAuth m => UserId -> m (Token t)
     -- newAccessToken :: ()
     -- renewAccessToken :: ()
     -- accessTokenTimeout :: ()
     -- accessTokenTimeoutSeconds :: ()
 
-instance UserTokenLike UserToken where
+instance UserTokenLike User where
     mkUserToken = mkUserToken'
     userTokenOf = userTokenOf'
     userTokenRand = userTokenRand'
     newUserToken = newUserToken'
     newSessionToken = newSessionToken'
 
-instance UserTokenLike LegalHoldUserToken where
+instance UserTokenLike LegalHoldUser where
     mkUserToken = mkLegalHoldUserToken
     userTokenOf = undefined
     userTokenRand = undefined
