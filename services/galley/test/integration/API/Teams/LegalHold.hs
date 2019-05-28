@@ -288,14 +288,24 @@ testGetLegalHoldTeamSettings = do
         -- returns 403 if user is not in team.
         getSettings stranger tid !!! const 403 === statusCode
 
-        -- returns 403 if legalhold disabled for team
-        -- TODO: Uncomment when 'disabled' is the default
-        -- > getSettings owner tid !!! const 403 === statusCode
+        -- returns 200 with corresp. status if legalhold for team is disabled
+        do  let respOk :: ResponseLBS -> TestM ()
+                respOk resp = liftIO $ do
+                  assertEqual "bad status code" 200 (statusCode resp)
+                  -- TODO: remove the following 'ignore' once 'disabled' is the default
+                  ignore $ assertEqual "bad body" ViewLegalHoldServiceDisabled (jsonBody resp)
+            getSettings owner  tid >>= respOk
+            getSettings member tid >>= respOk
+
         putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        -- returns 412 if team is not under legal hold
-        getSettings owner tid !!! const 412 === statusCode
-        getSettings member tid !!! const 412 === statusCode
+        -- returns 200 with corresp. status if legalhold for team is enabled, but not configured
+        do  let respOk :: ResponseLBS -> TestM ()
+                respOk resp = liftIO $ do
+                  assertEqual "bad status code" 200 (statusCode resp)
+                  assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
+            getSettings owner  tid >>= respOk
+            getSettings member tid >>= respOk
 
         postSettings owner tid newService !!! const 201 === statusCode
 
@@ -341,7 +351,8 @@ testRemoveLegalHoldFromTeam = do
         deleteSettings owner tid !!! const 204 === statusCode
 
         -- deletion is successful (both witnessed on the API and in the backend)
-        getSettings owner tid !!! const 412 === statusCode
+        getSettings owner tid >>= \resp ->
+            liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
 
         -- TODO: do we also want to check the DB?
 
