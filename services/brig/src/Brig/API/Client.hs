@@ -149,7 +149,10 @@ pubClient c = PubClient
     }
 
 legalHoldClientRequested :: UserId -> UserId -> LastPrekey -> [Prekey] -> AppIO ()
-legalHoldClientRequested origin uid lastPrekey' prekeys = do
-    let eventData = LegalHoldClientRequestedData origin uid lastPrekey' prekeys
-    let lhClientEvent = LegalHoldClientRequested eventData
+legalHoldClientRequested origin uid lastPrekey' prekeys =
     Intra.onClientEvent uid Nothing lhClientEvent
+  where
+    eventData :: LegalHoldClientRequestedData
+    eventData = LegalHoldClientRequestedData origin uid lastPrekey' prekeys
+    lhClientEvent :: ClientEvent
+    lhClientEvent = LegalHoldClientRequested eventData

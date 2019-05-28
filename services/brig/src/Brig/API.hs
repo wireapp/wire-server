@@ -181,6 +181,10 @@ sitemap o = do
       accept "application" "json"
       .&. jsonRequest @UserSet
 
+    post "/i/clients/legalhold/request" (continue legalHoldClientRequested) $
+      jsonRequest @LegalHoldClientRequestedData
+      .&. accept "application" "json"
+
     -- /users -----------------------------------------------------------------
 
     get "/users/api-docs"
@@ -1001,11 +1005,9 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
 
--- TODO: Add route!
 legalHoldClientRequested :: JsonRequest LegalHoldClientRequestedData ::: JSON -> Handler Response
 legalHoldClientRequested (req ::: _) = do
     LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys <- parseJsonBody req
-    -- TODO: Better error checking
     lift $ API.legalHoldClientRequested requester targetUser lastPrekey' prekeys
     return $ setStatus status200 empty
 

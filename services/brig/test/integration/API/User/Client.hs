@@ -26,7 +26,8 @@ import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
 tests _cl _at _conf p b c g = testGroup "client"
-    [ test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
+    [ test p "post /i/clients/legalhold/request 200"  $ testRequestLegalHoldClient b c
+    , test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
     , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
     , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
     , test p "post /clients - 201 (no pwd)"           $ testAddGetClient False b c
@@ -330,3 +331,29 @@ testPreKeyRace brig = do
     let regular = filter (/= lastPrekeyId) actual
     liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
     deleteClient brig uid (clientId c) (Just defPassword) !!! const 200 === statusCode
+
+testRequestLegalHoldClient :: Brig -> Cannon -> Http ()
+testRequestLegalHoldClient brig cannon = do
+    let hasPassword = True
+    requester <- randomUser' hasPassword brig
+    targetUser' <- randomUser' hasPassword brig
+    let requesterUid = userId requester
+    let targetUid = userId targetUser'
+
+    WS.bracketR cannon targetUid $ \ws -> do
+        let expectedLastPrekey = lastPrekey "a last-prekey"
+        let expectedPrekeys = [Prekey (PrekeyId 1) "a prekey"]
+        requestLegalHoldDevice brig requesterUid targetUid expectedLastPrekey expectedPrekeys
+          !!! const 200 === statusCode
+        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+            let j = Object $ List1.head (ntfPayload n)
+            let etype = j ^? key "type" . _String
+            let eRequester = j ^? key "requester" . _String
+            let eTargetUser = j ^? key "target_user" . _String
+            let eLastPrekey = j ^? key "last_prekey" . _JSON
+            let ePrekeys = j ^? key "prekeys" . _JSON
+            etype @?= Just "user.client-legal-hold-request"
+            eRequester @?= Just (idToText requesterUid)
+            eTargetUser @?= Just (idToText targetUid)
+            Just expectedLastPrekey @?= eLastPrekey
+            Just expectedPrekeys @?= ePrekeys
