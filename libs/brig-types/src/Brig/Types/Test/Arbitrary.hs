@@ -20,16 +20,17 @@ module Brig.Types.Test.Arbitrary where
 
 import Imports
 import Brig.Types.Activation
+import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyPEM(..))
 import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
-import URI.ByteString.QQ (uri)
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
@@ -49,7 +50,7 @@ import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
-import Brig.Types.Team.LegalHold
+import URI.ByteString.QQ (uri)
 
 import qualified Data.Set as Set
 import qualified Data.ByteString.Char8 as BS
@@ -479,5 +480,23 @@ instance Arbitrary (Fingerprint Rsa) where
 
 instance Arbitrary ServiceToken where
     arbitrary = ServiceToken <$> arbitrary
+
+instance Arbitrary RequestNewLegalHoldClient where
+    arbitrary = RequestNewLegalHoldClient <$> arbitrary <*> arbitrary
+
+instance Arbitrary NewLegalHoldClient where
+    arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary
+
+instance Arbitrary UserLegalHoldStatus where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary LastPrekey where
+    arbitrary = lastPrekey <$> arbitrary
+
+instance Arbitrary Prekey where
+    arbitrary = Prekey <$> arbitrary <*> arbitrary
+
+instance Arbitrary PrekeyId where
+    arbitrary = PrekeyId <$> arbitrary
 
 #endif

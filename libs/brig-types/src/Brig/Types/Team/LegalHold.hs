@@ -13,7 +13,7 @@ import Data.Misc
 import qualified Data.Text as T
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
-   deriving (Eq, Show, Ord, Enum, Bounded)
+   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
 instance ToJSON LegalHoldStatus where
     toJSON LegalHoldEnabled = "enabled"
@@ -29,7 +29,7 @@ instance FromJSON LegalHoldStatus where
 data LegalHoldTeamConfig = LegalHoldTeamConfig
     { legalHoldTeamConfigStatus :: !LegalHoldStatus
     }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldTeamConfig where
     toJSON s = object
@@ -46,7 +46,7 @@ data NewLegalHoldService = NewLegalHoldService
     , newLegalHoldServiceKey     :: !ServiceKeyPEM
     , newLegalHoldServiceToken   :: !ServiceToken
     }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON NewLegalHoldService where
     toJSON s = object
@@ -67,7 +67,7 @@ data LegalHoldService = LegalHoldService
     , legalHoldServiceFingerprint :: !(Fingerprint Rsa)
     , legalHoldServiceToken       :: !ServiceToken
     }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldService where
     toJSON s = object
@@ -89,7 +89,7 @@ data ViewLegalHoldService = ViewLegalHoldService
     , viewLegalHoldServiceUrl         :: !HttpsUrl
     , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
     }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON ViewLegalHoldService where
     toJSON s = object
@@ -116,15 +116,11 @@ data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]
     , newLegalHoldClientLastKey  :: !LastPrekey
     }
-    deriving stock (Eq, Show)
+    deriving stock (Eq, Show, Generic)
 
 instance ToJSON NewLegalHoldClient where
     toJSON c = object
         $ "prekeys"  .= newLegalHoldClientPrekeys c
-        -- TODO: Currently the LH Service uses 'last_prekey'; but internally we usually
-        -- use lastkey
-        -- TODO: Ask Dejan about the 'fingeprint' field of the 'initiate' response.
-        -- What is it for? Should we be using it for something?
         # "lastkey"  .= newLegalHoldClientLastKey c
         # []
 
@@ -136,19 +132,24 @@ instance FromJSON NewLegalHoldClient where
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     { userId :: !UserId
     , teamId :: !TeamId
-    } deriving stock (Show, Eq)
+    } deriving stock (Show, Eq, Generic)
 
 instance ToJSON RequestNewLegalHoldClient where
     toJSON (RequestNewLegalHoldClient userId teamId) = object
-        $ "userId"    .= userId
-        # "teamId"    .= teamId
+        $ "user_id"    .= userId
+        # "team_id"    .= teamId
         # []
+
+instance FromJSON RequestNewLegalHoldClient where
+    parseJSON = withObject "RequestNewLegalHoldClient" $ \o ->
+        RequestNewLegalHoldClient <$> o .: "user_id"
+                                  <*> o .: "team_id"
 
 data UserLegalHoldStatus
     = UserLegalHoldEnabled
     | UserLegalHoldPending
     | UserLegalHoldDisabled
-    deriving (Show, Eq, Bounded, Enum)
+    deriving stock (Show, Eq, Bounded, Enum, Generic)
 
 instance ToJSON UserLegalHoldStatus where
     toJSON UserLegalHoldEnabled = "enabled"

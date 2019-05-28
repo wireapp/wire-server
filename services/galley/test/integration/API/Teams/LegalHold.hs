@@ -30,7 +30,7 @@ import Network.Wai as Wai
 import Servant.Swagger (validateEveryToJSON)
 import System.Environment (withArgs)
 import TestHelpers
-import Test.Hspec (hspec)
+import Test.Hspec (hspec, context)
 import Test.QuickCheck.Instances ()
 import TestSetup
 import Test.Tasty
@@ -55,7 +55,7 @@ tests s = testGroup "Teams LegalHold API"
       -- device handling (CRUD)
     , test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
     , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
-    , test s "PUT /teams/{tid}/legalhold/{uid}/approve" testApproveLegalHoldDevice
+    , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
     , test s "DELETE /teams/{tid}/legalhold/{uid}" testRemoveLegalHoldDevice
@@ -97,8 +97,13 @@ ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
 --
 -- TODO: it's also failing, but not with a terribly helpful message.  need to investigate!
 testSwaggerJsonConsistency :: TestM ()
-testSwaggerJsonConsistency = ignore $ do
-    liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
+testSwaggerJsonConsistency = do
+    liftIO . withArgs [] . hspec . context ctxmsg $ validateEveryToJSON (Proxy @GalleyRoutes)
+  where
+    ctxmsg = "swagger descriptions - failure of this test may be due to a new or altered " <>
+             "field on a type which must also be reflected in the swagger schema for that " <>
+             "type.  you can get better error messages if you upgrade to " <>
+             "servant-swagger-1.1.6 or newer."
 
 
 testCreateLegalHoldDevice :: TestM ()
@@ -151,6 +156,10 @@ testCreateTwoLegalHoldDevices = do
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
     pure ()
+
+    when False $ void $ approveLegalHoldDevice undefined undefined
+      -- just something silly to keep the name to suppress the `-Wunused-top-binds` noise and
+      -- to remind everybody it's already there.
 
     -- only user themself can do it
     -- fail if no legal hold service registered
@@ -444,6 +453,9 @@ deleteSettings uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
+getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
+getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getUserStatus uid tid = do
     g <- view tsGalley
@@ -452,8 +464,13 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
-getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+approveLegalHoldDevice :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice uid tid = do
+    g <- view tsGalley
+    put $ g
+           . paths ["teams", toByteString' tid, "legalhold", "approve"]
+           . zUser uid . zConn "conn"
+           . zType "access"
 
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 exactlyOneLegalHoldDevice uid = do
