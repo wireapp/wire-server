@@ -4,7 +4,7 @@ module Galley.Types.Swagger where
 
 import Imports
 import Data.Swagger.Build.Api as Swagger
-import qualified Data.Swagger as Swagger
+import qualified "types-common" Data.Swagger as Swagger
 
 galleyModels :: [Model]
 galleyModels =
