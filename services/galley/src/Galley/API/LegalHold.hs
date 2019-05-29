@@ -12,7 +12,7 @@ import Data.Misc
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
-import Galley.Intra.Client (notifyClientsAboutLegalHoldRequest)
+import Galley.Intra.Client (notifyClientsAboutLegalHoldRequest, addLegalHoldClientToUser)
 import qualified Galley.External.LegalHoldService as LHService
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
@@ -125,3 +125,19 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         lhDevice <- LHService.requestNewDevice tid uid
         let NewLegalHoldClient prekeys lastKey = lhDevice
         return (lastKey, prekeys)
+
+-- | Approve the adding of a Legal Hold device to the user
+approveDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
+approveDevice (zusr ::: tid ::: uid ::: _) = do
+    unless (zusr == uid) (throwM accessDenied)
+    assertOnTeam uid tid
+    assertLegalHoldEnabled tid
+
+    prekeys <- LegalHoldData.selectPendingPrekeys uid
+    (legalHoldAccessToken, legalHoldRefreshToken) <- addLegalHoldClientToUser uid prekeys
+    -- notifyClientsAboutLegalHoldApproval happens in brig?
+
+    let clientId = undefined
+    LHService.confirmLegalHold clientId tid uid legalHoldAccessToken legalHoldRefreshToken
+    return undefined
+

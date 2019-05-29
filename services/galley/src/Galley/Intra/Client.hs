@@ -1,6 +1,7 @@
 module Galley.Intra.Client
     ( lookupClients
     , notifyClientsAboutLegalHoldRequest
+    , addLegalHoldClientToUser
     ) where
 
 import Imports
@@ -40,3 +41,6 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' prekeys = 
                 . path "/i/clients/legalhold/request"
                 . json (LegalHoldClientRequest requesterUid targetUid lastPrekey' prekeys)
                 . expect2xx
+
+addLegalHoldClientToUser :: UserId -> [Prekey] -> Galley (Text, Text)
+addLegalHoldClientToUser _uid _prekeys = undefined

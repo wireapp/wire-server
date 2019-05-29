@@ -42,8 +42,11 @@ notConnected = Error status403 "not-connected" "Users are not connected"
 tooManyMembers :: Error
 tooManyMembers = Error status403 "too-many-members" "Maximum number of members per conversation reached"
 
+convAccessDenied :: Error
+convAccessDenied = Error status403 "access-denied" "Conversation access denied"
+
 accessDenied :: Error
-accessDenied = Error status403 "access-denied" "Conversation access denied"
+accessDenied = Error status403 "access-denied" "You do not have permission to access this resource"
 
 reAuthFailed :: Error
 reAuthFailed = Error status403 "access-denied" "This operation requires reauthentication"

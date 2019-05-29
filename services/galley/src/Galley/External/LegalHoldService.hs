@@ -5,6 +5,7 @@ module Galley.External.LegalHoldService
 
       -- * helpers
     , validateServiceKey
+    , confirmLegalHold
     ) where
 
 import Imports
@@ -70,6 +71,22 @@ requestNewDevice tid uid = do
       . Bilge.method POST
       . Bilge.expect2xx
 
+-- | @POST /confirm@
+-- Confirm that a device has been linked to a user and provide an authorization token
+confirmLegalHold :: ClientId
+                 -> TeamId
+                 -> UserId
+                 -> Text -- ^ TODO: Replace with 'LegalHold' token type
+                 -> Text -- ^ TODO: Replace with 'LegalHold' token type
+                 -> Galley ()
+confirmLegalHold clientId tid uid accessToken refreshToken = do
+    void $ makeLegalHoldServiceRequest tid reqParams
+  where
+    reqParams =
+        Bilge.paths ["confirm"]
+      . Bilge.json (LegalHoldConfirm clientId uid tid accessToken refreshToken)
+      . Bilge.method POST
+      . Bilge.expect2xx
 
 ----------------------------------------------------------------------
 -- helpers

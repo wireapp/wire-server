@@ -184,22 +184,25 @@ testCreateTwoLegalHoldDevices = do
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    when False $ void $ approveLegalHoldDevice undefined undefined
-      -- just something silly to keep the name to suppress the `-Wunused-top-binds` noise and
-      -- to remind everybody it's already there.
+    withDummyTestServiceForTeam owner tid $ do
+        requestDevice owner member tid !!! const 204 === statusCode
 
-    -- only user themself can do it
-    -- fail if no legal hold service registered
-    -- fail if legal Hold feature flag disabled
-    -- generates and stores legalhold tokens/cookies
-    -- synchronously sends tokens/cookies to team's legal hold service
-    -- expect return payload from service to contain device creation information (NewClient)
-    -- adds device to user's list of devices
-    -- sends an event to all user's clients
-    -- sends an event to team settings (however that works; it's a client-independent event i think)
-    -- all of user's communication peers receive an event
+        -- Only the user themself can approve adding a LH device
+        approveLegalHoldDevice owner member tid !!! const 403 === statusCode
+        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+
+        -- only user themself can do it
+        -- fail if no legal hold service registered
+        -- fail if legal Hold feature flag disabled
+        -- generates and stores legalhold tokens/cookies
+        -- synchronously sends tokens/cookies to team's legal hold service
+        -- sends an event to all user's clients
+        -- sends an event to team settings (however that works; it's a client-independent event i think)
+        -- all of user's communication peers receive an event
 
 
 testGetLegalHoldDeviceStatus :: TestM ()
@@ -495,12 +498,12 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-approveLegalHoldDevice uid tid = do
+approveLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice zusr uid tid = do
     g <- view tsGalley
     put $ g
-           . paths ["teams", toByteString' tid, "legalhold", "approve"]
-           . zUser uid . zConn "conn"
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid, "approve"]
+           . zUser zusr . zConn "conn"
            . zType "access"
 
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()

@@ -313,6 +313,12 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
+    put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDevice) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
    ---
 
     get "/bot/conversation" (continue getBotConversation) $
@@ -555,7 +561,7 @@ sitemap = do
         body (ref Model.conversationAccessUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
         errorResponse Error.invalidTargetAccess
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
@@ -580,7 +586,7 @@ sitemap = do
         body (ref Model.conversationReceiptModeUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
 
     ---
 
@@ -600,7 +606,7 @@ sitemap = do
         body (ref Model.conversationMessageTimerUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
         errorResponse Error.invalidConnectOp
@@ -625,7 +631,7 @@ sitemap = do
         errorResponse Error.convNotFound
         errorResponse (Error.invalidOp "Conversation type does not allow adding members")
         errorResponse Error.notConnected
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
 
     ---
 
