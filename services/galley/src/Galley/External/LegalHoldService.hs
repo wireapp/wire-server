@@ -84,7 +84,7 @@ confirmLegalHold clientId tid uid accessToken refreshToken = do
   where
     reqParams =
         Bilge.paths ["confirm"]
-      . Bilge.json (LegalHoldConfirm clientId uid tid accessToken refreshToken)
+      . Bilge.json (LegalHoldServiceConfirm clientId uid tid accessToken refreshToken)
       . Bilge.method POST
       . Bilge.expect2xx
 

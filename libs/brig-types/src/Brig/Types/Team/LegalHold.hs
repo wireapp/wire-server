@@ -217,8 +217,8 @@ instance ToJSON LegalHoldClientRequest where
         #  "prekeys" .= prekeys
         # []
 
-data LegalHoldConfirm =
-    LegalHoldConfirm
+data LegalHoldServiceConfirm =
+    LegalHoldServiceConfirm
     { lhcClientId     :: !ClientId
     , lhcUserId       :: !UserId
     , lhcTeamId       :: !TeamId
@@ -226,8 +226,8 @@ data LegalHoldConfirm =
     , lhcRefreshToken :: !Text -- ^ Replace with Legal Hold Token Type
     } deriving stock (Eq, Show, Generic)
 
-instance ToJSON LegalHoldConfirm where
-  toJSON (LegalHoldConfirm clientId userId teamId accessToken refreshToken) = object
+instance ToJSON LegalHoldServiceConfirm where
+  toJSON (LegalHoldServiceConfirm clientId userId teamId accessToken refreshToken) = object
         $  "client_id" .= clientId
         #  "user_id" .= userId
         #  "team_id" .= teamId
