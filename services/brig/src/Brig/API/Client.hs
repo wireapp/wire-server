@@ -23,6 +23,7 @@ import Brig.App
 import Brig.API.Types
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
@@ -148,11 +149,11 @@ pubClient c = PubClient
     , pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: UserId -> UserId -> LastPrekey -> [Prekey] -> AppIO ()
-legalHoldClientRequested origin uid lastPrekey' prekeys =
-    Intra.onClientEvent uid Nothing lhClientEvent
+legalHoldClientRequested :: LegalHoldClientRequest -> AppIO ()
+legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey' prekeys) =
+    Intra.onClientEvent targetUser Nothing lhClientEvent
   where
     eventData :: LegalHoldClientRequestedData
-    eventData = LegalHoldClientRequestedData origin uid lastPrekey' prekeys
+    eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys
     lhClientEvent :: ClientEvent
     lhClientEvent = LegalHoldClientRequested eventData

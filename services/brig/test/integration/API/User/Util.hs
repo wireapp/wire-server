@@ -6,6 +6,7 @@ import Bilge.Assert
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.Data.PasswordReset
 import Control.Lens ((^?), preview)
 import Data.Aeson
@@ -257,9 +258,5 @@ requestLegalHoldDevice brig requesterId targetUserId lastPrekey' prekeys = post 
     . contentJson
     . body payload
   where
-    payload = RequestBodyLBS . encode $ object
-        [ "requester" .= requesterId
-        , "target_user" .= targetUserId
-        , "last_prekey" .= lastPrekey'
-        , "prekeys" .= prekeys
-        ]
+    payload = RequestBodyLBS . encode
+                $ LegalHoldClientRequest requesterId targetUserId lastPrekey' prekeys

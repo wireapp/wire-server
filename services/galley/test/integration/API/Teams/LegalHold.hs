@@ -147,7 +147,8 @@ testCreateLegalHoldDevice = do
             storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
             assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
 
-        -- Run twice since we requested a device twice above
+        -- This test is mirrored in brig tests: API.User.Client.testRequestLegalHoldClient
+        -- And should probably continue to exist in both locations.
         liftIO $ do
             void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
                 let j = Aeson.Object $ List1.head (ntfPayload n)

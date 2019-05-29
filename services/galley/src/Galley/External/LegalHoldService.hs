@@ -60,7 +60,7 @@ requestNewDevice tid uid = do
     case eitherDecode (responseBody resp) of
         Left e -> do
             lg <- view applog
-            Logger.err lg . msg $ "Error decoding NewLegalHoldClient: " <> e
+            Logger.warn lg . msg $ "Error decoding NewLegalHoldClient: " <> e
             throwM legalHoldServiceBadResponse
         Right client -> pure client
   where

@@ -1007,8 +1007,8 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
 
 legalHoldClientRequested :: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
 legalHoldClientRequested (req ::: _) = do
-    LegalHoldClientRequest requester targetUser lastPrekey' prekeys <- parseJsonBody req
-    lift $ API.legalHoldClientRequested requester targetUser lastPrekey' prekeys
+    clientRequest <- parseJsonBody req 
+    lift $ API.legalHoldClientRequested clientRequest
     return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response

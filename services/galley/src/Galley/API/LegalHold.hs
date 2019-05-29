@@ -123,8 +123,5 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     requestDeviceFromService = do
         LegalHoldData.dropPendingPrekeys uid
         lhDevice <- LHService.requestNewDevice tid uid
-        let NewLegalHoldClient
-              { newLegalHoldClientPrekeys = prekeys
-              , newLegalHoldClientLastKey = lastKey
-              } = lhDevice
+        let NewLegalHoldClient prekeys lastKey = lhDevice
         return (lastKey, prekeys)

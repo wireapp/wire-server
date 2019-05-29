@@ -199,7 +199,7 @@ data LegalHoldClientRequest =
     , lhcrTargetUser :: !UserId
     , lhcrLastPrekey :: !LastPrekey
     , lhcrPrekeys    :: ![Prekey]
-    } deriving stock (Eq, Show)
+    } deriving stock (Eq, Show, Generic)
 
 instance FromJSON LegalHoldClientRequest where
   parseJSON = withObject "LegalHoldClientRequest" $ \o ->
