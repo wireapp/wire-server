@@ -11,7 +11,9 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.User.Auth (SsoLogin(..))
 import Brig.Types.Client.Prekey (LastPrekey, Prekey)
+import Brig.Types.Client
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
+import Data.ByteString.Conversion (toByteString')
 import Control.Monad.Catch
 import Galley.App
 import Galley.API.Error
@@ -62,5 +64,23 @@ getLegalHoldAuthToken uid = do
         Nothing -> throwM internalError
         Just c -> pure . OpaqueAuthToken . decodeUtf8 $ cookie_value c
 
-addLegalHoldClientToUser :: UserId -> [Prekey] -> Galley (Text, Text)
-addLegalHoldClientToUser _uid _prekeys = undefined
+addLegalHoldClientToUser :: UserId -> [Prekey] -> LastPrekey -> Galley ()
+addLegalHoldClientToUser uid prekeys lastPrekey' = do
+    (brigHost, brigPort) <- brigReq
+    let lhClient =
+            NewClient prekeys
+                      lastPrekey'
+                      LegalHoldClientType
+                      Nothing
+                      (Just LegalHoldClient)
+                      Nothing
+                      Nothing
+                      Nothing
+    void . call "brig"
+        $ method POST
+        . host brigHost
+        . port brigPort
+        . header "Z-User" (toByteString' uid)
+        . path "/clients"
+        . json lhClient
+        . expect2xx
