@@ -12,7 +12,8 @@ import Data.Misc
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
-import Galley.Intra.Client (notifyClientsAboutLegalHoldRequest, addLegalHoldClientToUser)
+import Galley.Intra.Client
+  (notifyClientsAboutLegalHoldRequest, addLegalHoldClientToUser, getLegalHoldAuthToken)
 import qualified Galley.External.LegalHoldService as LHService
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
@@ -133,11 +134,11 @@ approveDevice (zusr ::: tid ::: uid ::: _) = do
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
 
+    legalHoldAuthToken <- getLegalHoldAuthToken uid
     prekeys <- LegalHoldData.selectPendingPrekeys uid
-    (legalHoldAccessToken, legalHoldRefreshToken) <- addLegalHoldClientToUser uid prekeys
-    -- notifyClientsAboutLegalHoldApproval happens in brig?
+    addLegalHoldClientToUser uid prekeys
 
     let clientId = undefined
-    LHService.confirmLegalHold clientId tid uid legalHoldAccessToken legalHoldRefreshToken
+    LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     return undefined
 
