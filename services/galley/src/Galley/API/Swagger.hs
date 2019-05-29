@@ -4,7 +4,7 @@
 
 -- | swagger2 docs for galley generated with servant-swagger.  for now, this module contains
 -- all of the servant code as well.
-module Galley.API.Swagger where
+module Galley.API.Swagger (GalleyRoutes, swagger) where
 
 import Imports
 
@@ -144,12 +144,7 @@ instance ToSchema ViewLegalHoldService where
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
-          [ ("status", Inline (toSchema (Proxy @Text)))
-               -- This is an enum, but it can't be generated, since it is not an instance of
-               -- 'Bounded' and 'Enum'.  (TODO: make it an enum in swagger anyway, i'm sure
-               -- there is such a thing.  to make sure you're getting it right, define @data
-               -- TempStatus = Disabled | NotConf | Conf@ and generate the swagger docs, then
-               -- as an exercise create the same docs with swagger2 machinery.)
+          [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus)))
           , ("info", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
           ]
 
@@ -160,6 +155,15 @@ instance ToSchema ViewLegalHoldService where
             Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
             Right lhuri = mkHttpsUrl [uri|https://example.com/|]
             fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+-- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
+data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
+  deriving (Eq, Show, Generic)
+
+instance ToSchema MockViewLegalHoldServiceStatus where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions { constructorTagModifier = camelToUnderscore }
 
 instance ToSchema ViewLegalHoldServiceInfo where
     declareNamedSchema = genericDeclareNamedSchema opts
@@ -244,3 +248,11 @@ instance ToSchema Prekey where
 
 instance ToSchema LastPrekey where
     declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
+
+
+----------------------------------------------------------------------
+-- helpers
+
+camelToUnderscore :: String -> String
+camelToUnderscore = concatMap go . (ix 0 %~ toLower)
+  where go x = if isUpper x then "_" <> [x] else [x]
