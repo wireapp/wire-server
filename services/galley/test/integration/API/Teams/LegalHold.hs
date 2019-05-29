@@ -16,6 +16,7 @@ import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Aeson.Lens
 import Data.Id
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
@@ -24,6 +25,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.Types.Teams
+import Gundeck.Types.Notification (ntfPayload)
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai
 import Network.Wai as Wai
@@ -42,10 +44,13 @@ import qualified Control.Concurrent.Async          as Async
 import qualified Cassandra.Exec                    as Cql
 import qualified Data.Aeson                        as Aeson
 import qualified Data.ByteString                   as BS
+import qualified Data.List1                        as List1
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
+import qualified Network.Wai.Utilities.Response    as Wai
 import qualified Galley.Data.LegalHold             as LegalHoldData
+import qualified Test.Tasty.Cannon                 as WS
 
 
 tests :: IO TestSetup -> TestTree
@@ -104,37 +109,64 @@ testSwaggerJsonConsistency = ignore $ do
 
 
 testCreateLegalHoldDevice :: TestM ()
-testCreateLegalHoldDevice = ignore $ do
+testCreateLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    -- Can't request a device if team feature flag is disabled
-    requestDevice owner member tid !!! const 403 === statusCode
-    putEnabled tid LegalHoldEnabled -- enable it for this team
+    cannon <- view tsCannon
 
-    do userStatus <- getUserStatusTyped member tid
-       liftIO $ assertEqual "User legal hold status should start as disabled" userStatus UserLegalHoldDisabled
+    -- Assert that the appropriate LegalHold Request notification is sent to the user's
+    -- clients
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+        -- Can't request a device if team feature flag is disabled
+        -- TODO: Add this back once the check is re-enabled
+        -- requestDevice owner member tid !!! const 403 === statusCode
+        -- putEnabled tid LegalHoldEnabled -- enable it for this team
 
-    do requestDevice member member tid !!! const 403 === statusCode
-       userStatus <- getUserStatusTyped member tid
-       liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
-                  userStatus UserLegalHoldDisabled
+        do userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should start as disabled" userStatus UserLegalHoldDisabled
 
-    do requestDevice owner member tid !!! const 200 === statusCode
-       userStatus <- getUserStatusTyped member tid
-       liftIO $ assertEqual "requestDevice should set user status to Pending"
-                  userStatus UserLegalHoldPending
+        do requestDevice member member tid !!! const 403 === statusCode
+           userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
+                      userStatus UserLegalHoldDisabled
 
-    do requestDevice owner member tid !!! const 200 === statusCode
-       userStatus <- getUserStatusTyped member tid
-       liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
-                  userStatus UserLegalHoldPending
+        do requestDevice owner member tid !!! const 204 === statusCode
+           userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice should set user status to Pending"
+                      userStatus UserLegalHoldPending
 
-    cassState <- view tsCass
-    liftIO $ do
-        storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
-        assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
+        do requestDevice owner member tid !!! const 204 === statusCode
+           userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+                      userStatus UserLegalHoldPending
+
+        cassState <- view tsCass
+        liftIO $ do
+            storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
+            assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
+
+        -- This test is mirrored in brig tests: API.User.Client.testRequestLegalHoldClient
+        -- And should probably continue to exist in both locations.
+        liftIO $ do
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+                let j = Aeson.Object $ List1.head (ntfPayload n)
+                let etype = j ^? key "type" . _String
+                let eRequester = j ^? key "requester" . _String
+                let eTargetUser = j ^? key "target_user" . _String
+                let eLastPrekey = j ^? key "last_prekey" . _JSON
+                let ePrekeys = j ^? key "prekeys" . _JSON
+                etype @?= Just "user.client-legal-hold-request"
+                eRequester @?= Just (idToText owner)
+                eTargetUser @?= Just (idToText member)
+                -- These need to match the values provided by the 'dummy service'
+                Just (lastPrekey "test-last-prekey") @?= eLastPrekey
+                Just [Prekey (PrekeyId 0) "test-prekey"] @?= ePrekeys
+
+        -- TODO: Not sure why I have to do this; which extra notification is stuck on the
+        -- queue?
+        ensureQueueEmpty
 
     -- fail if legal hold service is disabled via feature flag
 
@@ -189,7 +221,6 @@ testRemoveLegalHoldDevice = do
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
-    liftIO $ putStrLn "XXX starting problematic test..."
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -200,7 +231,6 @@ testCreateLegalHoldTeamSettings = do
 
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    liftIO $ putStrLn "XXX check member can't do this..."
     -- not allowed for users with corresp. permission bit missing
     postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
 
@@ -210,7 +240,6 @@ testCreateLegalHoldTeamSettings = do
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
-    liftIO $ putStrLn "XXX check behaviour if service unavailable..."
     -- rejected if service is not available
     postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
@@ -232,11 +261,9 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest _isworking@False _ = do
-            liftIO $ threadDelay 5000000 -- TODO: does this help integrations tests in distributed environment?
             postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
 
         lhtest _isworking@True _ = do
-            liftIO $ threadDelay 5000000 -- TODO: does this help integrations tests in distributed environment?
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
             ViewLegalHoldService service <- getSettingsTyped owner tid
@@ -247,11 +274,9 @@ testCreateLegalHoldTeamSettings = do
                 assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
             -- TODO: check cassandra as well?
 
-    liftIO $ putStrLn "XXX check lhapp False False..."
     -- if no valid service response can be obtained, responds with 400
     withTestService (lhapp False) (lhtest False)
 
-    liftIO $ putStrLn "XXX check lhapp True True..."
     -- if valid service response can be obtained, writes a pending entry to cassandra
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
@@ -259,11 +284,9 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
 
-    liftIO $ putStrLn "XXX beforeQueueEmpty..."
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the
                       -- right ones.  (i think this has to od with the plumbing that is the
                       -- same in all settings-related tests.)
-    liftIO $ putStrLn "XXX done..."
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -525,12 +548,12 @@ requestDevice zusr uid tid = do
 newLegalHoldService :: HasCallStack => TestM NewLegalHoldService
 newLegalHoldService = do
     config <- view (tsIConf . to provider)
-    key <- liftIO $ readServiceKey (publicKey config)
+    key' <- liftIO $ readServiceKey (publicKey config)
     let Just url = fromByteString $
             encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config))
     return NewLegalHoldService
         { newLegalHoldServiceUrl     = url
-        , newLegalHoldServiceKey     = key
+        , newLegalHoldServiceKey     = key'
         , newLegalHoldServiceToken   = ServiceToken "tok"
         }
 
@@ -540,6 +563,37 @@ readServiceKey fp = liftIO $ do
     bs <- BS.readFile fp
     let Right [k] = pemParseBS bs
     return (ServiceKeyPEM k)
+
+withDummyTestServiceForTeam
+    :: HasCallStack
+    => UserId
+    -> TeamId
+    -> TestM a      -- ^ the test
+    -> TestM a
+withDummyTestServiceForTeam owner tid go = do
+    withTestService dummyService runTest
+  where
+    runTest _chan = do
+        newService <- newLegalHoldService
+        putEnabled tid LegalHoldEnabled -- enable it for this team
+        postSettings owner tid newService !!! const 201 === statusCode
+        go
+    dummyService :: Chan () -> Application
+    dummyService _ch req cont = do
+        if | pathInfo req == ["status"] && requestMethod req == "GET" -> cont respondOk
+           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont deviceResp
+           | otherwise -> cont respondBad
+
+    deviceResp :: Wai.Response
+    deviceResp =
+        Wai.json
+        $ NewLegalHoldClient [Prekey (PrekeyId 0) "test-prekey"] (lastPrekey "test-last-prekey")
+
+    respondOk :: Wai.Response
+    respondOk = responseLBS status200 mempty mempty
+
+    respondBad :: Wai.Response
+    respondBad = responseLBS status404 mempty mempty
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal

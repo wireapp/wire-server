@@ -12,6 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
@@ -179,6 +180,10 @@ sitemap o = do
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. jsonRequest @UserSet
+
+    post "/i/clients/legalhold/request" (continue legalHoldClientRequested) $
+      jsonRequest @LegalHoldClientRequest
+      .&. accept "application" "json"
 
     -- /users -----------------------------------------------------------------
 
@@ -999,6 +1004,12 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
+
+legalHoldClientRequested :: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequested (req ::: _) = do
+    clientRequest <- parseJsonBody req 
+    lift $ API.legalHoldClientRequested clientRequest
+    return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClient (req ::: usr ::: clt ::: _) = do

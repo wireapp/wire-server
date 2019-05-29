@@ -117,7 +117,7 @@ legalHoldServiceUnavailable :: Error
 legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
 
 legalHoldServiceBadResponse :: Error
-legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid status response"
+legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
 
 legalHoldNotEnabled :: Error
 legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"

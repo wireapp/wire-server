@@ -12,6 +12,7 @@ import Data.Misc
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
+import Galley.Intra.Client (notifyClientsAboutLegalHoldRequest)
 import qualified Galley.External.LegalHoldService as LHService
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
@@ -90,9 +91,7 @@ removeSettings (zusr ::: tid ::: _) = do
 
 -- | Request to provision a device on the legal hold service for a user
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-getUserStatus (zusr ::: tid ::: uid ::: _) = do
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
+getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
     lhStatus <- LegalHoldData.getUserLegalHoldStatus uid
@@ -108,21 +107,21 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     userLHStatus <- LegalHoldData.getUserLegalHoldStatus uid
     case userLHStatus of
         UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        UserLegalHoldPending -> requestDeviceFromService
-        UserLegalHoldDisabled -> requestDeviceFromService
+        UserLegalHoldPending -> provisionLHDevice
+        UserLegalHoldDisabled -> provisionLHDevice
   where
-    requestDeviceFromService :: Galley Response
+    provisionLHDevice :: Galley Response
+    provisionLHDevice = do
+        (lastPrekey', prekeys) <- requestDeviceFromService
+        -- We don't distinguish the last key here; brig will do so when the device is added
+        LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
+        LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
+        notifyClientsAboutLegalHoldRequest zusr uid lastPrekey' prekeys
+        pure $ responseLBS status204 [] mempty
+
+    requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
         LegalHoldData.dropPendingPrekeys uid
         lhDevice <- LHService.requestNewDevice tid uid
-        let NewLegalHoldClient
-              { newLegalHoldClientPrekeys = prekeys
-              , newLegalHoldClientLastKey = lastKey
-              } = lhDevice
-
-        -- We don't distinguish the last key here; brig will do so when the device is added
-        LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastKey : prekeys)
-        LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
-
-        -- informClientsAboutPendingLH
-        pure $ responseLBS status204 [] mempty
+        let NewLegalHoldClient prekeys lastKey = lhDevice
+        return (lastKey, prekeys)

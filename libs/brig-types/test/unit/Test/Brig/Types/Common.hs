@@ -47,6 +47,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @NewLegalHoldClient Proxy
     , run @RequestNewLegalHoldClient Proxy
     , run @UserLegalHoldStatus Proxy
+    , run @LegalHoldClientRequest Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]

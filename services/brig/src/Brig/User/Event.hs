@@ -62,6 +62,15 @@ data PropertyEvent
 data ClientEvent
     = ClientAdded !UserId !Client
     | ClientRemoved !UserId !Client
+    | LegalHoldClientRequested LegalHoldClientRequestedData
+
+data LegalHoldClientRequestedData =
+    LegalHoldClientRequestedData
+    { lhcRequester  :: !UserId
+    , lhcTargetUser :: !UserId
+    , lhcLastPrekey :: !LastPrekey
+    , lhcPrekeys    :: ![Prekey]
+    } deriving stock (Show)
 
 emailRemoved :: UserId -> Email -> UserEvent
 emailRemoved u e = UserIdentityRemoved u (Just e) Nothing

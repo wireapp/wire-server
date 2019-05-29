@@ -2,6 +2,7 @@
 
 module Brig.User.Event.Log where
 
+import Imports
 import Brig.User.Event
 import Data.Id
 import Data.ByteString.Conversion
@@ -39,3 +40,6 @@ instance ToBytes PropertyEvent where
 instance ToBytes ClientEvent where
     bytes (ClientAdded u _)   = val "user.client-add: " +++ toByteString u
     bytes (ClientRemoved u _) = val "user.client-remove: " +++ toByteString u
+    bytes (LegalHoldClientRequested payload) =
+      val "user.client-request-legal-hold: " +++ show payload
+
