@@ -195,6 +195,8 @@ testApproveLegalHoldDevice = do
         approveLegalHoldDevice owner member tid !!! const 403 === statusCode
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
 
+    ensureQueueEmpty  -- TODO: there are some leftover notifications
+
         -- only user themself can do it
         -- fail if no legal hold service registered
         -- fail if legal Hold feature flag disabled
@@ -584,13 +586,14 @@ withDummyTestServiceForTeam owner tid go = do
     dummyService :: Chan () -> Application
     dummyService _ch req cont = do
         if | pathInfo req == ["status"] && requestMethod req == "GET" -> cont respondOk
-           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont deviceResp
+           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont initiateResp
+           | pathInfo req == ["confirm"] && requestMethod req == "POST" -> cont respondOk
            | otherwise -> cont respondBad
 
-    deviceResp :: Wai.Response
-    deviceResp =
+    initiateResp :: Wai.Response
+    initiateResp =
         Wai.json
-        $ NewLegalHoldClient [Prekey (PrekeyId 0) "test-prekey"] (lastPrekey "test-last-prekey")
+        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
 
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty

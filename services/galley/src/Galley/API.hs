@@ -317,6 +317,7 @@ sitemap = do
         zauthUserId
         .&. capture "tid"
         .&. capture "uid"
+        .&. zauthConnId
         .&. accept "application" "json"
 
    ---

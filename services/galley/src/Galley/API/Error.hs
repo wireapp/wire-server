@@ -127,3 +127,6 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+noLegalHoldDeviceAllocated :: Error
+noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."

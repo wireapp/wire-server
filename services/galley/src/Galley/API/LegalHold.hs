@@ -7,6 +7,7 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Brig.Types.Client.Prekey
 import Control.Monad.Catch
+import Control.Lens (view)
 import Data.Id
 import Data.Misc
 import Galley.API.Util
@@ -23,6 +24,7 @@ import Network.Wai.Utilities as Wai
 
 import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
+import qualified System.Logger as Logger
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
@@ -128,15 +130,20 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         return (lastKey, prekeys)
 
 -- | Approve the adding of a Legal Hold device to the user
-approveDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-approveDevice (zusr ::: tid ::: uid ::: _) = do
+approveDevice :: UserId ::: TeamId ::: UserId ::: ConnId ::: JSON -> Galley Response
+approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
 
     legalHoldAuthToken <- getLegalHoldAuthToken uid
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
-    (prekeys, lastPrekey') <- maybe (throwM internalError) pure mPreKeys
-    clientId <- addLegalHoldClientToUser uid prekeys lastPrekey'
+    lg <- view applog
+    (prekeys, lastPrekey') <- case mPreKeys of
+        Nothing -> do
+            Logger.warn lg $ Logger.msg @Text "No prekeys found"
+            throwM noLegalHoldDeviceAllocated
+        Just keys -> pure keys
+    clientId <- addLegalHoldClientToUser uid connId prekeys lastPrekey'
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     pure $ responseLBS status200 [] mempty

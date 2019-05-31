@@ -15,6 +15,7 @@ import Brig.Types.Client
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Data.ByteString.Conversion (toByteString')
 import Control.Monad.Catch
+import Control.Lens (view)
 import Galley.App
 import Galley.API.Error
 import Galley.External.LegalHoldService
@@ -26,6 +27,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
+import qualified System.Logger as Logger
 import qualified Data.Set as Set
 
 lookupClients :: [UserId] -> Galley UserClients
@@ -58,14 +60,20 @@ getLegalHoldAuthToken uid = do
             . host brigHost
             . port brigPort
             . path "/i/sso-login" -- ^ TODO: switch to '/i/legalhold-login'
-            . json (SsoLogin uid (Just "auth_token"))
+            . queryItem "persist" "true"
+            . json (SsoLogin uid Nothing)
+            . collectCookies
             . expect2xx
-    case getCookie "auth_token" r of
-        Nothing -> throwM internalError
-        Just c -> pure . OpaqueAuthToken . decodeUtf8 $ cookie_value c
+    lg <- view applog
+    Logger.warn lg $ Logger.msg (showResponse r)
+    case getCookieValue "zuid" r of
+        Nothing -> do
+            Logger.warn lg $ Logger.msg @Text "Response from login missing auth cookie"
+            throwM internalError
+        Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
-addLegalHoldClientToUser :: UserId -> [Prekey] -> LastPrekey -> Galley ClientId
-addLegalHoldClientToUser uid prekeys lastPrekey' = do
+addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
+addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
     (brigHost, brigPort) <- brigReq
     let lhClient =
             NewClient prekeys
@@ -82,7 +90,10 @@ addLegalHoldClientToUser uid prekeys lastPrekey' = do
         . host brigHost
         . port brigPort
         . header "Z-User" (toByteString' uid)
+        . header "Z-Connection" (toByteString' connId)
         . path "/clients"
+        . contentJson
         . json lhClient
         . expect2xx
     clientId <$> parseResponse (Error status502 "server-error") r
+

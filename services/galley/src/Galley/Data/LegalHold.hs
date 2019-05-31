@@ -68,7 +68,7 @@ selectPendingPrekeys uid =
     pickLastKey allPrekeys =
         case unsnoc allPrekeys of
             Nothing -> Nothing
-            Just (keys, lst) -> Just (keys, lastPrekey . prekeyKey $ lst)
+            Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
 
 dropPendingPrekeys :: MonadClient m => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))

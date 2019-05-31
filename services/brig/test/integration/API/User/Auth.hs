@@ -89,11 +89,11 @@ testEmailLogin brig = do
     now <- liftIO getCurrentTime
 
     -- Login with email and do some checks
-    _rs <- login brig (defEmailLogin email) PersistentCookie
+    rs <- login brig (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
     liftIO $ do
-        assertSanePersistentCookie (decodeCookie _rs)
-        assertSaneAccessToken now (userId u) (decodeToken _rs)
+        assertSanePersistentCookie (decodeCookie rs)
+        assertSaneAccessToken now (userId u) (decodeToken rs)
 
     -- Login again, but with capitalised email address
     let Email loc dom = email
