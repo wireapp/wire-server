@@ -7,7 +7,6 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Brig.Types.Client.Prekey
 import Control.Monad.Catch
-import Control.Lens (unsnoc)
 import Data.Id
 import Data.Misc
 import Galley.API.Util
@@ -136,13 +135,8 @@ approveDevice (zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
     legalHoldAuthToken <- getLegalHoldAuthToken uid
-    allPrekeys <- LegalHoldData.selectPendingPrekeys uid
-    (prekeys, lastPrekey') <- case unsnoc allPrekeys of
-        Nothing -> throwM internalError
-        Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
-    addLegalHoldClientToUser uid prekeys lastPrekey'
-
-    let clientId = undefined
+    mPreKeys <- LegalHoldData.selectPendingPrekeys uid
+    (prekeys, lastPrekey') <- maybe (throwM internalError) pure mPreKeys
+    clientId <- addLegalHoldClientToUser uid prekeys lastPrekey'
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
-    return undefined
-
+    pure $ responseLBS status200 [] mempty

@@ -64,7 +64,7 @@ getLegalHoldAuthToken uid = do
         Nothing -> throwM internalError
         Just c -> pure . OpaqueAuthToken . decodeUtf8 $ cookie_value c
 
-addLegalHoldClientToUser :: UserId -> [Prekey] -> LastPrekey -> Galley ()
+addLegalHoldClientToUser :: UserId -> [Prekey] -> LastPrekey -> Galley ClientId
 addLegalHoldClientToUser uid prekeys lastPrekey' = do
     (brigHost, brigPort) <- brigReq
     let lhClient =
@@ -76,7 +76,8 @@ addLegalHoldClientToUser uid prekeys lastPrekey' = do
                       Nothing
                       Nothing
                       Nothing
-    void . call "brig"
+
+    r <- call "brig"
         $ method POST
         . host brigHost
         . port brigPort
@@ -84,3 +85,4 @@ addLegalHoldClientToUser uid prekeys lastPrekey' = do
         . path "/clients"
         . json lhClient
         . expect2xx
+    clientId <$> parseResponse (Error status502 "server-error") r
