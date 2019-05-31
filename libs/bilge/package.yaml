@@ -19,6 +19,7 @@ dependencies:
 - data-default >=0.5
 - bytestring >=0.9
 - containers >=0.5
+- cookie
 - errors >=1.4
 - exceptions >=0.6
 - http-client >=0.5

@@ -7,6 +7,7 @@ module Bilge.Response
     , getHeader
     , getHeader'
     , getCookie
+    , getCookieValue
     , showResponse
 
       -- * Re-exports
@@ -18,9 +19,11 @@ module Bilge.Response
     ) where
 
 import Imports
+import Control.Lens
 import Data.CaseInsensitive (original)
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
+import Web.Cookie
 
 import qualified Data.ByteString.Char8 as C
 import qualified Network.HTTP.Types    as HTTP
@@ -41,6 +44,19 @@ getHeader' h = fromMaybe "NO_HEADER_VALUE" . getHeader h
 
 getCookie :: ByteString -> Response a -> Maybe Cookie
 getCookie n r = find ((n ==) . cookie_name) (destroyCookieJar $ responseCookieJar r)
+
+-- | Retrieve the value of a given cookie name from a "Set-Cookie" header on the response
+getCookieValue :: ByteString -> Response a -> Maybe ByteString
+getCookieValue cookieName resp =
+        resp
+        ^? to responseHeaders
+        . traversed
+        . filtered ((== "Set-Cookie") . fst)
+        . _2
+        . to parseSetCookie
+        . filtered ((== cookieName) . setCookieName)
+        . to setCookieValue
+
 
 showResponse :: Show a => Response a -> String
 showResponse r = showString "HTTP/"
