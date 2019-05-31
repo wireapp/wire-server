@@ -161,8 +161,8 @@ testCreateLegalHoldDevice = do
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
                 -- These need to match the values provided by the 'dummy service'
-                Just (lastPrekey "test-last-prekey") @?= eLastPrekey
-                Just [Prekey (PrekeyId 0) "test-prekey"] @?= ePrekeys
+                Just (head someLastPrekeys) @?= eLastPrekey
+                Just somePrekeys @?= ePrekeys
 
         -- TODO: Not sure why I have to do this; which extra notification is stuck on the
         -- queue?
@@ -188,12 +188,26 @@ testApproveLegalHoldDevice = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    withDummyTestServiceForTeam owner tid $ do
+    cannon <- view tsCannon
+
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
         requestDevice owner member tid !!! const 204 === statusCode
 
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice owner member tid !!! const 403 === statusCode
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
+
+        liftIO $ do
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+                let j = Aeson.Object $ List1.head (ntfPayload n)
+                let etype = j ^? key "type" . _String
+                let eClient = j ^? key "client" . _JSON
+                etype @?= Just "user.client-add"
+                clientId <$> eClient @?= Just someClientId
+                clientType <$> eClient @?= Just LegalHoldClientType
+                clientClass <$> eClient @?= Just (Just LegalHoldClient)
+
+
 
     ensureQueueEmpty  -- TODO: there are some leftover notifications
 

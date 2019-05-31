@@ -823,6 +823,14 @@ retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
 
+
+-- | Changing this will break tests; all prekeys and client Id must match the same
+-- fingerprint
+someClientId :: ClientId
+someClientId = ClientId "1dbfbe22c8a35cb2"
+
+-- | Changing these will break tests; all prekeys and client Id must match the same
+-- fingerprint
 somePrekeys :: [Prekey]
 somePrekeys =
     [ Prekey (PrekeyId  1) "pQABAQECoQBYIOjl7hw0D8YRNqkkBQETCxyr7/ywE/2R5RWcUPM+GJACA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
@@ -853,6 +861,8 @@ somePrekeys =
     , Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
     ]
 
+-- | Changing these will break tests; all prekeys and client Id must match the same
+-- fingerprint
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =
     [ lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="

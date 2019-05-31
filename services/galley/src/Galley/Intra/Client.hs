@@ -74,17 +74,21 @@ getLegalHoldAuthToken uid = do
 
 addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-    (brigHost, brigPort) <- brigReq
-    let lhClient =
-            NewClient prekeys
-                      lastPrekey'
-                      LegalHoldClientType
-                      Nothing
-                      (Just LegalHoldClient)
-                      Nothing
-                      Nothing
-                      Nothing
+    clientId <$> brigAddClient uid connId lhClient
+  where
+    lhClient =
+        NewClient prekeys
+                  lastPrekey'
+                  LegalHoldClientType
+                  Nothing
+                  (Just LegalHoldClient)
+                  Nothing
+                  Nothing
+                  Nothing
 
+brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
+brigAddClient uid connId client = do
+    (brigHost, brigPort) <- brigReq
     r <- call "brig"
         $ method POST
         . host brigHost
@@ -93,7 +97,6 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         . header "Z-Connection" (toByteString' connId)
         . path "/clients"
         . contentJson
-        . json lhClient
+        . json client
         . expect2xx
-    clientId <$> parseResponse (Error status502 "server-error") r
-
+    parseResponse (Error status502 "server-error") r
