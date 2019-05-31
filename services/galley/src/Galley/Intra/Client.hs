@@ -62,7 +62,6 @@ getLegalHoldAuthToken uid = do
             . path "/i/sso-login" -- ^ TODO: switch to '/i/legalhold-login'
             . queryItem "persist" "true"
             . json (SsoLogin uid Nothing)
-            . collectCookies
             . expect2xx
     lg <- view applog
     case getCookieValue "zuid" r of

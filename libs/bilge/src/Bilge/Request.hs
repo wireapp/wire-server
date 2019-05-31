@@ -32,7 +32,6 @@ module Bilge.Request
     , checkStatus
     , cookie
     , cookieRaw
-    , collectCookies
     , requestId
     , requestIdName
     , extHost
@@ -159,13 +158,6 @@ cookie c r =
     case Rq.cookieJar r of
         Nothing      -> r { Rq.cookieJar = Just (CJ [c])    }
         Just (CJ cc) -> r { Rq.cookieJar = Just (CJ (c:cc)) }
-
--- | Initialize a cookie jar on the request so we also collect cookies in the response
-collectCookies :: Request -> Request
-collectCookies r =
-    case Rq.cookieJar r of
-        Nothing      -> r { Rq.cookieJar = Just (CJ [])    }
-        Just jar -> r { Rq.cookieJar = Just jar }
 
 requestId :: RequestId -> Request -> Request
 requestId (RequestId rId) = header requestIdName rId

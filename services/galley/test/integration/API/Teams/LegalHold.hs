@@ -193,6 +193,11 @@ testApproveLegalHoldDevice = do
     cannon <- view tsCannon
 
     WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+        -- not allowed to approve if team setting is disabled
+        -- TODO: remove the following 'ignore' once 'disabled' is the default
+        ignore $ approveLegalHoldDevice owner member tid !!! const 403 === statusCode
+
+        putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
 
         -- Only the user themself can approve adding a LH device
@@ -206,6 +211,10 @@ testApproveLegalHoldDevice = do
             assertBool "Expect clientId to be saved on the user"
               $ Clients.contains member someClientId clients'
 
+        userStatus <- getUserStatusTyped member tid
+        liftIO $ assertEqual "After approval user legalhold status should be Enabled"
+                    UserLegalHoldEnabled userStatus
+
         liftIO $ do
             void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
                 let j = Aeson.Object $ List1.head (ntfPayload n)
@@ -217,7 +226,6 @@ testApproveLegalHoldDevice = do
                 clientClass <$> eClient @?= Just (Just LegalHoldClient)
 
         -- fail if GLOBAL legal Hold feature flag disabled
-        -- fail if LOCAL legal Hold feature flag disabled
         -- sends an event to team settings (however that works; it's a client-independent event i think)
         -- all of user's communication peers receive an event
 

@@ -135,8 +135,8 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
+    assertUserLHNotAlreadyActive uid
 
-    legalHoldAuthToken <- getLegalHoldAuthToken uid
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
     lg <- view applog
     (prekeys, lastPrekey') <- case mPreKeys of
@@ -144,7 +144,17 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
             Logger.warn lg $ Logger.msg @Text "No prekeys found"
             throwM noLegalHoldDeviceAllocated
         Just keys -> pure keys
+
     clientId <- addLegalHoldClientToUser uid connId prekeys lastPrekey'
     Data.updateClient True uid clientId
+
+    legalHoldAuthToken <- getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
+    LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldEnabled
+
     pure $ responseLBS status200 [] mempty
+  where
+    assertUserLHNotAlreadyActive :: UserId -> Galley ()
+    assertUserLHNotAlreadyActive uid' = do
+        status <- LegalHoldData.getUserLegalHoldStatus uid'
+        when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
