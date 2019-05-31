@@ -13,10 +13,7 @@ import qualified API.SQS             as SQS
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
   where
-    assertClean :: TestM ()
-    assertClean = SQS.assertQueueEmpty
-
     runTest :: Assertion
     runTest = do
         setup <- s
-        void . flip runReaderT setup . runTestM $ h >> assertClean
+        void . flip runReaderT setup . runTestM $ h >> SQS.ensureQueueEmpty

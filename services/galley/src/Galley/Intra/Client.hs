@@ -65,7 +65,6 @@ getLegalHoldAuthToken uid = do
             . collectCookies
             . expect2xx
     lg <- view applog
-    Logger.warn lg $ Logger.msg (showResponse r)
     case getCookieValue "zuid" r of
         Nothing -> do
             Logger.warn lg $ Logger.msg @Text "Response from login missing auth cookie"

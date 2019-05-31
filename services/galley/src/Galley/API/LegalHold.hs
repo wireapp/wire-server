@@ -145,5 +145,6 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
             throwM noLegalHoldDeviceAllocated
         Just keys -> pure keys
     clientId <- addLegalHoldClientToUser uid connId prekeys lastPrekey'
+    Data.updateClient True uid clientId
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     pure $ responseLBS status200 [] mempty

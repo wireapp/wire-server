@@ -49,7 +49,9 @@ import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
 import qualified Network.Wai.Utilities.Response    as Wai
+import qualified Galley.Data                       as Data
 import qualified Galley.Data.LegalHold             as LegalHoldData
+import qualified Galley.Types.Clients              as Clients
 import qualified Test.Tasty.Cannon                 as WS
 
 
@@ -197,6 +199,13 @@ testApproveLegalHoldDevice = do
         approveLegalHoldDevice owner member tid !!! const 403 === statusCode
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
 
+        cassState <- view tsCass
+        liftIO $ do
+            clients' <- Cql.runClient cassState $ Data.lookupClients [member]
+            print clients'
+            assertBool "Expect clientId to be saved on the user"
+              $ Clients.contains member someClientId clients'
+
         liftIO $ do
             void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
                 let j = Aeson.Object $ List1.head (ntfPayload n)
@@ -207,16 +216,8 @@ testApproveLegalHoldDevice = do
                 clientType <$> eClient @?= Just LegalHoldClientType
                 clientClass <$> eClient @?= Just (Just LegalHoldClient)
 
-
-
-    ensureQueueEmpty  -- TODO: there are some leftover notifications
-
-        -- only user themself can do it
-        -- fail if no legal hold service registered
-        -- fail if legal Hold feature flag disabled
-        -- generates and stores legalhold tokens/cookies
-        -- synchronously sends tokens/cookies to team's legal hold service
-        -- sends an event to all user's clients
+        -- fail if GLOBAL legal Hold feature flag disabled
+        -- fail if LOCAL legal Hold feature flag disabled
         -- sends an event to team settings (however that works; it's a client-independent event i think)
         -- all of user's communication peers receive an event
 
