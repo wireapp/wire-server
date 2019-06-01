@@ -254,4 +254,4 @@ instance ToSchema LastPrekey where
 
 camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
-  where go x = if isUpper x then "_" <> [x] else [x]
+  where go x = if isUpper x then "_" <> [toLower x] else [x]
