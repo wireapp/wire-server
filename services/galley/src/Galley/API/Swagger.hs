@@ -165,6 +165,14 @@ instance ToSchema MockViewLegalHoldServiceStatus where
         opts = defaultSchemaOptions { constructorTagModifier = camelToUnderscore }
 
 instance ToSchema ViewLegalHoldServiceInfo where
+    {-
+
+    -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
+    -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
+    -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
+    -- 'ToSchema' instance manually.
+    -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
+
     declareNamedSchema = genericDeclareNamedSchema opts
       where
         opts = defaultSchemaOptions
@@ -173,6 +181,27 @@ instance ToSchema ViewLegalHoldServiceInfo where
               "viewLegalHoldServiceUrl"         -> "base_url"
               "viewLegalHoldServiceTeam"        -> "team_id"
           }
+    -}
+    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["team_id", "base_url", "fingerprint"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("team_id", Inline (toSchema (Proxy @UUID)))
+          , ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
+          , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr
+          where
+            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 instance ToSchema LegalHoldTeamConfig where
     declareNamedSchema = genericDeclareNamedSchema opts

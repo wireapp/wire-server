@@ -99,12 +99,8 @@ ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
 -- start another test suite just for this one line.)
---
--- TODO: This fails, but it looks like it's a problem of the test: @instance ToSchema UUID@ is
--- somehow not in the context of the validator.  (Run it and prepare to dig into swagger2,
--- servant-swagger if you want to fix this.)
 testSwaggerJsonConsistency :: TestM ()
-testSwaggerJsonConsistency = ignore $ do
+testSwaggerJsonConsistency = do
     liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
 
 
