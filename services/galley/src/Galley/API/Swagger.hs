@@ -23,8 +23,7 @@ import Data.Id
 import Data.Misc
 import Data.Proxy
 import Data.Text as Text (unlines)
-import Data.UUID (fromText)
-import Data.UUID (UUID)
+import Data.UUID (UUID, fromText)
 import Servant.API hiding (Header)
 import Servant.Swagger
 import URI.ByteString.QQ (uri)
