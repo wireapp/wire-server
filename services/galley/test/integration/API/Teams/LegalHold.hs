@@ -15,10 +15,9 @@ import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Catch
-import Control.Retry (recovering)
+import Control.Retry (recoverAll, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Default (def)
 import Data.Id
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
@@ -613,8 +612,7 @@ withTestService mkApp go = do
     srv <- liftIO . Async.async $
         Warp.runTLS tlss defs $
             mkApp buf
-    recovering def [\_ -> Handler $ \(SomeException _) -> pure False]
-                   (\_ -> go buf)
+    recoverAll (exponentialBackoff 50 <> limitRetries 5) (\_ -> go buf)
         `finally` liftIO (Async.cancel srv)
 
 
