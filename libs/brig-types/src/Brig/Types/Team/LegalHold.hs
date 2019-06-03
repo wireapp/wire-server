@@ -217,6 +217,7 @@ instance ToJSON LegalHoldClientRequest where
         #  "prekeys" .= prekeys
         # []
 
+-- Request body definition for the @/confirm@ endpoint on the LegalHold Service
 data LegalHoldServiceConfirm =
     LegalHoldServiceConfirm
     { lhcClientId     :: !ClientId

@@ -207,7 +207,6 @@ testApproveLegalHoldDevice = do
         cassState <- view tsCass
         liftIO $ do
             clients' <- Cql.runClient cassState $ Data.lookupClients [member]
-            print clients'
             assertBool "Expect clientId to be saved on the user"
               $ Clients.contains member someClientId clients'
 
@@ -224,6 +223,8 @@ testApproveLegalHoldDevice = do
                 clientId <$> eClient @?= Just someClientId
                 clientType <$> eClient @?= Just LegalHoldClientType
                 clientClass <$> eClient @?= Just (Just LegalHoldClient)
+
+    ensureQueueEmpty
 
         -- fail if GLOBAL legal Hold feature flag disabled
         -- sends an event to team settings (however that works; it's a client-independent event i think)

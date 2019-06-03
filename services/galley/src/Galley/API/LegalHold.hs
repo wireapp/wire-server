@@ -141,7 +141,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     lg <- view applog
     (prekeys, lastPrekey') <- case mPreKeys of
         Nothing -> do
-            Logger.warn lg $ Logger.msg @Text "No prekeys found"
+            Logger.info lg $ Logger.msg @Text "No prekeys found"
             throwM noLegalHoldDeviceAllocated
         Just keys -> pure keys
 
