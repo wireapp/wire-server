@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Galley.External.LegalHoldService
     ( -- * api
       checkLegalHoldServiceStatus
@@ -5,6 +6,10 @@ module Galley.External.LegalHoldService
 
       -- * helpers
     , validateServiceKey
+    , confirmLegalHold
+
+      -- * types
+    , OpaqueAuthToken(..)
     ) where
 
 import Imports
@@ -35,7 +40,6 @@ import qualified OpenSSL.EVP.PKey             as SSL
 import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified Ssl.Util                     as SSL
-
 
 ----------------------------------------------------------------------
 -- api
@@ -70,6 +74,21 @@ requestNewDevice tid uid = do
       . Bilge.method POST
       . Bilge.expect2xx
 
+-- | @POST /confirm@
+-- Confirm that a device has been linked to a user and provide an authorization token
+confirmLegalHold :: ClientId
+                 -> TeamId
+                 -> UserId
+                 -> OpaqueAuthToken -- ^ TODO: Replace with 'LegalHold' token type
+                 -> Galley ()
+confirmLegalHold clientId tid uid legalHoldAuthToken = do
+    void $ makeLegalHoldServiceRequest tid reqParams
+  where
+    reqParams =
+        Bilge.paths ["confirm"]
+      . Bilge.json (LegalHoldServiceConfirm clientId uid tid (opaqueAuthTokenToText legalHoldAuthToken))
+      . Bilge.method POST
+      . Bilge.expect2xx
 
 ----------------------------------------------------------------------
 -- helpers
@@ -148,3 +167,15 @@ validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
 
     minRsaKeySize :: Int
     minRsaKeySize = 256 -- Bytes (= 2048 bits)
+
+-- Types
+
+-- | When receiving tokens from other services which are 'just passing through'
+-- it's error-prone useless extra work to parse and render them from JSON over and over again.
+-- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
+-- instance
+newtype OpaqueAuthToken =
+    OpaqueAuthToken
+    { opaqueAuthTokenToText :: Text
+    } deriving newtype (Eq, Show, FromJSON, ToJSON)
+

@@ -42,8 +42,11 @@ notConnected = Error status403 "not-connected" "Users are not connected"
 tooManyMembers :: Error
 tooManyMembers = Error status403 "too-many-members" "Maximum number of members per conversation reached"
 
+convAccessDenied :: Error
+convAccessDenied = Error status403 "access-denied" "Conversation access denied"
+
 accessDenied :: Error
-accessDenied = Error status403 "access-denied" "Conversation access denied"
+accessDenied = Error status403 "access-denied" "You do not have permission to access this resource"
 
 reAuthFailed :: Error
 reAuthFailed = Error status403 "access-denied" "This operation requires reauthentication"
@@ -124,3 +127,6 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+noLegalHoldDeviceAllocated :: Error
+noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."

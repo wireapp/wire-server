@@ -7,12 +7,14 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Brig.Types.Client.Prekey
 import Control.Monad.Catch
+import Control.Lens (view)
 import Data.Id
 import Data.Misc
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
-import Galley.Intra.Client (notifyClientsAboutLegalHoldRequest)
+import Galley.Intra.Client
+  (notifyClientsAboutLegalHoldRequest, addLegalHoldClientToUser, getLegalHoldAuthToken)
 import qualified Galley.External.LegalHoldService as LHService
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
@@ -22,6 +24,7 @@ import Network.Wai.Utilities as Wai
 
 import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
+import qualified System.Logger as Logger
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
@@ -125,3 +128,36 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         lhDevice <- LHService.requestNewDevice tid uid
         let NewLegalHoldClient prekeys lastKey = lhDevice
         return (lastKey, prekeys)
+
+-- | Approve the adding of a Legal Hold device to the user
+-- we don't delete pending prekeys during this flow just in case
+-- it gets interupted. There's really no reason to delete them anyways
+-- since they are replaced if needed when registering new LH devices.
+approveDevice :: UserId ::: TeamId ::: UserId ::: ConnId ::: JSON -> Galley Response
+approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
+    unless (zusr == uid) (throwM accessDenied)
+    assertOnTeam uid tid
+    assertLegalHoldEnabled tid
+    assertUserLHNotAlreadyActive uid
+
+    mPreKeys <- LegalHoldData.selectPendingPrekeys uid
+    lg <- view applog
+    (prekeys, lastPrekey') <- case mPreKeys of
+        Nothing -> do
+            Logger.info lg $ Logger.msg @Text "No prekeys found"
+            throwM noLegalHoldDeviceAllocated
+        Just keys -> pure keys
+
+    clientId <- addLegalHoldClientToUser uid connId prekeys lastPrekey'
+    Data.updateClient True uid clientId
+
+    legalHoldAuthToken <- getLegalHoldAuthToken uid
+    LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
+    LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldEnabled
+
+    pure $ responseLBS status200 [] mempty
+  where
+    assertUserLHNotAlreadyActive :: UserId -> Galley ()
+    assertUserLHNotAlreadyActive uid' = do
+        status <- LegalHoldData.getUserLegalHoldStatus uid'
+        when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled

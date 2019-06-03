@@ -217,3 +217,19 @@ instance ToJSON LegalHoldClientRequest where
         #  "prekeys" .= prekeys
         # []
 
+-- Request body definition for the @/confirm@ endpoint on the LegalHold Service
+data LegalHoldServiceConfirm =
+    LegalHoldServiceConfirm
+    { lhcClientId     :: !ClientId
+    , lhcUserId       :: !UserId
+    , lhcTeamId       :: !TeamId
+    , lhcRefreshToken :: !Text -- ^ Replace with Legal Hold Token Type
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON LegalHoldServiceConfirm where
+  toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) = object
+        $  "client_id" .= clientId
+        #  "user_id" .= userId
+        #  "team_id" .= teamId
+        #  "refresh_token" .= refreshToken
+        # []

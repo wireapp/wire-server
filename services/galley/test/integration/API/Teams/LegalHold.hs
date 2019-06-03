@@ -49,7 +49,9 @@ import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
 import qualified Network.Wai.Utilities.Response    as Wai
+import qualified Galley.Data                       as Data
 import qualified Galley.Data.LegalHold             as LegalHoldData
+import qualified Galley.Types.Clients              as Clients
 import qualified Test.Tasty.Cannon                 as WS
 
 
@@ -157,8 +159,8 @@ testCreateLegalHoldDevice = do
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
                 -- These need to match the values provided by the 'dummy service'
-                Just (lastPrekey "test-last-prekey") @?= eLastPrekey
-                Just [Prekey (PrekeyId 0) "test-prekey"] @?= ePrekeys
+                Just (head someLastPrekeys) @?= eLastPrekey
+                Just somePrekeys @?= ePrekeys
 
         -- TODO: Not sure why I have to do this; which extra notification is stuck on the
         -- queue?
@@ -180,22 +182,55 @@ testCreateTwoLegalHoldDevices = do
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    when False $ void $ approveLegalHoldDevice undefined undefined
-      -- just something silly to keep the name to suppress the `-Wunused-top-binds` noise and
-      -- to remind everybody it's already there.
+    cannon <- view tsCannon
 
-    -- only user themself can do it
-    -- fail if no legal hold service registered
-    -- fail if legal Hold feature flag disabled
-    -- generates and stores legalhold tokens/cookies
-    -- synchronously sends tokens/cookies to team's legal hold service
-    -- expect return payload from service to contain device creation information (NewClient)
-    -- adds device to user's list of devices
-    -- sends an event to all user's clients
-    -- sends an event to team settings (however that works; it's a client-independent event i think)
-    -- all of user's communication peers receive an event
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+        -- not allowed to approve if team setting is disabled
+        -- TODO: remove the following 'ignore' once 'disabled' is the default
+        ignore $ approveLegalHoldDevice owner member tid !!! const 403 === statusCode
+
+        putEnabled tid LegalHoldEnabled
+        requestDevice owner member tid !!! const 204 === statusCode
+
+        putEnabled tid LegalHoldDisabled
+        -- Can't approve device when in disabled state
+        -- TODO: remove the following 'ignore' once 'disabled' is the default
+        ignore $ approveLegalHoldDevice member member tid !!! const 403 === statusCode
+        putEnabled tid LegalHoldEnabled
+
+        -- Only the user themself can approve adding a LH device
+        approveLegalHoldDevice owner member tid !!! const 403 === statusCode
+        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+
+        cassState <- view tsCass
+        liftIO $ do
+            clients' <- Cql.runClient cassState $ Data.lookupClients [member]
+            assertBool "Expect clientId to be saved on the user"
+              $ Clients.contains member someClientId clients'
+
+        userStatus <- getUserStatusTyped member tid
+        liftIO $ assertEqual "After approval user legalhold status should be Enabled"
+                    UserLegalHoldEnabled userStatus
+
+        liftIO $ do
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+                let j = Aeson.Object $ List1.head (ntfPayload n)
+                let etype = j ^? key "type" . _String
+                let eClient = j ^? key "client" . _JSON
+                etype @?= Just "user.client-add"
+                clientId <$> eClient @?= Just someClientId
+                clientType <$> eClient @?= Just LegalHoldClientType
+                clientClass <$> eClient @?= Just (Just LegalHoldClient)
+
+    ensureQueueEmpty
+
+        -- fail if GLOBAL legal Hold feature flag disabled
+        -- sends an event to team settings (however that works; it's a client-independent event i think)
+        -- all of user's communication peers receive an event
 
 
 testGetLegalHoldDeviceStatus :: TestM ()
@@ -491,12 +526,12 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-approveLegalHoldDevice uid tid = do
+approveLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice zusr uid tid = do
     g <- view tsGalley
     put $ g
-           . paths ["teams", toByteString' tid, "legalhold", "approve"]
-           . zUser uid . zConn "conn"
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid, "approve"]
+           . zUser zusr . zConn "conn"
            . zType "access"
 
 exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
@@ -577,13 +612,14 @@ withDummyTestServiceForTeam owner tid go = do
     dummyService :: Chan () -> Application
     dummyService _ch req cont = do
         if | pathInfo req == ["status"] && requestMethod req == "GET" -> cont respondOk
-           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont deviceResp
+           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont initiateResp
+           | pathInfo req == ["confirm"] && requestMethod req == "POST" -> cont respondOk
            | otherwise -> cont respondBad
 
-    deviceResp :: Wai.Response
-    deviceResp =
+    initiateResp :: Wai.Response
+    initiateResp =
         Wai.json
-        $ NewLegalHoldClient [Prekey (PrekeyId 0) "test-prekey"] (lastPrekey "test-last-prekey")
+        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
 
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty

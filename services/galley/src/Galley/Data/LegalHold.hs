@@ -14,6 +14,7 @@ module Galley.Data.LegalHold
 
 import Imports
 import Cassandra
+import Control.Lens (unsnoc)
 import Data.Id
 import Brig.Types.Client.Prekey
 import Galley.Data.Queries as Q
@@ -58,11 +59,16 @@ insertPendingPrekeys uid keys = retry x5 . batch $
   where
     toTuple (Prekey keyId key) = (uid, keyId, key)
 
-selectPendingPrekeys :: MonadClient m => UserId -> m [Prekey]
+selectPendingPrekeys :: MonadClient m => UserId -> m (Maybe ([Prekey], LastPrekey))
 selectPendingPrekeys uid =
-    fmap fromTuple <$> retry x1 (query Q.selectPendingPrekeys (params Quorum (Identity uid)))
+    pickLastKey . fmap fromTuple
+    <$> retry x1 (query Q.selectPendingPrekeys (params Quorum (Identity uid)))
   where
     fromTuple (keyId, key) = Prekey keyId key
+    pickLastKey allPrekeys =
+        case unsnoc allPrekeys of
+            Nothing -> Nothing
+            Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
 
 dropPendingPrekeys :: MonadClient m => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))

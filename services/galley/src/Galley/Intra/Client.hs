@@ -1,22 +1,33 @@
 module Galley.Intra.Client
     ( lookupClients
     , notifyClientsAboutLegalHoldRequest
+    , addLegalHoldClientToUser
+    , getLegalHoldAuthToken
     ) where
 
 import Imports
 import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
+import Brig.Types.User.Auth (SsoLogin(..))
 import Brig.Types.Client.Prekey (LastPrekey, Prekey)
+import Brig.Types.Client
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
+import Data.ByteString.Conversion (toByteString')
+import Control.Monad.Catch
+import Control.Lens (view)
 import Galley.App
+import Galley.API.Error
+import Galley.External.LegalHoldService
 import Galley.Intra.Util
 import Galley.Types (UserClients, filterClients)
 import Data.Id
+import Data.Text.Encoding
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
+import qualified System.Logger as Logger
 import qualified Data.Set as Set
 
 lookupClients :: [UserId] -> Galley UserClients
@@ -40,3 +51,50 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' prekeys = 
                 . path "/i/clients/legalhold/request"
                 . json (LegalHoldClientRequest requesterUid targetUid lastPrekey' prekeys)
                 . expect2xx
+
+getLegalHoldAuthToken :: UserId -> Galley OpaqueAuthToken
+getLegalHoldAuthToken uid = do
+    (brigHost, brigPort) <- brigReq
+    r <- call "brig" $
+           method POST
+            . host brigHost
+            . port brigPort
+            . path "/i/sso-login" -- ^ TODO: switch to '/i/legalhold-login'
+            . queryItem "persist" "true"
+            . json (SsoLogin uid Nothing)
+            . expect2xx
+    lg <- view applog
+    case getCookieValue "zuid" r of
+        Nothing -> do
+            Logger.warn lg $ Logger.msg @Text "Response from login missing auth cookie"
+            throwM internalError
+        Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
+
+addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
+addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
+    clientId <$> brigAddClient uid connId lhClient
+  where
+    lhClient =
+        NewClient prekeys
+                  lastPrekey'
+                  LegalHoldClientType
+                  Nothing
+                  (Just LegalHoldClient)
+                  Nothing
+                  Nothing
+                  Nothing
+
+brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
+brigAddClient uid connId client = do
+    (brigHost, brigPort) <- brigReq
+    r <- call "brig"
+        $ method POST
+        . host brigHost
+        . port brigPort
+        . header "Z-User" (toByteString' uid)
+        . header "Z-Connection" (toByteString' connId)
+        . path "/clients"
+        . contentJson
+        . json client
+        . expect2xx
+    parseResponse (Error status502 "server-error") r
