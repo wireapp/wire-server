@@ -130,6 +130,9 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         return (lastKey, prekeys)
 
 -- | Approve the adding of a Legal Hold device to the user
+-- we don't delete pending prekeys during this flow just in case
+-- it gets interupted. There's really no reason to delete them anyways
+-- since they are replaced if needed when registering new LH devices.
 approveDevice :: UserId ::: TeamId ::: UserId ::: ConnId ::: JSON -> Galley Response
 approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
