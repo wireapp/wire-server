@@ -179,7 +179,7 @@ data UserLegalHoldStatus
     = UserLegalHoldEnabled
     | UserLegalHoldPending
     | UserLegalHoldDisabled
-    deriving stock (Show, Eq, Bounded, Enum, Generic)
+    deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
 
 instance ToJSON UserLegalHoldStatus where
     toJSON UserLegalHoldEnabled = "enabled"
