@@ -74,9 +74,8 @@ type GalleyRoutesPublic
           :> Verb 'DELETE 204 '[] NoContent
 
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
-          :> ReqBody '[JSON] RequestNewLegalHoldClient
-          :> Post '[JSON] NewLegalHoldClient
-  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "approve"
+          :> Post '[] NoContent
+  :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId :> "approve"
           :> Verb 'PUT 204 '[] NoContent
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
           :> Get '[JSON] UserLegalHoldStatus
@@ -224,24 +223,6 @@ instance ToSchema LegalHoldStatus where
           where
             descr = "determines whether admins of a team " <>
                     "are allowed to enable LH for their users."
-
-instance ToSchema RequestNewLegalHoldClient where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "userId" -> "user_id"
-              "teamId" -> "team_id"
-          }
-
-instance ToSchema NewLegalHoldClient where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "newLegalHoldClientPrekeys" -> "prekeys"
-              "newLegalHoldClientLastKey" -> "last_prekey"
-          }
 
 instance ToSchema UserLegalHoldStatus where
     declareNamedSchema = tweak . genericDeclareNamedSchema opts
