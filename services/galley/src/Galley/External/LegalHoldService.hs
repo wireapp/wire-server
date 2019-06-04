@@ -16,6 +16,7 @@ import Imports
 import Data.Id
 import Galley.API.Error
 import Bilge.Retry
+import Bilge.Request (showRequest)
 import Bilge.Response
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
@@ -49,7 +50,8 @@ checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
 checkLegalHoldServiceStatus fpr url = do
     rs <- makeVerifiedRequest fpr url reqBuilder
     if | Bilge.statusCode rs < 400 -> pure ()
-       | otherwise -> throwM legalHoldServiceBadResponse
+       | otherwise -> do
+           throwM legalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
@@ -129,14 +131,19 @@ makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Requ
 makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
     (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
     let verified = verifyFingerprints [fpr]
+    lg <- view applog
     extHandleAll (const $ throwM legalHoldServiceUnavailable) $ do
         recovering x3 httpHandlers $ const $ liftIO $
-            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $ \req ->
-                Http.httpLbs req mgr
+            withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $ \req -> do
+                -- TODO: remove this logging, it's only for debugging
+                resp <- Http.httpLbs req mgr
+                Logger.info lg $  "request" Logger..= show req
+                               ~~ "showRequest" Logger..= showRequest req
+                               ~~ "response" Logger..= showResponse resp
+                return resp
   where
     reqBuilderMods =
         maybe id Bilge.host (Bilge.extHost url)
-        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
         . Bilge.secure
 
     x3 :: RetryPolicy

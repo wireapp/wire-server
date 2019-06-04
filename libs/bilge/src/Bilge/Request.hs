@@ -86,7 +86,7 @@ path :: ByteString -> Request -> Request
 path p r = r { Rq.path = p }
 
 paths :: [ByteString] -> Request -> Request
-paths = path . intercalate "/"
+paths segments = path ("/" <> intercalate "/" segments)
 
 -- | The request should be made over HTTPS.
 secure :: Request -> Request
@@ -198,6 +198,8 @@ showRequest :: Request -> String
 showRequest r =
       showString (C.unpack . Rq.method $ r)
     . showString " "
+    . showString (C.unpack . Rq.host $ r)
+    . showString "/"
     . showString (C.unpack . Rq.path $ r)
     . showString (if Rq.secure r then " HTTPS/1.1\n" else " HTTP/1.1\n")
     . showHeaders
