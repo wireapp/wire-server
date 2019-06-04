@@ -141,7 +141,6 @@ viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr _) =
     ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr
 
--- TODO: Do we need a Client ID?
 data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]
     , newLegalHoldClientLastKey  :: !LastPrekey
