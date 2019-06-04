@@ -270,20 +270,20 @@ dropPendingPrekeys = [r|
 
 selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
 selectPendingPrekeys = [r|
-        select key, data 
-          from legalhold_pending_prekeys 
-          where user = ? 
+        select key, data
+          from legalhold_pending_prekeys
+          where user = ?
           order by key asc
     |]
 
-selectUserLegalHoldStatus :: PrepQuery R (Identity UserId) (Identity UserLegalHoldStatus)
+selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) (Identity (Maybe UserLegalHoldStatus))
 selectUserLegalHoldStatus = [r|
-        select status from legalhold_user_status where user = ?
+        select legalhold_status from team_member where team = ? and user = ?
     |]
 
-updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, UserId) ()
+updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()
 updateUserLegalHoldStatus = [r|
-        update legalhold_user_status
-          set status = ?
-          where user = ?
+        update team_member
+          set legalhold_status = ?
+          where team = ? and user = ?
     |]

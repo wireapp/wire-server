@@ -97,7 +97,7 @@ getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
-    lhStatus <- LegalHoldData.getUserLegalHoldStatus uid
+    lhStatus <- LegalHoldData.getUserLegalHoldStatus tid uid
     pure $ json lhStatus
 
 -- | Request to provision a device on the legal hold service for a user
@@ -107,7 +107,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
 
-    userLHStatus <- LegalHoldData.getUserLegalHoldStatus uid
+    userLHStatus <- LegalHoldData.getUserLegalHoldStatus tid uid
     case userLHStatus of
         UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
         UserLegalHoldPending -> provisionLHDevice
@@ -118,7 +118,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         (lastPrekey', prekeys) <- requestDeviceFromService
         -- We don't distinguish the last key here; brig will do so when the device is added
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-        LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
         notifyClientsAboutLegalHoldRequest zusr uid lastPrekey' prekeys
         pure $ responseLBS status204 [] mempty
 
@@ -153,11 +153,11 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
 
     legalHoldAuthToken <- getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
-    LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldEnabled
+    LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
 
     pure $ responseLBS status200 [] mempty
   where
     assertUserLHNotAlreadyActive :: UserId -> Galley ()
     assertUserLHNotAlreadyActive uid' = do
-        status <- LegalHoldData.getUserLegalHoldStatus uid'
+        status <- LegalHoldData.getUserLegalHoldStatus tid uid'
         when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
