@@ -15,8 +15,9 @@ import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Catch
-import Data.ByteString.Conversion
+import Control.Retry (recoverAll, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
+import Data.ByteString.Conversion
 import Data.Id
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
@@ -629,7 +630,11 @@ withDummyTestServiceForTeam owner tid go = do
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal
--- details to the test (for both read and write) via a 'Chan'.  This is not concurrency-proof!
+-- details to the test (for both read and write) via a 'Chan'.
+--
+-- WARNINGS: (1) This is not concurrency-proof!  (2) tests need to be written in a way that
+-- they can be run several times if they fail the first time.  this is the allow for the ssl
+-- service to have some time to propagate through the test system (needed on k8s).
 withTestService
     :: HasCallStack
     => (Chan e -> Application)  -- ^ the mock service
@@ -643,7 +648,8 @@ withTestService mkApp go = do
     srv <- liftIO . Async.async $
         Warp.runTLS tlss defs $
             mkApp buf
-    go buf `finally` liftIO (Async.cancel srv)
+    recoverAll (exponentialBackoff 50 <> limitRetries 5) (\_ -> go buf)
+        `finally` liftIO (Async.cancel srv)
 
 
 -- TODO: adding two new legal hold settings on one team is not possible (409)
