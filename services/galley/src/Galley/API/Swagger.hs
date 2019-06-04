@@ -51,7 +51,7 @@ main = do
 
 -- TODO: document exceptions properly.
 
--- TODO: document zusr authentication thingy somehow.
+-- TODO: document zusr, zconn
 
 -- TODO: factor out the servant handlers from the functions in Gally.API.LegalHold, and build
 --       them together to an Application.  don't run it yet, but that would give us some extra
