@@ -281,7 +281,7 @@ testCreateLegalHoldTeamSettings = do
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application
         lhapp _isworking@False _ _   cont = cont respondBad
         lhapp _isworking@True  _ req cont = trace "APP" $ do
-            if | pathInfo req /= ["bots", "status"] -> cont respondBad
+            if | pathInfo req /= ["legalhold", "bots", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> trace "hit" $ cont respondOk
 
@@ -612,9 +612,9 @@ withDummyTestServiceForTeam owner tid go = do
         go
     dummyService :: Chan () -> Application
     dummyService _ch req cont = do
-        if | pathInfo req == ["bots", "status"] && requestMethod req == "GET" -> cont respondOk
-           | pathInfo req == ["initiate"] && requestMethod req == "POST" -> cont initiateResp
-           | pathInfo req == ["confirm"] && requestMethod req == "POST" -> cont respondOk
+        if | pathInfo req == ["legalhold", "bots", "status"] && requestMethod req == "GET" -> cont respondOk
+           | pathInfo req == ["legalhold", "initiate"] && requestMethod req == "POST" -> cont initiateResp
+           | pathInfo req == ["legalhold", "confirm"] && requestMethod req == "POST" -> cont respondOk
            | otherwise -> cont respondBad
 
     initiateResp :: Wai.Response

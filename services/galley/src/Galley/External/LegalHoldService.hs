@@ -53,7 +53,9 @@ checkLegalHoldServiceStatus fpr url = do
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
-        = Bilge.paths ["bots", "status"]
+        -- TODO: Currently this OVERWRITES any path on the base URL;
+        -- We should come up with a better solution.
+        = Bilge.paths ["legalhold", "bots", "status"]
         . Bilge.method GET
         . Bilge.expect2xx
 
@@ -69,9 +71,12 @@ requestNewDevice tid uid = do
         Right client -> pure client
   where
     reqParams =
-        Bilge.paths ["initiate"]
+        -- TODO: Currently this OVERWRITES any path on the base URL;
+        -- We should come up with a better solution.
+        Bilge.paths ["legalhold", "initiate"]
       . Bilge.json (RequestNewLegalHoldClient uid tid)
       . Bilge.method POST
+      . Bilge.acceptJson
       . Bilge.expect2xx
 
 -- | @POST /confirm@
@@ -85,9 +90,12 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
     void $ makeLegalHoldServiceRequest tid reqParams
   where
     reqParams =
-        Bilge.paths ["confirm"]
+        -- TODO: Currently this OVERWRITES any path on the base URL;
+        -- We should come up with a better solution.
+        Bilge.paths ["legalhold", "confirm"]
       . Bilge.json (LegalHoldServiceConfirm clientId uid tid (opaqueAuthTokenToText legalHoldAuthToken))
       . Bilge.method POST
+      . Bilge.acceptJson
       . Bilge.expect2xx
 
 ----------------------------------------------------------------------
