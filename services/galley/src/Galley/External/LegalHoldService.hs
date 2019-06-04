@@ -53,7 +53,7 @@ checkLegalHoldServiceStatus fpr url = do
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
-        = Bilge.paths ["status"]
+        = Bilge.paths ["bots", "status"]
         . Bilge.method GET
         . Bilge.expect2xx
 
