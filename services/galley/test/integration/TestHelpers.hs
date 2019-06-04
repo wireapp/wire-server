@@ -14,7 +14,7 @@ test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
   where
     assertClean :: TestM ()
-    assertClean = SQS.assertQueueEmpty
+    assertClean = SQS.assertQueueEmpty >> SQS.ensureQueueEmpty
 
     runTest :: Assertion
     runTest = do
