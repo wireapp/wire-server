@@ -240,7 +240,7 @@ instance ToSchema NewLegalHoldClient where
         opts = defaultSchemaOptions
           { fieldLabelModifier = \case
               "newLegalHoldClientPrekeys" -> "prekeys"
-              "newLegalHoldClientLastKey" -> "lastkey"
+              "newLegalHoldClientLastKey" -> "last_prekey"
           }
 
 instance ToSchema UserLegalHoldStatus where

@@ -151,13 +151,13 @@ data NewLegalHoldClient = NewLegalHoldClient
 instance ToJSON NewLegalHoldClient where
     toJSON c = object
         $ "prekeys"  .= newLegalHoldClientPrekeys c
-        # "lastkey"  .= newLegalHoldClientLastKey c
+        # "last_prekey"  .= newLegalHoldClientLastKey c
         # []
 
 instance FromJSON NewLegalHoldClient where
     parseJSON = withObject "NewLegalHoldClient" $ \o ->
         NewLegalHoldClient <$> o .:  "prekeys"
-                           <*> o .:  "lastkey"
+                           <*> o .:  "last_prekey"
 
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     { userId :: !UserId
