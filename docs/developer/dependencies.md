@@ -1,4 +1,4 @@
-# Dependencies
+# Dependencies {#DevDeps}
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
@@ -49,6 +49,12 @@ extra-include-dirs:
 extra-lib-dirs:
 - /usr/local/opt/openssl/lib
 - /usr/local/opt/icu4c/lib
+```
+
+_Note_: if you're getting `fatal error: 'libxml/parser.h' file not found` and you're on macOS Mojave, try doing:
+
+```bash
+sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -target /
 ```
 
 ## Haskell Stack
@@ -148,6 +154,13 @@ _Note_: While it is possible to use non-docker solutions to set up and configure
 ```bash
 sudo apt install docker.io docker-compose
 ```
+
+After installing docker-io, add your user to the docker group, and restart your shell (usually involving a restart of your graphical environment).
+
+once you've logged in again, if you would like to upload any docker images (optional):
+```bash
+docker login --username=<MY_DOCKER_USERNAME>
+````
 
 ### Generic:
 

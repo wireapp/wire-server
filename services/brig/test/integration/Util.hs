@@ -30,12 +30,15 @@ import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
 import Test.Tasty.Cannon
+import qualified Network.Wai.Test as WaiTest
 import Util.AWS
 
 import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
 import qualified Brig.RPC as RPC
+import qualified Brig.Options as Opts
+import qualified Brig.Run as Run
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as Lazy
@@ -548,3 +551,12 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
+
+
+-- | This allows you to run requests against a brig instantiated using the given options.
+--   Note that ONLY 'brig' calls should occur within the provided action, calls to other
+--   services will fail.
+withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides opts action = liftIO $ do
+    (brigApp, _) <- Run.mkApp opts
+    WaiTest.runSession action brigApp

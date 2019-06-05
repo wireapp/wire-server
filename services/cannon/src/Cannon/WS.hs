@@ -139,6 +139,8 @@ newtype WS a = WS
                , MonadThrow
                , MonadCatch
                , MonadMask
+               , MonadReader Env
+               , MonadUnliftIO
                )
 
 instance MonadLogger WS where
@@ -148,7 +150,9 @@ instance MonadLogger WS where
         liftIO $ Logger.log g l (r . m)
 
 instance MonadHttp WS where
-    getManager = WS $ asks manager
+    handleRequestWithCont req handler = do
+        manager <- asks manager
+        liftIO $ withResponse req manager handler
 
 instance HasRequestId WS where
     getRequestId = WS $ asks reqId

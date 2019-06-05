@@ -180,9 +180,6 @@ instance Arbitrary PasswordResetIdentity where
 instance Arbitrary AsciiBase64Url where
     arbitrary = encodeBase64Url <$> arbitrary
 
-instance Arbitrary PlainTextPassword where
-    arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
-
 instance Arbitrary ReAuthUser where
     arbitrary = ReAuthUser <$> arbitrary
 
@@ -303,6 +300,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary RichField where
     arbitrary = RichField <$> arbitrary <*> arbitrary
@@ -409,22 +407,6 @@ arbitraryIntegral :: forall n m i.
                      (KnownNat n, KnownNat m, LTE n m, Integral i, Show i, Bounds i, System.Random.Random i)
                   => Gen (Range n m i)
 arbitraryIntegral = unsafeRange @i @n @m <$> choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
-
-genRangeList :: forall (n :: Nat) (m :: Nat) (a :: *).
-                (Show a, KnownNat n, KnownNat m, LTE n m)
-             => Gen a -> Gen (Range n m [a])
-genRangeList = genRange id
-
-genRangeText :: forall (n :: Nat) (m :: Nat). (KnownNat n, KnownNat m, LTE n m)
-             => Gen Char -> Gen (Range n m ST.Text)
-genRangeText = genRange ST.pack
-
-genRange :: forall (n :: Nat) (m :: Nat) (a :: *) (b :: *).
-            (Show b, Bounds b, KnownNat n, KnownNat m, LTE n m)
-         => ([a] -> b) -> Gen a -> Gen (Range n m b)
-genRange pack gc = unsafeRange @b @n @m . pack <$> grange (fromKnownNat (Proxy @n)) (fromKnownNat (Proxy @m)) gc
-  where
-    grange mi ma gelem = (`replicateM` gelem) =<< choose (mi, ma)
 
 fromKnownNat :: forall (k :: Nat) (i :: *). (Num i, KnownNat k) => Proxy k -> i
 fromKnownNat p = fromIntegral $ natVal p

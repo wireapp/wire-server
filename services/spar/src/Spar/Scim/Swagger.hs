@@ -58,6 +58,7 @@ instance ToSchema CreateScimToken where
       & type_ .~ SwaggerObject
       & properties .~
           [ ("description", textSchema)
+          , ("password", textSchema)
           ]
       & required .~ [ "description" ]
 

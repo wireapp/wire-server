@@ -128,7 +128,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 #ifdef WITH_CQL
 import qualified Control.Error.Util as Err
-import qualified Database.CQL.Protocol as Cql
+import qualified Cassandra as Cql
 #endif
 
 data Event = Event
@@ -720,7 +720,7 @@ instance FromJSON TeamUpdateData where
 
 instance FromJSON TeamMemberDeleteData where
     parseJSON = withObject "team-member-delete-data" $ \o ->
-        TeamMemberDeleteData <$> o .: "password"
+        TeamMemberDeleteData <$> (o .:? "password")
 
 instance ToJSON TeamMemberDeleteData where
     toJSON tmd = object

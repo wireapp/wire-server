@@ -10,12 +10,18 @@ import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.String.Conversions (cs)
 import Data.Id (UserId)
 import Data.Ix (inRange)
 import Spar.Scim
+import Spar.Types (IdP)
 import Util
 
+import qualified SAML2.WebSSO.Types               as SAML
+import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
+import qualified Spar.Intra.Brig                  as Intra
+import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
@@ -44,6 +50,7 @@ spec = do
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
     it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -52,7 +59,7 @@ specCreateUser = describe "POST /Users" $ do
         testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
     it "handles rich info correctly (this also tests put, get)" $ testRichInfo
-    it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
+    it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
         pendingWith "factor this out of the PUT tests we already wrote."
@@ -74,7 +81,20 @@ testCreateUser = do
         . path "/self"
         . expect2xx
         )
-    brigUser `userShouldMatch` scimStoredUser
+    brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+
+-- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
+-- were not present in the original record during creation.
+testSchemaIsAdded :: TestSpar ()
+testSchemaIsAdded = do
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    scimStoredUser <- createUser tok (user {Scim.User.schemas = []})
+    -- Check that the created user has the right schemas
+    liftIO $
+        Scim.User.schemas (Scim.value (Scim.thing scimStoredUser)) `shouldBe`
+        userSchemas
 
 -- | Test that @externalId@ (for SSO login) is required when creating a user.
 testExternalIdIsRequired :: TestSpar ()
@@ -178,7 +198,7 @@ testRichInfo = do
     let -- validate response
         checkStoredUser
             :: HasCallStack
-            => Scim.UserC.StoredUser ScimUserExtra -> RichInfo -> TestSpar ()
+            => Scim.UserC.StoredUser SparTag -> RichInfo -> TestSpar ()
         checkStoredUser storedUser rinf = liftIO $ do
             (Scim.User.extra . Scim.value . Scim.thing) storedUser
                 `shouldBe` (ScimUserExtra rinf)
@@ -215,6 +235,77 @@ testRichInfo = do
     -- post updates the backend as expected.
     liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
     probeUser (scimUserId scimStoredUser) richInfo'
+
+-- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
+-- @spar.user@; create it via scim.  This should work despite the dangling database entry.
+testScimCreateVsUserRef :: TestSpar ()
+testScimCreateVsUserRef = do
+    (_ownerid, teamid, idp) <- registerTestIdP
+    (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+        <- randomScimUserWithSubject
+    let uref   = SAML.UserRef tenant subj
+        subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+        tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+
+    !(Just !uid) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
+
+    deleteViaBrig uid
+    samlUserShouldSatisfy uref isJust  -- brig doesn't talk to spar right now when users
+                                       -- are deleted there.  we need to work around this
+                                       -- fact for now.  (if the test fails here, this may
+                                       -- mean that you fixed the behavior and can
+                                       -- change this to 'isNothing'.)
+
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+    storedusr :: Scim.UserC.StoredUser SparTag
+        <- do
+          resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
+              <!! const 201 === statusCode
+          pure $ decodeBody' resp
+    samlUserShouldSatisfy uref (== Just (scimUserId storedusr))
+
+    -- now with a scim token in the team, we can't auto-provision via saml any more.
+    (_usr', uname') :: (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+        <- randomScimUserWithSubject
+    let uref'   = SAML.UserRef tenant' subj'
+        subj'   = either (error . show) id $ SAML.mkNameID uname' Nothing Nothing Nothing
+        tenant' = idp ^. SAML.idpMetadata . SAML.edIssuer
+    createViaSamlFails idp uref'
+  where
+    samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy uref property = do
+        muid <- getUserIdViaRef' uref
+        liftIO $ muid `shouldSatisfy` property
+
+    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp (SAML.UserRef _ subj) = do
+        (privCreds, authnReq) <- negotiateAuthnRequest idp
+        spmeta <- getTestSPMetadata
+        authnResp <- runSimpleSP $
+            SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+        submitAuthnResponse authnResp <!! const 200 === statusCode
+
+    createViaSamlFails :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ()
+    createViaSamlFails idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:error:forbidden</title>"
+
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:success</title>"
+        getUserIdViaRef' uref
+
+    deleteViaBrig :: UserId -> TestSpar ()
+    deleteViaBrig uid = do
+        brig <- view teBrig
+        (call . delete $ brig . paths ["i", "users", toByteString' uid])
+            !!! const 202 === statusCode
 
 ----------------------------------------------------------------------------
 -- Listing users
@@ -354,6 +445,8 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
     it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
     it "updates the matching Brig user" $ testBrigSideIsUpdated
+    it "cannot update user to match another user's externalId"
+        testUpdateToExistingExternalIdFails
     context "user is from different team" $ do
         it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
@@ -416,6 +509,30 @@ testScimSideIsUpdated = do
         Scim.created meta `shouldBe` Scim.created meta'
         Scim.location meta `shouldBe` Scim.location meta'
 
+-- | Test that updating a user with the externalId of another user fails
+testUpdateToExistingExternalIdFails :: TestSpar ()
+testUpdateToExistingExternalIdFails = do
+    -- Create a user via SCIM
+    (tok, _) <- registerIdPAndScimToken
+    user <- randomScimUser
+    _ <- createUser tok user
+
+    newUser <- randomScimUser
+    storedNewUser <- createUser tok newUser
+
+    let userExternalId = Scim.User.externalId user
+    -- Ensure we're actually generating an external ID; we may stop doing this in the future
+    liftIO $ userExternalId `shouldSatisfy` isJust
+
+    -- Try to update the new user's external ID to be the same as 'user's.
+    let updatedNewUser = newUser{Scim.User.externalId = userExternalId}
+
+    env <- ask
+    -- Should fail with 409 to denote that the given externalId is in use by a
+    -- different user.
+    updateUser_ (Just tok) (Just $ scimUserId storedNewUser) updatedNewUser (env ^. teSpar)
+            !!! const 409 === statusCode
+
 -- | Test that updating still works when name and handle are not changed.
 --
 -- This test is needed because if @PUT \/Users@ is implemented in such a way that it /always/
@@ -452,19 +569,32 @@ testUpdateSameHandle = do
 -- can find the user by the 'UserRef'.
 testUpdateUserRefIndex :: TestSpar ()
 testUpdateUserRefIndex = do
-    -- Create a user via SCIM
-    user <- randomScimUser
     (tok, (_, _, idp)) <- registerIdPAndScimToken
-    storedUser <- createUser tok user
-    let userid = scimUserId storedUser
-    -- Overwrite the user with another randomly-generated user
-    user' <- randomScimUser
-    _ <- updateUser tok userid user'
-    vuser' <- either (error . show) pure $
-        validateScimUser' idp 999999 user'  -- 999999 = some big number
-    muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
-    liftIO $ do
-        muserid' `shouldBe` Just userid
+    let checkUpdateUserRef :: Bool -> TestSpar ()
+        checkUpdateUserRef changeUserRef = do
+            -- Create a user via SCIM
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            uref <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user)
+
+            -- Overwrite the user with another randomly-generated user
+            user' <- let upd u = if changeUserRef
+                           then u
+                           else u { Scim.User.externalId = Scim.User.externalId user }
+                     in randomScimUser <&> upd
+            _ <- updateUser tok userid user'
+            uref' <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user')
+            muserid  <- runSparCass $ Data.getSAMLUser uref
+            muserid' <- runSparCass $ Data.getSAMLUser uref'
+            liftIO $ do
+                (changeUserRef, muserid) `shouldBe`
+                    (changeUserRef, if changeUserRef then Nothing else Just userid)
+                (changeUserRef, muserid') `shouldBe`
+                    (changeUserRef, Just userid)
+
+    checkUpdateUserRef True
+    checkUpdateUserRef False
 
 -- | Test that when the user is updated via SCIM, the data in Brig is also updated.
 testBrigSideIsUpdated :: TestSpar ()
@@ -477,7 +607,7 @@ testBrigSideIsUpdated = do
     _ <- updateUser tok userid user'
     validScimUser <- either (error . show) pure $
         validateScimUser' idp 999999 user'
-    brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
+    brigUser      <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
     brigUser `userShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
@@ -493,6 +623,87 @@ specDeleteUser = do
                 !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
+        it "should delete user from brig, spar.scim_user, spar.user" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid :: UserId = scimUserId storedUser
+            uref :: SAML.UserRef <- do
+                usr <- runSpar $ Intra.getBrigUser uid
+                maybe (error "no UserRef from brig") pure $ urefFromBrig =<< usr
+            spar <- view teSpar
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+
+            brigUser :: Maybe User
+              <- aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
+            samlUser :: Maybe UserId
+              <- aFewTimes (getUserIdViaRef' uref) isNothing
+            scimUser :: Maybe (ScimC.User.StoredUser SparTag)
+              <- aFewTimes (getScimUser uid) isNothing
+
+            liftIO $ (brigUser, samlUser, scimUser)
+              `shouldBe` (Nothing, Nothing, Nothing)
+
+        it "should respond with 204 on first deletion, then 404" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            spar <- view teSpar
+            -- Expect first call to succeed
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            -- Subsequent calls will return 404 eventually
+            aFewTimes (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
+                !!! const 404 === statusCode
+
+        it "should free externalId and everything else in the scim user for re-use" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid :: UserId = scimUserId storedUser
+            spar <- view teSpar
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            aFewTimes (createUser_ (Just tok) user spar) ((== 201) . statusCode)
+                !!! const 201 === statusCode
+
+        -- FUTUREWORK: hscim has the the following test.  we should probably go through all
+        -- `delete` tests and see if they can move to hscim or are already included there.
+
+        it "should return 401 if we don't provide a token" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ Nothing (Just uid) spar
+                !!! const 401 === statusCode
+
+        it "should return 404 if we provide a token for a different team" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let uid = scimUserId storedUser
+
+            (invalidTok, _) <- registerIdPAndScimToken
+            spar <- view teSpar
+            deleteUser_ (Just invalidTok) (Just uid) spar
+                !!! const 404 === statusCode
+
+        it "getUser should return 404 after deleteUser" $ do
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            spar <- view teSpar
+            let uid = scimUserId storedUser
+            deleteUser_ (Just tok) (Just uid) spar
+                !!! const 204 === statusCode
+            getUser_ (Just tok) uid spar
+                !!! const 404 === statusCode
+
         it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
             env <- ask
             user <- randomScimUser
@@ -500,6 +711,3 @@ specDeleteUser = do
             storedUser <- createUser tok user
             deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
                 !!! assertTrue_ (inRange (200, 499) . statusCode)
-
-        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
-            pendingWith "really?  how do we destroy the data then, and when?"

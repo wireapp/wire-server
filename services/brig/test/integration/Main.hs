@@ -2,7 +2,7 @@ module Main (main) where
 
 import Imports hiding (local)
 import Bilge hiding (header)
-import Cassandra.Util
+import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -24,6 +24,7 @@ import qualified API.Team              as Team
 import qualified API.TURN              as TURN
 import qualified API.User              as User
 import qualified API.Metrics           as Metrics
+import qualified API.Settings          as Settings
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
@@ -43,6 +44,10 @@ instance FromJSON Config
 
 runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
 runTests iConf bConf otherArgs = do
+    -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
+    -- for config.
+    -- Involves removing a bunch of 'optOrEnv' calls
+    brigOpts <- maybe (fail "failed to parse options file") pure bConf
     let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
     b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
@@ -55,7 +60,7 @@ runTests iConf bConf otherArgs = do
     casKey  <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
     awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
 
-    lg <- Logger.new Logger.defSettings
+    lg <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
     emailAWSOpts <- parseEmailAWSOpts
@@ -67,6 +72,7 @@ runTests iConf bConf otherArgs = do
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
+    settingsApi <- Settings.tests brigOpts mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi
@@ -75,6 +81,7 @@ runTests iConf bConf otherArgs = do
         , teamApis
         , turnApi
         , metricsApi
+        , settingsApi
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

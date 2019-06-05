@@ -40,7 +40,7 @@ data BulkAction
             , _type  :: !Text
             , _id    :: !(Maybe Text)
             }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show)
 
 instance ToJSON BulkAction where
     toJSON Index{..} =

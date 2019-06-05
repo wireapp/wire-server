@@ -77,10 +77,19 @@ function run() {
     service=$1
     instance=$2
     colour=$3
-    # TODO can be removed once all services have been switched to YAML configs
-    [ $# -gt 3 ] && export LOG_LEVEL=$4
+    # Check if we're on a Mac
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Mac sed uses '-l' to set line-by-line buffering
+        UNBUFFERED=-l
+    # Test if sed supports buffer settings.  GNU sed does, busybox does not.
+    elif sed -u '' </dev/null >/dev/null 2>&1; then
+        UNBUFFERED=-u
+    else
+        echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
+        UNBUFFERED=''
+    fi
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
-        | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+        | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 check_prerequisites
@@ -90,7 +99,7 @@ run galley "" ${yellow}
 run gundeck "" ${blue}
 run cannon "" ${orange}
 run cannon "2" ${orange}
-run cargohold "" ${purpleish} Info
+run cargohold "" ${purpleish}
 run spar "" ${orange}
 
 # the ports are copied from ./integration.yaml

@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Galley.Data.Instances where
+module Galley.Data.Instances () where
 
 import Imports
 import Cassandra.CQL

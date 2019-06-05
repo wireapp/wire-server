@@ -32,7 +32,7 @@ main = withOpenSSL $ do
         <> fullDesc
 
     initLogger
-        = Log.new
+        = Log.new  -- TODO: use mkLogger'?
         . Log.setOutput Log.StdOut
         . Log.setFormat Nothing
         . Log.setBufSize 0
@@ -55,12 +55,13 @@ main = withOpenSSL $ do
 
     mkAWSEnv :: JournalOpts -> IO Aws.Env
     mkAWSEnv o = do
-        l   <- Log.new $ Log.setOutput Log.StdOut . Log.setFormat Nothing $ Log.defSettings
+        l   <- Log.new $ Log.setOutput Log.StdOut . Log.setFormat Nothing $ Log.defSettings  -- TODO: use mkLogger'?
         mgr <- initHttpManager
         Aws.mkEnv l mgr o
 
     initCas cas l
-        = C.init l
+        = C.init
+        $ C.setLogger          (C.mkLogger l)
         . C.setContacts        (cas^.cHosts) []
         . C.setPortNumber      (fromIntegral $ cas^.cPort)
         . C.setKeyspace        (cas^.cKeyspace)

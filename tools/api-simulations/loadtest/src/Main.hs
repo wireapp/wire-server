@@ -12,6 +12,7 @@ import Network.Wire.Bot
 import Network.Wire.Bot.Report
 import Network.Wire.Simulations.LoadTest
 import Options.Applicative.Extended
+import Data.Metrics (deprecatedRequestDurationHistogram)
 
 import qualified System.Logger as Log
 
@@ -24,7 +25,7 @@ main = do
     unless (clientsMin o >= 1) $
         error "invalid value for --clients: has to be at least 1"
     m <- newManager tlsManagerSettings
-    l <- Log.new Log.defSettings
+    l <- Log.new Log.defSettings  -- TODO: use mkLogger'?
     e <- newBotNetEnv m l (ltsBotNetSettings o)
     void . runBotNet e $ do
         runLoadTest o
@@ -46,9 +47,12 @@ main = do
             <> eventTypeSection TConvMemberStateUpdate
             <> eventTypeSection TConvOtrMessageAdd
             <> section "Timings"
-                [ Buckets "Post Message" postMessageTime
-                , Buckets "Post Asset" postAssetTime
-                , Buckets "Get Asset" getAssetTime
+                [ Histogram "Post Message" postMessageTime
+                                           (deprecatedRequestDurationHistogram postMessageTime)
+                , Histogram "Post Asset" postAssetTime
+                                         (deprecatedRequestDurationHistogram postAssetTime)
+                , Histogram "Get Asset" getAssetTime
+                                        (deprecatedRequestDurationHistogram getAssetTime)
                 ]
 
 parseOptions :: IO LoadTestSettings

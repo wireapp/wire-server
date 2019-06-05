@@ -36,6 +36,7 @@ dependencies:
   - email-validate
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extended
   - extra
   - galley-types
   - ghc-prim
@@ -53,6 +54,7 @@ dependencies:
   - mtl
   - network-uri
   - optparse-applicative
+  - prometheus-client
   - raw-strings-qq
   - retry
   - saml2-web-sso >= 0.18
@@ -101,7 +103,11 @@ executables:
   spar:
     main: Main.hs
     source-dirs: exec
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
     dependencies:
       - spar
 
@@ -122,13 +128,17 @@ executables:
       - galley-types
       - hspec
       - hspec-discover
+      - hspec-wai
       - lens-aeson
       - MonadRandom
       - random
       - servant-client
+      - silently
       - spar
       - stm
+      - tinylog
       - wai
+      - wai-extra
       - warp-tls
       - xml-conduit
       - xml-hamlet

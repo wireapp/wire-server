@@ -46,7 +46,7 @@ module Brig.App
     ) where
 
 import Imports
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (MonadHttp, Manager, newManager, RequestId (..), withResponse)
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
 import Brig.Queue.Types (Queue (..))
@@ -57,7 +57,7 @@ import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient)
+import Cassandra (MonadClient, Keyspace(Keyspace), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
 import Control.Error
@@ -106,8 +106,8 @@ import qualified Ropes.Nexmo              as Nexmo
 import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
 import qualified System.FSNotify          as FS
-import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
+import qualified System.Logger.Extended   as Log
 
 schemaVersion :: Int32
 schemaVersion = 58
@@ -149,20 +149,13 @@ data Env = Env
 
 makeLenses ''Env
 
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (Opt.logLevel opts)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (Opt.logNetStrings opts)
-
 newEnv :: Opts -> IO Env
 newEnv o = do
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- mkLogger o
+    lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o)
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager
@@ -192,35 +185,35 @@ newEnv o = do
         StompQueue q -> pure (StompQueue q)
         SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
-        { _cargohold     = mkEndpoint $ Opt.cargohold o
-        , _galley        = mkEndpoint $ Opt.galley o
-        , _gundeck       = mkEndpoint $ Opt.gundeck o
-        , _casClient     = cas
-        , _smtpEnv       = emailSMTP
-        , _awsEnv        = aws
-        , _stompEnv      = stomp
-        , _metrics       = mtr
-        , _applog        = lgr
-        , _internalEvents = eventsQueue
-        , _requestId     = def
-        , _usrTemplates  = utp
-        , _provTemplates = ptp
-        , _tmTemplates   = ttp
-        , _templateBranding = branding
-        , _httpManager   = mgr
-        , _extGetManager = ext
-        , _settings      = sett
-        , _nexmoCreds    = nxm
-        , _twilioCreds   = twl
-        , _geoDb         = g
-        , _turnEnv       = turn
-        , _turnEnvV2     = turnV2
-        , _fsWatcher     = w
-        , _currentTime   = clock
-        , _zauthEnv      = zau
-        , _digestMD5     = md5
-        , _digestSHA256  = sha256
-        , _indexEnv      = mkIndexEnv o lgr mgr mtr
+        { _cargohold         = mkEndpoint $ Opt.cargohold o
+        , _galley            = mkEndpoint $ Opt.galley o
+        , _gundeck           = mkEndpoint $ Opt.gundeck o
+        , _casClient         = cas
+        , _smtpEnv           = emailSMTP
+        , _awsEnv            = aws
+        , _stompEnv          = stomp
+        , _metrics           = mtr
+        , _applog            = lgr
+        , _internalEvents    = eventsQueue
+        , _requestId         = def
+        , _usrTemplates      = utp
+        , _provTemplates     = ptp
+        , _tmTemplates       = ttp
+        , _templateBranding  = branding
+        , _httpManager       = mgr
+        , _extGetManager     = ext
+        , _settings          = sett
+        , _nexmoCreds        = nxm
+        , _twilioCreds       = twl
+        , _geoDb             = g
+        , _turnEnv           = turn
+        , _turnEnvV2         = turnV2
+        , _fsWatcher         = w
+        , _currentTime       = clock
+        , _zauthEnv          = zau
+        , _digestMD5         = md5
+        , _digestSHA256      = sha256
+        , _indexEnv          = mkIndexEnv o lgr mgr mtr
         }
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
@@ -358,8 +351,9 @@ initCassandra o g = do
     c <- maybe (Cas.initialContactsPlain ((Opt.cassandra o)^.casEndpoint.epHost))
                (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
-    p <- Cas.init (Log.clone (Just "cassandra.brig") g)
-            $ Cas.setContacts (NE.head c) (NE.tail c)
+    p <- Cas.init
+            $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+            . Cas.setContacts (NE.head c) (NE.tail c)
             . Cas.setPortNumber (fromIntegral ((Opt.cassandra o)^.casEndpoint.epPort))
             . Cas.setKeyspace (Keyspace ((Opt.cassandra o)^.casKeyspace))
             . Cas.setMaxConnections 4
@@ -417,8 +411,10 @@ instance MonadIO m => MonadLogger (AppT m) where
 instance MonadIO m => MonadLogger (ExceptT err (AppT m)) where
     log l m = lift (LC.log l m)
 
-instance Monad m => MonadHttp (AppT m) where
-    getManager = view httpManager
+instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
+    handleRequestWithCont req handler = do
+        manager <- view httpManager
+        liftIO $ withResponse req manager handler
 
 instance MonadIO m => MonadZAuth (AppT m) where
     liftZAuth za = view zauthEnv >>= \e -> runZAuth e za

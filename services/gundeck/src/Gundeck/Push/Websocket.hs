@@ -129,14 +129,30 @@ fanOut
     pullUri :: (notif, [Presence]) -> [(notif, (URI, Presence))]
     pullUri (notif, prcs) = (notif,) . (bulkresource &&& id) <$> prcs
 
-bulkSend
-  :: forall m. (MonadIO m, MonadThrow m, MonadCatch m, MonadMask m, HasRequestId m, MonadHttp m)
+bulkSend :: forall m.
+         ( MonadIO m
+         , MonadThrow m
+         , MonadCatch m
+         , MonadMask m
+         , HasRequestId m
+         , MonadHttp m
+         , MonadUnliftIO m
+         )
   => URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
 bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Left))
 
-bulkSend'
-  :: forall m. (MonadIO m, MonadThrow m, MonadCatch m, MonadMask m, HasRequestId m, MonadHttp m)
-  => URI -> BulkPushRequest -> m BulkPushResponse
+bulkSend' :: forall m.
+          ( MonadIO m
+          , MonadThrow m
+          , MonadCatch m
+          , MonadMask m
+          , HasRequestId m
+          , MonadHttp m
+          , MonadUnliftIO m
+          )
+          => URI
+          -> BulkPushRequest
+          -> m BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
     req <- ( check
            . method POST

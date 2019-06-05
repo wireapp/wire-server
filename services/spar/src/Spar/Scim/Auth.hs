@@ -6,7 +6,9 @@
 -- For @instance AuthDB Spar@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Logic for doing authentication in SCIM routes.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
+--
+-- Logic for doing authentication in SCIM routes.
 --
 -- Every time a request to SCIM API is done, we grab a 'ScimToken' from the @"Authorization"@
 -- header, check that it's valid, and resolve the team that this operation should apply to.
@@ -38,12 +40,7 @@ import qualified Web.Scim.Handler                 as Scim
 import qualified Web.Scim.Schema.Error            as Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Scim.Class.Auth.AuthDB Spar where
-    -- To authenticate, you need to provide a 'ScimToken'
-    type AuthData Spar = ScimToken
-    -- The result of authentication (passed to our handlers) is 'ScimTokenInfo'
-    type AuthInfo Spar = ScimTokenInfo
-
+instance Scim.Class.Auth.AuthDB SparTag Spar where
     -- Validate and resolve a given token
     authCheck :: Maybe ScimToken -> Scim.ScimHandler Spar ScimTokenInfo
     authCheck Nothing =
@@ -65,7 +62,9 @@ apiScimToken
   :<|> deleteScimToken
   :<|> listScimTokens
 
--- | Create a token for user's team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+--
+-- Create a token for user's team.
 createScimToken
     :: Maybe UserId           -- ^ Who is trying to create a token
     -> CreateScimToken        -- ^ Request body
@@ -73,6 +72,7 @@ createScimToken
 createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescr
     teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+    Intra.Brig.ensureReAuthorised zusr createScimTokenPassword
     tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
     maxTokens <- asks (maxScimTokens . sparCtxOpts)
     unless (tokenNumber < maxTokens) $
@@ -105,7 +105,9 @@ createScimToken zusr CreateScimToken{..} = do
                 "SCIM tokens can only be created for a team with exactly one IdP, \
                 \but more are found"
 
--- | Delete a token belonging to user's team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenDelete}
+--
+-- Delete a token belonging to user's team.
 deleteScimToken
     :: Maybe UserId           -- ^ Who is trying to delete a token
     -> ScimTokenId
@@ -115,7 +117,9 @@ deleteScimToken zusr tokenid = do
     wrapMonadClient $ Data.deleteScimToken teamid tokenid
     pure NoContent
 
--- | List all tokens belonging to user's team. Tokens themselves are not available, only
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
+--
+-- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens
     :: Maybe UserId           -- ^ Who is trying to list tokens

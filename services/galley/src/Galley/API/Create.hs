@@ -38,9 +38,9 @@ import qualified Galley.Types.Teams as Teams
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-createGroupConversation (zusr ::: zcon ::: req ::: _) = do
-    wrapped@(NewConvUnmanaged body) <- fromBody req invalidPayload
+createGroupConversation :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createGroupConversation (zusr ::: zcon ::: req) = do
+    wrapped@(NewConvUnmanaged body) <- fromJsonBody req
     case newConvTeam body of
         Nothing    -> createRegularGroupConv zusr zcon wrapped
         Just tinfo -> createTeamGroupConv zusr zcon tinfo body
@@ -48,9 +48,9 @@ createGroupConversation (zusr ::: zcon ::: req ::: _) = do
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversation
-    :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-internalCreateManagedConversation (zusr ::: zcon ::: req ::: _) = do
-    NewConvManaged body <- fromBody req invalidPayload
+    :: UserId ::: ConnId ::: JsonRequest NewConvManaged -> Galley Response
+internalCreateManagedConversation (zusr ::: zcon ::: req) = do
+    NewConvManaged body <- fromJsonBody req
     case newConvTeam body of
         Nothing -> throwM internalError
         Just tinfo -> createTeamGroupConv zusr zcon tinfo body
@@ -79,13 +79,14 @@ createTeamGroupConv zusr zcon tinfo body = do
             checkedConvSize otherConvMems
         else do
             otherConvMems <- checkedConvSize (newConvUsers body)
-            -- In teams we don't have 1:1 conversations, only regular
-            -- conversations. We want users without the 'AddRemoveConvMember'
-            -- permission to still be able to create regular conversations,
-            -- therefore we check for 'AddRemoveConvMember' only if there are
-            -- going to be more than two users in the conversation.
+            -- In teams we don't have 1:1 conversations, only regular conversations. We want
+            -- users without the 'AddRemoveConvMember' permission to still be able to create
+            -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+            -- there are going to be more than two users in the conversation.
             when (length (fromConvSize otherConvMems) > 1) $ do
                 void $ permissionCheck zusr AddRemoveConvMember teamMems
+            -- Team members are always considered to be connected, so we only check
+            -- 'ensureConnected' for non-team-members.
             ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
             pure otherConvMems
     conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
@@ -109,9 +110,9 @@ createSelfConversation zusr = do
         c <- Data.createSelfConversation zusr Nothing
         conversationResponse status201 zusr c
 
-createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
-    NewConvUnmanaged j <- fromBody req invalidPayload
+createOne2OneConversation :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createOne2OneConversation (zusr ::: zcon ::: req) = do
+    NewConvUnmanaged j <- fromJsonBody req
     other  <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
     (x, y) <- toUUIDs zusr other
     when (x == y) $
@@ -135,9 +136,9 @@ createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
-createConnectConversation :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
-createConnectConversation (usr ::: conn ::: req ::: _) = do
-    j      <- fromBody req invalidPayload
+createConnectConversation :: UserId ::: Maybe ConnId ::: JsonRequest Connect -> Galley Response
+createConnectConversation (usr ::: conn ::: req) = do
+    j      <- fromJsonBody req
     (x, y) <- toUUIDs usr (cRecipient j)
     n      <- rangeCheckedMaybe (cName j)
     conv   <- Data.conversation (Data.one2OneConvId x y)

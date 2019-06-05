@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: proxy
 version: '0.9.0'
@@ -10,6 +10,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - imports
+- extended
 library:
   source-dirs: src
   ghc-options:
@@ -19,6 +20,7 @@ library:
   - Proxy.Env
   - Proxy.Options
   - Proxy.Proxy
+  - Proxy.Run
   dependencies:
   - base >=4.6 && <5
   - aeson >=1.0
@@ -37,6 +39,7 @@ library:
   - mtl >=2.2
   - network >=2.6
   - optparse-applicative >=0.12
+  - prometheus-client
   - retry >=0.7
   - text >=1.2
   - tinylog >=0.12

@@ -9,8 +9,12 @@ module Spar.App
   , wrapMonadClientWithEnv
   , wrapMonadClient
   , verdictHandler
+  , getUser
   , insertUser
-  , createUser, createUser_
+  , createSamlUser
+  , createSamlUserWithId
+  , autoprovisionSamlUser
+  , autoprovisionSamlUserWithId
   ) where
 
 import Imports
@@ -21,7 +25,6 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
-import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
 import SAML2.Util (renderURI)
@@ -127,7 +130,7 @@ wrapMonadClient action = do
       (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
+insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
@@ -136,7 +139,7 @@ insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
 getUser uref = do
-  muid <- wrapMonadClient $ Data.getUser uref
+  muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -159,30 +162,49 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
-createUser suid mbName managedBy = do
+createSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
+createSamlUser suid mbName managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
-  createUser_ buid suid mbName managedBy
+  createSamlUserWithId buid suid mbName managedBy
   pure buid
 
--- | Like 'createUser', but for an already existing 'UserId'.
-createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
-createUser_ buid suid mbName managedBy = do
+-- | Like 'createSamlUser', but for an already existing 'UserId'.
+createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
+createSamlUserWithId buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid mbName managedBy
+  buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
+
+-- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
+-- credentials".
+autoprovisionSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
+autoprovisionSamlUser suid mbName managedBy = do
+  buid <- Id <$> liftIO UUID.nextRandom
+  autoprovisionSamlUserWithId buid suid mbName managedBy
+  pure buid
+
+-- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
+autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
+autoprovisionSamlUserWithId buid suid mbName managedBy = do
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
+  if null scimtoks
+    then createSamlUserWithId buid suid mbName managedBy
+    else throwError . SAML.Forbidden $
+            "bad credentials (note that your team has uses SCIM, " <>
+            "which disables saml auto-provisioning)"
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-  uteamid <- Intra.getUserTeam buid
+  uteamid <- Intra.getBrigUserTeam buid
   unless (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindUser buid userref >>= \case
+  Intra.bindBrigUser buid userref >>= \case
     True  -> pure buid
     False -> do
       SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
@@ -191,10 +213,23 @@ bindUser buid userref = do
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = Handler . ExceptT . fmap (fmapL sparToServantErr) . runExceptT $ runReaderT action ctx
+  nt :: forall a. Env -> Spar a -> Handler a
+  nt ctx (Spar action) = do
+      err <- actionHandler
+      throwErrorAsHandlerException err
+    where
+      actionHandler :: Handler (Either SparError a)
+      actionHandler = liftIO $ runExceptT $ runReaderT action ctx
+
+      throwErrorAsHandlerException :: Either SparError a -> Handler a
+      throwErrorAsHandlerException (Left err) =
+          sparToServantErrWithLogging (sparCtxLogger ctx) err >>= throwError
+      throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
-  getManager = asks sparCtxHttpManager
+  handleRequestWithCont req handler = do
+    manager <- asks sparCtxHttpManager
+    liftIO $ withResponse req manager handler
 
 instance Intra.MonadSparToBrig Spar where
   call modreq = do
@@ -235,24 +270,32 @@ data VerdictHandlerResult
   = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
   | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
   | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
-
-catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
-catchVerdictErrors = (`catchError` pure . hndlr)
-  where
-    hndlr :: SparError -> VerdictHandlerResult
-    hndlr err = case sparToWaiError err of
-      Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-      Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+    deriving (Eq, Show)
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = catchVerdictErrors . \case
-  denied@(SAML.AccessDenied reasons) -> do
-    SAML.logger SAML.Debug (show denied)
+verdictHandlerResult bindCky verdict = do
+  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
+  SAML.logger SAML.Debug (show result)
+  pure result
+
+catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
+catchVerdictErrors = (`catchError` hndlr)
+  where
+    hndlr :: SparError -> Spar VerdictHandlerResult
+    hndlr err = do
+      logr <- asks sparCtxLogger
+      waiErr <- renderSparErrorWithLogging logr err
+      pure $ case waiErr of
+        Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
+        Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+
+verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResultCore bindCky = \case
+  SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
 
-  granted@(SAML.AccessGranted userref) -> do
+  SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      SAML.logger SAML.Debug (show granted)
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
       viaSparCass   <- getUser userref
         -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
@@ -263,7 +306,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing,  Nothing) -> createUser userref Nothing ManagedByWire
+        (Nothing,  Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
         -- SSO reauthentication
         (Nothing,  Just uid)  -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
@@ -280,6 +323,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
     case mcky of
       Just cky -> pure $ VerifyHandlerGranted cky uid
       Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

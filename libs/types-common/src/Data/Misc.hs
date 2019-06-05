@@ -49,7 +49,10 @@ import Data.Range
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 #ifdef WITH_CQL
 import Data.ByteString.Lazy (toStrict)
-import Database.CQL.Protocol hiding (unpack)
+import Cassandra
+#endif
+#ifdef WITH_ARBITRARY
+import Test.QuickCheck (Arbitrary(..))
 #endif
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
@@ -258,6 +261,12 @@ instance Show PlainTextPassword where
 instance FromJSON PlainTextPassword where
     parseJSON x = PlainTextPassword . fromRange
                <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
+
+#ifdef WITH_ARBITRARY
+instance Arbitrary PlainTextPassword where
+    -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
+    arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+#endif
 
 ----------------------------------------------------------------------
 -- Functor

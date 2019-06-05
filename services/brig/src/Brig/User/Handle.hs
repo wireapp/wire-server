@@ -32,13 +32,16 @@ claimHandle u h = do
                     -- Update profile
                     User.updateHandle (userId u) h
                     -- Free old handle (if it changed)
-                    for_ (mfilter (/= h) (userHandle u))
-                        freeHandle
+                    for_ (mfilter (/= h) (userHandle u)) $
+                        freeHandle u
             return (isJust claimed)
 
 -- | Free a 'Handle', making it available to be claimed again.
-freeHandle :: Handle -> AppIO ()
-freeHandle h = retry x5 $ write handleDelete (params Quorum (Identity h))
+freeHandle :: User -> Handle -> AppIO ()
+freeHandle u h = do
+    retry x5 $ write handleDelete (params Quorum (Identity h))
+    let key = "@" <> fromHandle h
+    deleteClaim (userId u) key (30 # Minute)
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: Handle -> AppIO (Maybe UserId)

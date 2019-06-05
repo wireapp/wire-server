@@ -10,7 +10,7 @@ import qualified System.Logger as Logger
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    l <- Logger.new Logger.defSettings
+    l <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
     m <- newManager defaultManagerSettings
     e <- newEnv l m Nothing
     forever $ do

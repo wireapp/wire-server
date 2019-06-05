@@ -37,7 +37,7 @@ fast: init
 
 .PHONY: clean
 clean:
-	stack clean brig
+	stack clean $(NAME)
 	-rm -rf dist
 	-rm -f .metadata
 

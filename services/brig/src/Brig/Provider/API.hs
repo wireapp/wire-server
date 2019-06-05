@@ -34,16 +34,17 @@ import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
-import Galley.Types (OtherMember (..))
+import Galley.Types (OtherMember (..), UserClients)
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
 import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response)
-import Network.Wai.Predicate (contentType, accept, request, query, def, opt)
+import Network.Wai (Response)
+import Network.Wai.Predicate (contentType, accept, query, def, opt)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Response (json, empty, setStatus, addHeader)
+import Network.Wai.Utilities.Request (jsonRequest, JsonRequest)
 import Network.Wai.Utilities.ZAuth
 import OpenSSL.Random (randBytes)
 
@@ -81,9 +82,8 @@ routes = do
     -- Public API --------------------------------------------------------------
 
     post "/provider/register" (continue newAccount) $
-        contentType "application" "json"
-        .&> accept "application" "json"
-        .&> request
+        accept "application" "json"
+        .&> jsonRequest @NewProvider
 
     get "/provider/activate" (continue activateAccountKey) $
         accept "application" "json"
@@ -96,45 +96,38 @@ routes = do
         .&. query "code"
 
     post "/provider/login" (continue login) $
-        contentType "application" "json"
-        .&> request
+        jsonRequest @ProviderLogin
 
     post "/provider/password-reset" (continue beginPasswordReset) $
         accept "application" "json"
-        .&> contentType "application" "json"
-        .&> request
+        .&> jsonRequest @PasswordReset
 
     post "/provider/password-reset/complete" (continue completePasswordReset) $
         accept "application" "json"
-        .&> contentType "application" "json"
-        .&> request
+        .&> jsonRequest @CompletePasswordReset
 
     -- Provider API ------------------------------------------------------------
 
     delete "/provider" (continue deleteAccount) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
-        .&. request
+        .&. jsonRequest @DeleteProvider
 
     put "/provider" (continue updateAccountProfile) $
-        contentType "application" "json"
-        .&> accept "application" "json"
+        accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
-        .&. request
+        .&. jsonRequest @UpdateProvider
 
     put "/provider/email" (continue updateAccountEmail) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
-        .&. request
+        .&. jsonRequest @EmailUpdate
 
     put "/provider/password" (continue updateAccountPassword) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
-        .&. request
+        .&. jsonRequest @PasswordChange
 
     get "/provider" (continue getAccount) $
         accept "application" "json"
@@ -143,10 +136,9 @@ routes = do
 
     post "/provider/services" (continue addService) $
         accept "application" "json"
-        .&> contentType "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
-        .&. request
+        .&. jsonRequest @NewService
 
     get "/provider/services" (continue listServices) $
         accept "application" "json"
@@ -160,18 +152,16 @@ routes = do
         .&. capture "sid"
 
     put "/provider/services/:sid" (continue updateService) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
-        .&. request
+        .&. jsonRequest @UpdateService
 
     put "/provider/services/:sid/connection" (continue updateServiceConn) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
-        .&. request
+        .&. jsonRequest @UpdateServiceConn
 
 -- TODO
 --     post "/provider/services/:sid/token" (continue genServiceToken) $
@@ -179,11 +169,10 @@ routes = do
 --         .&. zauthProvider
 
     delete "/provider/services/:sid" (continue deleteService) $
-        contentType "application" "json"
-        .&> zauth ZAuthProvider
+        zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
-        .&. request
+        .&. jsonRequest @DeleteService
 
     -- User API ----------------------------------------------------------------
 
@@ -228,16 +217,15 @@ routes = do
         .&> zauthUserId
         .&. zauthConnId
         .&. capture "tid"
-        .&. request
+        .&. jsonRequest @UpdateServiceWhitelist
 
     post "/conversations/:cnv/bots" (continue addBot) $
-        contentType "application" "json"
-        .&> accept "application" "json"
+        accept "application" "json"
         .&> zauth ZAuthAccess
         .&> zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
+        .&. jsonRequest @AddBot
 
     delete "/conversations/:cnv/bots/:bot" (continue removeBot) $
         zauth ZAuthAccess
@@ -264,10 +252,9 @@ routes = do
         .&> zauthBotId
 
     post "/bot/client/prekeys" (continue botUpdatePrekeys) $
-        contentType "application" "json"
-        .&> zauth ZAuthBot
+        zauth ZAuthBot
         .&> zauthBotId
-        .&. request
+        .&. jsonRequest @UpdateBotPrekeys
 
     get "/bot/client" (continue botGetClient) $
         contentType "application" "json"
@@ -276,9 +263,8 @@ routes = do
 
     post "/bot/users/prekeys" (continue botClaimUsersPrekeys) $
         accept "application" "json"
-        .&> contentType "application" "json"
         .&> zauth ZAuthBot
-        .&> request
+        .&> jsonRequest @UserClients
 
     get "/bot/users" (continue botListUserProfiles) $
         accept "application" "json"
@@ -299,7 +285,7 @@ routes = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: Request -> Handler Response
+newAccount :: JsonRequest NewProvider -> Handler Response
 newAccount req = do
     new <- parseJsonBody req
 
@@ -382,7 +368,7 @@ approveAccountKey (key ::: val) = do
             return empty
         _ -> throwStd invalidCode
 
-login :: Request -> Handler Response
+login :: JsonRequest ProviderLogin -> Handler Response
 login req = do
     l    <- parseJsonBody req
     pid  <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
@@ -392,7 +378,7 @@ login req = do
     tok <- ZAuth.newProviderToken pid
     setProviderCookie tok empty
 
-beginPasswordReset :: Request -> Handler Response
+beginPasswordReset :: JsonRequest PasswordReset -> Handler Response
 beginPasswordReset req = do
     PasswordReset target <- parseJsonBody req
     pid <- DB.lookupKey (mkEmailKey target) >>= maybeBadCredentials
@@ -410,14 +396,17 @@ beginPasswordReset req = do
     lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
     return $ setStatus status201 empty
 
-completePasswordReset :: Request -> Handler Response
+completePasswordReset :: JsonRequest CompletePasswordReset -> Handler Response
 completePasswordReset req = do
-    CompletePasswordReset key val pwd <- parseJsonBody req
-    c <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
-    case Code.codeAccount c of
+    CompletePasswordReset key val newpwd <- parseJsonBody req
+    code <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
+    case Id <$> Code.codeAccount code of
         Nothing -> throwE $ pwResetError InvalidPasswordResetCode
-        Just  p -> do
-            DB.updateAccountPassword (Id p) pwd
+        Just pid -> do
+            oldpass <- DB.lookupPassword pid >>= maybeBadCredentials
+            when (verifyPassword newpwd oldpass) $ do
+                throwStd newPasswordMustDiffer
+            DB.updateAccountPassword pid newpwd
             Code.delete key Code.PasswordReset
     return empty
 
@@ -431,7 +420,7 @@ getAccount pid = do
         Just  p -> json p
         Nothing -> setStatus status404 empty
 
-updateAccountProfile :: ProviderId ::: Request -> Handler Response
+updateAccountProfile :: ProviderId ::: JsonRequest UpdateProvider -> Handler Response
 updateAccountProfile (pid ::: req) = do
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
     upd <- parseJsonBody req
@@ -441,7 +430,7 @@ updateAccountProfile (pid ::: req) = do
         (updateProviderDescr upd)
     return empty
 
-updateAccountEmail :: ProviderId ::: Request -> Handler Response
+updateAccountEmail :: ProviderId ::: JsonRequest EmailUpdate -> Handler Response
 updateAccountEmail (pid ::: req) = do
     EmailUpdate new <- parseJsonBody req
     email <- case validateEmail new of
@@ -461,16 +450,18 @@ updateAccountEmail (pid ::: req) = do
     lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
     return $ setStatus status202 empty
 
-updateAccountPassword :: ProviderId ::: Request -> Handler Response
+updateAccountPassword :: ProviderId ::: JsonRequest PasswordChange -> Handler Response
 updateAccountPassword (pid ::: req) = do
     upd  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (cpOldPassword upd) pass) $
         throwStd badCredentials
+    when (verifyPassword (cpNewPassword upd) pass) $
+        throwStd newPasswordMustDiffer
     DB.updateAccountPassword pid (cpNewPassword upd)
     return empty
 
-addService :: ProviderId ::: Request -> Handler Response
+addService :: ProviderId ::: JsonRequest NewService -> Handler Response
 addService (pid ::: req) = do
     new <- parseJsonBody req
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
@@ -499,7 +490,7 @@ getService (pid ::: sid) = do
     s <- DB.lookupService pid sid >>= maybeServiceNotFound
     return (json s)
 
-updateService :: ProviderId ::: ServiceId ::: Request -> Handler Response
+updateService :: ProviderId ::: ServiceId ::: JsonRequest UpdateService -> Handler Response
 updateService (pid ::: sid ::: req) = do
     upd <- parseJsonBody req
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
@@ -520,7 +511,7 @@ updateService (pid ::: sid ::: req) = do
 
     return empty
 
-updateServiceConn :: ProviderId ::: ServiceId ::: Request -> Handler Response
+updateServiceConn :: ProviderId ::: ServiceId ::: JsonRequest UpdateServiceConn -> Handler Response
 updateServiceConn (pid ::: sid ::: req) = do
     upd <- parseJsonBody req
 
@@ -568,7 +559,7 @@ updateServiceConn (pid ::: sid ::: req) = do
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteService :: ProviderId ::: ServiceId ::: Request -> Handler Response
+deleteService :: ProviderId ::: ServiceId ::: JsonRequest DeleteService -> Handler Response
 deleteService (pid ::: sid ::: req) = do
     del  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -595,7 +586,7 @@ finishDeleteService pid sid = do
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccount :: ProviderId ::: Request -> Handler Response
+deleteAccount :: ProviderId ::: JsonRequest DeleteProvider -> Handler Response
 deleteAccount (pid ::: req) = do
     del  <- parseJsonBody req
     prov <- DB.lookupAccount pid >>= maybeInvalidProvider
@@ -665,7 +656,7 @@ getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
 
-updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: JsonRequest UpdateServiceWhitelist -> Handler Response
 updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
     upd :: UpdateServiceWhitelist <- parseJsonBody req
     let pid = updateServiceWhitelistProvider upd
@@ -694,7 +685,7 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)
 
-addBot :: UserId ::: ConnId ::: ConvId ::: Request -> Handler Response
+addBot :: UserId ::: ConnId ::: ConvId ::: JsonRequest AddBot -> Handler Response
 addBot (zuid ::: zcon ::: cid ::: req) = do
     add  <- parseJsonBody req
     zusr <- lift (User.lookupUser zuid) >>= maybeInvalidUser
@@ -810,7 +801,7 @@ botListPrekeys bot = do
         Nothing -> return $ json ([] :: [PrekeyId])
         Just ci -> json <$> lift (User.lookupPrekeyIds (botUserId bot) ci)
 
-botUpdatePrekeys :: BotId ::: Request -> Handler Response
+botUpdatePrekeys :: BotId ::: JsonRequest UpdateBotPrekeys -> Handler Response
 botUpdatePrekeys (bot ::: req) = do
     upd <- parseJsonBody req
     clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
@@ -821,7 +812,7 @@ botUpdatePrekeys (bot ::: req) = do
             User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
     return empty
 
-botClaimUsersPrekeys :: Request -> Handler Response
+botClaimUsersPrekeys :: JsonRequest UserClients -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
     maxSize <- fromIntegral . setMaxConvSize <$> view settings

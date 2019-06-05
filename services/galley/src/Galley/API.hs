@@ -1,19 +1,13 @@
 module Galley.API where
 
 import Imports hiding (head)
-import Cassandra (runClient, shutdown)
-import Cassandra.Schema (versionCheck)
-import Control.Exception (finally)
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
 import Data.Metrics.Middleware as Metrics
-import Data.Metrics.WaiRoute (treeToPaths)
-import Data.Misc
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.App
 import Galley.API.Clients
@@ -21,9 +15,11 @@ import Galley.API.Create
 import Galley.API.Update
 import Galley.API.Teams
 import Galley.API.Query
-import Galley.Options
-import Galley.Types (OtrFilterMissing (..))
-import Galley.Types.Teams (Perm (..))
+import Galley.Types
+import Galley.Types.Teams
+import Galley.Types.Teams.Intra
+import Galley.Types.Bot.Service
+import Galley.Types.Bot (AddBot, RemoveBot)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
@@ -32,53 +28,23 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.Server hiding (serverPort)
-import Util.Options
 
-import qualified Control.Concurrent.Async      as Async
 import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
-import qualified Galley.Data                   as Data
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
 import qualified Network.Wai.Predicate         as P
-import qualified Network.Wai.Middleware.Gzip   as GZip
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified System.Logger                 as Log
-
-run :: Opts -> IO ()
-run o = do
-    m <- metrics
-    e <- createEnv m o
-    let l = e^.applog
-    s <- newSettings $ defaultServer (unpack $ o^.optGalley.epHost)
-                                     (portNumber $ fromIntegral $ o^.optGalley.epPort)
-                                     l
-                                     m
-    runClient (e^.cstate) $
-        versionCheck Data.schemaVersion
-    d <- Async.async $ evalGalley e Internal.deleteLoop
-    let rtree    = compile sitemap
-        measured = measureRequests m (treeToPaths rtree)
-        app r k  = runGalley e r (route rtree r k)
-        start    = measured . catchErrors l m . GZip.gunzip . GZip.gzip GZip.def $ app
-    runSettingsWithShutdown s start 5 `finally` do
-        Async.cancel d
-        shutdown (e^.cstate)
-        Log.flush l
-        Log.close l
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
     post "/teams" (continue createNonBindingTeam) $
         zauthUserId
         .&. zauthConnId
-        .&. request
+        .&. jsonRequest @NonBindingNewTeam
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "createNonBindingTeam" $ do
         summary "Create a new non binding team"
@@ -91,9 +57,8 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "id"
-        .&. request
+        .&. jsonRequest @TeamUpdateData
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "PUT" "updateTeam" $ do
         summary "Update team properties"
@@ -196,8 +161,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "id"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
     document "POST" "addTeamMember" $ do
@@ -242,9 +206,8 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "id"
-        .&. request
+        .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "PUT" "updateTeamMember" $ do
         summary "Update an existing team member"
@@ -323,8 +286,7 @@ sitemap = do
         .&> zauthBotId
         .&. zauthConvId
         .&. def OtrReportAllMissing filterMissing
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewOtrMessage
         .&. accept "application" "json"
 
     --
@@ -388,8 +350,7 @@ sitemap = do
     post "/conversations" (continue createGroupConversation) $
         zauthUserId
         .&. zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewConvUnmanaged
 
     document "POST" "createGroupConversation" $ do
         summary "Create a new conversation"
@@ -416,8 +377,7 @@ sitemap = do
     post "/conversations/one2one" (continue createOne2OneConversation) $
         zauthUserId
         .&. zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewConvUnmanaged
 
     document "POST" "createOne2OneConversation" $ do
         summary "Create a 1:1-conversation"
@@ -433,8 +393,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @ConversationRename
 
     document "PUT" "updateConversation" $ do
         summary "Update conversation properties"
@@ -464,8 +423,7 @@ sitemap = do
     ---
 
     post "/conversations/code-check" (continue checkReusableCode) $
-        request
-        .&. contentType "application" "json"
+        jsonRequest @ConversationCode
 
     document "POST" "checkConversationCode" $ do
         summary "Check validity of a conversation code"
@@ -478,8 +436,7 @@ sitemap = do
     post "/conversations/join" (continue joinConversationByReusableCode) $
         zauthUserId
         .&. zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @ConversationCode
 
     document "POST" "joinConversationByCode" $ do
         summary "Join a conversation using a reusable code"
@@ -546,8 +503,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @ConversationAccessUpdate
 
     document "PUT" "updateConversationAccess" $ do
         summary "Update access modes for a conversation"
@@ -571,8 +527,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @ConversationReceiptModeUpdate
         .&. accept "application" "json"
 
     document "PUT" "updateConversationReceiptMode" $ do
@@ -593,8 +548,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @ConversationMessageTimerUpdate
 
     document "PUT" "updateConversationMessageTimer" $ do
         summary "Update the message timer for a conversation"
@@ -617,8 +571,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @Invite
 
     document "POST" "addMembers" $ do
         summary "Add users to an existing conversation"
@@ -653,8 +606,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @MemberUpdate
 
     document "PUT" "updateSelf" $ do
         summary "Update self membership properties"
@@ -671,8 +623,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @TypingData
 
     document "POST" "isTyping" $ do
         summary "Sending typing notifications"
@@ -708,8 +659,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. def OtrReportAllMissing filterMissing
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewOtrMessage
 
     document "POST" "postOtrBroadcast" $ do
         summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
@@ -763,8 +713,7 @@ sitemap = do
         .&. zauthConnId
         .&. capture "cnv"
         .&. def OtrReportAllMissing filterMissing
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewOtrMessage
 
     document "POST" "postOtrMessage" $ do
         summary "Post an encrypted message to a conversation (accepts JSON)"
@@ -842,14 +791,12 @@ sitemap = do
     post "/i/conversations/managed" (continue internalCreateManagedConversation) $
         zauthUserId
         .&. zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewConvManaged
 
     post "/i/conversations/connect" (continue createConnectConversation) $
         zauthUserId
         .&. opt zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @Connect
 
     put "/i/conversations/:cnv/accept/v2" (continue acceptConv) $
         zauthUserId
@@ -879,20 +826,17 @@ sitemap = do
     put "/i/teams/:tid" (continue createBindingTeam) $
         zauthUserId
         .&. capture "tid"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @BindingNewTeam
         .&. accept "application" "json"
 
     put "/i/teams/:tid/status" (continue updateTeamStatus) $
         capture "tid"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @TeamStatusUpdate
         .&. accept "application" "json"
 
     post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
         capture "tid"
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
     get "/i/teams/:tid/members" (continue uncheckedGetTeamMembers) $
@@ -925,24 +869,20 @@ sitemap = do
         zauthUserId .&. opt zauthConnId
 
     post "/i/services" (continue addService) $
-        request
-        .&. contentType "application" "json"
+        jsonRequest @Service
 
     delete "/i/services" (continue rmService) $
-        request
-        .&. contentType "application" "json"
+        jsonRequest @ServiceRef
 
     post "/i/bots" (continue addBot) $
         zauthUserId
         .&. zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @AddBot
 
     delete "/i/bots" (continue rmBot) $
         zauthUserId
         .&. opt zauthConnId
-        .&. request
-        .&. contentType "application" "json"
+        .&. jsonRequest @RemoveBot
 
 type JSON = Media "application" "json"
 

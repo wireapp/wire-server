@@ -24,15 +24,19 @@ testPasswordReset brig = do
     let Just email = userEmail u
     let uid = userId u
     -- initiate reset
-    initiatePasswordReset brig email !!! const 201 === statusCode
     let newpw = PlainTextPassword "newsecret"
-    passwordResetData <- preparePasswordReset brig email uid newpw
-    completePasswordReset brig passwordResetData !!! const 200 === statusCode
+    do  initiatePasswordReset brig email !!! const 201 === statusCode
+        passwordResetData <- preparePasswordReset brig email uid newpw
+        completePasswordReset brig passwordResetData !!! const 200 === statusCode
     -- try login
     login brig (defEmailLogin email) PersistentCookie
         !!! const 403 === statusCode
     login brig (PasswordLogin (LoginByEmail email) newpw Nothing) PersistentCookie
         !!! const 200 === statusCode
+    -- reset password again to the same new password, get 400 "must be different"
+    do  initiatePasswordReset brig email !!! const 201 === statusCode
+        passwordResetData <- preparePasswordReset brig email uid newpw
+        completePasswordReset brig passwordResetData !!! const 409 === statusCode
 
 testPasswordResetAfterEmailUpdate :: Brig -> Http ()
 testPasswordResetAfterEmailUpdate brig = do

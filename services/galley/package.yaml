@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: galley
 version: '0.83.0'
@@ -10,13 +10,13 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - imports
+- extended
 - safe >=0.3
 - ssl-util
 library:
   source-dirs: src
   exposed-modules:
-  - Galley.API
-  - Galley.App
+  - Galley.Run
   - Galley.Options
   - Galley.Aws
   - Galley.Data
@@ -60,6 +60,7 @@ library:
   - mtl >=2.2
   - ssl-util >=0.1
   - optparse-applicative >=0.10
+  - prometheus-client
   - protobuf >=0.2
   - proto-lens >=0.2
   - retry >=0.5
@@ -97,6 +98,7 @@ executables:
     ghc-options:
     - -threaded
     - -with-rtsopts=-T
+    - -rtsopts
     dependencies:
     - base
     - galley

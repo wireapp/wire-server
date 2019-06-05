@@ -27,7 +27,7 @@ module CargoHold.App
     ) where
 
 import Imports hiding (log)
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (Manager, MonadHttp, RequestId(..), newManager, withResponse)
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
 import CargoHold.Options as Opt
@@ -55,7 +55,7 @@ import qualified Network.Wai.Utilities.Server as Server
 import qualified OpenSSL.Session              as SSL
 import qualified OpenSSL.X509.SystemStore     as SSL
 import qualified Ropes.Aws                    as Aws
-import qualified System.Logger                as Log
+import qualified System.Logger.Extended       as Log
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -84,9 +84,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     met  <- Metrics.metrics
-    lgr  <- Log.new $ Log.setOutput Log.StdOut
-                    . Log.setFormat Nothing
-                    $ Log.defSettings
+    lgr  <- Log.mkLogger (o^.optLogLevel) (o^.optLogNetStrings)
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr def (o^.optSettings)
@@ -167,13 +165,15 @@ instance MonadLogger (ExceptT e App) where
     log l = lift . log l
 
 instance MonadHttp App where
-    getManager = view httpManager
+    handleRequestWithCont req handler = do
+        manager <- view httpManager
+        liftIO $ withResponse req manager handler
 
 instance HasRequestId App where
     getRequestId = view requestId
 
 instance MonadHttp (ExceptT e App) where
-    getManager = lift Bilge.getManager
+    handleRequestWithCont req handler = lift $ Bilge.handleRequestWithCont req handler
 
 instance HasRequestId (ExceptT e App) where
     getRequestId = lift getRequestId
@@ -192,4 +192,4 @@ type Handler = ExceptT Error App
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k =
     let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-    in runAppT e' (exceptT (Server.onError (_appLogger e) (_metrics e) r k) return h)
+    in runAppT e' (exceptT (Server.onError (_appLogger e) [Right $ _metrics e] r k) return h)

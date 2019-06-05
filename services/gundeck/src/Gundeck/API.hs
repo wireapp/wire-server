@@ -1,65 +1,29 @@
-module Gundeck.API where
+module Gundeck.API (sitemap) where
 
 import Imports hiding (head)
-import Cassandra (runClient, shutdown)
-import Cassandra.Schema (versionCheck)
-import Control.Exception (finally)
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.Metrics.Middleware
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text.Encoding (decodeLatin1)
-import Data.Text (unpack)
 import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Options
-import Gundeck.React
+import Gundeck.Types
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.Server hiding (serverPort)
-import Util.Options
 
-import qualified Control.Concurrent.Async as Async
 import qualified Data.Swagger.Build.Api as Swagger
-import qualified Gundeck.Aws as Aws
 import qualified Gundeck.Client as Client
 import qualified Gundeck.Notification as Notification
 import qualified Gundeck.Push as Push
 import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Types.Swagger as Model
-import qualified Network.Wai.Middleware.Gzip as GZip
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified System.Logger as Log
-
-runServer :: Opts -> IO ()
-runServer o = do
-    m <- metrics
-    e <- createEnv m o
-    runClient (e^.cstate) $
-        versionCheck schemaVersion
-    let l = e^.applog
-    s <- newSettings $ defaultServer (unpack $ o^.optGundeck.epHost) (o^.optGundeck.epPort) l m
-    app <- pipeline e
-    lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
-    runSettingsWithShutdown s app 5 `finally` do
-        Log.info l $ Log.msg (Log.val "Shutting down ...")
-        shutdown (e^.cstate)
-        Async.cancel lst
-        Log.close (e^.applog)
-  where
-    pipeline e = do
-        let routes = compile sitemap
-        return $ measureRequests (e^.monitor) (treeToPaths routes)
-               . catchErrors (e^.applog) (e^.monitor)
-               . GZip.gunzip . GZip.gzip GZip.def
-               $ \r k -> runGundeck e r (route routes r k)
 
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
@@ -69,9 +33,8 @@ sitemap = do
     post "/push/tokens" (continue Push.addToken) $
         header "Z-User"
         .&. header "Z-Connection"
-        .&. request
+        .&. jsonRequest @PushToken
         .&. accept "application" "json"
-        .&. contentType "application" "json"
 
     document "POST" "registerPushToken" $ do
         summary "Register a native push token"

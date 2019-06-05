@@ -85,15 +85,20 @@ testHandleUpdate brig cannon = do
     Search.assertCan'tFind brig uid2 uid hdl
     Search.assertCanFind   brig uid2 uid hdl2
 
-    -- Other users cannot immediately claim the old handle since the previous claim
-    -- is still active.
+    -- Other users can immediately claim the old handle (the claim of the old handle is
+    -- removed).
     put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update) !!! do
-        const 409 === statusCode
-        const (Just "handle-exists") === fmap Error.label . decodeBody
+        const 200 === statusCode
 
     -- The old handle can be claimed again immediately by the user who previously
     -- owned it (since the claim is either still active but his own, or expired).
-    put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update) !!!
+    -- make sure 'hdl' is not used by 'uid2' already.
+    hdl3 <- randomHandle
+    let update3 = RequestBodyLBS . encode $ HandleUpdate hdl3
+    put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update3) !!! do
+        const 200 === statusCode
+    -- now 'uid2' takes 'hld' back.
+    put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update) !!!
         const 200 === statusCode
 
 testHandleRace :: Brig -> Http ()

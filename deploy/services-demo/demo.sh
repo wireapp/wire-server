@@ -99,8 +99,6 @@ blueish=4
 function run_haskell_service() {
     service=$1
     colour=$2
-    # TODO can be removed once all services have been switched to YAML configs
-    [ $# -gt 2 ] && export LOG_LEVEL=$3
     (cd ${SCRIPT_DIR} && ${DIR}/../dist/${service} -c ${SCRIPT_DIR}/conf/${service}.demo.yaml || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
@@ -144,8 +142,8 @@ if [ "$docker_deployment" = "false" ]; then
     run_haskell_service galley ${yellow}
     run_haskell_service gundeck ${blue}
     run_haskell_service cannon ${orange}
-    run_haskell_service cargohold ${purpleish} Info
-    run_haskell_service proxy ${redish} Info
+    run_haskell_service cargohold ${purpleish}
+    run_haskell_service proxy ${redish}
     run_haskell_service spar ${orange}
     run_nginz ${blueish}
 else

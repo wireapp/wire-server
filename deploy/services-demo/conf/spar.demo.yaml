@@ -31,7 +31,7 @@ cassandra:
 maxttlAuthreq: 28800 # 8h
 maxttlAuthresp: 28800 # 8h
 
-maxScimTokens: 16
+maxScimTokens: 16    # Token limit {#RefScimToken}
 richInfoLimit: 5000  # should be in sync with Brig
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

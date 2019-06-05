@@ -7,7 +7,6 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Except
 import Data.Kind (Type)
-import Data.Text (unpack)
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -98,14 +97,14 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ Data.getUser uref
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Nothing
 
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid  <- nextWireId
-          ()   <- runSparCass $ insertUser uref uid
-          muid <- runSparCass $ Data.getUser uref
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid
 
       context "user already exists (idempotency)" $ do
@@ -113,10 +112,23 @@ spec = do
           uref <- nextUserRef
           uid  <- nextWireId
           uid' <- nextWireId
-          ()   <- runSparCass $ insertUser uref uid
-          ()   <- runSparCass $ insertUser uref uid'
-          muid <- runSparCass $ Data.getUser uref
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid
+          ()   <- runSparCass $ Data.insertSAMLUser uref uid'
+          muid <- runSparCass $ Data.getSAMLUser uref
           liftIO $ muid `shouldBe` Just uid'
+
+      describe "DELETE" $ do
+        it "works" $ do
+          uref <- nextUserRef
+          uid  <- nextWireId
+          do
+            ()   <- runSparCass $ Data.insertSAMLUser uref uid
+            muid <- runSparCass (Data.getSAMLUser uref)
+            liftIO $ muid `shouldBe` Just uid
+          do
+            ()   <- runSparCass $ Data.deleteSAMLUser uref
+            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
+            liftIO $ muid `shouldBe` Nothing
 
 
     describe "BindCookie" $ do
@@ -196,7 +208,6 @@ spec = do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
 
-
 testSPStoreID
   :: forall m (a :: Type). (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
   => (SAML.ID a -> SAML.Time -> m ())
@@ -242,7 +253,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     storedUser1 <- createUser tok user1
     storedUser2 <- createUser tok user2
     -- Resolve the users' SSO ids
-    let getUid = read . unpack . Scim.Common.id . Scim.Meta.thing
+    let getUid = Scim.Common.id . Scim.Meta.thing
     ssoid1 <- getSsoidViaSelf (getUid storedUser1)
     ssoid2 <- getSsoidViaSelf (getUid storedUser2)
     -- Delete the team
@@ -257,10 +268,10 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
        liftIO $ tokens `shouldBe` []
     -- The users from 'user':
     do let Right uref1 = fromUserSSOId ssoid1
-       mbUser1 <- runSparCass $ Data.getUser uref1
+       mbUser1 <- runSparCass $ Data.getSAMLUser uref1
        liftIO $ mbUser1 `shouldBe` Nothing
     do let Right uref2 = fromUserSSOId ssoid2
-       mbUser2 <- runSparCass $ Data.getUser uref2
+       mbUser2 <- runSparCass $ Data.getSAMLUser uref2
        liftIO $ mbUser2 `shouldBe` Nothing
     -- The config from 'idp':
     do mbIdp <- runSparCass $ Data.getIdPConfig (idp ^. SAML.idpId)

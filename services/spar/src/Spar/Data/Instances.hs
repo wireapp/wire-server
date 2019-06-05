@@ -21,12 +21,13 @@ import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import SAML2.Util (parseURI')
 import Spar.Types
+import Spar.Scim.Types
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
 import URI.ByteString
 
 import qualified Data.Aeson as Aeson
 import qualified SAML2.WebSSO as SAML
-import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Schema.User as Scim
 
 
 instance Cql SAML.XmlText where
@@ -86,9 +87,13 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _                                                       = Nothing
 
 deriving instance Cql ScimToken
-instance (FromJSON extra, ToJSON extra) => Cql (Scim.StoredUser extra) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . Aeson.encode
 
-    fromCql (CqlBlob t) = Aeson.eitherDecode t
+instance ( Scim.UserTypes tag, uid ~ Scim.UserId tag, extra ~ Scim.UserExtra tag
+         , FromJSON extra, ToJSON extra
+         , FromJSON uid, ToJSON uid
+         ) => Cql (WrappedScimStoredUser tag) where
+    ctype = Tagged BlobColumn
+    toCql = CqlBlob . Aeson.encode . fromWrappedScimStoredUser
+
+    fromCql (CqlBlob t) = WrappedScimStoredUser <$> Aeson.eitherDecode t
     fromCql _           = fail "Scim.StoredUser: expected CqlBlob"

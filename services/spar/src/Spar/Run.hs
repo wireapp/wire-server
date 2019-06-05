@@ -7,8 +7,7 @@
 -- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
-  , mkLogger
-  , runServer
+  , runServer, mkApp
   ) where
 
 import Imports
@@ -17,7 +16,6 @@ import Cassandra as Cas
 import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
-import Data.Metrics (metrics)
 import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
 import Network.Wai (Application, Middleware)
@@ -40,7 +38,7 @@ import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified System.Logger as Log
+import qualified System.Logger.Extended as Log
 
 
 ----------------------------------------------------------------------
@@ -52,7 +50,8 @@ initCassandra opts lgr = do
                (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Types.discoUrl opts)
-    cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
+    cas <- Cas.init $ Cas.defSettings
+      & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
       & Cas.setPortNumber (fromIntegral $ Types.cassandra opts ^. casEndpoint . epPort)
       & Cas.setKeyspace (Keyspace $ Types.cassandra opts ^. casKeyspace)
@@ -67,29 +66,25 @@ initCassandra opts lgr = do
 
 
 ----------------------------------------------------------------------
--- logger
-
-mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (toLevel $ saml opts ^. SAML.cfgLogLevel)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (logNetStrings opts)
-
-
-----------------------------------------------------------------------
 -- servant / wai / warp
 
 -- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  sparCtxLogger <- mkLogger sparCtxOpts
-  mx <- metrics
-  sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
       shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
+  (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
+  let logger = sparCtxLogger ctxOpts
+  Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
+  WU.runSettingsWithShutdown settings wrappedApp 5
+
+mkApp :: Opts -> IO (Application, Env)
+mkApp sparCtxOpts = do
+  let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
+  sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
           Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
@@ -100,19 +95,30 @@ runServer sparCtxOpts = do
         . Bilge.port (sparCtxOpts ^. to galley . epPort)
         $ Bilge.empty
   let wrappedApp
-        = WU.catchErrors sparCtxLogger mx
+        = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
         . promthRun
+        . WU.catchErrors sparCtxLogger []
+          -- Error 'Response's are usually not thrown as exceptions, but logged in
+          -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
+          -- value, when there is still all the type information around.  'WU.catchErrors' is
+          -- still here for errors outside the power of the 'Application', like network
+          -- outages.
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
-  Log.info sparCtxLogger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
-  WU.runSettingsWithShutdown settings wrappedApp 5
+      heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
+      heavyLogOnly out@(req, _) =
+        if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
+        then Just out
+        else Nothing
+  pure (wrappedApp, let sparCtxRequestId = RequestId "N/A" in Env {..})
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
+-- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 promthRun :: Middleware
 promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
   where

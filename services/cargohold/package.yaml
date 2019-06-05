@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: cargohold
 version: '1.5.0'
@@ -20,11 +20,13 @@ dependencies:
 - data-default >=0.5
 - errors >=1.4
 - exceptions >=0.6
+- extended
 - HsOpenSSL >=0.11
 - http-client >=0.4
 - http-types >=0.8
 - mime >=0.4
 - mtl >=2.1
+- prometheus-client
 - safe >=0.3
 - text >=1.1
 - transformers >=0.3
@@ -35,6 +37,7 @@ library:
   exposed-modules:
   - CargoHold.API
   - CargoHold.Options
+  - CargoHold.Run
   dependencies:
   - base >=4 && <5
   - attoparsec >=0.12

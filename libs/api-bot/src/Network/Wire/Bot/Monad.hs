@@ -71,7 +71,7 @@ module Network.Wire.Bot.Monad
     ) where
 
 import Imports hiding (log, rem)
-import Bilge (MonadHttp (..), Manager)
+import Bilge (MonadHttp (..), Manager, withResponse)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (retry)
@@ -204,7 +204,9 @@ instance MonadBaseControl IO BotNet where
     restoreM       = BotNet . restoreM
 
 instance MonadHttp BotNet where
-    getManager = serverManager <$> getServer
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotNet where
     getServer = BotNet $ asks botNetServer
@@ -232,7 +234,7 @@ runBotNet s (BotNet b) = liftIO $ runReaderT b s
 
 newtype BotSession a = BotSession { unBotSession :: ReaderT Bot BotNet a }
     deriving (Functor, Applicative, Monad, MonadIO,
-              MonadThrow, MonadCatch, MonadMask, MonadBase IO)
+              MonadThrow, MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO)
 
 instance MonadBotNet BotSession where
     liftBotNet = BotSession . lift
@@ -243,7 +245,9 @@ instance MonadBaseControl IO BotSession where
     restoreM       = BotSession . restoreM
 
 instance MonadHttp BotSession where
-    getManager = serverManager <$> getServer
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotSession where
     getServer = liftBotNet getServer
@@ -778,9 +782,10 @@ timed p ma = do
     start <- liftIO getCurrentTime
     a <- ma
     stop <- liftIO getCurrentTime
-    let d = round . (* 1000) $ stop `diffUTCTime` start
+    let durationInMillis = realToFrac . (* 1000) $ stop `diffUTCTime` start
     m <- getMetrics
-    liftIO $ Metrics.bucketsIncr 30 12 d p m
+    let timeHisto = Metrics.deprecatedRequestDurationHistogram p
+    liftIO $ Metrics.histoSubmit durationInMillis timeHisto m
     return a
 
 incrAssertTotal :: MonadBotNet m => m ()
@@ -806,10 +811,10 @@ decrBotsAlive = getMetrics >>= liftIO . Metrics.gaugeDecr Metrics.botsAlive
 
 -- Note: Separate TVars to avoid contention.
 data BotMetrics = BotMetrics
-    { botEventsRcvd :: TVar (HashMap Metrics.Path Word)
-    , botEventsAckd :: TVar (HashMap Metrics.Path Word)
-    , botEventsIgnd :: TVar (HashMap Metrics.Path Word)
-    , botEventsMssd :: TVar (HashMap Metrics.Path Word)
+    { botEventsRcvd :: TVar (HashMap Metrics.Path Double)
+    , botEventsAckd :: TVar (HashMap Metrics.Path Double)
+    , botEventsIgnd :: TVar (HashMap Metrics.Path Double)
+    , botEventsMssd :: TVar (HashMap Metrics.Path Double)
     }
 
 newBotMetrics :: IO BotMetrics

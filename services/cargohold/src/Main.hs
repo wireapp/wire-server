@@ -1,16 +1,15 @@
 module Main (main) where
 
 import Imports
-import CargoHold.API
+import CargoHold.Run (run)
 import OpenSSL (withOpenSSL)
 
-import CargoHold.Options
 import Util.Options
 
 main :: IO ()
 main = withOpenSSL $ do
-    options <- getOptions desc (Just optsParser) defaultPath
-    runServer options
+    options <- getOptions desc Nothing defaultPath
+    run options
   where
     desc = "Cargohold - Asset Storage"
     defaultPath = "/etc/wire/cargohold/conf/cargohold.yaml"
