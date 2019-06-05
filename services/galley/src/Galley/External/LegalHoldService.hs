@@ -30,17 +30,19 @@ import Data.Misc
 import Galley.App
 import Network.HTTP.Types
 import Ssl.Util
-import System.Logger as Logger
+import qualified System.Logger as Logger
+import URI.ByteString (uriPath)
 
 import qualified Bilge
-import qualified Galley.Data.LegalHold        as LegalHoldData
-import qualified Data.ByteString.Lazy.Char8   as LC8
-import qualified Network.HTTP.Client          as Http
-import qualified OpenSSL.EVP.Digest           as SSL
-import qualified OpenSSL.EVP.PKey             as SSL
-import qualified OpenSSL.PEM                  as SSL
-import qualified OpenSSL.RSA                  as SSL
-import qualified Ssl.Util                     as SSL
+import qualified Galley.Data.LegalHold      as LegalHoldData
+import qualified Data.ByteString.Lazy.Char8 as LC8
+import qualified Data.ByteString            as BS
+import qualified Network.HTTP.Client        as Http
+import qualified OpenSSL.EVP.Digest         as SSL
+import qualified OpenSSL.EVP.PKey           as SSL
+import qualified OpenSSL.PEM                as SSL
+import qualified OpenSSL.RSA                as SSL
+import qualified Ssl.Util                   as SSL
 
 ----------------------------------------------------------------------
 -- api
@@ -48,15 +50,16 @@ import qualified Ssl.Util                     as SSL
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
 checkLegalHoldServiceStatus fpr url = do
-    rs <- makeVerifiedRequest fpr url reqBuilder
-    if | Bilge.statusCode rs < 400 -> pure ()
-       | otherwise -> throwM legalHoldServiceBadResponse
+    resp <- makeVerifiedRequest fpr url reqBuilder
+    lg <- view applog
+    if | Bilge.statusCode resp < 400 -> pure ()
+       | otherwise -> do
+            Logger.info lg . Logger.msg $ showResponse resp
+            throwM legalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder
-        -- TODO: Currently this OVERWRITES any path on the base URL;
-        -- We should come up with a better solution.
-        = Bilge.paths ["legalhold", "bots", "status"]
+        = Bilge.paths ["status"]
         . Bilge.method GET
         . Bilge.expect2xx
 
@@ -67,14 +70,12 @@ requestNewDevice tid uid = do
     case eitherDecode (responseBody resp) of
         Left e -> do
             lg <- view applog
-            Logger.warn lg . msg $ "Error decoding NewLegalHoldClient: " <> e
+            Logger.info lg . Logger.msg $ "Error decoding NewLegalHoldClient: " <> e
             throwM legalHoldServiceBadResponse
         Right client -> pure client
   where
     reqParams =
-        -- TODO: Currently this OVERWRITES any path on the base URL;
-        -- We should come up with a better solution.
-        Bilge.paths ["legalhold", "initiate"]
+        Bilge.paths ["initiate"]
       . Bilge.json (RequestNewLegalHoldClient uid tid)
       . Bilge.method POST
       . Bilge.acceptJson
@@ -91,9 +92,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
     void $ makeLegalHoldServiceRequest tid reqParams
   where
     reqParams =
-        -- TODO: Currently this OVERWRITES any path on the base URL;
-        -- We should come up with a better solution.
-        Bilge.paths ["legalhold", "confirm"]
+        Bilge.paths ["confirm"]
       . Bilge.json (LegalHoldServiceConfirm clientId uid tid (opaqueAuthTokenToText legalHoldAuthToken))
       . Bilge.method POST
       . Bilge.acceptJson
@@ -110,7 +109,7 @@ removeLegalHold tid uid = do
     reqParams =
         -- TODO: Currently this OVERWRITES any path on the base URL;
         -- We should come up with a better solution.
-        Bilge.paths ["legalhold", "remove"]
+        Bilge.paths ["remove"]
       . Bilge.json (LegalHoldServiceRemove uid tid)
       . Bilge.method POST
       . Bilge.acceptJson
@@ -126,7 +125,7 @@ makeLegalHoldServiceRequest :: TeamId -> (Http.Request -> Http.Request) -> Galle
 makeLegalHoldServiceRequest tid reqBuilder = do
     maybeLHSettings <- LegalHoldData.getSettings tid
     lhSettings <- case maybeLHSettings of
-        Nothing -> throwM legalHoldServiceUnavailable
+        Nothing -> throwM legalHoldServiceNotRegistered
         Just lhSettings -> pure lhSettings
 
     let LegalHoldService
@@ -146,7 +145,7 @@ makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Requ
 makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
     (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
     let verified = verifyFingerprints [fpr]
-    extHandleAll (const $ throwM legalHoldServiceUnavailable) $ do
+    extHandleAll errHandler $ do
         recovering x3 httpHandlers $ const $ liftIO $
             withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $ \req ->
                 Http.httpLbs req mgr
@@ -155,6 +154,19 @@ makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
         maybe id Bilge.host (Bilge.extHost url)
         . Bilge.port (fromMaybe 443 (Bilge.extPort url))
         . Bilge.secure
+        . prependPath (uriPath url)
+
+    errHandler e = do
+        lg <- view applog
+        Logger.info lg . Logger.msg $ "error making request to legalhold service: " <> show e
+        throwM legalHoldServiceUnavailable
+
+    prependPath :: ByteString -> Http.Request -> Http.Request
+    prependPath pth req = req{Http.path=pth </> Http.path req}
+
+    -- append two paths with exactly one slash
+    (</>) :: ByteString -> ByteString -> ByteString
+    a </> b = fromMaybe a (BS.stripSuffix "/" a) <> "/" <> fromMaybe b (BS.stripPrefix "/" b)
 
     x3 :: RetryPolicy
     x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -203,4 +215,3 @@ newtype OpaqueAuthToken =
     OpaqueAuthToken
     { opaqueAuthTokenToText :: Text
     } deriving newtype (Eq, Show, FromJSON, ToJSON)
-

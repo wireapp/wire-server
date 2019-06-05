@@ -335,7 +335,7 @@ testCreateLegalHoldTeamSettings = do
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application
         lhapp _isworking@False _ _   cont = cont respondBad
         lhapp _isworking@True  _ req cont = trace "APP" $ do
-            if | pathInfo req /= ["legalhold", "bots", "status"] -> cont respondBad
+            if | pathInfo req /= ["legalhold", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> cont respondOk
 
@@ -677,7 +677,7 @@ newLegalHoldService = do
     config <- view (tsIConf . to provider)
     key' <- liftIO $ readServiceKey (publicKey config)
     let Just url = fromByteString $
-            encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config))
+            encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config)) <> "/legalhold"
     return NewLegalHoldService
         { newLegalHoldServiceUrl     = url
         , newLegalHoldServiceKey     = key'
@@ -708,8 +708,8 @@ withDummyTestServiceForTeam owner tid go = do
     dummyService :: Chan () -> Application
     dummyService _ch req cont = do
         case (pathInfo req, requestMethod req, getRequestHeader "Authorization" req) of
-            (["legalhold", "bots", "status"], "GET", _) -> cont respondOk
-            (_, _, Nothing) -> cont missingAuth
+            (["legalhold", "status"], "GET", _)         -> cont respondOk
+            (_, _, Nothing)                             -> cont missingAuth
             (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
             (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
             (["legalhold", "remove"], "POST", Just _) -> cont respondOk
