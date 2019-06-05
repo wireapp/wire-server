@@ -121,7 +121,7 @@ makeLegalHoldServiceRequest tid reqBuilder = do
     mkReqBuilder token =
         reqBuilder
         -- TODO: Verify this is correct:
-        . Bilge.header "Authentication" (toByteString' token)
+        . Bilge.header "Authorization" ("Bearer" <> toByteString' token)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
