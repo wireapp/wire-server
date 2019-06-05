@@ -27,7 +27,7 @@ import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.Types.Teams
 import Gundeck.Types.Notification (ntfPayload)
-import Network.HTTP.Types.Status (status200, status404)
+import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai
 import Network.Wai as Wai
 import Servant.Swagger (validateEveryToJSON)
@@ -612,10 +612,12 @@ withDummyTestServiceForTeam owner tid go = do
         go
     dummyService :: Chan () -> Application
     dummyService _ch req cont = do
-        if | pathInfo req == ["legalhold", "bots", "status"] && requestMethod req == "GET" -> cont respondOk
-           | pathInfo req == ["legalhold", "initiate"] && requestMethod req == "POST" -> cont initiateResp
-           | pathInfo req == ["legalhold", "confirm"] && requestMethod req == "POST" -> cont respondOk
-           | otherwise -> cont respondBad
+        case (pathInfo req, requestMethod req, getRequestHeader "Authorization" req) of
+            (["legalhold", "bots", "status"], "GET", _) -> cont respondOk
+            (_, _, Nothing) -> cont missingAuth
+            (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
+            (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+            _ -> cont respondBad
 
     initiateResp :: Wai.Response
     initiateResp =
@@ -627,6 +629,12 @@ withDummyTestServiceForTeam owner tid go = do
 
     respondBad :: Wai.Response
     respondBad = responseLBS status404 mempty mempty
+
+    missingAuth :: Wai.Response
+    missingAuth = responseLBS status400 mempty "no authorization header"
+
+    getRequestHeader :: String -> Wai.Request -> Maybe ByteString
+    getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal

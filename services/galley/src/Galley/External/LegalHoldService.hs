@@ -120,7 +120,6 @@ makeLegalHoldServiceRequest tid reqBuilder = do
   where
     mkReqBuilder token =
         reqBuilder
-        -- TODO: Verify this is correct:
         . Bilge.header "Authorization" ("Bearer" <> toByteString' token)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
