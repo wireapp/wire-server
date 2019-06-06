@@ -41,8 +41,17 @@ selectTeamConvs = "select conv, managed from team_conv where team = ? order by c
 selectTeamMember :: PrepQuery R (TeamId, UserId) (Permissions, Maybe UserId, Maybe UTCTimeMillis)
 selectTeamMember = "select perms, invited_by, invited_at from team_member where team = ? and user = ?"
 
-selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis)
-selectTeamMembers = "select user, perms, invited_by, invited_at from team_member where team = ? order by user"
+selectTeamMembers :: PrepQuery R (Identity TeamId) ( UserId
+                                                   , Permissions
+                                                   , Maybe UserId
+                                                   , Maybe UTCTimeMillis
+                                                   , Maybe LegalHoldStatus
+                                                   )
+selectTeamMembers = [r|
+    select user, perms, invited_by, invited_at, legalhold_status
+      from team_member
+    where team = ? order by user
+    |]
 
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"
@@ -270,20 +279,20 @@ dropPendingPrekeys = [r|
 
 selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
 selectPendingPrekeys = [r|
-        select key, data 
-          from legalhold_pending_prekeys 
-          where user = ? 
+        select key, data
+          from legalhold_pending_prekeys
+          where user = ?
           order by key asc
     |]
 
-selectUserLegalHoldStatus :: PrepQuery R (Identity UserId) (Identity UserLegalHoldStatus)
+selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) (Identity (Maybe UserLegalHoldStatus))
 selectUserLegalHoldStatus = [r|
-        select status from legalhold_user_status where user = ?
+        select legalhold_status from team_member where team = ? and user = ?
     |]
 
-updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, UserId) ()
+updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()
 updateUserLegalHoldStatus = [r|
-        update legalhold_user_status
-          set status = ?
-          where user = ?
+        update team_member
+          set legalhold_status = ?
+          where team = ? and user = ?
     |]

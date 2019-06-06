@@ -121,7 +121,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 31
+schemaVersion = 32
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -181,7 +181,9 @@ teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMembe
 teamMembers t = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
   where
-    newTeamMember' :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m TeamMember
+    newTeamMember'
+        :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+        -> m TeamMember
     newTeamMember' (uid, perms, minvu, minvt) =
         newTeamMemberRaw uid perms minvu minvt
 
