@@ -26,7 +26,7 @@ instance ToJSON UserLegalHoldStatus where
     toJSON UserLegalHoldEnabled = "enabled"
 
 instance FromJSON UserLegalHoldStatus where
-    parseJSON = withText "LegalHoldStatus" $ \case
+    parseJSON = withText "UserLegalHoldStatus" $ \case
       "disabled" -> pure UserLegalHoldDisabled
       "pending" -> pure UserLegalHoldPending
       "enabled" -> pure UserLegalHoldEnabled

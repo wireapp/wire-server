@@ -124,9 +124,8 @@ testCreateLegalHoldDevice = do
         -- requestDevice owner member tid !!! const 403 === statusCode
         -- putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        do UserLegalHoldStatusResponse _userStatus fingerprint <- getUserStatusTyped member tid
-           -- TODO: Fix this one:
-           -- liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
+        do UserLegalHoldStatusResponse userStatus fingerprint <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
            liftIO $ assertEqual "fingerprint should be nothing" Nothing fingerprint
 
         do requestDevice member member tid !!! const 403 === statusCode
@@ -168,8 +167,8 @@ testCreateLegalHoldDevice = do
                 Just (head someLastPrekeys) @?= eLastPrekey
                 Just somePrekeys @?= ePrekeys
 
-        -- TODO: Not sure why I have to do this; which extra notification is stuck on the
-        -- queue?
+        -- -- TODO: Not sure why I have to do this; which extra notification is stuck on the
+        -- -- queue?
         ensureQueueEmpty
 
     -- fail if legal hold service is disabled via feature flag
@@ -288,7 +287,7 @@ testCreateLegalHoldTeamSettings = do
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
     -- rejected if service is not available
-    postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
+    postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
 
 
     -- checks /status of legal hold service (boolean argument says whether the service is
@@ -308,7 +307,7 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest _isworking@False _ = do
-            postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
+            postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
 
         lhtest _isworking@True _ = do
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
@@ -504,13 +503,17 @@ putEnabled tid enabled = do
          . expect2xx
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
-postSettings uid tid new = do
-    g <- view tsGalley
-    post $ g
-         . paths ["teams", toByteString' tid, "legalhold", "settings"]
-         . zUser uid . zConn "conn"
-         . zType "access"
-         . json new
+postSettings uid tid new =
+    -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
+    -- connection.
+    -- TODO: only retry on 412
+    recoverAll (exponentialBackoff 50 <> limitRetries 5) $ \_ -> do
+        g <- view tsGalley
+        post $ g
+            . paths ["teams", toByteString' tid, "legalhold", "settings"]
+            . zUser uid . zConn "conn"
+            . zType "access"
+            . json new
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
 getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! const 200 === statusCode)
@@ -532,7 +535,10 @@ deleteSettings uid tid = do
            . zType "access"
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
-getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+getUserStatusTyped uid tid = do
+    resp <- (getUserStatus uid tid <!! const 200 === statusCode)
+    print $ fromJust $ responseBody resp
+    return $ jsonBody resp
 
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getUserStatus uid tid = do
@@ -671,8 +677,7 @@ withTestService mkApp go = do
     srv <- liftIO . Async.async $
         Warp.runTLS tlss defs $
             mkApp buf
-    recoverAll (exponentialBackoff 50 <> limitRetries 5) (\_ -> go buf)
-        `finally` liftIO (Async.cancel srv)
+    go buf `finally` liftIO (Async.cancel srv)
 
 
 -- TODO: adding two new legal hold settings on one team is not possible (409)
