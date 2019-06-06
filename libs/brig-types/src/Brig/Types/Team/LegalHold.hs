@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 module Brig.Types.Team.LegalHold where
 
@@ -9,8 +10,10 @@ import Brig.Types.Client.Prekey
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
+import Data.LegalHold
 import Data.Misc
 import qualified Data.Text as T
+
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
    deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
@@ -194,25 +197,7 @@ instance ToJSON UserLegalHoldStatusResponse where
 instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
-                                    <*> o .: "fingerprint"
-
-data UserLegalHoldStatus
-    = UserLegalHoldEnabled
-    | UserLegalHoldPending
-    | UserLegalHoldDisabled
-    deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
-
-instance ToJSON UserLegalHoldStatus where
-    toJSON UserLegalHoldEnabled = "enabled"
-    toJSON UserLegalHoldPending = "pending"
-    toJSON UserLegalHoldDisabled = "disabled"
-
-instance FromJSON UserLegalHoldStatus where
-    parseJSON = withText "LegalHoldStatus" $ \case
-      "enabled" -> pure UserLegalHoldEnabled
-      "pending" -> pure UserLegalHoldPending
-      "disabled" -> pure UserLegalHoldDisabled
-      x -> fail $ "unexpected status type: " <> T.unpack x
+                                    <*> o .:? "fingerprint"
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest

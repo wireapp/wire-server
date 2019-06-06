@@ -10,7 +10,8 @@ migration = Migration 32 "Migrate User Legal Hold Status to Team Members Table" 
         ALTER TABLE team_member
           ADD
         (
-            legalhold_status      int
+            legalhold_status             int,
+            legalhold_device_fingerprint blob
         )
     |]
 

@@ -10,6 +10,7 @@ import Control.Monad.Catch
 import Control.Lens (view)
 import Data.Id
 import Data.Misc
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
@@ -96,8 +97,8 @@ removeSettings (zusr ::: tid ::: _) = do
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
-    lhStatus <- LegalHoldData.getUserLegalHoldStatus tid uid
-    pure $ json (UserLegalHoldStatusResponse lhStatus Nothing)
+    lhStatusResp <- LegalHoldData.getUserLegalHoldStatus tid uid
+    pure $ json lhStatusResp
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -106,7 +107,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
 
-    userLHStatus <- LegalHoldData.getUserLegalHoldStatus tid uid
+    userLHStatus <- ulhsrStatus <$> LegalHoldData.getUserLegalHoldStatus tid uid
     case userLHStatus of
         UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
         UserLegalHoldPending -> provisionLHDevice
@@ -158,5 +159,5 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
   where
     assertUserLHNotAlreadyActive :: UserId -> Galley ()
     assertUserLHNotAlreadyActive uid' = do
-        status <- LegalHoldData.getUserLegalHoldStatus tid uid'
+        status <- ulhsrStatus <$> LegalHoldData.getUserLegalHoldStatus tid uid'
         when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled

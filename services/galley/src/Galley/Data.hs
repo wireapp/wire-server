@@ -84,6 +84,7 @@ import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis(..))
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
 import Data.Misc (Milliseconds)
@@ -184,16 +185,19 @@ teamMembers t = mapM newTeamMember' =<<
     newTeamMember'
         :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
         -> m TeamMember
-    newTeamMember' (uid, perms, minvu, minvt) =
-        newTeamMemberRaw uid perms minvu minvt
+    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+        newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
 teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
 teamMember t u = newTeamMember' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
   where
-    newTeamMember' :: UserId -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m (Maybe TeamMember)
+    newTeamMember'
+        :: UserId
+        -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+        -> m (Maybe TeamMember)
     newTeamMember' _ Nothing = pure Nothing
-    newTeamMember' uid (Just (perms, minvu, minvt)) =
-        Just <$> newTeamMemberRaw uid perms minvu minvt
+    newTeamMember' uid (Just (perms, minvu, minvt, mulhStatus)) =
+        Just <$> newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mulhStatus)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u = map runIdentity <$>

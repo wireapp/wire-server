@@ -16,6 +16,7 @@ import Imports
 import Cassandra
 import Control.Lens (unsnoc)
 import Data.Id
+import Data.LegalHold
 import Brig.Types.Client.Prekey
 import Galley.Data.Queries as Q
 import Galley.Data.Instances ()
@@ -73,13 +74,13 @@ selectPendingPrekeys uid =
 dropPendingPrekeys :: MonadClient m => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))
 
-getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatusResponse
-getUserLegalHoldStatus uid = do
+getUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> m UserLegalHoldStatusResponse
+getUserLegalHoldStatus tid uid = do
     result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (tid, uid)))
     pure $ case result of
         Nothing -> UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing
-        Just (status, fingerprint) -> 
-            UserLegalHoldStatusResponse (fromMaybe UserLegalHoldDisabled status) Nothing
+        Just (status, fingerprint) ->
+            UserLegalHoldStatusResponse (fromMaybe UserLegalHoldDisabled status) fingerprint
 
 setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus tid uid status =

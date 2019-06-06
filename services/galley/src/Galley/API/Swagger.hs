@@ -20,6 +20,7 @@ import Data.Aeson (toJSON)
 import Data.Aeson (Value(..))
 import Data.HashMap.Strict.InsOrd
 import Data.Id
+import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Text as Text (unlines)

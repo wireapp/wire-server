@@ -2,12 +2,13 @@ module Galley.Data.Queries where
 
 import Imports
 import Brig.Types.Code
-import Brig.Types.Team.LegalHold (LegalHoldStatus, UserLegalHoldStatus)
+import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Brig.Types.Client.Prekey
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
 import Data.Json.Util
+import Data.LegalHold
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
@@ -38,14 +39,18 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamMember :: PrepQuery R (TeamId, UserId) (Permissions, Maybe UserId, Maybe UTCTimeMillis)
-selectTeamMember = "select perms, invited_by, invited_at from team_member where team = ? and user = ?"
+selectTeamMember :: PrepQuery R (TeamId, UserId) ( Permissions
+                                                 , Maybe UserId
+                                                 , Maybe UTCTimeMillis
+                                                 , Maybe UserLegalHoldStatus
+                                                 )
+selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from team_member where team = ? and user = ?"
 
 selectTeamMembers :: PrepQuery R (Identity TeamId) ( UserId
                                                    , Permissions
                                                    , Maybe UserId
                                                    , Maybe UTCTimeMillis
-                                                   , Maybe LegalHoldStatus
+                                                   , Maybe UserLegalHoldStatus
                                                    )
 selectTeamMembers = [r|
     select user, perms, invited_by, invited_at, legalhold_status
@@ -285,9 +290,11 @@ selectPendingPrekeys = [r|
           order by key asc
     |]
 
-selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) (Identity (Maybe UserLegalHoldStatus))
+selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) ( Maybe UserLegalHoldStatus
+                                                          , Maybe (Fingerprint HumanReadable)
+                                                          )
 selectUserLegalHoldStatus = [r|
-        select legalhold_status from team_member where team = ? and user = ?
+        select legalhold_status, legalhold_device_fingerprint from team_member where team = ? and user = ?
     |]
 
 updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()

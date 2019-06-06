@@ -20,20 +20,6 @@ instance Cql LegalHoldStatus where
     toCql LegalHoldDisabled = CqlInt 0
     toCql LegalHoldEnabled = CqlInt 1
 
-instance Cql UserLegalHoldStatus where
-    ctype = Tagged IntColumn
-
-    fromCql (CqlInt n) = case n of
-        0 -> pure $ UserLegalHoldDisabled
-        1 -> pure $ UserLegalHoldPending
-        2 -> pure $ UserLegalHoldEnabled
-        _ -> fail "fromCql: Invalid UserLegalHoldStatus"
-    fromCql _           = fail "fromCql: UserLegalHoldStatus: CqlInt expected"
-
-    toCql UserLegalHoldDisabled = CqlInt 0
-    toCql UserLegalHoldPending = CqlInt 1
-    toCql UserLegalHoldEnabled = CqlInt 2
-
 instance Cql PrekeyId where
     ctype = Tagged IntColumn
     toCql = CqlInt . fromIntegral . keyId

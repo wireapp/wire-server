@@ -32,6 +32,7 @@ module Galley.Types.Teams
     , userId
     , permissions
     , invitation
+    , legalHoldStatus
     , teamMemberJson
     , canSeePermsOf
 
@@ -125,8 +126,8 @@ import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Time (UTCTime)
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.Types.Teams.Internal
-import Brig.Types.Team.LegalHold (UserLegalHoldStatus(..))
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Maybe as Maybe
@@ -322,9 +323,8 @@ newTeamList = TeamList
 newTeamMember :: UserId
               -> Permissions
               -> Maybe (UserId, UTCTimeMillis)
-              -> UserLegalHoldStatus
               -> TeamMember
-newTeamMember = TeamMember
+newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
 -- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
 -- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent

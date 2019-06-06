@@ -503,9 +503,6 @@ instance Arbitrary RequestNewLegalHoldClient where
 instance Arbitrary NewLegalHoldClient where
     arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary UserLegalHoldStatus where
-    arbitrary = elements [minBound..]
-
 instance Arbitrary LegalHoldClientRequest where
     arbitrary =
         LegalHoldClientRequest
