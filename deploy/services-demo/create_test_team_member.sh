@@ -9,21 +9,25 @@ set -e
 #
 
 USAGE="USAGE: $0
+    -s <S>:  Start at offset. default: 1
     -n <N>:  Create <N> users. default: 1
     -h <host>: Base URI of brig. default: http://localhost:8082
     -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: false
 "
 
-ADMIN_UUID="5d578178-2d10-4cdf-b4d7-9abb0550385e"
-TEAM_UUID="7f0fd97e-304e-4f63-b11b-481b54111223"
+ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
+TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
 BRIG_HOST="http://localhost:8082"
+START="1"
 COUNT="1"
 CSV="false"
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":n:h:c" opt; do
+while getopts ":s:n:h:c" opt; do
   case ${opt} in
+    s ) START="$OPTARG"
+      ;;
     n ) COUNT="$OPTARG"
       ;;
     h ) BRIG_HOST="$OPTARG"
@@ -46,8 +50,8 @@ if [ "$#" -ne 0 ]; then
 fi;
 
 # Generate users
-
-for i in `seq 1 $COUNT`
+END=`expr $COUNT + $START - 1`
+for i in `seq $START $END`
 do
     # EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
     EMAIL='w'$(printf "%03d" $i)"@example.com"
