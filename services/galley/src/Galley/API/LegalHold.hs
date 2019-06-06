@@ -98,7 +98,7 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
     lhStatus <- LegalHoldData.getUserLegalHoldStatus uid
-    pure $ json lhStatus
+    pure $ json (UserLegalHoldStatusResponse lhStatus Nothing)
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -126,7 +126,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     requestDeviceFromService = do
         LegalHoldData.dropPendingPrekeys uid
         lhDevice <- LHService.requestNewDevice tid uid
-        let NewLegalHoldClient prekeys lastKey = lhDevice
+        let NewLegalHoldClient prekeys lastKey _fingerprint = lhDevice
         return (lastKey, prekeys)
 
 -- | Approve the adding of a Legal Hold device to the user

@@ -29,6 +29,7 @@ module Data.Misc
       -- * Fingerprint
     , Fingerprint (..)
     , Rsa
+    , HumanReadable
 
       -- * PlainTextPassword
     , PlainTextPassword (..)
@@ -226,18 +227,30 @@ instance Cql HttpsUrl where
 --------------------------------------------------------------------------------
 -- Fingerprint
 
+-- Tag for Rsa encoded fingerprints
 data Rsa
+
+-- Tag for Ascii encoded fingerprints
+-- e.g. "3f 8b 00 d0 64 28 05..."
+data HumanReadable
 
 newtype Fingerprint a = Fingerprint
     { fingerprintBytes :: ByteString
     } deriving (Eq, Show, FromByteString, ToByteString, NFData)
 
-instance FromJSON (Fingerprint a) where
+instance FromJSON (Fingerprint Rsa) where
     parseJSON = withText "Fingerprint" $
         either fail (pure . Fingerprint) . B64.decode . encodeUtf8
 
-instance ToJSON (Fingerprint a) where
+instance ToJSON (Fingerprint Rsa) where
     toJSON = String . decodeUtf8 . B64.encode . fingerprintBytes
+
+instance FromJSON (Fingerprint HumanReadable) where
+    parseJSON = withText "Fingerprint" $
+        pure . Fingerprint . encodeUtf8
+
+instance ToJSON (Fingerprint HumanReadable) where
+    toJSON = String . decodeUtf8 . fingerprintBytes
 
 #ifdef WITH_CQL
 instance Cql (Fingerprint a) where

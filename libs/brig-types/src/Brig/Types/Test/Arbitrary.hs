@@ -485,6 +485,15 @@ instance Arbitrary (Fingerprint Rsa) where
     arbitrary = pure $ Fingerprint
         "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
+instance Arbitrary (Fingerprint HumanReadable) where
+    arbitrary = do
+        asciiPairs <- replicateM 30 hexPair
+        return $ Fingerprint . encodeUtf8 . ST.pack $ intercalate " " asciiPairs
+      where
+        -- Generate a pair fingerprint chars; e.g. "3s"
+        hexPair :: Gen String
+        hexPair = replicateM 2 . elements $ ['0'..'9'] <> ['a'..'z']
+
 instance Arbitrary ServiceToken where
     arbitrary = ServiceToken <$> arbitrary
 
@@ -492,15 +501,15 @@ instance Arbitrary RequestNewLegalHoldClient where
     arbitrary = RequestNewLegalHoldClient <$> arbitrary <*> arbitrary
 
 instance Arbitrary NewLegalHoldClient where
-    arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary
+    arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary UserLegalHoldStatus where
     arbitrary = elements [minBound..]
 
 instance Arbitrary LegalHoldClientRequest where
-    arbitrary = 
-        LegalHoldClientRequest 
-            <$> arbitrary 
+    arbitrary =
+        LegalHoldClientRequest
+            <$> arbitrary
             <*> arbitrary
             <*> arbitrary
             <*> arbitrary

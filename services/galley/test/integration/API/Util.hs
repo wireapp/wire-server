@@ -877,3 +877,9 @@ someLastPrekeys =
     , lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
     ]
 
+-- An Ascii encoded fingerprint; does not match the above prekeys.
+someFingerprint :: Fingerprint HumanReadable
+someFingerprint = fromJust $ fromByteString
+                 $ "3f 8b 00 d0 64 28 05 4f 54 23 98 56 3d 7h 11 14 0f 7m "
+                <> "33 5n 1h 77 6g 7g 33 42 9h 8w 7s 1e"
+

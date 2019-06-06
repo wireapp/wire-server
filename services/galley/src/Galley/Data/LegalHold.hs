@@ -73,12 +73,12 @@ selectPendingPrekeys uid =
 dropPendingPrekeys :: MonadClient m => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))
 
-getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatus
+getUserLegalHoldStatus :: MonadClient m => UserId -> m UserLegalHoldStatusResponse
 getUserLegalHoldStatus uid = do
     result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (Identity uid)))
     pure $ case result of
-        Nothing -> UserLegalHoldDisabled
-        Just (Identity status) -> status
+        Nothing -> UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing
+        Just (status, fingerprint) -> UserLegalHoldStatusResponse status Nothing
 
 setUserLegalHoldStatus :: MonadClient m => UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus uid status =

@@ -236,7 +236,12 @@ testApproveLegalHoldDevice = do
 
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    -- Initial status should be disabled
+    -- <- jsonBody <$> getUserStatus uid tid !!! 200
 
     -- Show whether enabled, pending, disabled
 
@@ -622,7 +627,7 @@ withDummyTestServiceForTeam owner tid go = do
     initiateResp :: Wai.Response
     initiateResp =
         Wai.json
-        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
+        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys) someFingerprint
 
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty
