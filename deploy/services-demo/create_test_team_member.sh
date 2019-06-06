@@ -49,7 +49,8 @@ fi;
 
 for i in `seq 1 $COUNT`
 do
-    EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
+    # EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
+    EMAIL='w'$(printf "%03d" $i)"@example.com"
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     # Generate the invitation
@@ -61,6 +62,12 @@ do
         -d'{"email":"'$EMAIL'","name":"Replace with name","inviter_name":"Team admin"}')
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
+
+    ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
+    if [[ "$INVITATION_ID" == "$ERR" ]]; then
+      echo "User with the email $EMAIL already exists, aborting"
+      exit 1
+    fi;
 
     # Get the code
     CURL_OUT_INVITATION_CODE=$(curl -i -s --show-error \
