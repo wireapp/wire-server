@@ -79,6 +79,8 @@ tests s = testGroup "Teams LegalHold API"
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
     , test s "DELETE /clients/{cid}" testDeleteLegalHoldDeviceOldAPI
 
+    , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
+
 {- TODO:
     zauth/libzauth level: Allow access to legal hold service tokens
         conversations/{cnv}/otr/messages
@@ -161,8 +163,6 @@ testRequestLegalHoldDevice = do
                 -- These need to match the values provided by the 'dummy service'
                 Just (head someLastPrekeys) @?= eLastPrekey
 
-        -- -- TODO: Not sure why I have to do this; which extra notification is stuck on the
-        -- -- queue?
         ensureQueueEmpty
 
     -- fail if legal hold service is disabled via feature flag
@@ -481,6 +481,15 @@ testDeleteLegalHoldDeviceOldAPI = do
 
     -- legal hold device cannot be deleted by anybody, ever.
 
+testGetTeamMembersIncludesLHStatus :: TestM ()
+testGetTeamMembersIncludesLHStatus = do
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    members' <- view teamMembers <$> getTeamMembers owner tid
+    liftIO $ assertEqual "legal hold status should be set on team members"
+                [UserLegalHoldDisabled] (view legalHoldStatus <$> members')
 
 ----------------------------------------------------------------------
 -- API helpers

@@ -242,7 +242,6 @@ instance ToSchema NewLegalHoldClient where
           { fieldLabelModifier = \case
               "newLegalHoldClientPrekeys"     -> "prekeys"
               "newLegalHoldClientLastKey"     -> "last_prekey"
-              "newLegalHoldClientFingerprint" -> "fingerprint"
           }
 
 instance ToSchema UserLegalHoldStatus where
