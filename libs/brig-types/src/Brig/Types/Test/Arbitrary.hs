@@ -498,9 +498,9 @@ instance Arbitrary UserLegalHoldStatus where
     arbitrary = elements [minBound..]
 
 instance Arbitrary LegalHoldClientRequest where
-    arbitrary = 
-        LegalHoldClientRequest 
-            <$> arbitrary 
+    arbitrary =
+        LegalHoldClientRequest
+            <$> arbitrary
             <*> arbitrary
             <*> arbitrary
             <*> arbitrary
