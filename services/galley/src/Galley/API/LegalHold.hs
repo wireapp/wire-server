@@ -126,7 +126,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     requestDeviceFromService = do
         LegalHoldData.dropPendingPrekeys uid
         lhDevice <- LHService.requestNewDevice tid uid
-        let NewLegalHoldClient prekeys lastKey _fingerprint = lhDevice
+        let NewLegalHoldClient prekeys lastKey = lhDevice
         return (lastKey, prekeys)
 
 -- | Approve the adding of a Legal Hold device to the user

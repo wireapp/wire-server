@@ -124,24 +124,21 @@ testCreateLegalHoldDevice = do
         -- requestDevice owner member tid !!! const 403 === statusCode
         -- putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        do UserLegalHoldStatusResponse userStatus fingerprint <- getUserStatusTyped member tid
+        do UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
-           liftIO $ assertEqual "fingerprint should be nothing" Nothing fingerprint
 
         do requestDevice member member tid !!! const 403 === statusCode
-           UserLegalHoldStatusResponse userStatus _fingerprint <- getUserStatusTyped member tid
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
                       UserLegalHoldDisabled userStatus
 
         do requestDevice owner member tid !!! const 204 === statusCode
-           UserLegalHoldStatusResponse userStatus fingerprint <- getUserStatusTyped member tid
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice should set user status to Pending"
                       UserLegalHoldPending userStatus
-           liftIO $ assertEqual "pending users should have a lh device fingerprint"
-                      (fromByteString "") fingerprint
 
         do requestDevice owner member tid !!! const 204 === statusCode
-           UserLegalHoldStatusResponse userStatus _fingerprint <- getUserStatusTyped member tid
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
 
@@ -217,7 +214,7 @@ testApproveLegalHoldDevice = do
             assertBool "Expect clientId to be saved on the user"
               $ Clients.contains member someClientId clients'
 
-        UserLegalHoldStatusResponse userStatus _fingerprint <- getUserStatusTyped member tid
+        UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
         liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                     UserLegalHoldEnabled userStatus
 
@@ -245,12 +242,11 @@ testGetLegalHoldDeviceStatus = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
     -- Initial status should be disabled
-    UserLegalHoldStatusResponse status fingerprint <-
+    UserLegalHoldStatusResponse status <-
         jsonBody <$> (getUserStatus owner tid <!! const 200 === statusCode)
 
     liftIO $ do
         assertEqual "status should start as disabled" UserLegalHoldDisabled status
-        assertEqual "disabled users don't have a LH fingerprint" Nothing fingerprint
 
     -- Show whether enabled, pending, disabled
 
@@ -643,7 +639,7 @@ withDummyTestServiceForTeam owner tid go = do
     initiateResp :: Wai.Response
     initiateResp =
         Wai.json
-        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys) someFingerprint
+        $ NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
 
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty

@@ -148,7 +148,6 @@ viewLegalHoldService (LegalHoldService tid u fpr _) =
 data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]
     , newLegalHoldClientLastKey  :: !LastPrekey
-    , newLegalHoldClientFingerprint :: Fingerprint HumanReadable
     }
     deriving stock (Eq, Show, Generic)
 
@@ -156,14 +155,12 @@ instance ToJSON NewLegalHoldClient where
     toJSON c = object
         $ "prekeys"  .= newLegalHoldClientPrekeys c
         # "last_prekey"  .= newLegalHoldClientLastKey c
-        # "fingerprint"  .= newLegalHoldClientFingerprint c
         # []
 
 instance FromJSON NewLegalHoldClient where
     parseJSON = withObject "NewLegalHoldClient" $ \o ->
         NewLegalHoldClient <$> o .:  "prekeys"
                            <*> o .:  "last_prekey"
-                           <*> o .:  "fingerprint"
 
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     { userId :: !UserId
@@ -184,20 +181,17 @@ instance FromJSON RequestNewLegalHoldClient where
 data UserLegalHoldStatusResponse =
     UserLegalHoldStatusResponse
       { ulhsrStatus      :: UserLegalHoldStatus
-      , ulhsrFingerprint :: Maybe (Fingerprint HumanReadable)
       }
    deriving stock (Eq, Show, Generic)
 
 instance ToJSON UserLegalHoldStatusResponse where
-    toJSON (UserLegalHoldStatusResponse status fingerprint) = object
+    toJSON (UserLegalHoldStatusResponse status) = object
         $  "status"      .= status
-        #  "fingerprint" .= fingerprint
         # []
 
 instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
-                                    <*> o .:? "fingerprint"
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest

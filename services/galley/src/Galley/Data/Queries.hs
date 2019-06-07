@@ -290,11 +290,9 @@ selectPendingPrekeys = [r|
           order by key asc
     |]
 
-selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) ( Maybe UserLegalHoldStatus
-                                                          , Maybe (Fingerprint HumanReadable)
-                                                          )
+selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) (Identity (Maybe UserLegalHoldStatus))
 selectUserLegalHoldStatus = [r|
-        select legalhold_status, legalhold_device_fingerprint from team_member where team = ? and user = ?
+        select legalhold_status from team_member where team = ? and user = ?
     |]
 
 updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()

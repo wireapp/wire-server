@@ -78,9 +78,9 @@ getUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> m UserLegalHoldSt
 getUserLegalHoldStatus tid uid = do
     result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (tid, uid)))
     pure $ case result of
-        Nothing -> UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing
-        Just (status, fingerprint) ->
-            UserLegalHoldStatusResponse (fromMaybe UserLegalHoldDisabled status) fingerprint
+        Just (Identity (Just status)) ->
+            UserLegalHoldStatusResponse status
+        _ -> UserLegalHoldStatusResponse UserLegalHoldDisabled
 
 setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus tid uid status =

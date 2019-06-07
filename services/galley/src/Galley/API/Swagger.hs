@@ -120,14 +120,6 @@ instance ToSchema ServiceKeyPEM where
 instance ToSchema (Fingerprint Rsa) where
     declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
 
-instance ToSchema (Fingerprint HumanReadable) where
-    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
-      where
-        tweak = fmap $ schema . example ?~ fingerprint
-        fingerprint = String $
-               "3f 8b 00 d0 64 28 05 4f 54 23 98 56 3d 7h 11 14 0f 7m "
-            <> "33 5n 1h 77 6g 7g 33 42 9h 8w 7s 1e"
-
 instance ToSchema ServiceToken where
     declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
 
