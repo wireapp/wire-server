@@ -69,7 +69,7 @@ data LegalHoldClientRequestedData =
     { lhcRequester  :: !UserId
     , lhcTargetUser :: !UserId
     , lhcLastPrekey :: !LastPrekey
-    , lhcPrekeys    :: ![Prekey]
+    , lhcClientId   :: !ClientId
     } deriving stock (Show)
 
 emailRemoved :: UserId -> Email -> UserEvent

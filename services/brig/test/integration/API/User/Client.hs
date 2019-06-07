@@ -342,8 +342,7 @@ testRequestLegalHoldClient brig cannon = do
 
     WS.bracketR cannon targetUid $ \ws -> do
         let expectedLastPrekey = lastPrekey "a last-prekey"
-        let expectedPrekeys = [Prekey (PrekeyId 1) "a prekey"]
-        requestLegalHoldDevice brig requesterUid targetUid expectedLastPrekey expectedPrekeys
+        requestLegalHoldDevice brig requesterUid targetUid expectedLastPrekey
           !!! const 200 === statusCode
         void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
             let j = Object $ List1.head (ntfPayload n)
@@ -351,9 +350,7 @@ testRequestLegalHoldClient brig cannon = do
             let eRequester = j ^? key "requester" . _String
             let eTargetUser = j ^? key "target_user" . _String
             let eLastPrekey = j ^? key "last_prekey" . _JSON
-            let ePrekeys = j ^? key "prekeys" . _JSON
             etype @?= Just "user.client-legal-hold-request"
             eRequester @?= Just (idToText requesterUid)
             eTargetUser @?= Just (idToText targetUid)
             Just expectedLastPrekey @?= eLastPrekey
-            Just expectedPrekeys @?= ePrekeys

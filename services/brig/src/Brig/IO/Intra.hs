@@ -351,13 +351,13 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
 toPushFormat
   (ClientEvent (LegalHoldClientRequested payload)) =
       case payload of
-        LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys
+        LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
           -> Just $ M.fromList
                [ "type"   .= ("user.client-legal-hold-request" :: Text)
                , "requester" .= idToText requester
                , "target_user" .= idToText targetUser
                , "last_prekey" .= lastPrekey'
-               , "prekeys" .= prekeys
+               , "clientId" .= clientId
                ]
 
 toApsData :: Event -> Maybe ApsData

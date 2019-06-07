@@ -119,7 +119,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         -- We don't distinguish the last key here; brig will do so when the device is added
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
-        notifyClientsAboutLegalHoldRequest zusr uid lastPrekey' prekeys
+        notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
         pure $ responseLBS status204 [] mempty
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])

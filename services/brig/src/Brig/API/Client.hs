@@ -52,7 +52,7 @@ addClient :: UserId -> ConnId -> Maybe IP -> NewClient -> ExceptT ClientError Ap
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
-    (clt, old, count) <- Data.addClient u newId new loc !>> ClientDataError
+    (clt, old, count) <- Data.addClient u clientId' new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
         for_ old $ execDelete u (Just con)
@@ -63,9 +63,13 @@ addClient u con ip new = do
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
     return clt
   where
-    newId = let prekey = unpackLastPrekey (newClientLastKey new)
-                hashCode = hash (prekeyKey prekey)
-            in newClientId (fromIntegral hashCode)
+    clientId' = clientIdFromLastKey (newClientLastKey new)
+
+-- | Helper to generate client id from a last prekey
+clientIdFromLastKey :: LastPrekey -> ClientId
+clientIdFromLastKey lastKey = let prekey = unpackLastPrekey lastKey
+                                  hashCode = hash (prekeyKey prekey)
+                               in newClientId (fromIntegral hashCode)
 
 updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError AppIO ()
 updateClient u c r = do
@@ -150,10 +154,12 @@ pubClient c = PubClient
     }
 
 legalHoldClientRequested :: LegalHoldClientRequest -> AppIO ()
-legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey' prekeys) =
+legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey') =
     Intra.onClientEvent targetUser Nothing lhClientEvent
   where
+    clientId :: ClientId
+    clientId = clientIdFromLastKey lastPrekey'
     eventData :: LegalHoldClientRequestedData
-    eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' prekeys
+    eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
     lhClientEvent :: ClientEvent
     lhClientEvent = LegalHoldClientRequested eventData

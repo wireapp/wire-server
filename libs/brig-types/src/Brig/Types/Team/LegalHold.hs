@@ -198,7 +198,6 @@ data LegalHoldClientRequest =
     { lhcrRequester  :: !UserId
     , lhcrTargetUser :: !UserId
     , lhcrLastPrekey :: !LastPrekey
-    , lhcrPrekeys    :: ![Prekey]
     } deriving stock (Eq, Show, Generic)
 
 instance FromJSON LegalHoldClientRequest where
@@ -207,14 +206,12 @@ instance FromJSON LegalHoldClientRequest where
         <$> o .: "requester"
         <*> o .: "target_user"
         <*> o .: "last_prekey"
-        <*> o .: "prekeys"
 
 instance ToJSON LegalHoldClientRequest where
-  toJSON (LegalHoldClientRequest requester targetUser lastPrekey' prekeys) = object
+  toJSON (LegalHoldClientRequest requester targetUser lastPrekey') = object
         $  "requester" .= requester
         #  "target_user" .= targetUser
         #  "last_prekey" .= lastPrekey'
-        #  "prekeys" .= prekeys
         # []
 
 -- Request body definition for the @/confirm@ endpoint on the LegalHold Service

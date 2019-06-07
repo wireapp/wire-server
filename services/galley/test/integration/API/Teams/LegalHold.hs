@@ -153,13 +153,13 @@ testRequestLegalHoldDevice = do
                 let eRequester = j ^? key "requester" . _String
                 let eTargetUser = j ^? key "target_user" . _String
                 let eLastPrekey = j ^? key "last_prekey" . _JSON
-                let ePrekeys = j ^? key "prekeys" . _JSON
+                let eClientId = j ^? key "clientId" . _JSON
                 etype @?= Just "user.client-legal-hold-request"
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
+                eClientId @?= Just someClientId
                 -- These need to match the values provided by the 'dummy service'
                 Just (head someLastPrekeys) @?= eLastPrekey
-                Just somePrekeys @?= ePrekeys
 
         -- -- TODO: Not sure why I have to do this; which extra notification is stuck on the
         -- -- queue?
@@ -302,7 +302,7 @@ testCreateLegalHoldTeamSettings = do
         lhapp _isworking@True  _ req cont = trace "APP" $ do
             if | pathInfo req /= ["legalhold", "bots", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
-               | otherwise -> trace "hit" $ cont respondOk
+               | otherwise -> cont respondOk
 
         respondOk :: Wai.Response
         respondOk = responseLBS status200 mempty mempty
