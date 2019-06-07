@@ -80,7 +80,7 @@ type GalleyRoutesPublic
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "approve"
           :> Verb 'PUT 204 '[] NoContent
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
-          :> Get '[JSON] UserLegalHoldStatus
+          :> Get '[JSON] UserLegalHoldStatusResponse
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
           :> Verb 'DELETE 204 '[] NoContent
 
@@ -242,6 +242,14 @@ instance ToSchema NewLegalHoldClient where
           { fieldLabelModifier = \case
               "newLegalHoldClientPrekeys"     -> "prekeys"
               "newLegalHoldClientLastKey"     -> "last_prekey"
+          }
+
+instance ToSchema UserLegalHoldStatusResponse where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "ulhsrStatus" -> "status"
           }
 
 instance ToSchema UserLegalHoldStatus where
