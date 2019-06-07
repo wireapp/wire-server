@@ -10,7 +10,7 @@ import Bilge.Assert
 import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
 import Brig.Types.Provider
-import Brig.Types.Team.LegalHold
+import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
@@ -487,9 +487,25 @@ testGetTeamMembersIncludesLHStatus = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    members' <- view teamMembers <$> getTeamMembers owner tid
-    liftIO $ assertEqual "legal hold status should be set on team members"
-                [UserLegalHoldDisabled] (view legalHoldStatus <$> members')
+    let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
+        findMemberStatus ms =
+            ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
+    withDummyTestServiceForTeam owner tid $ do
+        do members' <- view (teamMembers) <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be disabled on new team members"
+                      (Just UserLegalHoldDisabled) (findMemberStatus members')
+
+        putEnabled tid LegalHoldEnabled
+        do requestDevice owner member tid !!! const 204 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should pending after requesting device"
+                      (Just UserLegalHoldPending) (findMemberStatus members')
+
+        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be enabled after confirming device"
+                      (Just UserLegalHoldEnabled) (findMemberStatus members')
+    ensureQueueEmpty
 
 ----------------------------------------------------------------------
 -- API helpers
