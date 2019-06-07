@@ -62,7 +62,7 @@ tests s = testGroup "Teams LegalHold API"
     [ test s "swagger / json consistency" testSwaggerJsonConsistency
 
       -- device handling (CRUD)
-    , test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
+    , test s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice
     , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
     , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
@@ -108,8 +108,8 @@ testSwaggerJsonConsistency = do
     liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
 
 
-testCreateLegalHoldDevice :: TestM ()
-testCreateLegalHoldDevice = do
+testRequestLegalHoldDevice :: TestM ()
+testRequestLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -124,12 +124,9 @@ testCreateLegalHoldDevice = do
         -- requestDevice owner member tid !!! const 403 === statusCode
         -- putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        do UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
-
         do requestDevice member member tid !!! const 403 === statusCode
            UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
+           liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
                       UserLegalHoldDisabled userStatus
 
         do requestDevice owner member tid !!! const 204 === statusCode
@@ -241,15 +238,27 @@ testGetLegalHoldDeviceStatus = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    -- Initial status should be disabled
-    UserLegalHoldStatusResponse status <-
-        jsonBody <$> (getUserStatus owner tid <!! const 200 === statusCode)
+    withDummyTestServiceForTeam owner tid $ do
+        -- Initial status should be disabled
+        do UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
 
-    liftIO $ do
-        assertEqual "status should start as disabled" UserLegalHoldDisabled status
+        do requestDevice owner member tid !!! const 204 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice should set user status to Pending"
+                      UserLegalHoldPending userStatus
 
-    -- Show whether enabled, pending, disabled
+        do requestDevice owner member tid !!! const 204 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+                      UserLegalHoldPending userStatus
 
+        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "approving should change status to Enabled"
+                      UserLegalHoldEnabled userStatus
+
+    ensureQueueEmpty
 
 testRemoveLegalHoldDevice :: TestM ()
 testRemoveLegalHoldDevice = do
@@ -532,8 +541,7 @@ deleteSettings uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-    resp <- (getUserStatus uid tid <!! const 200 === statusCode)
-    print $ fromJust $ responseBody resp
+    resp <- getUserStatus uid tid <!! const 200 === statusCode
     return $ jsonBody resp
 
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
