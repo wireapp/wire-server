@@ -313,6 +313,12 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
+    post "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUser) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
     put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDevice) $
         zauthUserId
         .&. capture "tid"

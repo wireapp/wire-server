@@ -6,6 +6,7 @@ module Brig.API.Client
     , rmClient
     , pubClient
     , legalHoldClientRequested
+    , removeLegalHoldClient
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
@@ -153,8 +154,8 @@ pubClient c = PubClient
     , pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: LegalHoldClientRequest -> AppIO ()
-legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey') =
+legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
+legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey') =
     Intra.onClientEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
@@ -163,3 +164,11 @@ legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
     lhClientEvent :: ClientEvent
     lhClientEvent = LegalHoldClientRequested eventData
+
+removeLegalHoldClient :: UserId -> AppIO ()
+removeLegalHoldClient uid = do
+    clients <- Data.lookupClients uid
+    let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+    -- Should only be one; but we'll check for more just in case
+    let legalHoldClientIds = clientId <$> legalHoldClients
+    forM_ legalHoldClientIds (Data.rmClient uid)

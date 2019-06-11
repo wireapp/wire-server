@@ -181,8 +181,13 @@ sitemap o = do
       accept "application" "json"
       .&. jsonRequest @UserSet
 
-    post "/i/clients/legalhold/request" (continue legalHoldClientRequested) $
-      jsonRequest @LegalHoldClientRequest
+    post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequested) $
+      capture "uid"
+      .&. jsonRequest @LegalHoldClientRequest
+      .&. accept "application" "json"
+
+    delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClient) $
+      capture "uid"
       .&. accept "application" "json"
 
     -- /users -----------------------------------------------------------------
@@ -1005,10 +1010,15 @@ rmClient (req ::: usr ::: con ::: clt ::: _) = do
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
 
-legalHoldClientRequested :: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
-legalHoldClientRequested (req ::: _) = do
-    clientRequest <- parseJsonBody req 
-    lift $ API.legalHoldClientRequested clientRequest
+legalHoldClientRequested :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequested (targetUser ::: req ::: _) = do
+    clientRequest <- parseJsonBody req
+    lift $ API.legalHoldClientRequested targetUser clientRequest
+    return $ setStatus status200 empty
+
+removeLegalHoldClient :: UserId ::: JSON -> Handler Response
+removeLegalHoldClient (uid ::: _) = do
+    lift $ API.removeLegalHoldClient uid
     return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
