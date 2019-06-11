@@ -88,8 +88,13 @@ rmClient u con clt pw =
     maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
     fn client = do
-        unless (clientType client == TemporaryClientType) $
-            Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        case clientType client of
+            -- Legal hold clients can't be removed
+            LegalHoldClientType -> throwE ClientLegalHoldCannotBeRemoved
+            -- Temporary clients don't need to re-auth
+            TemporaryClientType -> pure ()
+            -- All other clients must authenticate
+            _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
         lift $ execDelete u (Just con) client
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)

@@ -29,6 +29,8 @@ tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> 
 tests _cl _at _conf p b c g = testGroup "client"
     [ test p "post /i/clients/legalhold/request 200"  $ testRequestLegalHoldClient b c
     , test p "delete /i/clients/legalhold/:uid 200"   $ testDeleteLegalHoldClient b c
+    , test p "delete /clients/:client 403 - can't delete legal hold clients"
+               $ testCan'tDeleteLegalHoldClient b
     , test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
     , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
     , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
@@ -385,3 +387,18 @@ testDeleteLegalHoldClient brig cannon = do
             let eClientId = j ^? key "client" . key "id" .  _String
             eType @?= Just "user.client-remove"
             eClientId @?= Just (client lhClientId)
+
+testCan'tDeleteLegalHoldClient :: Brig -> Http ()
+testCan'tDeleteLegalHoldClient brig = do
+    let hasPassword = False
+    user <- randomUser' hasPassword brig
+    let uid = userId user
+
+    let pk = head somePrekeys
+    let lk = head someLastPrekeys
+
+    resp <- addClient brig uid (defNewClient LegalHoldClientType [pk] lk)
+                <!! const 201 === statusCode
+    lhClientId <- clientId <$> decodeBody resp
+
+    deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode

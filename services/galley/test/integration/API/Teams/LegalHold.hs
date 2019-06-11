@@ -484,6 +484,9 @@ testCreateLegalHoldDeviceOldAPI = do
     u <- randomUser
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail  (400 instead of 201)
+    -- TODO: HOWEVER currently this endpoint is actually used internally to create the legal
+    -- hold device, so we'll need to split it to another endpoint, or figure out some other
+    -- form of auth on it.
     void $ randomClientWithType LegalHoldClientType 201 u lk
 
     -- team users cannot create LegalHoldClients
@@ -499,11 +502,23 @@ testCreateLegalHoldDeviceOldAPI = do
     assertExactlyOneLegalHoldDevice owner
 
 
+-- TODO: Move to brig
 testDeleteLegalHoldDeviceOldAPI :: TestM ()
 testDeleteLegalHoldDeviceOldAPI = do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser' False -- no password
 
-    -- legal hold device cannot be deleted by anybody, ever.
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    putEnabled tid LegalHoldEnabled
+    withDummyTestServiceForTeam owner tid $ do
+        requestDevice owner member tid !!! const 204 === statusCode
+        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        assertExactlyOneLegalHoldDevice member
+
+        -- Can't delete legal hold devices using clients endpoint
+        deleteClient member someClientId Nothing !!! const 400 === statusCode
+        assertExactlyOneLegalHoldDevice member
+        ensureQueueEmpty
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
