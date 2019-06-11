@@ -31,6 +31,8 @@ tests _cl _at _conf p b c g = testGroup "client"
     , test p "delete /i/clients/legalhold/:uid 200"   $ testDeleteLegalHoldClient b c
     , test p "delete /clients/:client 403 - can't delete legal hold clients"
                $ testCan'tDeleteLegalHoldClient b
+    , test p "post /clients 400 - can't add legal hold clients manually"
+               $ testCan'tAddLegalHoldClient b
     , test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
     , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
     , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
@@ -402,3 +404,15 @@ testCan'tDeleteLegalHoldClient brig = do
     lhClientId <- clientId <$> decodeBody resp
 
     deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
+
+testCan'tAddLegalHoldClient :: Brig -> Http ()
+testCan'tAddLegalHoldClient brig = do
+    let hasPassword = False
+    user <- randomUser' hasPassword brig
+    let uid = userId user
+
+    let pk = head somePrekeys
+    let lk = head someLastPrekeys
+
+    -- Regular users cannot add legalhold clients
+    addClient brig uid (defNewClient LegalHoldClientType [pk] lk) !!! const 400 === statusCode

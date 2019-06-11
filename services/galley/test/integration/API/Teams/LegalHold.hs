@@ -77,7 +77,6 @@ tests s = testGroup "Teams LegalHold API"
 
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
-    , test s "DELETE /clients/{cid}" testDeleteLegalHoldDeviceOldAPI
 
     , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
 
@@ -500,25 +499,6 @@ testCreateLegalHoldDeviceOldAPI = do
     -- more for legal hold devices.
     void $ randomClientWithType LegalHoldClientType 201 owner lk  -- overwrite
     assertExactlyOneLegalHoldDevice owner
-
-
--- TODO: Move to brig
-testDeleteLegalHoldDeviceOldAPI :: TestM ()
-testDeleteLegalHoldDeviceOldAPI = do
-    (owner, tid) <- createTeam
-    member <- randomUser' False -- no password
-
-    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
-    putEnabled tid LegalHoldEnabled
-    withDummyTestServiceForTeam owner tid $ do
-        requestDevice owner member tid !!! const 204 === statusCode
-        approveLegalHoldDevice member member tid !!! const 200 === statusCode
-        assertExactlyOneLegalHoldDevice member
-
-        -- Can't delete legal hold devices using clients endpoint
-        deleteClient member someClientId Nothing !!! const 400 === statusCode
-        assertExactlyOneLegalHoldDevice member
-        ensureQueueEmpty
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
