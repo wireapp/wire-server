@@ -290,11 +290,6 @@ selectPendingPrekeys = [r|
           order by key asc
     |]
 
-selectUserLegalHoldStatus :: PrepQuery R (TeamId, UserId) (Identity (Maybe UserLegalHoldStatus))
-selectUserLegalHoldStatus = [r|
-        select legalhold_status from team_member where team = ? and user = ?
-    |]
-
 updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()
 updateUserLegalHoldStatus = [r|
         update team_member

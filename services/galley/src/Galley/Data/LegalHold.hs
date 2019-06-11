@@ -8,7 +8,6 @@ module Galley.Data.LegalHold
     , Galley.Data.LegalHold.insertPendingPrekeys
     , Galley.Data.LegalHold.selectPendingPrekeys
     , Galley.Data.LegalHold.dropPendingPrekeys
-    , getUserLegalHoldStatus
     , setUserLegalHoldStatus
     ) where
 
@@ -73,14 +72,6 @@ selectPendingPrekeys uid =
 
 dropPendingPrekeys :: MonadClient m => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Identity uid)))
-
-getUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> m UserLegalHoldStatusResponse
-getUserLegalHoldStatus tid uid = do
-    result <- retry x1 (query1 Q.selectUserLegalHoldStatus (params Quorum (tid, uid)))
-    pure $ case result of
-        Just (Identity (Just status)) ->
-            UserLegalHoldStatusResponse status
-        _ -> UserLegalHoldStatusResponse UserLegalHoldDisabled
 
 setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus tid uid status =

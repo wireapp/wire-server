@@ -97,8 +97,11 @@ removeSettings (zusr ::: tid ::: _) = do
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
-    lhStatusResp <- LegalHoldData.getUserLegalHoldStatus tid uid
-    pure $ json lhStatusResp
+    teamMember <- Data.teamMember tid uid
+    case teamMember of
+        Nothing -> throwM teamMemberNotFound
+        Just member ->
+            pure . json $ UserLegalHoldStatusResponse (view legalHoldStatus member)
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -107,11 +110,12 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
 
-    userLHStatus <- ulhsrStatus <$> LegalHoldData.getUserLegalHoldStatus tid uid
+    userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
     case userLHStatus of
-        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        UserLegalHoldPending -> provisionLHDevice
-        UserLegalHoldDisabled -> provisionLHDevice
+        Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        Just UserLegalHoldPending -> provisionLHDevice
+        Just UserLegalHoldDisabled -> provisionLHDevice
+        Nothing -> throwM teamMemberNotFound
   where
     provisionLHDevice :: Galley Response
     provisionLHDevice = do
@@ -138,7 +142,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
-    assertUserLHNotAlreadyActive uid
+    assertUserLHNotAlreadyActive
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
     lg <- view applog
@@ -157,7 +161,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
 
     pure $ responseLBS status200 [] mempty
   where
-    assertUserLHNotAlreadyActive :: UserId -> Galley ()
-    assertUserLHNotAlreadyActive uid' = do
-        status <- ulhsrStatus <$> LegalHoldData.getUserLegalHoldStatus tid uid'
-        when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
+    assertUserLHNotAlreadyActive :: Galley ()
+    assertUserLHNotAlreadyActive = do
+        userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
+        when (userLHStatus == Just UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
