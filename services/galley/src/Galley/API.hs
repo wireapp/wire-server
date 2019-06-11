@@ -313,7 +313,7 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
-    post "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUser) $
+    delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUser) $
         zauthUserId
         .&. capture "tid"
         .&. capture "uid"

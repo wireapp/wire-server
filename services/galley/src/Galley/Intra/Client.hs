@@ -88,14 +88,13 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
 removeLegalHoldClientFromUser :: UserId -> Galley ()
 removeLegalHoldClientFromUser targetUid = do
     (brigHost, brigPort) <- brigReq
-    r <- call "brig"
+    void . call "brig"
         $ method DELETE
         . host brigHost
         . port brigPort
                 . paths ["i", "clients", "legalhold", toByteString' targetUid]
         . contentJson
         . expect2xx
-    parseResponse (Error status502 "server-error") r
 
 brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
 brigAddClient uid connId client = do
