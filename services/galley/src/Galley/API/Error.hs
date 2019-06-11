@@ -115,9 +115,8 @@ codeNotFound = Error status404 "no-conversation-code" "conversation code not fou
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
--- TODO: Switch to 503 (actually, do we want 5xx here?  is that bad for metrics and logging and alerting?)
 legalHoldServiceUnavailable :: Error
-legalHoldServiceUnavailable = Error status400 "legalhold-unavailable" "legal hold service does not respond"
+legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond"
 
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"

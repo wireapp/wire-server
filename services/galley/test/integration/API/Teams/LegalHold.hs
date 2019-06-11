@@ -10,7 +10,7 @@ import Bilge.Assert
 import Bilge hiding (trace, accept, timeout, head)
 import Brig.Types.Client
 import Brig.Types.Provider
-import Brig.Types.Team.LegalHold
+import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
@@ -19,6 +19,7 @@ import Control.Retry (recoverAll, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
+import Data.LegalHold
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (cs)
@@ -61,7 +62,7 @@ tests s = testGroup "Teams LegalHold API"
     [ test s "swagger / json consistency" testSwaggerJsonConsistency
 
       -- device handling (CRUD)
-    , test s "POST /teams/{tid}/legalhold/{uid}" testCreateLegalHoldDevice
+    , test s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice
     , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
     , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
@@ -77,6 +78,8 @@ tests s = testGroup "Teams LegalHold API"
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
     , test s "DELETE /clients/{cid}" testDeleteLegalHoldDeviceOldAPI
+
+    , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
 
 {- TODO:
     zauth/libzauth level: Allow access to legal hold service tokens
@@ -107,8 +110,8 @@ testSwaggerJsonConsistency = do
     liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
 
 
-testCreateLegalHoldDevice :: TestM ()
-testCreateLegalHoldDevice = do
+testRequestLegalHoldDevice :: TestM ()
+testRequestLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -123,23 +126,20 @@ testCreateLegalHoldDevice = do
         -- requestDevice owner member tid !!! const 403 === statusCode
         -- putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        do userStatus <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User legal hold status should start as disabled" userStatus UserLegalHoldDisabled
-
         do requestDevice member member tid !!! const 403 === statusCode
-           userStatus <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User with insufficient permissions should be unable to change user status"
-                      userStatus UserLegalHoldDisabled
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
+                      UserLegalHoldDisabled userStatus
 
         do requestDevice owner member tid !!! const 204 === statusCode
-           userStatus <- getUserStatusTyped member tid
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice should set user status to Pending"
-                      userStatus UserLegalHoldPending
+                      UserLegalHoldPending userStatus
 
         do requestDevice owner member tid !!! const 204 === statusCode
-           userStatus <- getUserStatusTyped member tid
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
-                      userStatus UserLegalHoldPending
+                      UserLegalHoldPending userStatus
 
         cassState <- view tsCass
         liftIO $ do
@@ -155,16 +155,14 @@ testCreateLegalHoldDevice = do
                 let eRequester = j ^? key "requester" . _String
                 let eTargetUser = j ^? key "target_user" . _String
                 let eLastPrekey = j ^? key "last_prekey" . _JSON
-                let ePrekeys = j ^? key "prekeys" . _JSON
+                let eClientId = j ^? key "clientId" . _JSON
                 etype @?= Just "user.client-legal-hold-request"
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
+                eClientId @?= Just someClientId
                 -- These need to match the values provided by the 'dummy service'
                 Just (head someLastPrekeys) @?= eLastPrekey
-                Just somePrekeys @?= ePrekeys
 
-        -- TODO: Not sure why I have to do this; which extra notification is stuck on the
-        -- queue?
         ensureQueueEmpty
 
     -- fail if legal hold service is disabled via feature flag
@@ -213,7 +211,7 @@ testApproveLegalHoldDevice = do
             assertBool "Expect clientId to be saved on the user"
               $ Clients.contains member someClientId clients'
 
-        userStatus <- getUserStatusTyped member tid
+        UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
         liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                     UserLegalHoldEnabled userStatus
 
@@ -236,10 +234,31 @@ testApproveLegalHoldDevice = do
 
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
-    pure ()
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    -- Show whether enabled, pending, disabled
+    withDummyTestServiceForTeam owner tid $ do
+        -- Initial status should be disabled
+        do UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
 
+        do requestDevice owner member tid !!! const 204 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice should set user status to Pending"
+                      UserLegalHoldPending userStatus
+
+        do requestDevice owner member tid !!! const 204 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+                      UserLegalHoldPending userStatus
+
+        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           UserLegalHoldStatusResponse userStatus <- getUserStatusTyped member tid
+           liftIO $ assertEqual "approving should change status to Enabled"
+                      UserLegalHoldEnabled userStatus
+
+    ensureQueueEmpty
 
 testRemoveLegalHoldDevice :: TestM ()
 testRemoveLegalHoldDevice = do
@@ -273,7 +292,7 @@ testCreateLegalHoldTeamSettings = do
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
     -- rejected if service is not available
-    postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
+    postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
 
 
     -- checks /status of legal hold service (boolean argument says whether the service is
@@ -283,7 +302,7 @@ testCreateLegalHoldTeamSettings = do
         lhapp _isworking@True  _ req cont = trace "APP" $ do
             if | pathInfo req /= ["legalhold", "bots", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
-               | otherwise -> trace "hit" $ cont respondOk
+               | otherwise -> cont respondOk
 
         respondOk :: Wai.Response
         respondOk = responseLBS status200 mempty mempty
@@ -293,7 +312,7 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest _isworking@False _ = do
-            postSettings owner tid newService !!! const 400 === statusCode  -- TODO: test err label
+            postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
 
         lhtest _isworking@True _ = do
             postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
@@ -462,6 +481,31 @@ testDeleteLegalHoldDeviceOldAPI = do
 
     -- legal hold device cannot be deleted by anybody, ever.
 
+testGetTeamMembersIncludesLHStatus :: TestM ()
+testGetTeamMembersIncludesLHStatus = do
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
+        findMemberStatus ms =
+            ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
+    withDummyTestServiceForTeam owner tid $ do
+        do members' <- view (teamMembers) <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be disabled on new team members"
+                      (Just UserLegalHoldDisabled) (findMemberStatus members')
+
+        putEnabled tid LegalHoldEnabled
+        do requestDevice owner member tid !!! const 204 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should pending after requesting device"
+                      (Just UserLegalHoldPending) (findMemberStatus members')
+
+        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be enabled after confirming device"
+                      (Just UserLegalHoldEnabled) (findMemberStatus members')
+    ensureQueueEmpty
 
 ----------------------------------------------------------------------
 -- API helpers
@@ -489,13 +533,17 @@ putEnabled tid enabled = do
          . expect2xx
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
-postSettings uid tid new = do
-    g <- view tsGalley
-    post $ g
-         . paths ["teams", toByteString' tid, "legalhold", "settings"]
-         . zUser uid . zConn "conn"
-         . zType "access"
-         . json new
+postSettings uid tid new =
+    -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
+    -- connection.
+    -- TODO: only retry on 412
+    recoverAll (exponentialBackoff 50 <> limitRetries 5) $ \_ -> do
+        g <- view tsGalley
+        post $ g
+            . paths ["teams", toByteString' tid, "legalhold", "settings"]
+            . zUser uid . zConn "conn"
+            . zType "access"
+            . json new
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
 getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! const 200 === statusCode)
@@ -516,8 +564,10 @@ deleteSettings uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatus
-getUserStatusTyped uid tid = jsonBody <$> (getUserStatus uid tid <!! const 200 === statusCode)
+getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
+getUserStatusTyped uid tid = do
+    resp <- getUserStatus uid tid <!! const 200 === statusCode
+    return $ jsonBody resp
 
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getUserStatus uid tid = do
@@ -656,8 +706,7 @@ withTestService mkApp go = do
     srv <- liftIO . Async.async $
         Warp.runTLS tlss defs $
             mkApp buf
-    recoverAll (exponentialBackoff 50 <> limitRetries 5) (\_ -> go buf)
-        `finally` liftIO (Async.cancel srv)
+    go buf `finally` liftIO (Async.cancel srv)
 
 
 -- TODO: adding two new legal hold settings on one team is not possible (409)

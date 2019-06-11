@@ -252,11 +252,11 @@ toAddressBook xs = do
     toCard sha (cardId, entries) = Card (Just $ CardId cardId)
                                         (map (Entry . digestBS sha . T.encodeUtf8) entries)
 
-requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> [Prekey] -> Http ResponseLBS
-requestLegalHoldDevice brig requesterId targetUserId lastPrekey' prekeys = post $ brig
+requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> Http ResponseLBS
+requestLegalHoldDevice brig requesterId targetUserId lastPrekey' = post $ brig
     . path "/i/clients/legalhold/request"
     . contentJson
     . body payload
   where
     payload = RequestBodyLBS . encode
-                $ LegalHoldClientRequest requesterId targetUserId lastPrekey' prekeys
+                $ LegalHoldClientRequest requesterId targetUserId lastPrekey'

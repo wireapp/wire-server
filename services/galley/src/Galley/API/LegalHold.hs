@@ -10,6 +10,7 @@ import Control.Monad.Catch
 import Control.Lens (view)
 import Data.Id
 import Data.Misc
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams
@@ -96,9 +97,11 @@ removeSettings (zusr ::: tid ::: _) = do
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
-
-    lhStatus <- LegalHoldData.getUserLegalHoldStatus uid
-    pure $ json lhStatus
+    teamMember <- Data.teamMember tid uid
+    case teamMember of
+        Nothing -> throwM teamMemberNotFound
+        Just member ->
+            pure . json $ UserLegalHoldStatusResponse (view legalHoldStatus member)
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -107,19 +110,20 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     assertLegalHoldEnabled tid
 
-    userLHStatus <- LegalHoldData.getUserLegalHoldStatus uid
+    userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
     case userLHStatus of
-        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        UserLegalHoldPending -> provisionLHDevice
-        UserLegalHoldDisabled -> provisionLHDevice
+        Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        Just UserLegalHoldPending -> provisionLHDevice
+        Just UserLegalHoldDisabled -> provisionLHDevice
+        Nothing -> throwM teamMemberNotFound
   where
     provisionLHDevice :: Galley Response
     provisionLHDevice = do
         (lastPrekey', prekeys) <- requestDeviceFromService
         -- We don't distinguish the last key here; brig will do so when the device is added
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-        LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldPending
-        notifyClientsAboutLegalHoldRequest zusr uid lastPrekey' prekeys
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
+        notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
         pure $ responseLBS status204 [] mempty
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
@@ -138,7 +142,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
-    assertUserLHNotAlreadyActive uid
+    assertUserLHNotAlreadyActive
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
     lg <- view applog
@@ -153,11 +157,11 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
 
     legalHoldAuthToken <- getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
-    LegalHoldData.setUserLegalHoldStatus uid UserLegalHoldEnabled
+    LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
 
     pure $ responseLBS status200 [] mempty
   where
-    assertUserLHNotAlreadyActive :: UserId -> Galley ()
-    assertUserLHNotAlreadyActive uid' = do
-        status <- LegalHoldData.getUserLegalHoldStatus uid'
-        when (status == UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
+    assertUserLHNotAlreadyActive :: Galley ()
+    assertUserLHNotAlreadyActive = do
+        userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
+        when (userLHStatus == Just UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled

@@ -19,6 +19,7 @@ library:
   - Data.ETag
   - Data.Id
   - Data.Json.Util
+  - Data.LegalHold
   - Data.List1
   - Data.Misc
   - Data.Range

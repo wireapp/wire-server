@@ -20,6 +20,7 @@ import Data.Aeson (toJSON)
 import Data.Aeson (Value(..))
 import Data.HashMap.Strict.InsOrd
 import Data.Id
+import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Text as Text (unlines)
@@ -78,7 +79,7 @@ type GalleyRoutesPublic
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId :> "approve"
           :> Verb 'PUT 204 '[] NoContent
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
-          :> Get '[JSON] UserLegalHoldStatus
+          :> Get '[JSON] UserLegalHoldStatusResponse
   :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
           :> Verb 'DELETE 204 '[] NoContent
 
@@ -223,6 +224,32 @@ instance ToSchema LegalHoldStatus where
           where
             descr = "determines whether admins of a team " <>
                     "are allowed to enable LH for their users."
+
+instance ToSchema RequestNewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "userId" -> "user_id"
+              "teamId" -> "team_id"
+          }
+
+instance ToSchema NewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldClientPrekeys"     -> "prekeys"
+              "newLegalHoldClientLastKey"     -> "last_prekey"
+          }
+
+instance ToSchema UserLegalHoldStatusResponse where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "ulhsrStatus" -> "status"
+          }
 
 instance ToSchema UserLegalHoldStatus where
     declareNamedSchema = tweak . genericDeclareNamedSchema opts

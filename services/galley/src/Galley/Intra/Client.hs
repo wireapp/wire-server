@@ -41,15 +41,15 @@ lookupClients uids = do
     clients <- parseResponse (Error status502 "server-error") r
     return $ filterClients (not . Set.null) clients
 
-notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> [Prekey] -> Galley ()
-notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' prekeys = do
+notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
+notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
     (brigHost, brigPort) <- brigReq
     void . call "brig"
                 $ method POST
                 . host brigHost
                 . port brigPort
                 . path "/i/clients/legalhold/request"
-                . json (LegalHoldClientRequest requesterUid targetUid lastPrekey' prekeys)
+                . json (LegalHoldClientRequest requesterUid targetUid lastPrekey')
                 . expect2xx
 
 getLegalHoldAuthToken :: UserId -> Galley OpaqueAuthToken

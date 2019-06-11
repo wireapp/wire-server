@@ -32,6 +32,7 @@ module Galley.Types.Teams
     , userId
     , permissions
     , invitation
+    , legalHoldStatus
     , teamMemberJson
     , canSeePermsOf
 
@@ -125,6 +126,7 @@ import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Time (UTCTime)
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
@@ -209,10 +211,12 @@ data TeamList = TeamList
     } deriving Show
 
 data TeamMember = TeamMember
-    { _userId      :: UserId
-    , _permissions :: Permissions
-    , _invitation  :: Maybe (UserId, UTCTimeMillis)
-    } deriving (Eq, Ord, Show)
+    { _userId          :: UserId
+    , _permissions     :: Permissions
+    , _invitation      :: Maybe (UserId, UTCTimeMillis)
+    , _legalHoldStatus :: UserLegalHoldStatus
+    }
+    deriving (Eq, Ord, Show)
 
 newtype TeamMemberList = TeamMemberList
     { _teamMembers :: [TeamMember]
@@ -316,16 +320,27 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
-newTeamMember = TeamMember
+newTeamMember :: UserId
+              -> Permissions
+              -> Maybe (UserId, UTCTimeMillis)
+              -> TeamMember
+newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
 -- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
 -- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
 -- database content.
-newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
-newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
-newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
-newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
+newTeamMemberRaw :: MonadThrow m
+                 => UserId
+                 -> Permissions
+                 -> Maybe UserId
+                 -> Maybe UTCTimeMillis
+                 -> UserLegalHoldStatus
+                 -> m TeamMember
+newTeamMemberRaw uid perms (Just invu) (Just invt) lhStatus =
+    pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
+newTeamMemberRaw uid perms Nothing Nothing lhStatus =
+    pure $ TeamMember uid perms Nothing lhStatus
+newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -578,7 +593,8 @@ teamMemberJson withPerms m = object $
     [ "user"        .= _userId m ] <>
     [ "permissions" .= _permissions m | withPerms m ] <>
     [ "created_by"  .= (fst <$> _invitation m) ] <>
-    [ "created_at"  .= (snd <$> _invitation m) ]
+    [ "created_at"  .= (snd <$> _invitation m) ] <>
+    [ "legalhold_status"  .= _legalHoldStatus m ]
 
 -- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
@@ -590,6 +606,8 @@ parseTeamMember = withObject "team-member" $ \o ->
     TeamMember <$> o .:  "user"
                <*> o .:  "permissions"
                <*> parseInvited o
+               -- Default to disabled if missing
+               <*> o .:?  "legalhold_status" .!= UserLegalHoldDisabled
   where
     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
     parseInvited o = do
