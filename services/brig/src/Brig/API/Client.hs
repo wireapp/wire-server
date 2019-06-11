@@ -168,7 +168,6 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey
 removeLegalHoldClient :: UserId -> AppIO ()
 removeLegalHoldClient uid = do
     clients <- Data.lookupClients uid
+    -- Should only be one; but just in case we'll treat it as a list
     let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
-    -- Should only be one; but we'll check for more just in case
-    let legalHoldClientIds = clientId <$> legalHoldClients
-    forM_ legalHoldClientIds (Data.rmClient uid)
+    forM_ legalHoldClients  (execDelete uid Nothing)

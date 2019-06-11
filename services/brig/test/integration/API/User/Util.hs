@@ -260,3 +260,8 @@ requestLegalHoldDevice brig requesterId targetUserId lastPrekey' = post $ brig
   where
     payload = RequestBodyLBS . encode
                 $ LegalHoldClientRequest requesterId lastPrekey'
+
+deleteLegalHoldDevice :: Brig -> UserId -> Http ResponseLBS
+deleteLegalHoldDevice brig uid = delete $ brig
+    . paths ["i", "clients", "legalhold", toByteString' uid]
+    . contentJson
