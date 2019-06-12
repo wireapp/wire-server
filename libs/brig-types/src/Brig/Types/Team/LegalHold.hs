@@ -178,18 +178,24 @@ instance FromJSON RequestNewLegalHoldClient where
 
 data UserLegalHoldStatusResponse =
     UserLegalHoldStatusResponse
-      { ulhsrStatus      :: UserLegalHoldStatus
+      { ulhsrStatus     :: UserLegalHoldStatus
+      , ulhsrLastPrekey :: Maybe LastPrekey -- ^ Exists only when status is Pending or Enabled
+      , ulhsrClientId   :: Maybe ClientId -- ^ Exists only when status is Pending or Enabled
       }
    deriving stock (Eq, Show, Generic)
 
 instance ToJSON UserLegalHoldStatusResponse where
-    toJSON (UserLegalHoldStatusResponse status) = object
+    toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') = object
         $  "status"      .= status
+        #  "last_prekey" .= lastPrekey'
+        #  "client_id"   .= clientId'
         # []
 
 instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
+                                    <*> o .:? "last_prekey"
+                                    <*> o .:? "client_id"
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest
