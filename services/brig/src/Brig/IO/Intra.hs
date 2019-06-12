@@ -357,7 +357,7 @@ toPushFormat
                , "requester" .= idToText requester
                , "target_user" .= idToText targetUser
                , "last_prekey" .= lastPrekey'
-               , "clientId" .= clientId
+               , "client_id" .= clientId
                ]
 
 toApsData :: Event -> Maybe ApsData

@@ -347,7 +347,7 @@ testRequestLegalHoldClient brig cannon = do
     let targetUid = userId targetUser'
 
     WS.bracketR cannon targetUid $ \ws -> do
-        let expectedLastPrekey = lastPrekey "a last-prekey"
+        let expectedLastPrekey = head Util.someLastPrekeys
         requestLegalHoldDevice brig requesterUid targetUid expectedLastPrekey
           !!! const 200 === statusCode
         void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
@@ -356,9 +356,11 @@ testRequestLegalHoldClient brig cannon = do
             let eRequester = j ^? key "requester" . _String
             let eTargetUser = j ^? key "target_user" . _String
             let eLastPrekey = j ^? key "last_prekey" . _JSON
+            let eClientId = j ^? key "client_id" . _JSON
             eType @?= Just "user.client-legal-hold-request"
             eRequester @?= Just (idToText requesterUid)
             eTargetUser @?= Just (idToText targetUid)
+            eClientId @?= Just someClientId
             Just expectedLastPrekey @?= eLastPrekey
 
 testDeleteLegalHoldClient :: Brig -> Cannon -> Http ()

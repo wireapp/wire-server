@@ -472,6 +472,10 @@ somePrekeys =
     , Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
     ]
 
+-- | The client ID of the first of 'someLastPrekeys'
+someClientId :: ClientId
+someClientId = ClientId "1dbfbe22c8a35cb2"
+
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =
     [ lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
