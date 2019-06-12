@@ -103,9 +103,8 @@ brigAddClient uid connId client = do
         $ method POST
         . host brigHost
         . port brigPort
-        . header "Z-User" (toByteString' uid)
         . header "Z-Connection" (toByteString' connId)
-        . path "/clients"
+        . paths ["i", "clients", toByteString' uid]
         . contentJson
         . json client
         . expect2xx

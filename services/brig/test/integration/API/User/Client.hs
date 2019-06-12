@@ -375,7 +375,7 @@ testDeleteLegalHoldClient brig cannon = do
     let pk = head somePrekeys
     let lk = head someLastPrekeys
 
-    resp <- addClient brig uid (defNewClient LegalHoldClientType [pk] lk)
+    resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
        <!! const 201 === statusCode
 
     lhClientId <- clientId <$> decodeBody resp
@@ -401,7 +401,7 @@ testCan'tDeleteLegalHoldClient brig = do
     let pk = head somePrekeys
     let lk = head someLastPrekeys
 
-    resp <- addClient brig uid (defNewClient LegalHoldClientType [pk] lk)
+    resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
                 <!! const 201 === statusCode
     lhClientId <- clientId <$> decodeBody resp
 

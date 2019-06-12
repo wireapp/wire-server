@@ -49,16 +49,16 @@ import qualified Brig.User.Auth.Cookie as Auth
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
+addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
     (clt, old, count) <- Data.addClient u clientId' new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
-        for_ old $ execDelete u (Just con)
+        for_ old $ execDelete u con
         Intra.newClient u (clientId clt)
-        Intra.onClientEvent u (Just con) (ClientAdded u clt)
+        Intra.onClientEvent u con (ClientAdded u clt)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
                 sendNewClientEmail (userName usr) email clt (userLocale usr)

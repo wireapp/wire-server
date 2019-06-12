@@ -679,11 +679,13 @@ randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient = randomClientWithType PermanentClientType 201
 
 randomClientWithType :: HasCallStack => ClientType -> Int -> UserId -> LastPrekey -> TestM ClientId
-randomClientWithType cType rStatus usr lk = do
+randomClientWithType cType rStatus uid lk = do
     b <- view tsBrig
-    q <- post (b . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
+    resp <- post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
             <!! const rStatus === statusCode
-    fromBS $ getHeader' "Location" q
+    let client = fromMaybe (error "randomClientWithType: failed to parse response") 
+                           (decodeBody resp)
+    return (clientId client)
   where
     newClientBody = (newClient cType lk)
         { newClientPassword = Just (PlainTextPassword defPassword)

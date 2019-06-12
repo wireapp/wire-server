@@ -300,6 +300,12 @@ putHandle brig usr h = put $ brig
 addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
+addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClientInternal brig uid new = post $ brig
+    . paths ["i", "clients", toByteString' uid]
+    . contentJson
+    . body (RequestBodyLBS $ encode new)
+
 addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
 addClientReq brig uid new = brig
     . path "/clients"

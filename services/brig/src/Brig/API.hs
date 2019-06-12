@@ -181,6 +181,12 @@ sitemap o = do
       accept "application" "json"
       .&. jsonRequest @UserSet
 
+    post "/i/clients/:uid" (continue addClientInternal) $
+      capture "uid"
+      .&. jsonRequest @NewClient
+      .&. opt (header "Z-Connection")
+      .&. accept "application" "json"
+
     post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequested) $
       capture "uid"
       .&. jsonRequest @LegalHoldClientRequest
@@ -999,10 +1005,20 @@ getMultiPrekeyBundles (req ::: _) = do
 addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClient (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
-    clt <- API.addClient usr con (ipAddr <$> ip) new !>> clientError
+    -- Users can't add legal hold clients
+    when (newClientType new == LegalHoldClientType)
+        $ throwE (clientError ClientLegalHoldCannotBeAdded)
+    clt <- API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
     return . setStatus status201
            . addHeader "Location" (toByteString' $ clientId clt)
            $ json clt
+
+-- | Add a client without authentication checks
+addClientInternal :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternal (usr ::: req ::: connId ::: _) = do
+    new <- parseJsonBody req
+    clt <- API.addClient usr connId Nothing new !>> clientError
+    return . setStatus status201 $ json clt
 
 rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClient (req ::: usr ::: con ::: clt ::: _) = do

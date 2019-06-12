@@ -146,6 +146,7 @@ data ClientError
     | ClientDataError !ClientDataError
     | ClientUserNotFound !UserId
     | ClientLegalHoldCannotBeRemoved
+    | ClientLegalHoldCannotBeAdded
 
 data RemoveIdentityError
     = LastIdentity
