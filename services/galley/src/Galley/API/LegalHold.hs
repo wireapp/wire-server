@@ -168,7 +168,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
 disableForUser :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: _) = do
     membs <- Data.teamMembers tid
-    void $ permissionCheck zusr DisableLegalHold membs
+    void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
 
     Client.removeLegalHoldClientFromUser uid
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled

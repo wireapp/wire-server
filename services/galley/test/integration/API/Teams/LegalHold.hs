@@ -80,6 +80,9 @@ tests s = testGroup "Teams LegalHold API"
 
     , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
 
+    -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
+    -- tested
+
 {- TODO:
     zauth/libzauth level: Allow access to legal hold service tokens
         conversations/{cnv}/otr/messages
@@ -268,10 +271,12 @@ testDisableLegalHoldForUser = do
         addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
+        assertZeroLegalHoldDevices member
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
         assertExactlyOneLegalHoldDevice member
         -- Only the admin can disable legal hold
         disableLegalHoldForUser tid member member !!! const 403 === statusCode
+        assertExactlyOneLegalHoldDevice member
         disableLegalHoldForUser tid owner member !!! const 200 === statusCode
         assertZeroLegalHoldDevices member
 
@@ -618,8 +623,7 @@ assertExactlyOneLegalHoldDevice uid = do
         <- getClients uid >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
     liftIO $ do
         let numdevs = length $ clientType <$> clients
-        assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
-        assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+        assertEqual ("expected exactly one legal hold device for user: " <> show uid) numdevs  1
 
 assertZeroLegalHoldDevices :: HasCallStack  => UserId -> TestM ()
 assertZeroLegalHoldDevices uid = do

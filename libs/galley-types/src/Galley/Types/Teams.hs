@@ -401,7 +401,6 @@ data HiddenPerm
     | ViewLegalHoldTeamSettings
     | ChangeLegalHoldUserSettings
     | ViewLegalHoldUserSettings
-    | DisableLegalHold
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
@@ -436,7 +435,6 @@ hiddenPermissionsFromPermissions =
         roleHiddenPerms RoleAdmin = (roleHiddenPerms RoleMember <>) $
             Set.fromList [ ChangeLegalHoldTeamSettings
                          , ChangeLegalHoldUserSettings
-                         , DisableLegalHold
                          ]
         roleHiddenPerms RoleMember = roleHiddenPerms RoleExternalPartner
         roleHiddenPerms RoleExternalPartner =
