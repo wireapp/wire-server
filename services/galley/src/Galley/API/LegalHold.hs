@@ -9,6 +9,7 @@ import Brig.Types.Client.Prekey
 import Control.Monad.Catch
 import Control.Lens (view)
 import Data.Id
+import Data.ByteString.Conversion (toByteString')
 import Data.Misc
 import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
@@ -99,13 +100,22 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
     mTeamMember <- Data.teamMember tid uid
     teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
+    lg <- view applog
     statusResponse <- case (view legalHoldStatus teamMember) of
         UserLegalHoldDisabled ->
             pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
         status -> do
             mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
-            let mClientId :: Maybe ClientId = clientIdFromPrekey . unpackLastPrekey <$> mLastKey
-            pure $ UserLegalHoldStatusResponse status mLastKey mClientId
+            lastKey <- case mLastKey of
+                Nothing -> do
+                    Logger.err lg . Logger.msg
+                        $ "expected to find a prekey for user: "
+                        <> toByteString' uid
+                        <> " but none was found"
+                    throwM internalError
+                Just lstKey -> pure lstKey
+            let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
+            pure $ UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
     pure . json $ statusResponse
 
 -- | Request to provision a device on the legal hold service for a user
