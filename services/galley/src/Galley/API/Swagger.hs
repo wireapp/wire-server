@@ -249,6 +249,8 @@ instance ToSchema UserLegalHoldStatusResponse where
         opts = defaultSchemaOptions
           { fieldLabelModifier = \case
               "ulhsrStatus" -> "status"
+              "ulhsrLastPrekey" -> "last_prekey"
+              "ulhsrClientId" -> "client_id"
           }
 
 instance ToSchema UserLegalHoldStatus where
@@ -265,6 +267,13 @@ instance ToSchema UserLegalHoldStatus where
           where
             descr = "states whether a user is under legal hold, " <>
                     "or whether legal hold is pending approval."
+
+instance ToSchema ClientId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "A Client Id"
 
 instance ToSchema PrekeyId where
     declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)

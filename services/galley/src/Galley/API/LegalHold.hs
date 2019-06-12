@@ -97,11 +97,16 @@ removeSettings (zusr ::: tid ::: _) = do
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
-    teamMember <- Data.teamMember tid uid
-    case teamMember of
-        Nothing -> throwM teamMemberNotFound
-        Just member ->
-            pure . json $ UserLegalHoldStatusResponse (view legalHoldStatus member)
+    mTeamMember <- Data.teamMember tid uid
+    teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
+    statusResponse <- case (view legalHoldStatus teamMember) of
+        UserLegalHoldDisabled ->
+            pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
+        status -> do
+            mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
+            let mClientId :: Maybe ClientId = clientIdFromPrekey . unpackLastPrekey <$> mLastKey
+            pure $ UserLegalHoldStatusResponse status mLastKey mClientId
+    pure . json $ statusResponse
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response

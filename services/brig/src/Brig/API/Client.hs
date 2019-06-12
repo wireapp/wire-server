@@ -29,8 +29,7 @@ import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Data.ByteString.Conversion
-import Data.Hashable (hash)
-import Data.Id (UserId, ClientId, newClientId, ConnId)
+import Data.Id (UserId, ClientId, ConnId)
 import Data.IP (IP)
 import Data.List.Split (chunksOf)
 import Data.Misc (PlainTextPassword (..))
@@ -63,13 +62,7 @@ addClient u con ip new = do
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
     return clt
   where
-    clientId' = clientIdFromLastKey (newClientLastKey new)
-
--- | Helper to generate client id from a last prekey
-clientIdFromLastKey :: LastPrekey -> ClientId
-clientIdFromLastKey lastKey = let prekey = unpackLastPrekey lastKey
-                                  hashCode = hash (prekeyKey prekey)
-                               in newClientId (fromIntegral hashCode)
+    clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
 updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError AppIO ()
 updateClient u c r = do
@@ -158,7 +151,7 @@ legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey
     Intra.onClientEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
-    clientId = clientIdFromLastKey lastPrekey'
+    clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
     eventData :: LegalHoldClientRequestedData
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
     lhClientEvent :: ClientEvent

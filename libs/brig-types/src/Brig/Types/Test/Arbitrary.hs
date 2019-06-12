@@ -443,7 +443,7 @@ genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound..]
 
 instance Arbitrary UserLegalHoldStatusResponse where
-    arbitrary = UserLegalHoldStatusResponse <$> arbitrary
+    arbitrary = UserLegalHoldStatusResponse <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldStatus where
     arbitrary = genEnumBounded

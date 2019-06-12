@@ -8,6 +8,7 @@ module Brig.Types.Client.Prekey
     , lastPrekey
     , unpackLastPrekey
     , lastPrekeyId
+    , clientIdFromPrekey
     , PrekeyBundle (..)
     , ClientPrekey (..)
     ) where
@@ -15,6 +16,7 @@ module Brig.Types.Client.Prekey
 import Imports
 import Data.Aeson
 import Data.Id
+import Data.Hashable (hash)
 
 newtype PrekeyId = PrekeyId { keyId :: Word16 }
     deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic)
@@ -43,6 +45,10 @@ lastPrekey = LastPrekey . Prekey lastPrekeyId
 
 lastPrekeyId :: PrekeyId
 lastPrekeyId = PrekeyId maxBound
+
+clientIdFromPrekey :: Prekey -> ClientId
+clientIdFromPrekey prekey =
+      newClientId . fromIntegral . hash . prekeyKey $ prekey
 
 -- JSON
 
