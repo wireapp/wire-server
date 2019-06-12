@@ -300,6 +300,12 @@ putHandle brig usr h = put $ brig
 addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
+addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClientInternal brig uid new = post $ brig
+    . paths ["i", "clients", toByteString' uid]
+    . contentJson
+    . body (RequestBodyLBS $ encode new)
+
 addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
 addClientReq brig uid new = brig
     . path "/clients"
@@ -471,6 +477,10 @@ somePrekeys =
     , Prekey (PrekeyId 25) "pQABARgZAqEAWCDGEwo61w4O8T8lyw0HdoOjGWBKQUNqo6+jSfrPR9alrAOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
     , Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
     ]
+
+-- | The client ID of the first of 'someLastPrekeys'
+someClientId :: ClientId
+someClientId = ClientId "1dbfbe22c8a35cb2"
 
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =

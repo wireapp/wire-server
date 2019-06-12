@@ -67,7 +67,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
-    , test s "DELETE /teams/{tid}/legalhold/{uid}" testRemoveLegalHoldDevice
+    , test s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser
 
       -- legal hold settings
     , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
@@ -77,9 +77,11 @@ tests s = testGroup "Teams LegalHold API"
 
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
-    , test s "DELETE /clients/{cid}" testDeleteLegalHoldDeviceOldAPI
 
     , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
+
+    -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
+    -- tested
 
 {- TODO:
     zauth/libzauth level: Allow access to legal hold service tokens
@@ -155,7 +157,7 @@ testRequestLegalHoldDevice = do
                 let eRequester = j ^? key "requester" . _String
                 let eTargetUser = j ^? key "target_user" . _String
                 let eLastPrekey = j ^? key "last_prekey" . _JSON
-                let eClientId = j ^? key "clientId" . _JSON
+                let eClientId = j ^? key "client_id" . _JSON
                 etype @?= Just "user.client-legal-hold-request"
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
@@ -231,7 +233,6 @@ testApproveLegalHoldDevice = do
         -- sends an event to team settings (however that works; it's a client-independent event i think)
         -- all of user's communication peers receive an event
 
-
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
     (owner, tid) <- createTeam
@@ -267,14 +268,41 @@ testGetLegalHoldDeviceStatus = do
 
     ensureQueueEmpty
 
-testRemoveLegalHoldDevice :: TestM ()
-testRemoveLegalHoldDevice = do
-    pure ()
+testDisableLegalHoldForUser :: TestM ()
+testDisableLegalHoldForUser = do
+    (owner, tid) <- createTeam
+    member <- randomUser
 
-    -- Remove Legal hold device from user.
-    -- send event to all of user's devices
-    -- send event to all communication peers
-    -- when still pending, notify clients they no longer need approval if deleted when still pending
+    cannon <- view tsCannon
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+        addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+        putEnabled tid LegalHoldEnabled
+        requestDevice owner member tid !!! const 204 === statusCode
+        assertZeroLegalHoldDevices member
+        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        assertExactlyOneLegalHoldDevice member
+        -- Only the admin can disable legal hold
+        disableLegalHoldForUser tid member member !!! const 403 === statusCode
+        assertExactlyOneLegalHoldDevice member
+        disableLegalHoldForUser tid owner member !!! const 200 === statusCode
+        assertZeroLegalHoldDevices member
+
+        liftIO $ do
+           void . WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+               let j = Aeson.Object $ List1.head (ntfPayload n)
+               let etype = j ^? key "type" . _String
+               let eClient = j ^? key "client" . _JSON
+               etype @?= Just "user.client-add"
+               clientId <$> eClient @?= Just someClientId
+               clientType <$> eClient @?= Just LegalHoldClientType
+               clientClass <$> eClient @?= Just (Just LegalHoldClient)
+           void . WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+               let j = Aeson.Object $ List1.head (ntfPayload n)
+               let eType = j ^? key "type" . _String
+               let eClientId = j ^? key "client" . key "id" .  _JSON
+               eType @?= Just "user.client-remove"
+               eClientId @?= Just someClientId
+    ensureQueueEmpty
 
 
 testCreateLegalHoldTeamSettings :: TestM ()
@@ -467,6 +495,9 @@ testCreateLegalHoldDeviceOldAPI = do
     u <- randomUser
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail  (400 instead of 201)
+    -- TODO: HOWEVER currently this endpoint is actually used internally to create the legal
+    -- hold device, so we'll need to split it to another endpoint, or figure out some other
+    -- form of auth on it.
     void $ randomClientWithType LegalHoldClientType 201 u lk
 
     -- team users cannot create LegalHoldClients
@@ -474,19 +505,12 @@ testCreateLegalHoldDeviceOldAPI = do
 
     -- TODO: requests to /clients with type=LegalHoldClientType should fail (400 instead of 201)
     void $ randomClientWithType LegalHoldClientType 201 owner lk
-    exactlyOneLegalHoldDevice owner
+    assertExactlyOneLegalHoldDevice owner
 
     -- TODO: the remainder of this test can be removed once `POST /clients` does not work any
     -- more for legal hold devices.
     void $ randomClientWithType LegalHoldClientType 201 owner lk  -- overwrite
-    exactlyOneLegalHoldDevice owner
-
-
-testDeleteLegalHoldDeviceOldAPI :: TestM ()
-testDeleteLegalHoldDeviceOldAPI = do
-    pure ()
-
-    -- legal hold device cannot be deleted by anybody, ever.
+    assertExactlyOneLegalHoldDevice owner
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
@@ -592,14 +616,31 @@ approveLegalHoldDevice zusr uid tid = do
            . zUser zusr . zConn "conn"
            . zType "access"
 
-exactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
-exactlyOneLegalHoldDevice uid = do
+disableLegalHoldForUser :: HasCallStack => TeamId -> UserId -> UserId -> TestM ResponseLBS
+disableLegalHoldForUser tid zusr uid = do
+    g <- view tsGalley
+    delete $ g
+           . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
+           . zUser zusr
+           . zType "access"
+
+assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
+assertExactlyOneLegalHoldDevice uid = do
     clients :: [Client]
         <- getClients uid >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
     liftIO $ do
         let numdevs = length $ clientType <$> clients
-        assertBool ("no legal hold device for user " <> show uid) (numdevs > 0)
-        assertBool ("more than one legal hold device for user " <> show uid) (numdevs < 2)
+        assertEqual ("expected exactly one legal hold device for user: " <> show uid) numdevs  1
+
+assertZeroLegalHoldDevices :: HasCallStack  => UserId -> TestM ()
+assertZeroLegalHoldDevices uid = do
+    clients :: [Client] <- getClients uid
+        >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
+    liftIO $ do
+        let numdevs = length $ clientType <$> clients
+        assertBool ("a legal hold device was found when none was expected for user"
+                    <> show uid)
+                   (numdevs == 0)
 
 jsonBody :: (HasCallStack, Aeson.FromJSON v) => ResponseLBS -> v
 jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
@@ -625,9 +666,6 @@ requestDevice zusr uid tid = do
            . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
            . zUser zusr . zConn "conn"
            . zType "access"
-
--- deleteDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
--- deleteDevice = undefined
 
 --------------------------------------------------------------------
 -- setup helpers

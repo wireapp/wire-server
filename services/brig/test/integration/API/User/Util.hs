@@ -254,9 +254,14 @@ toAddressBook xs = do
 
 requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> Http ResponseLBS
 requestLegalHoldDevice brig requesterId targetUserId lastPrekey' = post $ brig
-    . path "/i/clients/legalhold/request"
+    . paths ["i", "clients", "legalhold", toByteString' targetUserId, "request"]
     . contentJson
     . body payload
   where
     payload = RequestBodyLBS . encode
-                $ LegalHoldClientRequest requesterId targetUserId lastPrekey'
+                $ LegalHoldClientRequest requesterId lastPrekey'
+
+deleteLegalHoldDevice :: Brig -> UserId -> Http ResponseLBS
+deleteLegalHoldDevice brig uid = delete $ brig
+    . paths ["i", "clients", "legalhold", toByteString' uid]
+    . contentJson

@@ -6,6 +6,7 @@ module Brig.API.Client
     , rmClient
     , pubClient
     , legalHoldClientRequested
+    , removeLegalHoldClient
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
@@ -47,16 +48,16 @@ import qualified Brig.User.Auth.Cookie as Auth
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
+addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
     (clt, old, count) <- Data.addClient u clientId' new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
-        for_ old $ execDelete u (Just con)
+        for_ old $ execDelete u con
         Intra.newClient u (clientId clt)
-        Intra.onClientEvent u (Just con) (ClientAdded u clt)
+        Intra.onClientEvent u con (ClientAdded u clt)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
@@ -80,8 +81,13 @@ rmClient u con clt pw =
     maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
     fn client = do
-        unless (clientType client == TemporaryClientType) $
-            Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        case clientType client of
+            -- Legal hold clients can't be removed
+            LegalHoldClientType -> throwE ClientLegalHoldCannotBeRemoved
+            -- Temporary clients don't need to re-auth
+            TemporaryClientType -> pure ()
+            -- All other clients must authenticate
+            _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
         lift $ execDelete u (Just con) client
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
@@ -146,8 +152,8 @@ pubClient c = PubClient
     , pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: LegalHoldClientRequest -> AppIO ()
-legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey') =
+legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
+legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey') =
     Intra.onClientEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
@@ -156,3 +162,10 @@ legalHoldClientRequested (LegalHoldClientRequest requester targetUser lastPrekey
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
     lhClientEvent :: ClientEvent
     lhClientEvent = LegalHoldClientRequested eventData
+
+removeLegalHoldClient :: UserId -> AppIO ()
+removeLegalHoldClient uid = do
+    clients <- Data.lookupClients uid
+    -- Should only be one; but just in case we'll treat it as a list
+    let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+    forM_ legalHoldClients  (execDelete uid Nothing)

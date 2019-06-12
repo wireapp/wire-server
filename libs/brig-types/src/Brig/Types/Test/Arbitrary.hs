@@ -502,7 +502,6 @@ instance Arbitrary LegalHoldClientRequest where
         LegalHoldClientRequest
             <$> arbitrary
             <*> arbitrary
-            <*> arbitrary
 
 instance Arbitrary LastPrekey where
     arbitrary = lastPrekey <$> arbitrary

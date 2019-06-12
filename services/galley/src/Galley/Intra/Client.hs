@@ -2,6 +2,7 @@ module Galley.Intra.Client
     ( lookupClients
     , notifyClientsAboutLegalHoldRequest
     , addLegalHoldClientToUser
+    , removeLegalHoldClientFromUser
     , getLegalHoldAuthToken
     ) where
 
@@ -48,8 +49,8 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
                 $ method POST
                 . host brigHost
                 . port brigPort
-                . path "/i/clients/legalhold/request"
-                . json (LegalHoldClientRequest requesterUid targetUid lastPrekey')
+                . paths ["i", "clients", "legalhold", toByteString' targetUid, "request"]
+                . json (LegalHoldClientRequest requesterUid lastPrekey')
                 . expect2xx
 
 getLegalHoldAuthToken :: UserId -> Galley OpaqueAuthToken
@@ -84,6 +85,17 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
                   Nothing
                   Nothing
 
+removeLegalHoldClientFromUser :: UserId -> Galley ()
+removeLegalHoldClientFromUser targetUid = do
+    (brigHost, brigPort) <- brigReq
+    void . call "brig"
+        $ method DELETE
+        . host brigHost
+        . port brigPort
+                . paths ["i", "clients", "legalhold", toByteString' targetUid]
+        . contentJson
+        . expect2xx
+
 brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
 brigAddClient uid connId client = do
     (brigHost, brigPort) <- brigReq
@@ -91,10 +103,10 @@ brigAddClient uid connId client = do
         $ method POST
         . host brigHost
         . port brigPort
-        . header "Z-User" (toByteString' uid)
         . header "Z-Connection" (toByteString' connId)
-        . path "/clients"
+        . paths ["i", "clients", toByteString' uid]
         . contentJson
         . json client
         . expect2xx
     parseResponse (Error status502 "server-error") r
+
