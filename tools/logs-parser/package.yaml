@@ -1,0 +1,32 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: logs-parser
+version: '0.1.0'
+synopsis: tool for handling apache-style access.log files
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+license: AGPL-3
+stability: experimental
+
+dependencies:
+  - aeson
+  - base
+  - binary
+  - dns
+  - getopt-generics
+  - imports
+  - lens
+  - mtl
+  - string-conversions
+  - text
+  - uri-bytestring
+
+executables:
+  parse-accesslog:
+    main: Main.hs
+    source-dirs: .
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T

@@ -36,6 +36,7 @@ packages:
 - tools/stern
 - tools/db/service-backfill
 - tools/db/auto-whitelist
+- tools/logs-parser
 
 extra-deps:
 - git: https://github.com/wireapp/prometheus-haskell
