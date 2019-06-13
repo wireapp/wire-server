@@ -186,5 +186,6 @@ disableForUser (zusr ::: tid ::: uid ::: _) = do
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
 
     Client.removeLegalHoldClientFromUser uid
+    LHService.removeLegalHold tid uid
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
     pure $ responseLBS status200 [] mempty

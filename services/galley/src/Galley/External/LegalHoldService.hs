@@ -3,10 +3,11 @@ module Galley.External.LegalHoldService
     ( -- * api
       checkLegalHoldServiceStatus
     , requestNewDevice
+    , confirmLegalHold
+    , removeLegalHold
 
       -- * helpers
     , validateServiceKey
-    , confirmLegalHold
 
       -- * types
     , OpaqueAuthToken(..)
@@ -94,6 +95,23 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
         -- We should come up with a better solution.
         Bilge.paths ["legalhold", "confirm"]
       . Bilge.json (LegalHoldServiceConfirm clientId uid tid (opaqueAuthTokenToText legalHoldAuthToken))
+      . Bilge.method POST
+      . Bilge.acceptJson
+      . Bilge.expect2xx
+
+-- | @POST /remove@
+-- Inform the LegalHold Service that a user's legalhold has been disabled.
+removeLegalHold :: TeamId
+                 -> UserId
+                 -> Galley ()
+removeLegalHold tid uid = do
+    void $ makeLegalHoldServiceRequest tid reqParams
+  where
+    reqParams =
+        -- TODO: Currently this OVERWRITES any path on the base URL;
+        -- We should come up with a better solution.
+        Bilge.paths ["legalhold", "remove"]
+      . Bilge.json (LegalHoldServiceRemove uid tid)
       . Bilge.method POST
       . Bilge.acceptJson
       . Bilge.expect2xx

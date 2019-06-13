@@ -712,6 +712,7 @@ withDummyTestServiceForTeam owner tid go = do
             (_, _, Nothing) -> cont missingAuth
             (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
             (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+            (["legalhold", "remove"], "POST", Just _) -> cont respondOk
             _ -> cont respondBad
 
     initiateResp :: Wai.Response

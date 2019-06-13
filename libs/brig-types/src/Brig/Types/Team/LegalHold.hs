@@ -231,3 +231,16 @@ instance ToJSON LegalHoldServiceConfirm where
         #  "team_id" .= teamId
         #  "refresh_token" .= refreshToken
         # []
+
+data LegalHoldServiceRemove =
+    LegalHoldServiceRemove
+    { lhrUserId       :: !UserId
+    , lhrTeamId       :: !TeamId
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON LegalHoldServiceRemove where
+  toJSON (LegalHoldServiceRemove userId teamId) = object
+        $  "user_id" .= userId
+        #  "team_id" .= teamId
+        # []
+
