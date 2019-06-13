@@ -73,6 +73,16 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     LegalHoldData.createSettings service
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
+deleteSettings :: UserId ::: TeamId ::: JSON -> Galley Response
+deleteSettings (zusr ::: tid ::: _) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    assertLegalHoldEnabled tid
+
+    let service = legalHoldService tid fpr newService
+    LegalHoldData.createSettings service
+    pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
+
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid

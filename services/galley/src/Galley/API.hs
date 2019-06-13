@@ -291,6 +291,11 @@ sitemap = do
         .&. jsonRequest @NewLegalHoldService
         .&. accept "application" "json"
 
+    delete "/teams/:tid/legalhold/settings" (continue LegalHold.deleteSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
     get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettings) $
         zauthUserId
         .&. capture "tid"
