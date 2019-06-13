@@ -74,25 +74,6 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     LegalHoldData.createSettings service
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
-deleteSettings :: UserId ::: TeamId ::: JSON -> Galley Response
-deleteSettings (zusr ::: tid ::: _) = do
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
-    assertLegalHoldEnabled tid
-
-    let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-    -- I picked this number by dice roll, feel free to change it :P
-    pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
-    LegalHoldData.removeSettings tid
-
-    pure $ responseLBS status204 [] mempty
-  where
-    removeLHForUser :: TeamMember -> Galley ()
-    removeLHForUser member = do
-        let uid = member ^. Team.userId
-        Client.removeLegalHoldClientFromUser uid
-        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
@@ -109,9 +90,21 @@ removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    assertLegalHoldEnabled tid
 
+    let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
+    -- I picked this number by fair dice roll, feel free to change it :P
+    pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
     LegalHoldData.removeSettings tid
+
     pure $ responseLBS status204 [] mempty
+  where
+    removeLHForUser :: TeamMember -> Galley ()
+    removeLHForUser member = do
+        let uid = member ^. Team.userId
+        Client.removeLegalHoldClientFromUser uid
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+
 
 -- | Request to provision a device on the legal hold service for a user
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
