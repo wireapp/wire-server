@@ -63,7 +63,7 @@ instance NFData NoId where rnf a = seq a ()
 
 newtype Id a = Id
     { toUUID :: UUID
-    } deriving (Eq, Ord, NFData, Hashable)
+    } deriving (Eq, Ord, NFData, Hashable, Generic)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -149,6 +149,7 @@ newtype ConnId = ConnId
                , ToByteString
                , Hashable
                , NFData
+               , Generic
                )
 
 instance ToJSON ConnId where
@@ -164,7 +165,7 @@ instance FromJSON ConnId where
 -- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
     { client :: Text
-    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey)
+    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey, Generic)
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal

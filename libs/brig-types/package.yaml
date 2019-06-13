@@ -10,8 +10,15 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - hostname-validate
-- lens
 - imports
+- insert-ordered-containers
+- lens
+- metrics-core
+- servant
+- servant-server
+- servant-swagger
+- swagger2
+- uri-bytestring
 library:
   source-dirs: src
   ghc-options:

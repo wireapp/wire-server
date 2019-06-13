@@ -3,7 +3,7 @@
 module Brig.Types.Swagger where
 
 import Imports
-import Data.Swagger
+import "types-common" Data.Swagger
 import Data.Swagger.Build.Api
 import Galley.Types.Teams (defaultRole)
 
