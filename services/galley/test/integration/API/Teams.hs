@@ -359,7 +359,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
                    . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
                    . zUser owner
                    . zConn "conn"
-                   . json (newTeamMemberDeleteData (Just $ PlainTextPassword Util.defPassword))
+                   . json (newTeamMemberDeleteData (Just $ Util.defPassword))
                    ) !!! const 202 === statusCode
 
           else do
@@ -614,7 +614,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . zUser owner
            . zConn "conn"
            . json (newTeamMemberDeleteData (if ownerHasPassword
-                                            then Just $ PlainTextPassword Util.defPassword
+                                            then Just Util.defPassword
                                             else Nothing))
            ) !!! const 202 === statusCode
     assertQueue "team member leave 1" $ tUpdate 3 [owner]
@@ -625,7 +625,7 @@ testDeleteBindingTeam ownerHasPassword = do
                . zUser owner
                . zConn "conn"
                . json (newTeamDeleteData (if ownerHasPassword
-                                          then Just $ PlainTextPassword Util.defPassword
+                                          then Just Util.defPassword
                                           else Nothing))
                ) !!! const 202 === statusCode
 
@@ -981,7 +981,7 @@ postCryptoBroadcastMessageJson2 = do
 
     -- Deleted charlie
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
-        deleteClient charlie cc (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
+        deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
         Util.postOtrBroadcastMessage id alice ac m4 !!! do
             const 201 === statusCode

@@ -10,7 +10,6 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc
 import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification
@@ -193,7 +192,7 @@ postCryptoMessage1 = do
 
     -- Deleted eve
     WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
-        deleteClient eve ec (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
+        deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (eve, ec, "ciphertext4")]
         postOtrMessage id alice ac conv m4 !!! do
             const 201 === statusCode

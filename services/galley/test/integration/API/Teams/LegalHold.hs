@@ -20,6 +20,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.LegalHold
+import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (cs)
@@ -435,7 +436,7 @@ testRemoveLegalHoldFromTeam = do
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
     -- is idempotent
-    deleteSettings owner tid !!! const 204 === statusCode
+    deleteSettings (Just defPassword) owner tid !!! const 204 === statusCode
 
     withDummyTestServiceForTeam owner tid $ do
         newService <- newLegalHoldService
@@ -454,11 +455,13 @@ testRemoveLegalHoldFromTeam = do
         -- TODO: not allowed if team has feature bit not set
 
         -- returns 403 if user is not in team or has unsufficient permissions.
-        deleteSettings stranger tid !!! const 403 === statusCode
-        deleteSettings member tid !!! const 403 === statusCode
+        deleteSettings (Just defPassword) stranger tid !!! const 403 === statusCode
+        deleteSettings (Just defPassword) member tid !!! const 403 === statusCode
 
+        -- Fails without password
+        deleteSettings Nothing owner tid !!! const 403 === statusCode
         -- returns 204 if legal hold is successfully removed from team
-        deleteSettings owner tid !!! const 204 === statusCode
+        deleteSettings (Just defPassword) owner tid !!! const 204 === statusCode
 
         -- deletion is successful (both witnessed on the API and in the backend)
         resp <- getSettings owner tid
@@ -595,13 +598,14 @@ getSettings uid tid = do
         . zUser uid . zConn "conn"
         . zType "access"
 
-deleteSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-deleteSettings uid tid = do
+deleteSettings :: HasCallStack => Maybe PlainTextPassword -> UserId -> TeamId -> TestM ResponseLBS
+deleteSettings mPassword uid tid = do
     g <- view tsGalley
     delete $ g
            . paths ["teams", toByteString' tid, "legalhold", "settings"]
            . zUser uid . zConn "conn"
            . zType "access"
+            . json (RemoveLegalHoldSettingsRequest mPassword)
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
