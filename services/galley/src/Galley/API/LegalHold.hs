@@ -170,7 +170,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     assertLegalHoldEnabled tid
-    assertUserLHNotAlreadyActive
+    assertUserLHPending
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
     lg <- view applog
@@ -190,10 +190,13 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
 
     pure $ responseLBS status200 [] mempty
   where
-    assertUserLHNotAlreadyActive :: Galley ()
-    assertUserLHNotAlreadyActive = do
+    assertUserLHPending :: Galley ()
+    assertUserLHPending = do
         userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
-        when (userLHStatus == Just UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
+        case userLHStatus of
+            UserLegalHoldDisabled -> throwM userLegalHoldNotPending
+            UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+            UserLegalHoldPending -> pure ()
 
 disableForUser :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: _) = do
