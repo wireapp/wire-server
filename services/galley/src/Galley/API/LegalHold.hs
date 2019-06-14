@@ -51,9 +51,10 @@ getEnabled (tid ::: _) = do
 setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setEnabled (tid ::: req ::: _) = do
     legalHoldTeamConfig <- fromJsonBody req
+    case legalHoldTeamConfigStatus legalHoldTeamConfig of
+        LegalHoldDisabled -> LegalHoldData.removeSettings tid
+        LegalHoldEnabled -> pure ()
     LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-    -- TODO: How do we remove all devices from all users?
-    -- Do we also delete the settings from the table?
     pure $ responseLBS status204 [] mempty
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
