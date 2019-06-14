@@ -52,7 +52,7 @@ setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Resp
 setEnabled (tid ::: req ::: _) = do
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of
-        LegalHoldDisabled -> LegalHoldData.removeSettings tid
+        LegalHoldDisabled -> removeSettings' tid Nothing
         LegalHoldEnabled -> pure ()
     LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
     pure $ responseLBS status204 [] mempty
@@ -92,20 +92,27 @@ removeSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
     assertLegalHoldEnabled tid
+    removeSettings' tid (Just membs)
+    pure $ responseLBS status204 [] mempty
 
+-- | Remove legal hold settings from team; also disabling for all users and removing LH devices
+removeSettings'
+    :: TeamId
+    -> Maybe [TeamMember]
+    -- ^ If you've already got the team members you can pass them in otherwise they'll be looked up.
+    -> Galley ()
+removeSettings' tid mMembers = do
+    membs <- maybe (Data.teamMembers tid) pure mMembers
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
     -- I picked this number by fair dice roll, feel free to change it :P
     pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
     LegalHoldData.removeSettings tid
-
-    pure $ responseLBS status204 [] mempty
   where
     removeLHForUser :: TeamMember -> Galley ()
     removeLHForUser member = do
         let uid = member ^. Team.userId
         Client.removeLegalHoldClientFromUser uid
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-
 
 -- | Request to provision a device on the legal hold service for a user
 -- Note that this is accessible to ANY authenticated user, even ones outside the team

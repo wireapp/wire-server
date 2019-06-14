@@ -197,12 +197,6 @@ testApproveLegalHoldDevice = do
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
 
-        putEnabled tid LegalHoldDisabled
-        -- Can't approve device when in disabled state
-        -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice member member tid !!! const 403 === statusCode
-        putEnabled tid LegalHoldEnabled
-
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice owner member tid !!! const 403 === statusCode
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
@@ -506,10 +500,10 @@ testEnablePerTeam = do
            liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
 
         viewLHS <- getSettingsTyped owner tid
-        liftIO $ assertEqual "LH Service should be disabled" ViewLegalHoldServiceDisabled viewLHS
+        liftIO $ assertEqual "LH Service settings should be cleared"
+                   ViewLegalHoldServiceNotConfigured viewLHS
 
-    -- TODO: Check that disabling legalhold for a team removes the LH device from all team
-    -- members
+    ensureQueueEmpty
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
