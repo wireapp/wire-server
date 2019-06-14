@@ -299,6 +299,7 @@ sitemap = do
     delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettings) $
         zauthUserId
         .&. capture "tid"
+        .&. jsonRequest @RemoveLegalHoldSettingsRequest
         .&. accept "application" "json"
 
     get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatus) $

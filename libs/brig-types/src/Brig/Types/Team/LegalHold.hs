@@ -244,3 +244,18 @@ instance ToJSON LegalHoldServiceRemove where
         #  "team_id" .= teamId
         # []
 
+data RemoveLegalHoldSettingsRequest =
+    RemoveLegalHoldSettingsRequest
+    { rmlhsrPassword       :: !(Maybe PlainTextPassword)
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON RemoveLegalHoldSettingsRequest where
+  toJSON (RemoveLegalHoldSettingsRequest password) = object
+        $  "password" .= password
+        # []
+
+instance FromJSON RemoveLegalHoldSettingsRequest where
+  parseJSON = withObject "RemoveLegalHoldSettingsRequest" $ \o ->
+    RemoveLegalHoldSettingsRequest
+        <$> o .:? "password"
+

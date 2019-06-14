@@ -86,10 +86,12 @@ getSettings (zusr ::: tid ::: _) = do
         (True, Nothing)     -> ViewLegalHoldServiceNotConfigured
         (True, Just result) -> viewLegalHoldService result
 
-removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
-removeSettings (zusr ::: tid ::: _) = do
+removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
+removeSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
 
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
