@@ -326,6 +326,7 @@ sitemap = do
         .&. capture "tid"
         .&. capture "uid"
         .&. zauthConnId
+        .&. jsonRequest @ApproveLegalHoldForUserRequest
         .&. accept "application" "json"
 
    ---

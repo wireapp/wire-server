@@ -167,10 +167,14 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
 -- we don't delete pending prekeys during this flow just in case
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
-approveDevice :: UserId ::: TeamId ::: UserId ::: ConnId ::: JSON -> Galley Response
-approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
+approveDevice
+    :: UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest ApproveLegalHoldForUserRequest ::: JSON
+    -> Galley Response
+approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
+    ApproveLegalHoldForUserRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
     assertUserLHNotAlreadyActive
 

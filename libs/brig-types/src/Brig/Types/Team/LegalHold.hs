@@ -274,3 +274,18 @@ instance FromJSON DisableLegalHoldForUserRequest where
     DisableLegalHoldForUserRequest
         <$> o .:? "password"
 
+data ApproveLegalHoldForUserRequest =
+    ApproveLegalHoldForUserRequest
+    { alhfuPassword       :: !(Maybe PlainTextPassword)
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON ApproveLegalHoldForUserRequest where
+  toJSON (ApproveLegalHoldForUserRequest password) = object
+        $  "password" .= password
+        # []
+
+instance FromJSON ApproveLegalHoldForUserRequest where
+  parseJSON = withObject "ApproveLegalHoldForUserRequest" $ \o ->
+    ApproveLegalHoldForUserRequest
+        <$> o .:? "password"
+

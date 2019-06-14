@@ -193,7 +193,7 @@ testApproveLegalHoldDevice = do
     WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
         -- not allowed to approve if team setting is disabled
         -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice owner member tid !!! const 403 === statusCode
+        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
 
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
@@ -201,12 +201,14 @@ testApproveLegalHoldDevice = do
         putEnabled tid LegalHoldDisabled
         -- Can't approve device when in disabled state
         -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice member member tid !!! const 403 === statusCode
+        ignore $ approveLegalHoldDevice (Just defPassword) member member tid !!! const 403 === statusCode
         putEnabled tid LegalHoldEnabled
 
         -- Only the user themself can approve adding a LH device
-        approveLegalHoldDevice owner member tid !!! const 403 === statusCode
-        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
+        -- Requires password
+        approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
 
         cassState <- view tsCass
         liftIO $ do
@@ -260,7 +262,7 @@ testGetLegalHoldDeviceStatus = do
            liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
 
-        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        do approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
@@ -280,7 +282,7 @@ testDisableLegalHoldForUser = do
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
         assertZeroLegalHoldDevices member
-        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
         assertExactlyOneLegalHoldDevice member
         -- Only the admin can disable legal hold
         disableLegalHoldForUser (Just defPassword) tid member member !!! const 403 === statusCode
@@ -448,7 +450,7 @@ testRemoveLegalHoldFromTeam = do
 
         -- enable legalhold for member
         do requestDevice owner member tid !!! const 204 === statusCode
-           approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                         UserLegalHoldEnabled userStatus
@@ -546,7 +548,7 @@ testGetTeamMembersIncludesLHStatus = do
            liftIO $ assertEqual "legal hold status should pending after requesting device"
                       (Just UserLegalHoldPending) (findMemberStatus members')
 
-        do approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        do approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should be enabled after confirming device"
                       (Just UserLegalHoldEnabled) (findMemberStatus members')
@@ -623,13 +625,14 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
-approveLegalHoldDevice zusr uid tid = do
+approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice mPassword zusr uid tid = do
     g <- view tsGalley
     put $ g
            . paths ["teams", toByteString' tid, "legalhold", toByteString' uid, "approve"]
            . zUser zusr . zConn "conn"
            . zType "access"
+           . json (ApproveLegalHoldForUserRequest mPassword)
 
 disableLegalHoldForUser
     :: HasCallStack

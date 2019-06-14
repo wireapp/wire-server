@@ -509,6 +509,9 @@ instance Arbitrary RemoveLegalHoldSettingsRequest where
 instance Arbitrary DisableLegalHoldForUserRequest where
     arbitrary = DisableLegalHoldForUserRequest <$> arbitrary
 
+instance Arbitrary ApproveLegalHoldForUserRequest where
+    arbitrary = ApproveLegalHoldForUserRequest <$> arbitrary
+
 instance Arbitrary LastPrekey where
     arbitrary = lastPrekey <$> arbitrary
 
