@@ -7,19 +7,20 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Brig.Types.Client.Prekey
 import Control.Monad.Catch
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Id
 import Data.ByteString.Conversion (toByteString')
 import Data.Misc
 import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
-import Galley.Types.Teams
+import Galley.Types.Teams as Team
 import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities as Wai
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 
 import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
@@ -89,9 +90,21 @@ removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    assertLegalHoldEnabled tid
 
+    let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
+    -- I picked this number by fair dice roll, feel free to change it :P
+    pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
     LegalHoldData.removeSettings tid
+
     pure $ responseLBS status204 [] mempty
+  where
+    removeLHForUser :: TeamMember -> Galley ()
+    removeLHForUser member = do
+        let uid = member ^. Team.userId
+        Client.removeLegalHoldClientFromUser uid
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+
 
 -- | Request to provision a device on the legal hold service for a user
 -- Note that this is accessible to ANY authenticated user, even ones outside the team

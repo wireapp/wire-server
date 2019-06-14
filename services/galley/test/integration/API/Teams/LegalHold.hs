@@ -437,13 +437,17 @@ testRemoveLegalHoldFromTeam = do
     -- is idempotent
     deleteSettings owner tid !!! const 204 === statusCode
 
-    let lhapp :: Chan () -> Application
-        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-
-    withTestService lhapp $ \_ -> do
+    withDummyTestServiceForTeam owner tid $ do
         newService <- newLegalHoldService
         putEnabled tid LegalHoldEnabled -- enable it for this team
         postSettings owner tid newService !!! const 201 === statusCode
+
+        -- enable legalhold for member
+        do requestDevice owner member tid !!! const 204 === statusCode
+           approveLegalHoldDevice member member tid !!! const 200 === statusCode
+           UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "After approval user legalhold status should be Enabled"
+                        UserLegalHoldEnabled userStatus
 
         -- TODO: not allowed if feature is disabled globally in galley config yaml
 
@@ -460,13 +464,17 @@ testRemoveLegalHoldFromTeam = do
         resp <- getSettings owner tid
         liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
 
+        -- deletion of settings should disable for all team members and remove their clients
+        do UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "After approval user legalhold status should be Disabled"
+                        UserLegalHoldDisabled userStatus
+           assertZeroLegalHoldDevices member
+
         -- TODO: do we also want to check the DB?
 
         -- TODO: do we really want any trace of the fact that this team has been under legal hold
         -- to go away?  or should a team that has been under legal hold in the past be observably
         -- different for the members from one that never has?
-
-        -- TODO: also remove all devices from users in this team!!
 
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
 
