@@ -1,7 +1,7 @@
 module Galley.API.Error where
 
 import Imports
-import Data.Text.Lazy (pack)
+import Data.Text.Lazy as LT (pack)
 import Galley.Types.Teams (IsPerm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -117,6 +117,9 @@ legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold
 
 legalHoldServiceUnavailable :: Error
 legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond"
+
+legalHoldServiceNotRegistered :: Error
+legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
 
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
