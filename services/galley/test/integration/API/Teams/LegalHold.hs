@@ -283,9 +283,12 @@ testDisableLegalHoldForUser = do
         approveLegalHoldDevice member member tid !!! const 200 === statusCode
         assertExactlyOneLegalHoldDevice member
         -- Only the admin can disable legal hold
-        disableLegalHoldForUser tid member member !!! const 403 === statusCode
+        disableLegalHoldForUser (Just defPassword) tid member member !!! const 403 === statusCode
         assertExactlyOneLegalHoldDevice member
-        disableLegalHoldForUser tid owner member !!! const 200 === statusCode
+        -- Require password to disable for user
+        disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
+        assertExactlyOneLegalHoldDevice member
+        disableLegalHoldForUser (Just defPassword) tid owner member !!! const 200 === statusCode
         assertZeroLegalHoldDevices member
 
         liftIO $ do
@@ -605,7 +608,7 @@ deleteSettings mPassword uid tid = do
            . paths ["teams", toByteString' tid, "legalhold", "settings"]
            . zUser uid . zConn "conn"
            . zType "access"
-            . json (RemoveLegalHoldSettingsRequest mPassword)
+           . json (RemoveLegalHoldSettingsRequest mPassword)
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
@@ -628,13 +631,20 @@ approveLegalHoldDevice zusr uid tid = do
            . zUser zusr . zConn "conn"
            . zType "access"
 
-disableLegalHoldForUser :: HasCallStack => TeamId -> UserId -> UserId -> TestM ResponseLBS
-disableLegalHoldForUser tid zusr uid = do
+disableLegalHoldForUser
+    :: HasCallStack
+    => Maybe PlainTextPassword
+    -> TeamId
+    -> UserId
+    -> UserId
+    -> TestM ResponseLBS
+disableLegalHoldForUser mPassword tid zusr uid = do
     g <- view tsGalley
     delete $ g
            . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
            . zUser zusr
            . zType "access"
+           . json (DisableLegalHoldForUserRequest mPassword)
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do

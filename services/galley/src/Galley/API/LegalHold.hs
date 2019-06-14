@@ -197,10 +197,14 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
         userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
         when (userLHStatus == Just UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
 
-disableForUser :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-disableForUser (zusr ::: tid ::: uid ::: _) = do
+disableForUser
+  :: UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON
+  -> Galley Response
+disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
+    DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
 
     Client.removeLegalHoldClientFromUser uid
     LHService.removeLegalHold tid uid

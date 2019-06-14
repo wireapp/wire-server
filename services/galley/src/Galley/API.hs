@@ -318,6 +318,7 @@ sitemap = do
         zauthUserId
         .&. capture "tid"
         .&. capture "uid"
+        .&. jsonRequest @DisableLegalHoldForUserRequest
         .&. accept "application" "json"
 
     put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDevice) $
