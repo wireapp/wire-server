@@ -481,7 +481,10 @@ testRemoveLegalHoldFromTeam = do
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
-    (_, tid) <- createTeam
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
 
@@ -489,9 +492,21 @@ testEnablePerTeam = do
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
-    putEnabled tid LegalHoldDisabled -- disable again
-    LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
-    liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
+    withDummyTestServiceForTeam owner tid $ do
+        requestDevice owner member tid !!! const 204 === statusCode
+        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
+
+        putEnabled tid LegalHoldDisabled -- disable again
+        LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+        liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
+
+        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+
+        viewLHS <- getSettingsTyped owner tid
+        liftIO $ assertEqual "LH Service should be disabled" ViewLegalHoldServiceDisabled viewLHS
 
     -- TODO: Check that disabling legalhold for a team removes the LH device from all team
     -- members

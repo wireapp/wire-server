@@ -195,9 +195,9 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
     assertUserLHPending = do
         userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
         case userLHStatus of
-            UserLegalHoldDisabled -> throwM userLegalHoldNotPending
-            UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-            UserLegalHoldPending -> pure ()
+            Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+            Just UserLegalHoldPending -> pure ()
+            _ -> throwM userLegalHoldNotPending
 
 disableForUser :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: _) = do
