@@ -94,6 +94,7 @@ removeSettings (zusr ::: tid ::: _) = do
     pure $ responseLBS status204 [] mempty
 
 -- | Request to provision a device on the legal hold service for a user
+-- Note that this is accessible to ANY authenticated user, even ones outside the team
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
