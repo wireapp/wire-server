@@ -198,12 +198,6 @@ testApproveLegalHoldDevice = do
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
 
-        putEnabled tid LegalHoldDisabled
-        -- Can't approve device when in disabled state
-        -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice (Just defPassword) member member tid !!! const 403 === statusCode
-        putEnabled tid LegalHoldEnabled
-
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
         -- Requires password
@@ -502,7 +496,7 @@ testEnablePerTeam = do
 
     withDummyTestServiceForTeam owner tid $ do
         requestDevice owner member tid !!! const 204 === statusCode
-        approveLegalHoldDevice member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
         do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
 
