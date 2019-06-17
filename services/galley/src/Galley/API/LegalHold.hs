@@ -51,9 +51,10 @@ getEnabled (tid ::: _) = do
 setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setEnabled (tid ::: req ::: _) = do
     legalHoldTeamConfig <- fromJsonBody req
+    case legalHoldTeamConfigStatus legalHoldTeamConfig of
+        LegalHoldDisabled -> removeSettings' tid Nothing
+        LegalHoldEnabled -> pure ()
     LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-    -- TODO: How do we remove all devices from all users?
-    -- Do we also delete the settings from the table?
     pure $ responseLBS status204 [] mempty
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
@@ -93,20 +94,27 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
     ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
+    removeSettings' tid (Just membs)
+    pure $ responseLBS status204 [] mempty
 
+-- | Remove legal hold settings from team; also disabling for all users and removing LH devices
+removeSettings'
+    :: TeamId
+    -> Maybe [TeamMember]
+    -- ^ If you've already got the team members you can pass them in otherwise they'll be looked up.
+    -> Galley ()
+removeSettings' tid mMembers = do
+    membs <- maybe (Data.teamMembers tid) pure mMembers
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
     -- I picked this number by fair dice roll, feel free to change it :P
     pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
     LegalHoldData.removeSettings tid
-
-    pure $ responseLBS status204 [] mempty
   where
     removeLHForUser :: TeamMember -> Galley ()
     removeLHForUser member = do
         let uid = member ^. Team.userId
         Client.removeLegalHoldClientFromUser uid
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-
 
 -- | Request to provision a device on the legal hold service for a user
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -176,7 +184,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     ApproveLegalHoldForUserRequest mPassword <- fromJsonBody req
     ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
-    assertUserLHNotAlreadyActive
+    assertUserLHPending
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
     lg <- view applog
@@ -196,10 +204,13 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
 
     pure $ responseLBS status200 [] mempty
   where
-    assertUserLHNotAlreadyActive :: Galley ()
-    assertUserLHNotAlreadyActive = do
+    assertUserLHPending :: Galley ()
+    assertUserLHPending = do
         userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
-        when (userLHStatus == Just UserLegalHoldEnabled) $ throwM userLegalHoldAlreadyEnabled
+        case userLHStatus of
+            Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+            Just UserLegalHoldPending -> pure ()
+            _ -> throwM userLegalHoldNotPending
 
 disableForUser
   :: UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON

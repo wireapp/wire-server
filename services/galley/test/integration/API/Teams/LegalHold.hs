@@ -198,12 +198,6 @@ testApproveLegalHoldDevice = do
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
 
-        putEnabled tid LegalHoldDisabled
-        -- Can't approve device when in disabled state
-        -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice (Just defPassword) member member tid !!! const 403 === statusCode
-        putEnabled tid LegalHoldEnabled
-
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
         -- Requires password
@@ -489,7 +483,10 @@ testRemoveLegalHoldFromTeam = do
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
-    (_, tid) <- createTeam
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
 
@@ -497,12 +494,24 @@ testEnablePerTeam = do
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
-    putEnabled tid LegalHoldDisabled -- disable again
-    LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
-    liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
+    withDummyTestServiceForTeam owner tid $ do
+        requestDevice owner member tid !!! const 204 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
 
-    -- TODO: Check that disabling legalhold for a team removes the LH device from all team
-    -- members
+        putEnabled tid LegalHoldDisabled -- disable again
+        LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+        liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
+
+        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+
+        viewLHS <- getSettingsTyped owner tid
+        liftIO $ assertEqual "LH Service settings should be cleared"
+                   ViewLegalHoldServiceNotConfigured viewLHS
+
+    ensureQueueEmpty
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
