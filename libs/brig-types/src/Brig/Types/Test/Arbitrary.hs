@@ -503,6 +503,15 @@ instance Arbitrary LegalHoldClientRequest where
             <$> arbitrary
             <*> arbitrary
 
+instance Arbitrary RemoveLegalHoldSettingsRequest where
+    arbitrary = RemoveLegalHoldSettingsRequest <$> arbitrary
+
+instance Arbitrary DisableLegalHoldForUserRequest where
+    arbitrary = DisableLegalHoldForUserRequest <$> arbitrary
+
+instance Arbitrary ApproveLegalHoldForUserRequest where
+    arbitrary = ApproveLegalHoldForUserRequest <$> arbitrary
+
 instance Arbitrary LastPrekey where
     arbitrary = lastPrekey <$> arbitrary
 

@@ -244,3 +244,48 @@ instance ToJSON LegalHoldServiceRemove where
         #  "team_id" .= teamId
         # []
 
+data RemoveLegalHoldSettingsRequest =
+    RemoveLegalHoldSettingsRequest
+    { rmlhsrPassword       :: !(Maybe PlainTextPassword)
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON RemoveLegalHoldSettingsRequest where
+  toJSON (RemoveLegalHoldSettingsRequest password) = object
+        $  "password" .= password
+        # []
+
+instance FromJSON RemoveLegalHoldSettingsRequest where
+  parseJSON = withObject "RemoveLegalHoldSettingsRequest" $ \o ->
+    RemoveLegalHoldSettingsRequest
+        <$> o .:? "password"
+
+data DisableLegalHoldForUserRequest =
+    DisableLegalHoldForUserRequest
+    { dlhfuPassword       :: !(Maybe PlainTextPassword)
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON DisableLegalHoldForUserRequest where
+  toJSON (DisableLegalHoldForUserRequest password) = object
+        $  "password" .= password
+        # []
+
+instance FromJSON DisableLegalHoldForUserRequest where
+  parseJSON = withObject "DisableLegalHoldForUserRequest" $ \o ->
+    DisableLegalHoldForUserRequest
+        <$> o .:? "password"
+
+data ApproveLegalHoldForUserRequest =
+    ApproveLegalHoldForUserRequest
+    { alhfuPassword       :: !(Maybe PlainTextPassword)
+    } deriving stock (Eq, Show, Generic)
+
+instance ToJSON ApproveLegalHoldForUserRequest where
+  toJSON (ApproveLegalHoldForUserRequest password) = object
+        $  "password" .= password
+        # []
+
+instance FromJSON ApproveLegalHoldForUserRequest where
+  parseJSON = withObject "ApproveLegalHoldForUserRequest" $ \o ->
+    ApproveLegalHoldForUserRequest
+        <$> o .:? "password"
+
