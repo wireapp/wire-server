@@ -87,10 +87,12 @@ getSettings (zusr ::: tid ::: _) = do
         (True, Nothing)     -> ViewLegalHoldServiceNotConfigured
         (True, Just result) -> viewLegalHoldService result
 
-removeSettings :: UserId ::: TeamId ::: JSON -> Galley Response
-removeSettings (zusr ::: tid ::: _) = do
+removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
+removeSettings (zusr ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+    RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
     removeSettings' tid (Just membs)
     pure $ responseLBS status204 [] mempty
@@ -173,10 +175,14 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
 -- we don't delete pending prekeys during this flow just in case
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
-approveDevice :: UserId ::: TeamId ::: UserId ::: ConnId ::: JSON -> Galley Response
-approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
+approveDevice
+    :: UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest ApproveLegalHoldForUserRequest ::: JSON
+    -> Galley Response
+approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
+    ApproveLegalHoldForUserRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
     assertUserLHPending
 
@@ -206,10 +212,14 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: _) = do
             Just UserLegalHoldPending -> pure ()
             _ -> throwM userLegalHoldNotPending
 
-disableForUser :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-disableForUser (zusr ::: tid ::: uid ::: _) = do
+disableForUser
+  :: UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON
+  -> Galley Response
+disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
+    DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
+    ensureReAuthorised zusr mPassword
 
     Client.removeLegalHoldClientFromUser uid
     LHService.removeLegalHold tid uid

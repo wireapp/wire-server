@@ -683,12 +683,12 @@ randomClientWithType cType rStatus uid lk = do
     b <- view tsBrig
     resp <- post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
             <!! const rStatus === statusCode
-    let client = fromMaybe (error "randomClientWithType: failed to parse response") 
+    let client = fromMaybe (error "randomClientWithType: failed to parse response")
                            (decodeBody resp)
     return (clientId client)
   where
     newClientBody = (newClient cType lk)
-        { newClientPassword = Just (PlainTextPassword defPassword)
+        { newClientPassword = Just defPassword
         }
 
 ensureDeletedState :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
@@ -808,8 +808,8 @@ memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Noth
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
 
-defPassword :: Text
-defPassword = "secret"
+defPassword :: PlainTextPassword
+defPassword = PlainTextPassword "secret"
 
 randomEmail :: MonadIO m => m Email
 randomEmail = do
