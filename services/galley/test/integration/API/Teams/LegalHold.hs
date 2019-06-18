@@ -74,7 +74,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
     , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
     , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
-    , test s "GET, PUT /i/teams/{tid}/legalhold" testEnablePerTeam
+    , test s "GET, PUT [/i]?/teams/{tid}/legalhold" testEnablePerTeam
 
       -- behavior of existing end-points
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
@@ -487,8 +487,18 @@ testEnablePerTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
+    -- TODO: Change this value once we change the default; note that disabling is tested further down
+    ignore $ do
+        LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+        liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
+        LegalHoldTeamConfig isInitiallyEnabledPublic <- jsonBody <$> (getEnabledPublic owner tid <!! const 200 === statusCode)
+        liftIO $ assertEqual "Teams should start with LegalHold disabled (public)" isInitiallyEnabledPublic LegalHoldDisabled
+
+    -- TODO: Remove these 2 tests once we change the default value
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
+    liftIO $ assertEqual "Teams should start with LegalHold enabled" isInitiallyEnabled LegalHoldEnabled
+    LegalHoldTeamConfig isInitiallyEnabledPublic <- jsonBody <$> (getEnabledPublic owner tid <!! const 200 === statusCode)
+    liftIO $ assertEqual "Teams should start with LegalHold enabled (public)" isInitiallyEnabledPublic LegalHoldEnabled
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
@@ -504,12 +514,18 @@ testEnablePerTeam = do
         LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
         liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
 
-        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+        -- TODO: This test needs to be re-thought, so I will keep a TODO here; what should really happen when disabling?
+        ignore $ do
+            UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+            liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
 
         viewLHS <- getSettingsTyped owner tid
-        liftIO $ assertEqual "LH Service settings should be cleared"
-                   ViewLegalHoldServiceNotConfigured viewLHS
+        -- liftIO $ assertEqual "LH Service settings should be cleared"
+        --            ViewLegalHoldServiceNotConfigured viewLHS
+        -- TODO: NotConfigured only makes sense given the wrong default;
+        --       I think we should change the default to clean up code!
+        liftIO $ assertEqual "LH Service settings should be disabled"
+                   ViewLegalHoldServiceDisabled viewLHS
 
     ensureQueueEmpty
 
@@ -573,6 +589,14 @@ createTeam = do
     teamid <- Util.createTeamInternal tname ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
+
+getEnabledPublic :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getEnabledPublic uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "legalhold"]
+        . zUser uid . zConn "conn"
+        . zType "access"
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
