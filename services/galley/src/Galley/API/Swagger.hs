@@ -144,7 +144,7 @@ instance ToSchema ViewLegalHoldService where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
           [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus)))
-          , ("info", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
+          , ("settings", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
           ]
 
         example_ :: Maybe Value
