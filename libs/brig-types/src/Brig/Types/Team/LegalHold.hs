@@ -68,7 +68,7 @@ data LegalHoldService = LegalHoldService
     , legalHoldServiceUrl         :: !HttpsUrl
     , legalHoldServiceFingerprint :: !(Fingerprint Rsa)
     , legalHoldServiceToken       :: !ServiceToken
-    , legalHoldServiceKey         :: !ServiceKeyPEM
+    , legalHoldServiceKey         :: !ServiceKey
     }
   deriving stock (Eq, Show, Generic)
 
@@ -123,7 +123,7 @@ data ViewLegalHoldServiceInfo
         , viewLegalHoldServiceUrl         :: !HttpsUrl
         , viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa)
         , viewLegalHoldServiceAuthToken   :: !ServiceToken
-        , viewLegalHoldServiceKey         :: !ServiceKey
+        , viewLegalHoldServiceKey         :: !ServiceKeyPEM
         }
   deriving stock (Eq, Show, Generic)
 
@@ -137,7 +137,7 @@ instance ToJSON ViewLegalHoldServiceInfo where
         # []
 
 instance FromJSON ViewLegalHoldServiceInfo where
-    parseJSON = withObject "LegalHoldServiceInfo" $ \o -> do
+    parseJSON = withObject "LegalHoldServiceInfo" $ \o ->
         ViewLegalHoldServiceInfo
             <$> o .: "team_id"
             <*> o .: "base_url"
@@ -145,12 +145,12 @@ instance FromJSON ViewLegalHoldServiceInfo where
             <*> o .: "auth_token"
             <*> o .: "public_key"
 
-legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> LegalHoldService
-legalHoldService tid fpr (NewLegalHoldService u k t) = LegalHoldService tid u fpr t k
+-- legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> LegalHoldService
+-- legalHoldService tid fpr (NewLegalHoldService u k t) = LegalHoldService tid u fpr t k
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr t k) =
-    ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr t k
+    ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr t (serviceKeyPEM k)
 
 data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]

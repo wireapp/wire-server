@@ -13,7 +13,7 @@ import Data.LegalHold
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
-import Galley.Types.Bot
+-- import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Text.RawString.QQ
