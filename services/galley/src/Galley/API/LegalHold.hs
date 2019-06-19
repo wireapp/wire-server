@@ -69,12 +69,12 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     newService :: NewLegalHoldService
         <- fromJsonBody req
 
-    (_key :: ServiceKey, fpr :: Fingerprint Rsa)
+    (key :: ServiceKey, fpr :: Fingerprint Rsa)
         <- LHService.validateServiceKey (newLegalHoldServiceKey newService)
                >>= maybe (throwM legalHoldServiceInvalidKey) pure
     LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
-    let service = legalHoldService tid fpr newService
+    let service = legalHoldService tid fpr key newService
     LegalHoldData.createSettings service
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 

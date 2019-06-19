@@ -455,7 +455,7 @@ instance Arbitrary NewLegalHoldService where
     arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldService where
-    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ViewLegalHoldService where
     arbitrary = oneof
@@ -465,7 +465,7 @@ instance Arbitrary ViewLegalHoldService where
         ]
 
 instance Arbitrary ViewLegalHoldServiceInfo where
-    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary HttpsUrl where
     arbitrary = pure $ HttpsUrl [uri|https://example.com|]

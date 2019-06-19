@@ -4,6 +4,7 @@ import Imports
 import Brig.Types.Code
 import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Brig.Types.Client.Prekey
+import Brig.Types.Provider
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
@@ -250,20 +251,21 @@ updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
 updateLegalHoldTeamConfig =
   "update legalhold_team_config set status = ? where team_id = ?"
 
-insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, TeamId) ()
+insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
 insertLegalHoldSettings =
   [r|
     update legalhold_service
     set base_url    = ?,
         fingerprint = ?,
-        auth_token  = ?
+        auth_token  = ?,
+        pubkey      = ?
     where team_id = ?
   |]
 
-selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken)
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken, ServiceKey)
 selectLegalHoldSettings =
    [r|
-   select base_url, fingerprint, auth_token
+   select base_url, fingerprint, auth_token, pubkey
      from legalhold_service
      where team_id = ?
    |]
