@@ -1,0 +1,12 @@
+--- ../../../../../wire-server-https/services/restund/src/re-0.4.15/src/dns/res.c	2019-06-18 10:53:07.000000000 +0200
++++ src/dns/res.c	2019-06-19 09:20:54.000000000 +0200
+@@ -61,7 +61,9 @@
+ 	*n = i;
+ 
+  out:
++#ifndef NO_RES_CLOSE:
+ 	res_close();
++#endif
+ 
+ 	return err;
+ }

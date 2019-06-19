@@ -1,0 +1,26 @@
+FROM alpine:3.8
+
+ARG re_version
+ARG restund_version
+ARG extra_modules="zrest drain"
+ARG DEBIAN_FRONTEND=noninteractive
+
+COPY src /build
+COPY patches /build
+RUN apk --no-cache add gcc make openssl-dev \
+    	alpine-sdk linux-headers \
+    && cd /build/re-${re_version} \
+    && patch -p0 <../re_alpine.patch \
+    && make RELEASE=1 EXTRA_CFLAGS="-D_BSD_SOURCE -DNO_RES_CLOSE" \
+    && make RELEASE=1 PREFIX=/usr/local install \
+    && cd /build/restund-${restund_version} \
+    && make RELEASE=1 EXTRA_CFLAGS="-std=gnu99" EXTRA_MODULES='${extra_modules}' \
+    && make RELEASE=1 EXTRA_MODULES='${extra_modules}' PREFIX=/usr/local install \
+    && rm -rf /build
+
+RUN addgroup restund && adduser --system --shell /bin/false restund
+
+USER   restund
+VOLUME /usr/local/etc/restund
+#EXPOSE 1024-65000
+ENTRYPOINT ["/usr/local/sbin/restund", "-n", "-f", "/usr/local/etc/restund/restund.conf" ]
