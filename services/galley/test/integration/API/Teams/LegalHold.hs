@@ -491,14 +491,10 @@ testEnablePerTeam = do
     ignore $ do
         LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
         liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
-        LegalHoldTeamConfig isInitiallyEnabledPublic <- jsonBody <$> (getEnabledPublic owner tid <!! const 200 === statusCode)
-        liftIO $ assertEqual "Teams should start with LegalHold disabled (public)" isInitiallyEnabledPublic LegalHoldDisabled
 
-    -- TODO: Remove these 2 tests once we change the default value
+    -- TODO: Remove this test once we change the default value
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Teams should start with LegalHold enabled" isInitiallyEnabled LegalHoldEnabled
-    LegalHoldTeamConfig isInitiallyEnabledPublic <- jsonBody <$> (getEnabledPublic owner tid <!! const 200 === statusCode)
-    liftIO $ assertEqual "Teams should start with LegalHold enabled (public)" isInitiallyEnabledPublic LegalHoldEnabled
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
@@ -589,14 +585,6 @@ createTeam = do
     teamid <- Util.createTeamInternal tname ownerid
     assertQueue "create team" tActivate
     pure (ownerid, teamid)
-
-getEnabledPublic :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getEnabledPublic uid tid = do
-    g <- view tsGalley
-    get $ g
-        . paths ["teams", toByteString' tid, "legalhold"]
-        . zUser uid . zConn "conn"
-        . zType "access"
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
