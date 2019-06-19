@@ -42,19 +42,17 @@ isLegalHoldEnabled tid = do
         _ -> return True  -- TODO: must be false. this behaviour is only here for testing.
 
 -- | Get legal hold status for a team.
-getEnabled :: UserId ::: TeamId ::: JSON -> Galley Response
-getEnabled (zusr ::: tid ::: _) = do
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
-    getEnabledStatus tid
-
--- | Get legal hold status for a team.
-getEnabledInternal :: TeamId ::: JSON -> Galley Response
-getEnabledInternal (tid ::: _) = getEnabledStatus tid
+getEnabled :: TeamId ::: JSON -> Galley Response
+getEnabled (tid ::: _) = do
+    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
+  where
+    defConfig = LegalHoldTeamConfig LegalHoldEnabled
+    -- ^ TODO: must be false. this behaviour is only here for testing.
 
 -- | Enable or disable legal hold for a team.
-setEnabledInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
-setEnabledInternal (tid ::: req ::: _) = do
+setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setEnabled (tid ::: req ::: _) = do
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of
         LegalHoldDisabled -> removeSettings' tid Nothing
@@ -231,11 +229,3 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     LHService.removeLegalHold tid uid
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
     pure $ responseLBS status200 [] mempty
-
-getEnabledStatus :: TeamId -> Galley Response
-getEnabledStatus tid = do
-    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
-      where
-        defConfig = LegalHoldTeamConfig LegalHoldEnabled
-        -- ^ TODO: must be false. this behaviour is only here for testing.

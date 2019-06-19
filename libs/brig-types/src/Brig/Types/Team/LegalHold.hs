@@ -94,9 +94,9 @@ data ViewLegalHoldService
 
 instance ToJSON ViewLegalHoldService where
     toJSON s = case s of
-        ViewLegalHoldService info -> object
-            $ "status" .= String "configured"
-            # "info"   .= info
+        ViewLegalHoldService settings -> object
+            $ "status"   .= String "configured"
+            # "settings" .= settings
             # []
         ViewLegalHoldServiceNotConfigured -> object
             $ "status" .= String "not_configured"
@@ -109,7 +109,7 @@ instance FromJSON ViewLegalHoldService where
     parseJSON = withObject "LegalHoldService" $ \o -> do
         status :: Text <- o .: "status"
         case status of
-            "configured"     -> ViewLegalHoldService <$> (o .: "info")
+            "configured"     -> ViewLegalHoldService <$> (o .: "settings")
             "not_configured" -> pure ViewLegalHoldServiceNotConfigured
             "disabled"       -> pure ViewLegalHoldServiceDisabled
             _ -> fail "status (one of configured, not_configured, disabled)"
