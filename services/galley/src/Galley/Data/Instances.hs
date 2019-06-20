@@ -8,11 +8,10 @@ import Imports
 import Cassandra.CQL
 import Control.Error (note)
 import Galley.Types
-import Galley.Types.Bot
+import Galley.Types.Bot()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 
-deriving instance Cql ServiceToken
 deriving instance Cql MutedStatus
 deriving instance Cql ReceiptMode
 

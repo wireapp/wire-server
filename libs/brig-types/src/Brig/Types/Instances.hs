@@ -9,7 +9,8 @@ import Imports
 import Brig.Types.Team.LegalHold
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
-import Brig.Types.PRovider.Tag
+import Brig.Types.Provider.Tag
+import Data.ByteString.Conversion
 import Cassandra.CQL
 
 instance Cql LegalHoldStatus where
@@ -29,8 +30,6 @@ instance Cql PrekeyId where
     toCql = CqlInt . fromIntegral . keyId
     fromCql (CqlInt i) = return $ PrekeyId (fromIntegral i)
     fromCql _            = fail "PrekeyId: Int expected"
-
-deriving newtype instance Cql ServiceToken
 
 instance Cql ServiceTag where
     ctype = Tagged BigIntColumn

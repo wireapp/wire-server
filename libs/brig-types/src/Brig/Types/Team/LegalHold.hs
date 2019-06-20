@@ -145,8 +145,8 @@ instance FromJSON ViewLegalHoldServiceInfo where
             <*> o .: "auth_token"
             <*> o .: "public_key"
 
--- legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> LegalHoldService
--- legalHoldService tid fpr (NewLegalHoldService u k t) = LegalHoldService tid u fpr t k
+legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> ServiceKey -> LegalHoldService
+legalHoldService tid fpr (NewLegalHoldService u _ t) k = LegalHoldService tid u fpr t k
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr t k) =

@@ -74,7 +74,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
                >>= maybe (throwM legalHoldServiceInvalidKey) pure
     LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
 
-    let service = legalHoldService tid fpr key newService
+    let service = legalHoldService tid fpr newService key
     LegalHoldData.createSettings service
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 

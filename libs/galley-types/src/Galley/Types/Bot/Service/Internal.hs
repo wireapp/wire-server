@@ -11,6 +11,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Fingerprint, Rsa, HttpsUrl)
 import Data.Text.Ascii
+import Cassandra.CQL
 
 -- ServiceRef -----------------------------------------------------------------
 
@@ -40,7 +41,7 @@ instance ToJSON ServiceRef where
 -- | A /secret/ bearer token used to authenticate and authorise requests @towards@
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
 newtype ServiceToken = ServiceToken AsciiBase64Url
-    deriving (Eq, Show, ToByteString, FromByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, ToByteString, Cql, FromByteString, FromJSON, ToJSON)
 
 -- | Service connection information that is needed by galley.
 data Service = Service

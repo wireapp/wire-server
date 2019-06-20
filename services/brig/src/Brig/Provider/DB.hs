@@ -4,10 +4,12 @@ import Imports
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyUniq, emailKeyOrig)
 import Brig.Password
-import Brig.Provider.DB.Instances ()
-import Brig.Provider.DB.Tag
+-- import Brig.Provider.DB.Instances ()
+import Brig.Types.Provider.Tag
+import Brig.Types.Instances ()
 import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
+
 import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id
