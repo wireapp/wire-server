@@ -23,7 +23,7 @@ import Brig.Types.Activation
 import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyPEM(..))
+import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
@@ -455,7 +455,7 @@ instance Arbitrary NewLegalHoldService where
     arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldService where
-    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ViewLegalHoldService where
     arbitrary = oneof
@@ -465,10 +465,16 @@ instance Arbitrary ViewLegalHoldService where
         ]
 
 instance Arbitrary ViewLegalHoldServiceInfo where
-    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary HttpsUrl where
     arbitrary = pure $ HttpsUrl [uri|https://example.com|]
+
+instance Arbitrary ServiceKeyType where
+    arbitrary = genEnumBounded
+
+instance Arbitrary ServiceKey where
+    arbitrary = ServiceKey <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ServiceKeyPEM where
     arbitrary = pure $ ServiceKeyPEM k

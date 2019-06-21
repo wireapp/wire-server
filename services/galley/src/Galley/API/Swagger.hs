@@ -18,12 +18,14 @@ import Brig.Types.Team.LegalHold
 import Control.Lens
 import Data.Aeson (toJSON)
 import Data.Aeson (Value(..))
+import Data.ByteString.Conversion (fromByteString)
 import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Text as Text (unlines)
+import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (UUID, fromText)
 import Servant.API hiding (Header)
 import Servant.Swagger
@@ -149,8 +151,20 @@ instance ToSchema ViewLegalHoldService where
 
         example_ :: Maybe Value
         example_ = Just . toJSON
-                 $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr)
+                 $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
           where
+            tok = ServiceToken "blablabla"
+            Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                [ "-----BEGIN PUBLIC KEY-----"
+                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                , "nQIDAQAB"
+                , "-----END PUBLIC KEY-----"
+                ]
             Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
             Right lhuri = mkHttpsUrl [uri|https://example.com/|]
             fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
@@ -197,8 +211,20 @@ instance ToSchema ViewLegalHoldServiceInfo where
 
         example_ :: Maybe Value
         example_ = Just . toJSON
-                 $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr
+                 $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
           where
+            tok = ServiceToken "blablabla"
+            Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                [ "-----BEGIN PUBLIC KEY-----"
+                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                , "nQIDAQAB"
+                , "-----END PUBLIC KEY-----"
+                ]
             Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
             Right lhuri = mkHttpsUrl [uri|https://example.com/|]
             fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"

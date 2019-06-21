@@ -62,3 +62,6 @@ flags:
     cql: True
 
 allow-newer: False
+
+nix:
+  shell-file: shell.nix
