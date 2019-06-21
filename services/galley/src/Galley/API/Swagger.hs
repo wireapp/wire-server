@@ -194,12 +194,15 @@ instance ToSchema ViewLegalHoldServiceInfo where
               "viewLegalHoldServiceFingerprint" -> "fingerprint"
               "viewLegalHoldServiceUrl"         -> "base_url"
               "viewLegalHoldServiceTeam"        -> "team_id"
+              "viewLegalHoldServiceAuthToken"   -> "auth_token"
+              "viewLegalHoldServiceKey"         -> "public_key"
+
           }
     -}
     declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $ mempty
         & properties .~ properties_
         & example .~ example_
-        & required .~ ["team_id", "base_url", "fingerprint"]
+        & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
         & type_ .~ SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
@@ -207,6 +210,8 @@ instance ToSchema ViewLegalHoldServiceInfo where
           [ ("team_id", Inline (toSchema (Proxy @UUID)))
           , ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
           , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
+          , ("auth_token", Inline (toSchema (Proxy @(ServiceToken))))
+          , ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
           ]
 
         example_ :: Maybe Value
