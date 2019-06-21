@@ -1,0 +1,41 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: team-settings-extra
+version: '0.1.0'
+synopsis: cli tool for things that are not supported in the team-settings webapp
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+license: AGPL-3
+stability: experimental
+
+dependencies:
+  - aeson
+  - base
+  - binary
+  - brig-types
+  - cassava
+  - email-validate
+  - galley-types
+  - getopt-generics
+  - http-client
+  - imports
+  - lens
+  - mtl
+  - servant
+  - servant-client
+  - servant-client-core
+  - string-conversions
+  - text
+  - types-common
+  - uri-bytestring
+  - uuid
+
+executables:
+  parse-accesslog:
+    main: Main.hs
+    source-dirs: .
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
