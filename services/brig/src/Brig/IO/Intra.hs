@@ -158,7 +158,7 @@ dispatchNotifications orig conn e = case e of
     UserCreated{}         -> return ()
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
-    UserLegalHoldDisabled{} -> return ()
+    UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
 
     UserUpdated{..}
         | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
