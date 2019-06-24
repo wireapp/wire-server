@@ -205,15 +205,16 @@ testApproveLegalHoldDevice = do
           assertEqual "userId == member" userId' member
           assertEqual "teamId == tid" teamId' tid
 
-
-
-        
-
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
         -- Requires password
         approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+
+        do
+          reqBody <- liftIO $ readChan chan
+          let LegalHoldServiceConfirm _clientId uid _tid authToken = reqBody ^?! _JSON
+          renewToken uid authToken
 
         cassState <- view tsCass
         liftIO $ do
@@ -603,6 +604,15 @@ getEnabled tid = do
     get $ g
          . paths ["i", "teams", toByteString' tid, "legalhold"]
 
+renewToken :: HasCallStack => UserId -> Text -> TestM ()
+renewToken uid tok = do
+  b <- view tsBrig
+  void . post $ b
+       . paths [ "access" ]
+       . cookieRaw "zuid" (toByteString' tok)
+       . zUser uid
+       . expect2xx
+
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = do
     g <- view tsGalley
@@ -772,7 +782,7 @@ withDummyTestServiceForTeam owner tid go = do
             (["legalhold", "status"], "GET", _)         -> cont respondOk
             (_, _, Nothing)                             -> cont missingAuth
             (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
-            (["legalhold", "confirm"], "POST", Just _)  -> 
+            (["legalhold", "confirm"], "POST", Just _)  ->
               cont respondOk
             (["legalhold", "remove"], "POST", Just _)   -> cont respondOk
             _ -> cont respondBad

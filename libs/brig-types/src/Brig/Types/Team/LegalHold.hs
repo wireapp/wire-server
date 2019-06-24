@@ -241,6 +241,15 @@ instance ToJSON LegalHoldServiceConfirm where
         #  "refresh_token" .= refreshToken
         # []
 
+instance FromJSON LegalHoldServiceConfirm where
+  parseJSON = withObject "LegalHoldServiceConfirm" $ \o ->
+    LegalHoldServiceConfirm
+        <$> o .: "client_id"
+        <*> o .: "user_id"
+        <*> o .: "team_id"
+        <*> o .: "refresh_token"
+
+
 data LegalHoldServiceRemove =
     LegalHoldServiceRemove
     { lhrUserId       :: !UserId
