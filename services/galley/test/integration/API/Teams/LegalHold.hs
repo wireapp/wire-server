@@ -23,7 +23,7 @@ import Data.LegalHold
 import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
-import Data.String.Conversions (cs)
+import Data.String.Conversions (LBS,cs)
 import Data.Text.Encoding (encodeUtf8)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
@@ -123,7 +123,7 @@ testRequestLegalHoldDevice = do
 
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         -- Can't request a device if team feature flag is disabled
         -- TODO: Add this back once the check is re-enabled
         -- requestDevice owner member tid !!! const 403 === statusCode
@@ -190,13 +190,24 @@ testApproveLegalHoldDevice = do
 
     cannon <- view tsCannon
 
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \chan -> do
         -- not allowed to approve if team setting is disabled
         -- TODO: remove the following 'ignore' once 'disabled' is the default
         ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
 
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
+
+        liftIO $ do
+          _statusCheck' <- readChan chan
+          reqBody <- readChan chan
+          let RequestNewLegalHoldClient userId' teamId' =  reqBody ^?! _JSON
+          assertEqual "userId == member" userId' member
+          assertEqual "teamId == tid" teamId' tid
+
+
+
+        
 
         -- Only the user themself can approve adding a LH device
         approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
@@ -236,7 +247,7 @@ testGetLegalHoldDeviceStatus = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    withDummyTestServiceForTeam owner tid $ do
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
         -- Initial status should be disabled
         do UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
@@ -271,7 +282,7 @@ testDisableLegalHoldForUser = do
     member <- randomUser
 
     cannon <- view tsCannon
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ do
+    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
@@ -437,7 +448,7 @@ testRemoveLegalHoldFromTeam = do
     -- is idempotent
     deleteSettings (Just defPassword) owner tid !!! const 204 === statusCode
 
-    withDummyTestServiceForTeam owner tid $ do
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
         newService <- newLegalHoldService
         putEnabled tid LegalHoldEnabled -- enable it for this team
         postSettings owner tid newService !!! const 201 === statusCode
@@ -500,7 +511,7 @@ testEnablePerTeam = do
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
-    withDummyTestServiceForTeam owner tid $ do
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
         requestDevice owner member tid !!! const 204 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
         do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
@@ -558,7 +569,7 @@ testGetTeamMembersIncludesLHStatus = do
     let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
         findMemberStatus ms =
             ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
-    withDummyTestServiceForTeam owner tid $ do
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
         do members' <- view (teamMembers) <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should be disabled on new team members"
                       (Just UserLegalHoldDisabled) (findMemberStatus members')
@@ -713,6 +724,7 @@ requestDevice zusr uid tid = do
            . zUser zusr . zConn "conn"
            . zType "access"
 
+
 --------------------------------------------------------------------
 -- setup helpers
 
@@ -738,26 +750,30 @@ readServiceKey fp = liftIO $ do
     return (ServiceKeyPEM k)
 
 withDummyTestServiceForTeam
-    :: HasCallStack
+    :: forall a. HasCallStack
     => UserId
     -> TeamId
-    -> TestM a      -- ^ the test
+    -> (Chan LBS -> TestM a)      -- ^ the test
     -> TestM a
 withDummyTestServiceForTeam owner tid go = do
     withTestService dummyService runTest
   where
-    runTest _chan = do
+    runTest :: Chan LBS -> TestM a
+    runTest chan = do
         newService <- newLegalHoldService
         putEnabled tid LegalHoldEnabled -- enable it for this team
         postSettings owner tid newService !!! const 201 === statusCode
-        go
-    dummyService :: Chan () -> Application
-    dummyService _ch req cont = do
+        go chan
+    dummyService :: Chan LBS -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
+    dummyService ch req cont = do
+        reqBody <- Wai.strictRequestBody req
+        writeChan ch reqBody
         case (pathInfo req, requestMethod req, getRequestHeader "Authorization" req) of
             (["legalhold", "status"], "GET", _)         -> cont respondOk
             (_, _, Nothing)                             -> cont missingAuth
             (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
-            (["legalhold", "confirm"], "POST", Just _)  -> cont respondOk
+            (["legalhold", "confirm"], "POST", Just _)  -> 
+              cont respondOk
             (["legalhold", "remove"], "POST", Just _)   -> cont respondOk
             _ -> cont respondBad
 
