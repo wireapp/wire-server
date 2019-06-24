@@ -28,6 +28,7 @@ instance ToBytes UserEvent where
     bytes e@UserSuspended{}       = val "user.suspend: " +++ toByteString (userEventUserId e)
     bytes e@UserResumed{}         = val "user.resume: " +++ toByteString (userEventUserId e)
     bytes e@UserDeleted{}         = val "user.delete: " +++ toByteString (userEventUserId e)
+    bytes e@UserLegalHoldDisabled{} = val "user.legalhold-disabled: " +++ toByteString (userEventUserId e)
 
 instance ToBytes ConnectionEvent where
     bytes e@ConnectionUpdated{} = val "user.connection: " +++ toByteString (connEventUserId e)

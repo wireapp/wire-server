@@ -46,6 +46,10 @@ data UserEvent
         , eirEmail :: !(Maybe Email)
         , eirPhone :: !(Maybe Phone)
         }
+    | UserLegalHoldDisabled
+        { elhdId :: !UserId
+        }
+        -- ^ Legal hold was disabled by admin
 
 data ConnectionEvent
     = ConnectionUpdated
@@ -114,6 +118,7 @@ userEventUserId (UserDeleted u)         = u
 userEventUserId UserUpdated{..}         = eupId
 userEventUserId UserIdentityUpdated{..} = eiuId
 userEventUserId UserIdentityRemoved{..} = eirId
+userEventUserId UserLegalHoldDisabled{..} = elhdId
 
 propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet       u _ _) = u

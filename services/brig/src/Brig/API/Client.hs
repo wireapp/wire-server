@@ -168,4 +168,7 @@ removeLegalHoldClient uid = do
     clients <- Data.lookupClients uid
     -- Should only be one; but just in case we'll treat it as a list
     let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+    -- maybe log if this isn't the case
     forM_ legalHoldClients  (execDelete uid Nothing)
+    Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+
