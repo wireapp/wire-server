@@ -47,6 +47,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @NewLegalHoldClient Proxy
     , run @RequestNewLegalHoldClient Proxy
     , run @UserLegalHoldStatusResponse Proxy
+    , run @LegalHoldServiceConfirm Proxy
     , run @LegalHoldClientRequest Proxy
     , run @RemoveLegalHoldSettingsRequest Proxy
     , run @DisableLegalHoldForUserRequest Proxy

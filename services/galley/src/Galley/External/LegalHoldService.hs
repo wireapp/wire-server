@@ -214,4 +214,4 @@ validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
 newtype OpaqueAuthToken =
     OpaqueAuthToken
     { opaqueAuthTokenToText :: Text
-    } deriving newtype (Eq, Show, FromJSON, ToJSON)
+    } deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)
