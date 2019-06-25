@@ -213,8 +213,8 @@ testApproveLegalHoldDevice = do
 
         do
           reqBody <- liftIO $ readChan chan
-          let LegalHoldServiceConfirm _clientId uid _tid authToken = reqBody ^?! _JSON
-          renewToken uid authToken
+          let LegalHoldServiceConfirm _clientId _uid _tid authToken = reqBody ^?! _JSON
+          renewToken authToken
 
         cassState <- view tsCass
         liftIO $ do
@@ -604,13 +604,12 @@ getEnabled tid = do
     get $ g
          . paths ["i", "teams", toByteString' tid, "legalhold"]
 
-renewToken :: HasCallStack => UserId -> Text -> TestM ()
-renewToken uid tok = do
+renewToken :: HasCallStack => Text -> TestM ()
+renewToken tok = do
   b <- view tsBrig
   void . post $ b
        . paths [ "access" ]
        . cookieRaw "zuid" (toByteString' tok)
-       . zUser uid
        . expect2xx
 
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
