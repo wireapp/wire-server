@@ -509,6 +509,14 @@ instance Arbitrary LegalHoldClientRequest where
             <$> arbitrary
             <*> arbitrary
 
+instance Arbitrary LegalHoldServiceConfirm where
+    arbitrary =
+        LegalHoldServiceConfirm 
+          <$> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+
 instance Arbitrary RemoveLegalHoldSettingsRequest where
     arbitrary = RemoveLegalHoldSettingsRequest <$> arbitrary
 
