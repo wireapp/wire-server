@@ -124,13 +124,14 @@ updateSearchIndex orig e = case e of
     UserCreated{}         -> return ()
     UserIdentityUpdated{} -> return ()
     UserIdentityRemoved{} -> return ()
+    UserLegalHoldDisabled{} -> return ()
 
     UserSuspended{}       -> Search.reindex orig
     UserResumed{}         -> Search.reindex orig
     UserActivated{}       -> Search.reindex orig
     UserDeleted{}         -> Search.reindex orig
     UserUpdated{..}       -> do
-        let interesting = or [ isJust eupName
+        let interesting = or [ isJust eupName 
                              , isJust eupAccentId
                              , isJust eupHandle
                              , isJust eupSearchable
@@ -158,6 +159,7 @@ dispatchNotifications orig conn e = case e of
     UserCreated{}         -> return ()
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
+    UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
 
     UserUpdated{..}
         | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
@@ -326,6 +328,10 @@ toPushFormat (UserEvent (UserResumed i)) = Just $ M.fromList
     ]
 toPushFormat (UserEvent (UserDeleted i)) = Just $ M.fromList
     [ "type" .= ("user.delete" :: Text)
+    , "id"   .= i
+    ]
+toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
+    [ "type" .= ("user.legalhold-disabled" :: Text)
     , "id"   .= i
     ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) = Just $ M.fromList

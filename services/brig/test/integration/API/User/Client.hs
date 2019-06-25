@@ -391,6 +391,12 @@ testDeleteLegalHoldClient brig cannon = do
             let eClientId = j ^? key "client" . key "id" .  _String
             eType @?= Just "user.client-remove"
             eClientId @?= Just (client lhClientId)
+        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+            let j = Object $ List1.head (ntfPayload n)
+            let eType = j ^? key "type" . _String
+            let euid = j ^?  key "id" .  _JSON
+            eType @?= Just "user.legalhold-disabled"
+            euid @?= Just uid
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do
