@@ -131,7 +131,8 @@ updateSearchIndex orig e = case e of
     UserActivated{}       -> Search.reindex orig
     UserDeleted{}         -> Search.reindex orig
     UserUpdated{..}       -> do
-        let interesting = or [ isJust eupName , isJust eupAccentId
+        let interesting = or [ isJust eupName 
+                             , isJust eupAccentId
                              , isJust eupHandle
                              , isJust eupSearchable
                              ]
