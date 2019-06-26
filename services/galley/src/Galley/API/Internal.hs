@@ -20,10 +20,11 @@ import Network.Wai.Predicate hiding (err, result)
 import Network.Wai.Utilities
 import System.Logger.Class
 
-import qualified Galley.API.Teams   as Teams
-import qualified Galley.Data        as Data
-import qualified Galley.Queue       as Q
-import qualified Galley.Intra.Push  as Intra
+import qualified Galley.API.Teams                 as Teams
+import qualified Galley.Data                      as Data
+import qualified Galley.External.LegalHoldService as LHS
+import qualified Galley.Queue                     as Q
+import qualified Galley.Intra.Push                as Intra
 
 rmUser :: UserId ::: Maybe ConnId -> Galley Response
 rmUser (user ::: conn) = do
@@ -38,6 +39,7 @@ rmUser (user ::: conn) = do
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
         Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
+        LHS.removeLegalHold tid user
         when (hasMore tids) $
             leaveTeams =<< liftClient (nextPage tids)
 

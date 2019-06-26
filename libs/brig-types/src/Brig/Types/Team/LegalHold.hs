@@ -262,6 +262,12 @@ instance ToJSON LegalHoldServiceRemove where
         #  "team_id" .= teamId
         # []
 
+instance FromJSON LegalHoldServiceRemove where
+  parseJSON = withObject "LegalHoldServiceRemove" $ \o ->
+    LegalHoldServiceRemove
+        <$> o .: "user_id"
+        <*> o .: "team_id"
+
 data RemoveLegalHoldSettingsRequest =
     RemoveLegalHoldSettingsRequest
     { rmlhsrPassword       :: !(Maybe PlainTextPassword)

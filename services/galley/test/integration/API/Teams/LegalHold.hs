@@ -69,6 +69,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
     , test s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser
+    , test s "BRIG DELETE i/user" testDeleteUserNotifiesLegalHoldService
 
       -- legal hold settings
     , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
@@ -316,6 +317,28 @@ testDisableLegalHoldForUser = do
                eClientId @?= Just someClientId
     ensureQueueEmpty
 
+testDeleteUserNotifiesLegalHoldService :: TestM ()
+testDeleteUserNotifiesLegalHoldService = do
+    (owner, tid) <- createTeam
+    member <- randomUser
+
+    withDummyTestServiceForTeam owner tid $ \chan -> do
+        addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+        putEnabled tid LegalHoldEnabled
+        requestDevice owner member tid !!! const 204 === statusCode
+        _statusCheck <- liftIO $ readChan chan
+        _requestDevice <- liftIO $ readChan chan
+
+        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        _confirmDevice <- liftIO $ readChan chan
+        assertExactlyOneLegalHoldDevice member
+
+        void $ deleteBrigUser member
+        removeDeviceRequestBody <- liftIO $ readChan chan
+        let LegalHoldServiceRemove userId' teamId' =  removeDeviceRequestBody ^?! _JSON
+        liftIO $ assertEqual "user id matches" member userId'
+        liftIO $ assertEqual "team id matches" tid teamId'
+    ensureQueueEmpty
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
@@ -689,6 +712,15 @@ disableLegalHoldForUser mPassword tid zusr uid = do
            . zUser zusr
            . zType "access"
            . json (DisableLegalHoldForUserRequest mPassword)
+
+deleteBrigUser
+    :: HasCallStack
+    => UserId
+    -> TestM ResponseLBS
+deleteBrigUser uid = do
+    b <- view tsBrig
+    delete $ b
+           . paths ["i", "users", toByteString' uid]
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
