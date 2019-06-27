@@ -12,6 +12,7 @@ data Event
     | ConnectionEvent !ConnectionEvent
     | PropertyEvent   !PropertyEvent
     | ClientEvent     !ClientEvent
+    | LegalHoldEvent  !LegalHoldEvent
 
 data UserEvent
     = UserCreated !UserAccount
@@ -46,10 +47,6 @@ data UserEvent
         , eirEmail :: !(Maybe Email)
         , eirPhone :: !(Maybe Phone)
         }
-    | UserLegalHoldDisabled
-        { elhdId :: !UserId
-        }
-        -- ^ Legal hold was disabled by admin
 
 data ConnectionEvent
     = ConnectionUpdated
@@ -63,10 +60,16 @@ data PropertyEvent
     | PropertyDeleted !UserId !PropertyKey
     | PropertiesCleared !UserId
 
+-- | TODO: Add comment
 data ClientEvent
     = ClientAdded !UserId !Client
     | ClientRemoved !UserId !Client
-    | LegalHoldClientRequested LegalHoldClientRequestedData
+
+-- | These are sent to user + all admins
+data LegalHoldEvent
+    = LegalHoldClientRequested LegalHoldClientRequestedData
+    | LegalHoldEnabled  !UserId
+    | LegalHoldDisabled !UserId
 
 data LegalHoldClientRequestedData =
     LegalHoldClientRequestedData
@@ -118,7 +121,7 @@ userEventUserId (UserDeleted u)         = u
 userEventUserId UserUpdated{..}         = eupId
 userEventUserId UserIdentityUpdated{..} = eiuId
 userEventUserId UserIdentityRemoved{..} = eirId
-userEventUserId UserLegalHoldDisabled{..} = elhdId
+-- userEventUserId UserLegalHoldDisabled{..} = elhdId
 
 propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet       u _ _) = u

@@ -154,13 +154,13 @@ pubClient c = PubClient
 
 legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey') =
-    Intra.onClientEvent targetUser Nothing lhClientEvent
+    Intra.onLegalHoldEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
     eventData :: LegalHoldClientRequestedData
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
-    lhClientEvent :: ClientEvent
+    lhClientEvent :: LegalHoldEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient :: UserId -> AppIO ()
@@ -170,5 +170,5 @@ removeLegalHoldClient uid = do
     let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
     -- maybe log if this isn't the case
     forM_ legalHoldClients  (execDelete uid Nothing)
-    Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+    Intra.onLegalHoldEvent uid Nothing (LegalHoldDisabled uid)
 

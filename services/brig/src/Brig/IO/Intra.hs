@@ -7,6 +7,7 @@ module Brig.IO.Intra
     , onConnectionEvent
     , onPropertyEvent
     , onClientEvent
+    , onLegalHoldEvent
 
       -- * Conversations
     , createSelfConv
@@ -44,7 +45,7 @@ import Bilge.Retry
 import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
-import Brig.Data.User (lookupUsers)
+import Brig.Data.User (lookupUser, lookupUsers)
 import Brig.API.Types
 import Brig.RPC
 import Brig.Types
@@ -53,6 +54,7 @@ import Brig.User.Event
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
 import Control.Retry
+import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
@@ -82,10 +84,29 @@ import qualified Galley.Types.Teams.Intra    as Team
 -----------------------------------------------------------------------------
 -- Event Handlers
 
+onLegalHoldEvent :: UserId -> Maybe ConnId -> LegalHoldEvent -> AppIO ()
+onLegalHoldEvent orig conn e = do
+    recip <- toIO $ do
+        muser <- lookupUser orig
+        case muser >>= userTeam of
+            Nothing -> 
+              -- TODO(arianvp): not sure what to do in this case.
+              -- If the user is not in a team, something fishy is going on
+              -- and we can't send anything to the admins.
+                pure $ singleton orig
+            Just teamId -> do
+                members <- view Team.teamMembers <$> getTeamMembers teamId
+                let perms = view Team.self (Team.rolePermissions Team.RoleAdmin)
+                let admins = filter (Set.isSubsetOf perms . view (Team.permissions . Team.self)) members
+                pure $ list1 orig  (map (view Team.userId) admins)
+
+      
+    notify (singleton (LegalHoldEvent e)) orig Push.RouteAny conn recip
+
 onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
 onUserEvent orig conn e =
     updateSearchIndex orig e *>
-    dispatchNotifications orig conn e *>
+    dispatchUserEvent orig conn e *>
     journalEvent orig e
 
 onConnectionEvent :: UserId          -- ^ Originator of the event.
@@ -117,21 +138,20 @@ onClientEvent orig conn e = do
     -- in the stream.
     push events rcps orig Push.RouteAny conn
 
-
 updateSearchIndex :: UserId -> UserEvent -> AppIO ()
 updateSearchIndex orig e = case e of
     -- no-ops
     UserCreated{}         -> return ()
     UserIdentityUpdated{} -> return ()
     UserIdentityRemoved{} -> return ()
-    UserLegalHoldDisabled{} -> return ()
+    -- UserLegalHoldDisabled{} -> return ()
 
     UserSuspended{}       -> Search.reindex orig
     UserResumed{}         -> Search.reindex orig
     UserActivated{}       -> Search.reindex orig
     UserDeleted{}         -> Search.reindex orig
     UserUpdated{..}       -> do
-        let interesting = or [ isJust eupName 
+        let interesting = or [ isJust eupName
                              , isJust eupAccentId
                              , isJust eupHandle
                              , isJust eupSearchable
@@ -154,12 +174,12 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
-dispatchNotifications orig conn e = case e of
+dispatchUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
+dispatchUserEvent orig conn e = case e of
     UserCreated{}         -> return ()
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
-    UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
+    -- UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
 
     UserUpdated{..}
         | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
@@ -330,10 +350,10 @@ toPushFormat (UserEvent (UserDeleted i)) = Just $ M.fromList
     [ "type" .= ("user.delete" :: Text)
     , "id"   .= i
     ]
-toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
+{-toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
     [ "type" .= ("user.legalhold-disabled" :: Text)
     , "id"   .= i
-    ]
+    ]-}
 toPushFormat (PropertyEvent (PropertySet _ k v)) = Just $ M.fromList
     [ "type"  .= ("user.properties-set" :: Text)
     , "key"   .= k
@@ -354,7 +374,7 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     [ "type"   .= ("user.client-remove" :: Text)
     , "client" .= object ["id" .= clientId c]
     ]
-toPushFormat (ClientEvent (LegalHoldClientRequested payload)) =
+{-toPushFormat (ClientEvent (LegalHoldClientRequested payload)) =
     let LegalHoldClientRequestedData requester targetUser lastPrekey' clientId = payload
     in Just
        $ M.fromList [ "type" .= ("user.client-legal-hold-request" :: Text)
@@ -364,7 +384,7 @@ toPushFormat (ClientEvent (LegalHoldClientRequested payload)) =
                     , "last_prekey" .= lastPrekey'
                     , "client_id" .= clientId
                     ]
-
+-}
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
     case (ucStatus uc, name) of
