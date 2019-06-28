@@ -125,6 +125,68 @@ addTeamMemberInternal tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
+removeTeamMember :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> TestM ()
+removeTeamMember tid admin mem passwd = do
+    g <- view tsGalley
+    delete ( g
+           . paths ["teams", toByteString' tid, "members", toByteString' mem]
+           . zUser admin
+           . zConn "conn"
+           . json (newTeamMemberDeleteData passwd)
+           ) !!! const 202 === statusCode
+
+    -- Ensure that that mem is really deleted
+    ensureDeletedState' True admin mem
+    -- WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
+    --         -- if ownerHasPassword
+    --         --   then do
+    --         --     delete ( g
+    --         --            . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+    --         --            . zUser owner
+    --         --            . zConn "conn"
+    --         --            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+    --         --            ) !!! const 202 === statusCode
+
+    --         --   else do
+    --         -- Deleting from a binding team without a password is fine if the owner is
+    --         -- authenticated, but has none.
+    --         delete ( g
+    --                . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+    --                . zUser owner
+    --                . zConn "conn"
+    --                . json (newTeamMemberDeleteData Nothing)
+    --                ) !!! const 202 === statusCode
+
+    --     checkTeamMemberLeave tid (mem1^.userId) wsOwner
+    --     checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
+
+    --     assertQueue "team member leave" $ tUpdate 1 [owner]
+    --     WS.assertNoEvent timeout [wsMext]
+    --     -- Mem1 is now gone from Wire
+    --     Util.ensureDeletedState True owner (mem1^.userId)
+-- WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext1, mext2, mext3] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext1, _wsMext2, wsMext3] -> do
+--         -- `mem1` lacks permission to remove team members
+--         delete ( g
+--                . paths ["teams", toByteString' tid, "members", toByteString' (mem2^.userId)]
+--                . zUser (mem1^.userId)
+--                . zConn "conn"
+--                ) !!! const 403 === statusCode
+
+--         -- `mem2` has `RemoveTeamMember` permission
+--         delete ( g
+--                . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+--                . zUser (mem2^.userId)
+--                . zConn "conn"
+--                ) !!! const 200 === statusCode
+
+--         -- Ensure that `mem1` is still a user (tid is not a binding team)
+--         Util.ensureDeletedState False owner (mem1^.userId)
+
+--         mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
+--         checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
+--         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
+--         WS.assertNoEvent timeout ws
+
 createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer
 
@@ -699,6 +761,17 @@ ensureDeletedState check from u = do
         . zUser from
         . zConn "conn"
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
+
+ensureDeletedState' :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
+ensureDeletedState' check from u = do
+    b <- view tsBrig
+    void $ retryWhileN 20 fn $ get ( b
+                                 . paths ["users", toByteString' u]
+                                 . zUser from
+                                 . zConn "conn"
+                                 )
+  where
+    fn b = fmap profileDeleted (decodeBody b) == Just check
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do

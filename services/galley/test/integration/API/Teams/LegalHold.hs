@@ -80,6 +80,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "POST /clients" testCreateLegalHoldDeviceOldAPI
 
     , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
+    , test s "DELETEXXX /teams/{tid}/members/{uid}" testDeleteTeamMembersWithLH
 
     -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
     -- tested
@@ -585,6 +586,36 @@ testGetTeamMembersIncludesLHStatus = do
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should be enabled after confirming device"
                       (Just UserLegalHoldEnabled) (findMemberStatus members')
+    ensureQueueEmpty
+
+testDeleteTeamMembersWithLH :: TestM ()
+testDeleteTeamMembersWithLH = do
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
+        findMemberStatus ms =
+            ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
+        do members' <- view (teamMembers) <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be disabled on new team members"
+                      (Just UserLegalHoldDisabled) (findMemberStatus members')
+
+        putEnabled tid LegalHoldEnabled
+        do requestDevice owner member tid !!! const 204 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should pending after requesting device"
+                      (Just UserLegalHoldPending) (findMemberStatus members')
+
+        do approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual "legal hold status should be enabled after confirming device"
+                      (Just UserLegalHoldEnabled) (findMemberStatus members')
+
+    -- Now that LH is enabled, try to remove the user
+    removeTeamMember tid owner member (Just defPassword)
+
     ensureQueueEmpty
 
 ----------------------------------------------------------------------
