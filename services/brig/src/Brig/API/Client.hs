@@ -154,13 +154,13 @@ pubClient c = PubClient
 
 legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey') =
-    Intra.onClientEvent targetUser Nothing lhClientEvent
+    Intra.onUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
     eventData :: LegalHoldClientRequestedData
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
-    lhClientEvent :: ClientEvent
+    lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient :: UserId -> AppIO ()

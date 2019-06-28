@@ -125,6 +125,8 @@ updateSearchIndex orig e = case e of
     UserIdentityUpdated{} -> return ()
     UserIdentityRemoved{} -> return ()
     UserLegalHoldDisabled{} -> return ()
+    UserLegalHoldEnabled{} -> return ()
+    LegalHoldClientRequested {} -> return ()
 
     UserSuspended{}       -> Search.reindex orig
     UserResumed{}         -> Search.reindex orig
@@ -159,7 +161,9 @@ dispatchNotifications orig conn e = case e of
     UserCreated{}         -> return ()
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
+    LegalHoldClientRequested{} -> notifyContacts event orig Push.RouteAny conn
     UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
+    UserLegalHoldEnabled{} -> notifyContacts event orig Push.RouteAny conn
 
     UserUpdated{..}
         | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
@@ -334,6 +338,10 @@ toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
     [ "type" .= ("user.legalhold-disable" :: Text)
     , "id"   .= i
     ]
+toPushFormat (UserEvent (UserLegalHoldEnabled  i)) = Just $ M.fromList
+    [ "type" .= ("user.legalhold-enable" :: Text)
+    , "id"   .= i
+    ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) = Just $ M.fromList
     [ "type"  .= ("user.properties-set" :: Text)
     , "key"   .= k
@@ -354,15 +362,14 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     [ "type"   .= ("user.client-remove" :: Text)
     , "client" .= object ["id" .= clientId c]
     ]
-toPushFormat (ClientEvent (LegalHoldClientRequested payload)) =
+toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
     let LegalHoldClientRequestedData requester targetUser lastPrekey' clientId = payload
     in Just
-       $ M.fromList [ "type" .= ("user.client-legal-hold-request" :: Text)
+       $ M.fromList [ "type" .= ("user.legalhold-request" :: Text)
                     , "requester" .= requester
-                      -- TODO: redundant?
-                    , "target_user" .= targetUser
+                    , "id" .= targetUser
                     , "last_prekey" .= lastPrekey'
-                    , "client_id" .= clientId
+                    , "client" .= object ["id" .= clientId ]
                     ]
 
 toApsData :: Event -> Maybe ApsData
