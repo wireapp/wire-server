@@ -331,7 +331,7 @@ toPushFormat (UserEvent (UserDeleted i)) = Just $ M.fromList
     , "id"   .= i
     ]
 toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
-    [ "type" .= ("user.legalhold-disabled" :: Text)
+    [ "type" .= ("user.legalhold-disable" :: Text)
     , "id"   .= i
     ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) = Just $ M.fromList
