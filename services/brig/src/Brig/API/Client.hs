@@ -58,6 +58,7 @@ addClient u con ip new = do
         for_ old $ execDelete u con
         Intra.newClient u (clientId clt)
         Intra.onClientEvent u con (ClientAdded u clt)
+        when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
