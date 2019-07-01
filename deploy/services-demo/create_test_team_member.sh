@@ -92,4 +92,6 @@ do
         then echo -e "Succesfully created a team member: "$TEAM_MEMBER_UUID" on team: "$TEAM_UUID" with email: "$EMAIL" and password: "$PASSWORD
         else echo -e $UUID","$EMAIL","$PASSWORD
     fi
+    sleep 2;
+    echo "Sleeping 2 seconds...";
 done
