@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -ex
 
 #
 # This bash script can be used to create an active in a team by using an internal
