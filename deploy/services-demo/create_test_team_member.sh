@@ -67,6 +67,9 @@ do
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
+    sleep 1;
+    echo "Created the invitation, sleeping 1 second...";
+
     ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
     if [[ "$INVITATION_ID" == "$ERR" ]]; then
       echo "User with the email $EMAIL already exists, aborting"
@@ -78,6 +81,9 @@ do
         -XGET "$BRIG_HOST/i/teams/invitation-code?team=$TEAM_UUID&invitation_id=$INVITATION_ID")
 
     INVITATION_CODE=$(echo "$CURL_OUT_INVITATION_CODE" | tail -1 | sed -n -e '/"code":/ s/^.*"\(.*\)".*/\1/p')
+
+    sleep 1;
+    echo "Got the code, sleeping 1 second...";
 
     # Create the user using that code
     CURL_OUT=$(curl -i -s --show-error \
@@ -92,6 +98,6 @@ do
         then echo -e "Succesfully created a team member: "$TEAM_MEMBER_UUID" on team: "$TEAM_UUID" with email: "$EMAIL" and password: "$PASSWORD
         else echo -e $UUID","$EMAIL","$PASSWORD
     fi
-    sleep 2;
-    echo "Sleeping 2 seconds...";
+    sleep 1;
+    echo "Sleeping 1 second...";
 done
