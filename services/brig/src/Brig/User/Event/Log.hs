@@ -30,7 +30,7 @@ instance ToBytes UserEvent where
     bytes e@UserDeleted{}         = val "user.delete: " +++ toByteString (userEventUserId e)
     bytes e@UserLegalHoldDisabled{} = val "user.legalhold-disable: " +++ toByteString (userEventUserId e)
     bytes e@UserLegalHoldEnabled{} = val "user.legalhold-enable: " +++ toByteString (userEventUserId e)
-    bytes (LegalHoldClientRequested payload) = val "user.request-legalhold: " +++ show payload
+    bytes (LegalHoldClientRequested payload) = val "user.legalhold-request: " +++ show payload
 
 instance ToBytes ConnectionEvent where
     bytes e@ConnectionUpdated{} = val "user.connection: " +++ toByteString (connEventUserId e)

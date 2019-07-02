@@ -156,10 +156,10 @@ testRequestLegalHoldDevice = do
                 let j = Aeson.Object $ List1.head (ntfPayload n)
                 let etype = j ^? key "type" . _String
                 let eRequester = j ^? key "requester" . _String
-                let eTargetUser = j ^? key "target_user" . _String
+                let eTargetUser = j ^? key "id" . _String
                 let eLastPrekey = j ^? key "last_prekey" . _JSON
-                let eClientId = j ^? key "client_id" . _JSON
-                etype @?= Just "user.client-legal-hold-request"
+                let eClientId = j ^? key "client" . key "id" . _JSON
+                etype @?= Just "user.legalhold-request"
                 eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
                 eClientId @?= Just someClientId
@@ -190,7 +190,7 @@ testApproveLegalHoldDevice = do
 
     cannon <- view tsCannon
 
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \chan -> do
+    WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
         -- not allowed to approve if team setting is disabled
         -- TODO: remove the following 'ignore' once 'disabled' is the default
         ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
@@ -227,7 +227,7 @@ testApproveLegalHoldDevice = do
                     UserLegalHoldEnabled userStatus
 
         liftIO $ do
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
                 let j = Aeson.Object $ List1.head (ntfPayload n)
                 let etype = j ^? key "type" . _String
                 let eClient = j ^? key "client" . _JSON
@@ -235,6 +235,15 @@ testApproveLegalHoldDevice = do
                 clientId <$> eClient @?= Just someClientId
                 clientType <$> eClient @?= Just LegalHoldClientType
                 clientClass <$> eClient @?= Just (Just LegalHoldClient)
+
+        -- Other team users should get a user.legalhold-enable event
+        liftIO $ do
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ows $ \n -> do
+                let j = Aeson.Object $ List1.head (ntfPayload n)
+                let etype = j ^? key "type" . _String
+                let eUser = j ^? key "id" . _JSON
+                etype @?= Just "user.legalhold-enable"
+                eUser @?= Just member
 
     ensureQueueEmpty
 
@@ -283,7 +292,7 @@ testDisableLegalHoldForUser = do
     member <- randomUser
 
     cannon <- view tsCannon
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
+    WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
         putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! const 204 === statusCode
@@ -300,22 +309,34 @@ testDisableLegalHoldForUser = do
         assertZeroLegalHoldDevices member
 
         liftIO $ do
-           void . WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
-               let j = Aeson.Object $ List1.head (ntfPayload n)
-               let etype = j ^? key "type" . _String
-               let eClient = j ^? key "client" . _JSON
-               etype @?= Just "user.client-add"
-               clientId <$> eClient @?= Just someClientId
-               clientType <$> eClient @?= Just LegalHoldClientType
-               clientClass <$> eClient @?= Just (Just LegalHoldClient)
-           void . WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
-               let j = Aeson.Object $ List1.head (ntfPayload n)
-               let eType = j ^? key "type" . _String
-               let eClientId = j ^? key "client" . key "id" .  _JSON
-               eType @?= Just "user.client-remove"
-               eClientId @?= Just someClientId
+            void . WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
+              let j = Aeson.Object $ List1.head (ntfPayload n)
+              let etype = j ^? key "type" . _String
+              let eClient = j ^? key "client" . _JSON
+              etype @?= Just "user.client-add"
+              clientId <$> eClient @?= Just someClientId
+              clientType <$> eClient @?= Just LegalHoldClientType
+              clientClass <$> eClient @?= Just (Just LegalHoldClient)
+            void . WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
+              let j = Aeson.Object $ List1.head (ntfPayload n)
+              let eType = j ^? key "type" . _String
+              let eClientId = j ^? key "client" . key "id" .  _JSON
+              eType @?= Just "user.client-remove"
+              eClientId @?= Just someClientId
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
+              let j = Aeson.Object $ List1.head (ntfPayload n)
+              let eType = j ^? key "type" . _String
+              let euid = j ^?  key "id" .  _JSON
+              eType @?= Just "user.legalhold-disable"
+              euid @?= Just member
+            -- Other users should also get the event
+            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ows $ \n -> do
+              let j = Aeson.Object $ List1.head (ntfPayload n)
+              let eType = j ^? key "type" . _String
+              let euid = j ^?  key "id" .  _JSON
+              eType @?= Just "user.legalhold-disable"
+              euid @?= Just member
     ensureQueueEmpty
-
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
