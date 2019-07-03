@@ -187,6 +187,8 @@ instance FromJSON RequestNewLegalHoldClient where
         RequestNewLegalHoldClient <$> o .: "user_id"
                                   <*> o .: "team_id"
 
+-- TODO: Review this datatype: the encoding/swagger could probably be
+--       very much simplified with a different type for ulhsrClientId
 data UserLegalHoldStatusResponse =
     UserLegalHoldStatusResponse
       { ulhsrStatus     :: UserLegalHoldStatus
