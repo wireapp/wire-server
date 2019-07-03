@@ -152,6 +152,7 @@ viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr t k) =
     ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr t (serviceKeyPEM k)
 
+-- This is the payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
     { newLegalHoldClientPrekeys  :: [Prekey]
     , newLegalHoldClientLastKey  :: !LastPrekey
@@ -169,6 +170,7 @@ instance FromJSON NewLegalHoldClient where
         NewLegalHoldClient <$> o .:  "prekeys"
                            <*> o .:  "last_prekey"
 
+-- This is the payload that the LH service expects
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     { userId :: !UserId
     , teamId :: !TeamId
@@ -197,14 +199,14 @@ instance ToJSON UserLegalHoldStatusResponse where
     toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') = object
         $  "status"      .= status
         #  "last_prekey" .= lastPrekey'
-        #  "client_id"   .= clientId'
+        #  "client"      .= object ["id" .= clientId']
         # []
 
 instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
                                     <*> o .:? "last_prekey"
-                                    <*> o .:? "client_id"
+                                    <*> ((o .: "client") >>= (.:? "id"))
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest
@@ -233,6 +235,7 @@ data LegalHoldServiceConfirm =
     , lhcRefreshToken :: !Text -- ^ Replace with Legal Hold Token Type
     } deriving stock (Eq, Show, Generic)
 
+-- TODO: Review this in a separate PR, requires sync'ing with LH team
 instance ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) = object
         $  "client_id" .= clientId
@@ -249,7 +252,7 @@ instance FromJSON LegalHoldServiceConfirm where
         <*> o .: "team_id"
         <*> o .: "refresh_token"
 
-
+-- TODO: Review this in a separate PR, requires sync'ing with LH team
 data LegalHoldServiceRemove =
     LegalHoldServiceRemove
     { lhrUserId       :: !UserId

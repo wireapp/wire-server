@@ -281,7 +281,7 @@ instance ToSchema UserLegalHoldStatusResponse where
           { fieldLabelModifier = \case
               "ulhsrStatus" -> "status"
               "ulhsrLastPrekey" -> "last_prekey"
-              "ulhsrClientId" -> "client_id"
+              "ulhsrClientId" -> "client" -- TODO: This is wrong still!
           }
 
 instance ToSchema UserLegalHoldStatus where

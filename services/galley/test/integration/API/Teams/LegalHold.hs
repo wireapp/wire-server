@@ -263,14 +263,14 @@ testGetLegalHoldDeviceStatus = do
            liftIO $
              do assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
                 assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
-                assertEqual "client_id should be Nothing when LH is disabled" Nothing clientId'
+                assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
 
         do requestDevice owner member tid !!! const 204 === statusCode
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "requestDevice should set user status to Pending" UserLegalHoldPending userStatus
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-                assertEqual "client_id should be set when LH is pending" (Just someClientId) clientId'
+                assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
         do requestDevice owner member tid !!! const 204 === statusCode
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -282,7 +282,7 @@ testGetLegalHoldDeviceStatus = do
            liftIO $
              do assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-                assertEqual "client_id should be set when LH is pending" (Just someClientId) clientId'
+                assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
     ensureQueueEmpty
 
