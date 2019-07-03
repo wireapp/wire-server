@@ -298,6 +298,7 @@ instance ToSchema UserLegalHoldStatusResponse where
 instance ToSchema SimpleClientId where
     declareNamedSchema _ = pure $ NamedSchema (Just "SimpleClientId") $ mempty
         & properties .~ properties_
+        & required .~ ["id"]
         & type_ .~ SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)

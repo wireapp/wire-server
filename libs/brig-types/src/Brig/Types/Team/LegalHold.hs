@@ -199,7 +199,9 @@ instance ToJSON UserLegalHoldStatusResponse where
     toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') = object
         $  "status"      .= status
         #  "last_prekey" .= lastPrekey'
-        #  "client"      .= object ["id" .= clientId']
+        #  (if isJust clientId'
+              then "client" .= object ["id" .= clientId']
+              else (mempty, Null))
         # []
 
 instance FromJSON UserLegalHoldStatusResponse where
