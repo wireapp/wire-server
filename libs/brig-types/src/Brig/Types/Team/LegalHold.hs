@@ -210,7 +210,7 @@ instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
                                     <*> o .:? "last_prekey"
-                                    <*> ((o .: "client") >>= (.:? "id"))
+                                    <*> ((o .:? "client") >>= maybe (return Nothing) (.:? "id"))
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest
