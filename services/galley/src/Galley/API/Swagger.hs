@@ -274,15 +274,37 @@ instance ToSchema NewLegalHoldClient where
               "newLegalHoldClientLastKey"     -> "last_prekey"
           }
 
+-- | this type is only introduce locally here to generate the schema for 'UserLegalHoldStatusResponse'.
+--   TODO: Use SimpleClientId in the UserLegalHoldStatusResponse datatype or re-use PubClient datatype
+--         which would greatly simplify these instances
+data SimpleClientId = SimpleClientId ClientId
+  deriving (Eq, Show, Generic)
+
 instance ToSchema UserLegalHoldStatusResponse where
-    declareNamedSchema = genericDeclareNamedSchema opts
+    declareNamedSchema _ = pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $ mempty
+        & properties .~ properties_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
       where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "ulhsrStatus" -> "status"
-              "ulhsrLastPrekey" -> "last_prekey"
-              "ulhsrClientId" -> "client_id"
-          }
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus)))
+          , ("last_prekey", Inline (toSchema (Proxy @LastPrekey)))
+          , ("client", Inline (toSchema (Proxy @SimpleClientId)))
+          ]
+
+instance ToSchema SimpleClientId where
+    declareNamedSchema _ = pure $ NamedSchema (Just "SimpleClientId") $ mempty
+        & properties .~ properties_
+        & required .~ ["id"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("id", Inline (toSchema (Proxy @ClientId)))
+          ]
 
 instance ToSchema UserLegalHoldStatus where
     declareNamedSchema = tweak . genericDeclareNamedSchema opts

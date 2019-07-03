@@ -58,6 +58,7 @@ addClient u con ip new = do
         for_ old $ execDelete u con
         Intra.newClient u (clientId clt)
         Intra.onClientEvent u con (ClientAdded u clt)
+        when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
@@ -154,13 +155,13 @@ pubClient c = PubClient
 
 legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest requester lastPrekey') =
-    Intra.onClientEvent targetUser Nothing lhClientEvent
+    Intra.onUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
     eventData :: LegalHoldClientRequestedData
     eventData = LegalHoldClientRequestedData requester targetUser lastPrekey' clientId
-    lhClientEvent :: ClientEvent
+    lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient :: UserId -> AppIO ()

@@ -6,7 +6,6 @@ import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Data.Id (client)
 import Control.Lens ((^?), preview)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -27,11 +26,9 @@ import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
 tests _cl _at _conf p b c g = testGroup "client"
-    [ test p "post /i/clients/legalhold/request 200"  $ testRequestLegalHoldClient b c
-    , test p "delete /i/clients/legalhold/:uid 200"   $ testDeleteLegalHoldClient b c
-    , test p "delete /clients/:client 403 - can't delete legal hold clients"
+    [ test p "delete /clients/:client 403 - can't delete legalhold clients"
                $ testCan'tDeleteLegalHoldClient b
-    , test p "post /clients 400 - can't add legal hold clients manually"
+    , test p "post /clients 400 - can't add legalhold clients manually"
                $ testCan'tAddLegalHoldClient b
     , test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
     , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
@@ -337,66 +334,6 @@ testPreKeyRace brig = do
     let regular = filter (/= lastPrekeyId) actual
     liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
     deleteClient brig uid (clientId c) (Just defPassword) !!! const 200 === statusCode
-
-testRequestLegalHoldClient :: Brig -> Cannon -> Http ()
-testRequestLegalHoldClient brig cannon = do
-    let hasPassword = True
-    requester <- randomUser' hasPassword brig
-    targetUser' <- randomUser' hasPassword brig
-    let requesterUid = userId requester
-    let targetUid = userId targetUser'
-
-    WS.bracketR cannon targetUid $ \ws -> do
-        let expectedLastPrekey = head Util.someLastPrekeys
-        requestLegalHoldDevice brig requesterUid targetUid expectedLastPrekey
-          !!! const 200 === statusCode
-        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
-            let j = Object $ List1.head (ntfPayload n)
-            let eType = j ^? key "type" . _String
-            let eRequester = j ^? key "requester" . _String
-            let eTargetUser = j ^? key "target_user" . _String
-            let eLastPrekey = j ^? key "last_prekey" . _JSON
-            let eClientId = j ^? key "client_id" . _JSON
-            eType @?= Just "user.client-legal-hold-request"
-            eRequester @?= Just (idToText requesterUid)
-            eTargetUser @?= Just (idToText targetUid)
-            eClientId @?= Just someClientId
-            Just expectedLastPrekey @?= eLastPrekey
-
-testDeleteLegalHoldClient :: Brig -> Cannon -> Http ()
-testDeleteLegalHoldClient brig cannon = do
-    let hasPassword = True
-    user <- randomUser' hasPassword brig
-    let uid = userId user
-
-    -- Deleting without having any LH clients should trivially succeed
-    deleteLegalHoldDevice brig uid !!! const 200 === statusCode
-
-    let pk = head somePrekeys
-    let lk = head someLastPrekeys
-
-    resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
-       <!! const 201 === statusCode
-
-    lhClientId <- clientId <$> decodeBody resp
-    getClient brig uid lhClientId !!! const 200 === statusCode
-
-    WS.bracketR cannon uid $ \ws -> do
-        deleteLegalHoldDevice brig uid !!! const 200 === statusCode
-        -- client should be deleted
-        getClient brig uid lhClientId !!! const 404 === statusCode
-        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
-            let j = Object $ List1.head (ntfPayload n)
-            let eType = j ^? key "type" . _String
-            let eClientId = j ^? key "client" . key "id" .  _String
-            eType @?= Just "user.client-remove"
-            eClientId @?= Just (client lhClientId)
-        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
-            let j = Object $ List1.head (ntfPayload n)
-            let eType = j ^? key "type" . _String
-            let euid = j ^?  key "id" .  _JSON
-            eType @?= Just "user.legalhold-disabled"
-            euid @?= Just uid
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

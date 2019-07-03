@@ -46,10 +46,9 @@ data UserEvent
         , eirEmail :: !(Maybe Email)
         , eirPhone :: !(Maybe Phone)
         }
-    | UserLegalHoldDisabled
-        { elhdId :: !UserId
-        }
-        -- ^ Legal hold was disabled by admin
+    | UserLegalHoldDisabled !UserId
+    | UserLegalHoldEnabled !UserId
+    | LegalHoldClientRequested LegalHoldClientRequestedData
 
 data ConnectionEvent
     = ConnectionUpdated
@@ -66,7 +65,6 @@ data PropertyEvent
 data ClientEvent
     = ClientAdded !UserId !Client
     | ClientRemoved !UserId !Client
-    | LegalHoldClientRequested LegalHoldClientRequestedData
 
 data LegalHoldClientRequestedData =
     LegalHoldClientRequestedData
@@ -118,7 +116,9 @@ userEventUserId (UserDeleted u)         = u
 userEventUserId UserUpdated{..}         = eupId
 userEventUserId UserIdentityUpdated{..} = eiuId
 userEventUserId UserIdentityRemoved{..} = eirId
-userEventUserId UserLegalHoldDisabled{..} = elhdId
+userEventUserId (UserLegalHoldDisabled uid) = uid
+userEventUserId (UserLegalHoldEnabled uid) = uid
+userEventUserId (LegalHoldClientRequested dat) = lhcTargetUser dat
 
 propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet       u _ _) = u

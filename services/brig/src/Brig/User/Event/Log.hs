@@ -28,7 +28,9 @@ instance ToBytes UserEvent where
     bytes e@UserSuspended{}       = val "user.suspend: " +++ toByteString (userEventUserId e)
     bytes e@UserResumed{}         = val "user.resume: " +++ toByteString (userEventUserId e)
     bytes e@UserDeleted{}         = val "user.delete: " +++ toByteString (userEventUserId e)
-    bytes e@UserLegalHoldDisabled{} = val "user.legalhold-disabled: " +++ toByteString (userEventUserId e)
+    bytes e@UserLegalHoldDisabled{} = val "user.legalhold-disable: " +++ toByteString (userEventUserId e)
+    bytes e@UserLegalHoldEnabled{} = val "user.legalhold-enable: " +++ toByteString (userEventUserId e)
+    bytes (LegalHoldClientRequested payload) = val "user.legalhold-request: " +++ show payload
 
 instance ToBytes ConnectionEvent where
     bytes e@ConnectionUpdated{} = val "user.connection: " +++ toByteString (connEventUserId e)
@@ -41,6 +43,4 @@ instance ToBytes PropertyEvent where
 instance ToBytes ClientEvent where
     bytes (ClientAdded u _)   = val "user.client-add: " +++ toByteString u
     bytes (ClientRemoved u _) = val "user.client-remove: " +++ toByteString u
-    bytes (LegalHoldClientRequested payload) =
-      val "user.client-request-legal-hold: " +++ show payload
 
