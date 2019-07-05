@@ -64,8 +64,11 @@ import qualified System.Logger.Class           as Log
 ---------------------------------------------------------------------------
 -- Sitemap
 
-sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
-sitemap o = do
+-- sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
+-- sitemap _ = do
+
+sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap = do
 
     -- Internal ---------------------------------------------------------------
 
@@ -201,7 +204,7 @@ sitemap o = do
 
     get "/users/api-docs"
         (\(_ ::: url) k ->
-            let doc = mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
+            let doc = mkSwaggerApi (decodeLatin1 url) Doc.brigModels sitemap
             in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
@@ -578,7 +581,7 @@ sitemap o = do
     document "POST" "createConnection" $ do
         Doc.summary "Create a connection to another user."
         Doc.notes $ "You can have no more than "
-                 <> Text.pack (show (setUserMaxConnections $ optSettings o))
+                 -- <> Text.pack (show (setUserMaxConnections $ optSettings o))
                  <> " connections in accepted or sent state."
         Doc.body (Doc.ref Doc.connectionRequest) $
             Doc.description "JSON body"
