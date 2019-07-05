@@ -48,9 +48,9 @@ mkApp o = do
     e <- newEnv o
     return (middleware e $ serve e, e)
   where
-    rtree      = compile (sitemap o)
+    rtree      = compile sitemap -- (sitemap o)
     middleware :: Env -> Wai.Middleware
-    middleware e = Metrics.waiPrometheusMiddleware (sitemap o)
+    middleware e = Metrics.waiPrometheusMiddleware sitemap -- (sitemap o)
                  . measureRequests (e^.metrics) (treeToPaths rtree)
                  . catchErrors (e^.applog) [Right $ e^.metrics]
                  . GZip.gunzip . GZip.gzip GZip.def
