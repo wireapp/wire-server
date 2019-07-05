@@ -15,7 +15,6 @@ import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams as Team
-import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -58,7 +57,7 @@ setEnabled (tid ::: req ::: _) = do
         LegalHoldDisabled -> removeSettings' tid Nothing
         LegalHoldEnabled -> pure ()
     LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-    pure $ responseLBS status204 [] mempty
+    pure noContent
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
@@ -98,7 +97,7 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
     removeSettings' tid (Just membs)
-    pure $ responseLBS status204 [] mempty
+    pure noContent
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings'
@@ -166,7 +165,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
         Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
-        pure $ responseLBS status204 [] mempty
+        pure noContent
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
@@ -205,8 +204,9 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     legalHoldAuthToken <- Client.getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
+    -- send event at this point
 
-    pure $ responseLBS status200 [] mempty
+    pure empty
   where
     assertUserLHPending :: Galley ()
     assertUserLHPending = do
@@ -228,4 +228,5 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     Client.removeLegalHoldClientFromUser uid
     LHService.removeLegalHold tid uid
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-    pure $ responseLBS status200 [] mempty
+    -- send event at this point
+    pure empty

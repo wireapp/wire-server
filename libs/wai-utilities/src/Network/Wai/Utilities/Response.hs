@@ -14,6 +14,9 @@ import qualified Data.ByteString.Lazy as Lazy
 empty :: Response
 empty = plain ""
 
+noContent :: Response
+noContent = empty & setStatus status204
+
 plain :: Lazy.ByteString -> Response
 plain = responseLBS status200 [plainContent]
 
