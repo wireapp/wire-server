@@ -205,7 +205,6 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
     -- send event at this point
-
     pure empty
   where
     assertUserLHPending :: Galley ()
@@ -222,11 +221,22 @@ disableForUser
 disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
-    DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
-    ensureReAuthorised zusr mPassword
+    if userLHNotDisabled membs
+        then disableLH >> pure empty
+        else pure noContent
+  where
+    -- If not enabled nor pending, then it's disabled
+    userLHNotDisabled mems = do
+        let target = findTeamMember uid mems
+        case fmap (view legalHoldStatus) target of
+            Just UserLegalHoldEnabled -> True
+            Just UserLegalHoldPending -> True
+            _                         -> False
 
-    Client.removeLegalHoldClientFromUser uid
-    LHService.removeLegalHold tid uid
-    LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-    -- send event at this point
-    pure empty
+    disableLH = do
+        DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
+        ensureReAuthorised zusr mPassword
+        Client.removeLegalHoldClientFromUser uid
+        LHService.removeLegalHold tid uid
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+        -- send event at this point
