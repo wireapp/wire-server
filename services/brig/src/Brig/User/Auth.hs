@@ -104,17 +104,16 @@ renewAccess ut at = do
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
 
--- TODO: less code duplication?
+-- FUTUREWORK: less code duplication?
 renewAccessLegalHold
     :: ZAuth.LegalHoldUserToken
     -> Maybe ZAuth.LegalHoldAccessToken
     -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
 renewAccessLegalHold ut at = do
     (_, ck) <- legalHoldvalidateTokens ut at
-    -- ck' <- lift $ nextCookie ck
-    -- at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
-    -- return $ LegalHoldAccess at' ck'
-    undefined
+    ck' <- lift $ nextCookie ck
+    at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
+    return $ LegalHoldAccess at' ck'
 
 revokeAccess
     :: UserId
@@ -183,6 +182,12 @@ isPendingActivation ident = case ident of
             Just SSOIdentity {}     -> False  -- sso-created users are activated immediately.
             Nothing                 -> True
 
+-- TODO abstract?
+-- validateTokens
+--     :: (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a)
+--     => u
+--     -> Maybe a
+--     -> ExceptT ZAuth.Failure AppIO (UserId, Cookie u)
 validateTokens
     :: ZAuth.UserToken
     -> Maybe ZAuth.AccessToken
@@ -191,8 +196,8 @@ validateTokens ut at = do
     unless (maybe True ((ZAuth.userTokenOf ut ==) . ZAuth.accessTokenOf) at) $
         throwE ZAuth.Invalid
     ExceptT (ZAuth.validateToken ut)
-    forM_ at $ \a ->
-        ExceptT (ZAuth.validateToken a)
+    forM_ at $ \token ->
+        ExceptT (ZAuth.validateToken token)
             `catchE` \e ->
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
