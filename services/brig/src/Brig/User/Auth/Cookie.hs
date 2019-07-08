@@ -2,7 +2,6 @@ module Brig.User.Auth.Cookie
     ( -- * Cookie Essentials
       newCookie
     , newAccessToken
-    , newLegalHoldAccessToken
     , nextCookie
     , renewCookie
     , lookupCookie
@@ -112,7 +111,7 @@ renewCookie old = do
     DB.insertCookie u old' (Just (DB.TTL (fromIntegral ttl)))
     return new
 
-newAccessToken :: Cookie ZAuth.UserToken -> Maybe ZAuth.AccessToken -> AppIO AccessToken
+newAccessToken :: ZAuth.Foo u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
@@ -122,16 +121,16 @@ newAccessToken c mt = do
                          (toByteString t')
                          (ZAuth.accessTokenTimeoutSeconds ttl)
 
--- This renewal differs in type and validity to the 'newAccessToken'
-newLegalHoldAccessToken :: Cookie ZAuth.LegalHoldUserToken -> Maybe ZAuth.LegalHoldAccessToken -> AppIO AccessToken
-newLegalHoldAccessToken c mt = do
-    t' <- case mt of
-       Nothing -> ZAuth.newLegalHoldAccessToken (cookieValue c)
-       Just  t -> ZAuth.renewLegalHoldAccessToken t
-    ttl <- view (zauthEnv.ZAuth.settings.ZAuth.legalHoldAccessTokenTimeout)
-    return $ bearerToken (ZAuth.legalHoldAccessTokenOf t')
-                         (toByteString t')
-                         (ZAuth.legalHoldAccessTokenTimeoutSeconds ttl)
+-- -- This renewal differs in type and validity to the 'newAccessToken'
+-- newLegalHoldAccessToken :: Cookie ZAuth.LegalHoldUserToken -> Maybe ZAuth.LegalHoldAccessToken -> AppIO AccessToken
+-- newLegalHoldAccessToken c mt = do
+--     t' <- case mt of
+--        Nothing -> ZAuth.newLegalHoldAccessToken (cookieValue c)
+--        Just  t -> ZAuth.renewLegalHoldAccessToken t
+--     ttl <- view (zauthEnv.ZAuth.settings.ZAuth.legalHoldAccessTokenTimeout)
+--     return $ bearerToken (ZAuth.legalHoldAccessTokenOf t')
+--                          (toByteString t')
+--                          (ZAuth.legalHoldAccessTokenTimeoutSeconds ttl)
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.

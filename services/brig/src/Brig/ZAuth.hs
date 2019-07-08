@@ -20,18 +20,18 @@ module Brig.ZAuth
     , defSettings
     , localSettings
     , keyIndex
-    , UserTokenTimeout (..)
-    , userTokenTimeout
+    -- , UserTokenTimeout (..)
+    -- , userTokenTimeout
     , SessionTokenTimeout (..)
     , sessionTokenTimeout
-    , AccessTokenTimeout (..)
-    , accessTokenTimeout
+    -- , AccessTokenTimeout (..)
+    -- , accessTokenTimeout
     , ProviderTokenTimeout (..)
     , providerTokenTimeout
-    , LegalHoldUserTokenTimeout (..)
-    , legalHoldUserTokenTimeout
-    , LegalHoldAccessTokenTimeout (..)
-    , legalHoldAccessTokenTimeout
+    -- , LegalHoldUserTokenTimeout (..)
+    -- , legalHoldUserTokenTimeout
+    -- , LegalHoldAccessTokenTimeout (..)
+    -- , legalHoldAccessTokenTimeout
 
       -- * Token Creation
     , Token
@@ -54,10 +54,6 @@ module Brig.ZAuth
     , AccessTokenLike
     , Foo
 
-    -- TODO remove??
-    , newLegalHoldUserToken
-    , newLegalHoldAccessToken
-    , renewLegalHoldAccessToken
 
 
       -- * Token Validation
@@ -201,7 +197,6 @@ mkEnv sk pk sets = do
 
 class (UserTokenLike u, AccessTokenLike a, ToByteString u, ToByteString a) => Foo u a where
     newAccessToken :: MonadZAuth m => Token u -> m (Token a)
-    -- renewAccessToken :: ()
 
 instance Foo User Access where
     newAccessToken = newAccessToken'
@@ -212,13 +207,21 @@ instance Foo LegalHoldUser LegalHoldAccess where
 
 class AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
+    renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
+    aTimeout :: Token a -> Integer
+    -- aTimeoutSeconds :: Token a -> Integer
 
 instance AccessTokenLike Access where
     accessTokenOf = accessTokenOf'
+    renewAccessToken = renewAccessToken'
+    aTimeout = accessTokenTimeout
+    -- aTimeoutSeconds = accessTokenTimeoutSeconds
 
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
-
+    renewAccessToken = renewLegalHoldAccessToken
+    aTimeout = legalHoldAccessTokenTimeout
+    -- aTimeoutSeconds = legalHoldAccessTokenTimeoutSeconds
 
 class UserTokenLike u where
     userTokenOf :: Token u -> UserId
@@ -229,8 +232,6 @@ class UserTokenLike u where
 
     -- TODO add these?
     -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
-    -- accessTokenTimeout :: ()
-    -- accessTokenTimeoutSeconds :: ()
 
 instance UserTokenLike User where
     mkUserToken = mkUserToken'
@@ -275,8 +276,8 @@ newAccessToken' xt = liftZAuth $ do
         let AccessTokenTimeout ttl = z^.settings.accessTokenTimeout
         in ZC.accessToken1 ttl (xt^.body.user)
 
-renewAccessToken :: MonadZAuth m => AccessToken -> m AccessToken
-renewAccessToken old = liftZAuth $ do
+renewAccessToken' :: MonadZAuth m => AccessToken -> m AccessToken
+renewAccessToken' old = liftZAuth $ do
     z <- ask
     liftIO $ ZC.runCreate (z^.private) (z^.settings.keyIndex) $
         let AccessTokenTimeout ttl = z^.settings.accessTokenTimeout

@@ -45,7 +45,7 @@ data Access = Access
 
 data LegalHoldAccess = LegalHoldAccess
     { legalHoldAccessToken  :: !AccessToken
-    , legalHoldAccessCookie :: !(Maybe (Cookie ZAuth.LegalHoldUserToken))
+    , legalHoldAccessCookie :: !(Maybe (Cookie ZAuth.Token u))
     }
 
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
@@ -106,13 +106,14 @@ renewAccess ut at = do
 
 -- FUTUREWORK: less code duplication?
 renewAccessLegalHold
-    :: ZAuth.LegalHoldUserToken
-    -> Maybe ZAuth.LegalHoldAccessToken
+    :: ZAuth.Foo u a
+    => ZAuth.Token u
+    -> Maybe (ZAuth.Token a)
     -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
 renewAccessLegalHold ut at = do
     (_, ck) <- validateTokens ut at
     ck' <- lift $ nextCookie ck
-    at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
+    at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ LegalHoldAccess at' ck'
 
 revokeAccess
