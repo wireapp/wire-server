@@ -15,7 +15,6 @@ import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams as Team
-import Network.HTTP.Types
 import Network.HTTP.Types.Status (status201)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -26,7 +25,7 @@ import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
 import qualified Galley.Intra.Client as Client
 import qualified Galley.External.LegalHoldService as LHService
-import qualified System.Logger as Logger
+import qualified System.Logger.Class as Log
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
@@ -58,7 +57,7 @@ setEnabled (tid ::: req ::: _) = do
         LegalHoldDisabled -> removeSettings' tid Nothing
         LegalHoldEnabled -> pure ()
     LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-    pure $ responseLBS status204 [] mempty
+    pure noContent
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
@@ -98,7 +97,7 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     ensureReAuthorised zusr mPassword
     assertLegalHoldEnabled tid
     removeSettings' tid (Just membs)
-    pure $ responseLBS status204 [] mempty
+    pure noContent
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings'
@@ -127,7 +126,6 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     -- assertLegalHoldEnabled tid
     mTeamMember <- Data.teamMember tid uid
     teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
-    lg <- view applog
     statusResponse <- case (view legalHoldStatus teamMember) of
         UserLegalHoldDisabled ->
             pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
@@ -135,10 +133,8 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
             mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
             lastKey <- case mLastKey of
                 Nothing -> do
-                    Logger.err lg . Logger.msg
-                        $ "expected to find a prekey for user: "
-                        <> toByteString' uid
-                        <> " but none was found"
+                    Log.err . Log.msg $ "expected to find a prekey for user: "
+                                     <> toByteString' uid <> " but none was found"
                     throwM internalError
                 Just lstKey -> pure lstKey
             let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
@@ -166,7 +162,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
         Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
-        pure $ responseLBS status204 [] mempty
+        pure noContent
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
@@ -191,10 +187,9 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     assertUserLHPending
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
-    lg <- view applog
     (prekeys, lastPrekey') <- case mPreKeys of
         Nothing -> do
-            Logger.info lg $ Logger.msg @Text "No prekeys found"
+            Log.info $ Log.msg @Text "No prekeys found"
             throwM noLegalHoldDeviceAllocated
         Just keys -> pure keys
 
@@ -205,8 +200,8 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     legalHoldAuthToken <- Client.getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
-
-    pure $ responseLBS status200 [] mempty
+    -- TODO: send event at this point
+    pure empty
   where
     assertUserLHPending :: Galley ()
     assertUserLHPending = do
@@ -222,10 +217,23 @@ disableForUser
 disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
-    DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
-    ensureReAuthorised zusr mPassword
+    if userLHNotDisabled membs
+        then disableLH >> pure empty
+        else pure noContent
+  where
+    -- If not enabled nor pending, then it's disabled
+    userLHNotDisabled mems = do
+        let target = findTeamMember uid mems
+        case fmap (view legalHoldStatus) target of
+            Just UserLegalHoldEnabled  -> True
+            Just UserLegalHoldPending  -> True
+            Just UserLegalHoldDisabled -> False
+            Nothing                    -> False -- Never been set
 
-    Client.removeLegalHoldClientFromUser uid
-    LHService.removeLegalHold tid uid
-    LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-    pure $ responseLBS status200 [] mempty
+    disableLH = do
+        DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
+        ensureReAuthorised zusr mPassword
+        Client.removeLegalHoldClientFromUser uid
+        LHService.removeLegalHold tid uid
+        LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+        -- TODO: send event at this point

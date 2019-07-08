@@ -47,6 +47,7 @@ import qualified Control.Concurrent.Async          as Async
 import qualified Cassandra.Exec                    as Cql
 import qualified Data.Aeson                        as Aeson
 import qualified Data.ByteString                   as BS
+import qualified Data.ByteString.Char8             as BS
 import qualified Data.List1                        as List1
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
@@ -155,12 +156,10 @@ testRequestLegalHoldDevice = do
             void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
                 let j = Aeson.Object $ List1.head (ntfPayload n)
                 let etype = j ^? key "type" . _String
-                let eRequester = j ^? key "requester" . _String
                 let eTargetUser = j ^? key "id" . _String
                 let eLastPrekey = j ^? key "last_prekey" . _JSON
                 let eClientId = j ^? key "client" . key "id" . _JSON
                 etype @?= Just "user.legalhold-request"
-                eRequester @?= Just (idToText owner)
                 eTargetUser @?= Just (idToText member)
                 eClientId @?= Just someClientId
                 -- These need to match the values provided by the 'dummy service'
@@ -344,10 +343,6 @@ testCreateLegalHoldTeamSettings = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     newService <- newLegalHoldService
-    let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
-        badService = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
-        -- TODO: make a bad service with a syntactically valid, but wrong certificate.
-
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
     -- not allowed for users with corresp. permission bit missing
@@ -383,7 +378,9 @@ testCreateLegalHoldTeamSettings = do
             postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
 
         lhtest _isworking@True _ = do
-            postSettings owner tid badService !!! const 400 === statusCode  -- TODO: test err label
+            let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
+            let badServiceBadKey = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
+            postSettings owner tid badServiceBadKey !!! const 400 === statusCode  -- TODO: test err label
             postSettings owner tid newService !!! const 201 === statusCode
             ViewLegalHoldService service <- getSettingsTyped owner tid
             liftIO $ do
@@ -391,7 +388,11 @@ testCreateLegalHoldTeamSettings = do
                 assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)
                 assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
                 assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
-            -- TODO: check cassandra as well?
+
+            -- The pubkey is different... if a connection would be reused
+            -- this request would actually return a 201
+            let badServiceValidKey = newService { newLegalHoldServiceKey = ServiceKeyPEM randomButValidPublicKey }
+            postSettings owner tid badServiceValidKey !!! const 412 === statusCode
 
     -- if no valid service response can be obtained, responds with 400
     withTestService (lhapp False) (lhtest False)
@@ -846,7 +847,20 @@ withTestService mkApp go = do
             mkApp buf
     go buf `finally` liftIO (Async.cancel srv)
 
-
+randomButValidPublicKey :: PEM
+randomButValidPublicKey =
+    let Right [k] = pemParseBS . BS.unlines $
+              [ "-----BEGIN PUBLIC KEY-----"
+              , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+              , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+              , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+              , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+              , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+              , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+              , "nQIDAQAZ"
+              , "-----END PUBLIC KEY-----"
+              ]
+    in k
 -- TODO: adding two new legal hold settings on one team is not possible (409)
 -- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.

@@ -133,7 +133,7 @@ updateSearchIndex orig e = case e of
     UserActivated{}       -> Search.reindex orig
     UserDeleted{}         -> Search.reindex orig
     UserUpdated{..}       -> do
-        let interesting = or [ isJust eupName 
+        let interesting = or [ isJust eupName
                              , isJust eupAccentId
                              , isJust eupHandle
                              , isJust eupSearchable
@@ -363,10 +363,9 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     , "client" .= object ["id" .= clientId c]
     ]
 toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
-    let LegalHoldClientRequestedData requester targetUser lastPrekey' clientId = payload
+    let LegalHoldClientRequestedData _ targetUser lastPrekey' clientId = payload
     in Just
        $ M.fromList [ "type" .= ("user.legalhold-request" :: Text)
-                    , "requester" .= requester
                     , "id" .= targetUser
                     , "last_prekey" .= lastPrekey'
                     , "client" .= object ["id" .= clientId ]
