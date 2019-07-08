@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM ubuntu:16.04
 
 ARG re_version
 ARG restund_version
@@ -12,7 +12,7 @@ RUN apt-get update \
     && make RELEASE=1 \
     && make RELEASE=1 PREFIX=/usr/local install \
     && cd /build/restund-${restund_version} \
-    && make RELEASE=1 EXTRA_MODULES='${extra_modules}' \
+    && make RELEASE=1 EXTRA_CFLAGS="-std=gnu99" EXTRA_MODULES='${extra_modules}' \
     && make RELEASE=1 EXTRA_MODULES='${extra_modules}' PREFIX=/usr/local install \
     && ldconfig \
     && rm -rf /build \

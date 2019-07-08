@@ -12,17 +12,55 @@ module System.Logger.Extended
 import Imports
 import Control.Monad.Catch
 import Database.CQL.IO
-
 import System.Logger as Log
+
+import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Lazy.Builder as B
 import qualified System.Logger.Class as LC
 
 mkLogger :: Log.Level -> Bool -> IO Log.Logger
-mkLogger lvl netstr = Log.new'
+mkLogger lvl netstr = Log.new
+    . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
-    $ Log.simpleSettings (Just lvl) (Just netstr)
+    $ simpleSettings (Just lvl) (Just netstr)
 
--- | Work where there are no options; Use Log.new which reads in LOG_* env variables.
+-- | Variant of Log.defSettings:
+--
+--   * change log level according to first arg (iff isJust).
+--
+--   * pick renderNetstr or renderDefault according to 2nd arg (iff isJust).
+--
+--   * use 'canonicalizeWhitespace'.
+--
+simpleSettings :: Maybe Level -> Maybe Bool -> Log.Settings
+simpleSettings lvl netstr
+  = maybe id setLogLevel lvl
+  . setRenderer (canonicalizeWhitespace rndr)
+  $ Log.defSettings
+  where
+    rndr = case netstr of
+      Just True  -> \_ _ _ -> renderNetstr
+      _          -> \s _ _ -> renderDefault s
+
+-- | Replace all whitespace characters in the output of a renderer by @' '@.
+-- Log output must be ASCII encoding.
+--
+-- (Many logging processors handle newlines poorly.  Instead of hunting down all
+-- places and situations in your code and your dependencies that inject newlines
+-- into your log messages, you can choose to call 'canonicalizeWhitespace' on
+-- your renderer.)
+canonicalizeWhitespace :: Renderer -> Renderer
+canonicalizeWhitespace rndrRaw delim df lvl
+  = B.lazyByteString . nl2sp . B.toLazyByteString . rndrRaw delim df lvl
+  where
+    nl2sp :: L.ByteString -> L.ByteString
+    nl2sp = L.concatMap $
+      \c -> if isSpace c
+            then " "
+            else L.singleton c
+
+-- | Like 'mkLogger', but uses Log.new which reads in LOG_* env variables.
 --
 -- TODO: DEPRECATED!  Use 'mkLogger' instead and get all settings from config files, not from
 -- environment!
