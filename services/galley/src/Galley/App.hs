@@ -15,7 +15,7 @@ module Galley.App
     , extEnv
     , aEnv
 
-    , ExtEnv
+    , ExtEnv (..)
     , extGetManager
 
       -- * Galley monad
@@ -30,6 +30,7 @@ module Galley.App
     , ifNothing
     , fromJsonBody
     , fromProtoBody
+    , initExtEnv
     ) where
 
 import Imports

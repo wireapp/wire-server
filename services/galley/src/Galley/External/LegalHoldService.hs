@@ -16,6 +16,7 @@ module Galley.External.LegalHoldService
 import Imports
 import Data.Id
 import Galley.API.Error
+import Galley.App
 import Bilge.Retry
 import Bilge.Response
 import Brig.Types.Provider
@@ -27,10 +28,8 @@ import Control.Retry
 import Data.Aeson
 import Data.ByteString.Conversion.To
 import Data.Misc
-import Galley.App
 import Network.HTTP.Types
 import Ssl.Util
-import qualified System.Logger as Logger
 import URI.ByteString (uriPath)
 
 import qualified Bilge
@@ -42,7 +41,9 @@ import qualified OpenSSL.EVP.Digest         as SSL
 import qualified OpenSSL.EVP.PKey           as SSL
 import qualified OpenSSL.PEM                as SSL
 import qualified OpenSSL.RSA                as SSL
+import qualified OpenSSL.Session            as SSL
 import qualified Ssl.Util                   as SSL
+import qualified System.Logger.Class        as Log
 
 ----------------------------------------------------------------------
 -- api
@@ -50,11 +51,10 @@ import qualified Ssl.Util                   as SSL
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
 checkLegalHoldServiceStatus fpr url = do
-    resp <- makeVerifiedRequest fpr url reqBuilder
-    lg <- view applog
+    resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
     if | Bilge.statusCode resp < 400 -> pure ()
        | otherwise -> do
-            Logger.info lg . Logger.msg $ showResponse resp
+            Log.info . Log.msg $ showResponse resp
             throwM legalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
@@ -69,8 +69,7 @@ requestNewDevice tid uid = do
     resp <- makeLegalHoldServiceRequest tid reqParams
     case eitherDecode (responseBody resp) of
         Left e -> do
-            lg <- view applog
-            Logger.info lg . Logger.msg $ "Error decoding NewLegalHoldClient: " <> e
+            Log.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
             throwM legalHoldServiceBadResponse
         Right client -> pure client
   where
@@ -139,11 +138,24 @@ makeLegalHoldServiceRequest tid reqBuilder = do
         reqBuilder
         . Bilge.header "Authorization" ("Bearer " <> toByteString' token)
 
+makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequest fpr url reqBuilder = do
+    (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
+    makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
+
+-- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.
+--   We should really _only_ use it in `checkLegalHoldServiceStatus` for the time being because
+--   this is where we check for signatures, etc. If we reuse the manager, we are likely to reuse
+--   an existing connection which will _not_ cause the new public key to be verified.
+makeVerifiedRequestFreshManager :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequestFreshManager fpr url reqBuilder = do
+    ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
+    makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
+
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
-makeVerifiedRequest :: Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
-makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
-    (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
+makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> Galley (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
     let verified = verifyFingerprints [fpr]
     extHandleAll errHandler $ do
         recovering x3 httpHandlers $ const $ liftIO $
@@ -157,8 +169,7 @@ makeVerifiedRequest fpr (HttpsUrl url) reqBuilder = do
         . prependPath (uriPath url)
 
     errHandler e = do
-        lg <- view applog
-        Logger.info lg . Logger.msg $ "error making request to legalhold service: " <> show e
+        Log.info . Log.msg $ "error making request to legalhold service: " <> show e
         throwM legalHoldServiceUnavailable
 
     prependPath :: ByteString -> Http.Request -> Http.Request

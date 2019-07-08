@@ -25,7 +25,7 @@ import qualified Galley.Data                  as Data
 import qualified Galley.Data.LegalHold        as LegalHoldData
 import qualified Galley.Intra.Client as Client
 import qualified Galley.External.LegalHoldService as LHService
-import qualified System.Logger as Logger
+import qualified System.Logger.Class as Log
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
@@ -126,7 +126,6 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     -- assertLegalHoldEnabled tid
     mTeamMember <- Data.teamMember tid uid
     teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
-    lg <- view applog
     statusResponse <- case (view legalHoldStatus teamMember) of
         UserLegalHoldDisabled ->
             pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
@@ -134,10 +133,8 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
             mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
             lastKey <- case mLastKey of
                 Nothing -> do
-                    Logger.err lg . Logger.msg
-                        $ "expected to find a prekey for user: "
-                        <> toByteString' uid
-                        <> " but none was found"
+                    Log.err . Log.msg $ "expected to find a prekey for user: "
+                                     <> toByteString' uid <> " but none was found"
                     throwM internalError
                 Just lstKey -> pure lstKey
             let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
@@ -190,10 +187,9 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     assertUserLHPending
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
-    lg <- view applog
     (prekeys, lastPrekey') <- case mPreKeys of
         Nothing -> do
-            Logger.info lg $ Logger.msg @Text "No prekeys found"
+            Log.info $ Log.msg @Text "No prekeys found"
             throwM noLegalHoldDeviceAllocated
         Just keys -> pure keys
 
