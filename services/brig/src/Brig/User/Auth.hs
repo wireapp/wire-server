@@ -110,7 +110,7 @@ renewAccessLegalHold
     -> Maybe ZAuth.LegalHoldAccessToken
     -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
 renewAccessLegalHold ut at = do
-    (_, ck) <- legalHoldvalidateTokens ut at
+    (_, ck) <- validateTokens ut at
     ck' <- lift $ nextCookie ck
     at' <- lift $ newLegalHoldAccessToken (fromMaybe ck ck') at
     return $ LegalHoldAccess at' ck'
@@ -182,16 +182,11 @@ isPendingActivation ident = case ident of
             Just SSOIdentity {}     -> False  -- sso-created users are activated immediately.
             Nothing                 -> True
 
--- TODO abstract?
--- validateTokens
---     :: (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a)
---     => u
---     -> Maybe a
---     -> ExceptT ZAuth.Failure AppIO (UserId, Cookie u)
 validateTokens
-    :: ZAuth.UserToken
-    -> Maybe ZAuth.AccessToken
-    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie ZAuth.UserToken)
+    :: ZAuth.Foo u a
+    => ZAuth.Token u
+    -> Maybe (ZAuth.Token a)
+    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
 validateTokens ut at = do
     unless (maybe True ((ZAuth.userTokenOf ut ==) . ZAuth.accessTokenOf) at) $
         throwE ZAuth.Invalid
@@ -202,22 +197,6 @@ validateTokens ut at = do
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
-
-legalHoldvalidateTokens
-    :: ZAuth.LegalHoldUserToken
-    -> Maybe ZAuth.LegalHoldAccessToken
-    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie ZAuth.LegalHoldUserToken)
-legalHoldvalidateTokens ut at = do
-    unless (maybe True ((ZAuth.legalHoldUserTokenOf ut ==) . ZAuth.legalHoldAccessTokenOf) at) $
-        throwE ZAuth.Invalid
-    ExceptT (ZAuth.validateToken ut)
-    forM_ at $ \a ->
-        ExceptT (ZAuth.validateToken a)
-            `catchE` \e ->
-                unless (e == ZAuth.Expired) (throwE e)
-    -- ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
-    -- return (ZAuth.legalHoldUserTokenOf ut, ck)
-    undefined
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access

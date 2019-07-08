@@ -135,7 +135,7 @@ newLegalHoldAccessToken c mt = do
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: ZAuth.UserToken -> AppIO (Maybe (Cookie ZAuth.UserToken))
+lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
     let user = ZAuth.userTokenOf t
     let rand = ZAuth.userTokenRand t

@@ -52,6 +52,7 @@ module Brig.ZAuth
       -- * TODO find a better name?
     , UserTokenLike
     , AccessTokenLike
+    , Foo
 
     -- TODO remove??
     , newLegalHoldUserToken
@@ -198,7 +199,7 @@ mkEnv sk pk sets = do
     let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
     return $! Env zc zv sets
 
-class (UserTokenLike u, AccessTokenLike a) => Foo u a where
+class (UserTokenLike u, AccessTokenLike a, ToByteString u, ToByteString a) => Foo u a where
     newAccessToken :: MonadZAuth m => Token u -> m (Token a)
     -- renewAccessToken :: ()
 
@@ -207,6 +208,7 @@ instance Foo User Access where
 
 instance Foo LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
+
 
 class AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
@@ -217,12 +219,14 @@ instance AccessTokenLike Access where
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
 
+
 class UserTokenLike u where
-    userTokenOf :: (Token u) -> UserId
+    userTokenOf :: Token u -> UserId
     mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
-    userTokenRand :: (Token u) -> Word32
+    userTokenRand :: Token u -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token u)
     newSessionToken :: MonadZAuth m => UserId -> m (Token u)
+
     -- TODO add these?
     -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
     -- accessTokenTimeout :: ()
