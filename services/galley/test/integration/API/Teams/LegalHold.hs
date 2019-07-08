@@ -72,7 +72,7 @@ tests s = testGroup "Teams LegalHold API"
     , test s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser
 
       -- legal hold settings
-    , test s "XXX POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
+    , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
     , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
     , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
     , test s "GET, PUT [/i]?/teams/{tid}/legalhold" testEnablePerTeam
