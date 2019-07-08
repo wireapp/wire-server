@@ -44,7 +44,7 @@ import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 
 import qualified Data.Metrics.Middleware      as Metrics
-import qualified Data.Swagger                 as Doc
+import qualified "types-common" Data.Swagger as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
 import qualified Network.Wai.Middleware.Gzip  as GZip
