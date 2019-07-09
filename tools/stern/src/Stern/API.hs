@@ -44,7 +44,7 @@ import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 
 import qualified Data.Metrics.Middleware      as Metrics
-import qualified Data.Swagger                 as Doc
+import qualified "types-common" Data.Swagger as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
 import qualified Network.Wai.Middleware.Gzip  as GZip
@@ -298,8 +298,8 @@ sitemap = do
     --- Swagger ---
     get "/stern/api-docs"
         (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
-            in k $ responseLBS status200 [jsonContent] doc) $
+            let doc = mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
+            in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
 
@@ -470,8 +470,8 @@ isUserKeyBlacklisted emailOrPhone = do
         else response status404 "The given user key is NOT blacklisted"
   where
     response st reason = return
-                       . responseLBS st [jsonContent]
-                       . encode $ object ["status" .= (reason :: Text)]
+                       . setStatus st
+                       . json $ object ["status" .= (reason :: Text)]
 
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do

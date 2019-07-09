@@ -17,6 +17,7 @@ import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Request (parseBody')
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.WebSockets
 import System.Logger (msg, val)
@@ -77,8 +78,8 @@ monitoring = const $ do
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do
-    let doc = encode $ mkSwaggerApi url [] sitemap
-    return $ responseLBS status200 [jsonContent] doc
+    let doc = mkSwaggerApi url [] sitemap
+    return $ json doc
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) =
