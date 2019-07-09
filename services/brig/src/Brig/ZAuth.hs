@@ -32,6 +32,8 @@ module Brig.ZAuth
     -- , legalHoldUserTokenTimeout
     -- , LegalHoldAccessTokenTimeout (..)
     -- , legalHoldAccessTokenTimeout
+    , aTokenTimeout
+    , aTokenTimeoutSeconds
 
       -- * Token Creation
     , Token
@@ -205,23 +207,47 @@ instance Foo LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
 
 
+-- data Bar u where
+--     N :: Token User -> Bar User
+--     L :: Token LegalHoldUser -> Bar LegalHoldUser
+
+
+-- blah :: Bar User
+-- blah = N (Token ...)
+
+-- parseBar :: Bar u -> String
+-- parseBar (N x) =
+-- parseBar "L" = L _legalHoldUse
+
+-- data FooBar = FooBar
+--     { legalHoldAccessToken  :: !AccessToken
+--     , legalHoldAccessCookie :: !(Maybe Bar)
+--     }
+
+-- TODO
+aTokenTimeout :: MonadZAuth m => m Integer
+aTokenTimeout = undefined
+
+aTokenTimeoutSeconds :: Integer -> Integer
+aTokenTimeoutSeconds = undefined
+
 class AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
-    aTimeout :: Token a -> Integer
-    -- aTimeoutSeconds :: Token a -> Integer
+    -- aTokenTimeout :: MonadZAuth m => m Integer
+    -- aTokenTimeoutSeconds :: MonadZAuth m => m Integer
 
 instance AccessTokenLike Access where
     accessTokenOf = accessTokenOf'
     renewAccessToken = renewAccessToken'
-    aTimeout = accessTokenTimeout
-    -- aTimeoutSeconds = accessTokenTimeoutSeconds
+    -- aTokenTimeout = undefined -- accessTokenTimeout 
+    -- aTokenTimeoutSeconds = undefined -- accessTokenTimeoutSeconds
 
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
     renewAccessToken = renewLegalHoldAccessToken
-    aTimeout = legalHoldAccessTokenTimeout
-    -- aTimeoutSeconds = legalHoldAccessTokenTimeoutSeconds
+    -- aTokenTimeout = undefined -- legalHoldAccessTokenTimeout
+    -- aTokenTimeoutSeconds = undefined -- legalHoldAccessTokenTimeoutSeconds
 
 class UserTokenLike u where
     userTokenOf :: Token u -> UserId

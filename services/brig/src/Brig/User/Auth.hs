@@ -37,15 +37,11 @@ import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
 import qualified Brig.ZAuth as ZAuth
+import qualified Data.ZAuth.Token as ZAuth
 
-data Access = Access
+data Access u = Access
     { accessToken  :: !AccessToken
-    , accessCookie :: !(Maybe (Cookie ZAuth.UserToken))
-    }
-
-data LegalHoldAccess = LegalHoldAccess
-    { legalHoldAccessToken  :: !AccessToken
-    , legalHoldAccessCookie :: !(Maybe (Cookie ZAuth.Token u))
+    , accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
     }
 
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
@@ -73,7 +69,7 @@ lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
     Nothing -> return Nothing
     Just  u -> Data.lookupLoginCode u
 
-login :: Login -> CookieType -> ExceptT LoginError AppIO Access
+login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
     Data.authenticate uid pw `catchE` \case
@@ -94,27 +90,27 @@ logout ut at = do
     (u, ck) <- validateTokens ut (Just at)
     lift $ revokeCookies u [cookieId ck] []
 
+-- renewAccess
+--     :: ZAuth.UserToken
+--     -> Maybe ZAuth.AccessToken
+--     -> ExceptT ZAuth.Failure AppIO (Access ZAuth.User)
+-- renewAccess ut at = do
+--     (_, ck) <- validateTokens ut at
+--     ck' <- lift $ nextCookie ck
+--     at' <- lift $ newAccessToken (fromMaybe ck ck') at
+--     return $ Access at' ck'
+
+-- FUTUREWORK: less code duplication?
 renewAccess
-    :: ZAuth.UserToken
-    -> Maybe ZAuth.AccessToken
-    -> ExceptT ZAuth.Failure AppIO Access
+    :: ZAuth.Foo u a
+    => ZAuth.Token u
+    -> Maybe (ZAuth.Token a)
+    -> ExceptT ZAuth.Failure AppIO (Access u)
 renewAccess ut at = do
     (_, ck) <- validateTokens ut at
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
-
--- FUTUREWORK: less code duplication?
-renewAccessLegalHold
-    :: ZAuth.Foo u a
-    => ZAuth.Token u
-    -> Maybe (ZAuth.Token a)
-    -> ExceptT ZAuth.Failure AppIO LegalHoldAccess
-renewAccessLegalHold ut at = do
-    (_, ck) <- validateTokens ut at
-    ck' <- lift $ nextCookie ck
-    at' <- lift $ newAccessToken (fromMaybe ck ck') at
-    return $ LegalHoldAccess at' ck'
 
 revokeAccess
     :: UserId
@@ -129,13 +125,13 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO Access
+newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access ZAuth.User)
 newAccess u ct cl = do
     r <- lift $ newCookieLimited u ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay
         Right ck   -> do
-            t <- lift $ newAccessToken ck Nothing
+            t <- lift $ newAccessToken @ZAuth.User @ZAuth.Access ck Nothing
             return $ Access t (Just ck)
 
 resolveLoginId :: LoginId -> ExceptT LoginError AppIO UserId
@@ -200,7 +196,7 @@ validateTokens ut at = do
     return (ZAuth.userTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
-ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access
+ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
     Data.reauthenticate uid Nothing `catchE` \case
         ReAuthMissingPassword -> pure ()

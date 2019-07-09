@@ -27,6 +27,7 @@ import qualified Brig.Types.Swagger            as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Brig.ZAuth                    as ZAuth
+import qualified Data.ZAuth.Token              as ZAuth
 import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()
@@ -291,6 +292,6 @@ tokenRequest = opt userToken .&. opt accessToken
                         (setMessage "Invalid access token" (err status403)))
         Just  t -> return t
 
-tokenResponse :: Auth.Access -> Handler Response
+tokenResponse :: (Auth.Access ZAuth.User) -> Handler Response
 tokenResponse (Auth.Access t  Nothing) = return (json t)
 tokenResponse (Auth.Access t (Just c)) = lift $ Auth.setResponseCookie c (json t)

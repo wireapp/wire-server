@@ -116,10 +116,11 @@ newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
        Just  t -> ZAuth.renewAccessToken t
-    ttl <- view (zauthEnv.ZAuth.settings.ZAuth.accessTokenTimeout)
+    ttl <- ZAuth.aTokenTimeout -- view (zauthEnv.ZAuth.settings.ZAuth.accessTokenTimeout)
     return $ bearerToken (ZAuth.accessTokenOf t')
                          (toByteString t')
-                         (ZAuth.accessTokenTimeoutSeconds ttl)
+                         (ZAuth.aTokenTimeoutSeconds ttl)
+                         --(ZAuth.accessTokenTimeoutSeconds ttl)
 
 -- -- This renewal differs in type and validity to the 'newAccessToken'
 -- newLegalHoldAccessToken :: Cookie ZAuth.LegalHoldUserToken -> Maybe ZAuth.LegalHoldAccessToken -> AppIO AccessToken
