@@ -744,15 +744,6 @@ jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
 ---------------------------------------------------------------------
 --- Device helpers
 
--- data NewLegalHoldDevice = NewLegalHoldDevice
---     { newLegalHoldDeviceTeam  :: TeamId
---     , newLegalHoldDeviceUser  :: UserId
---     }
---   deriving (Eq, Show, Generic)
-
--- getDevice :: HasCallStack => TeamId -> UserId -> TestM ResponseLBS
--- getDevice = undefined
-
 requestDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestDevice zusr uid tid = do
     g <- view tsGalley
