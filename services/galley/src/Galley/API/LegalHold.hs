@@ -33,12 +33,10 @@ assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHold
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do
     lhConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-    case lhConfig of
-        Just LegalHoldTeamConfig{legalHoldTeamConfigStatus=LegalHoldEnabled}
-          -> return True
-        Just LegalHoldTeamConfig{legalHoldTeamConfigStatus=LegalHoldDisabled}
-          -> return False
-        _ -> return True  -- TODO: must be false. this behaviour is only here for testing.
+    return $ case legalHoldTeamConfigStatus <$> lhConfig of
+        Just LegalHoldEnabled  -> True
+        Just LegalHoldDisabled -> False
+        Nothing                -> True  -- TODO: must be false. this behaviour is only here for testing.
 
 -- | Get legal hold status for a team.
 getEnabled :: TeamId ::: JSON -> Galley Response
