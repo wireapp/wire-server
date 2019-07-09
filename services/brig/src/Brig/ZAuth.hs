@@ -44,10 +44,10 @@ module Brig.ZAuth
     , newBotToken
     , renewAccessToken
 
-      -- * TODO find a better name?
+      -- * TODO find a better names?
     , UserTokenLike
     , AccessTokenLike
-    , Foo
+    , TokenPair
 
       -- * Token Validation
     , validateToken
@@ -188,13 +188,13 @@ mkEnv sk pk sets = do
     let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
     return $! Env zc zv sets
 
-class (UserTokenLike u, AccessTokenLike a, ToByteString u, ToByteString a) => Foo u a where
+class (UserTokenLike u, AccessTokenLike a, ToByteString u, ToByteString a) => TokenPair u a where
     newAccessToken :: MonadZAuth m => Token u -> m (Token a)
 
-instance Foo User Access where
+instance TokenPair User Access where
     newAccessToken = newAccessToken'
 
-instance Foo LegalHoldUser LegalHoldAccess where
+instance TokenPair LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
 
 class AccessTokenLike a where

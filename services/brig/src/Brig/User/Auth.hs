@@ -102,7 +102,7 @@ logout ut at = do
 
 -- FUTUREWORK: less code duplication?
 renewAccess
-    :: ZAuth.Foo u a
+    :: ZAuth.TokenPair u a
     => ZAuth.Token u
     -> Maybe (ZAuth.Token a)
     -> ExceptT ZAuth.Failure AppIO (Access u)
@@ -180,7 +180,7 @@ isPendingActivation ident = case ident of
             Nothing                 -> True
 
 validateTokens
-    :: ZAuth.Foo u a
+    :: ZAuth.TokenPair u a
     => ZAuth.Token u
     -> Maybe (ZAuth.Token a)
     -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))

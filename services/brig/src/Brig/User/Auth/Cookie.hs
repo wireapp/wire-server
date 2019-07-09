@@ -110,7 +110,7 @@ renewCookie old = do
     DB.insertCookie u old' (Just (DB.TTL (fromIntegral ttl)))
     return new
 
-newAccessToken :: ZAuth.Foo u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
+newAccessToken :: ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
