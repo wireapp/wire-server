@@ -121,16 +121,17 @@ testRequestLegalHoldDevice = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
+    -- Can't request a device if team feature flag is disabled
+    let lhapp :: Chan () -> Application
+        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
+    withTestService lhapp $ \_ -> do
+        requestDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+
     cannon <- view tsCannon
 
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
     WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-        -- Can't request a device if team feature flag is disabled
-        -- TODO: Add this back once the check is re-enabled
-        ignore $ requestDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-        putEnabled tid LegalHoldEnabled -- enable it for this team
-
         do requestDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
@@ -188,14 +189,16 @@ testApproveLegalHoldDevice = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
+    -- not allowed to approve if team setting is disabled
+    let lhapp :: Chan () -> Application
+        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
+    withTestService lhapp $ \_ -> do
+        -- TODO: this returns the wrong label.
+        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+
     cannon <- view tsCannon
 
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
-        -- not allowed to approve if team setting is disabled
-        -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-
-        putEnabled tid LegalHoldEnabled
         requestDevice owner member tid !!! testResponse 204 Nothing
 
         liftIO $ do
@@ -350,8 +353,7 @@ testCreateLegalHoldTeamSettings = do
     postSettings member tid newService !!! testResponse 403 (Just "operation-denied")
 
     -- not allowed to create if team setting is disabled
-    -- TODO: remove the following 'ignore' once 'disabled' is the default
-    ignore $ postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
+    postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
@@ -405,6 +407,8 @@ testCreateLegalHoldTeamSettings = do
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
 
+    -- TODO: can we use withDummyTestServiceForTeam here instead?  if not, explain why.
+
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
 
@@ -436,8 +440,7 @@ testGetLegalHoldTeamSettings = do
         do  let respOk :: ResponseLBS -> TestM ()
                 respOk resp = liftIO $ do
                   assertEqual "bad status code" 200 (statusCode resp)
-                  -- TODO: remove the following 'ignore' once 'disabled' is the default
-                  ignore $ assertEqual "bad body" ViewLegalHoldServiceDisabled (jsonBody resp)
+                  assertEqual "bad body" ViewLegalHoldServiceDisabled (jsonBody resp)
             getSettings owner  tid >>= respOk
             getSettings member tid >>= respOk
 
@@ -472,8 +475,8 @@ testRemoveLegalHoldFromTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
-    -- is idempotent
-    deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
+    -- fails if LH for team is disabled
+    deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
         newService <- newLegalHoldService
@@ -498,6 +501,8 @@ testRemoveLegalHoldFromTeam = do
         -- Fails without password
         deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
         -- returns 204 if legal hold is successfully removed from team
+        deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
+        -- is idempotent (deleting twice in a row works)
         deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
 
         -- deletion is successful (both witnessed on the API and in the backend)
@@ -525,14 +530,8 @@ testEnablePerTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
-    -- TODO: Change this value once we change the default; note that disabling is tested further down
-    ignore $ do
-        LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-        liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
-
-    -- TODO: Remove this test once we change the default value
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-    liftIO $ assertEqual "Teams should start with LegalHold enabled" isInitiallyEnabled LegalHoldEnabled
+    liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
     LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
@@ -792,6 +791,7 @@ withDummyTestServiceForTeam owner tid go = do
         putEnabled tid LegalHoldEnabled -- enable it for this team
         postSettings owner tid newService !!! testResponse 201 Nothing
         go chan
+
     dummyService :: Chan LBS -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
         reqBody <- Wai.strictRequestBody req

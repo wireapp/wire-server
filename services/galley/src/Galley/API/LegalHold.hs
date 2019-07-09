@@ -36,7 +36,7 @@ isLegalHoldEnabled tid = do
     return $ case legalHoldTeamConfigStatus <$> lhConfig of
         Just LegalHoldEnabled  -> True
         Just LegalHoldDisabled -> False
-        Nothing                -> True  -- TODO: must be false. this behaviour is only here for testing.
+        Nothing                -> False
 
 -- | Get legal hold status for a team.
 getEnabled :: TeamId ::: JSON -> Galley Response
@@ -44,8 +44,7 @@ getEnabled (tid ::: _) = do
     legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
     pure . json . fromMaybe defConfig $ legalHoldTeamConfig
   where
-    defConfig = LegalHoldTeamConfig LegalHoldEnabled
-    -- ^ TODO: must be false. this behaviour is only here for testing.
+    defConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
 setEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
