@@ -18,12 +18,13 @@ import Control.Monad.Catch
 import Control.Retry (recoverAll, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.EitherR (fmapL)
 import Data.Id
 import Data.LegalHold
 import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
-import Data.String.Conversions (LBS,cs)
+import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Encoding (encodeUtf8)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
@@ -127,20 +128,20 @@ testRequestLegalHoldDevice = do
     WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         -- Can't request a device if team feature flag is disabled
         -- TODO: Add this back once the check is re-enabled
-        -- requestDevice owner member tid !!! const 403 === statusCode
-        -- putEnabled tid LegalHoldEnabled -- enable it for this team
+        ignore $ requestDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+        putEnabled tid LegalHoldEnabled -- enable it for this team
 
-        do requestDevice member member tid !!! const 403 === statusCode
+        do requestDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
                       UserLegalHoldDisabled userStatus
 
-        do requestDevice owner member tid !!! const 204 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice should set user status to Pending"
                       UserLegalHoldPending userStatus
 
-        do requestDevice owner member tid !!! const 204 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
@@ -192,10 +193,10 @@ testApproveLegalHoldDevice = do
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
         -- not allowed to approve if team setting is disabled
         -- TODO: remove the following 'ignore' once 'disabled' is the default
-        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
+        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
         putEnabled tid LegalHoldEnabled
-        requestDevice owner member tid !!! const 204 === statusCode
+        requestDevice owner member tid !!! testResponse 204 Nothing
 
         liftIO $ do
           _statusCheck' <- readChan chan
@@ -205,10 +206,10 @@ testApproveLegalHoldDevice = do
           assertEqual "teamId == tid" teamId' tid
 
         -- Only the user themself can approve adding a LH device
-        approveLegalHoldDevice (Just defPassword) owner member tid !!! const 403 === statusCode
+        approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "access-denied")
         -- Requires password
         approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
-        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
 
         do
           reqBody <- liftIO $ readChan chan
@@ -264,19 +265,19 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
                 assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
 
-        do requestDevice owner member tid !!! const 204 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "requestDevice should set user status to Pending" UserLegalHoldPending userStatus
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-        do requestDevice owner member tid !!! const 204 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
 
-        do approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        do approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
@@ -294,17 +295,17 @@ testDisableLegalHoldForUser = do
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
         putEnabled tid LegalHoldEnabled
-        requestDevice owner member tid !!! const 204 === statusCode
+        requestDevice owner member tid !!! testResponse 204 Nothing
         assertZeroLegalHoldDevices member
-        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         assertExactlyOneLegalHoldDevice member
         -- Only the admin can disable legal hold
-        disableLegalHoldForUser (Just defPassword) tid member member !!! const 403 === statusCode
+        disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
         assertExactlyOneLegalHoldDevice member
-        -- Require password to disable for user
+        -- Require password to disable for usern
         disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
         assertExactlyOneLegalHoldDevice member
-        disableLegalHoldForUser (Just defPassword) tid owner member !!! const 200 === statusCode
+        disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
         assertZeroLegalHoldDevices member
 
         liftIO $ do
@@ -346,16 +347,16 @@ testCreateLegalHoldTeamSettings = do
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
     -- not allowed for users with corresp. permission bit missing
-    postSettings member tid newService !!! const 403 === statusCode  -- TODO: test err label
+    postSettings member tid newService !!! testResponse 403 (Just "operation-denied")
 
     -- not allowed to create if team setting is disabled
     -- TODO: remove the following 'ignore' once 'disabled' is the default
-    ignore $ postSettings owner tid newService !!! const 403 === statusCode
+    ignore $ postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
 
     -- rejected if service is not available
-    postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
+    postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")
 
 
     -- checks /status of legal hold service (boolean argument says whether the service is
@@ -375,13 +376,13 @@ testCreateLegalHoldTeamSettings = do
 
         lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
         lhtest _isworking@False _ = do
-            postSettings owner tid newService !!! const 412 === statusCode  -- TODO: test err label
+            postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")
 
         lhtest _isworking@True _ = do
             let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
             let badServiceBadKey = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
-            postSettings owner tid badServiceBadKey !!! const 400 === statusCode  -- TODO: test err label
-            postSettings owner tid newService !!! const 201 === statusCode
+            postSettings owner tid badServiceBadKey !!! testResponse 400 (Just "legalhold-invalid-key")
+            postSettings owner tid newService !!! testResponse 201 Nothing
             ViewLegalHoldService service <- getSettingsTyped owner tid
             liftIO $ do
                 Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
@@ -392,7 +393,10 @@ testCreateLegalHoldTeamSettings = do
             -- The pubkey is different... if a connection would be reused
             -- this request would actually return a 201
             let badServiceValidKey = newService { newLegalHoldServiceKey = ServiceKeyPEM randomButValidPublicKey }
-            postSettings owner tid badServiceValidKey !!! const 412 === statusCode
+            ignore $ postSettings owner tid badServiceValidKey !!! testResponse 400 (Just "legalhold-invalid-key")
+            -- TODO: request gets a 412 (unavialable) instead of 400.  it should work as the
+            -- test says: the above line should work, and the line below should fail.
+            postSettings owner tid badServiceValidKey !!! testResponse 412 (Just "legalhold-unavailable")
 
     -- if no valid service response can be obtained, responds with 400
     withTestService (lhapp False) (lhtest False)
@@ -426,7 +430,7 @@ testGetLegalHoldTeamSettings = do
         -- TODO: not allowed if team has feature bit not set
 
         -- returns 403 if user is not in team.
-        getSettings stranger tid !!! const 403 === statusCode
+        getSettings stranger tid !!! testResponse 403 (Just "no-team-member")
 
         -- returns 200 with corresp. status if legalhold for team is disabled
         do  let respOk :: ResponseLBS -> TestM ()
@@ -447,7 +451,7 @@ testGetLegalHoldTeamSettings = do
             getSettings owner  tid >>= respOk
             getSettings member tid >>= respOk
 
-        postSettings owner tid newService !!! const 201 === statusCode
+        postSettings owner tid newService !!! testResponse 201 Nothing
 
         -- returns legal hold service info if team is under legal hold and user is in team (even
         -- no permissions).
@@ -469,16 +473,16 @@ testRemoveLegalHoldFromTeam = do
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
     -- is idempotent
-    deleteSettings (Just defPassword) owner tid !!! const 204 === statusCode
+    deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
         newService <- newLegalHoldService
         putEnabled tid LegalHoldEnabled -- enable it for this team
-        postSettings owner tid newService !!! const 201 === statusCode
+        postSettings owner tid newService !!! testResponse 201 Nothing
 
         -- enable legalhold for member
-        do requestDevice owner member tid !!! const 204 === statusCode
-           approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
+           approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                         UserLegalHoldEnabled userStatus
@@ -488,13 +492,13 @@ testRemoveLegalHoldFromTeam = do
         -- TODO: not allowed if team has feature bit not set
 
         -- returns 403 if user is not in team or has unsufficient permissions.
-        deleteSettings (Just defPassword) stranger tid !!! const 403 === statusCode
-        deleteSettings (Just defPassword) member tid !!! const 403 === statusCode
+        deleteSettings (Just defPassword) stranger tid !!! testResponse 403 (Just "no-team-member")
+        deleteSettings (Just defPassword) member tid !!! testResponse 403 (Just "operation-denied")
 
         -- Fails without password
-        deleteSettings Nothing owner tid !!! const 403 === statusCode
+        deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
         -- returns 204 if legal hold is successfully removed from team
-        deleteSettings (Just defPassword) owner tid !!! const 204 === statusCode
+        deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
 
         -- deletion is successful (both witnessed on the API and in the backend)
         resp <- getSettings owner tid
@@ -523,25 +527,25 @@ testEnablePerTeam = do
 
     -- TODO: Change this value once we change the default; note that disabling is tested further down
     ignore $ do
-        LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+        LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
 
     -- TODO: Remove this test once we change the default value
-    LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
     liftIO $ assertEqual "Teams should start with LegalHold enabled" isInitiallyEnabled LegalHoldEnabled
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
-    LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+    LegalHoldTeamConfig isEnabledAfter <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
         requestDevice owner member tid !!! const 204 === statusCode
-        approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
 
         putEnabled tid LegalHoldDisabled -- disable again
-        LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! const 200 === statusCode)
+        LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
 
         -- TODO: This test needs to be re-thought, so I will keep a TODO here; what should really happen when disabling?
@@ -598,16 +602,17 @@ testGetTeamMembersIncludesLHStatus = do
                       (Just UserLegalHoldDisabled) (findMemberStatus members')
 
         putEnabled tid LegalHoldEnabled
-        do requestDevice owner member tid !!! const 204 === statusCode
+        do requestDevice owner member tid !!! testResponse 204 Nothing
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should pending after requesting device"
                       (Just UserLegalHoldPending) (findMemberStatus members')
 
-        do approveLegalHoldDevice (Just defPassword) member member tid !!! const 200 === statusCode
+        do approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should be enabled after confirming device"
                       (Just UserLegalHoldEnabled) (findMemberStatus members')
     ensureQueueEmpty
+
 
 ----------------------------------------------------------------------
 -- API helpers
@@ -656,7 +661,7 @@ postSettings uid tid new =
             . json new
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
-getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! const 200 === statusCode)
+getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! testResponse 200 Nothing)
 
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings uid tid = do
@@ -677,7 +682,7 @@ deleteSettings mPassword uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-    resp <- getUserStatus uid tid <!! const 200 === statusCode
+    resp <- getUserStatus uid tid <!! testResponse 200 Nothing
     return $ jsonBody resp
 
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
@@ -734,6 +739,7 @@ jsonBody :: (HasCallStack, Aeson.FromJSON v) => ResponseLBS -> v
 jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
   where
     bdy = fromJust $ responseBody resp
+
 
 ---------------------------------------------------------------------
 --- Device helpers
@@ -793,7 +799,7 @@ withDummyTestServiceForTeam owner tid go = do
     runTest chan = do
         newService <- newLegalHoldService
         putEnabled tid LegalHoldEnabled -- enable it for this team
-        postSettings owner tid newService !!! const 201 === statusCode
+        postSettings owner tid newService !!! testResponse 201 Nothing
         go chan
     dummyService :: Chan LBS -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
@@ -864,3 +870,27 @@ randomButValidPublicKey =
 -- TODO: adding two new legal hold settings on one team is not possible (409)
 -- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.
+
+
+----------------------------------------------------------------------
+-- test helpers
+
+testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
+testResponse status mlabel = do
+    const status === statusCode
+    case mlabel of
+        Just label -> responseJSON === const (Right label)
+        Nothing    -> (isLeft <$> responseJSON @TestErrorLabel) === const True
+
+newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
+    deriving (Eq, Show)
+
+instance IsString TestErrorLabel where
+    fromString = TestErrorLabel . cs
+
+instance Aeson.FromJSON TestErrorLabel where
+    parseJSON = fmap TestErrorLabel . Aeson.withObject "TestErrorLabel" (Aeson..: "label")
+
+-- TODO: move this to /lib/bilge?  (there is another copy of this in spar.)
+responseJSON :: (HasCallStack, Aeson.FromJSON a) => ResponseLBS -> Either String a
+responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
