@@ -20,20 +20,13 @@ module Brig.ZAuth
     , defSettings
     , localSettings
     , keyIndex
-    -- , UserTokenTimeout (..)
-    -- , userTokenTimeout
     , SessionTokenTimeout (..)
     , sessionTokenTimeout
-    -- , AccessTokenTimeout (..)
-    -- , accessTokenTimeout
     , ProviderTokenTimeout (..)
     , providerTokenTimeout
-    -- , LegalHoldUserTokenTimeout (..)
-    -- , legalHoldUserTokenTimeout
-    -- , LegalHoldAccessTokenTimeout (..)
-    -- , legalHoldAccessTokenTimeout
-    , aTokenTimeout
-    , aTokenTimeoutSeconds
+
+      -- * timeout settings for access and legalholdaccess
+    , settingsTTL
 
       -- * Token Creation
     , Token
@@ -55,8 +48,6 @@ module Brig.ZAuth
     , UserTokenLike
     , AccessTokenLike
     , Foo
-
-
 
       -- * Token Validation
     , validateToken
@@ -206,48 +197,20 @@ instance Foo User Access where
 instance Foo LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
 
-
--- data Bar u where
---     N :: Token User -> Bar User
---     L :: Token LegalHoldUser -> Bar LegalHoldUser
-
-
--- blah :: Bar User
--- blah = N (Token ...)
-
--- parseBar :: Bar u -> String
--- parseBar (N x) =
--- parseBar "L" = L _legalHoldUse
-
--- data FooBar = FooBar
---     { legalHoldAccessToken  :: !AccessToken
---     , legalHoldAccessCookie :: !(Maybe Bar)
---     }
-
--- TODO
-aTokenTimeout :: MonadZAuth m => m Integer
-aTokenTimeout = undefined
-
-aTokenTimeoutSeconds :: Integer -> Integer
-aTokenTimeoutSeconds = undefined
-
 class AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
-    -- aTokenTimeout :: MonadZAuth m => m Integer
-    -- aTokenTimeoutSeconds :: MonadZAuth m => m Integer
+    settingsTTL :: Maybe (Token a) -> Settings -> Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
 
 instance AccessTokenLike Access where
     accessTokenOf = accessTokenOf'
     renewAccessToken = renewAccessToken'
-    -- aTokenTimeout = undefined -- accessTokenTimeout 
-    -- aTokenTimeoutSeconds = undefined -- accessTokenTimeoutSeconds
+    settingsTTL _ = accessTokenTimeoutSeconds . (^.accessTokenTimeout)
 
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
     renewAccessToken = renewLegalHoldAccessToken
-    -- aTokenTimeout = undefined -- legalHoldAccessTokenTimeout
-    -- aTokenTimeoutSeconds = undefined -- legalHoldAccessTokenTimeoutSeconds
+    settingsTTL _ = legalHoldAccessTokenTimeoutSeconds . (^.legalHoldAccessTokenTimeout)
 
 class UserTokenLike u where
     userTokenOf :: Token u -> UserId

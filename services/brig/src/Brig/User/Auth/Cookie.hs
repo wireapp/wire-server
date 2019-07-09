@@ -42,7 +42,6 @@ import qualified System.Logger.Class      as Log
 import qualified Data.Metrics             as Metrics
 import qualified Web.Cookie               as WebCookie
 import qualified Brig.ZAuth               as ZAuth
-import qualified Data.ZAuth.Token         as ZAuth
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
@@ -116,22 +115,11 @@ newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
        Just  t -> ZAuth.renewAccessToken t
-    ttl <- ZAuth.aTokenTimeout -- view (zauthEnv.ZAuth.settings.ZAuth.accessTokenTimeout)
+    zSettings <- view (zauthEnv.ZAuth.settings)
+    let ttl = ZAuth.settingsTTL mt zSettings
     return $ bearerToken (ZAuth.accessTokenOf t')
                          (toByteString t')
-                         (ZAuth.aTokenTimeoutSeconds ttl)
-                         --(ZAuth.accessTokenTimeoutSeconds ttl)
-
--- -- This renewal differs in type and validity to the 'newAccessToken'
--- newLegalHoldAccessToken :: Cookie ZAuth.LegalHoldUserToken -> Maybe ZAuth.LegalHoldAccessToken -> AppIO AccessToken
--- newLegalHoldAccessToken c mt = do
---     t' <- case mt of
---        Nothing -> ZAuth.newLegalHoldAccessToken (cookieValue c)
---        Just  t -> ZAuth.renewLegalHoldAccessToken t
---     ttl <- view (zauthEnv.ZAuth.settings.ZAuth.legalHoldAccessTokenTimeout)
---     return $ bearerToken (ZAuth.legalHoldAccessTokenOf t')
---                          (toByteString t')
---                          (ZAuth.legalHoldAccessTokenTimeoutSeconds ttl)
+                         ttl
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
