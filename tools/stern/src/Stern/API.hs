@@ -469,10 +469,9 @@ isUserKeyBlacklisted emailOrPhone = do
         then response status200 "The given user key IS blacklisted"
         else response status404 "The given user key is NOT blacklisted"
   where
-    -- (we can't use 'Network.Wai.Utilities.Response.json' as it doesn't use a status code.)
     response st reason = return
-                       . responseLBS st [jsonContent]
-                       . encode $ object ["status" .= (reason :: Text)]
+                       . setStatus st
+                       . json $ object ["status" .= (reason :: Text)]
 
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
