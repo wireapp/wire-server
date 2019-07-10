@@ -545,10 +545,8 @@ testEnablePerTeam = do
         LegalHoldTeamConfig isEnabledAfterUnset <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" isEnabledAfterUnset LegalHoldDisabled
 
-        -- TODO: This test needs to be re-thought, so I will keep a TODO here; what should really happen when disabling?
-        ignore $ do
-            UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-            liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+        UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+        liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
 
         viewLHS <- getSettingsTyped owner tid
         -- liftIO $ assertEqual "LH Service settings should be cleared"
