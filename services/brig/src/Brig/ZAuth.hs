@@ -188,7 +188,7 @@ mkEnv sk pk sets = do
     let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
     return $! Env zc zv sets
 
-class (UserTokenLike u, AccessTokenLike a, ToByteString u, ToByteString a) => TokenPair u a where
+class (UserTokenLike u, AccessTokenLike a) => TokenPair u a where
     newAccessToken :: MonadZAuth m => Token u -> m (Token a)
 
 instance TokenPair User Access where
@@ -197,7 +197,7 @@ instance TokenPair User Access where
 instance TokenPair LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
 
-class AccessTokenLike a where
+class ToByteString a => AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
     settingsTTL :: Maybe (Token a) -> Settings -> Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
@@ -212,15 +212,12 @@ instance AccessTokenLike LegalHoldAccess where
     renewAccessToken = renewLegalHoldAccessToken
     settingsTTL _ = legalHoldAccessTokenTimeoutSeconds . (^.legalHoldAccessTokenTimeout)
 
-class UserTokenLike u where
+class ToByteString u => UserTokenLike u where
     userTokenOf :: Token u -> UserId
     mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
     userTokenRand :: Token u -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token u)
     newSessionToken :: MonadZAuth m => UserId -> m (Token u)
-
-    -- TODO add these?
-    -- mkToken :: Integer -> UUID -> Word32 -> Create (Token t)
 
 instance UserTokenLike User where
     mkUserToken = mkUserToken'

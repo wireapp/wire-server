@@ -27,7 +27,6 @@ import qualified Brig.Types.Swagger            as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Brig.ZAuth                    as ZAuth
-import qualified Data.ZAuth.Token              as ZAuth
 import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()
@@ -217,8 +216,7 @@ legalHoldLogin :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
 legalHoldLogin (req ::: _) = do
     l <- parseJsonBody req
     let typ = PersistentCookie -- Session cookie isn't a supported use case here
-    a <- undefined -- TODO create and return a LegalHoldUserToken as cookie and a LegalHoldAccessToken as (brig's) AccessToken
-    --a <- Auth.ssoLogin l typ !>> loginError
+    a <- Auth.legalHoldLogin l typ !>> loginError
     tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
@@ -249,9 +247,8 @@ renew (_ ::: Just ut ::: at) = do
 renewLegalHold :: JSON ::: Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken -> Handler Response
 renewLegalHold (_ ::: Nothing :::  _) = throwStd authMissingCookie
 renewLegalHold (_ ::: Just ut ::: at) = do
-    undefined
-    -- a <- Auth.renewAccess ut at !>> zauthError
-    -- tokenResponse a
+    a <- Auth.renewAccess ut at !>> zauthError
+    tokenResponse a
 
 -- Utilities
 
@@ -292,6 +289,6 @@ tokenRequest = opt userToken .&. opt accessToken
                         (setMessage "Invalid access token" (err status403)))
         Just  t -> return t
 
-tokenResponse :: (Auth.Access ZAuth.User) -> Handler Response
+tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> Handler Response
 tokenResponse (Auth.Access t  Nothing) = return (json t)
 tokenResponse (Auth.Access t (Just c)) = lift $ Auth.setResponseCookie c (json t)

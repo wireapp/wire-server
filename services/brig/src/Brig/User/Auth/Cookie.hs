@@ -154,10 +154,11 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited
-    :: UserId
+    :: ZAuth.UserTokenLike t
+    => UserId
     -> CookieType
     -> Maybe CookieLabel
-    -> AppIO (Either RetryAfter (Cookie ZAuth.UserToken))
+    -> AppIO (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
     cs  <- filter ((typ ==) . cookieType) <$> DB.listCookies u
     now <- liftIO =<< view currentTime
@@ -176,8 +177,8 @@ newCookieLimited u typ label = do
 -- HTTP
 
 setResponseCookie
-    :: Monad m
-    => Cookie ZAuth.UserToken
+    :: (Monad m, ZAuth.UserTokenLike u)
+    => Cookie (ZAuth.Token u)
     -> Response
     -> AppT m Response
 setResponseCookie c r = do

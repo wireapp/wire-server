@@ -10,6 +10,7 @@ module Brig.User.Auth
       -- * Internal
     , lookupLoginCode
     , ssoLogin
+    , legalHoldLogin
 
       -- * Re-exports
     , listCookies
@@ -90,17 +91,6 @@ logout ut at = do
     (u, ck) <- validateTokens ut (Just at)
     lift $ revokeCookies u [cookieId ck] []
 
--- renewAccess
---     :: ZAuth.UserToken
---     -> Maybe ZAuth.AccessToken
---     -> ExceptT ZAuth.Failure AppIO (Access ZAuth.User)
--- renewAccess ut at = do
---     (_, ck) <- validateTokens ut at
---     ck' <- lift $ nextCookie ck
---     at' <- lift $ newAccessToken (fromMaybe ck ck') at
---     return $ Access at' ck'
-
--- FUTUREWORK: less code duplication?
 renewAccess
     :: ZAuth.TokenPair u a
     => ZAuth.Token u
