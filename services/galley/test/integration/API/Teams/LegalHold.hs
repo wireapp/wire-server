@@ -102,11 +102,6 @@ tests s = testGroup "Teams LegalHold API"
     ]
 
 
--- TODO: delete this function when we're done fixing all the test cases.
-ignore :: Monad m => m () -> m ()
-ignore _ = trace "\n*** ignored test case!!\n" $ pure ()
-
-
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
 -- start another test suite just for this one line.)
