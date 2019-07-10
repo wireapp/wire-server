@@ -98,8 +98,6 @@ tests s = testGroup "Teams LegalHold API"
     conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
     GET /team/{tid}/members - show legal hold status of all members
 
-  TODO: feature flag!  (not sure tests are needed for this.)
-
 -}
 
     ]
@@ -118,6 +116,9 @@ testRequestLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    -- fails if feature flag is disabled
+    featureFlagTODO
 
     -- Can't request a device if team feature flag is disabled
     let lhapp :: Chan () -> Application
@@ -178,6 +179,9 @@ testApproveLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    -- fails if feature flag is disabled
+    featureFlagTODO
 
     -- not allowed to approve if team setting is disabled
     let lhapp :: Chan () -> Application
@@ -249,6 +253,9 @@ testGetLegalHoldDeviceStatus = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
+    -- fails if feature flag is disabled
+    featureFlagTODO
+
     -- not allowed to approve if team setting is disabled
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
@@ -293,6 +300,9 @@ testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = do
     (owner, tid) <- createTeam
     member <- randomUser
+
+    -- fails if feature flag is disabled
+    featureFlagTODO
 
     cannon <- view tsCannon
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
@@ -340,7 +350,9 @@ testCreateLegalHoldTeamSettings = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     newService <- newLegalHoldService
-    -- TODO: not allowed if feature is disabled globally in galley config yaml
+
+    -- fails if feature flag is disabled
+    featureFlagTODO
 
     -- not allowed to create if team setting is disabled
     postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
@@ -416,14 +428,13 @@ testGetLegalHoldTeamSettings = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     newService <- newLegalHoldService
 
+    -- fails if feature flag is disabled
+    featureFlagTODO
+
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
 
     withTestService lhapp $ \_ -> do
-        -- TODO: not allowed if feature is disabled globally in galley config yaml
-
-        -- TODO: not allowed if team has feature bit not set
-
         -- returns 403 if user is not in team.
         getSettings stranger tid !!! testResponse 403 (Just "no-team-member")
 
@@ -466,6 +477,9 @@ testRemoveLegalHoldFromTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
 
+    -- fails if feature flag is disabled
+    featureFlagTODO
+
     -- fails if LH for team is disabled
     deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
@@ -480,10 +494,6 @@ testRemoveLegalHoldFromTeam = do
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                         UserLegalHoldEnabled userStatus
-
-        -- TODO: not allowed if feature is disabled globally in galley config yaml
-
-        -- TODO: not allowed if team has feature bit not set
 
         -- returns 403 if user is not in team or has unsufficient permissions.
         deleteSettings (Just defPassword) stranger tid !!! testResponse 403 (Just "no-team-member")
@@ -508,10 +518,6 @@ testRemoveLegalHoldFromTeam = do
 
         -- TODO: do we also want to check the DB?
 
-        -- TODO: do we really want any trace of the fact that this team has been under legal hold
-        -- to go away?  or should a team that has been under legal hold in the past be observably
-        -- different for the members from one that never has?
-
     ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
 
 
@@ -520,6 +526,9 @@ testEnablePerTeam = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+
+    -- fails if feature flag is disabled
+    featureFlagTODO
 
     LegalHoldTeamConfig isInitiallyEnabled <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" isInitiallyEnabled LegalHoldDisabled
@@ -542,10 +551,6 @@ testEnablePerTeam = do
         liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
 
         viewLHS <- getSettingsTyped owner tid
-        -- liftIO $ assertEqual "LH Service settings should be cleared"
-        --            ViewLegalHoldServiceNotConfigured viewLHS
-        -- TODO: NotConfigured only makes sense given the wrong default;
-        --       I think we should change the default to clean up code!
         liftIO $ assertEqual "LH Service settings should be disabled"
                    ViewLegalHoldServiceDisabled viewLHS
 
@@ -867,6 +872,15 @@ publicKeyNotMatchingService =
 
 ----------------------------------------------------------------------
 -- test helpers
+
+-- | placeholder for an actual test that can be run if we have a feature flag (config file
+-- option to disable LH entirely.)
+--
+-- if we decide to not implement the feature flag, just remove this definition and all the
+-- calls to it.
+featureFlagTODO :: TestM ()
+featureFlagTODO = pure ()
+
 
 testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 testResponse status mlabel = do
