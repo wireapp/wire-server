@@ -393,14 +393,14 @@ testCreateLegalHoldTeamSettings = do
             let badServiceValidKey = newService { newLegalHoldServiceKey = ServiceKeyPEM publicKeyNotMatchingService }
             postSettings owner tid badServiceValidKey !!! testResponse 412 (Just "legalhold-unavailable")
 
+    -- We do not use the higher level withDummyTestServiceForTeam here because we want to make
+    -- legalhold service misbehave on purpose in certain cases
     -- if no valid service response can be obtained, responds with 400
     withTestService (lhapp False) (lhtest False)
 
     -- if valid service response can be obtained, writes a pending entry to cassandra
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
-
-    -- TODO: can we use withDummyTestServiceForTeam here instead?  if not, explain why.
 
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
     -- TODO: should we expect any other events?
