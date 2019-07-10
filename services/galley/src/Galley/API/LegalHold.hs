@@ -121,8 +121,6 @@ removeSettings' tid mMembers = do
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
-    -- TODO: Should we really verify this here? I am not sure it makes sense.
-    -- assertLegalHoldEnabled tid
     mTeamMember <- Data.teamMember tid uid
     teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
     statusResponse <- case (view legalHoldStatus teamMember) of

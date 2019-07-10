@@ -259,6 +259,15 @@ testGetLegalHoldDeviceStatus = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
 
+    -- not allowed to approve if team setting is disabled
+    let lhapp :: Chan () -> Application
+        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
+    withTestService lhapp $ \_ -> do
+        forM_ [owner, member] $ \uid -> do
+            status <- getUserStatusTyped uid tid
+            liftIO $ assertEqual "unexpected status" status
+                (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
+
     withDummyTestServiceForTeam owner tid $ \_chan -> do
         -- Initial status should be disabled
         do UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
