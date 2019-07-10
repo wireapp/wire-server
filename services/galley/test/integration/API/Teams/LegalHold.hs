@@ -153,19 +153,15 @@ testRequestLegalHoldDevice = do
             assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
 
         -- This test is mirrored in brig tests: API.User.Client.testRequestLegalHoldClient
-        -- And should probably continue to exist in both locations.
-        liftIO $ do
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ws $ \n -> do
-                let j = Aeson.Object $ List1.head (ntfPayload n)
-                let etype = j ^? key "type" . _String
-                let eTargetUser = j ^? key "id" . _String
-                let eLastPrekey = j ^? key "last_prekey" . _JSON
-                let eClientId = j ^? key "client" . key "id" . _JSON
-                etype @?= Just "user.legalhold-request"
-                eTargetUser @?= Just (idToText member)
-                eClientId @?= Just someClientId
-                -- These need to match the values provided by the 'dummy service'
-                Just (head someLastPrekeys) @?= eLastPrekey
+        -- (even though it looks quite different there)
+        -- and should probably continue to exist in both locations.
+        assertNotification ws $ \case
+          (LegalHoldClientRequested rdata) -> do
+            -- lhcRequester @?= member  (this is silly, don't test it.)
+            lhcTargetUser rdata @?= member
+            lhcLastPrekey rdata @?= head someLastPrekeys
+            API.Teams.LegalHold.lhcClientId rdata @?= someClientId
+          _ -> assertBool "Unexpected event" False
 
     -- TODO: all of user's clients receive an event (create two clients and listen on both for the event).
 
@@ -219,24 +215,17 @@ testApproveLegalHoldDevice = do
         liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                     UserLegalHoldEnabled userStatus
 
-        liftIO $ do
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
-                let j = Aeson.Object $ List1.head (ntfPayload n)
-                let etype = j ^? key "type" . _String
-                let eClient = j ^? key "client" . _JSON
-                etype @?= Just "user.client-add"
-                clientId <$> eClient @?= Just someClientId
-                clientType <$> eClient @?= Just LegalHoldClientType
-                clientClass <$> eClient @?= Just (Just LegalHoldClient)
+        assertNotification mws $ \case
+          ClientAdded eClient -> do
+            clientId eClient @?= someClientId
+            clientType eClient @?= LegalHoldClientType
+            clientClass eClient @?= Just LegalHoldClient
+          _ -> assertBool "Unexpected event" False
 
         -- Other team users should get a user.legalhold-enable event
-        liftIO $ do
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ows $ \n -> do
-                let j = Aeson.Object $ List1.head (ntfPayload n)
-                let etype = j ^? key "type" . _String
-                let eUser = j ^? key "id" . _JSON
-                etype @?= Just "user.legalhold-enable"
-                eUser @?= Just member
+        assertNotification ows $ \case
+          UserLegalHoldEnabled' eUser -> eUser @?= member
+          _ -> assertBool "Unexpected event" False
 
         -- TODO: sends an event to team settings (however that works; it's a client-independent event i think)
         -- TODO: all of user's communication peers receive an event
