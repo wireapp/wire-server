@@ -66,7 +66,6 @@ tests s = testGroup "Teams LegalHold API"
 
       -- device handling (CRUD)
     , test s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice
-    , test s "POST /teams/{tid}/legalhold/{uid} - twice" testCreateTwoLegalHoldDevices
     , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
     , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
