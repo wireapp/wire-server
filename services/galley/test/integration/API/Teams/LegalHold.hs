@@ -380,6 +380,7 @@ testCreateLegalHoldTeamSettings = do
             let badServiceBadKey = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
             postSettings owner tid badServiceBadKey !!! testResponse 400 (Just "legalhold-invalid-key")
             postSettings owner tid newService !!! testResponse 201 Nothing
+            postSettings owner tid newService !!! testResponse 201 Nothing  -- it's idempotent
             ViewLegalHoldService service <- getSettingsTyped owner tid
             liftIO $ do
                 Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
@@ -853,7 +854,8 @@ publicKeyNotMatchingService =
               , "-----END PUBLIC KEY-----"
               ]
     in k
--- TODO: adding two new legal hold settings on one team is not possible (409)
+
+
 -- TODO: PATCH lh settings for updating URL or pubkey.
 
 
