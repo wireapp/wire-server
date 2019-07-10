@@ -193,8 +193,7 @@ testApproveLegalHoldDevice = do
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
     withTestService lhapp $ \_ -> do
-        -- TODO: this returns the wrong label.
-        ignore $ approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+        approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
 
@@ -349,13 +348,13 @@ testCreateLegalHoldTeamSettings = do
     newService <- newLegalHoldService
     -- TODO: not allowed if feature is disabled globally in galley config yaml
 
-    -- not allowed for users with corresp. permission bit missing
-    postSettings member tid newService !!! testResponse 403 (Just "operation-denied")
-
     -- not allowed to create if team setting is disabled
     postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
+
+    -- not allowed for users with corresp. permission bit missing
+    postSettings member tid newService !!! testResponse 403 (Just "operation-denied")
 
     -- rejected if service is not available
     postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")

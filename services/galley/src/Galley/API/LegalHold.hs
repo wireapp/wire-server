@@ -58,9 +58,10 @@ setEnabled (tid ::: req ::: _) = do
 
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
+    assertLegalHoldEnabled tid
+
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
-    assertLegalHoldEnabled tid
 
     newService :: NewLegalHoldService
         <- fromJsonBody req
@@ -88,11 +89,12 @@ getSettings (zusr ::: tid ::: _) = do
 
 removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: req ::: _) = do
+    assertLegalHoldEnabled tid
+
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
     RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
     ensureReAuthorised zusr mPassword
-    assertLegalHoldEnabled tid
     removeSettings' tid (Just membs)
     pure noContent
 
@@ -141,9 +143,10 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 requestDevice (zusr ::: tid ::: uid ::: _) = do
+    assertLegalHoldEnabled tid
+
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
-    assertLegalHoldEnabled tid
 
     userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
     case userLHStatus of
@@ -176,11 +179,12 @@ approveDevice
     :: UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest ApproveLegalHoldForUserRequest ::: JSON
     -> Galley Response
 approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
+    assertLegalHoldEnabled tid
+
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     ApproveLegalHoldForUserRequest mPassword <- fromJsonBody req
     ensureReAuthorised zusr mPassword
-    assertLegalHoldEnabled tid
     assertUserLHPending
 
     mPreKeys <- LegalHoldData.selectPendingPrekeys uid
