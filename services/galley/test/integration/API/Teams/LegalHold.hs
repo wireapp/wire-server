@@ -125,26 +125,26 @@ testRequestLegalHoldDevice = do
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
     withTestService lhapp $ \_ -> do
-        requestDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+        requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
 
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
     WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-        do requestDevice member member tid !!! testResponse 403 (Just "operation-denied")
+        do requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
                       UserLegalHoldDisabled userStatus
 
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-           liftIO $ assertEqual "requestDevice should set user status to Pending"
+           liftIO $ assertEqual "requestLegalHoldDevice should set user status to Pending"
                       UserLegalHoldPending userStatus
 
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-           liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+           liftIO $ assertEqual "requestLegalHoldDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
 
         cassState <- view tsCass
@@ -190,7 +190,7 @@ testApproveLegalHoldDevice = do
     cannon <- view tsCannon
 
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
-        requestDevice owner member tid !!! testResponse 204 Nothing
+        requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
 
         liftIO $ do
           _statusCheck' <- readChan chan
@@ -268,16 +268,16 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
                 assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
 
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
-             do assertEqual "requestDevice should set user status to Pending" UserLegalHoldPending userStatus
+             do assertEqual "requestLegalHoldDevice should set user status to Pending" UserLegalHoldPending userStatus
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-           liftIO $ assertEqual "requestDevice when already pending should leave status as Pending"
+           liftIO $ assertEqual "requestLegalHoldDevice when already pending should leave status as Pending"
                       UserLegalHoldPending userStatus
 
         do approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -287,7 +287,7 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-        requestDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
+        requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
     ensureQueueEmpty
 
 testDisableLegalHoldForUser :: TestM ()
@@ -299,7 +299,7 @@ testDisableLegalHoldForUser = do
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
         putEnabled tid LegalHoldEnabled
-        requestDevice owner member tid !!! testResponse 204 Nothing
+        requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
         assertZeroLegalHoldDevices member
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         assertExactlyOneLegalHoldDevice member
@@ -482,7 +482,7 @@ testRemoveLegalHoldFromTeam = do
         postSettings owner tid newService !!! testResponse 201 Nothing
 
         -- enable legalhold for member
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
@@ -536,7 +536,7 @@ testEnablePerTeam = do
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
-        requestDevice owner member tid !!! const 204 === statusCode
+        requestLegalHoldDevice owner member tid !!! const 204 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
@@ -599,7 +599,7 @@ testGetTeamMembersIncludesLHStatus = do
                       (Just UserLegalHoldDisabled) (findMemberStatus members')
 
         putEnabled tid LegalHoldEnabled
-        do requestDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should pending after requesting device"
                       (Just UserLegalHoldPending) (findMemberStatus members')
@@ -741,8 +741,8 @@ jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
 ---------------------------------------------------------------------
 --- Device helpers
 
-requestDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
-requestDevice zusr uid tid = do
+requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+requestLegalHoldDevice zusr uid tid = do
     g <- view tsGalley
     post $ g
            . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
