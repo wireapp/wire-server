@@ -17,6 +17,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, retrying, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
+import Data.Aeson.Types (FromJSON, (.:))
 import Data.ByteString.Conversion
 import Data.EitherR (fmapL)
 import Data.Id
@@ -29,6 +30,8 @@ import Data.Text.Encoding (encodeUtf8)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.Types.Teams
+import GHC.Generics hiding (to)
+import GHC.TypeLits
 import Gundeck.Types.Notification (ntfPayload)
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai
@@ -47,6 +50,7 @@ import qualified API.Util                          as Util
 import qualified Control.Concurrent.Async          as Async
 import qualified Cassandra.Exec                    as Cql
 import qualified Data.Aeson                        as Aeson
+import qualified Data.Aeson.Types                  as Aeson
 import qualified Data.ByteString                   as BS
 import qualified Data.ByteString.Char8             as BS
 import qualified Data.List1                        as List1
@@ -284,6 +288,7 @@ testGetLegalHoldDeviceStatus = do
         requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
     ensureQueueEmpty
 
+
 testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = do
     (owner, tid) <- createTeam
@@ -307,33 +312,26 @@ testDisableLegalHoldForUser = do
         assertZeroLegalHoldDevices member
 
         liftIO $ do
-            void . WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
-              let j = Aeson.Object $ List1.head (ntfPayload n)
-              let etype = j ^? key "type" . _String
-              let eClient = j ^? key "client" . _JSON
-              etype @?= Just "user.client-add"
-              clientId <$> eClient @?= Just someClientId
-              clientType <$> eClient @?= Just LegalHoldClientType
-              clientClass <$> eClient @?= Just (Just LegalHoldClient)
-            void . WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
-              let j = Aeson.Object $ List1.head (ntfPayload n)
-              let eType = j ^? key "type" . _String
-              let eClientId = j ^? key "client" . key "id" .  _JSON
-              eType @?= Just "user.client-remove"
-              eClientId @?= Just someClientId
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) mws $ \n -> do
-              let j = Aeson.Object $ List1.head (ntfPayload n)
-              let eType = j ^? key "type" . _String
-              let euid = j ^?  key "id" .  _JSON
-              eType @?= Just "user.legalhold-disable"
-              euid @?= Just member
-            -- Other users should also get the event
-            void . liftIO $ WS.assertMatch (5 WS.# WS.Second) ows $ \n -> do
-              let j = Aeson.Object $ List1.head (ntfPayload n)
-              let eType = j ^? key "type" . _String
-              let euid = j ^?  key "id" .  _JSON
-              eType @?= Just "user.legalhold-disable"
-              euid @?= Just member
+          assertNotification mws $ \case
+            ClientAdded  client -> do
+              clientId client @?= someClientId
+              clientType client @?= LegalHoldClientType
+              clientClass client @?= (Just LegalHoldClient)
+            _ -> assertBool "Unexpected event" False
+
+          assertNotification mws $ \case
+            ClientRemoved clientId' -> clientId' @?= someClientId
+            _ -> assertBool "Unexpected event" False
+
+          assertNotification mws $ \case
+            UserLegalHoldDisabled' uid -> uid @?= member
+            _ -> assertBool "Unexpected event" False
+
+          -- Other users should also get the event
+          assertNotification ows $ \case
+            UserLegalHoldDisabled' uid -> uid @?= member
+            _ -> assertBool "Unexpected event" False
+
     ensureQueueEmpty
 
 testCreateLegalHoldTeamSettings :: TestM ()
@@ -881,3 +879,67 @@ instance Aeson.FromJSON TestErrorLabel where
 -- TODO: move this to /lib/bilge?  (there is another copy of this in spar.)
 responseJSON :: (HasCallStack, Aeson.FromJSON a) => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
+
+
+-- TODO: Currently, the encoding of events is confusingly inside brig and not
+-- brig-types. (Look for toPushFormat in the code) We should refactor. To make
+-- our lives a bit easier we are going to  copy these datatypes from brig verbatim
+data UserEvent
+  = UserLegalHoldDisabled' !UserId
+  | UserLegalHoldEnabled' !UserId
+  | LegalHoldClientRequested LegalHoldClientRequestedData
+  deriving Generic
+
+data ClientEvent
+  = ClientAdded !Client
+  | ClientRemoved !ClientId
+  deriving Generic
+
+data LegalHoldClientRequestedData =
+  LegalHoldClientRequestedData
+  { lhcRequester  :: !UserId
+  , lhcTargetUser :: !UserId
+  , lhcLastPrekey :: !LastPrekey
+  , lhcClientId   :: !ClientId
+  } deriving stock (Show)
+
+instance FromJSON ClientEvent where
+  parseJSON = withObject' $ \o -> do
+    tag :: Text <- o .: "type"
+    case tag of
+      "user.client-add" -> ClientAdded <$> o .: "client"
+      "user.client-remove" -> ClientRemoved <$> ( o .: "client" >>= Aeson.withObject "id" (.: "id"))
+      x -> fail $ "unspported event type: " ++ show x
+
+instance FromJSON UserEvent where
+  parseJSON = withObject' $ \o -> do
+    tag :: Text <- o .: "type"
+    case tag of
+      "user.legalhold-enable" -> UserLegalHoldEnabled' <$> o .: "id"
+      "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
+      "user.legalhold-request" ->
+        LegalHoldClientRequested <$> (LegalHoldClientRequestedData
+          <$> o .: "id" -- TODO should be requester. but we dont expose that in the event anymore?
+          <*> o .: "id" -- this is the target user
+          <*> o .: "last_prekey"
+          <*> ( o .: "client" >>= Aeson.withObject "id" (.: "id")))
+      x -> fail $ "unspported event type: " ++ show x
+
+-- these are useful in other parts of the codebase. maybe move out?
+type family NameOf (a :: *) :: Symbol where
+  NameOf a = NameOf' (Rep a a)
+
+type family NameOf' r :: Symbol where
+  NameOf' (M1 D ('MetaData name _module _package _newtype) _ _) = name
+
+withObject' :: forall a. (KnownSymbol (NameOf a), Generic a) => (Aeson.Object -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
+withObject' = Aeson.withObject (symbolVal @(NameOf a) Proxy)
+
+
+assertNotification :: (HasCallStack, FromJSON a) => WS.WebSocket -> (a -> Assertion) -> Assertion
+assertNotification ws predicate =
+  void . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
+    let j = Aeson.Object $ List1.head (ntfPayload notif)
+    case Aeson.fromJSON j of
+      Aeson.Success x -> predicate x
+      Aeson.Error s -> assertBool (s ++ " in " ++ show j) False
