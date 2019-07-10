@@ -854,7 +854,6 @@ publicKeyNotMatchingService =
               ]
     in k
 -- TODO: adding two new legal hold settings on one team is not possible (409)
--- TODO: deleting or disabling lh settings deletes all lh devices
 -- TODO: PATCH lh settings for updating URL or pubkey.
 
 
