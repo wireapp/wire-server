@@ -676,10 +676,7 @@ ephemeralUser = do
     return $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
-randomClient = randomClientWithType PermanentClientType 201
-
-randomClientWithType :: HasCallStack => ClientType -> Int -> UserId -> LastPrekey -> TestM ClientId
-randomClientWithType cType rStatus uid lk = do
+randomClient uid lk = do
     b <- view tsBrig
     resp <- post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
             <!! const rStatus === statusCode
@@ -687,6 +684,8 @@ randomClientWithType cType rStatus uid lk = do
                            (decodeBody resp)
     return (clientId client)
   where
+    cType = PermanentClientType
+    rStatus = 201
     newClientBody = (newClient cType lk)
         { newClientPassword = Just defPassword
         }

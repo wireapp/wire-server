@@ -553,27 +553,32 @@ testEnablePerTeam = do
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
-    -- regular users cannot create LegalHoldClients
-    let lk = (someLastPrekeys !! 0)
-    u <- randomUser
+    member <- randomUser
+    (owner, tid) <- createTeam
 
-    -- TODO: requests to /clients with type=LegalHoldClientType should fail  (400 instead of 201)
-    -- TODO: HOWEVER currently this endpoint is actually used internally to create the legal
-    -- hold device, so we'll need to split it to another endpoint, or figure out some other
-    -- form of auth on it.
-    void $ randomClientWithType LegalHoldClientType 201 u lk
+    -- user without team can't add LH device
+    tryout member
 
-    -- team users cannot create LegalHoldClients
-    (owner, _) <- createTeam
+    -- team member can't add LH device
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    tryout member
 
-    -- TODO: requests to /clients with type=LegalHoldClientType should fail (400 instead of 201)
-    void $ randomClientWithType LegalHoldClientType 201 owner lk
-    assertExactlyOneLegalHoldDevice owner
-
-    -- TODO: the remainder of this test can be removed once `POST /clients` does not work any
-    -- more for legal hold devices.
-    void $ randomClientWithType LegalHoldClientType 201 owner lk  -- overwrite
-    assertExactlyOneLegalHoldDevice owner
+    -- team owner can't add LH device
+    tryout owner
+  where
+    tryout :: UserId -> TestM ()
+    tryout uid = do
+      brg <- view tsBrig
+      let newClientBody = (newClient LegalHoldClientType (someLastPrekeys !! 0))
+            { newClientPassword = Just defPassword
+            }
+          req = brg
+              . path "clients"
+              . json newClientBody
+              . zUser uid
+              . zConn "conn"
+      post req !!! const 400 === statusCode
+      assertZeroLegalHoldDevices uid
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
