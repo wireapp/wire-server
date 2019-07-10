@@ -402,10 +402,7 @@ testCreateLegalHoldTeamSettings = do
 
             -- The pubkey is different... if a connection would be reused
             -- this request would actually return a 201
-            let badServiceValidKey = newService { newLegalHoldServiceKey = ServiceKeyPEM randomButValidPublicKey }
-            ignore $ postSettings owner tid badServiceValidKey !!! testResponse 400 (Just "legalhold-invalid-key")
-            -- TODO: request gets a 412 (unavialable) instead of 400.  it should work as the
-            -- test says: the above line should work, and the line below should fail.
+            let badServiceValidKey = newService { newLegalHoldServiceKey = ServiceKeyPEM publicKeyNotMatchingService }
             postSettings owner tid badServiceValidKey !!! testResponse 412 (Just "legalhold-unavailable")
 
     -- if no valid service response can be obtained, responds with 400
@@ -852,8 +849,8 @@ withTestService mkApp go = do
             mkApp buf
     go buf `finally` liftIO (Async.cancel srv)
 
-randomButValidPublicKey :: PEM
-randomButValidPublicKey =
+publicKeyNotMatchingService :: PEM
+publicKeyNotMatchingService =
     let Right [k] = pemParseBS . BS.unlines $
               [ "-----BEGIN PUBLIC KEY-----"
               , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
