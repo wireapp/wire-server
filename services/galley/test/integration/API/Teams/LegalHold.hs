@@ -565,6 +565,9 @@ testCreateLegalHoldDeviceOldAPI = do
 
     -- team owner can't add LH device
     tryout owner
+
+    -- in this one case, we actually don't care about these events and just flush them
+    ensureQueueEmpty
   where
     tryout :: UserId -> TestM ()
     tryout uid = do
