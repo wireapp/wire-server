@@ -116,6 +116,7 @@ testRequestLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
@@ -166,11 +167,6 @@ testRequestLegalHoldDevice = do
                 -- These need to match the values provided by the 'dummy service'
                 Just (head someLastPrekeys) @?= eLastPrekey
 
-        ensureQueueEmpty
-
-    -- fail if legal hold service is disabled via feature flag
-
-
     -- TODO: all of user's clients receive an event (create two clients and listen on both for the event).
 
 
@@ -179,6 +175,7 @@ testApproveLegalHoldDevice = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
@@ -241,7 +238,6 @@ testApproveLegalHoldDevice = do
                 etype @?= Just "user.legalhold-enable"
                 eUser @?= Just member
 
-    ensureQueueEmpty
         -- TODO: sends an event to team settings (however that works; it's a client-independent event i think)
         -- TODO: all of user's communication peers receive an event
 
@@ -251,6 +247,7 @@ testGetLegalHoldDeviceStatus = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
@@ -292,21 +289,20 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
         requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
-    ensureQueueEmpty
 
 
 testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = do
     (owner, tid) <- createTeam
     member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
 
     cannon <- view tsCannon
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-        addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
-        putEnabled tid LegalHoldEnabled
         requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
         assertZeroLegalHoldDevices member
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -346,6 +342,8 @@ testCreateLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
+
     newService <- newLegalHoldService
 
     -- fails if feature flag is disabled
@@ -410,11 +408,6 @@ testCreateLegalHoldTeamSettings = do
     withTestService (lhapp True) (lhtest True)
 
     -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
-    -- TODO: should we expect any other events?
-
-    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the
-                      -- right ones.  (i think this has to od with the plumbing that is the
-                      -- same in all settings-related tests.)
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -423,6 +416,8 @@ testGetLegalHoldTeamSettings = do
     stranger <- randomUser
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
+
     newService <- newLegalHoldService
 
     -- fails if feature flag is disabled
@@ -464,8 +459,6 @@ testGetLegalHoldTeamSettings = do
             assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
             assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
 
-    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
-
 
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
@@ -473,6 +466,7 @@ testRemoveLegalHoldFromTeam = do
     stranger <- randomUser
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
@@ -515,14 +509,13 @@ testRemoveLegalHoldFromTeam = do
 
         -- TODO: do we also want to check the DB?
 
-    ensureQueueEmpty  -- TODO: there are some pending events in there.  make sure it's the right ones.
-
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     -- fails if feature flag is disabled
     featureFlagTODO
@@ -551,25 +544,24 @@ testEnablePerTeam = do
         liftIO $ assertEqual "LH Service settings should be disabled"
                    ViewLegalHoldServiceDisabled viewLHS
 
-    ensureQueueEmpty
 
 testCreateLegalHoldDeviceOldAPI :: TestM ()
 testCreateLegalHoldDeviceOldAPI = do
     member <- randomUser
     (owner, tid) <- createTeam
+    ensureQueueEmpty
 
     -- user without team can't add LH device
     tryout member
 
     -- team member can't add LH device
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
+
     tryout member
 
     -- team owner can't add LH device
     tryout owner
-
-    -- in this one case, we actually don't care about these events and just flush them
-    ensureQueueEmpty
   where
     tryout :: UserId -> TestM ()
     tryout uid = do
@@ -591,6 +583,7 @@ testGetTeamMembersIncludesLHStatus = do
     (owner, tid) <- createTeam
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
 
     let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
         findMemberStatus ms =
@@ -610,7 +603,6 @@ testGetTeamMembersIncludesLHStatus = do
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should be enabled after confirming device"
                       (Just UserLegalHoldEnabled) (findMemberStatus members')
-    ensureQueueEmpty
 
 
 ----------------------------------------------------------------------
