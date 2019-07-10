@@ -170,8 +170,8 @@ testRequestLegalHoldDevice = do
 
     -- fail if legal hold service is disabled via feature flag
 
-    -- all of user's clients receive an event
-    -- requests approval from monitored user asynchronously; request contains pre-keys
+
+    -- TODO: all of user's clients receive an event (create two clients and listen on both for the event).
 
 
 testApproveLegalHoldDevice :: TestM ()
@@ -242,10 +242,9 @@ testApproveLegalHoldDevice = do
                 eUser @?= Just member
 
     ensureQueueEmpty
+        -- TODO: sends an event to team settings (however that works; it's a client-independent event i think)
+        -- TODO: all of user's communication peers receive an event
 
-        -- fail if GLOBAL legal Hold feature flag disabled
-        -- sends an event to team settings (however that works; it's a client-independent event i think)
-        -- all of user's communication peers receive an event
 
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
@@ -321,28 +320,26 @@ testDisableLegalHoldForUser = do
         disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
         assertZeroLegalHoldDevices member
 
-        liftIO $ do
-          assertNotification mws $ \case
-            ClientAdded  client -> do
-              clientId client @?= someClientId
-              clientType client @?= LegalHoldClientType
-              clientClass client @?= (Just LegalHoldClient)
-            _ -> assertBool "Unexpected event" False
+        assertNotification mws $ \case
+          ClientAdded  client -> do
+            clientId client @?= someClientId
+            clientType client @?= LegalHoldClientType
+            clientClass client @?= (Just LegalHoldClient)
+          _ -> assertBool "Unexpected event" False
 
-          assertNotification mws $ \case
-            ClientRemoved clientId' -> clientId' @?= someClientId
-            _ -> assertBool "Unexpected event" False
+        assertNotification mws $ \case
+          ClientRemoved clientId' -> clientId' @?= someClientId
+          _ -> assertBool "Unexpected event" False
 
-          assertNotification mws $ \case
-            UserLegalHoldDisabled' uid -> uid @?= member
-            _ -> assertBool "Unexpected event" False
+        assertNotification mws $ \case
+          UserLegalHoldDisabled' uid -> uid @?= member
+          _ -> assertBool "Unexpected event" False
 
-          -- Other users should also get the event
-          assertNotification ows $ \case
-            UserLegalHoldDisabled' uid -> uid @?= member
-            _ -> assertBool "Unexpected event" False
+        -- Other users should also get the event
+        assertNotification ows $ \case
+          UserLegalHoldDisabled' uid -> uid @?= member
+          _ -> assertBool "Unexpected event" False
 
-    ensureQueueEmpty
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
@@ -587,6 +584,7 @@ testCreateLegalHoldDeviceOldAPI = do
               . zConn "conn"
       post req !!! const 400 === statusCode
       assertZeroLegalHoldDevices uid
+
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
@@ -930,7 +928,7 @@ instance FromJSON ClientEvent where
     tag :: Text <- o .: "type"
     case tag of
       "user.client-add" -> ClientAdded <$> o .: "client"
-      "user.client-remove" -> ClientRemoved <$> ( o .: "client" >>= Aeson.withObject "id" (.: "id"))
+      "user.client-remove" -> ClientRemoved <$> (o .: "client" >>= Aeson.withObject "id" (.: "id"))
       x -> fail $ "unspported event type: " ++ show x
 
 instance FromJSON UserEvent where
@@ -941,10 +939,10 @@ instance FromJSON UserEvent where
       "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
       "user.legalhold-request" ->
         LegalHoldClientRequested <$> (LegalHoldClientRequestedData
-          <$> o .: "id" -- TODO should be requester. but we dont expose that in the event anymore?
+          <$> o .: "id" -- TODO: should be requester. but we dont expose that in the event anymore?
           <*> o .: "id" -- this is the target user
           <*> o .: "last_prekey"
-          <*> ( o .: "client" >>= Aeson.withObject "id" (.: "id")))
+          <*> (o .: "client" >>= Aeson.withObject "id" (.: "id")))
       x -> fail $ "unspported event type: " ++ show x
 
 -- these are useful in other parts of the codebase. maybe move out?
@@ -958,9 +956,9 @@ withObject' :: forall a. (KnownSymbol (NameOf a), Generic a) => (Aeson.Object ->
 withObject' = Aeson.withObject (symbolVal @(NameOf a) Proxy)
 
 
-assertNotification :: (HasCallStack, FromJSON a) => WS.WebSocket -> (a -> Assertion) -> Assertion
+assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()
 assertNotification ws predicate =
-  void . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
+  void . liftIO . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
     let j = Aeson.Object $ List1.head (ntfPayload notif)
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x
