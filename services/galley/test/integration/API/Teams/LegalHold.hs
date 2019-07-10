@@ -15,7 +15,7 @@ import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Catch
-import Control.Retry (recoverAll, exponentialBackoff, limitRetries)
+import Control.Retry (RetryPolicy, RetryStatus, retrying, exponentialBackoff, limitRetries)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.EitherR (fmapL)
@@ -640,14 +640,19 @@ postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM
 postSettings uid tid new =
     -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
     -- connection.
-    -- TODO: only retry on 412
-    recoverAll (exponentialBackoff 50 <> limitRetries 5) $ \_ -> do
+    retrying policy only412 $ \_ -> do
         g <- view tsGalley
         post $ g
             . paths ["teams", toByteString' tid, "legalhold", "settings"]
             . zUser uid . zConn "conn"
             . zType "access"
             . json new
+  where
+    policy :: RetryPolicy
+    policy = exponentialBackoff 50 <> limitRetries 5
+
+    only412 :: RetryStatus -> ResponseLBS -> TestM Bool
+    only412 _ resp = pure $ statusCode resp == 412
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
 getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! testResponse 200 Nothing)
