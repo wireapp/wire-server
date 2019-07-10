@@ -175,14 +175,6 @@ testRequestLegalHoldDevice = do
     -- requests approval from monitored user asynchronously; request contains pre-keys
 
 
-testCreateTwoLegalHoldDevices :: TestM ()
-testCreateTwoLegalHoldDevices = do
-    pure ()
-
-    -- creating a second valid a legal hold device is rejected.
-    -- also when the legal hold status of a user is 'pending".
-
-
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
     (owner, tid) <- createTeam
@@ -295,6 +287,7 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
+        requestDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
     ensureQueueEmpty
 
 testDisableLegalHoldForUser :: TestM ()
