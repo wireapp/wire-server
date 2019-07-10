@@ -78,13 +78,13 @@ login (PasswordLogin li pw label) typ = do
         AuthEphemeral          -> throwE LoginEphemeral
         AuthInvalidCredentials -> throwE LoginFailed
         AuthInvalidUser        -> throwE LoginFailed
-    newAccess uid typ label
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
     uid <- resolveLoginId (LoginByPhone phone)
     ok <- lift $ Data.verifyLoginCode uid code
     unless ok $
         throwE LoginFailed
-    newAccess uid typ label
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 logout :: ZAuth.UserToken -> ZAuth.AccessToken -> ExceptT ZAuth.Failure AppIO ()
 logout ut at = do
@@ -115,13 +115,13 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access ZAuth.User)
-newAccess u ct cl = do
-    r <- lift $ newCookieLimited u ct cl
+newAccess :: ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access u)
+newAccess uid ct cl = do
+    r <- lift $ newCookieLimited uid ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay
         Right ck   -> do
-            t <- lift $ newAccessToken @ZAuth.User @ZAuth.Access ck Nothing
+            t <- lift $ newAccessToken ck Nothing
             return $ Access t (Just ck)
 
 resolveLoginId :: LoginId -> ExceptT LoginError AppIO UserId
@@ -195,4 +195,16 @@ ssoLogin (SsoLogin uid label) typ = do
             AuthSuspended          -> throwE LoginSuspended
             AuthEphemeral          -> throwE LoginEphemeral
             AuthInvalidUser        -> throwE LoginFailed
-    newAccess uid typ label
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
+
+-- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
+legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.LegalHoldUser)
+legalHoldLogin (LegalHoldLogin uid label) typ = do
+    Data.reauthenticate uid Nothing `catchE` \case
+        ReAuthMissingPassword -> pure ()
+        ReAuthError e -> case e of
+            AuthInvalidCredentials -> pure ()
+            AuthSuspended          -> throwE LoginSuspended
+            AuthEphemeral          -> throwE LoginEphemeral
+            AuthInvalidUser        -> throwE LoginFailed
+    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
