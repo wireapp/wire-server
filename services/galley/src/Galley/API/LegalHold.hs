@@ -117,26 +117,30 @@ removeSettings' tid mMembers = do
         Client.removeLegalHoldClientFromUser uid
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
 
--- | Request to provision a device on the legal hold service for a user
+-- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
 getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatus (_zusr ::: tid ::: uid ::: _) = do
     mTeamMember <- Data.teamMember tid uid
     teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
-    statusResponse <- case (view legalHoldStatus teamMember) of
+    statusResponse <- case view legalHoldStatus teamMember of
         UserLegalHoldDisabled ->
             pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
-        status -> do
-            mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
-            lastKey <- case mLastKey of
-                Nothing -> do
-                    Log.err . Log.msg $ "expected to find a prekey for user: "
-                                     <> toByteString' uid <> " but none was found"
-                    throwM internalError
-                Just lstKey -> pure lstKey
-            let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
-            pure $ UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
+        status@UserLegalHoldPending -> makeResponse status
+        status@UserLegalHoldEnabled -> makeResponse status
     pure . json $ statusResponse
+  where
+    makeResponse status = do
+        mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
+        lastKey <- case mLastKey of
+            Nothing -> do
+                Log.err . Log.msg $ "expected to find a prekey for user: "
+                                 <> toByteString' uid <> " but none was found"
+                throwM internalError
+            Just lstKey -> pure lstKey
+        let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
+        pure $ UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
+
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
