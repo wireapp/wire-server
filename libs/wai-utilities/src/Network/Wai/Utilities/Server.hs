@@ -15,6 +15,8 @@ module Network.Wai.Utilities.Server
     , catchErrors
     , OnErrorMetrics
     , heavyDebugLogging
+    , rethrow5xx
+    , lazyResponseBody
 
       -- * Utilities
     , onError
@@ -48,14 +50,15 @@ import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
-import qualified Network.Wai.Utilities.Error as Wai
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.Text.Lazy.Encoding     as LT
+import qualified Network.Wai.Internal        as WaiInt
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
@@ -184,7 +187,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- See 'catchErrors'.
 catchErrors :: Logger -> OnErrorMetrics -> Middleware
 catchErrors l m app req k =
-    app req k `catch` errorResponse
+    rethrow5xx l app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
@@ -270,6 +273,38 @@ emitLByteString lbs = do
     tvar <- newTVarIO (cs lbs)
     -- | Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
+
+-- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
+-- label @"server-error"@ and the body as the error message.
+rethrow5xx :: Logger -> Middleware
+rethrow5xx logger app req k = app req k'
+  where
+    k' resp@(WaiInt.ResponseRaw {}) = do  -- See Note [Raw Response]
+        let logMsg = field "canoncalpath" (show $ pathInfo req)
+                   . field "rawpath" (rawPathInfo req)
+                   . field "request" (fromMaybe "N/A" $ lookupRequestId req)
+                   . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
+        Log.log logger Log.Debug logMsg
+        k resp
+    k' resp = do
+        let st = responseStatus resp
+        if statusCode st < 500
+            then k resp
+            else do
+                rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
+                throwM $ Wai.Error st "server-error" rsbody
+
+-- | This flushes the response!  If you want to keep using the response, you need to construct
+-- a new one with a fresh body stream.
+lazyResponseBody :: Response -> IO LByteString
+lazyResponseBody rs = case responseToStream rs of
+    (_, _, cont :: (StreamingBody -> IO ()) -> IO ()) -> do
+        tvar <- atomically $ newTVar mempty
+        let pushstream builder = atomically $ modifyTVar tvar (<> builder)
+        cont $ \streamingBody ->
+            streamingBody pushstream (pure ())
+        atomically $ toLazyByteString <$> readTVar tvar
+
 
 --------------------------------------------------------------------------------
 -- Utilities

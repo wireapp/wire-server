@@ -65,5 +65,5 @@ main = withOpenSSL $ do
         . C.setContacts        (cas^.cHosts) []
         . C.setPortNumber      (fromIntegral $ cas^.cPort)
         . C.setKeyspace        (cas^.cKeyspace)
-        . C.setProtocolVersion C.V3
+        . C.setProtocolVersion C.V4
         $ C.defSettings

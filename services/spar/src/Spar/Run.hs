@@ -60,7 +60,7 @@ initCassandra opts lgr = do
       & Cas.setPoolStripes 4
       & Cas.setSendTimeout 3
       & Cas.setResponseTimeout 10
-      & Cas.setProtocolVersion V3
+      & Cas.setProtocolVersion V4
     runClient cas $ Cas.versionCheck Data.schemaVersion
     pure cas
 
