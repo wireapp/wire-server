@@ -27,8 +27,9 @@ import Data.PEM
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Encoding (encodeUtf8)
-import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.API.Swagger (GalleyRoutes)
+import Galley.External.LegalHoldService (validateServiceKey)
+import Galley.Types (cnvId)
 import Galley.Types.Teams
 import GHC.Generics hiding (to)
 import GHC.TypeLits
@@ -131,7 +132,7 @@ testRequestLegalHoldDevice = do
 
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
-    WS.bracketR cannon member $ \ws -> withDummyTestServiceForTeam owner tid $ \_chan -> do
+    WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
         do requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
@@ -155,22 +156,36 @@ testRequestLegalHoldDevice = do
         -- This test is mirrored in brig tests: API.User.Client.testRequestLegalHoldClient
         -- (even though it looks quite different there)
         -- and should probably continue to exist in both locations.
-        assertNotification ws $ \case
-          (LegalHoldClientRequested rdata) -> do
-            -- lhcRequester @?= member  (this is silly, don't test it.)
-            lhcTargetUser rdata @?= member
-            lhcLastPrekey rdata @?= head someLastPrekeys
-            API.Teams.LegalHold.lhcClientId rdata @?= someClientId
-          _ -> assertBool "Unexpected event" False
-
-    -- TODO: all of user's clients receive an event (create two clients and listen on both for the event).
+        let pluck = \case
+              (LegalHoldClientRequested rdata) -> do
+                -- lhcRequester @?= member  (this is silly, don't test it.)
+                lhcTargetUser rdata @?= member
+                lhcLastPrekey rdata @?= head someLastPrekeys
+                API.Teams.LegalHold.lhcClientId rdata @?= someClientId
+              _ -> assertBool "Unexpected event" False
+        assertNotification ws pluck
+        -- all devices get notified.
+        assertNotification ws' pluck
 
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
     (owner, tid) <- createTeam
-    member <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    member <- do
+      usr <- randomUser
+      addTeamMemberInternal tid $ newTeamMember usr (rolePermissions RoleMember) Nothing
+      pure usr
+    member2 <- do
+      usr <- randomUser
+      addTeamMemberInternal tid $ newTeamMember usr (rolePermissions RoleMember) Nothing
+      pure usr
+    outsideContact <- do
+      usr <- randomUser
+      resp <- postConnectConv member usr "name" "msg" Nothing <!! const 201 === statusCode
+      let conv = either (error "post connection failed") cnvId $ responseJSON resp
+      putConvAccept usr conv !!! const 200 === statusCode
+      pure usr
+    stranger <- randomUser
     ensureQueueEmpty
 
     -- fails if feature flag is disabled
@@ -184,7 +199,8 @@ testApproveLegalHoldDevice = do
 
     cannon <- view tsCannon
 
-    WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
+    WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
+      \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
         requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
 
         liftIO $ do
@@ -215,20 +231,26 @@ testApproveLegalHoldDevice = do
         liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                     UserLegalHoldEnabled userStatus
 
-        assertNotification mws $ \case
-          ClientAdded eClient -> do
-            clientId eClient @?= someClientId
-            clientType eClient @?= LegalHoldClientType
-            clientClass eClient @?= Just LegalHoldClient
-          _ -> assertBool "Unexpected event" False
+        let pluck = \case
+              ClientAdded eClient -> do
+                clientId eClient @?= someClientId
+                clientType eClient @?= LegalHoldClientType
+                clientClass eClient @?= Just LegalHoldClient
+              _ -> assertBool "Unexpected event" False
+        assertNotification mws pluck
+        assertNotification mws' pluck
 
         -- Other team users should get a user.legalhold-enable event
-        assertNotification ows $ \case
-          UserLegalHoldEnabled' eUser -> eUser @?= member
-          _ -> assertBool "Unexpected event" False
+        let pluck' = \case
+              UserLegalHoldEnabled' eUser -> eUser @?= member
+              _ -> assertBool "Unexpected event" False
+        assertNotification ows pluck'
+        assertNotification member2Ws pluck'
+        when False {- TODO: seems like this is another bug?  or perhaps i set up the conversation wrong? -} $
+          assertNotification outsideContactWs pluck'
+        assertNoNotification strangerWs
 
         -- TODO: sends an event to team settings (however that works; it's a client-independent event i think)
-        -- TODO: all of user's communication peers receive an event
 
 
 testGetLegalHoldDeviceStatus :: TestM ()
@@ -944,3 +966,6 @@ assertNotification ws predicate =
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x
       Aeson.Error s -> assertBool (s ++ " in " ++ show j) False
+
+assertNoNotification :: (HasCallStack, MonadIO m) => WS.WebSocket -> m ()
+assertNoNotification ws = void . liftIO $ WS.assertNoEvent (5 WS.# WS.Second) [ws]
