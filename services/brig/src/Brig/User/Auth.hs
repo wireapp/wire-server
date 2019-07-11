@@ -115,13 +115,13 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-newAccess :: ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access u)
+newAccess :: forall u a. ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access u)
 newAccess uid ct cl = do
     r <- lift $ newCookieLimited uid ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay
         Right ck   -> do
-            t <- lift $ newAccessToken ck Nothing
+            t <- lift $ newAccessToken @u @a ck Nothing
             return $ Access t (Just ck)
 
 resolveLoginId :: LoginId -> ExceptT LoginError AppIO UserId
