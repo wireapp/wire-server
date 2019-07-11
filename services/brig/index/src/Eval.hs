@@ -47,7 +47,7 @@ runCommand l = \case
         . C.setContacts        (view cHost cas) []
         . C.setPortNumber      (fromIntegral (view cPort cas))
         . C.setKeyspace        (view cKeyspace cas)
-        . C.setProtocolVersion C.V3
+        . C.setProtocolVersion C.V4
         $ C.defSettings
 
 _ESServer :: Prism' ES.Server (URIRef Absolute)

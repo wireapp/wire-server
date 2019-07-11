@@ -21,7 +21,7 @@ module Cassandra.Schema
     ) where
 
 import Imports hiding (intercalate, fromString, log, All, init)
-import Cassandra (Keyspace(Keyspace), Version(V3), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
+import Cassandra (Keyspace(Keyspace), Version(V4), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
 import Cassandra.Settings (initialContactsPlain, Policy, defSettings, setLogger, setPolicy, setPoolStripes, setMaxConnections, setPortNumber, setContacts, setProtocolVersion, setResponseTimeout, setSendTimeout, setConnectTimeout)
 import qualified Cassandra as CQL (init)
 import Control.Monad.Catch
@@ -152,7 +152,7 @@ migrateSchema l o ms = do
           . setConnectTimeout 20
           . setSendTimeout 20
           . setResponseTimeout 50
-          . setProtocolVersion V3
+          . setProtocolVersion V4
           $ defSettings
     runClient p $ do
         let keyspace = Keyspace . migKeyspace $ o

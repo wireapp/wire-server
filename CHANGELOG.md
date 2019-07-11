@@ -1,3 +1,13 @@
+# 2019-07-08 #798
+
+## Internal Changes
+
+* restund: add EXTRA_CFLAGS  to work on ubuntu 16 (#788)
+* Fix flaky unit test. (#770)
+* Add upstream references in stack.yaml deps (wai-middleware-prometheus). (#760)
+* Cannon analytics (2) (#750)
+* fix this file.
+
 # 2019-05-13 #756
 
 ## Documentation changes

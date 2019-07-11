@@ -2,7 +2,6 @@ module Gundeck.API (sitemap) where
 
 import Imports hiding (head)
 import Control.Lens hiding (enum)
-import Data.Aeson (encode)
 import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
@@ -11,11 +10,11 @@ import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Types
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger
 
 import qualified Data.Swagger.Build.Api as Swagger
@@ -177,8 +176,8 @@ type JSON = Media "application" "json"
 
 docs :: ByteString ::: JSON -> Gundeck Response
 docs (url ::: _) =
-    let doc = encode $ mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
-    return $ responseLBS status200 [jsonContent] doc
+    let doc = mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
+    return $ json doc
 
 -- REFACTOR: what does this function still do, after the fallback queue is gone?
 monitoring :: JSON -> Gundeck Response

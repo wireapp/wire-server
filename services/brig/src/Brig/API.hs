@@ -27,10 +27,11 @@ import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
 import Network.HTTP.Types.Status
-import Network.Wai (Response, responseLBS, lazyRequestBody)
+import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
 import Network.Wai.Utilities
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 
 import qualified Data.Text.Ascii               as Ascii
@@ -200,8 +201,8 @@ sitemap o = do
 
     get "/users/api-docs"
         (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
-            in k $ responseLBS status200 [jsonContent] doc) $
+            let doc = mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
+            in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
 

@@ -163,9 +163,9 @@ claimPrekey u c = withOptLock u c $ do
         Just (i, k) -> do
             if i /= lastPrekeyId
                 then retry x1 $ write removePrekey (params Quorum (u, c, i))
-                else Log.info $ field "user" (toByteString u)
-                              . field "client" (toByteString c)
-                              . msg (val "last resort prekey used")
+                else Log.debug $ field "user" (toByteString u)
+                               . field "client" (toByteString c)
+                               . msg (val "last resort prekey used")
             return $ Just (ClientPrekey c (Prekey i k))
         Nothing -> return Nothing
 
