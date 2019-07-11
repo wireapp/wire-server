@@ -24,6 +24,10 @@ module Brig.ZAuth
     , sessionTokenTimeout
     , ProviderTokenTimeout (..)
     , providerTokenTimeout
+    , UserTokenTimeout (..) -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
+    , AccessTokenTimeout (..) -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
+    , accessTokenTimeout -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
+    , userTokenTimeout -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
 
       -- * timeout settings for access and legalholdaccess
     , settingsTTL
