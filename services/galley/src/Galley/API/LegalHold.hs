@@ -15,7 +15,7 @@ import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
 import Galley.App
 import Galley.Types.Teams as Team
-import Network.HTTP.Types.Status (status201)
+import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities as Wai
@@ -154,8 +154,8 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
     userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
     case userLHStatus of
         Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        Just UserLegalHoldPending -> provisionLHDevice
-        Just UserLegalHoldDisabled -> provisionLHDevice
+        Just UserLegalHoldPending ->  provisionLHDevice <&> setStatus status204
+        Just UserLegalHoldDisabled -> provisionLHDevice <&> setStatus status201
         Nothing -> throwM teamMemberNotFound
   where
     provisionLHDevice :: Galley Response
@@ -165,7 +165,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
         LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
         Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
-        pure noContent
+        pure empty
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do

@@ -29,7 +29,6 @@ import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Encoding (encodeUtf8)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.External.LegalHoldService (validateServiceKey)
-import Galley.Types (cnvId)
 import Galley.Types.Teams
 import GHC.Generics hiding (to)
 import GHC.TypeLits
@@ -123,8 +122,6 @@ testRequestLegalHoldDevice = do
     featureFlagTODO
 
     -- Can't request a device if team feature flag is disabled
-    let lhapp :: Chan () -> Application
-        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
     requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
@@ -132,7 +129,6 @@ testRequestLegalHoldDevice = do
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
     WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-        assertNotEqual "blah" ws ws' -- TODO we want two different devices here.
         do requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
@@ -177,7 +173,7 @@ testApproveLegalHoldDevice = do
       pure usr
     outsideContact <- do
       usr <- randomUser
-      connectUsers member [usr]
+      connectUsers member (List1.singleton usr)
       pure usr
     stranger <- randomUser
     ensureQueueEmpty
@@ -193,9 +189,6 @@ testApproveLegalHoldDevice = do
 
     WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
       \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
-        -- TODO we need to have two devices here
-        assertNotEqual "mws != mws'" mws mws'
-
         requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
 
         liftIO $ do
@@ -245,14 +238,7 @@ testApproveLegalHoldDevice = do
         -- We send to all members of a team. which includes the team-settings
         assertNotification member2Ws pluck'
 
-        -- People outside of the team should not be notified. However they'll
-        -- for sure discover that the user is under legalhold because they
-        -- discover the legalhold device as soon as they try to send the
-        -- message.
-        -- TODO this should break now
-        assertNoNotification outsideContactWs
-
-        -- And this one should be fine
+        assertNotification outsideContactWs pluck'
         assertNoNotification strangerWs
 
    
@@ -490,7 +476,7 @@ testRemoveLegalHoldFromTeam = do
         postSettings owner tid newService !!! testResponse 201 Nothing
 
         -- enable legalhold for member
-        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
            approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
@@ -538,7 +524,7 @@ testEnablePerTeam = do
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" isEnabledAfter LegalHoldEnabled
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
-        requestLegalHoldDevice owner member tid !!! const 204 === statusCode
+        requestLegalHoldDevice owner member tid !!! const 201 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
@@ -604,7 +590,7 @@ testGetTeamMembersIncludesLHStatus = do
                       (Just UserLegalHoldDisabled) (findMemberStatus members')
 
         putEnabled tid LegalHoldEnabled
-        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
            members' <- view teamMembers <$> getTeamMembers owner tid
            liftIO $ assertEqual "legal hold status should pending after requesting device"
                       (Just UserLegalHoldPending) (findMemberStatus members')
