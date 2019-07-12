@@ -125,20 +125,20 @@ testRequestLegalHoldDevice = do
     -- Can't request a device if team feature flag is disabled
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-    withTestService lhapp $ \_ -> do
-        requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+    requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
 
     -- Assert that the appropriate LegalHold Request notification is sent to the user's
     -- clients
     WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
+        assertNotEqual "blah" ws ws' -- TODO we want two different devices here.
         do requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "User with insufficient permissions should be unable to start flow"
                       UserLegalHoldDisabled userStatus
 
-        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
            liftIO $ assertEqual "requestLegalHoldDevice should set user status to Pending"
                       UserLegalHoldPending userStatus
@@ -153,12 +153,8 @@ testRequestLegalHoldDevice = do
             storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
             assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
 
-        -- This test is mirrored in brig tests: API.User.Client.testRequestLegalHoldClient
-        -- (even though it looks quite different there)
-        -- and should probably continue to exist in both locations.
         let pluck = \case
               (LegalHoldClientRequested rdata) -> do
-                -- lhcRequester @?= member  (this is silly, don't test it.)
                 lhcTargetUser rdata @?= member
                 lhcLastPrekey rdata @?= head someLastPrekeys
                 API.Teams.LegalHold.lhcClientId rdata @?= someClientId
@@ -181,9 +177,7 @@ testApproveLegalHoldDevice = do
       pure usr
     outsideContact <- do
       usr <- randomUser
-      resp <- postConnectConv member usr "name" "msg" Nothing <!! const 201 === statusCode
-      let conv = either (error "post connection failed") cnvId $ responseJSON resp
-      putConvAccept usr conv !!! const 200 === statusCode
+      connectUsers member [usr]
       pure usr
     stranger <- randomUser
     ensureQueueEmpty
@@ -192,16 +186,17 @@ testApproveLegalHoldDevice = do
     featureFlagTODO
 
     -- not allowed to approve if team setting is disabled
-    let lhapp :: Chan () -> Application
-        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-    withTestService lhapp $ \_ -> do
-        approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
+    approveLegalHoldDevice (Just defPassword) owner member tid 
+      !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
 
     WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
       \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
-        requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
+        -- TODO we need to have two devices here
+        assertNotEqual "mws != mws'" mws mws'
+
+        requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
 
         liftIO $ do
           _statusCheck' <- readChan chan
@@ -216,6 +211,7 @@ testApproveLegalHoldDevice = do
         approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
 
+        -- checks if the cookie we give to the legalhold service is actually valid
         do
           reqBody <- liftIO $ readChan chan
           let LegalHoldServiceConfirm _clientId _uid _tid authToken = reqBody ^?! _JSON
@@ -253,11 +249,13 @@ testApproveLegalHoldDevice = do
         -- for sure discover that the user is under legalhold because they
         -- discover the legalhold device as soon as they try to send the
         -- message.
+        -- TODO this should break now
         assertNoNotification outsideContactWs
+
+        -- And this one should be fine
         assertNoNotification strangerWs
 
-
-
+   
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
     (owner, tid) <- createTeam
@@ -268,24 +266,20 @@ testGetLegalHoldDeviceStatus = do
     -- fails if feature flag is disabled
     featureFlagTODO
 
-    -- not allowed to approve if team setting is disabled
-    let lhapp :: Chan () -> Application
-        lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-    withTestService lhapp $ \_ -> do
-        forM_ [owner, member] $ \uid -> do
-            status <- getUserStatusTyped uid tid
-            liftIO $ assertEqual "unexpected status" status
-                (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
+    forM_ [owner, member] $ \uid -> do
+        status <- getUserStatusTyped uid tid
+        liftIO $ assertEqual "unexpected status" status
+            (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
-        -- Initial status should be disabled
         do UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
                 assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
                 assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
 
-        do requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
+        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
+           assertZeroLegalHoldDevices member
            UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
            liftIO $
              do assertEqual "requestLegalHoldDevice should set user status to Pending" UserLegalHoldPending userStatus
@@ -304,6 +298,7 @@ testGetLegalHoldDeviceStatus = do
                 assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
                 assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
+        assertExactlyOneLegalHoldDevice member
         requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
 
 
@@ -319,10 +314,8 @@ testDisableLegalHoldForUser = do
 
     cannon <- view tsCannon
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-        requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
-        assertZeroLegalHoldDevices member
+        requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-        assertExactlyOneLegalHoldDevice member
         -- Only the admin can disable legal hold
         disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
         assertExactlyOneLegalHoldDevice member
@@ -333,7 +326,7 @@ testDisableLegalHoldForUser = do
         assertZeroLegalHoldDevices member
 
         assertNotification mws $ \case
-          ClientAdded  client -> do
+          ClientAdded client -> do
             clientId client @?= someClientId
             clientType client @?= LegalHoldClientType
             clientClass client @?= (Just LegalHoldClient)
@@ -379,6 +372,7 @@ testCreateLegalHoldTeamSettings = do
 
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
+    -- TODO: Boolean blindness
     let lhapp :: HasCallStack => Bool -> Chan Void -> Application
         lhapp _isworking@False _ _   cont = cont respondBad
         lhapp _isworking@True  _ req cont = trace "APP" $ do
@@ -423,7 +417,7 @@ testCreateLegalHoldTeamSettings = do
     -- synchronously and respond with 201
     withTestService (lhapp True) (lhtest True)
 
-    -- TODO: expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
+    -- NOTE: we do not expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
 
 
 testGetLegalHoldTeamSettings :: TestM ()
@@ -805,6 +799,7 @@ withDummyTestServiceForTeam owner tid go = do
         postSettings owner tid newService !!! testResponse 201 Nothing
         go chan
 
+    -- TODO: Code review this with Dejan
     dummyService :: Chan LBS -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
         reqBody <- Wai.strictRequestBody req

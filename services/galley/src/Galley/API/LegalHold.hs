@@ -73,6 +73,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     let service = legalHoldService tid fpr newService key
     LegalHoldData.createSettings service
+    -- TODO: Refactor and use `json` function instead which ensures correct content-type is set, etc.
     pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
