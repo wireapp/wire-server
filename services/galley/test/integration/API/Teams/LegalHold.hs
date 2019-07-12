@@ -244,13 +244,18 @@ testApproveLegalHoldDevice = do
         let pluck' = \case
               UserLegalHoldEnabled' eUser -> eUser @?= member
               _ -> assertBool "Unexpected event" False
+
         assertNotification ows pluck'
+        -- We send to all members of a team. which includes the team-settings
         assertNotification member2Ws pluck'
-        when False {- TODO: seems like this is another bug?  or perhaps i set up the conversation wrong? -} $
-          assertNotification outsideContactWs pluck'
+
+        -- People outside of the team should not be notified. However they'll
+        -- for sure discover that the user is under legalhold because they
+        -- discover the legalhold device as soon as they try to send the
+        -- message.
+        assertNoNotification outsideContactWs
         assertNoNotification strangerWs
 
-        -- TODO: sends an event to team settings (however that works; it's a client-independent event i think)
 
 
 testGetLegalHoldDeviceStatus :: TestM ()
