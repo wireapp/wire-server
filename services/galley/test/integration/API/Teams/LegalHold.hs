@@ -487,10 +487,6 @@ testRemoveLegalHoldFromTeam = do
         -- returns 204 if legal hold is successfully removed from team
         deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
 
-
-        -- TODO make sure to flush or to move the withService to just here. Because now
-        -- it's hard to decide when the "DELETE" we expect actually shows up
-
         let delete'' = do 
               deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
               liftIO $ assertMatchChan chan $ \(req, _) -> do
@@ -502,8 +498,6 @@ testRemoveLegalHoldFromTeam = do
         -- is idempotent (deleting twice in a row works)
         delete''
         delete''
-
-        -- TODO
 
         -- deletion of settings should disable for all team members and remove their clients
         do UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -916,8 +910,7 @@ data ClientEvent
 
 data LegalHoldClientRequestedData =
   LegalHoldClientRequestedData
-  { lhcRequester  :: !UserId
-  , lhcTargetUser :: !UserId
+  { lhcTargetUser :: !UserId
   , lhcLastPrekey :: !LastPrekey
   , lhcClientId   :: !ClientId
   } deriving stock (Show)
@@ -938,7 +931,6 @@ instance FromJSON UserEvent where
       "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
       "user.legalhold-request" ->
         LegalHoldClientRequested <$> (LegalHoldClientRequestedData
-          <$> o .: "id" -- TODO: should be requester. but we dont expose that in the event anymore?
           <*> o .: "id" -- this is the target user
           <*> o .: "last_prekey"
           <*> (o .: "client" >>= Aeson.withObject "id" (.: "id")))
