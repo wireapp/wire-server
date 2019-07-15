@@ -2,6 +2,10 @@
 
 set -e
 
+COUNT="1"
+BRIG_HOST="http://localhost:8082"
+CSV="false"
+
 USAGE="
 This bash script can be used to create active team admin users and
 their teams.
@@ -10,14 +14,10 @@ Note that this uses an internal brig endpoint.  It is not exposed over
 nginz and can only be used if you have direct access to brig.
 
 USAGE: $0
-    -n <N>:  Create <N> users. default: 1
-    -h <host>: Base URI of brig. default: http://localhost:8082
-    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: false
+    -n <N>: Create <N> users. default: ${COUNT}
+    -h <host>: Base URI of brig. default: ${BRIG_HOST}
+    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: ${CSV}
 "
-
-BRIG_HOST="http://localhost:8082"
-COUNT="1"
-CSV="false"
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/

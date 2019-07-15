@@ -2,22 +2,6 @@
 
 set -ex
 
-USAGE="
-This bash script can be used to create active members in a given team.
-
-Team id and admin user id are hard-wired in ADMIN_UUID and TEAM_UUID
-in the script.
-
-Note that this uses an internal brig endpoint.  It is not exposed over
-nginz and can only be used if you have direct access to brig.
-
-USAGE: $0
-    -s <S>:  Start at offset. default: 1
-    -n <N>:  Create <N> users. default: 1
-    -h <host>: Base URI of brig. default: http://localhost:8082
-    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: false
-"
-
 ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
 TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
 BRIG_HOST="http://localhost:8082"
@@ -25,10 +9,29 @@ START="1"
 COUNT="1"
 CSV="false"
 
+USAGE="
+This bash script can be used to create active members in a given team.
+
+Note that this uses an internal brig endpoint.  It is not exposed over
+nginz and can only be used if you have direct access to brig.
+
+USAGE: $0
+    -a <admin uuid>: User ID of the inviting admin.  default: ${ADMIN_UUID}
+    -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
+    -s <S>: Start at offset. default: ${START}
+    -n <N>: Create <N> users. default: ${COUNT}
+    -h <host>: Base URI of brig. default: ${BRIG_HOST}
+    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: ${CSV}
+"
+
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":s:n:h:c" opt; do
+while getopts ":a:t:s:n:h:c" opt; do
   case ${opt} in
+    a ) ADMIN_UUID="$OPTARG"
+      ;;
+    t ) TEAM_UUID="$OPTARG"
+      ;;
     s ) START="$OPTARG"
       ;;
     n ) COUNT="$OPTARG"
