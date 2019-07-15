@@ -56,7 +56,6 @@ fi;
 END=$((COUNT + START - 1))
 for i in $(seq "$START" "$END")
 do
-    # EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
     EMAIL='w'$(printf "%03d" "$i")"@example.com"
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
