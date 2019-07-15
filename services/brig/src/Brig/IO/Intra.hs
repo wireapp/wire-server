@@ -363,7 +363,7 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     , "client" .= object ["id" .= clientId c]
     ]
 toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
-    let LegalHoldClientRequestedData _ targetUser lastPrekey' clientId = payload
+    let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
     in Just
        $ M.fromList [ "type" .= ("user.legalhold-request" :: Text)
                     , "id" .= targetUser
