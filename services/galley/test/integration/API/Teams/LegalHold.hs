@@ -295,7 +295,7 @@ testDisableLegalHoldForUser = do
     featureFlagTODO
 
     cannon <- view tsCannon
-    WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \_chan -> do
+    WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
         requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
         assertNotification mws $ \case
@@ -312,6 +312,11 @@ testDisableLegalHoldForUser = do
         disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
         assertExactlyOneLegalHoldDevice member
         disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
+
+        liftIO $ assertMatchChan chan $ \(req, _) -> do
+          assertEqual "method" "POST" (requestMethod req) 
+          assertEqual "path" (pathInfo req) ["legalhold", "remove"]
+
         assertNotification mws $ \case
           ClientRemoved clientId' -> clientId' @?= someClientId
           _ -> assertBool "Unexpected event" False
@@ -484,17 +489,21 @@ testRemoveLegalHoldFromTeam = do
 
         -- Fails without password
         deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
-        -- returns 204 if legal hold is successfully removed from team
-        deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
 
         let delete'' = do 
               deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
               liftIO $ assertMatchChan chan $ \(req, _) -> do
-                assertEqual "method" "POST" (requestMethod req) 
-                assertEqual "path" (pathInfo req) ["legalhold", "remove"]
+                -- TODO: figure out why this fails? From initial putStrLn
+                -- debugging this should be true?
+                -- WTF: Fix??
+                putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
+                putStrLn (show (requestMethod req, requestMethod req == "POST"))
+                assertEqual "path" ["legalhold", "remove"] (pathInfo req)
+                assertEqual "method" "POST"  (requestMethod req)
               resp <- getSettings owner tid
               liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
 
+        -- returns 204 if legal hold is successfully removed from team
         -- is idempotent (deleting twice in a row works)
         delete''
         delete''

@@ -116,6 +116,7 @@ removeSettings' tid mMembers = do
     removeLHForUser member = do
         let uid = member ^. Team.userId
         Client.removeLegalHoldClientFromUser uid
+        LHService.removeLegalHold tid uid
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
