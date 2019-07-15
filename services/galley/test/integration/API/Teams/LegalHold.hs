@@ -490,7 +490,7 @@ testRemoveLegalHoldFromTeam = do
         let delete'' = do 
               deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
               liftIO $ assertMatchChan chan $ \(req, _) -> do
-                assertEqual "method" "DELETE" (requestMethod req) 
+                assertEqual "method" "POST" (requestMethod req) 
                 assertEqual "path" (pathInfo req) ["legalhold", "remove"]
               resp <- getSettings owner tid
               liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
@@ -931,7 +931,7 @@ instance FromJSON UserEvent where
       "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
       "user.legalhold-request" ->
         LegalHoldClientRequested <$> (LegalHoldClientRequestedData
-          <*> o .: "id" -- this is the target user
+          <$> o .: "id" -- this is the target user
           <*> o .: "last_prekey"
           <*> (o .: "client" >>= Aeson.withObject "id" (.: "id")))
       x -> fail $ "unspported event type: " ++ show x
