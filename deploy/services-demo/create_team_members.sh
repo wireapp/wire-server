@@ -5,6 +5,7 @@ set -ex
 ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
 TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
 BRIG_HOST="http://localhost:8082"
+CSV_FILE="myfile.csv"
 
 USAGE="
 This bash script can be used to invite members to a given team.  Input
@@ -22,7 +23,7 @@ USAGE: $0
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":a:t:h:c" opt; do
+while getopts ":a:t:h:c:" opt; do
   case ${opt} in
     a ) ADMIN_UUID="$OPTARG"
       ;;
@@ -30,13 +31,7 @@ while getopts ":a:t:h:c" opt; do
       ;;
     h ) BRIG_HOST="$OPTARG"
       ;;
-    c ) if [ ! -e "$OPTARG" ]; then
-            echo -e "\n\n*** I need the name of an existing cvs file.\n\n"
-            echo "$USAGE" 1>&2
-            exit 1
-        else
-            CSV_FILE="$OPTARG"
-        fi
+    c ) CSV_FILE="$OPTARG"
       ;;
     : ) echo "-$OPTARG" requires an argument 1>&2
         exit 1
@@ -51,6 +46,12 @@ shift $((OPTIND -1))
 if [ "$#" -ne 0 ]; then
   echo "$USAGE" 1>&2
   exit 1
+fi
+
+if [ ! -e "$CSV_FILE" ]; then
+    echo -e "\n\n*** I need the name of an existing csv file.\n\n"
+    echo "$USAGE" 1>&2
+    exit 1
 fi
 
 # Generate users
