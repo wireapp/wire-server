@@ -12,7 +12,7 @@ CSV="false"
 USAGE="
 This bash script can be used to create active members in a given team.
 
-Note that this uses an internal brig endpoint.  It is not exposed over
+Note that this uses internal brig endpoints.  It is not exposed over
 nginz and can only be used if you have direct access to brig.
 
 USAGE: $0
@@ -72,8 +72,8 @@ do
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
+    echo "Created the invitation, sleeping 1 second..." 1>&2;
     sleep 1;
-    echo "Created the invitation, sleeping 1 second...";
 
     ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
     if [[ "$INVITATION_ID" == "$ERR" ]]; then
@@ -87,8 +87,8 @@ do
 
     INVITATION_CODE=$(echo "$CURL_OUT_INVITATION_CODE" | tail -1 | sed -n -e '/"code":/ s/^.*"\(.*\)".*/\1/p')
 
+    echo "Got the code, sleeping 1 second..." 1>&2;
     sleep 1;
-    echo "Got the code, sleeping 1 second...";
 
     # Create the user using that code
     CURL_OUT=$(curl -i -s --show-error \
@@ -108,6 +108,7 @@ do
         then echo -e "Succesfully created a team member: $TEAM_MEMBER_UUID on team: $TEAM_UUID with email: $EMAIL and password: $PASSWORD"
         else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi
+
+    echo "Sleeping 1 second..." 1>&2;
     sleep 1;
-    echo "Sleeping 1 second...";
 done
