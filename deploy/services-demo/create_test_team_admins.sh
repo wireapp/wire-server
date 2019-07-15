@@ -3,9 +3,11 @@
 set -e
 
 USAGE="
-This bash script can be used to create an active user by using an internal
-brig endpoint. Note that this is not exposed over nginz and can only be used
-if you have direct access to brig
+This bash script can be used to create active team admin users and
+their teams.
+
+Note that this uses an internal brig endpoint.  It is not exposed over
+nginz and can only be used if you have direct access to brig.
 
 USAGE: $0
     -n <N>:  Create <N> users. default: 1

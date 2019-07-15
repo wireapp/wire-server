@@ -3,9 +3,13 @@
 set -ex
 
 USAGE="
-This bash script can be used to create an active in a team by using an internal
-brig endpoint. Note that this is not exposed over nginz and can only be used
-if you have direct access to brig
+This bash script can be used to create active members in a given team.
+
+Team id and admin user id are hard-wired in ADMIN_UUID and TEAM_UUID
+in the script.
+
+Note that this uses an internal brig endpoint.  It is not exposed over
+nginz and can only be used if you have direct access to brig.
 
 USAGE: $0
     -s <S>:  Start at offset. default: 1
