@@ -184,7 +184,7 @@ testApproveLegalHoldDevice = do
     featureFlagTODO
 
     -- not allowed to approve if team setting is disabled
-    approveLegalHoldDevice (Just defPassword) owner member tid 
+    approveLegalHoldDevice (Just defPassword) owner member tid
       !!! testResponse 403 (Just "legalhold-not-enabled")
 
     cannon <- view tsCannon
@@ -237,7 +237,7 @@ testApproveLegalHoldDevice = do
         assertNotification outsideContactWs pluck'
         assertNoNotification strangerWs
 
-   
+
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
     (owner, tid) <- createTeam
@@ -314,7 +314,7 @@ testDisableLegalHoldForUser = do
         disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
 
         liftIO $ assertMatchChan chan $ \(req, _) -> do
-          assertEqual "method" "POST" (requestMethod req) 
+          assertEqual "method" "POST" (requestMethod req)
           assertEqual "path" (pathInfo req) ["legalhold", "remove"]
 
         assertNotification mws $ \case
@@ -490,12 +490,9 @@ testRemoveLegalHoldFromTeam = do
         -- Fails without password
         deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
 
-        let delete'' = do 
+        let delete'' expectRemoteLHCall = do
               deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
-              liftIO $ assertMatchChan chan $ \(req, _) -> do
-                -- TODO: figure out why this fails? From initial putStrLn
-                -- debugging this should be true?
-                -- WTF: Fix??
+              when expectRemoteLHCall $ liftIO $ assertMatchChan chan $ \(req, _) -> do
                 putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
                 putStrLn (show (requestMethod req, requestMethod req == "POST"))
                 assertEqual "path" ["legalhold", "remove"] (pathInfo req)
@@ -504,9 +501,10 @@ testRemoveLegalHoldFromTeam = do
               liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
 
         -- returns 204 if legal hold is successfully removed from team
-        -- is idempotent (deleting twice in a row works)
-        delete''
-        delete''
+        -- is idempotent (deleting twice in a row works) from BE's PoV
+        -- NOTE: Only if LH is active will there be a remote call to the LH service
+        delete'' True
+        delete'' False
 
         -- deletion of settings should disable for all team members and remove their clients
         do UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -524,7 +522,7 @@ testEnablePerTeam = do
 
     -- fails if feature flag is disabled
     featureFlagTODO
-    
+
     do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
        liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
 
@@ -974,16 +972,16 @@ assertMatchJSON c match = do
     case Aeson.eitherDecode reqBody of
       Right x-> match x
       Left s -> liftIO $ assertBool (s ++ " in " ++ show reqBody) False
-    
+
 
 assertMatchChan :: (HasCallStack, MonadThrow m, MonadCatch m, MonadIO m) => Chan a -> (a -> m ()) -> m ()
 assertMatchChan c match = go []
   where
     refill = mapM_ (liftIO <$> writeChan c)
     go buf = do
-      m <- liftIO . timeout (5 WS.# WS.Second) . readChan $ c 
+      m <- liftIO . timeout (5 WS.# WS.Second) . readChan $ c
       case m of
-        Just n -> do 
+        Just n -> do
           match n
           refill buf
           `catchAll` \e -> case asyncExceptionFromException e of
@@ -992,7 +990,3 @@ assertMatchChan c match = go []
         Nothing -> do
           refill buf
           liftIO $ assertBool "Timeout" False
-          
-
-
-
