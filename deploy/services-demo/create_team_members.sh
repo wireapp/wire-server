@@ -51,7 +51,7 @@ shift $((OPTIND -1))
 if [ "$#" -ne 0 ]; then
   echo "$USAGE" 1>&2
   exit 1
-fi;
+fi
 
 # Generate users
 while IFS=, read -r EMAIL USER_NAME
@@ -67,15 +67,15 @@ do
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    echo "Created the invitation, sleeping 1 second..." 1>&2;
-    sleep 1;
+    echo "Created the invitation, sleeping 1 second..." 1>&2
+    sleep 1
 
     ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
     if [[ "$INVITATION_ID" == "$ERR" ]]; then
       echo "User with the email $EMAIL already exists, aborting"
       exit 1
-    fi;
+    fi
 
-    echo "Sleeping 1 second..." 1>&2;
-    sleep 1;
+    echo "Sleeping 1 second..." 1>&2
+    sleep 1
 done < "$CSV_FILE"

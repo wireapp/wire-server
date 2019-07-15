@@ -53,7 +53,7 @@ shift $((OPTIND -1))
 if [ "$#" -ne 0 ]; then
   echo "$USAGE" 1>&2
   exit 1
-fi;
+fi
 
 # Generate users
 END=$((COUNT + START - 1))
@@ -72,14 +72,14 @@ do
 
     INVITATION_ID=$(echo "$CURL_OUT_INVITATION" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    echo "Created the invitation, sleeping 1 second..." 1>&2;
-    sleep 1;
+    echo "Created the invitation, sleeping 1 second..." 1>&2
+    sleep 1
 
     ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
     if [[ "$INVITATION_ID" == "$ERR" ]]; then
       echo "User with the email $EMAIL already exists, aborting"
       exit 1
-    fi;
+    fi
 
     # Get the code
     CURL_OUT_INVITATION_CODE=$(curl -i -s --show-error \
@@ -87,8 +87,8 @@ do
 
     INVITATION_CODE=$(echo "$CURL_OUT_INVITATION_CODE" | tail -1 | sed -n -e '/"code":/ s/^.*"\(.*\)".*/\1/p')
 
-    echo "Got the code, sleeping 1 second..." 1>&2;
-    sleep 1;
+    echo "Got the code, sleeping 1 second..." 1>&2
+    sleep 1
 
     # Create the user using that code
     CURL_OUT=$(curl -i -s --show-error \
@@ -109,6 +109,6 @@ do
         else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi
 
-    echo "Sleeping 1 second..." 1>&2;
-    sleep 1;
+    echo "Sleeping 1 second..." 1>&2
+    sleep 1
 done
