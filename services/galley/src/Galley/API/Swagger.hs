@@ -334,6 +334,7 @@ instance ToSchema PrekeyId where
         tweak = fmap $ schema . description ?~ descr
           where
             descr = "in the range [0..65535]."
+              -- TODO: can this be also expressed in swagger, not just in the description?
 
 instance ToSchema Prekey where
     declareNamedSchema = genericDeclareNamedSchema opts

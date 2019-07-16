@@ -116,7 +116,7 @@ legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
 legalHoldServiceUnavailable :: Error
-legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond"
+legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
 
 legalHoldServiceNotRegistered :: Error
 legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "legal hold service has not been registered for this team"

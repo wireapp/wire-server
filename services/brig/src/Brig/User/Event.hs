@@ -68,8 +68,7 @@ data ClientEvent
 
 data LegalHoldClientRequestedData =
     LegalHoldClientRequestedData
-    { lhcRequester  :: !UserId
-    , lhcTargetUser :: !UserId
+    { lhcTargetUser :: !UserId
     , lhcLastPrekey :: !LastPrekey
     , lhcClientId   :: !ClientId
     } deriving stock (Show)
