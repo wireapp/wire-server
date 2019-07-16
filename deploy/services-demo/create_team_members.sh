@@ -71,9 +71,9 @@ do
     echo "Created the invitation, sleeping 1 second..." 1>&2
     sleep 1
 
-    ERR='{"code":409,"message":"The given e-mail address is in use.","label":"email-exists"}'
-    if [[ "$INVITATION_ID" == "$ERR" ]]; then
-      echo "User with the email $EMAIL already exists, aborting"
+    if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
+         ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
+      echo "Got an error, aborting: $INVITATION_ID"
       exit 1
     fi
 
