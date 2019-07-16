@@ -201,7 +201,8 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     legalHoldAuthToken <- Client.getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
-    -- TODO: send event at this point: https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386
+    -- TODO: send event at this point (see also:
+    -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
     pure empty
   where
     assertUserLHPending :: Galley ()
@@ -237,4 +238,6 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
         Client.removeLegalHoldClientFromUser uid
         LHService.removeLegalHold tid uid
         LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
-        -- TODO: send event at this point
+        -- TODO: send event at this point (see also: related TODO in this module in
+        -- 'approveDevice' and
+        -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
