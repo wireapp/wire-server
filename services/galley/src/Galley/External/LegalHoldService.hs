@@ -106,8 +106,6 @@ removeLegalHold tid uid = do
     void $ makeLegalHoldServiceRequest tid reqParams
   where
     reqParams =
-        -- TODO: Currently this OVERWRITES any path on the base URL;
-        -- We should come up with a better solution.
         Bilge.paths ["remove"]
       . Bilge.json (LegalHoldServiceRemove uid tid)
       . Bilge.method POST
