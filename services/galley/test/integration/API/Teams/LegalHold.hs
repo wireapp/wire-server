@@ -318,6 +318,9 @@ testDisableLegalHoldForUser = do
         assertZeroLegalHoldDevices member
 
 
+data IsWorking = Working | NotWorking
+  deriving (Eq, Show)
+
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
     (owner, tid) <- createTeam
@@ -341,10 +344,9 @@ testCreateLegalHoldTeamSettings = do
 
     -- checks /status of legal hold service (boolean argument says whether the service is
     -- behaving or not)
-    -- TODO: Boolean blindness
-    let lhapp :: HasCallStack => Bool -> Chan Void -> Application
-        lhapp _isworking@False _ _   cont = cont respondBad
-        lhapp _isworking@True  _ req cont = trace "APP" $ do
+    let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
+        lhapp NotWorking _ _   cont = cont respondBad
+        lhapp Working  _ req cont = trace "APP" $ do
             if | pathInfo req /= ["legalhold", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> cont respondOk
@@ -355,11 +357,11 @@ testCreateLegalHoldTeamSettings = do
         respondBad :: Wai.Response
         respondBad = responseLBS status404 mempty mempty
 
-        lhtest :: HasCallStack => Bool -> Chan Void -> TestM ()
-        lhtest _isworking@False _ = do
+        lhtest :: HasCallStack => IsWorking -> Chan Void -> TestM ()
+        lhtest NotWorking _ = do
             postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")
 
-        lhtest _isworking@True _ = do
+        lhtest Working _ = do
             let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
             let badServiceBadKey = newService { newLegalHoldServiceKey = ServiceKeyPEM k }
             postSettings owner tid badServiceBadKey !!! testResponse 400 (Just "legalhold-invalid-key")
@@ -380,11 +382,11 @@ testCreateLegalHoldTeamSettings = do
     -- We do not use the higher level withDummyTestServiceForTeam here because we want to make
     -- legalhold service misbehave on purpose in certain cases
     -- if no valid service response can be obtained, responds with 400
-    withTestService (lhapp False) (lhtest False)
+    withTestService (lhapp NotWorking) (lhtest NotWorking)
 
     -- if valid service response can be obtained, writes a pending entry to cassandra
     -- synchronously and respond with 201
-    withTestService (lhapp True) (lhtest True)
+    withTestService (lhapp Working) (lhtest Working)
 
     -- NOTE: we do not expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
 
