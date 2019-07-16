@@ -27,7 +27,8 @@ function list_descendants () {
 
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar"
-    sleep 1
+    # This should sleep _longer_ than the harcoded timeout of 5 secs on the webservers
+    sleep 10
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
 

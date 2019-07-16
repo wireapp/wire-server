@@ -23,11 +23,13 @@ import qualified Network.Wai                        as Wai
 import qualified Network.Wai.Middleware.Gunzip      as GZip
 import qualified Network.Wai.Middleware.Gzip        as GZip
 import qualified Network.Wai.Utilities.Server       as Server
+import qualified System.Logger                      as Log
 
 
 run :: Opts -> IO ()
 run o = do
     (app, e) <- mkApp o
+    let l = e^.applog
     s <- Server.newSettings (server e)
     internalEventListener <- Async.async $
         runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
@@ -38,6 +40,7 @@ run o = do
     runSettingsWithShutdown s app 5 `finally` do
         mapM_ Async.cancel emailListener
         Async.cancel internalEventListener
+        Log.info l $ Log.msg (Log.val "Server terminated")
         closeEnv e
   where
     endpoint   = brig o
