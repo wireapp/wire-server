@@ -167,8 +167,8 @@ instance ToJSON NewLegalHoldClient where
 
 instance FromJSON NewLegalHoldClient where
     parseJSON = withObject "NewLegalHoldClient" $ \o ->
-        NewLegalHoldClient <$> o .:  "prekeys"
-                           <*> o .:  "last_prekey"
+        NewLegalHoldClient <$> o .: "prekeys"
+                           <*> o .: "last_prekey"
 
 -- This is the payload that the LH service expects
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
@@ -178,8 +178,8 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
 
 instance ToJSON RequestNewLegalHoldClient where
     toJSON (RequestNewLegalHoldClient userId teamId) = object
-        $ "user_id"    .= userId
-        # "team_id"    .= teamId
+        $ "user_id" .= userId
+        # "team_id" .= teamId
         # []
 
 instance FromJSON RequestNewLegalHoldClient where
@@ -187,8 +187,6 @@ instance FromJSON RequestNewLegalHoldClient where
         RequestNewLegalHoldClient <$> o .: "user_id"
                                   <*> o .: "team_id"
 
--- TODO: Review this datatype: the encoding/swagger could probably be
---       very much simplified with a different type for ulhsrClientId
 data UserLegalHoldStatusResponse =
     UserLegalHoldStatusResponse
       { ulhsrStatus     :: UserLegalHoldStatus
@@ -201,16 +199,14 @@ instance ToJSON UserLegalHoldStatusResponse where
     toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') = object
         $  "status"      .= status
         #  "last_prekey" .= lastPrekey'
-        #  (if isJust clientId'
-              then "client" .= object ["id" .= clientId']
-              else (mempty, Null))
+        #  "client"      .= (IdObject <$> clientId')
         # []
 
 instance FromJSON UserLegalHoldStatusResponse where
     parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
         UserLegalHoldStatusResponse <$> o .: "status"
                                     <*> o .:? "last_prekey"
-                                    <*> ((o .:? "client") >>= maybe (return Nothing) (.:? "id"))
+                                    <*> (fromIdObject @ClientId <$$> (o .:? "client"))
 
 data LegalHoldClientRequest =
     LegalHoldClientRequest
@@ -239,7 +235,6 @@ data LegalHoldServiceConfirm =
     , lhcRefreshToken :: !Text -- ^ Replace with Legal Hold Token Type
     } deriving stock (Eq, Show, Generic)
 
--- TODO: Review this in a separate PR, requires sync'ing with LH team
 instance ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) = object
         $  "client_id" .= clientId
@@ -256,7 +251,6 @@ instance FromJSON LegalHoldServiceConfirm where
         <*> o .: "team_id"
         <*> o .: "refresh_token"
 
--- TODO: Review this in a separate PR, requires sync'ing with LH team
 data LegalHoldServiceRemove =
     LegalHoldServiceRemove
     { lhrUserId       :: !UserId
@@ -313,4 +307,3 @@ instance FromJSON ApproveLegalHoldForUserRequest where
   parseJSON = withObject "ApproveLegalHoldForUserRequest" $ \o ->
     ApproveLegalHoldForUserRequest
         <$> o .:? "password"
-

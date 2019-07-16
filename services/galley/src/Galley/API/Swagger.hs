@@ -271,12 +271,6 @@ instance ToSchema NewLegalHoldClient where
               "newLegalHoldClientLastKey"     -> "last_prekey"
           }
 
--- | this type is only introduce locally here to generate the schema for 'UserLegalHoldStatusResponse'.
---   TODO: Use SimpleClientId in the UserLegalHoldStatusResponse datatype or re-use PubClient datatype
---         which would greatly simplify these instances
-data SimpleClientId = SimpleClientId ClientId
-  deriving (Eq, Show, Generic)
-
 instance ToSchema UserLegalHoldStatusResponse where
     declareNamedSchema _ = pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $ mempty
         & properties .~ properties_
@@ -289,18 +283,18 @@ instance ToSchema UserLegalHoldStatusResponse where
         properties_ = fromList
           [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus)))
           , ("last_prekey", Inline (toSchema (Proxy @LastPrekey)))
-          , ("client", Inline (toSchema (Proxy @SimpleClientId)))
+          , ("client", Inline (toSchema (Proxy @(IdObject ClientId))))
           ]
 
-instance ToSchema SimpleClientId where
-    declareNamedSchema _ = pure $ NamedSchema (Just "SimpleClientId") $ mempty
+instance ToSchema a => ToSchema (IdObject a) where
+    declareNamedSchema _ = pure $ NamedSchema (Just "IdObject a") $ mempty
         & properties .~ properties_
         & required .~ ["id"]
         & type_ .~ SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
-          [ ("id", Inline (toSchema (Proxy @ClientId)))
+          [ ("id", Inline (toSchema (Proxy @a)))
           ]
 
 instance ToSchema UserLegalHoldStatus where
