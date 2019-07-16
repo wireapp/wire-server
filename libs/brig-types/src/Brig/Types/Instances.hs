@@ -20,7 +20,7 @@ instance Cql LegalHoldStatus where
         0 -> pure $ LegalHoldDisabled
         1 -> pure $ LegalHoldEnabled
         _ -> fail "fromCql: Invalid LegalHoldStatus"
-    fromCql _           = fail "fromCql: LegalHoldStatus: CqlInt expected"
+    fromCql _ = fail "fromCql: LegalHoldStatus: CqlInt expected"
 
     toCql LegalHoldDisabled = CqlInt 0
     toCql LegalHoldEnabled = CqlInt 1
