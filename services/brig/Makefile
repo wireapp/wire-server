@@ -31,9 +31,8 @@ init:
 install: init
 	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
-.PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --coverage --trace --bench --no-run-benchmarks --fast --local-bin-path=dist $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:

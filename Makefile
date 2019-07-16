@@ -13,10 +13,10 @@ init:
 install: init
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
-# Build all Haskell services and executables with -O0, run unit tests
+# Build all Haskell services and executables with -O0, run unit tests, enable stack traces and profiling
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install --pedantic --test --coverage --trace --bench --no-run-benchmarks --fast --local-bin-path=dist $(WIRE_STACK_OPTIONS)
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
