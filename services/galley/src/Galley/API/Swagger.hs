@@ -52,15 +52,6 @@ main = do
 -}
 
 
--- TODO: document exceptions properly.
-
--- TODO: document zusr, zconn
-
--- TODO: factor out the servant handlers from the functions in Gally.API.LegalHold, and build
---       them together to an Application.  don't run it yet, but that would give us some extra
---       confidence that the swagger docs is in sync with the implementation.
-
-
 swagger :: Swagger
 swagger = toSwagger (Proxy @GalleyRoutes)
 
@@ -119,10 +110,16 @@ instance ToSchema ServiceKeyPEM where
             ]
 
 instance ToSchema (Fingerprint Rsa) where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ fpr
+        fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
 
 instance ToSchema ServiceToken where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- TODO (at least inject a plausible example)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ tok
+        tok = "sometoken"
 
 instance ToSchema NewLegalHoldService where
     declareNamedSchema = genericDeclareNamedSchema opts
@@ -153,7 +150,7 @@ instance ToSchema ViewLegalHoldService where
         example_ = Just . toJSON
                  $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
           where
-            tok = ServiceToken "blablabla"
+            tok = ServiceToken "sometoken"
             Just key = fromByteString . encodeUtf8 $ Text.unlines $
                 [ "-----BEGIN PUBLIC KEY-----"
                 , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
@@ -218,7 +215,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
         example_ = Just . toJSON
                  $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
           where
-            tok = ServiceToken "blablabla"
+            tok = ServiceToken "sometoken"
             Just key = fromByteString . encodeUtf8 $ Text.unlines $
                 [ "-----BEGIN PUBLIC KEY-----"
                 , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
@@ -334,7 +331,7 @@ instance ToSchema PrekeyId where
         tweak = fmap $ schema . description ?~ descr
           where
             descr = "in the range [0..65535]."
-              -- TODO: can this be also expressed in swagger, not just in the description?
+              -- FUTUREWORK: can this be also expressed in swagger, not just in the description?
 
 instance ToSchema Prekey where
     declareNamedSchema = genericDeclareNamedSchema opts
