@@ -141,8 +141,7 @@ instance FromJSON ClientType where
     parseJSON = withText "ClientType" $ \txt -> case txt of
         "temporary" -> return TemporaryClientType
         "permanent" -> return PermanentClientType
-        "legalhold" -> return LegalHoldClientType -- TODO: disallow at FromJSON?
-                                                  -- TODO: update swagger docs
+        "legalhold" -> return LegalHoldClientType
         _           -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
 
 instance ToJSON ClientClass where
@@ -156,8 +155,7 @@ instance FromJSON ClientClass where
         "phone"     -> return PhoneClient
         "tablet"    -> return TabletClient
         "desktop"   -> return DesktopClient
-        "legalhold" -> return LegalHoldClient -- TODO: disallow at FromJSON?
-                                              -- TODO: update swagger docs
+        "legalhold" -> return LegalHoldClient
         _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 instance ToJSON NewClient where
