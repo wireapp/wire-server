@@ -577,6 +577,7 @@ testGetTeamMembersIncludesLHStatus = do
            liftIO $ assertEqual ("legal hold status should be " <> msg)
                       (Just status) (findMemberStatus members')
 
+    check UserLegalHoldDisabled "disabled when it is disabled for the team"
     withDummyTestServiceForTeam owner tid $ \_chan -> do
         check UserLegalHoldDisabled "disabled on new team members"
         requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
