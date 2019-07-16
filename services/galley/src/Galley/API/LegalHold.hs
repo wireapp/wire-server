@@ -197,8 +197,6 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
         Just keys -> pure keys
 
     clientId <- Client.addLegalHoldClientToUser uid connId prekeys lastPrekey'
-    -- TODO: this may be redundant
-    Data.updateClient True uid clientId
 
     legalHoldAuthToken <- Client.getLegalHoldAuthToken uid
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
