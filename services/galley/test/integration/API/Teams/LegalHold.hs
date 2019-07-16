@@ -572,22 +572,17 @@ testGetTeamMembersIncludesLHStatus = do
         findMemberStatus ms =
             ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
 
-    -- TODO refactor this a bit for readability
+    let check status msg = do
+           members' <- view teamMembers <$> getTeamMembers owner tid
+           liftIO $ assertEqual ("legal hold status should be " <> msg)
+                      (Just status) (findMemberStatus members')
+
     withDummyTestServiceForTeam owner tid $ \_chan -> do
-        do members' <- view teamMembers <$> getTeamMembers owner tid
-           liftIO $ assertEqual "legal hold status should be disabled on new team members"
-                      (Just UserLegalHoldDisabled) (findMemberStatus members')
-
-        putEnabled tid LegalHoldEnabled
-        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-           members' <- view teamMembers <$> getTeamMembers owner tid
-           liftIO $ assertEqual "legal hold status should pending after requesting device"
-                      (Just UserLegalHoldPending) (findMemberStatus members')
-
-        do approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-           members' <- view teamMembers <$> getTeamMembers owner tid
-           liftIO $ assertEqual "legal hold status should be enabled after confirming device"
-                      (Just UserLegalHoldEnabled) (findMemberStatus members')
+        check UserLegalHoldDisabled "disabled on new team members"
+        requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
+        check UserLegalHoldPending "pending after requesting device"
+        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
+        check UserLegalHoldEnabled "enabled after confirming device"
 
 
 ----------------------------------------------------------------------
