@@ -120,9 +120,6 @@ testRequestLegalHoldDevice = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     ensureQueueEmpty
 
-    -- fails if feature flag is disabled
-    featureFlagTODO
-
     -- Can't request a device if team feature flag is disabled
     requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
 
@@ -179,9 +176,6 @@ testApproveLegalHoldDevice = do
       pure usr
     stranger <- randomUser
     ensureQueueEmpty
-
-    -- fails if feature flag is disabled
-    featureFlagTODO
 
     -- not allowed to approve if team setting is disabled
     approveLegalHoldDevice (Just defPassword) owner member tid
@@ -245,9 +239,6 @@ testGetLegalHoldDeviceStatus = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     ensureQueueEmpty
 
-    -- fails if feature flag is disabled
-    featureFlagTODO
-
     forM_ [owner, member] $ \uid -> do
         status <- getUserStatusTyped uid tid
         liftIO $ assertEqual "unexpected status" status
@@ -290,9 +281,6 @@ testDisableLegalHoldForUser = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     ensureQueueEmpty
-
-    -- fails if feature flag is disabled
-    featureFlagTODO
 
     cannon <- view tsCannon
     WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
@@ -338,9 +326,6 @@ testCreateLegalHoldTeamSettings = do
     ensureQueueEmpty
 
     newService <- newLegalHoldService
-
-    -- fails if feature flag is disabled
-    featureFlagTODO
 
     -- not allowed to create if team setting is disabled
     postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
@@ -414,9 +399,6 @@ testGetLegalHoldTeamSettings = do
 
     newService <- newLegalHoldService
 
-    -- fails if feature flag is disabled
-    featureFlagTODO
-
     let lhapp :: Chan () -> Application
         lhapp _ch _req res = res $ responseLBS status200 mempty mempty
 
@@ -465,9 +447,6 @@ testRemoveLegalHoldFromTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
     ensureQueueEmpty
-
-    -- fails if feature flag is disabled
-    featureFlagTODO
 
     -- fails if LH for team is disabled
     deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
@@ -519,9 +498,6 @@ testEnablePerTeam = do
     member <- randomUser
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     ensureQueueEmpty
-
-    -- fails if feature flag is disabled
-    featureFlagTODO
 
     do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
        liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
@@ -865,20 +841,8 @@ publicKeyNotMatchingService =
     in k
 
 
--- TODO: PATCH lh settings for updating URL or pubkey.
-
-
 ----------------------------------------------------------------------
 -- test helpers
-
--- | placeholder for an actual test that can be run if we have a feature flag (config file
--- option to disable LH entirely.)
---
--- if we decide to not implement the feature flag, just remove this definition and all the
--- calls to it.
-featureFlagTODO :: TestM ()
-featureFlagTODO = pure ()
-
 
 testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 testResponse status mlabel = do
@@ -896,12 +860,12 @@ instance IsString TestErrorLabel where
 instance Aeson.FromJSON TestErrorLabel where
     parseJSON = fmap TestErrorLabel . Aeson.withObject "TestErrorLabel" (Aeson..: "label")
 
--- TODO: move this to /lib/bilge?  (there is another copy of this in spar.)
+-- FUTUREWORK: move this to /lib/bilge?  (there is another copy of this in spar.)
 responseJSON :: (HasCallStack, Aeson.FromJSON a) => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
 
 
--- TODO: Currently, the encoding of events is confusingly inside brig and not
+-- FUTUREWORK: Currently, the encoding of events is confusingly inside brig and not
 -- brig-types. (Look for toPushFormat in the code) We should refactor. To make
 -- our lives a bit easier we are going to  copy these datatypes from brig verbatim
 data UserEvent
