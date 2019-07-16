@@ -754,6 +754,8 @@ readServiceKey fp = liftIO $ do
     let Right [k] = pemParseBS bs
     return (ServiceKeyPEM k)
 
+-- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
+-- the config file), and see if it works as well as with out mock service.
 withDummyTestServiceForTeam
     :: forall a. HasCallStack
     => UserId
@@ -770,7 +772,6 @@ withDummyTestServiceForTeam owner tid go = do
         postSettings owner tid newService !!! testResponse 201 Nothing
         go chan
 
-    -- TODO: Code review this with Dejan
     dummyService :: Chan (Wai.Request, LBS) -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
         reqBody <- Wai.strictRequestBody req
