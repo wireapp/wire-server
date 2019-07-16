@@ -14,7 +14,6 @@ import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.Wai.Utilities.Server
-import Network.Wai.Handler.Warp hiding (run)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
@@ -47,7 +46,10 @@ run o = do
                    . catchErrors g [Right m]
                    . Gzip.gzip Gzip.def
         start    =  middleware app
-    runSettings s start `finally` L.close (applog e)
+    runSettingsWithShutdown s start 5 `finally` do
+        L.info (applog e) $ L.msg (L.val "Server terminated")
+        L.flush (applog e)
+        L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
 

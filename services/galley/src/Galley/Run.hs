@@ -51,5 +51,6 @@ run o = do
     runSettingsWithShutdown s (middlewares app) 5 `finally` do
         Async.cancel d
         shutdown (e^.cstate)
+        Log.info l $ Log.msg (Log.val "Server terminated")
         Log.flush l
         Log.close l

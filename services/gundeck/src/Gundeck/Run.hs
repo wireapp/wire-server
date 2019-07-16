@@ -37,6 +37,8 @@ run o = do
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
+        Log.info l $ Log.msg (Log.val "Server terminated")
+        Log.flush l
         Log.close (e^.applog)
   where
     middleware :: Env -> Wai.Middleware
