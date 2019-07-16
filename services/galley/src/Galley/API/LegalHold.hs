@@ -72,7 +72,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     let service = legalHoldService tid fpr newService key
     LegalHoldData.createSettings service
-    pure . json . viewLegalHoldService $ service
+    pure . setStatus status201 . json . viewLegalHoldService $ service
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
