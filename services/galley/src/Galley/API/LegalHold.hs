@@ -1,7 +1,6 @@
 module Galley.API.LegalHold where
 
 import Imports
-import Data.Aeson (encode)
 import Galley.API.Error
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
@@ -73,8 +72,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     let service = legalHoldService tid fpr newService key
     LegalHoldData.createSettings service
-    -- TODO: Refactor and use `json` function instead which ensures correct content-type is set, etc.
-    pure $ responseLBS status201 [] (encode . viewLegalHoldService $ service)
+    pure . json . viewLegalHoldService $ service
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
