@@ -30,11 +30,9 @@ import Data.Misc (Location, PlainTextPassword (..))
 -- * Users need to click "accept" before a LegalHoldClient is added to their
 --   account.
 -- * Any user interacting with a user which has a LegalHoldClient will upon
---   first interaction receive a warning, and on an ongoing basis see a visual
---   indication in all conversations where such a device is active.
---
--- API changes:
--- TODO documentation
+--   first interaction receive a warning, have the option of cancelling the
+--   interation, and on an ongoing basis see a visual indication in all
+--   conversations where such a device is active.
 
 data ClientType
     = TemporaryClientType
