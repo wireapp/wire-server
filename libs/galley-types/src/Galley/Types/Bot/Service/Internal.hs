@@ -18,7 +18,7 @@ import Data.Text.Ascii
 data ServiceRef = ServiceRef
     { _serviceRefId       :: !ServiceId
     , _serviceRefProvider :: !ProviderId
-    } deriving (Ord, Eq, Show)
+    } deriving (Ord, Eq, Show, Generic)
 
 makeLenses ''ServiceRef
 
@@ -40,7 +40,7 @@ instance ToJSON ServiceRef where
 -- | A /secret/ bearer token used to authenticate and authorise requests @towards@
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
 newtype ServiceToken = ServiceToken AsciiBase64Url
-    deriving (Eq, Show, ToByteString, FromByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, ToByteString, FromByteString, FromJSON, ToJSON, Generic)
 
 -- | Service connection information that is needed by galley.
 data Service = Service

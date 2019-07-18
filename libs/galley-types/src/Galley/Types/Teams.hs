@@ -136,7 +136,7 @@ data Event = Event
     , _eventTeam :: TeamId
     , _eventTime :: UTCTime
     , _eventData :: Maybe EventData
-    } deriving Eq
+    } deriving (Eq, Generic)
 
 -- Note [whitelist events]
 -- ~~~~~~~~~~~~~~~
@@ -181,7 +181,7 @@ data EventType =
     | MemberUpdate
     | ConvCreate
     | ConvDelete
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data EventData =
       EdTeamCreate   Team
@@ -191,28 +191,28 @@ data EventData =
     | EdMemberUpdate UserId (Maybe Permissions)
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data TeamUpdateData = TeamUpdateData
     { _nameUpdate    :: Maybe (Range 1 256 Text)
     , _iconUpdate    :: Maybe (Range 1 256 Text)
     , _iconKeyUpdate :: Maybe (Range 1 256 Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data TeamList = TeamList
     { _teamListTeams   :: [Team]
     , _teamListHasMore :: Bool
-    } deriving Show
+    } deriving (Show, Generic)
 
 data TeamMember = TeamMember
     { _userId      :: UserId
     , _permissions :: Permissions
     , _invitation  :: Maybe (UserId, UTCTimeMillis)
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 newtype TeamMemberList = TeamMemberList
     { _teamMembers :: [TeamMember]
-    } deriving (Semigroup, Monoid)
+    } deriving (Semigroup, Monoid, Generic)
 
 data TeamConversation = TeamConversation
     { _conversationId      :: ConvId
@@ -226,7 +226,7 @@ newtype TeamConversationList = TeamConversationList
 data Permissions = Permissions
     { _self :: Set Perm
     , _copy :: Set Perm
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 data Perm =
       CreateConversation
@@ -246,10 +246,10 @@ data Perm =
     -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
     -- If you ever think about adding a new permission flag,
     -- read Note [team roles] first.
-    deriving (Eq, Ord, Show, Enum, Bounded)
+    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
-    deriving (Eq, Ord, Show, Enum, Bounded)
+    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 defaultRole :: Role
 defaultRole = RoleMember
@@ -281,10 +281,10 @@ rolePerms RoleExternalPartner = Set.fromList
     ]
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
