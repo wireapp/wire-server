@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
 TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
@@ -8,17 +8,26 @@ BRIG_HOST="http://localhost:8082"
 START="1"
 COUNT="1"
 CSV="false"
+TARGET_EMAIL_DOMAIN=""
 
-USAGE=" This bash script can be used to create active members in a
+USAGE="This bash script can be used to create active members in a
 given team.  Every member will have an email address of the form
-'w<number>@example.com', and will have to change that (after logging
-in with the password provided to the user from the output of this
-script).
+'w<number>@${TARGET_EMAIL_DOMAIN}', and will have to change that
+(after logging in with the password provided to the user from the
+output of this script).
 
 Note that this uses internal brig endpoints.  It is not exposed over
 nginz and can only be used if you have direct access to brig.
 
-USAGE: $0
+USAGE: $0 -d <email domain> [OPTIONS...]
+    -d <email domain>: Domain part of the emails that the bogus
+                       invitations are sent to.  No default, you need
+                       to provide that.  Consider 'example.com', or an
+                       internal domain you control.
+
+                       WARNING: This may boost your reputation as a
+                       spammer.  Use with care!
+
     -a <admin uuid>: User ID of the inviting admin.  default: ${ADMIN_UUID}
     -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
     -s <S>: Start at offset. default: ${START}
@@ -29,7 +38,7 @@ USAGE: $0
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":a:t:s:n:h:c" opt; do
+while getopts ":a:t:s:n:h:d:c" opt; do
   case ${opt} in
     a ) ADMIN_UUID="$OPTARG"
       ;;
@@ -40,6 +49,8 @@ while getopts ":a:t:s:n:h:c" opt; do
     n ) COUNT="$OPTARG"
       ;;
     h ) BRIG_HOST="$OPTARG"
+      ;;
+    d ) TARGET_EMAIL_DOMAIN="$OPTARG"
       ;;
     c ) CSV="true"
       ;;
@@ -58,11 +69,19 @@ if [ "$#" -ne 0 ]; then
   exit 1
 fi
 
+# Warn about sending emails
+
+if [ "$TARGET_EMAIL_DOMAIN" == "" ]; then
+    echo -e "\n\n*** Please provide an email domain if you want to run this script.\n\n"
+    echo "$USAGE" 1>&2
+    exit 1
+fi
+
 # Generate users
 END=$((COUNT + START - 1))
 for i in $(seq "$START" "$END")
 do
-    EMAIL='w'$(printf "%03d" "$i")"@example.com"
+    EMAIL='w'$(printf "%03d" "$i")"@$TARGET_EMAIL_DOMAIN"
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     # Generate the invitation
