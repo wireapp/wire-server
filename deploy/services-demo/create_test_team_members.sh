@@ -9,8 +9,11 @@ START="1"
 COUNT="1"
 CSV="false"
 
-USAGE="
-This bash script can be used to create active members in a given team.
+USAGE=" This bash script can be used to create active members in a
+given team.  Every member will have an email address of the form
+'s<number>@example.com', and will have to change that (after logging
+in with the password provided to the user from the output of this
+script).
 
 Note that this uses internal brig endpoints.  It is not exposed over
 nginz and can only be used if you have direct access to brig.
@@ -101,6 +104,7 @@ do
 
     if [ "$TEAM" != "$TEAM_UUID" ]; then
         echo "unexpected error: user got assigned to no / the wrong team?!"
+        echo ${CURL_OUT}
         exit 1
     fi
 

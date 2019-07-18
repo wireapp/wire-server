@@ -18,7 +18,7 @@ USAGE: $0
     -a <admin uuid>: User ID of the inviting admin.  default: ${ADMIN_UUID}
     -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
     -h <host>: Base URI of brig. default: ${BRIG_HOST}
-    -c: input file containing info on the invitees in format 'Email,UserName'.  default: ${CSV_FILE}
+    -c <input file>: file containing info on the invitees in format 'Email,UserName'.  default: ${CSV_FILE}
 "
 
 # Option parsing:
