@@ -24,7 +24,7 @@ data AccountStatus
     | Suspended
     | Deleted
     | Ephemeral
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatus where
     parseJSON = withText "account-status" $ \s -> case Text.toLower s of
@@ -57,7 +57,7 @@ data ConnectionStatus = ConnectionStatus
     { csFrom       :: !UserId
     , csTo         :: !UserId
     , csStatus     :: !Relation
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON ConnectionStatus where
     parseJSON = withObject "connection-status" $ \o ->
@@ -82,7 +82,7 @@ data UserAccount = UserAccount
     { accountUser       :: !User
     , accountStatus     :: !AccountStatus
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON UserAccount where
     parseJSON j@(Object o) = do
@@ -103,7 +103,7 @@ instance ToJSON UserAccount where
 -- APIs for auto-connections, listing user's clients)
 data UserSet = UserSet
     { usUsrs :: !(Set UserId)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON UserSet where
     parseJSON = withObject "user-set" $ \o ->
@@ -121,7 +121,7 @@ instance ToJSON UserSet where
 -- only for users that have already set a password.
 newtype ReAuthUser = ReAuthUser
     { reAuthPassword :: Maybe PlainTextPassword }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 instance FromJSON ReAuthUser where
     parseJSON = withObject "reauth-user" $ \o ->
