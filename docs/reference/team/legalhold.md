@@ -12,3 +12,47 @@ Conceptually, there are the following actors in this use case:
  * Backend - serves as intermediary between team members/admin and the Legal hold Service
  * Legal hold service - stores users' Legal hold devices on customers' premises
  * Legal hold device - a user's device that is managed by customers
+
+Once a user accepts the legal hold request, then a device is added to that user's account. This device, also known as legal hold device, is managed by the Legal hold service - only team admins can remove that device from a user's account.
+
+Note that every user talking to someone under legal hold (including, of course, the _self_ user) is made aware by means of displaying a red dot on the user's profile.
+
+The management/operation of said Legal hold service is of the responsibility of the team.
+
+## API and flows
+
+Legal hold flow (client perspective)
+
+Request (by admin) for a user to be put under legalhold
+```
+POST /teams/{tid}/legalhold/{uid}
+```
+```
+201 Created
+```
+
+![LHFlow](https://user-images.githubusercontent.com/1105323/61390098-6bf34800-a8ba-11e9-8ba7-e0759b22a773.png)
+<details>
+title: Legal Hold Flow (client perspective)
+=: Activation
+
+Admin Panel -> Backend: Activate LH for Alice
+
+Backend -> LegalHold Service: Request to create Cryptobox for Alice (does NOT include scoped token)
+
+LegalHold Service --> Backend: Respond with Public Key etc. for Device
+
+Backend -> Admin Panel: LH for Alice is PENDING
+Backend --> Alice's Client: (Async) Request Approval for LH (includes device fingerprint)
+
+Alice's Client -> Backend: Alice APPROVES LH
+
+Backend -> LegalHold Service: Send scoped access_token
+Backend -> Backend: Add Compliance Device to Alice
+Backend -> Admin Panel: LH for Alice is ACTIVE
+
+=: Deactivation
+
+Admin Panel -> Backend: Deactivate LH for Alice
+Backend -> Backend: Remove Compliance Device from Alice; revoke access token.
+</details>
