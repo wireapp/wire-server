@@ -72,27 +72,18 @@ data API route = API
       :> Head NoContent
      -- handler: checkUserExists
 
+  , _getUid :: route :-
+         Summary "Get a user by ID"
+      :> Capture "uid" UserId
+      :> AuthZUser
+      :> Get NoContent
+    -- handler: getUser
+
   } deriving (Generic)
 
 
 {-
 
-    ---
-
-    get "/users/:id" (continue getUser) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. capture "id"
-
-    document "GET" "user" $ do
-        Doc.summary "Get a user by ID"
-        Doc.parameter Doc.Path "id" Doc.bytes' $
-            Doc.description "User ID"
-        Doc.returns (Doc.ref Doc.user)
-        Doc.response 200 "User" Doc.end
-        Doc.errorResponse userNotFound
-
-    ---
 
     post "/users/handles" (continue checkHandles) $
         accept "application" "json"
