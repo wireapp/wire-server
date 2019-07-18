@@ -79,6 +79,7 @@ data UserConnectionList = UserConnectionList
 -- 'Accepted' state.
 data UserIds = UserIds
     { cUsers :: [UserId] }
+  deriving (Generic)
 
 -- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
 data ConnectionsStatusRequest = ConnectionsStatusRequest

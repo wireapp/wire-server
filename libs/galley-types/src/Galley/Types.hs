@@ -281,7 +281,7 @@ data NewOtrMessage = NewOtrMessage
 
 newtype UserClients = UserClients
     { userClients :: Map UserId (Set ClientId)
-    } deriving (Eq, Show, Semigroup, Monoid)
+    } deriving (Eq, Show, Semigroup, Monoid, Generic)
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
