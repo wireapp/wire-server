@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
 TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
