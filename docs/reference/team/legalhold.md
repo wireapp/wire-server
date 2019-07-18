@@ -31,6 +31,17 @@ POST /teams/{tid}/legalhold/{uid}
 201 Created
 ```
 
+Approval by the user
+```
+PUT /teams/{tid}/legalhold/{uid}/approve
+{
+  "password": <user's password> # optional if the user has no set password
+}
+```
+```
+200 OK
+```
+
 ![LHFlow](https://user-images.githubusercontent.com/1105323/61390098-6bf34800-a8ba-11e9-8ba7-e0759b22a773.png)
 <details>
 title: Legal Hold Flow (client perspective)
@@ -56,3 +67,28 @@ Backend -> Admin Panel: LH for Alice is ACTIVE
 Admin Panel -> Backend: Deactivate LH for Alice
 Backend -> Backend: Remove Compliance Device from Alice; revoke access token.
 </details>
+
+## Events
+
+New legalhold request event:
+```
+{ "type": "user.legalhold-request"
+, "id": UserID of the one for whom LH is being requested
+, "last_prekey": Last-prekey of the legal hold device
+, "client": {"id": Client ID of the legalhold device}
+}
+```
+New legalhold enabled event:
+```
+{ "type": "user.legalhold-enable"
+, "id": UserID for whom LH was enabled
+}
+```
+New legalhold disabled event:
+```
+{ "type": "user.legalhold-disable"
+, "id": UserID for whom LH was disabled
+}
+```
+
+These events are sent to the user, all team members (including admins) and connections.
