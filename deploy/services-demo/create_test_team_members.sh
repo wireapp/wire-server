@@ -11,7 +11,7 @@ CSV="false"
 
 USAGE=" This bash script can be used to create active members in a
 given team.  Every member will have an email address of the form
-'s<number>@example.com', and will have to change that (after logging
+'w<number>@example.com', and will have to change that (after logging
 in with the password provided to the user from the output of this
 script).
 
