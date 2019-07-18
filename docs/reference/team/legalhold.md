@@ -42,6 +42,35 @@ PUT /teams/{tid}/legalhold/{uid}/approve
 200 OK
 ```
 
+Deletion by an admin
+```
+DELETE /teams/{tid}/legalhold/{uid}
+{
+  "password": <admin's password> # optional if the admin has no set password
+}
+```
+```
+200 OK
+```
+
+Get Legal hold status for team members
+
+```
+GET /team/{tid}/members
+```
+```
+200 OK
+...
+{
+    "members": [{
+        "user": member used id,
+        ...
+        "legalhold_status": "disabled" | "enabled", <-- new field
+        ...
+    }
+}
+```
+
 ![LHFlow](https://user-images.githubusercontent.com/1105323/61390098-6bf34800-a8ba-11e9-8ba7-e0759b22a773.png)
 <details>
 title: Legal Hold Flow (client perspective)
