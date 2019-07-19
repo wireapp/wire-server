@@ -226,17 +226,18 @@ instance Cql HttpsUrl where
 --------------------------------------------------------------------------------
 -- Fingerprint
 
+-- Tag for Rsa encoded fingerprints
 data Rsa
 
 newtype Fingerprint a = Fingerprint
     { fingerprintBytes :: ByteString
     } deriving (Eq, Show, FromByteString, ToByteString, NFData, Generic)
 
-instance FromJSON (Fingerprint a) where
+instance FromJSON (Fingerprint Rsa) where
     parseJSON = withText "Fingerprint" $
         either fail (pure . Fingerprint) . B64.decode . encodeUtf8
 
-instance ToJSON (Fingerprint a) where
+instance ToJSON (Fingerprint Rsa) where
     toJSON = String . decodeUtf8 . B64.encode . fingerprintBytes
 
 #ifdef WITH_CQL

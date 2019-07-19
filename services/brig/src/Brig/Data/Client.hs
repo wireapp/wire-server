@@ -24,6 +24,7 @@ import Brig.App (AppIO, currentTime, awsEnv)
 import Brig.AWS
 import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
+import Brig.Types.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
@@ -85,8 +86,9 @@ addClient u newId c loc = do
     return (new, old, total)
   where
     limit = case newClientType c of
-        PermanentClient -> Just maxPermClients
-        TemporaryClient -> Nothing
+        PermanentClientType -> Just maxPermClients
+        TemporaryClientType -> Nothing
+        LegalHoldClientType -> Nothing
 
     exists = (==) newId . clientId
 

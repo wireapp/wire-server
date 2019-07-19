@@ -1,20 +1,35 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+module Brig.Types.Instances () where
 
-module Brig.Provider.DB.Instances () where
-
+#ifdef WITH_CQL
 import Imports
-import Brig.Provider.DB.Tag
+import Brig.Types.Team.LegalHold
+import Brig.Types.Client.Prekey
 import Brig.Types.Provider
-import Cassandra.CQL
+import Brig.Types.Provider.Tag
 import Data.ByteString.Conversion
-import Data.Id()
-import Data.Misc()
-import Data.Range()
-import Data.Text.Ascii()
+import Cassandra.CQL
 
-deriving instance Cql ServiceToken
+instance Cql LegalHoldStatus where
+    ctype = Tagged IntColumn
+
+    fromCql (CqlInt n) = case n of
+        0 -> pure $ LegalHoldDisabled
+        1 -> pure $ LegalHoldEnabled
+        _ -> fail "fromCql: Invalid LegalHoldStatus"
+    fromCql _ = fail "fromCql: LegalHoldStatus: CqlInt expected"
+
+    toCql LegalHoldDisabled = CqlInt 0
+    toCql LegalHoldEnabled = CqlInt 1
+
+instance Cql PrekeyId where
+    ctype = Tagged IntColumn
+    toCql = CqlInt . fromIntegral . keyId
+    fromCql (CqlInt i) = return $ PrekeyId (fromIntegral i)
+    fromCql _            = fail "PrekeyId: Int expected"
 
 instance Cql ServiceTag where
     ctype = Tagged BigIntColumn
@@ -62,3 +77,5 @@ instance Cql ServiceKey where
         , ("size", toCql siz)
         , ("pem",  toCql pem)
         ]
+
+#endif

@@ -29,7 +29,7 @@ type JSON = Media "application" "json"
 
 ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
 ensureAccessRole role users mbTms = case role of
-    PrivateAccessRole -> throwM accessDenied
+    PrivateAccessRole -> throwM convAccessDenied
     TeamAccessRole -> case mbTms of
         Nothing -> throwM internalError
         Just tms ->
@@ -37,7 +37,7 @@ ensureAccessRole role users mbTms = case role of
                 throwM noTeamMember
     ActivatedAccessRole -> do
         activated <- lookupActivatedUsers users
-        when (length activated /= length users) $ throwM accessDenied
+        when (length activated /= length users) $ throwM convAccessDenied
     NonActivatedAccessRole -> return ()
 
 -- | Check that the user is connected to everybody else.
@@ -70,7 +70,7 @@ bindingTeamMembers tid = do
 -- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
 -- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
+permissionCheck :: (Foldable m, IsPerm perm, Show perm) => UserId -> perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
     case find ((u ==) . view userId) t of
         Just m -> do
@@ -78,6 +78,12 @@ permissionCheck u p t =
                 throwM (operationDenied p)
             pure m
         Nothing -> throwM noTeamMember
+
+assertOnTeam :: UserId -> TeamId -> Galley ()
+assertOnTeam uid tid = do
+    members <- Data.teamMembers tid
+    let isOnTeam = isJust $ find ((uid ==) . view userId) members
+    unless isOnTeam (throwM noTeamMember)
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).

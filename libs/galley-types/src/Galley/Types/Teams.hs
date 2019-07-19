@@ -32,6 +32,7 @@ module Galley.Types.Teams
     , userId
     , permissions
     , invitation
+    , legalHoldStatus
     , teamMemberJson
     , canSeePermsOf
 
@@ -68,6 +69,9 @@ module Galley.Types.Teams
     , permsToInt
     , intToPerm
     , intToPerms
+
+    , HiddenPerm(..)
+    , IsPerm
 
     , Role (..)
     , defaultRole
@@ -112,7 +116,7 @@ module Galley.Types.Teams
 
 import Imports
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens (makeLenses, view, (^.))
+import Control.Lens (makeLenses, view, (^.), to)
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
@@ -122,9 +126,11 @@ import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Time (UTCTime)
+import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 #ifdef WITH_CQL
 import qualified Control.Error.Util as Err
@@ -205,9 +211,10 @@ data TeamList = TeamList
     } deriving (Show, Generic)
 
 data TeamMember = TeamMember
-    { _userId      :: UserId
-    , _permissions :: Permissions
-    , _invitation  :: Maybe (UserId, UTCTimeMillis)
+    { _userId          :: UserId
+    , _permissions     :: Permissions
+    , _invitation      :: Maybe (UserId, UTCTimeMillis)
+    , _legalHoldStatus :: UserLegalHoldStatus
     } deriving (Eq, Ord, Show, Generic)
 
 newtype TeamMemberList = TeamMemberList
@@ -257,6 +264,8 @@ defaultRole = RoleMember
 rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p  where p = rolePerms role
 
+-- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
+-- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
 rolePerms :: Role -> Set Perm
 rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
     [ GetBilling
@@ -283,6 +292,7 @@ rolePerms RoleExternalPartner = Set.fromList
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show, Generic)
 
+-- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
     deriving (Eq, Show, Generic)
 
@@ -309,16 +319,27 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
-newTeamMember = TeamMember
+newTeamMember :: UserId
+              -> Permissions
+              -> Maybe (UserId, UTCTimeMillis)
+              -> TeamMember
+newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
 -- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
 -- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
 -- database content.
-newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
-newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
-newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
-newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
+newTeamMemberRaw :: MonadThrow m
+                 => UserId
+                 -> Permissions
+                 -> Maybe UserId
+                 -> Maybe UTCTimeMillis
+                 -> UserLegalHoldStatus
+                 -> m TeamMember
+newTeamMemberRaw uid perms (Just invu) (Just invt) lhStatus =
+    pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
+newTeamMemberRaw uid perms Nothing Nothing lhStatus =
+    pure $ TeamMember uid perms Nothing lhStatus
+newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -362,6 +383,80 @@ makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
 
+
+-- Note [hidden team roles]
+--
+-- The problem: the mapping between 'Role' and 'Permissions' is fixed by external contracts:
+-- client apps treat permission bit matrices as opaque role identifiers, so if we add new
+-- permission flags, things will break there.
+--
+-- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
+-- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
+-- permission bits and the old ones that we share with the client apps.
+
+-- | See Note [hidden team roles]
+data HiddenPerm
+    = ChangeLegalHoldTeamSettings
+    | ViewLegalHoldTeamSettings
+    | ChangeLegalHoldUserSettings
+    | ViewLegalHoldUserSettings
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | See Note [hidden team roles]
+data HiddenPermissions = HiddenPermissions
+    { _hself :: Set HiddenPerm
+    , _hcopy :: Set HiddenPerm
+    } deriving (Eq, Ord, Show)
+
+makeLenses ''HiddenPermissions
+
+-- | Compute 'Role' from 'Permissions', and 'HiddenPermissions' from the 'Role'.  If
+-- 'Permissions' matches no 'Role', return no hidden permission bits.
+hiddenPermissionsFromPermissions :: Permissions -> HiddenPermissions
+hiddenPermissionsFromPermissions =
+    maybe (HiddenPermissions mempty mempty) roleHiddenPermissions . permissionsRole
+  where
+    permissionsRole :: Permissions -> Maybe Role
+    permissionsRole (Permissions p p') | p /= p' = Nothing
+    permissionsRole (Permissions p _) = permsRole p
+      where
+        permsRole :: Set Perm -> Maybe Role
+        permsRole perms = Maybe.listToMaybe
+            [ role | role <- [minBound..], rolePerms role == perms ]
+
+    roleHiddenPermissions :: Role -> HiddenPermissions
+    roleHiddenPermissions role = HiddenPermissions p p
+      where
+        p = roleHiddenPerms role
+
+        roleHiddenPerms :: Role -> Set HiddenPerm
+        roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
+        roleHiddenPerms RoleAdmin = (roleHiddenPerms RoleMember <>) $
+            Set.fromList [ ChangeLegalHoldTeamSettings
+                         , ChangeLegalHoldUserSettings
+                         ]
+        roleHiddenPerms RoleMember = roleHiddenPerms RoleExternalPartner
+        roleHiddenPerms RoleExternalPartner =
+            Set.fromList [ ViewLegalHoldTeamSettings
+                         , ViewLegalHoldUserSettings
+                         ]
+
+-- | See Note [hidden team roles]
+class IsPerm perm where
+    hasPermission :: TeamMember -> perm -> Bool
+    mayGrantPermission :: TeamMember -> perm -> Bool
+
+instance IsPerm Perm where
+    hasPermission tm p = p `Set.member` (tm^.permissions.self)
+    mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
+
+instance IsPerm HiddenPerm where
+    hasPermission tm p =
+        p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hself)
+    mayGrantPermission tm p =
+        p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hcopy)
+
+
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms = Set.toList $
     Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
@@ -396,11 +491,6 @@ serviceWhitelistPermissions = Set.fromList
     , SetTeamData
     ]
 
-hasPermission :: TeamMember -> Perm -> Bool
-hasPermission tm p = p `Set.member` (tm^.permissions.self)
-
-mayGrantPermission :: TeamMember -> Perm -> Bool
-mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
@@ -502,7 +592,8 @@ teamMemberJson withPerms m = object $
     [ "user"        .= _userId m ] <>
     [ "permissions" .= _permissions m | withPerms m ] <>
     [ "created_by"  .= (fst <$> _invitation m) ] <>
-    [ "created_at"  .= (snd <$> _invitation m) ]
+    [ "created_at"  .= (snd <$> _invitation m) ] <>
+    [ "legalhold_status"  .= _legalHoldStatus m ]
 
 -- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
@@ -514,6 +605,8 @@ parseTeamMember = withObject "team-member" $ \o ->
     TeamMember <$> o .:  "user"
                <*> o .:  "permissions"
                <*> parseInvited o
+               -- Default to disabled if missing
+               <*> o .:?  "legalhold_status" .!= UserLegalHoldDisabled
   where
     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
     parseInvited o = do

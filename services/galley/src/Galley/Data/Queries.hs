@@ -2,16 +2,21 @@ module Galley.Data.Queries where
 
 import Imports
 import Brig.Types.Code
+import Brig.Types.Team.LegalHold (LegalHoldStatus)
+import Brig.Types.Client.Prekey
+import Brig.Types.Provider
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
 import Data.Json.Util
+import Data.LegalHold
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
-import Galley.Types.Bot
+-- import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Text.RawString.QQ
 
 import qualified Data.Text.Lazy as LT
 
@@ -35,11 +40,24 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamMember :: PrepQuery R (TeamId, UserId) (Permissions, Maybe UserId, Maybe UTCTimeMillis)
-selectTeamMember = "select perms, invited_by, invited_at from team_member where team = ? and user = ?"
+selectTeamMember :: PrepQuery R (TeamId, UserId) ( Permissions
+                                                 , Maybe UserId
+                                                 , Maybe UTCTimeMillis
+                                                 , Maybe UserLegalHoldStatus
+                                                 )
+selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from team_member where team = ? and user = ?"
 
-selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis)
-selectTeamMembers = "select user, perms, invited_by, invited_at from team_member where team = ? order by user"
+selectTeamMembers :: PrepQuery R (Identity TeamId) ( UserId
+                                                   , Permissions
+                                                   , Maybe UserId
+                                                   , Maybe UTCTimeMillis
+                                                   , Maybe UserLegalHoldStatus
+                                                   )
+selectTeamMembers = [r|
+    select user, perms, invited_by, invited_at, legalhold_status
+      from team_member
+    where team = ? order by user
+    |]
 
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"
@@ -222,3 +240,61 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+
+-- LegalHold ----------------------------------------------------------------
+
+selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldStatus)
+selectLegalHoldTeamConfig =
+  "select status from legalhold_team_config where team_id = ?"
+
+updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
+updateLegalHoldTeamConfig =
+  "update legalhold_team_config set status = ? where team_id = ?"
+
+insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
+insertLegalHoldSettings =
+  [r|
+    update legalhold_service
+    set base_url    = ?,
+        fingerprint = ?,
+        auth_token  = ?,
+        pubkey      = ?
+    where team_id = ?
+  |]
+
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken, ServiceKey)
+selectLegalHoldSettings =
+   [r|
+   select base_url, fingerprint, auth_token, pubkey
+     from legalhold_service
+     where team_id = ?
+   |]
+
+removeLegalHoldSettings :: PrepQuery W (Identity TeamId) ()
+removeLegalHoldSettings = "delete from legalhold_service where team_id = ?"
+
+insertPendingPrekeys :: PrepQuery W (UserId, PrekeyId, Text) ()
+insertPendingPrekeys = [r|
+        insert into legalhold_pending_prekeys (user, key, data) values (?, ?, ?)
+    |]
+
+dropPendingPrekeys :: PrepQuery W (Identity UserId) ()
+dropPendingPrekeys = [r|
+        delete from legalhold_pending_prekeys
+          where user = ?
+    |]
+
+selectPendingPrekeys :: PrepQuery R (Identity UserId) (PrekeyId, Text)
+selectPendingPrekeys = [r|
+        select key, data
+          from legalhold_pending_prekeys
+          where user = ?
+          order by key asc
+    |]
+
+updateUserLegalHoldStatus :: PrepQuery W (UserLegalHoldStatus, TeamId, UserId) ()
+updateUserLegalHoldStatus = [r|
+        update team_member
+          set legalhold_status = ?
+          where team = ? and user = ?
+    |]

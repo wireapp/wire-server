@@ -12,6 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
@@ -180,6 +181,21 @@ sitemap o = do
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. jsonRequest @UserSet
+
+    post "/i/clients/:uid" (continue addClientInternal) $
+      capture "uid"
+      .&. jsonRequest @NewClient
+      .&. opt (header "Z-Connection")
+      .&. accept "application" "json"
+
+    post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequested) $
+      capture "uid"
+      .&. jsonRequest @LegalHoldClientRequest
+      .&. accept "application" "json"
+
+    delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClient) $
+      capture "uid"
+      .&. accept "application" "json"
 
     -- /users -----------------------------------------------------------------
 
@@ -990,16 +1006,37 @@ getMultiPrekeyBundles (req ::: _) = do
 addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClient (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
-    clt <- API.addClient usr con (ipAddr <$> ip) new !>> clientError
+    -- Users can't add legal hold clients
+    when (newClientType new == LegalHoldClientType)
+        $ throwE (clientError ClientLegalHoldCannotBeAdded)
+    clt <- API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
     return . setStatus status201
            . addHeader "Location" (toByteString' $ clientId clt)
            $ json clt
+
+-- | Add a client without authentication checks
+addClientInternal :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternal (usr ::: req ::: connId ::: _) = do
+    new <- parseJsonBody req
+    clt <- API.addClient usr connId Nothing new !>> clientError
+    return . setStatus status201 $ json clt
 
 rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
+
+legalHoldClientRequested :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequested (targetUser ::: req ::: _) = do
+    clientRequest <- parseJsonBody req
+    lift $ API.legalHoldClientRequested targetUser clientRequest
+    return $ setStatus status200 empty
+
+removeLegalHoldClient :: UserId ::: JSON -> Handler Response
+removeLegalHoldClient (uid ::: _) = do
+    lift $ API.removeLegalHoldClient uid
+    return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClient (req ::: usr ::: clt ::: _) = do

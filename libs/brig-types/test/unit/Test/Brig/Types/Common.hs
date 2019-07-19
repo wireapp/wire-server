@@ -10,17 +10,20 @@ module Test.Brig.Types.Common where
 
 import Imports
 import Brig.Types.Common
+import Brig.Types.Team.LegalHold
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
-import Test.Brig.Types.Arbitrary ()
+import Brig.Types.Test.Arbitrary ()
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+
+-- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
@@ -36,6 +39,19 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
     , run @TeamMemberDeleteData Proxy
+    , run @LegalHoldStatus Proxy
+    , run @LegalHoldTeamConfig Proxy
+    , run @NewLegalHoldService Proxy
+    , run @LegalHoldService Proxy
+    , run @ViewLegalHoldService Proxy
+    , run @NewLegalHoldClient Proxy
+    , run @RequestNewLegalHoldClient Proxy
+    , run @UserLegalHoldStatusResponse Proxy
+    , run @LegalHoldServiceConfirm Proxy
+    , run @LegalHoldClientRequest Proxy
+    , run @RemoveLegalHoldSettingsRequest Proxy
+    , run @DisableLegalHoldForUserRequest Proxy
+    , run @ApproveLegalHoldForUserRequest Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]

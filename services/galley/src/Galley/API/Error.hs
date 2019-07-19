@@ -1,8 +1,8 @@
 module Galley.API.Error where
 
 import Imports
-import Data.Text.Lazy (pack)
-import Galley.Types.Teams (Perm)
+import Data.Text.Lazy as LT (pack)
+import Galley.Types.Teams (IsPerm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
@@ -42,8 +42,11 @@ notConnected = Error status403 "not-connected" "Users are not connected"
 tooManyMembers :: Error
 tooManyMembers = Error status403 "too-many-members" "Maximum number of members per conversation reached"
 
+convAccessDenied :: Error
+convAccessDenied = Error status403 "access-denied" "Conversation access denied"
+
 accessDenied :: Error
-accessDenied = Error status403 "access-denied" "Conversation access denied"
+accessDenied = Error status403 "access-denied" "You do not have permission to access this resource"
 
 reAuthFailed :: Error
 reAuthFailed = Error status403 "access-denied" "This operation requires reauthentication"
@@ -57,7 +60,7 @@ unknownClient = Error status403 "unknown-client" "Sending client not known"
 invalidRange :: LText -> Error
 invalidRange = Error status400 "client-error"
 
-operationDenied :: Perm -> Error
+operationDenied :: (IsPerm perm, Show perm) => perm -> Error
 operationDenied p = Error
     status403
     "operation-denied"
@@ -108,3 +111,27 @@ invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot u
 
 codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+
+legalHoldServiceInvalidKey :: Error
+legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+
+legalHoldServiceUnavailable :: Error
+legalHoldServiceUnavailable = Error status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
+
+legalHoldServiceNotRegistered :: Error
+legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
+
+legalHoldServiceBadResponse :: Error
+legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
+
+legalHoldNotEnabled :: Error
+legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+
+userLegalHoldAlreadyEnabled :: Error
+userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+userLegalHoldNotPending :: Error
+userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
+
+noLegalHoldDeviceAllocated :: Error
+noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."

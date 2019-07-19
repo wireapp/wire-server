@@ -80,6 +80,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
     , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
+    , test' aws p "delete/with-legalhold"                    $ testDeleteUserWithLegalHold b c aws
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
     , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
@@ -861,7 +862,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login
@@ -894,6 +895,19 @@ testDeleteUserByPassword brig cannon aws = do
     listConnections brig uid3 !!! do
         const 200 === statusCode
         const (Just u3Conns) === decodeBody
+
+testDeleteUserWithLegalHold :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithLegalHold brig cannon aws = do
+    user <- randomUser brig
+    let uid = userId user
+
+    -- Register a legalhold client
+    addClientInternal brig uid (defNewClient LegalHoldClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+        !!! const 201 === statusCode
+
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled user)
+    setHandleAndDeleteUser brig cannon user [] aws $
+        \uid' -> deleteUser uid' (Just defPassword) brig !!! const 200 === statusCode
 
 testDeleteUserByCode :: Brig -> Http ()
 testDeleteUserByCode brig = do

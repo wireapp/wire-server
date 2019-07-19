@@ -129,6 +129,8 @@ clientError :: ClientError -> Error
 clientError ClientNotFound         = StdError clientNotFound
 clientError (ClientDataError e)    = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
+clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
+clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
@@ -386,3 +388,16 @@ internalServerError = Wai.Error status500 "internal-server-error" "Internal Serv
 
 invalidRange :: LText -> Wai.Error
 invalidRange = Wai.Error status400 "client-error"
+
+--- Legalhold
+can'tDeleteLegalHoldClient :: Wai.Error
+can'tDeleteLegalHoldClient =
+    Wai.Error status400
+              "client-error"
+              "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
+
+can'tAddLegalHoldClient :: Wai.Error
+can'tAddLegalHoldClient =
+    Wai.Error status400
+              "client-error"
+              "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"

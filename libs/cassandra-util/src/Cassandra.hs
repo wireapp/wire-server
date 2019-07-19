@@ -39,6 +39,7 @@ import Cassandra.Exec as C (
   Page,
   PrepQuery,
   BatchM,
+  Row,
   query,
   retry,
   query1,
@@ -60,5 +61,6 @@ import Cassandra.Exec as C (
   shutdown,
   init,
   write,
+  trans,
   x5,
   x1)

@@ -213,7 +213,7 @@ mkUserRef
   => IdP
   -> Maybe Text
   -> m SAML.UserRef
-mkUserRef idp extid  = case extid of
+mkUserRef idp extid = case extid of
     Just subjectTxt -> do
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
         subject <- validateSubject subjectTxt
