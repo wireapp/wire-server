@@ -10,7 +10,7 @@ RUN echo "**** install Python, make ****" && \
     pip3 install --no-cache --upgrade pip setuptools wheel && \
     if [ ! -e /usr/bin/pip ]; then ln -s pip3 /usr/bin/pip ; fi && \
     \
-    echo "**** install sphinx ****" && \
-    pip install sphinx recommonmark
+    echo "**** install sphinx markdown and awscli ****" && \
+    pip install sphinx recommonmark awscli
 
 WORKDIR /mnt
