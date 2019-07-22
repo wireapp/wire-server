@@ -18,7 +18,7 @@ docker:
 	docker build -t $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 push:
-	aws s3 sync build/html s3://docs.zinfra.io/
+	aws s3 sync build/html s3://origin-docs.wire.com/
 
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
