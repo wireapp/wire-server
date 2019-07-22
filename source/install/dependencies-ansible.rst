@@ -1,4 +1,6 @@
-Dependencies to run ansible from the machine doing an installation
+.. _deps:
+
+Dependencies on operator's machine
 --------------------------------------------------------------------
 
 You need python2, some python dependencies, a specific version of ansible, and gnu make. Then, you need to download specific ansible roles using ansible-galaxy, and binaries `kubectl` and `helm`. You have two options to achieve this:

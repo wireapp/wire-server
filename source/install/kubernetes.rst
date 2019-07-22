@@ -1,0 +1,4 @@
+.. _ansible-kubernetes:
+
+hello
+=========

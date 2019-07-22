@@ -9,4 +9,6 @@ server components.
    :glob:
 
    /install/planning.rst
-   /install/dependencies-ansible.rst
+   Dependencies on operator's machine </install/dependencies-ansible.rst>
+   Kubernetes - provisioning or installing </install/kubernetes.rst>
+   Helm </install/helm.rst>
