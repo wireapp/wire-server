@@ -35,13 +35,15 @@ test_treeLookup2 :: IO ()
 test_treeLookup2 = unless (want == haveNaive && want == haveReal) $ do
     error $ show (want, haveNaive, haveReal)
   where
-    want = Just "/i/users/:id/reauthenticate"
+    want = Just "/a/:id/q"
 
     haveNaive = treeLookupNaive a b
     haveReal  = treeLookup (fromRight undefined $ mkTree a) b
 
-    a = fmap (either id id) <$> y
-    b = ["i","users","bla","reauthenticate"]
+    a = [ ["a",":uid"]
+        , ["a",":id","q"]
+        ]
+    b = ["a","bla","q"]
 
 test_normalizeWaiRequestRoute' :: IO ()
 test_normalizeWaiRequestRoute' = unless (want == have) . error $ show (want, have)
