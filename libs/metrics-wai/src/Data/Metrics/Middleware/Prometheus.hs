@@ -39,6 +39,8 @@ normalizeWaiRequestRoute :: Paths -> Wai.Request -> Text
 normalizeWaiRequestRoute paths req =
   normalizeWaiRequestRoute' paths (Wai.rawPathInfo req) (Wai.pathInfo req)
 
+-- TODO: rawPath must be a service-wide constant default (eg. "N/A"), not the actual path.
+
 normalizeWaiRequestRoute' :: Paths -> ByteString -> [Text] -> Text
 normalizeWaiRequestRoute' paths rawPath pathInfo' = pathInfo
   where
