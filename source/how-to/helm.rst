@@ -36,7 +36,7 @@ Type ``helm version``, you should, if everything is configured correctly, see a 
 In case ``kubectl version`` shows both Client and Server versions, but ``helm version`` does not show a Server version, you may need to run ``helm init``. The exact version (assuming `v2.X.X` - at the time of writing v3 is not yet supported) matters less as long as both Client and Server versions match (or are very close).
 
 How to start installing charts from wire
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------------------------
 
 Enable the wire charts helm repository:
 
@@ -52,7 +52,7 @@ Great! Now you can start installing.
 Note: all commands below can also take an extra ``--namespace <your-namespace>`` if you don't want to install into the default kubernetes namespace.
 
 Watching changes as they happen
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------------------------
 
 Open a terminal and run
 
@@ -63,7 +63,7 @@ Open a terminal and run
 This will block your terminal and show some things happening as you proceed through this guide. Keep this terminal open and open a second terminal.
 
 How to install in-memory databases and external components
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------------------------------------
 
 In your second terminal, first install databases:
 
@@ -86,7 +86,7 @@ Next, install an smtp server:
    helm upgrade --install smtp wire/demo-smtp --wait
 
 How to install wire-server itself
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------------------
 
 Download example demo values and secrets:
 
@@ -117,7 +117,7 @@ Great, now try the installation:
 
 
 How to direct traffic to your cluster
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------------------
 
 There are a few options available. The easiest option is to use an ingress with a node port, as this works everywhere and doesn't need a special setup.
 
@@ -157,7 +157,7 @@ Next, we want to redirect port 443 for https to the port the nginx https ingress
 * Option 2: Use ansible to do that, run the `iptables playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml>`__
 
 How to set up DNS records
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------
 
 You need to set up DNS records (A records) such that the following domain names are pointing to the IP address of your kubernetes node (assuming you only have one):
 
@@ -172,7 +172,7 @@ You need to set up DNS records (A records) such that the following domain names 
 
 
 Trying things out
-^^^^^^^^^^^^^^^^^^
+---------------------------
 
 At this point, with a bit of luck, everything should be working (if not, see :ref:`helm_troubleshooting`)
 

@@ -9,5 +9,7 @@ server components.
    :glob:
 
    How to plan an installation </how-to/planning.rst>
-   How to install kubernetes </how-to/kubernetes.rst>
-   How to install a demo using Helm </how-to/helm.rst>
+   (demo) How to install kubernetes </how-to/kubernetes.rst>
+   (demo) How to install wire-server using Helm </how-to/helm.rst>
+   (production) How to install kubernetes </how-to/kubernetes-prod.rst>
+   (production) How to install wire-server using Helm </how-to/helm-prod.rst>

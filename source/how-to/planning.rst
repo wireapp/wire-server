@@ -19,9 +19,9 @@ What you need:
 -  Either one of the following:
 
    -  A kubernetes cluster (some cloud providers offer a managed
-      kubernetes cluster these days)
-   -  One single virtual machine running ubuntu 16.04 or 18.04 with at
-      least 20 GB of disk, 8 GB of memory, and 8 CPU cores.
+      kubernetes cluster these days). If you already have a kubernetes cluster, your next step will be :ref:`helm`
+   -  One single virtual machine running ubuntu 16.04 or 18.04 with at least 20 GB of disk, 8 GB of memory, and 8 CPU cores. If you wish to proceed with a demo installation, your next step will be :ref:`ansible-kubernetes`
+
 
 Production installation
 ---------------------------
@@ -62,3 +62,6 @@ It's up to you how you create these VMs - kvm on a bare metal machine,
 VM on a cloud provider, etc. Make sure they run ubuntu 16.04 or 18.04.
 
 Ensure that your VMs have IP addresses that do not change.
+
+If you wish to proceed with a production installation, your next step will be :ref:`ansible-kubernetes-prod`
+

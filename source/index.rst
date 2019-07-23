@@ -14,11 +14,12 @@ The targeted audience of this documentation is (currently, as of July 2019):
 This documentation may be expanded in the future to cover other aspects of Wire.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
    :glob:
 
    Administrator's Guide <guides/administrator/index>
+   Understanding wire-server components <understand/index.rst>
 
 ..   Overview <understand/overview>
 
