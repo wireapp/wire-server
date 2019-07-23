@@ -1,26 +1,30 @@
 module Main (main) where
 
 import Imports hiding (local)
+
 import Bilge hiding (header, body)
-import Control.Lens
 import Cassandra.Util
+import Control.Lens
 import Data.ByteString.Conversion
+import Data.Metrics.Test (sitemapConsistency)
 import Data.Proxy
 import Data.Tagged
-import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Text (pack)
 import Data.Yaml (decodeFileEither)
 import Galley.Options
+import Galley.API (sitemap)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
+import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
+import TestSetup
 import Test.Tasty
 import Test.Tasty.Options
 import Util.Options
 import Util.Options.Common
 import Util.Test
-import TestSetup
 
 import qualified API
 import qualified API.SQS                as SQS
@@ -57,7 +61,11 @@ runTests run = defaultMainWithIngredients ings $
 main :: IO ()
 main = withOpenSSL $ runTests go
   where
-    go g i = withResource (getOpts g i) releaseOpts $ API.tests
+    go g i = withResource (getOpts g i) releaseOpts $ \setup -> testGroup "galley"
+        [ sitemapConsistency . compile $ Galley.API.sitemap
+        , API.tests setup
+        ]
+
     getOpts gFile iFile = do
         m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
         let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
