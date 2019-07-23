@@ -5,7 +5,7 @@ Dependencies on operator's machine
 
 You need python2, some python dependencies, a specific version of ansible, and gnu make. Then, you need to download specific ansible roles using ansible-galaxy, and binaries `kubectl` and `helm`. You have two options to achieve this:
 
-How to install the necessary components locally when using Debian or Ubuntu as your operating system
+(Option 1) How to install the necessary components locally when using Debian or Ubuntu as your operating system
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Install 'poetry' (python dependency management). See also the `poetry documentation <https://poetry.eustace.io/>`__.
@@ -37,7 +37,7 @@ Download the ansible roles necessary to install databases and kubernetes
    make download
 
 
-How to use docker on the local host with a docker image that contains all the dependencies
+(Option 2) How to use docker on the local host with a docker image that contains all the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On your machine you need to have the `docker` binary available. See `how to install docker <https://docker.com>`__. Then:

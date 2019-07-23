@@ -9,6 +9,5 @@ server components.
    :glob:
 
    How to plan an installation </how-to/planning.rst>
-   How to get local dependencies </how-to/dependencies-ansible.rst>
    How to install kubernetes </how-to/kubernetes.rst>
    How to install a demo using Helm </how-to/helm.rst>
