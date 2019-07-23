@@ -4,17 +4,23 @@ import Imports
 
 import Data.Metrics.Types
 import Data.Metrics.WaiRoute (treeToPaths)
+import Data.Metrics.Servant (RoutesToPaths, routesToPaths)
 import Data.String.Conversions (cs)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCase, assertEqual)
 
 import qualified Data.Text as Text
 import qualified Data.Tree as Tree
-import qualified Network.Wai.Routing.Route     as Route
+import qualified Network.Wai.Routing.Route as Route
 
+
+servantApiConsistency :: forall proxy routes. RoutesToPaths routes => proxy routes -> TestTree
+servantApiConsistency _ = testCase "servant api" $
+    assertEqual "inconcistent servant api" mempty (pathsConsistencyCheck (routesToPaths @routes))
 
 sitemapConsistency :: Route.Tree a -> TestTree
-sitemapConsistency smap = testCase "" $ assertEqual "inconcistent sitemap" mempty (siteConsistencyCheck smap)
+sitemapConsistency smap = testCase "sitemap" $
+    assertEqual "inconcistent sitemap" mempty (pathsConsistencyCheck $ treeToPaths smap)
 
 -- | It is an error for one prefix to end in two different capture variables.  eg., these two
 -- routes constitute a confict: "/user/:uid", "/user/:id".  There is a show instance that
@@ -31,9 +37,6 @@ instance Show SiteConsistencyError where
     show ("/" <> Text.intercalate "/" prefix) <> " " <>
     "contains these variables with (very roughly) the resp. numbers of routes under them: " <>
     show conflicts
-
-siteConsistencyCheck :: Route.Tree any -> [SiteConsistencyError]
-siteConsistencyCheck = pathsConsistencyCheck . treeToPaths
 
 pathsConsistencyCheck :: Paths -> [SiteConsistencyError]
 pathsConsistencyCheck (Paths forest) = mconcat $ go [] <$> forest
