@@ -30,14 +30,14 @@ instance {-# OVERLAPPING #-}
          ( KnownSymbol seg
          , RoutesToPaths segs
          ) => RoutesToPaths (seg :> segs) where
-  getRoutes = [Node (Right . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
+  getRoutes = [Node (ConstantSeg . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
 
 -- <capture> <:> routes
 instance {-# OVERLAPPING #-}
          ( KnownSymbol capture
          , RoutesToPaths segs
          ) => RoutesToPaths (Capture' mods capture a :> segs) where
-  getRoutes = [Node (Left ":_") (getRoutes @segs)]
+  getRoutes = [Node CaptureSeg (getRoutes @segs)]
 
 -- route <:> routes
 instance {-# OVERLAPPING #-}

@@ -50,11 +50,11 @@ pathsConsistencyCheck (Paths forest) = mconcat $ go [] <$> forest
     findSiteConsistencyError prefix subtrees = case catMaybes $ captureVars <$> subtrees of
           []          -> Nothing
           [_]         -> Nothing
-          bad@(_:_:_) -> Just $ SiteConsistencyError (either cs cs <$> prefix) bad
+          bad@(_:_:_) -> Just $ SiteConsistencyError (cs . pathSegmentToString <$> prefix) bad
 
-    captureVars :: Tree.Tree (Either ByteString any) -> Maybe (Text, Int)
-    captureVars (Tree.Node (Left root) trees) = Just (cs root, weight trees)
-    captureVars (Tree.Node (Right _) _) = Nothing
+    captureVars :: Tree.Tree PathSegment -> Maybe (Text, Int)
+    captureVars (Tree.Node CaptureSeg trees) = Just ("_", weight trees)
+    captureVars (Tree.Node (ConstantSeg _) _) = Nothing
 
     weight :: Tree.Forest a -> Int
     weight = sum . fmap (length . Tree.flatten)

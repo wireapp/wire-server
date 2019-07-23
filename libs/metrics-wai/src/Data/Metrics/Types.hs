@@ -7,7 +7,7 @@
 module Data.Metrics.Types
     ( PathTemplate(..)
     , Paths(..)
-    , PathSegment
+    , PathSegment(..), pathSegmentToString
     , mkTree
     , meltTree
     , treeLookup
@@ -26,7 +26,12 @@ newtype PathTemplate = PathTemplate Text
 newtype Paths = Paths (Forest PathSegment)
   deriving (Eq, Show)
 
-type PathSegment = Either ByteString ByteString
+data PathSegment = CaptureSeg | ConstantSeg ByteString
+  deriving (Eq, Ord, Show)
+
+pathSegmentToString :: PathSegment -> ByteString
+pathSegmentToString CaptureSeg = ":_"
+pathSegmentToString (ConstantSeg seg) = seg
 
 
 -- | Turn a list of paths into a 'Paths' tree.  Treat all path segments that start with @':'@
@@ -40,7 +45,7 @@ mkTree = fmap (Paths . meltTree) . mapM mkbranch . sortBy (flip compare) . fmap 
     mkbranch []                 = Left "internal error: path with on segments."
 
     mknode :: ByteString -> PathSegment
-    mknode seg = if BS.head seg /= ':' then Right seg else Left seg
+    mknode seg = if BS.head seg /= ':' then ConstantSeg seg else CaptureSeg
 
 -- | If two sibling nodes in the forest are equal, make them one node that shares their
 -- subtrees.
@@ -59,12 +64,12 @@ treeLookup :: Paths -> [ByteString] -> Maybe ByteString
 treeLookup (Paths forest) = go [] forest
   where
     go :: [PathSegment] -> Forest PathSegment -> [ByteString] -> Maybe ByteString
-    go path _  [] = Just . ("/" <>) . BS.intercalate "/" . fmap (either id id) . reverse $ path
+    go path _  [] = Just . ("/" <>) . BS.intercalate "/" . fmap pathSegmentToString . reverse $ path
     go _    [] _  = Nothing
 
     go path trees (seg : segs) =
         find (seg `fits`) trees >>= \(Node root trees') -> go (root : path) trees' segs
 
     fits :: ByteString -> Tree PathSegment -> Bool
-    fits _ (Node (Left _) _) = True
-    fits seg (Node (Right seg') _) = seg == seg'
+    fits _ (Node CaptureSeg _) = True
+    fits seg (Node (ConstantSeg seg') _) = seg == seg'
