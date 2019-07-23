@@ -67,7 +67,7 @@ treeLookup (Paths forest) = go [] forest
     fits _ (Node (Left _) _) = True
     fits seg (Node (Right seg') _) = seg == seg'
 
--- | for testing against.
+-- | For testing.
 treeLookupNaive :: [[ByteString]] -> [ByteString] -> Maybe ByteString
 treeLookupNaive wants have = listToMaybe $ catMaybes $ (`go` have) <$> wants
   where
