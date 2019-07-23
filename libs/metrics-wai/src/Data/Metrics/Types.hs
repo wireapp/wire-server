@@ -10,6 +10,7 @@ module Data.Metrics.Types
     , PathSegment
     , mkTree
     , treeLookup
+    , treeLookupNaive
     ) where
 
 import Imports
@@ -38,9 +39,6 @@ mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fma
     mkbranch (seg : [])         = Right $ Node seg []
     mkbranch []                 = Left "internal error: path with on segments."
 
-    mknode :: ByteString -> PathSegment
-    mknode seg = if BS.head seg /= ':' then Right seg else Left seg
-
     melt :: Forest PathSegment -> Forest PathSegment
     melt [] = []
     melt (tree : []) = [tree]
@@ -48,6 +46,9 @@ mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fma
         then let tree'' = Node (rootLabel tree) (melt $ subForest tree <> subForest tree')
              in melt (tree'' : trees)
         else tree : melt (tree' : trees)
+
+mknode :: ByteString -> PathSegment
+mknode seg = if BS.head seg /= ':' then Right seg else Left seg
 
 -- | A variant of 'Network.Wai.Route.Tree.lookup'.  The segments contain values to be captured
 -- when running the 'App', here we simply replace them with their identifier;
@@ -65,3 +66,18 @@ treeLookup (Paths forest) = go [] forest
     fits :: ByteString -> Tree PathSegment -> Bool
     fits _ (Node (Left _) _) = True
     fits seg (Node (Right seg') _) = seg == seg'
+
+-- | for testing against.
+treeLookupNaive :: [[ByteString]] -> [ByteString] -> Maybe ByteString
+treeLookupNaive wants have = listToMaybe $ catMaybes $ (`go` have) <$> wants
+  where
+    go :: [ByteString] -> [ByteString] -> Maybe ByteString
+    go want have'
+      | length want /= length have'   = Nothing
+      | and (zipWith fits want have') = Just . ("/" <>) . BS.intercalate "/" $ want
+      | otherwise                     = Nothing
+
+    fits :: ByteString -> ByteString -> Bool
+    fits want have' = case mknode want of
+      Left _ -> True
+      Right have'' -> have' == have''
