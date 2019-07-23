@@ -10,15 +10,33 @@ upstream_list="/etc/wire/nginz/conf/upstreams.txt"
 old="/etc/wire/nginz/upstreams/upstreams.conf"
 new="${old}.new"
 
+function valid_ip() {
+    local  ip=$1
+    local  stat=1
+
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
 function upstream() {
     name=$1
     port=${2:-'8080'}
     ips=$(dig +short +retries=3 +search ${name} | sort)
     unset servers
     for ip in ${ips[@]}; do
-        servers+=("\n\t server ${ip}:${port} max_fails=3 weight=100;")
+        if valid_ip $ip; then
+            servers+=("\n\t server ${ip}:${port} max_fails=3 weight=100;")
+        fi
     done;
-    if [ -n "$ips" ]; then
+    if [ -n "$servers" ]; then
         printf "upstream ${name} { \n\t least_conn; \n\t keepalive 32; $(echo ${servers[@]}) \n}\n" >> ${new}
     else
         printf "upstream ${name} { \n\t least_conn; \n\t keepalive 32; \n\t server localhost:${port} down;\n}\n" >> ${new}
@@ -39,7 +57,7 @@ function routing_disco() {
     done
 
     diff -q $old $new || {
-      echo new backends found, replacing $old with $new
+      echo upstream change found, replacing $old with $new
       mv $new $old
     }
 
