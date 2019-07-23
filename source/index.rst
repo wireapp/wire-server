@@ -18,9 +18,9 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    :caption: Contents:
    :glob:
 
-   Overview <overview/index>
    Administrator's Guide <guides/administrator/index>
 
+..   Overview <understand/overview>
 
 .. commented out for now...
 

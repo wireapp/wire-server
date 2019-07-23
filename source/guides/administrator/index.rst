@@ -8,7 +8,7 @@ server components.
    :maxdepth: 1
    :glob:
 
-   /install/planning.rst
-   Dependencies on operator's machine </install/dependencies-ansible.rst>
-   Kubernetes - provisioning or installing </install/kubernetes.rst>
-   Helm </install/helm.rst>
+   How to plan an installation </how-to/planning.rst>
+   How to get local dependencies </how-to/dependencies-ansible.rst>
+   How to install kubernetes </how-to/kubernetes.rst>
+   How to install a demo using Helm </how-to/helm.rst>
