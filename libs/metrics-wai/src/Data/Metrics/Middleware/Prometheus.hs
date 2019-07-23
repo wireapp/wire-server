@@ -35,6 +35,10 @@ waiPrometheusMiddleware routes =
 -- | Compute a normalized route for a given request.
 -- Normalized routes have route parameters replaced with their identifier
 -- e.g. @/user/1234@ might become @/user/userid@
+normalizeWaiRequestRoute :: Paths -> Wai.Request -> Text
+normalizeWaiRequestRoute paths req =
+  normalizeWaiRequestRoute' paths (Wai.rawPathInfo req) (Wai.pathInfo req)
+
 normalizeWaiRequestRoute' :: Paths -> ByteString -> [Text] -> Text
 normalizeWaiRequestRoute' paths rawPath pathInfo' = pathInfo
   where
@@ -45,17 +49,6 @@ normalizeWaiRequestRoute' paths rawPath pathInfo' = pathInfo
     -- debugging purposes
     pathInfo :: Text
     pathInfo  = T.decodeUtf8 $ fromMaybe rawPath mPathInfo
-
-normalizeWaiRequestRoute :: Paths -> Wai.Request -> Text
-normalizeWaiRequestRoute paths req = pathInfo
-  where
-    mPathInfo :: Maybe ByteString
-    mPathInfo = treeLookup paths (T.encodeUtf8 <$> Wai.pathInfo req)
-
-    -- Use the normalized path info if available; otherwise dump the raw path info for
-    -- debugging purposes
-    pathInfo :: Text
-    pathInfo  = T.decodeUtf8 $ fromMaybe (Wai.rawPathInfo req) mPathInfo
 
 -- | This can be refactored away once https://github.com/fimad/prometheus-haskell/pull/45 has
 -- been released on hackage.
