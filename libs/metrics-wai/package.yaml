@@ -29,3 +29,10 @@ dependencies:
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto
+tests:
+  tests:
+    main: Main.hs
+    source-dirs: test
+    ghc-options: -threaded
+    dependencies:
+    - metrics-wai
