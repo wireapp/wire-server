@@ -1,12 +1,12 @@
 .. _ansible-kubernetes:
 
-Installing kubernetes on a single virtual machine
-==========================================================
+Installing kubernetes for a demo installation (on a single virtual machine)
+============================================================================
 
 .. include:: ansible-dependencies.rst
 
 How to set up your hosts.ini file
---------------------------------
+-------------------------------------
 
 Assuming a single virtual machine with a public IP address running Ubuntu 16.04 or 18.04, with at least 4 CPU cores and at least 8 GB of memory.
 

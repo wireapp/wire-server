@@ -5,7 +5,7 @@ Documentation on the installation, deployment and administration of Wire
 server components.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
    How to plan an installation </how-to/planning.rst>

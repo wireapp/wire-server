@@ -1,6 +1,6 @@
 .. _helm:
 
-Installing wire-server components using helm
+Installing wire-server (demo) components using helm
 ======================================================
 
 Introduction
