@@ -44,7 +44,7 @@ normalizeWaiRequestRoute paths req = pathInfo
     -- Use the normalized path info if available; otherwise dump the raw path info for
     -- debugging purposes
     pathInfo :: Text
-    pathInfo  = T.decodeUtf8 $ fromMaybe (Wai.rawPathInfo req) mPathInfo
+    pathInfo  = T.decodeUtf8 $ fromMaybe "N/A" mPathInfo
 
 -- | This can be refactored away once https://github.com/fimad/prometheus-haskell/pull/45 has
 -- been released on hackage.

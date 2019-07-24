@@ -95,6 +95,8 @@ tests:
     dependencies:
       - hspec
       - hspec-discover
+      - tasty
+      - tasty-hspec
       - QuickCheck
       - spar
       - uri-bytestring

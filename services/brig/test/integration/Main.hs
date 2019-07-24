@@ -2,14 +2,17 @@ module Main (main) where
 
 import Imports hiding (local)
 import Bilge hiding (header)
+import Brig.API (sitemap)
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Text (pack)
+import Data.Metrics.Test (sitemapConsistency)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Text (pack)
 import Data.Yaml (decodeFileEither)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (withArgs)
@@ -75,7 +78,8 @@ runTests iConf bConf otherArgs = do
     settingsApi <- Settings.tests brigOpts mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
-        [ userApi
+        [ sitemapConsistency . compile . Brig.API.sitemap $ brigOpts
+        , userApi
         , providerApi
         , searchApis
         , teamApis

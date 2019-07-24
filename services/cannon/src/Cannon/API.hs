@@ -59,8 +59,8 @@ sitemap = do
     post "/i/bulkpush" (continue bulkpush) $
         request
 
-    head "/i/presences/:user/:conn" (continue checkPresence) $
-        param "user" .&. param "conn"
+    head "/i/presences/:uid/:conn" (continue checkPresence) $
+        param "uid" .&. param "conn"
 
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"

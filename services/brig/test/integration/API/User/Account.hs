@@ -64,8 +64,8 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
     , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
-    , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
-    , test' aws p "get /users/:id - 200"                     $ testExistingUser b
+    , test' aws p "get /users/:uid - 404"                    $ testNonExistingUser b
+    , test' aws p "get /users/:uid - 200"                    $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
     , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
@@ -76,14 +76,14 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
     , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
     , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
-    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
+    , test' aws p "put /i/users/:uid/status (suspend)"       $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
     , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
     , test' aws p "delete/with-legalhold"                    $ testDeleteUserWithLegalHold b c aws
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
+    , test' aws p "delete /i/users/:uid - 202"               $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b g
     ]

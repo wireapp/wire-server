@@ -75,9 +75,9 @@ sitemap o = do
     get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
         accept "application" "json"
 
-    post "/i/users/:id/auto-connect" (continue autoConnect) $
+    post "/i/users/:uid/auto-connect" (continue autoConnect) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
         .&. opt (header "Z-Connection")
         .&. jsonRequest @UserSet
 
@@ -89,8 +89,8 @@ sitemap o = do
         header "Z-User"
         .&. jsonRequest @EmailUpdate
 
-    delete "/i/users/:id" (continue deleteUserNoVerify) $
-        capture "id"
+    delete "/i/users/:uid" (continue deleteUserNoVerify) $
+        capture "uid"
 
     get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
         query "users"
@@ -109,17 +109,17 @@ sitemap o = do
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    put "/i/users/:id/status" (continue changeAccountStatus) $
-        capture "id"
+    put "/i/users/:uid/status" (continue changeAccountStatus) $
+        capture "uid"
         .&. jsonRequest @AccountStatusUpdate
 
-    get "/i/users/:id/status" (continue getAccountStatus) $
+    get "/i/users/:uid/status" (continue getAccountStatus) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
 
-    get "/i/users/:id/contacts" (continue getContactList) $
+    get "/i/users/:uid/contacts" (continue getContactList) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
 
     get "/i/users/activation-code" (continue getActivationCode) $
         accept "application" "json"
@@ -208,9 +208,9 @@ sitemap o = do
 
     ---
 
-    head "/users/:id" (continue checkUserExists) $
+    head "/users/:uid" (continue checkUserExists) $
         header "Z-User"
-        .&. capture "id"
+        .&. capture "uid"
 
     document "HEAD" "userExists" $ do
         Doc.summary "Check if a user ID exists"
@@ -221,10 +221,10 @@ sitemap o = do
 
     ---
 
-    get "/users/:id" (continue getUser) $
+    get "/users/:uid" (continue getUser) $
         accept "application" "json"
         .&. header "Z-User"
-        .&. capture "id"
+        .&. capture "uid"
 
     document "GET" "user" $ do
         Doc.summary "Get a user by ID"
@@ -311,8 +311,8 @@ sitemap o = do
 
     ---
 
-    get "/users/:user/prekeys" (continue getPrekeyBundle) $
-        capture "user"
+    get "/users/:uid/prekeys" (continue getPrekeyBundle) $
+        capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getPrekeyBundle" $ do
@@ -324,8 +324,8 @@ sitemap o = do
 
     ---
 
-    get "/users/:user/prekeys/:client" (continue getPrekey) $
-        capture "user"
+    get "/users/:uid/prekeys/:client" (continue getPrekey) $
+        capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
 
@@ -340,8 +340,8 @@ sitemap o = do
 
     --
 
-    get "/users/:user/clients" (continue getUserClients) $
-        capture "user"
+    get "/users/:uid/clients" (continue getUserClients) $
+        capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getUserClients" $ do
@@ -353,8 +353,8 @@ sitemap o = do
 
     --
 
-    get "/users/:user/clients/:client" (continue getUserClient) $
-        capture "user"
+    get "/users/:uid/clients/:client" (continue getUserClient) $
+        capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
 
@@ -369,9 +369,9 @@ sitemap o = do
 
     --
 
-    get "/users/:user/rich-info" (continue getRichInfo) $
+    get "/users/:uid/rich-info" (continue getRichInfo) $
         header "Z-User"
-        .&. capture "user"
+        .&. capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getRichInfo" $ do
