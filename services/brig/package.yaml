@@ -229,6 +229,7 @@ executables:
     - -with-rtsopts=-N1
     - -with-rtsopts=-T
     - -rtsopts
+    - -auto-all
     dependencies:
     - base
     - brig
