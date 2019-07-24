@@ -30,8 +30,8 @@ tests _cl _at _conf p b c g = testGroup "client"
                $ testCan'tDeleteLegalHoldClient b
     , test p "post /clients 400 - can't add legalhold clients manually"
                $ testCan'tAddLegalHoldClient b
-    , test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
-    , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
+    , test p "get /users/:uid/prekeys - 200"          $ testGetUserPrekeys b
+    , test p "get /users/:uid/prekeys/:client - 200"  $ testGetClientPrekey b
     , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
     , test p "post /clients - 201 (no pwd)"           $ testAddGetClient False b c
     , test p "post /clients - 403"                    $ testClientReauthentication b
@@ -260,7 +260,7 @@ testUpdateClient brig = do
         const 200            === statusCode
         const (Just "label") === (clientLabel <=< decodeBody)
 
-    -- via `/users/:user/clients/:client`, only `id` and `class` are visible:
+    -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
     get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
         const 200                 === statusCode
         const (Just $ clientId c) === (fmap pubClientId . decodeBody)

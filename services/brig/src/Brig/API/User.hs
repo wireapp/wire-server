@@ -765,7 +765,7 @@ verifyDeleteUser d = do
     for_ account $ lift . deleteAccount
     lift $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:id@.  Team users can be
+-- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
 -- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
 -- in the team.
 deleteAccount :: UserAccount -> AppIO ()

@@ -56,10 +56,10 @@ sitemap = do
         response 201 "Team ID as `Location` header value" end
         errorResponse Error.notConnected
 
-    put "/teams/:id" (continue updateTeam) $
+    put "/teams/:tid" (continue updateTeam) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @TeamUpdateData
         .&. accept "application" "json"
 
@@ -87,9 +87,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id" (continue getTeam) $
+    get "/teams/:tid" (continue getTeam) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeam" $ do
@@ -102,10 +102,10 @@ sitemap = do
 
     --
 
-    delete "/teams/:id" (continue deleteTeam) $
+    delete "/teams/:tid" (continue deleteTeam) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. request
         .&. opt (contentType "application" "json")
         .&. accept "application" "json"
@@ -126,9 +126,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id/members" (continue getTeamMembers) $
+    get "/teams/:tid/members" (continue getTeamMembers) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeamMembers" $ do
@@ -160,10 +160,10 @@ sitemap = do
 
     --
 
-    post "/teams/:id/members" (continue addTeamMember) $
+    post "/teams/:tid/members" (continue addTeamMember) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
@@ -205,10 +205,10 @@ sitemap = do
 
     --
 
-    put "/teams/:id/members" (continue updateTeamMember) $
+    put "/teams/:tid/members" (continue updateTeamMember) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
@@ -224,9 +224,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id/conversations" (continue getTeamConversations) $
+    get "/teams/:tid/conversations" (continue getTeamConversations) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeamConversations" $ do
