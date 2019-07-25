@@ -249,5 +249,5 @@ benchmarks:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false
