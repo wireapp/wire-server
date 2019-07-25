@@ -60,17 +60,17 @@ extra-deps:
 
 flags:
   types-common:
-    cql: True
-    protobuf: True
-    arbitrary: True
+    cql: true
+    protobuf: true
+    arbitrary: true
 
   galley-types:
-    cql: True
+    cql: true
 
   brig-types:
-    cql: True
+    cql: true
 
-allow-newer: False
+allow-newer: false
 
 nix:
   shell-file: shell.nix

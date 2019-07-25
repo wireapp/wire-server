@@ -1,13 +1,15 @@
 module Main (main) where
 
 import Imports hiding (local)
+
 import Bilge hiding (header)
 import Brig.API (sitemap)
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Metrics.Test (sitemapConsistency)
+import Data.Metrics.Test (pathsConsistencyCheck)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text (pack)
 import Data.Yaml (decodeFileEither)
@@ -17,6 +19,7 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (withArgs)
 import Test.Tasty
+import Test.Tasty.HUnit
 import Util.Options
 import Util.Options.Common
 import Util.Test
@@ -78,7 +81,9 @@ runTests iConf bConf otherArgs = do
     settingsApi <- Settings.tests brigOpts mg b g
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
-        [ sitemapConsistency . compile . Brig.API.sitemap $ brigOpts
+        [ testCase "sitemap" $ assertEqual "inconcistent sitemap"
+            mempty
+            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts)
         , userApi
         , providerApi
         , searchApis

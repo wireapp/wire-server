@@ -92,7 +92,7 @@ tests:
 flags:
   cql:
     description: Enable cql instances
-    manual: false
+    manual: true
     default: false
   arbitrary:
     description: Enable quickcheck arbitrary instances
