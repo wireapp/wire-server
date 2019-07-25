@@ -166,6 +166,7 @@ executables:
     - cereal
     - containers
     - currency-codes
+    - metrics-wai
     - data-default-class
     - data-timeout
     - errors

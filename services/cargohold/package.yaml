@@ -82,12 +82,13 @@ executables:
     main: Main.hs
     source-dirs: test/integration
     dependencies:
+    - base ==4.*
     - cargohold
     - cargohold-types
-    - base ==4.*
     - cryptohash-md5 >=0.11.7.2
     - http-client-tls >=0.2
     - lens >=3.8
+    - metrics-wai
     - optparse-applicative
     - tagged >=0.8
     - tasty >=1.0

@@ -6,14 +6,15 @@ import Bilge hiding (header, body)
 import Cassandra.Util
 import Control.Lens
 import Data.ByteString.Conversion
-import Data.Metrics.Test (sitemapConsistency)
+import Data.Metrics.Test (pathsConsistencyCheck)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text (pack)
 import Data.Yaml (decodeFileEither)
-import Galley.Options
 import Galley.API (sitemap)
+import Galley.Options
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import Network.Wai.Utilities.Server (compile)
@@ -21,6 +22,7 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import TestSetup
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.Options
 import Util.Options
 import Util.Options.Common
@@ -62,7 +64,9 @@ main :: IO ()
 main = withOpenSSL $ runTests go
   where
     go g i = withResource (getOpts g i) releaseOpts $ \setup -> testGroup "galley"
-        [ sitemapConsistency . compile $ Galley.API.sitemap
+        [ testCase "sitemap" $ assertEqual "inconcistent sitemap"
+            mempty
+            (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap)
         , API.tests setup
         ]
 

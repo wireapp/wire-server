@@ -95,6 +95,7 @@ tests:
     dependencies:
       - hspec
       - hspec-discover
+      - metrics-wai
       - QuickCheck
       - spar
       - uri-bytestring
