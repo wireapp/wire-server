@@ -20,6 +20,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
 
    Administrator's Guide <guides/administrator/index>
    Understanding wire-server components <understand/index.rst>
+   Single-sign-on how-tos <how-to/single-sign-on/index.rst>
 
 ..   Overview <understand/overview>
 
