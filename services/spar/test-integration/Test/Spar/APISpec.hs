@@ -606,7 +606,7 @@ specCRUDIdentityProvider = do
       context "bad xml" $ do
         it "responds with a 'client error'" $ do
           env <- ask
-          callIdpCreateRaw' (env ^. teSpar) Nothing "@@ bad xml ###"
+          callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
             `shouldRespondWith` checkErr (== 400) ""
 
       context "no zuser" $ do
@@ -661,6 +661,32 @@ specCRUDIdentityProvider = do
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
+
+
+      describe "with json body" $ do
+        context "bad json" $ do
+          it "responds with a 'client error'" $ do
+            env <- ask
+            callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
+              `shouldRespondWith` checkErr (== 400) ""
+
+        context "good json with xml" $ do
+          it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+            env <- ask
+            (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            metadata <- makeTestIdPMetadata
+            idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" (Data.Aeson.encode $ IdPMetadataValue metadata)
+            idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ idp `shouldBe` idp'
+
+        context "good json with url" $ do
+          it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+            env <- ask
+            (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp <- -- TODO: i think we need to launch the idp here...
+                call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" (Data.Aeson.encode $ IdPMetadataURI undefined)
+            idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ idp `shouldBe` idp'
 
 
 specScimAndSAML :: SpecWith TestEnv
