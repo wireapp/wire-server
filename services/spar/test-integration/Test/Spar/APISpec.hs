@@ -487,8 +487,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
-    let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-        checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
+    let checkErr :: HasCallStack => (Int -> Bool) -> Maybe TestErrorLabel -> ResponseLBS -> Bool
+        checkErr statusIs mlabel resp =
+          statusIs (statusCode resp) &&
+          case mlabel of
+            Nothing -> True  -- we don't care about the body, then.  it's ok if it contains
+                             -- some error message that may be helpful for debugging.
+            Just label -> responseJSON resp == Right label
 
         testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetPutDelete whichone = do
@@ -496,14 +501,14 @@ specCRUDIdentityProvider = do
             it "responds with 'not found'" $ do
               env <- ask
               whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 404) (Just "not-found")
 
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
               (_, _, (^. idpId) -> idpid) <- registerTestIdP
               whichone (env ^. teSpar) Nothing idpid
-                `shouldRespondWith` checkErr (== 400) "client-error"
+                `shouldRespondWith` checkErr (== 400) (Just "client-error")
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
@@ -511,7 +516,7 @@ specCRUDIdentityProvider = do
               (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idpid
-                `shouldRespondWith` checkErr (== 403) "no-team-member"
+                `shouldRespondWith` checkErr (== 403) (Just "no-team-member")
 
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
@@ -519,7 +524,7 @@ specCRUDIdentityProvider = do
               (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idpid
-                `shouldRespondWith` checkErr (== 403) "no-team-member"
+                `shouldRespondWith` checkErr (== 403) (Just "no-team-member")
 
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
@@ -528,7 +533,7 @@ specCRUDIdentityProvider = do
               newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
-                `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+                `shouldRespondWith` checkErr (== 403) (Just "insufficient-permissions")
 
 
     describe "GET /identity-providers/:idp" $ do
@@ -552,7 +557,7 @@ specCRUDIdentityProvider = do
             <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
-            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+            `shouldRespondWith` checkErr (== 403) (Just "insufficient-permissions")
 
       context "client is team owner" $ do
         context "no idps registered" $ do
@@ -582,7 +587,7 @@ specCRUDIdentityProvider = do
           callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 404) (Just "not-found")
 
 
     -- there are no routes for PUT yet.
@@ -607,14 +612,14 @@ specCRUDIdentityProvider = do
         it "responds with a 'client error'" $ do
           env <- ask
           callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
-            `shouldRespondWith` checkErr (== 400) ""
+            `shouldRespondWith` checkErr (== 400) Nothing
 
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
           idpmeta <- makeTestIdPMetadata
           callIdpCreate' (env ^. teSpar) Nothing idpmeta
-            `shouldRespondWith` checkErr (== 400) "client-error"
+            `shouldRespondWith` checkErr (== 400) (Just "client-error")
 
       context "zuser has no team" $ do
         it "responds with 'no team member'" $ do
@@ -622,7 +627,7 @@ specCRUDIdentityProvider = do
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           idpmeta <- makeTestIdPMetadata
           callIdpCreate' (env ^. teSpar) (Just uid) idpmeta
-            `shouldRespondWith` checkErr (== 403) "no-team-member"
+            `shouldRespondWith` checkErr (== 403) (Just "no-team-member")
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
@@ -631,7 +636,7 @@ specCRUDIdentityProvider = do
           newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
-            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+            `shouldRespondWith` checkErr (== 403) (Just "insufficient-permissions")
 
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
@@ -668,7 +673,7 @@ specCRUDIdentityProvider = do
           it "responds with a 'client error'" $ do
             env <- ask
             callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
-              `shouldRespondWith` checkErr (== 400) ""
+              `shouldRespondWith` checkErr (== 400) (Just "")  -- TODO: should throw a proper error with label and all.
 
         context "good json with xml" $ do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
