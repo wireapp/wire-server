@@ -16,6 +16,8 @@ module Util.Core
   , shouldRespondWith
   , module Test.Hspec
   , aFewTimes
+  -- * mock server
+  , withMockIdP
   -- * HTTP
   , call
   , endpointToReq
@@ -69,12 +71,14 @@ module Util.Core
   ) where
 
 import Imports hiding (head)
-import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
+
 import Bilge.Assert ((!!!), (===), (<!!))
+import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
 import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
-import Control.Exception
+import Control.Concurrent.Chan
+import Control.Exception hiding (finally)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -93,11 +97,12 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.TypeLits
 import Network.HTTP.Client.MultipartFormData
+import Network.Wai (Application)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
-import Spar.App (toLevel)
 import Spar.API.Types
+import Spar.App (toLevel)
 import Spar.Run
 import Spar.Scim.Types
 import Spar.Types
@@ -111,6 +116,7 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
@@ -118,6 +124,7 @@ import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified Options.Applicative as OPA
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified Spar.App as Spar
@@ -219,6 +226,39 @@ aFewTimes action good = do
         (exponentialBackoff 1000 <> limitRetries 10)
         (\_ -> pure . not . good)
         (\_ -> action `runReaderT` env)
+
+
+-- | Copied from galley's 'withTestService'
+--
+-- FUTUREWORK: use 'asyncWithBound' (that requires the test case to run in IO, though, or some
+-- 'unliftIO' magic.)
+--
+-- The https server may take a few miliseconds (or, depending on your test setup, longer)
+-- before it is available.  To accomodate for this, the test will be run several times if it
+-- throws an exception, and only after a few re-tries, the latest exception will be thrown.
+withMockIdP
+    :: (HasCallStack)
+    => (Chan e -> Application)  -- ^ the mock service
+    -> (Chan e -> TestSpar a)   -- ^ the test
+    -> TestSpar a
+withMockIdP createApp go = do
+    config <- view teMockIdP
+    let tlss = Warp.tlsSettings (cert config) (privateKey config)
+    let defs = Warp.defaultSettings { Warp.settingsPort = botPort config }
+    buf <- liftIO newChan
+    srv <- liftIO . Async.async $
+        Warp.runTLS tlss defs $
+            createApp buf
+    patiently (reportIfServerDied srv >> go buf) `finally` liftIO (Async.cancel srv)
+  where
+    reportIfServerDied :: Async.Async () -> TestSpar ()
+    reportIfServerDied srv = liftIO (Async.poll srv >>= maybe (pure ()) print)
+
+    patiently :: TestSpar a -> TestSpar a
+    patiently = recovering policy continue . const
+      where
+        policy = limitRetries 3 <> exponentialBackoff 100000
+        continue = [\_ -> Control.Monad.Catch.Handler (\(SomeException _) -> pure True)]
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)

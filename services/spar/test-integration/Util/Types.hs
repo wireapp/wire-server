@@ -6,11 +6,13 @@ module Util.Types
   , SparReq
   , TestSpar
   , TestEnv(..)
+  , ProviderCfg(..)
   , teMgr
   , teCql
   , teBrig
   , teGalley
   , teSpar
+  , teMockIdP
   , teSparEnv
   , teOpts
   , teTstOpts
@@ -24,7 +26,7 @@ import Imports
 import Bilge
 import Cassandra as Cas
 import Control.Exception
-import Control.Lens (makeLenses)
+import Control.Lens (Getter, makeLenses, to)
 import Data.Aeson
 import Data.Aeson.TH
 import Data.String.Conversions
@@ -60,13 +62,26 @@ type Select = TestEnv -> (Request -> Request)
 type ResponseLBS = Bilge.Response (Maybe LBS)
 
 data IntegrationConfig = IntegrationConfig
-  { cfgBrig    :: Endpoint
-  , cfgGalley  :: Endpoint
-  , cfgSpar    :: Endpoint
+  { cfgBrig     :: Endpoint
+  , cfgGalley   :: Endpoint
+  , cfgSpar     :: Endpoint
+  , cfgProvider :: ProviderCfg  -- ^ ("MockIdP" here, but the name is config between all services.)
   } deriving (Show, Generic)
 
+data ProviderCfg = ProviderCfg
+    { privateKey   :: FilePath
+    , publicKey    :: FilePath
+    , cert         :: FilePath
+    , botHost      :: Text
+    , botPort      :: Int
+    } deriving (Show, Generic)
+
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
+instance FromJSON ProviderCfg
 makeLenses ''TestEnv
+
+teMockIdP :: Getter TestEnv ProviderCfg
+teMockIdP = teTstOpts . to cfgProvider
 
 
 newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }

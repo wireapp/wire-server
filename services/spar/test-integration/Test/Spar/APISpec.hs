@@ -1,6 +1,7 @@
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)
+
 import Bilge
 import Brig.Types.User
 import Control.Lens
@@ -11,6 +12,8 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Network.HTTP.Types.Status (status200)
+import Network.Wai (Application, responseLBS)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Lenses
@@ -19,6 +22,7 @@ import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util.Core
 import Util.Types
+import URI.ByteString (parseURI, laxURIParserOptions)
 
 import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
@@ -662,7 +666,6 @@ specCRUDIdentityProvider = do
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
 
-
       describe "with json body" $ do
         context "bad json" $ do
           it "responds with a 'client error'" $ do
@@ -674,8 +677,8 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata <- makeTestIdPMetadata
-            idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" (Data.Aeson.encode $ IdPMetadataValue metadata)
+            metadata :: LBS <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
             liftIO $ idp `shouldBe` idp'
 
@@ -683,10 +686,22 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            idp <- -- TODO: i think we need to launch the idp here...
-                call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" (Data.Aeson.encode $ IdPMetadataURI undefined)
-            idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-            liftIO $ idp `shouldBe` idp'
+
+            testApp :: Application <- do
+              metadata <- makeTestIdPMetadata
+              pure $ \_ cont -> cont . responseLBS status200 mempty . Data.Aeson.encode . IdPMetadataValue $ metadata
+
+            metadataUri :: LBS <- do
+              let c = env ^. teMockIdP
+                  h = cs        $ botHost c
+                  p = cs . show $ botPort c
+                  u = either (error . show) id . parseURI laxURIParserOptions $ h <> ":" <> p
+              pure . Data.Aeson.encode $ IdPMetadataURI u
+
+            withMockIdP (const testApp) . const $ do
+              idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadataUri
+              idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+              liftIO $ idp `shouldBe` idp'
 
 
 specScimAndSAML :: SpecWith TestEnv

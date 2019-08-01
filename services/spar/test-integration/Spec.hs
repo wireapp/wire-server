@@ -11,6 +11,8 @@
 module Main where
 
 import Imports
+
+import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)
 import Test.Hspec
 import Util
@@ -26,7 +28,7 @@ import qualified Test.Spar.Scim.UserSpec
 
 
 main :: IO ()
-main = do
+main = withOpenSSL $ do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
   withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
