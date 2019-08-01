@@ -49,6 +49,7 @@ dependencies:
   - http-client-tls
   - http-types
   - imports
+  - insert-ordered-containers
   - interpolate
   - lens
   - metrics-core

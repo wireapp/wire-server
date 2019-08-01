@@ -10,19 +10,25 @@
 module Spar.API.Swagger () where
 
 import Imports
+
 import Control.Lens
+import Data.Aeson (toJSON)
+import Data.Aeson (Value(..))
+import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.Proxy
-import Data.UUID (UUID)
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
-import "swagger2" Data.Swagger hiding (Header(..))
-  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
-  -- clash other than -XPackageImports.
+import Data.UUID (UUID)
 import Servant
 import Servant.Swagger
 import Spar.Orphans ()
 import Spar.Types
+import URI.ByteString.QQ (uri)
+
+import "swagger2" Data.Swagger hiding (Header(..))
+  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
+  -- clash other than -XPackageImports.
 
 import qualified Data.Swagger.SchemaOptions as Swagger
 import qualified Data.X509 as X509
@@ -111,7 +117,21 @@ instance ToSchema SAML.IdPMetadata where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema IdPMetadataInfo where
-  declareNamedSchema = genericDeclareNamedSchemaUnrestricted samlSchemaOptions
+  declareNamedSchema _ = pure $ NamedSchema (Just "IdPMetadataInfo") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties ?~ 1
+        & maxProperties ?~ 1
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("value", Inline (toSchema (Proxy @String)))
+          , ("uri", Inline (toSchema (Proxy @URI.URI)))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON $ IdPMetadataURI [uri|https://example.com/|]
 
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
