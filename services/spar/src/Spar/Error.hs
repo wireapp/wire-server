@@ -70,7 +70,6 @@ data SparCustomError
   | SparCassandraTTLError TTLError
 
   | SparNewIdPBadMeta LT
-  | SparNewIdPBadMetaUrl LT
   | SparNewIdPBadMetaSig
   | SparNewIdPBadReqUrl LT
   | SparNewIdPPubkeyMismatch
@@ -156,7 +155,6 @@ renderSparError (SAML.BadServerConfig msg)                                 = Rig
 renderSparError (SAML.InvalidCert msg)                                     = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)
 -- Errors related to IdP creation
 renderSparError (SAML.CustomError (SparNewIdPBadMeta msg))                 = Right $ Wai.Error status400 "idp-error" ("Bad metadata xml: " <> msg)
-renderSparError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Right $ Wai.Error status400 "idp-error" ("Bad or unresponsive metadata url: " <> msg)
 renderSparError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
 renderSparError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)
 renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"

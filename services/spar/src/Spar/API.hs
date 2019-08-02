@@ -40,7 +40,6 @@ import Spar.Scim
 import Spar.Scim.Swagger ()
 import Spar.Types
 
-import qualified Bilge as Bilge
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
@@ -195,24 +194,7 @@ idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idp
   pure idp
 
 idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue xml) =
-  idpCreateXML zusr xml
-idpCreate zusr (IdPMetadataURI uri) =
-  enforceHttps uri >> doHttp >>= getBody >>= decodeBody >>= idpCreateXML zusr
-  where
-    doHttp :: Spar (Bilge.Response (Maybe LBS))
-    doHttp = either (throwSpar . SparNewIdPBadMetaUrl . cs) Bilge.get $ Bilge.useURIBS uri
-
-    getBody :: Bilge.Response (Maybe LBS) -> Spar LBS
-    getBody resp = do
-      let bdy = Bilge.responseBody resp
-          err = cs $ (show $ Bilge.responseStatus resp) <> "; " <> maybe "" cs bdy
-      if Bilge.statusCode resp == 200 && isJust bdy
-        then pure $ fromJust bdy
-        else throwSpar $ SparNewIdPBadMetaUrl err
-
-    decodeBody :: LBS -> Spar SAML.IdPMetadata
-    decodeBody = either (throwSpar . SparNewIdPBadMeta . cs) pure . SAML.decode . cs
+idpCreate zusr (IdPMetadataValue xml) = idpCreateXML zusr xml
 
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a

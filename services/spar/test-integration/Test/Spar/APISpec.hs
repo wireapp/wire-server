@@ -12,8 +12,6 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Network.HTTP.Types.Status (status200)
-import Network.Wai (Application, responseLBS)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Lenses
@@ -22,7 +20,6 @@ import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util.Core
 import Util.Types
-import URI.ByteString (parseURI, laxURIParserOptions)
 
 import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
@@ -673,35 +670,14 @@ specCRUDIdentityProvider = do
             callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
               `shouldRespondWith` checkErr (== 400) ""  -- TODO: should throw a proper error with label and all.
 
-        context "good json with xml" $ do
+        context "good json" $ do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata :: LBS <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
             liftIO $ idp `shouldBe` idp'
-
-        context "good json with url" $ do
-          it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
-            env <- ask
-            (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-
-            testApp :: Application <- do
-              metadata <- makeTestIdPMetadata
-              pure $ \_ cont -> cont . responseLBS status200 mempty . Data.Aeson.encode . IdPMetadataValue $ metadata
-
-            metadataUri :: LBS <- do
-              let c = env ^. teMockIdP
-                  h = cs        $ botHost c
-                  p = cs . show $ botPort c
-                  u = either (error . show) id . parseURI laxURIParserOptions $ h <> ":" <> p
-              pure . Data.Aeson.encode $ IdPMetadataURI u
-
-            withMockIdP (const testApp) . const $ do
-              idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadataUri
-              idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-              liftIO $ idp `shouldBe` idp'
 
 
 specScimAndSAML :: SpecWith TestEnv

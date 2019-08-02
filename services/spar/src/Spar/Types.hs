@@ -23,7 +23,7 @@ import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, IdPId, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import URI.ByteString as URI
+import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
@@ -62,10 +62,11 @@ data IdPList = IdPList
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
 
--- | JSON-encoded information about metadata: either @{"value": <xml>}@ or @{"uri": <url>}@.
-data IdPMetadataInfo =
-    IdPMetadataValue SAML.IdPMetadata
-  | IdPMetadataURI URI
+-- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
+-- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
+-- from the server against the pinned one and the metadata url in the metadata against the one
+-- we fetched the xml from, but it's unclear what the benefit would be.)
+newtype IdPMetadataInfo = IdPMetadataValue SAML.IdPMetadata
   deriving (Eq, Show, Generic)
 
 instance SAML.HasXMLRoot IdPMetadataInfo where
@@ -79,21 +80,12 @@ instance SAML.HasXML IdPMetadataInfo where
 
 instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
-    look <- (,) <$> (obj .:? "value") <*> (obj .:? "uri")
-    case look of
-      (Just xml, Nothing) -> either fail (pure . IdPMetadataValue)
-                           $ SAML.decode xml
-      (Nothing, Just url) -> either (fail . show) (pure . IdPMetadataURI)
-                           $ URI.parseURI URI.laxURIParserOptions (cs @Text @_ url)
-      (Nothing, Nothing)  -> fail "empty object"
-      (Just _, Just _)    -> fail "only one of value, uri can be given"
+    either fail (pure . IdPMetadataValue) . SAML.decode =<< (obj .: "value")
 
 -- NB: this is not used anywhere except for in the roundtrip tests.
 instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue xml) =
     object [ "value" .= SAML.encode xml ]
-  toJSON (IdPMetadataURI uri) =
-    object [ "uri" .= (cs @_ @Text . Builder.toLazyByteString . URI.serializeURIRef $ uri) ]
 
 
 ----------------------------------------------------------------------------

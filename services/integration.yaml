@@ -31,10 +31,7 @@ spar:
   host: 127.0.0.1
   port: 8088
 
-# Used by:
-#   - brig-integration (bot providers)
-#   - galley-integration (legal hold)
-#   - spar-integration (mock idp server)
+# Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
   publicKey: test/resources/pubkey.pem

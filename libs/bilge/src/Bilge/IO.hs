@@ -34,7 +34,6 @@ module Bilge.IO
     , patch
     , patch'
     , consumeBody
-    , useURIBS
 
     -- * Re-exports
     , ManagerSettings (..)
@@ -50,10 +49,8 @@ module Bilge.IO
     ) where
 
 import Imports hiding (head, trace)
-import Control.Lens ((^.), (^?), (%~), (<&>), _Just, _2)
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Except
 import Control.Monad.Trans.Control
 import Network.HTTP.Client as Client hiding (method, httpLbs)
 import qualified Network.HTTP.Client as Client (method)
@@ -61,19 +58,15 @@ import qualified Data.ByteString.Lazy as LB
 
 -- It's impossible to create a Response body without using internals :'(
 import qualified Network.HTTP.Client.Internal as Client (Response(..), ResponseClose(..))
-
+import Network.HTTP.Types
 import Bilge.Request
 import Bilge.Response
 import Data.CaseInsensitive (CI)
-import Data.String.Conversions (cs)
-import Network.HTTP.Types
 
 import qualified Network.Wai.Test as Wai
 import qualified Network.Wai      as Wai
 
-import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as Lazy
-import qualified URI.ByteString as URIBS
 
 -- | Debug settings may cause debug information to be printed to stdout.
 data Debug
@@ -252,27 +245,3 @@ consumeBody r = do
         then Nothing
         else Just (Lazy.fromChunks chunks)
     return $ r { responseBody = bdy }
-
--- | Translate a uri-bytestring URI into a bilge request modifier.
-useURIBS :: MonadError String m => URIBS.URI -> m (Request -> Request)
-useURIBS uri
-    = foldl' (.) id <$> sequence
-        [ case uri ^. URIBS.uriSchemeL . URIBS.schemeBSL of
-            "http" -> pure id
-            "https" -> pure Bilge.Request.secure
-            bad -> throwError $ "unsupported scheme: " <> cs bad
-        , case uri ^? URIBS.authorityL . _Just . URIBS.authorityHostL . URIBS.hostBSL of
-            Just host_ -> pure $ Bilge.Request.host host_
-            Nothing    -> throwError $ "no hostname: " <> showedUri
-        , case uri ^? URIBS.authorityL . _Just . URIBS.authorityPortL . _Just . URIBS.portNumberL of
-            Just port_ -> pure $ Bilge.Request.port (fromIntegral port_)
-            Nothing    -> pure id
-        , pure $ Bilge.Request.path (uri ^. URIBS.pathL)
-        , pure $ Bilge.Request.query ((uri ^. URIBS.queryL . URIBS.queryPairsL) <&> (_2 %~ Just))
-        , case uri ^. URIBS.fragmentL of
-            Nothing -> pure id
-            Just _ -> throwError $ "fragments are not supported: " <> showedUri
-        ]
-  where
-    showedUri :: String
-    showedUri = cs . Builder.toLazyByteString . URIBS.serializeURIRef $ uri
