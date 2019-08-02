@@ -608,7 +608,7 @@ specCRUDIdentityProvider = do
         it "responds with a 'client error'" $ do
           env <- ask
           callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
-            `shouldRespondWith` checkErr (== 400) ""  -- TODO: yes, this should also return JSON, and a good label.
+            `shouldRespondWith` checkErr (== 400) "invalid-metadata"
 
       context "no zuser" $ do
         it "responds with 'client error'" $ do
@@ -668,7 +668,7 @@ specCRUDIdentityProvider = do
           it "responds with a 'client error'" $ do
             env <- ask
             callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
-              `shouldRespondWith` checkErr (== 400) ""  -- TODO: should throw a proper error with label and all.
+              `shouldRespondWith` checkErr (== 400) "invalid-metadata"
 
         context "good json" $ do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do

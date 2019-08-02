@@ -82,7 +82,6 @@ instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
     either fail (pure . IdPMetadataValue) . SAML.decode =<< (obj .: "value")
 
--- NB: this is not used anywhere except for in the roundtrip tests.
 instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue xml) =
     object [ "value" .= SAML.encode xml ]
