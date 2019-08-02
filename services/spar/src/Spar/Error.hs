@@ -13,6 +13,10 @@ module Spar.Error
   , throwSpar
   , sparToServantErrWithLogging
   , renderSparErrorWithLogging
+
+    -- TODO: we really shouldn't export this, but that requires that we can use our custom
+    -- servant monad in the 'MakeCustomError' instances.
+  , sparToServantErr
   ) where
 
 import Imports
@@ -69,8 +73,7 @@ data SparCustomError
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
 
-  | SparNewIdPBadMetadataJSON LT
-  | SparNewIdPBadMetadataXML LT
+  | SparNewIdPBadMetadata LT
   | SparNewIdPBadReqUrl LT
   | SparNewIdPPubkeyMismatch
   | SparNewIdPAlreadyInUse
@@ -154,8 +157,7 @@ renderSparError SAML.UnknownError                                          = Rig
 renderSparError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 renderSparError (SAML.InvalidCert msg)                                     = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)
 -- Errors related to IdP creation
-renderSparError (SAML.CustomError (SparNewIdPBadMetadataJSON msg))         = Right $ Wai.Error status400 "invalid-metadata" ("json parser: " <> msg)
-renderSparError (SAML.CustomError (SparNewIdPBadMetadataXML msg))          = Right $ Wai.Error status400 "invalid-metadata" ("xml parser: " <> msg)
+renderSparError (SAML.CustomError (SparNewIdPBadMetadata msg))         = Right $ Wai.Error status400 "invalid-metadata" msg
 renderSparError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)
 renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse)                  = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
