@@ -24,6 +24,7 @@ module Stern.Intra
     , canBeDeleted
     , isBlacklisted
     , setBlacklistStatus
+    , setLegalholdStatus
     , getTeamBillingInfo
     , setTeamBillingInfo
     , getEmailConsentLog
@@ -41,6 +42,7 @@ import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold hiding (teamId)
 import Stern.App
 import Control.Error
 import Control.Lens (view, (^.))
@@ -342,6 +344,36 @@ setBlacklistStatus status emailOrPhone = do
   where
     statusToMethod False = DELETE
     statusToMethod True  = POST
+
+setLegalholdStatus :: TeamId -> Bool -> Handler ()
+setLegalholdStatus tid status = do
+    info $ msg "Setting legalhold status"
+    b <- view galley
+    void . catchRpcErrors $ rpc' "galley" b
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "legalhold"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = LegalHoldTeamConfig LegalHoldDisabled
+    toRequestBody True  = LegalHoldTeamConfig LegalHoldEnabled
+
+_setSSOStatus :: TeamId -> Bool -> Handler ()
+_setSSOStatus tid status = do
+    info $ msg "Setting SSO status"
+    b <- view galley
+    void . catchRpcErrors $ rpc' "galley" b
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "sso"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = undefined :: Bool
+    toRequestBody True  = undefined :: Bool
 
 --------------------------------------------------------------------------------
 -- Helper functions

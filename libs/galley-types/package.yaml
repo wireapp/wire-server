@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: galley-types
 version: '0.81.0'
@@ -22,6 +22,7 @@ library:
   - Galley.Types.Teams
   - Galley.Types.Teams.Internal
   - Galley.Types.Teams.Intra
+  - Galley.Types.Teams.Feature
   - Galley.Types.Teams.Swagger
   dependencies:
   - aeson >=0.6

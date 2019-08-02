@@ -19,6 +19,10 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , getSSOEnabled
+    , setSSOEnabled
+    , getLegalHoldEnabled
+    , setLegalHoldEnabled
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedGetTeamMembers
@@ -27,6 +31,7 @@ module Galley.API.Teams
     ) where
 
 import Imports
+import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (result, hasMore)
 import Control.Lens hiding (from, to)
 import Control.Monad.Catch
@@ -38,6 +43,7 @@ import Data.Time.Clock (getCurrentTime, UTCTime (..))
 import Data.Set (fromList)
 import Galley.App
 import Galley.API.Error
+import Galley.API.LegalHold
 import Galley.API.Util
 import Galley.Data.Types
 import Galley.Data.Services (BotMember)
@@ -45,6 +51,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
 import Galley.Types.Teams
+import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
 import Network.HTTP.Types
 import Network.Wai
@@ -54,6 +61,8 @@ import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Data.Teams as Data
 import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
@@ -478,3 +487,44 @@ getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure . json $ newTeamMemberList members
+
+
+-- Enable / Disable team features
+-- These endpoints are internal only and  meant to be called
+-- only from authorized personnel (e.g., from a backoffice tool)
+
+-- | Get legal SSO status for a team.
+getSSOEnabled :: TeamId ::: JSON -> Galley Response
+getSSOEnabled (tid ::: _) = do
+    ssoTeamConfig <- Data.getSSOTeamConfig tid
+    pure . json . fromMaybe defConfig $ ssoTeamConfig
+  where
+    defConfig = SSOTeamConfig SSOEnabled
+
+-- | Enable or disable SSO for a team.
+setSSOEnabled :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
+setSSOEnabled (tid ::: req ::: _) = do
+    ssoTeamConfig <- fromJsonBody req
+    case ssoTeamConfigStatus ssoTeamConfig of
+        SSODisabled -> undefined -- What to do when it's disabled, notify spar?
+        SSOEnabled  -> pure ()
+    Data.setSSOTeamConfig tid ssoTeamConfig
+    pure noContent
+
+-- | Get legal hold status for a team.
+getLegalHoldEnabled :: TeamId ::: JSON -> Galley Response
+getLegalHoldEnabled (tid ::: _) = do
+    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
+  where
+    defConfig = LegalHoldTeamConfig LegalHoldDisabled
+
+-- | Enable or disable legal hold for a team.
+setLegalHoldEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setLegalHoldEnabled (tid ::: req ::: _) = do
+    legalHoldTeamConfig <- fromJsonBody req
+    case legalHoldTeamConfigStatus legalHoldTeamConfig of
+        LegalHoldDisabled -> removeSettings' tid Nothing
+        LegalHoldEnabled -> pure ()
+    LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+    pure noContent

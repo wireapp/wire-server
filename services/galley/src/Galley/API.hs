@@ -19,6 +19,7 @@ import Galley.API.Query
 import Galley.API.Swagger (swagger)
 import Galley.Types
 import Galley.Types.Teams
+import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
@@ -36,6 +37,7 @@ import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.API.LegalHold          as LegalHold
+import qualified Galley.API.Teams              as Teams
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
@@ -904,23 +906,37 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/legalhold" (continue LegalHold.getEnabled) $
-        capture "tid"
-        .&. accept "application" "json"
-
-    put "/i/teams/:tid/legalhold" (continue LegalHold.setEnabled) $
-        capture "tid"
-        .&. jsonRequest @LegalHoldTeamConfig
-        .&. accept "application" "json"
-
     get "/i/users/:uid/team/members" (continue getBindingTeamMembers) $
         capture "uid"
 
     get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
+    -- Start of team features
+
+    get "/i/teams/:tid/legalhold" (continue Teams.getLegalHoldEnabled) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/legalhold" (continue Teams.setLegalHoldEnabled) $
+        capture "tid"
+        .&. jsonRequest @LegalHoldTeamConfig
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/sso" (continue Teams.getSSOEnabled) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/sso" (continue Teams.setSSOEnabled) $
+        capture "tid"
+        .&. jsonRequest @SSOTeamConfig
+        .&. accept "application" "json"
+
+    -- End of team features
+
     get "/i/test/clients" (continue getClients)
         zauthUserId
+    -- TODO: What is this endpoint? Is this used anywhere?
 
     post "/i/clients/:client" (continue addClient) $
         zauthUserId

@@ -21,6 +21,7 @@ import qualified V30
 import qualified V31
 import qualified V32
 import qualified V33
+import qualified V34
 
 main :: IO ()
 main = do

@@ -10,6 +10,7 @@ import Control.Error (note)
 import Galley.Types
 import Galley.Types.Bot()
 import Galley.Types.Teams
+import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
 
 deriving instance Cql MutedStatus
@@ -107,3 +108,16 @@ instance Cql TeamStatus where
         4 -> return PendingActive
         n -> fail $ "unexpected team-status: " ++ show n
     fromCql _ = fail "team-status: int expected"
+
+
+instance Cql SSOStatus where
+    ctype = Tagged IntColumn
+
+    fromCql (CqlInt n) = case n of
+        0 -> pure $ SSODisabled
+        1 -> pure $ SSOEnabled
+        _ -> fail "fromCql: Invalid SSOStatus"
+    fromCql _ = fail "fromCql: SSOStatus: CqlInt expected"
+
+    toCql SSODisabled = CqlInt 0
+    toCql SSOEnabled = CqlInt 1

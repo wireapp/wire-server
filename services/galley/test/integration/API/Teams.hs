@@ -14,6 +14,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
+import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Test.Tasty
@@ -40,6 +41,7 @@ tests s = testGroup "Teams API"
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
     , test s "create binding team with currency" testCreateBindingTeamWithCurrency
     , test s "create team with members" testCreateTeamWithMembers
+    , test s "enable/disable SSO" testEnableSSOPerTeam
     , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
     , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
     , test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner)
@@ -145,6 +147,41 @@ testCreateTeamWithMembers = do
         e^.eventType @?= TeamCreate
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
+
+
+testEnableSSOPerTeam :: TestM ()
+testEnableSSOPerTeam = do
+    (owner, tid) <- createTeam
+    member <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+    ensureQueueEmpty
+
+    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+       liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+
+    putEnabled tid LegalHoldEnabled -- enable it for this team
+    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+       liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status LegalHoldEnabled
+
+    withDummyTestServiceForTeam owner tid $ \_chan -> do
+        requestLegalHoldDevice owner member tid !!! const 201 === statusCode
+        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
+        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
+
+        do
+          putEnabled tid LegalHoldDisabled -- disable again
+          LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+          liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status LegalHoldDisabled
+
+        do
+          UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+          liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+
+        viewLHS <- getSettingsTyped owner tid
+        liftIO $ assertEqual "LH Service settings should be disabled"
+                   ViewLegalHoldServiceDisabled viewLHS
+
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do

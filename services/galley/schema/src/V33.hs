@@ -6,7 +6,7 @@ import Cassandra.Schema
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 33 "xxx" $ do
+migration = Migration 33 "Add storage for pubkey for LH services" $ do
     schema' [r|
         create type if not exists pubkey
             ( typ  int
