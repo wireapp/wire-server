@@ -287,6 +287,11 @@ sitemap = do
     get "/teams/api-docs" (continue . const . pure . json $ swagger) $
         accept "application" "json"
 
+    get "/teams/:tid/legalhold" (continue Teams.getLegalholdStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
     post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
         zauthUserId
         .&. capture "tid"
@@ -912,22 +917,24 @@ sitemap = do
     get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
-    -- Start of team features
+    -- Start of team features; enabling this should only be
+    -- possible internally. Viewing the status should be allowed
+    -- for any admin
 
-    get "/i/teams/:tid/legalhold" (continue Teams.getLegalHoldEnabled) $
+    get "/i/teams/:tid/legalhold" (continue Teams.getLegalholdStatusInternal) $
         capture "tid"
         .&. accept "application" "json"
 
-    put "/i/teams/:tid/legalhold" (continue Teams.setLegalHoldEnabled) $
+    put "/i/teams/:tid/legalhold" (continue Teams.setLegalholdStatusInternal) $
         capture "tid"
         .&. jsonRequest @LegalHoldTeamConfig
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/sso" (continue Teams.getSSOEnabled) $
+    get "/i/teams/:tid/sso" (continue Teams.getSSOStatusInternal) $
         capture "tid"
         .&. accept "application" "json"
 
-    put "/i/teams/:tid/sso" (continue Teams.setSSOEnabled) $
+    put "/i/teams/:tid/sso" (continue Teams.setSSOStatusInternal) $
         capture "tid"
         .&. jsonRequest @SSOTeamConfig
         .&. accept "application" "json"

@@ -6,11 +6,7 @@ module Galley.Data.Teams
 
 import Imports
 import Cassandra
-import Control.Lens (unsnoc)
 import Data.Id
-import Data.LegalHold
-import Brig.Types.Client.Prekey
-import Galley.Data.Queries as Q
 import Galley.Data.Instances ()
 import Galley.Types.Teams.Feature
 

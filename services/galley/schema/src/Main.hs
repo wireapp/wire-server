@@ -42,6 +42,7 @@ main = do
         , V31.migration
         , V32.migration
         , V33.migration
+        , V34.migration
         -- When adding migrations here, don't forget to update
         -- 'schemaVersion' in Galley.Data
         ]

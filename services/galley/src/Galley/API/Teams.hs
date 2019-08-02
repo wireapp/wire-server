@@ -19,10 +19,12 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
-    , getSSOEnabled
-    , setSSOEnabled
-    , getLegalHoldEnabled
-    , setLegalHoldEnabled
+    , getSSOStatus
+    , getSSOStatusInternal
+    , setSSOStatusInternal
+    , getLegalholdStatus
+    , getLegalholdStatusInternal
+    , setLegalholdStatusInternal
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedGetTeamMembers
@@ -488,22 +490,34 @@ getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure . json $ newTeamMemberList members
 
+-- Public endpoints for feature checks
+getSSOStatus :: TeamId ::: UserId ::: JSON -> Galley Response
+getSSOStatus (tid ::: uid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+    getLegalholdStatusInternal (tid ::: ct)
+
+getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getLegalholdStatus (uid ::: tid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+    getLegalholdStatusInternal (tid ::: ct)
 
 -- Enable / Disable team features
 -- These endpoints are internal only and  meant to be called
 -- only from authorized personnel (e.g., from a backoffice tool)
 
 -- | Get legal SSO status for a team.
-getSSOEnabled :: TeamId ::: JSON -> Galley Response
-getSSOEnabled (tid ::: _) = do
+getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
+getSSOStatusInternal (tid ::: _) = do
     ssoTeamConfig <- Data.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
   where
     defConfig = SSOTeamConfig SSOEnabled
 
 -- | Enable or disable SSO for a team.
-setSSOEnabled :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
-setSSOEnabled (tid ::: req ::: _) = do
+setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
+setSSOStatusInternal (tid ::: req ::: _) = do
     ssoTeamConfig <- fromJsonBody req
     case ssoTeamConfigStatus ssoTeamConfig of
         SSODisabled -> undefined -- What to do when it's disabled, notify spar?
@@ -512,16 +526,16 @@ setSSOEnabled (tid ::: req ::: _) = do
     pure noContent
 
 -- | Get legal hold status for a team.
-getLegalHoldEnabled :: TeamId ::: JSON -> Galley Response
-getLegalHoldEnabled (tid ::: _) = do
+getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
+getLegalholdStatusInternal (tid ::: _) = do
     legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
     pure . json . fromMaybe defConfig $ legalHoldTeamConfig
   where
     defConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
-setLegalHoldEnabled :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
-setLegalHoldEnabled (tid ::: req ::: _) = do
+setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setLegalholdStatusInternal (tid ::: req ::: _) = do
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of
         LegalHoldDisabled -> removeSettings' tid Nothing

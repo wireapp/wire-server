@@ -151,36 +151,36 @@ testCreateTeamWithMembers = do
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do
-    (owner, tid) <- createTeam
-    member <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
-    ensureQueueEmpty
+    -- g <- view tsGalley
+    owner <- Util.randomUser
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
 
-    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+       liftIO $ assertEqual "Teams should start with SSO enabled" status SSODisabled
 
-    putEnabled tid LegalHoldEnabled -- enable it for this team
-    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status LegalHoldEnabled
+    -- putEnabled tid LegalHoldEnabled -- enable it for this team
+    -- do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+    --    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status LegalHoldEnabled
 
-    withDummyTestServiceForTeam owner tid $ \_chan -> do
-        requestLegalHoldDevice owner member tid !!! const 201 === statusCode
-        approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-        do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-           liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
+    -- withDummyTestServiceForTeam owner tid $ \_chan -> do
+    --     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
+    --     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
+    --     do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+    --        liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
 
-        do
-          putEnabled tid LegalHoldDisabled -- disable again
-          LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-          liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status LegalHoldDisabled
+    --     do
+    --       putEnabled tid LegalHoldDisabled -- disable again
+    --       LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+    --       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status LegalHoldDisabled
 
-        do
-          UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-          liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+    --     do
+    --       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
+    --       liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
 
-        viewLHS <- getSettingsTyped owner tid
-        liftIO $ assertEqual "LH Service settings should be disabled"
-                   ViewLegalHoldServiceDisabled viewLHS
+    --     viewLHS <- getSettingsTyped owner tid
+    --     liftIO $ assertEqual "LH Service settings should be disabled"
+    --                ViewLegalHoldServiceDisabled viewLHS
 
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
@@ -1101,3 +1101,17 @@ postCryptoBroadcastMessage100OrMaxConns = do
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing
+
+getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
+getSSOEnabledInternal tid = do
+    g <- view tsGalley
+    get $ g
+         . paths ["i", "teams", toByteString' tid, "legalhold"]
+
+_putSSOEnabledInternal :: HasCallStack => TeamId -> SSOStatus -> TestM ()
+_putSSOEnabledInternal tid enabled = do
+    g <- view tsGalley
+    void . put $ g
+         . paths ["i", "teams", toByteString' tid, "sso"]
+         . json (SSOTeamConfig enabled)
+         . expect2xx
