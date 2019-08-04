@@ -245,11 +245,11 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldStatus)
 selectLegalHoldTeamConfig =
-  "select status from legalhold_team_config where team_id = ?"
+  "select legalhold_status from team_config where team_id = ?"
 
 updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
 updateLegalHoldTeamConfig =
-  "update legalhold_team_config set status = ? where team_id = ?"
+  "update team_config set legalhold_status = ? where team_id = ?"
 
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
 insertLegalHoldSettings =
