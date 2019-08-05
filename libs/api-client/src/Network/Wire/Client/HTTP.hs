@@ -25,7 +25,7 @@ import Network.Wire.Client.Monad
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Encoding   as T
 import qualified Network.HTTP.Client  as Rq
-import qualified System.Logger        as Log
+import qualified System.Logger.Class        as Log
 
 data Error = Error
     { code    :: Int
@@ -42,7 +42,7 @@ instance FromJSON Error where
 -------------------------------------------------------------------------------
 -- Performing Requests
 
-clientRequest :: forall m a. (MonadClient m, MonadUnliftIO m, MonadMask m)
+clientRequest :: forall m a. (Log.MonadLogger m, MonadClient m, MonadUnliftIO m, MonadMask m)
               => Request                       -- ^ The request to send.
               -> NonEmpty Status               -- ^ Expected response codes.
               -> (Response BodyReader -> IO a) -- ^ Handler function.
@@ -62,12 +62,12 @@ clientRequest rq expected f = do
     exec :: m a
     exec = do
         s <- getServer
-        l <- getLogger
         let rq' = rq & setServer s
                      & header hUserAgent "api-client"
-        Log.debug l $ Log.msg (show rq')
+        Log.debug $ Log.msg (show rq')
+        runInIO <- askRunInIO
         handleRequestWithCont rq' $ \rs -> do
-            Log.debug l $ Log.msg $ show (rs { responseBody = "" :: String })
+            runInIO $ Log.debug $ Log.msg $ show (rs { responseBody = "" :: String })
             if responseStatus rs `elem` toList expected
                 then f rs
                 else if (statusCode rs `div` 100) `elem` [4,5]
