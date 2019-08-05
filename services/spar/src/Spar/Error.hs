@@ -13,6 +13,7 @@ module Spar.Error
   , throwSpar
   , sparToServantErrWithLogging
   , renderSparErrorWithLogging
+  , reasonsToLabel, reasonToLabel
   ) where
 
 import Imports
@@ -167,3 +168,52 @@ renderSparError (SAML.CustomError SparProvisioningTokenLimitReached)       = Rig
 renderSparError (SAML.CustomError (SparScimError err))                     = Left $ Scim.scimToServantErr err
 -- Other
 renderSparError (SAML.CustomServant err)                                   = Left err
+
+
+reasonsToLabel :: [SAML.DeniedReason] -> ST
+reasonsToLabel [] = "server-error"
+reasonsToLabel (reason:_) = reasonToLabel reason
+
+-- | This list needs to match
+-- https://github.com/wireapp/wire-webapp/blob/6df99f764d76594e16ec36dbc18782b3760fc65f/src/script/auth/module/action/BackendError.ts#L92
+-- (TODO: what about the other clients?)
+reasonToLabel :: SAML.DeniedReason -> ST
+reasonToLabel = ("forbidden-" <>) . \case
+  SAML.DeniedStatusFailure {}
+    -> "status-failure-from-idp"
+  SAML.DeniedBadUserRefs {}
+    -> "bad-user-refs"
+  SAML.DeniedBadInResponseTos {}
+    -> "bad-in-response-tos"
+  SAML.DeniedIssueInstantNotInPast {}
+    -> "issue-instant-not-in-past"
+  SAML.DeniedAssertionIssueInstantNotInPast {}
+    -> "assertion-issue-instant-not-in-past"
+  SAML.DeniedAuthnStatementIssueInstantNotInPast {}
+    -> "authn-statement-issue-instant-not-in-past"
+  SAML.DeniedBadDestination {}
+    -> "bad-destination"
+  SAML.DeniedBadRecipient {}
+    -> "bad-recipient"
+  SAML.DeniedIssuerMismatch {}
+    -> "issuer-mismatch"
+  SAML.DeniedNoStatements {}
+    -> "no-statements"
+  SAML.DeniedNoAuthnStatement {}
+    -> "no-authn-statement"
+  SAML.DeniedAuthnStatmentExpiredAt {}
+    -> "authn-statment-expired-at"
+  SAML.DeniedNoBearerConfSubj {}
+    -> "no-bearer-conf-subj"
+  SAML.DeniedBearerConfAssertionsWithoutAudienceRestriction {}
+    -> "bearer-conf-assertions-without-audience-restriction"
+  SAML.DeniedNotOnOrAfterSubjectConfirmation {}
+    -> "not-on-or-after-subject-confirmation"
+  SAML.DeniedNotBeforeSubjectConfirmation {}
+    -> "not-before-subject-confirmation"
+  SAML.DeniedNotOnOrAfterCondition {}
+    -> "not-on-or-after-condition"
+  SAML.DeniedNotBeforeCondition {}
+    -> "not-before-condition"
+  SAML.DeniedAudienceMismatch {}
+    -> "audience-mismatch"

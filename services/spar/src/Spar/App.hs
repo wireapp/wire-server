@@ -287,7 +287,7 @@ catchVerdictErrors = (`catchError` hndlr)
       waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-        Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+        Left (serr :: ServantErr) -> VerifyHandlerError (reasonsToLabel mempty) (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
@@ -335,7 +335,7 @@ verdictHandlerResultCore bindCky = \case
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
-    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerDenied reasons   -> forbiddenPage (reasonsToLabel reasons) (explainDeniedReason <$> reasons)
     VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
@@ -345,16 +345,16 @@ verdictHandlerWeb = pure . \case
       , errBody         = easyHtml $
                           "<head>" <>
                           "  <title>wire:sso:error:" <> cs errlbl <> "</title>" <>
-                          "   <script type=\"text/javascript\">" <>
-                          "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
-                          "   </script>" <>
+                          "  <script type=\"text/javascript\">" <>
+                          "    const receiverOrigin = '*';" <>
+                          "    window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
+                          "  </script>" <>
                           "</head>"
       , errHeaders      = []
       }
       where
         errval = object [ "type" .= ("AUTH_ERROR" :: ST)
-                        , "payload" .= object [ "label" .= ("forbidden" :: ST)
+                        , "payload" .= object [ "label" .= errlbl
                                               , "errors" .= reasons
                                               ]
                         ]
@@ -366,10 +366,10 @@ verdictHandlerWeb = pure . \case
       , errBody         = easyHtml $
                           "<head>" <>
                           "  <title>wire:sso:success</title>" <>
-                          "   <script type=\"text/javascript\">" <>
-                          "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
-                          "   </script>" <>
+                          "  <script type=\"text/javascript\">" <>
+                          "    const receiverOrigin = '*';" <>
+                          "    window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "  </script>" <>
                           "</head>"
       , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
       }
@@ -390,9 +390,10 @@ verdictHandlerMobile granted denied = \case
          either (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
                 (pure . successPage cky)
     VerifyHandlerDenied reasons
-      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+      -> let lbl = reasonsToLabel reasons
+         in mkVerdictDeniedFormatMobile denied lbl &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
-                (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
+                (pure . forbiddenPage lbl (explainDeniedReason <$> reasons))
     VerifyHandlerError lbl msg
       -> mkVerdictDeniedFormatMobile denied lbl &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
@@ -404,7 +405,7 @@ verdictHandlerMobile granted denied = \case
       , errHeaders = [ ("Location", cs $ renderURI uri)
                      , ("Content-Type", "application/json")
                      ]
-      , errBody = Aeson.encode errs
+      , errBody = Aeson.encode errs  -- TODO: should this be some more helpful json?  or logged?
       }
 
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
