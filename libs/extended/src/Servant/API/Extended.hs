@@ -42,6 +42,8 @@ import qualified Data.ByteString.Lazy as BL
 -- that inspects the response and logs conditionally what it finds in the body (bad for
 -- streaming and performance!), or re-wire more of the servant internals (unclear how hard
 -- that'll be).
+--
+-- See also: https://github.com/haskell-servant/servant/issues/353
 data ReqBodyCustomError' (mods :: [*]) (list :: [ct]) (tag :: Symbol) (a :: *)
 
 type ReqBodyCustomError = ReqBodyCustomError' '[Required, Strict]
