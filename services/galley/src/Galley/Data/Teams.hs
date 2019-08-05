@@ -24,8 +24,8 @@ setSSOTeamConfig tid SSOTeamConfig{ssoTeamConfigStatus} = do
 
 selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity SSOStatus)
 selectSSOTeamConfig =
-  "select sso_status from team_config where team_id = ?"
+  "select sso_status from team_features where team_id = ?"
 
 updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
-  "update team_config set sso_status = ? where team_id = ?"
+  "update team_features set sso_status = ? where team_id = ?"
