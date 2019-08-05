@@ -37,6 +37,12 @@ class MakeCustomError (tag :: Symbol) (a :: *) where
 
 -- | Variant of the 'ReqBody'' instance that takes a 'ServantErr' as argument instead of a
 -- 'String'.  This gives the caller more control over error responses.
+--
+-- FUTUREWORK: parser failures currently can't have custom monad effects like logging, since
+-- they are run inside 'DelayedIO'.  we can either work around this by writing a middleware
+-- that inspects the response and logs conditionally what it finds in the body (bad for
+-- streaming and performance!), or re-wire more of the servant internals (unclear how hard
+-- that'll be).
 instance ( MakeCustomError tag a
          , AllCTUnrender list a
          , HasServer api context
@@ -75,7 +81,12 @@ instance ( MakeCustomError tag a
             Left e  -> delayedFailFatal e
             Right v -> return v
 
--- | TODO: this is not entirely accurate any more either...
+-- | FUTUREWORK: this assumes does not reflect the changes we make to the error responses
+-- wrt. the 'ReqBody'' instance.  however, in order to fix that, we would need to get more
+-- information out of the 'MakeCustomError' instance and into 'ReqBodyCustomError''. Perhaps
+-- something like @data ReqBody (mods :: [*]) (headers :: ...) (status :: ...) (list :: [ct])
+-- (tag :: Symbol) (a :: *)@.  and then we'll trip over issues similar to this one:
+-- https://github.com/wireapp/servant-uverb/blob/3647c488a88137d3ec2583b518bda59ee7072278/servant-uverb/src/Servant/API/UVerb.hs#L33-L57
 instance
      ( HasSwagger (ReqBody' '[Required, Strict] cts a :> api)
      , MakeCustomError tag a
