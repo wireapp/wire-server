@@ -32,6 +32,8 @@ data ReqBodyCustomError' (mods :: [*]) (list :: [ct]) (tag :: Symbol) (a :: *)
 type ReqBodyCustomError = ReqBodyCustomError' '[Required, Strict]
 
 -- | Custom parse error for bad request bodies.
+--
+-- FUTUREWORK: this approach is not ideal because it makes it hard to avoid orphan instances.
 class MakeCustomError (tag :: Symbol) (a :: *) where
   makeCustomError :: String -> ServantErr
 
