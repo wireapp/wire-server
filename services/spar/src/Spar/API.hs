@@ -31,14 +31,14 @@ import Data.Time
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
-import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.API.Types
 import Spar.App
 import Spar.Error
-import Spar.Types
+import Spar.Orphans ()
 import Spar.Scim
 import Spar.Scim.Swagger ()
+import Spar.Types
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
@@ -186,12 +186,16 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
-idpCreate zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
+idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
   idp <- validateNewIdP idpmeta teamid
   SAML.storeIdPConfig idp
   pure idp
+
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
+idpCreate zusr (IdPMetadataValue xml) = idpCreateXML zusr xml
+
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
@@ -219,8 +223,7 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
 
   let requri = _idpMetadata ^. SAML.edRequestURI
-  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
-    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
+  enforceHttps requri
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
@@ -237,6 +240,12 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
     -- creating users in victim teams.
 
   pure SAML.IdPConfig {..}
+
+enforceHttps :: URI.URI -> Spar ()
+enforceHttps uri = do
+  unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
+    throwSpar . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
+
 
 ----------------------------------------------------------------------------
 -- Internal API

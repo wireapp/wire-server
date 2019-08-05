@@ -10,19 +10,22 @@
 module Spar.API.Swagger () where
 
 import Imports
+
 import Control.Lens
+import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.Proxy
-import Data.UUID (UUID)
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
-import "swagger2" Data.Swagger hiding (Header(..))
-  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
-  -- clash other than -XPackageImports.
+import Data.UUID (UUID)
 import Servant
 import Servant.Swagger
 import Spar.Orphans ()
 import Spar.Types
+
+import "swagger2" Data.Swagger hiding (Header(..))
+  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
+  -- clash other than -XPackageImports.
 
 import qualified Data.Swagger.SchemaOptions as Swagger
 import qualified Data.X509 as X509
@@ -109,6 +112,18 @@ instance ToSchema a => ToSchema (SAML.IdPConfig a) where
 
 instance ToSchema SAML.IdPMetadata where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema IdPMetadataInfo where
+  declareNamedSchema _ = pure $ NamedSchema (Just "IdPMetadataInfo") $ mempty
+        & properties .~ properties_
+        & minProperties ?~ 1
+        & maxProperties ?~ 1
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ = fromList
+          [ ("value", Inline (toSchema (Proxy @String)))
+          ]
 
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions

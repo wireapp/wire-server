@@ -133,7 +133,7 @@ type APIIDP
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
-type IdpCreate  = ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
+type IdpCreate  = ReqBody '[SAML.XML, JSON] IdPMetadataInfo :> PostCreated '[JSON] IdP
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 type APIINTERNAL
