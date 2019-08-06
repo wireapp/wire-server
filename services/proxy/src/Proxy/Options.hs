@@ -14,7 +14,7 @@ import Imports
 import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
-import System.Logger (Level(Debug))
+import System.Logger.Class (Level(Debug))
 
 data Opts = Opts
     { _host          :: !String     -- ^ Host to listen on
