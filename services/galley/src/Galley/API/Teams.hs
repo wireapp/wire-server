@@ -491,11 +491,12 @@ getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     pure . json $ newTeamMemberList members
 
 -- Public endpoints for feature checks
-getSSOStatus :: TeamId ::: UserId ::: JSON -> Galley Response
-getSSOStatus (tid ::: uid ::: ct) = do
+
+getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getSSOStatus (uid ::: tid ::: ct) = do
     membs <- Data.teamMembers tid
-    void $ permissionCheck uid ViewLegalHoldTeamSettings membs
-    getLegalholdStatusInternal (tid ::: ct)
+    void $ permissionCheck uid ViewSSOTeamSettings membs
+    getSSOStatusInternal (tid ::: ct)
 
 getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getLegalholdStatus (uid ::: tid ::: ct) = do

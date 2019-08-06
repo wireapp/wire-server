@@ -287,11 +287,6 @@ sitemap = do
     get "/teams/api-docs" (continue . const . pure . json $ swagger) $
         accept "application" "json"
 
-    get "/teams/:tid/legalhold" (continue Teams.getLegalholdStatus) $
-        zauthUserId
-        .&. capture "tid"
-        .&. accept "application" "json"
-
     post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
         zauthUserId
         .&. capture "tid"
@@ -920,6 +915,16 @@ sitemap = do
     -- Start of team features; enabling this should only be
     -- possible internally. Viewing the status should be allowed
     -- for any admin
+
+    get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
 
     get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
         capture "tid"

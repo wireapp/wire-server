@@ -400,6 +400,7 @@ data HiddenPerm
     | ViewLegalHoldTeamSettings
     | ChangeLegalHoldUserSettings
     | ViewLegalHoldUserSettings
+    | ViewSSOTeamSettings  -- (change is only allowed via customer support backoffice)
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
@@ -439,6 +440,7 @@ hiddenPermissionsFromPermissions =
         roleHiddenPerms RoleExternalPartner =
             Set.fromList [ ViewLegalHoldTeamSettings
                          , ViewLegalHoldUserSettings
+                         , ViewSSOTeamSettings
                          ]
 
 -- | See Note [hidden team roles]
