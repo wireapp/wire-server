@@ -10,6 +10,8 @@ upstream_list="/etc/wire/nginz/conf/upstreams.txt"
 old="/etc/wire/nginz/upstreams/upstreams.conf"
 new="${old}.new"
 
+# The following bash-based regex parsers for ipv4/6 are not perfect; they are designed to avoid writing garbage to the upstreams.txt file whenever 'dig' returns some textual output (some error) instead of a list of IP addresses.
+# If the need arises, this could be improved by Option A) improving the bash parser or (preferred: Option B) rewriting this in Haskell.
 function valid_ipv4() {
     local  ip=$1
     local  stat=1
