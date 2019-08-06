@@ -27,6 +27,8 @@ module Util.Core
   -- * Other
   , defPassword
   , createUserWithTeam
+  , getSSOEnabledInternal
+  , putSSOEnabledInternal
   , createTeamMember
   , deleteUserOnBrig
   , getTeams
@@ -117,6 +119,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
+import qualified Galley.Types.Teams.Feature as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
@@ -240,7 +243,20 @@ createUserWithTeam brg gly = do
     selfTeam <- Brig.userTeam . Brig.selfUser <$> getSelfProfile brg uid
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
+    putSSOEnabledInternal gly tid Galley.SSOEnabled
     return (uid, tid)
+
+getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
+getSSOEnabledInternal gly tid = do
+    get $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> Galley.SSOStatus -> m ()
+putSSOEnabledInternal gly tid enabled = do
+    void . put $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . json (Galley.SSOTeamConfig enabled)
+        . expect2xx
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an

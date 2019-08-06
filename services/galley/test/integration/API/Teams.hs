@@ -157,30 +157,15 @@ testEnableSSOPerTeam = do
     assertQueue "create team" tActivate
 
     do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Teams should start with SSO enabled" status SSODisabled
+       liftIO $ assertEqual "Teams should start with SSO disabled" SSODisabled status
 
-    -- putEnabled tid LegalHoldEnabled -- enable it for this team
-    -- do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-    --    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status LegalHoldEnabled
+    putSSOEnabledInternal tid SSOEnabled
+    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+       liftIO $ assertEqual "Calling 'putEnabled True' should enable SSO" SSOEnabled status
 
-    -- withDummyTestServiceForTeam owner tid $ \_chan -> do
-    --     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
-    --     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    --     do UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-    --        liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
-
-    --     do
-    --       putEnabled tid LegalHoldDisabled -- disable again
-    --       LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
-    --       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status LegalHoldDisabled
-
-    --     do
-    --       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-    --       liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
-
-    --     viewLHS <- getSettingsTyped owner tid
-    --     liftIO $ assertEqual "LH Service settings should be disabled"
-    --                ViewLegalHoldServiceDisabled viewLHS
+    putSSOEnabledInternal tid SSODisabled
+    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+       liftIO $ assertEqual "Calling 'putEnabled False' should disable SSO" SSODisabled status
 
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
