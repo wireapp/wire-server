@@ -316,7 +316,7 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Legalhold status" Doc.end
 
-    get "/teams/:tid/features/SSO" (continue getSSOStatus) $
+    get "/teams/:tid/features/sso" (continue getSSOStatus) $
         capture "tid"
 
     document "GET" "getSSOStatus" $ do
@@ -324,7 +324,7 @@ sitemap = do
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
         Doc.returns Doc.bool'
-        Doc.response 200 "Legalhold status" Doc.end
+        Doc.response 200 "SSO status" Doc.end
 
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"
@@ -335,7 +335,7 @@ sitemap = do
         summary "Disable / enable SSO feature for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
-        Doc.response 200 "Legalhold status" Doc.end
+        Doc.response 200 "SSO status" Doc.end
 
     --- Swagger ---
     get "/stern/api-docs"
