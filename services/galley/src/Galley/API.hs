@@ -921,20 +921,20 @@ sitemap = do
     -- possible internally. Viewing the status should be allowed
     -- for any admin
 
-    get "/i/teams/:tid/legalhold" (continue Teams.getLegalholdStatusInternal) $
+    get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
         capture "tid"
         .&. accept "application" "json"
 
-    put "/i/teams/:tid/legalhold" (continue Teams.setLegalholdStatusInternal) $
+    put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternal) $
         capture "tid"
         .&. jsonRequest @LegalHoldTeamConfig
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/sso" (continue Teams.getSSOStatusInternal) $
+    get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternal) $
         capture "tid"
         .&. accept "application" "json"
 
-    put "/i/teams/:tid/sso" (continue Teams.setSSOStatusInternal) $
+    put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternal) $
         capture "tid"
         .&. jsonRequest @SSOTeamConfig
         .&. accept "application" "json"

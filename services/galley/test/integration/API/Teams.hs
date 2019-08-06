@@ -1106,12 +1106,12 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal tid = do
     g <- view tsGalley
     get $ g
-         . paths ["i", "teams", toByteString' tid, "legalhold"]
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
-_putSSOEnabledInternal :: HasCallStack => TeamId -> SSOStatus -> TestM ()
-_putSSOEnabledInternal tid enabled = do
+putSSOEnabledInternal :: HasCallStack => TeamId -> SSOStatus -> TestM ()
+putSSOEnabledInternal tid enabled = do
     g <- view tsGalley
     void . put $ g
-         . paths ["i", "teams", toByteString' tid, "sso"]
-         . json (SSOTeamConfig enabled)
-         . expect2xx
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . json (SSOTeamConfig enabled)
+        . expect2xx

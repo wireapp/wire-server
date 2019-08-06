@@ -600,7 +600,7 @@ getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
     g <- view tsGalley
     get $ g
-         . paths ["i", "teams", toByteString' tid, "legalhold"]
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 renewToken :: HasCallStack => Text -> TestM ()
 renewToken tok = do
@@ -614,7 +614,7 @@ putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = do
     g <- view tsGalley
     void . put $ g
-         . paths ["i", "teams", toByteString' tid, "legalhold"]
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
          . json (LegalHoldTeamConfig enabled)
          . expect2xx
 
