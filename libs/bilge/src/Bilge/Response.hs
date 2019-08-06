@@ -16,10 +16,12 @@ module Bilge.Response
     , responseHeaders
     , responseVersion
     , responseBody
+    , responseJson
     ) where
 
 import Imports
 import Control.Lens
+import Data.Aeson (FromJSON, eitherDecode)
 import Data.CaseInsensitive (original)
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
@@ -75,3 +77,9 @@ showResponse r = showString "HTTP/"
   where
     showHeaders = foldl' (.) (showString "") (map showHdr (responseHeaders r))
     showHdr (k, v) = showString . C.unpack $ original k <> ": " <> v <> "\n"
+
+
+responseJson :: FromJSON a => Response (Maybe LByteString) -> Either String a
+responseJson resp = case responseBody resp of
+    Nothing  -> Left "no body"
+    Just raw -> eitherDecode raw

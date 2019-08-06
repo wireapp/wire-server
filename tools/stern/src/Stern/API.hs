@@ -7,28 +7,26 @@
 
 module Stern.API (start) where
 
-import Stern.API.Predicates
+import Imports hiding (head)
+
 import Brig.Types
 import Brig.Types.Intra
 import Control.Applicative ((<|>))
-import Control.Lens (view, (^.))
-import Control.Monad (liftM, void, when, unless)
-import Control.Monad.Catch (throwM)
 import Control.Error
+import Control.Lens (view, (^.))
+import Control.Monad.Catch (throwM)
+import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Id
-import Data.Int
-import Data.Either
 import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
-import Data.Text (Text, unpack)
 import Data.Text.Encoding (decodeLatin1)
-import Imports hiding (head)
+import Data.Text (Text, unpack)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -36,7 +34,7 @@ import Network.Wai.Predicate hiding (Error, setStatus, reason)
 import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Prelude hiding (log, head)
+import Stern.API.Predicates
 import Stern.App
 import Stern.Options
 import Stern.Types
@@ -295,6 +293,50 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Team Information" Doc.end
 
+    -- feature flags
+
+    get "/teams/:tid/features/legalhold" (continue getLegalholdStatus) $
+        capture "tid"
+
+    document "GET" "getLegalholdStatus" $ do
+        summary "Shows whether legalhold feature is enabled for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.returns Doc.bool'
+        Doc.response 200 "Legalhold status" Doc.end
+
+    put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
+        contentType "application" "json"
+        .&. capture "tid"
+        .&. jsonRequest @Bool
+
+    document "PUT" "setLegalholdStatus" $ do
+        summary "Disable / enable legalhold feature for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.response 200 "Legalhold status" Doc.end
+
+    get "/teams/:tid/features/SSO" (continue getSSOStatus) $
+        capture "tid"
+
+    document "GET" "getSSOStatus" $ do
+        summary "Shows whether SSO feature is enabled for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.returns Doc.bool'
+        Doc.response 200 "Legalhold status" Doc.end
+
+    put "/teams/:tid/features/sso" (continue setSSOStatus) $
+        contentType "application" "json"
+        .&. capture "tid"
+        .&. jsonRequest @Bool
+
+    document "PUT" "setSSOStatus" $ do
+        summary "Disable / enable SSO feature for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.response 200 "Legalhold status" Doc.end
+
     --- Swagger ---
     get "/stern/api-docs"
         (\(_ ::: url) k ->
@@ -485,6 +527,23 @@ deleteFromBlacklist emailOrPhone = do
 
 getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
+
+
+getLegalholdStatus :: TeamId -> Handler Response
+getLegalholdStatus = liftM json . Intra.getLegalholdStatus
+
+setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setLegalholdStatus (_ ::: tid ::: req) = do
+    status <- parseBody req !>> Error status400 "client-error"
+    liftM json $ Intra.setLegalholdStatus tid status
+
+getSSOStatus :: TeamId -> Handler Response
+getSSOStatus = liftM json . Intra.getSSOStatus
+
+setSSOStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setSSOStatus (_ ::: tid ::: req) = do
+  status <- parseBody req !>> Error status400 "client-error"
+  liftM json $ Intra.setLegalholdStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do
