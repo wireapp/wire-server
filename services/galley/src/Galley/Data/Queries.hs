@@ -1,10 +1,11 @@
 module Galley.Data.Queries where
 
 import Imports
-import Brig.Types.Code
-import Brig.Types.Team.LegalHold (LegalHoldStatus)
+
 import Brig.Types.Client.Prekey
+import Brig.Types.Code
 import Brig.Types.Provider
+import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
@@ -13,9 +14,9 @@ import Data.LegalHold
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
--- import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Text.RawString.QQ
 
 import qualified Data.Text.Lazy as LT
@@ -298,3 +299,11 @@ updateUserLegalHoldStatus = [r|
           set legalhold_status = ?
           where team = ? and user = ?
     |]
+
+selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity SSOStatus)
+selectSSOTeamConfig =
+  "select sso_status from team_features where team_id = ?"
+
+updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
+updateSSOTeamConfig =
+  "update team_features set sso_status = ? where team_id = ?"
