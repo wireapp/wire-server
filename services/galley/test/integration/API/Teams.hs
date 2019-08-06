@@ -1,9 +1,11 @@
 module API.Teams (tests) where
 
 import Imports
+import API.SQS
 import API.Util
-import Bilge hiding (timeout)
 import Bilge.Assert
+import Bilge hiding (timeout)
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig(..), LegalHoldStatus(..))
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
@@ -17,12 +19,11 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
+import TestHelpers (test)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import TestHelpers (test)
-import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
-import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
 import qualified API.Util as Util
@@ -70,6 +71,7 @@ tests s = testGroup "Teams API"
     , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
     , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
     , test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
+    , test s "feature flags" testFeatureFlags
     ]
 
 timeout :: WS.Timeout
@@ -1088,6 +1090,14 @@ postCryptoBroadcastMessage100OrMaxConns = do
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing
 
+
+getSSOEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getSSOEnabled uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "features", "sso"]
+        . zUser uid
+
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal tid = do
     g <- view tsGalley
@@ -1101,3 +1111,74 @@ putSSOEnabledInternal tid enabled = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
         . json (SSOTeamConfig enabled)
         . expect2xx
+
+getLegalHoldEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getLegalHoldEnabled uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "features", "legalhold"]
+        . zUser uid
+
+getLegalHoldEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
+getLegalHoldEnabledInternal tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+
+putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal tid enabled = do
+    g <- view tsGalley
+    void . put $ g
+        . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+        . json (LegalHoldTeamConfig enabled)
+        . expect2xx
+
+
+testFeatureFlags :: TestM ()
+testFeatureFlags = do
+    owner <- Util.randomUser
+    tid <- Util.createTeam "foo" owner []
+
+    -- sso
+
+    let getSSO :: HasCallStack => SSOStatus -> TestM ()
+        getSSO expected = getSSOEnabled owner tid !!! do
+          statusCode === const 200
+          responseJson === const (Right (SSOTeamConfig expected))
+
+        getSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        getSSOInternal expected = getSSOEnabledInternal tid !!! do
+          statusCode === const 200
+          responseJson === const (Right (SSOTeamConfig expected))
+
+        setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        setSSOInternal = putSSOEnabledInternal tid
+
+    getSSO SSODisabled
+    getSSOInternal SSODisabled
+
+    setSSOInternal SSOEnabled
+    getSSO SSOEnabled
+    getSSOInternal SSOEnabled
+
+    -- legalhold
+
+    let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
+        getLegalHold expected = getLegalHoldEnabled owner tid !!! do
+          statusCode === const 200
+          responseJson === const (Right (LegalHoldTeamConfig expected))
+
+        getLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        getLegalHoldInternal expected = getLegalHoldEnabledInternal tid !!! do
+          statusCode === const 200
+          responseJson === const (Right (LegalHoldTeamConfig expected))
+
+        setLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        setLegalHoldInternal = putLegalHoldEnabledInternal tid
+
+    getLegalHold LegalHoldDisabled
+    getLegalHoldInternal LegalHoldDisabled
+
+    setLegalHoldInternal LegalHoldEnabled
+    getLegalHold LegalHoldEnabled
+    getLegalHoldInternal LegalHoldEnabled
