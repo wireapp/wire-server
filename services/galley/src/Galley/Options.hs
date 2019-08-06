@@ -5,7 +5,7 @@ import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Util.Options
 import Util.Options.Common
-import System.Logger (Level)
+import System.Logger.Class (Level)
 import Data.Misc
 
 data Settings = Settings
