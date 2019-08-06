@@ -151,21 +151,22 @@ testCreateTeamWithMembers = do
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do
-    -- g <- view tsGalley
     owner <- Util.randomUser
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
 
-    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Teams should start with SSO disabled" SSODisabled status
+    let check :: HasCallStack => String -> SSOStatus -> TestM ()
+        check msg enabledness = do
+          SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+          liftIO $ assertEqual msg enabledness status
+
+    check "Teams should start with SSO disabled" SSODisabled
 
     putSSOEnabledInternal tid SSOEnabled
-    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Calling 'putEnabled True' should enable SSO" SSOEnabled status
+    check "Calling 'putEnabled True' should enable SSO" SSOEnabled
 
     putSSOEnabledInternal tid SSODisabled
-    do SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-       liftIO $ assertEqual "Calling 'putEnabled False' should disable SSO" SSODisabled status
+    check  "Calling 'putEnabled False' should disable SSO" SSODisabled
 
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
