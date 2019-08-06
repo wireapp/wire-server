@@ -14,8 +14,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
-import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))

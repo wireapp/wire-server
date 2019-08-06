@@ -6,7 +6,7 @@ module Spar.Intra.Galley where
 import Imports
 import Bilge
 import Galley.Types.Teams
-import Galley.Types.Teams.Feature
+import Galley.Types.Teams.SSO
 import Control.Monad.Except
 import Control.Lens
 import Data.Aeson (FromJSON, eitherDecode')

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Galley.Types.Teams.Feature where
+module Galley.Types.Teams.SSO where
 
 import Imports
 import Data.Aeson

@@ -119,7 +119,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
-import qualified Galley.Types.Teams.Feature as Galley
+import qualified Galley.Types.Teams.SSO as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA

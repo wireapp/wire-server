@@ -24,7 +24,7 @@ import Util.Types
 import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
-import qualified Galley.Types.Teams.Feature as Galley
+import qualified Galley.Types.Teams.SSO as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky

@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module Galley.Data.Teams
+module Galley.Data.SSO
     ( setSSOTeamConfig
     , getSSOTeamConfig
     ) where
@@ -8,7 +8,7 @@ import Imports
 import Cassandra
 import Data.Id
 import Galley.Data.Instances ()
-import Galley.Types.Teams.Feature
+import Galley.Types.Teams.SSO
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSSOTeamConfig :: MonadClient m => TeamId -> m (Maybe SSOTeamConfig)

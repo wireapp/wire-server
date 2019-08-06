@@ -12,18 +12,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - Galley.Types
-  - Galley.Types.Bot
-  - Galley.Types.Bot.Service
-  - Galley.Types.Bot.Service.Internal
-  - Galley.Types.Proto
-  - Galley.Types.Swagger
-  - Galley.Types.Teams
-  - Galley.Types.Teams.Internal
-  - Galley.Types.Teams.Intra
-  - Galley.Types.Teams.Feature
-  - Galley.Types.Teams.Swagger
   dependencies:
   - aeson >=0.6
   - attoparsec >=0.10

@@ -10,8 +10,8 @@ import Control.Error (note)
 import Galley.Types
 import Galley.Types.Bot()
 import Galley.Types.Teams
-import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 
 deriving instance Cql MutedStatus
 deriving instance Cql ReceiptMode

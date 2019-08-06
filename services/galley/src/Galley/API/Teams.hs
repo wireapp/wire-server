@@ -53,8 +53,8 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
 import Galley.Types.Teams
-import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -64,7 +64,7 @@ import UnliftIO (mapConcurrently)
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
-import qualified Galley.Data.Teams as Data
+import qualified Galley.Data.SSO as SSOData
 import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
@@ -510,7 +510,7 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- | Get legal SSO status for a team.
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
-    ssoTeamConfig <- Data.getSSOTeamConfig tid
+    ssoTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
   where
     defConfig = SSOTeamConfig SSODisabled
@@ -523,7 +523,7 @@ setSSOStatusInternal (tid ::: req ::: _) = do
         -- TODO: What to do when it's disabled, notify spar?
         SSODisabled -> pure ()
         SSOEnabled  -> pure ()
-    Data.setSSOTeamConfig tid ssoTeamConfig
+    SSOData.setSSOTeamConfig tid ssoTeamConfig
     pure noContent
 
 -- | Get legal hold status for a team.

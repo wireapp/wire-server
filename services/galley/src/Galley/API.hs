@@ -19,8 +19,8 @@ import Galley.API.Query
 import Galley.API.Swagger (swagger)
 import Galley.Types
 import Galley.Types.Teams
-import Galley.Types.Teams.Feature
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Network.HTTP.Types
