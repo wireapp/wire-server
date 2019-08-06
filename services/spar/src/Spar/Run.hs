@@ -26,7 +26,7 @@ import Spar.App
 import Spar.Data.Instances ()
 import Spar.Orphans ()
 import Spar.Types as Types
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
