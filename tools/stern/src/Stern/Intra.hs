@@ -52,6 +52,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error)
+import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
@@ -499,9 +500,15 @@ getMarketoResult email = do
     r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/marketo/emails", toByteString' email]
-         . expect2xx
+         . expect [status200, status404]
          )
-    parseResponse (Error status502 "bad-upstream") r
+    -- 404 is acceptable when marketo doesn't know about this user, return an empty result
+    case statusCode r of
+         200 -> parseResponse (Error status502 "bad-upstream") r
+         404 -> return noEmail
+         _   -> throwE (Error status502 "bad-upstream" "")
+  where
+    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
