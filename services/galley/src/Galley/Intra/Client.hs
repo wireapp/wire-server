@@ -16,7 +16,6 @@ import Brig.Types.Client
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Data.ByteString.Conversion (toByteString')
 import Control.Monad.Catch
-import Control.Lens (view)
 import Galley.App
 import Galley.API.Error
 import Galley.External.LegalHoldService
@@ -108,4 +107,3 @@ brigAddClient uid connId client = do
         . json client
         . expect2xx
     parseResponse (Error status502 "server-error") r
-
