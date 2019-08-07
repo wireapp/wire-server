@@ -16,9 +16,8 @@ import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 
-import qualified Data.Text.Lazy as Text
--- TODO(arianvp): Make this Classy. we can utilise UnliftIO here
-import qualified System.Logger.Class  as Logger
+import qualified Data.Text.Lazy      as Text
+import qualified System.Logger.Class as Logger
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout
