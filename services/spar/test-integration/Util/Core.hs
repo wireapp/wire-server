@@ -27,6 +27,7 @@ module Util.Core
   -- * Other
   , defPassword
   , createUserWithTeam
+  , createUserWithTeamDisableSSO
   , getSSOEnabledInternal
   , putSSOEnabledInternal
   , createTeamMember
@@ -227,6 +228,12 @@ aFewTimes action good = do
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
+    (uid, tid) <- createUserWithTeamDisableSSO brg gly
+    putSSOEnabledInternal gly tid Galley.SSOEnabled
+    pure (uid, tid)
+
+createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeamDisableSSO brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
     let p = RequestBodyLBS . Aeson.encode $ object
@@ -243,7 +250,6 @@ createUserWithTeam brg gly = do
     selfTeam <- Brig.userTeam . Brig.selfUser <$> getSelfProfile brg uid
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
-    putSSOEnabledInternal gly tid Galley.SSOEnabled
     return (uid, tid)
 
 getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
