@@ -4,7 +4,6 @@
 module Spar.App
   ( Spar(..)
   , Env(..)
-  , condenseLogMsg
   , toLevel
   , wrapMonadClientWithEnv
   , wrapMonadClient
@@ -80,9 +79,6 @@ instance MonadLogger Spar where
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
     Spar . Log.log lg level $ fields Log.~~ mg
-
-condenseLogMsg :: ST -> ST
-condenseLogMsg = ST.intercalate " " . filter (not . ST.null) . ST.split isSpace
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
