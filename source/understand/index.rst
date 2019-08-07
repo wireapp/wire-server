@@ -7,4 +7,5 @@ This section is almost empty, more documentation will come soon...
    :maxdepth: 1
    :glob:
 
-   Audio/video calling, TURN servers, restund </understand/restund.rst>
+   Overview </understand/overview.rst>
+   Audio/video calling, restund servers (TURN/STUN) </understand/restund.rst>
