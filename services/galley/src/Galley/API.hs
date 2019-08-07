@@ -948,7 +948,7 @@ sitemap = do
 
     get "/i/test/clients" (continue getClients)
         zauthUserId
-    -- TODO: What is this endpoint? Is this used anywhere?
+        -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
     post "/i/clients/:client" (continue addClient) $
         zauthUserId
