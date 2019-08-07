@@ -4,8 +4,6 @@ import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
--- TODO: After we've migrated legalhold to a separate feature table,
---       delete `legalhold_team_config`
 migration :: Migration
 migration = Migration 34 "Add team features table" $ do
     schema' [r|
