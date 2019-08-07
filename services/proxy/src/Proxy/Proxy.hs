@@ -11,6 +11,7 @@ import Data.Id (RequestId (..))
 import Proxy.Env
 import Network.Wai
 import System.Logger.Class hiding (Error, info)
+import Control.Monad.IO.Unlift()
 
 import qualified System.Logger as Logger
 
@@ -24,6 +25,7 @@ newtype Proxy a = Proxy
                , MonadCatch
                , MonadMask
                , MonadReader Env
+               , MonadUnliftIO
                )
 
 instance MonadLogger Proxy where

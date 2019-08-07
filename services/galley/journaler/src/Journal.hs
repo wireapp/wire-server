@@ -10,7 +10,7 @@ import Data.Proto.Id as Proto
 import Proto.TeamEvents
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 import UnliftIO (mapConcurrently)
 
 import qualified System.Logger        as Log

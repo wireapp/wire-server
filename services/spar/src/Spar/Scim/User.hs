@@ -35,7 +35,7 @@ import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
 
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createSamlUserWithId, wrapMonadClient, getUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createSamlUserWithId, wrapMonadClient, getUser)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -47,7 +47,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
-import qualified System.Logger as Log
+import qualified System.Logger.Class as Log
 
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
@@ -420,8 +420,7 @@ deleteScimUser ScimTokenInfo{stiTeam} uid = do
   where
     logThenServerError :: String -> Scim.ScimHandler Spar b
     logThenServerError err = do
-      logger <- asks sparCtxLogger
-      Log.err logger $ Log.msg err
+      lift $ Log.err (Log.msg err)
       throwError $ Scim.serverError "Server Error"
 
 

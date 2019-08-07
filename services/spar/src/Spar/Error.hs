@@ -31,7 +31,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import qualified SAML2.WebSSO as SAML
-import qualified System.Logger as Log
+import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
 
 

@@ -28,7 +28,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-import qualified System.Logger as Logger
+import qualified System.Logger.Class as Logger
 import qualified Data.Set as Set
 
 lookupClients :: [UserId] -> Galley UserClients
@@ -64,10 +64,9 @@ getLegalHoldAuthToken uid = do
             . queryItem "persist" "true"
             . json (SsoLogin uid Nothing)
             . expect2xx
-    lg <- view applog
     case getCookieValue "zuid" r of
         Nothing -> do
-            Logger.warn lg $ Logger.msg @Text "Response from login missing auth cookie"
+            Logger.warn $ Logger.msg @Text "Response from login missing auth cookie"
             throwM internalError
         Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 

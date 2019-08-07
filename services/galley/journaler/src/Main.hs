@@ -16,7 +16,7 @@ import Options.Applicative
 
 import qualified Galley.Aws as Aws
 import qualified OpenSSL.X509.SystemStore as Ssl
-import qualified System.Logger as Log
+import qualified System.Logger.Class as Log
 
 
 main :: IO ()

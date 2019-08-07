@@ -17,7 +17,7 @@ import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
-import System.Logger (Level)
+import System.Logger.Class (Level)
 
 import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y

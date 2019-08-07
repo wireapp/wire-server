@@ -17,7 +17,7 @@ where
 import Imports
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
-import System.Logger (Level)
+import System.Logger.Class (Level)
 
 
 data Cannon = Cannon

@@ -40,6 +40,7 @@ import Options.Applicative hiding (info)
 import qualified Database.CQL.IO.Tinylog as CT
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text.Lazy as LT
+-- FUTUREWORK: We could use the System.Logger.Class here in the future, but we don't have a ReaderT IO here (yet)
 import qualified System.Logger as Log
 
 data Migration = Migration
