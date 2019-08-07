@@ -25,7 +25,7 @@ import Network.Wire.Client.Monad
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Encoding   as T
 import qualified Network.HTTP.Client  as Rq
-import qualified System.Logger.Class        as Log
+import qualified System.Logger.Class  as Log
 
 data Error = Error
     { code    :: Int
