@@ -1,5 +1,6 @@
-Check back later, work in progress...
+# Wire-docs
 
+Source files for wire-server documentation.
 
 ## Reading the documentation
 
@@ -23,20 +24,18 @@ make
 
 (Alternatively, if you have python dependencies installed, run `make html`).
 
-
 Look at results by opening build/html/index.html
 
-Upload to S3
+## For maintainers (Wire employees)
+
+### Upload to S3
+
+CI is set up to do this automatically on a push to master. If for some reason you wish to upload manually to S3:
+
+(You need amazon credentials for pushing to S3)
 
 ```
 make push
 ```
 
-(You need wire credentials for pushing to S3.  If you don't have any,
-just [open a PR](https://github.com/wireapp/wire-docs/).)
-
-All-in one
-
-```
-make docs push
-```
+Please note that cloudfront CDN has a certain cache duration (at the time of writing: 1 minute), so changes will take a bit of time to take effect.
