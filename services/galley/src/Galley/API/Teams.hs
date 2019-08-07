@@ -71,6 +71,7 @@ import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
 import qualified Galley.Intra.Spar as Spar
+import qualified System.Logger.Class as Log
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -112,6 +113,8 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     let zothers = map (view userId) others
     ensureUnboundUsers (zusr : zothers)
     ensureConnected zusr zothers
+    Log.debug $ Log.field "targets" (toByteString (show zothers))
+              . Log.msg (Log.val "createNonBindingTeam")
     team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
     finishCreateTeam team owner others (Just zcon)
 
@@ -149,6 +152,8 @@ updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JS
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromJsonBody req
     membs <- Data.teamMembers tid
+    Log.debug $ Log.field "targets" (toByteString (show membs))
+              . Log.msg (Log.val "updateTeam")
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body
     now <- liftIO getCurrentTime
@@ -243,16 +248,17 @@ uncheckedGetTeamMembers (tid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     nmem <- fromJsonBody req
+    let uid = nmem^.ntmNewTeamMember.userId
+    Log.debug $ Log.field "target" (toByteString uid)
+              . Log.msg (Log.val "addTeamMember")
     mems <- Data.teamMembers tid
-
     -- verify permissions
     tmem <- permissionCheck zusr AddTeamMember mems
     let targetPermissions = nmem^.ntmNewTeamMember.permissions
     targetPermissions `ensureNotElevated` tmem
-
     ensureNonBindingTeam tid
-    ensureUnboundUsers [nmem^.ntmNewTeamMember.userId]
-    ensureConnected zusr [nmem^.ntmNewTeamMember.userId]
+    ensureUnboundUsers [uid]
+    ensureConnected zusr [uid]
     addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -271,6 +277,9 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     targetMember <- view ntmNewTeamMember <$> fromJsonBody req
     let targetId          = targetMember^.userId
         targetPermissions = targetMember^.permissions
+
+    Log.debug $ Log.field "target" (toByteString targetId)
+              . Log.msg (Log.val "updateTeamMember")
 
     -- get the team and verify permissions
     team    <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -305,6 +314,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
         privilegedUpdate       = mkUpdate $ Just targetPermissions
         privilegedRecipients   = membersToRecipients Nothing privileged
 
+
     now <- liftIO getCurrentTime
     let ePriv  = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
 
@@ -315,6 +325,8 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
+    Log.debug $ Log.field "target" (toByteString remove)
+              . Log.msg (Log.val "deleteTeamMember")
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
     okToDelete <- canBeDeleted [] remove tid
@@ -447,10 +459,12 @@ ensureNotElevated targetPermissions member =
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
 addTeamMemberInternal tid origin originConn newMem mems = do
+    let new = newMem^.ntmNewTeamMember
+    Log.debug $ Log.field "target" (toByteString (new^.userId))
+              . Log.msg (Log.val "addTeamMemberInternal")
     o <- view options
     unless (length mems < fromIntegral (o^.optSettings.setMaxTeamSize)) $
         throwM tooManyTeamMembers
-    let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new
     cc  <- filter (view managedConversation) <$> Data.teamConversations tid
     now <- liftIO getCurrentTime
