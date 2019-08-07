@@ -21,7 +21,7 @@ You need to have access to a kubernetes cluster, and the ``helm`` local binary o
 * If you don't have a kubernetes cluster, you have two options:
 
   * You can get access to a managed kubernetes cluster with the cloud provider of your choice.
-  * You can install one if you have ssh access to a virtual machine, see :ref:`deps` and :ref:`ansible-kubernetes`
+  * You can install one if you have ssh access to a virtual machine, see :ref:`ansible-kubernetes`
 
 * If you don't have ``helm`` yet, see `Installing helm <https://helm.sh/docs/using_helm/#installing-helm>`__.
 

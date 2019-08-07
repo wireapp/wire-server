@@ -24,7 +24,6 @@ from recommonmark.transform import AutoStructify
 
 def setup(app):
     app.add_config_value('recommonmark_config', {
-        'enable_auto_doc_ref': True,
         'enable_auto_toc_tree': False,
     }, True)
     app.add_transform(AutoStructify)
@@ -62,10 +61,6 @@ templates_path = ['templates']
 # You can specify multiple suffix as a list of string:
 #
 source_suffix = ['.rst', '.md']
-
-source_parsers = {
-    '.md': CommonMarkParser,
-}
 
 # The master toctree document.
 master_doc = 'index'

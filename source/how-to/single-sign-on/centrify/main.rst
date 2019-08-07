@@ -13,8 +13,6 @@ Steps
 Centrify setup
 ^^^^^^^^^^^^^^
 
-----
-
 - Log in into Centrify web interface
 - Navigate to "Web Apps"
 - Click "Add Web Apps"

@@ -1,5 +1,3 @@
-.. _deps:
-
 Dependencies on operator's machine
 --------------------------------------------------------------------
 
@@ -38,7 +36,7 @@ Download the ansible roles necessary to install databases and kubernetes
 
 
 (Option 2) How to use docker on the local host with a docker image that contains all the dependencies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On your machine you need to have the `docker` binary available. See `how to install docker <https://docker.com>`__. Then:
 

@@ -13,8 +13,6 @@ Steps
 Okta setup
 ~~~~~~~~~~
 
-----
-
 - Log in into Okta web interface
 - Open the admin console and switch to the "Classic UI"
 - Navigate to "Applications"
