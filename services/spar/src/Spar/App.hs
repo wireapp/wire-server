@@ -72,9 +72,7 @@ instance HasNow Spar where
 instance HasCreateUUID Spar where
 instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  logger (toLevel -> lv) mg = do
-    let mg'    = Log.msg . condenseLogMsg . cs $ mg
-    log lv mg'
+  logge lv = logger lv = log (toLevel lv) . Log.msg . cs
 
 instance MonadLogger Spar where
   log level mg = do
