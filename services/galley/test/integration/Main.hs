@@ -31,7 +31,7 @@ import Util.Test
 import qualified API
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
-import qualified System.Logger.Class   as Logger
+import qualified System.Logger.Class    as Logger
 
 newtype ServiceConfigFile = ServiceConfigFile String
     deriving (Eq, Ord, Typeable)
