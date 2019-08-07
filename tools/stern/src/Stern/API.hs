@@ -304,6 +304,7 @@ sitemap = do
             description "Team ID"
         Doc.returns Doc.bool'
         Doc.response 200 "Legalhold status" Doc.end
+        Doc.returns Doc.bool'
 
     put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
         contentType "application" "json"
@@ -314,6 +315,8 @@ sitemap = do
         summary "Disable / enable legalhold feature for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
+        Doc.body Doc.bool' $
+            Doc.description "JSON body"
         Doc.response 200 "Legalhold status" Doc.end
 
     get "/teams/:tid/features/sso" (continue getSSOStatus) $
@@ -325,6 +328,7 @@ sitemap = do
             description "Team ID"
         Doc.returns Doc.bool'
         Doc.response 200 "SSO status" Doc.end
+        Doc.returns Doc.bool'
 
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"
@@ -335,6 +339,8 @@ sitemap = do
         summary "Disable / enable SSO feature for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
+        Doc.body Doc.bool' $
+            Doc.description "JSON body"
         Doc.response 200 "SSO status" Doc.end
 
     --- Swagger ---
