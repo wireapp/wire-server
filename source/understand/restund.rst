@@ -14,7 +14,7 @@ call. More precisely:
    `TURN <https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT>`__
    Server, with IPv4 and IPv6 support.
 
-.. _architecture-1:
+.. _architecture-restund:
 
 Architecture
 ~~~~~~~~~~~~
