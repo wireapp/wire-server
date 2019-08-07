@@ -21,13 +21,12 @@ import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, retrying, exponentialBackoff, limitRetries)
 import Data.Aeson.Types (FromJSON, (.:))
 import Data.ByteString.Conversion
-import Data.EitherR (fmapL)
 import Data.Id
 import Data.LegalHold
 import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy(Proxy))
-import Data.String.Conversions (LBS, ST, cs)
+import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.External.LegalHoldService (validateServiceKey)
@@ -601,7 +600,7 @@ getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
     g <- view tsGalley
     get $ g
-         . paths ["i", "teams", toByteString' tid, "legalhold"]
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 renewToken :: HasCallStack => Text -> TestM ()
 renewToken tok = do
@@ -615,7 +614,7 @@ putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = do
     g <- view tsGalley
     void . put $ g
-         . paths ["i", "teams", toByteString' tid, "legalhold"]
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
          . json (LegalHoldTeamConfig enabled)
          . expect2xx
 
@@ -711,12 +710,6 @@ assertZeroLegalHoldDevices uid = do
         assertBool ("a legal hold device was found when none was expected for user"
                     <> show uid)
                    (numdevs == 0)
-
-jsonBody :: (HasCallStack, Aeson.FromJSON v) => ResponseLBS -> v
-jsonBody resp = either (error . show . (, bdy)) id . Aeson.eitherDecode $ bdy
-  where
-    bdy = fromJust $ responseBody resp
-
 
 ---------------------------------------------------------------------
 --- Device helpers
@@ -842,27 +835,6 @@ publicKeyNotMatchingService =
 
 ----------------------------------------------------------------------
 -- test helpers
-
-testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
-testResponse status mlabel = do
-    const status === statusCode
-    case mlabel of
-        Just label -> responseJSON === const (Right label)
-        Nothing    -> (isLeft <$> responseJSON @TestErrorLabel) === const True
-
-newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
-    deriving (Eq, Show)
-
-instance IsString TestErrorLabel where
-    fromString = TestErrorLabel . cs
-
-instance Aeson.FromJSON TestErrorLabel where
-    parseJSON = fmap TestErrorLabel . Aeson.withObject "TestErrorLabel" (Aeson..: "label")
-
--- FUTUREWORK: move this to /lib/bilge?  (there is another copy of this in spar.)
-responseJSON :: (HasCallStack, Aeson.FromJSON a) => ResponseLBS -> Either String a
-responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
-
 
 -- FUTUREWORK: Currently, the encoding of events is confusingly inside brig and not
 -- brig-types. (Look for toPushFormat in the code) We should refactor. To make

@@ -1,10 +1,11 @@
 module Galley.Data.Queries where
 
 import Imports
-import Brig.Types.Code
-import Brig.Types.Team.LegalHold (LegalHoldStatus)
+
 import Brig.Types.Client.Prekey
+import Brig.Types.Code
 import Brig.Types.Provider
+import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Id
@@ -13,9 +14,9 @@ import Data.LegalHold
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
--- import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Text.RawString.QQ
 
 import qualified Data.Text.Lazy as LT
@@ -244,12 +245,16 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 -- LegalHold ----------------------------------------------------------------
 
 selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldStatus)
-selectLegalHoldTeamConfig =
-  "select status from legalhold_team_config where team_id = ?"
+selectLegalHoldTeamConfig = if True then _old else _new  -- TODO: get rid of _old
+  where
+    _new = "select legalhold_status from team_features where team_id = ?"
+    _old = "select status from legalhold_team_config where team_id = ?"
 
 updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
-updateLegalHoldTeamConfig =
-  "update legalhold_team_config set status = ? where team_id = ?"
+updateLegalHoldTeamConfig = if True then _old else _new  -- TODO: get rid of _old
+  where
+    _new = "update team_features set legalhold_status = ? where team_id = ?"
+    _old = "update legalhold_team_config set status = ? where team_id = ?"
 
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
 insertLegalHoldSettings =
@@ -298,3 +303,11 @@ updateUserLegalHoldStatus = [r|
           set legalhold_status = ?
           where team = ? and user = ?
     |]
+
+selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity SSOStatus)
+selectSSOTeamConfig =
+  "select sso_status from team_features where team_id = ?"
+
+updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
+updateSSOTeamConfig =
+  "update team_features set sso_status = ? where team_id = ?"

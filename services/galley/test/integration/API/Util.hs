@@ -9,12 +9,14 @@ import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Conversion
+import Data.EitherR (fmapL)
 import Data.Id
 import Data.List1 as List1
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
 import Data.Serialize (runPut)
+import Data.String.Conversions (cs, ST)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
@@ -567,6 +569,31 @@ assertNoMsg ws f = do
 -------------------------------------------------------------------------------
 -- Helpers
 
+jsonBody :: (HasCallStack, FromJSON v) => ResponseLBS -> v
+jsonBody resp = either (error . show . (, bdy)) id . eitherDecode $ bdy
+  where
+    bdy = fromJust $ responseBody resp
+
+-- FUTUREWORK: move this to /lib/bilge?  (there is another copy of this in spar.)
+responseJSON :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
+responseJSON = fmapL show . eitherDecode <=< maybe (Left "no body") pure . responseBody
+
+testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
+testResponse status mlabel = do
+    const status === statusCode
+    case mlabel of
+        Just label -> responseJSON === const (Right label)
+        Nothing    -> (isLeft <$> responseJSON @TestErrorLabel) === const True
+
+newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
+    deriving (Eq, Show)
+
+instance IsString TestErrorLabel where
+    fromString = TestErrorLabel . cs
+
+instance FromJSON TestErrorLabel where
+    parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
+
 decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
     decodeBody r
@@ -796,7 +823,7 @@ eqMismatch mssd rdnt dltd (Just other) =
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . Map.fromList . map toUserClientMap
   where
-    toUserClientMap (u, cs) = (u, Map.fromList cs)
+    toUserClientMap (u, css) = (u, Map.fromList css)
 
 encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode

@@ -45,6 +45,7 @@ import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Galley as Galley
 import qualified URI.ByteString as URI
 import qualified Web.Cookie as Cky
 
@@ -189,10 +190,13 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 idpCreateXML :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
 idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
+  Galley.assertSSOEnabled teamid
   idp <- validateNewIdP idpmeta teamid
   SAML.storeIdPConfig idp
   pure idp
 
+-- | This handler only does the json parsing, and leaves all authorization checks and
+-- application logic to 'idpCreateXML'.
 idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
 idpCreate zusr (IdPMetadataValue xml) = idpCreateXML zusr xml
 

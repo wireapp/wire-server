@@ -20,6 +20,7 @@ import Galley.API.Swagger (swagger)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Network.HTTP.Types
@@ -36,6 +37,7 @@ import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.API.LegalHold          as LegalHold
+import qualified Galley.API.Teams              as Teams
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
@@ -904,23 +906,49 @@ sitemap = do
         .&. capture "uid"
         .&. accept "application" "json"
 
-    get "/i/teams/:tid/legalhold" (continue LegalHold.getEnabled) $
-        capture "tid"
-        .&. accept "application" "json"
-
-    put "/i/teams/:tid/legalhold" (continue LegalHold.setEnabled) $
-        capture "tid"
-        .&. jsonRequest @LegalHoldTeamConfig
-        .&. accept "application" "json"
-
     get "/i/users/:uid/team/members" (continue getBindingTeamMembers) $
         capture "uid"
 
     get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
+    -- Start of team features; enabling this should only be
+    -- possible internally. Viewing the status should be allowed
+    -- for any admin
+
+    get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternal) $
+        capture "tid"
+        .&. jsonRequest @LegalHoldTeamConfig
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternal) $
+        capture "tid"
+        .&. jsonRequest @SSOTeamConfig
+        .&. accept "application" "json"
+
+    -- End of team features
+
     get "/i/test/clients" (continue getClients)
         zauthUserId
+    -- TODO: What is this endpoint? Is this used anywhere?
 
     post "/i/clients/:client" (continue addClient) $
         zauthUserId

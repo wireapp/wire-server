@@ -9,15 +9,17 @@
 module Test.Brig.Types.Common where
 
 import Imports
+
 import Brig.Types.Common
 import Brig.Types.Team.LegalHold
+import Brig.Types.Test.Arbitrary ()
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
-import Brig.Types.Test.Arbitrary ()
+import Galley.Types.Teams.SSO
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -52,6 +54,8 @@ tests = testGroup "Common (types vs. aeson)"
     , run @RemoveLegalHoldSettingsRequest Proxy
     , run @DisableLegalHoldForUserRequest Proxy
     , run @ApproveLegalHoldForUserRequest Proxy
+    , run @SSOStatus Proxy
+    , run @SSOTeamConfig Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -73,3 +77,9 @@ instance Eq TeamMemberDeleteData where
 
 instance Show TeamMemberDeleteData where
   show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
+
+instance Arbitrary SSOStatus where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary SSOTeamConfig where
+  arbitrary = SSOTeamConfig <$> arbitrary
