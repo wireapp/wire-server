@@ -97,7 +97,7 @@ proxy e qparam keyname reroute path phost rq k = do
                 runProxy e waiReq (k res)
 
     onUpstreamError runInIO x _ next = do
-        runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
+        void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
         next (errorRs' error502)
 
 spotifyToken :: Request -> Proxy Response
