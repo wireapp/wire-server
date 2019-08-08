@@ -1,6 +1,7 @@
 module API.Teams (tests) where
 
 import Imports
+
 import API.SQS
 import API.Util
 import Bilge.Assert
@@ -19,6 +20,7 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
+import Network.HTTP.Types.Status (status403)
 import TestHelpers (test)
 import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
 import Test.Tasty
@@ -34,6 +36,7 @@ import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Test.Tasty.Cannon as WS
 
 tests :: IO TestSetup -> TestTree
@@ -162,13 +165,22 @@ testEnableSSOPerTeam = do
           SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
           liftIO $ assertEqual msg enabledness status
 
+    let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
+        putSSOEnabledInternalCheckNotImplemented = do
+          g <- view tsGalley
+          Wai.Error status label _ <- jsonBody <$> put (g
+              . paths ["i", "teams", toByteString' tid, "features", "sso"]
+              . json (SSOTeamConfig SSODisabled))
+          liftIO $ do
+            assertEqual "bad status" status403 status
+            assertEqual "bad label" "not-implemented" label
+
     check "Teams should start with SSO disabled" SSODisabled
 
     putSSOEnabledInternal tid SSOEnabled
     check "Calling 'putEnabled True' should enable SSO" SSOEnabled
 
-    putSSOEnabledInternal tid SSODisabled
-    check  "Calling 'putEnabled False' should disable SSO" SSODisabled
+    putSSOEnabledInternalCheckNotImplemented
 
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()

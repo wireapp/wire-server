@@ -521,9 +521,8 @@ setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley 
 setSSOStatusInternal (tid ::: req ::: _) = do
     ssoTeamConfig <- fromJsonBody req
     case ssoTeamConfigStatus ssoTeamConfig of
-        -- TODO: What to do when it's disabled, notify spar?
-        SSODisabled -> pure ()
-        SSOEnabled  -> pure ()
+        SSODisabled -> throwM disableSsoNotImplemented
+        SSOEnabled  -> pure () -- this one is easy to implement :)
     SSOData.setSSOTeamConfig tid ssoTeamConfig
     pure noContent
 

@@ -135,3 +135,16 @@ userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold ca
 
 noLegalHoldDeviceAllocated :: Error
 noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+
+disableSsoNotImplemented :: Error
+disableSsoNotImplemented = Error status403 "not-implemented"
+    "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
+    \\n\
+    \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
+    \and spar (SSO).  Galley keeps track of team features.  If galley creates an idp, the feature flag is\n\
+    \checked.  For authentication, spar avoids this expensive check and assumes that the idp can only have\n\
+    \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
+    \again, so we do not support this.\n\
+    \\n\
+    \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
+    \open an issue on https://github.com/wireapp/wire-server."

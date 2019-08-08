@@ -28,7 +28,8 @@ getLegalHoldTeamConfig :: MonadClient m => TeamId -> m (Maybe LegalHoldTeamConfi
 getLegalHoldTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
     retry x1 $ query1 selectLegalHoldTeamConfig (params Quorum (Identity tid))
   where
-    toLegalHoldTeamConfig (Identity status) = LegalHoldTeamConfig status
+    toLegalHoldTeamConfig (Identity Nothing)       = LegalHoldTeamConfig LegalHoldDisabled
+    toLegalHoldTeamConfig (Identity (Just status)) = LegalHoldTeamConfig status
 
 -- | Determines whether a given team is allowed to enable/disable legalhold
 setLegalHoldTeamConfig :: MonadClient m => TeamId -> LegalHoldTeamConfig -> m ()

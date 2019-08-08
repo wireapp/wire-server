@@ -24,7 +24,6 @@ import Util.Types
 import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
-import qualified Galley.Types.Teams.SSO as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
@@ -608,8 +607,7 @@ specCRUDIdentityProvider = do
       context "sso disabled for team" $ do
         it "responds with 403 forbidden" $ do
           env <- ask
-          (uid, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          call $ putSSOEnabledInternal (env ^. teGalley) tid Galley.SSODisabled
+          (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
           (callIdpCreate' (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata)
             `shouldRespondWith` checkErr (== 403) "sso-disabled"
 
