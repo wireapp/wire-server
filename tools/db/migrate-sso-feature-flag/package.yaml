@@ -37,6 +37,6 @@ dependencies:
 - unliftio
 - uuid
 executables:
-  service-backfill:
+  migrate-sso-feature-flag:
     main: Main.hs
     source-dirs: src
