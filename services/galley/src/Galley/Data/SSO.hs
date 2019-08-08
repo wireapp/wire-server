@@ -16,7 +16,8 @@ getSSOTeamConfig :: MonadClient m => TeamId -> m (Maybe SSOTeamConfig)
 getSSOTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
     retry x1 $ query1 selectSSOTeamConfig (params Quorum (Identity tid))
   where
-    toLegalHoldTeamConfig (Identity status) = SSOTeamConfig status
+    toLegalHoldTeamConfig (Identity Nothing)       = SSOTeamConfig SSODisabled
+    toLegalHoldTeamConfig (Identity (Just status)) = SSOTeamConfig status
 
 -- | Determines whether a given team is allowed to enable/disable sso
 setSSOTeamConfig :: MonadClient m => TeamId -> SSOTeamConfig -> m ()

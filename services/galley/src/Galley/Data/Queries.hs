@@ -244,7 +244,7 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 -- LegalHold ----------------------------------------------------------------
 
-selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity LegalHoldStatus)
+selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe LegalHoldStatus))
 selectLegalHoldTeamConfig = "select legalhold_status from team_features where team_id = ?"
 
 updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
@@ -298,7 +298,7 @@ updateUserLegalHoldStatus = [r|
           where team = ? and user = ?
     |]
 
-selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity SSOStatus)
+selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe SSOStatus))
 selectSSOTeamConfig =
   "select sso_status from team_features where team_id = ?"
 
