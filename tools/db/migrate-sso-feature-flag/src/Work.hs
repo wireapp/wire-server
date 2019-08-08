@@ -32,12 +32,12 @@ runCommand l spar galley = do
         $ zipSources (C.sourceList [(1::Int32) ..])
                      (transPipe (runClient spar) getSsoTeams)
        .| C.mapM (\(i, tids) -> do
-                     Log.info l (Log.field "convs" (show (i * pageSize)))
+                     Log.info l (Log.field "number of idps processed: " (show (i * pageSize)))
                      pure (runIdentity <$> tids))
        .| C.mapM_ (\tids -> runClient galley (writeSsoFlags tids))
 
 pageSize :: Int32
-pageSize = 10  -- heehee!
+pageSize = 1000
 
 getSsoTeams :: ConduitM () [Identity TeamId] Client ()
 getSsoTeams = paginateC cql (paramsP Quorum () pageSize) x5

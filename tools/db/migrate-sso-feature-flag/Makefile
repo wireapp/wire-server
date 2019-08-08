@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 
 default: all
 
-all: clean install
+all: install
 
 .PHONY: init
 init:
