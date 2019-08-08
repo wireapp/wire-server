@@ -5,6 +5,8 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE LambdaCase        #-}
 
+{-# OPTIONS_GHC -Wno-unused-binds #-}
+
 module Stern.API (start) where
 
 import Imports hiding (head)
