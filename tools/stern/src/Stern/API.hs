@@ -5,8 +5,6 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE LambdaCase        #-}
 
-{-# OPTIONS_GHC -Wno-unused-binds #-}
-
 module Stern.API (start) where
 
 import Imports hiding (head)
@@ -297,6 +295,29 @@ sitemap = do
         Doc.response 200 "Team Information" Doc.end
 
     -- feature flags
+
+    get "/teams/:tid/features/legalhold" (continue (liftM json . Intra.getLegalholdStatus)) $
+        capture "tid"
+
+    document "GET" "getLegalholdStatus" $ do
+        summary "Shows whether legalhold feature is enabled for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.returns Doc.bool'
+        Doc.response 200 "Legalhold status" Doc.end
+
+    put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
+        contentType "application" "json"
+        .&. capture "tid"
+        .&. jsonRequest @(Tagged "legalhold" Bool)
+
+    document "PUT" "setLegalholdStatus" $ do
+        summary "Disable / enable legalhold feature for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.body Doc.bool' $
+            Doc.description "JSON body"
+        Doc.response 200 "Legalhold status" Doc.end
 
     get "/teams/:tid/features/sso" (continue (liftM json . Intra.getSSOStatus)) $
         capture "tid"
