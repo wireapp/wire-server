@@ -13,11 +13,11 @@ import Galley.Data.Queries
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSSOTeamConfig :: MonadClient m => TeamId -> m (Maybe SSOTeamConfig)
-getSSOTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
+getSSOTeamConfig tid = fmap toSSOTeamConfig <$> do
     retry x1 $ query1 selectSSOTeamConfig (params Quorum (Identity tid))
   where
-    toLegalHoldTeamConfig (Identity Nothing)       = SSOTeamConfig SSODisabled
-    toLegalHoldTeamConfig (Identity (Just status)) = SSOTeamConfig status
+    toSSOTeamConfig (Identity Nothing)       = SSOTeamConfig SSODisabled
+    toSSOTeamConfig (Identity (Just status)) = SSOTeamConfig status
 
 -- | Determines whether a given team is allowed to enable/disable sso
 setSSOTeamConfig :: MonadClient m => TeamId -> SSOTeamConfig -> m ()

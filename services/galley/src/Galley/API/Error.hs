@@ -146,5 +146,5 @@ disableSsoNotImplemented = Error status403 "not-implemented"
     \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
     \again, so we do not support this.\n\
     \\n\
-    \It is definitely feasible to change this.  Tf you have a use case, please contact customer support, or\n\
+    \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."

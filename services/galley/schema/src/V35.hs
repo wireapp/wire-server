@@ -5,7 +5,7 @@ import Cassandra.Schema
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 34 "Delete deprecated legalhold_team_config" $ do
+migration = Migration 35 "Delete deprecated legalhold_team_config" $ do
     schema' [r|
         DROP TABLE  legalhold_team_config;
     |]
