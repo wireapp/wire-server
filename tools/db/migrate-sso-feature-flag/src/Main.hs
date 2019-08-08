@@ -17,9 +17,9 @@ main :: IO ()
 main = do
     s <- execParser (info (helper <*> settingsParser) desc)
     lgr <- initLogger
-    bc <- initCas (s^.setCasBrig) lgr      -- Brig's Cassandra
+    sc <- initCas (s^.setCasSpar) lgr      -- Spar's Cassandra
     gc <- initCas (s^.setCasGalley) lgr    -- Galley's Cassandra
-    runCommand lgr bc gc
+    runCommand lgr sc gc
   where
     desc = header   "service-backfill"
         <> progDesc "Backfill service tables"
