@@ -8,15 +8,15 @@ packages:
 - libs/cargohold-types
 - libs/cassandra-util
 - libs/extended
-- libs/imports
 - libs/galley-types
 - libs/gundeck-types
-- libs/ssl-util
+- libs/imports
 - libs/metrics-collectd
 - libs/metrics-core
 - libs/metrics-wai
 - libs/ropes
 - libs/sodium-crypto-sign
+- libs/ssl-util
 - libs/tasty-cannon
 - libs/types-common
 - libs/types-common-aws
@@ -24,18 +24,18 @@ packages:
 - libs/wai-utilities
 - libs/zauth
 - services/brig
-- services/spar
 - services/cannon
 - services/cargohold
 - services/galley
 - services/gundeck
 - services/proxy
-- tools/bonanza
-- tools/makedeb
+- services/spar
 - tools/api-simulations
-- tools/stern
-- tools/db/service-backfill
+- tools/bonanza
 - tools/db/auto-whitelist
+- tools/db/service-backfill
+- tools/makedeb
+- tools/stern
 
 extra-deps:
 - servant-swagger-1.1.6
