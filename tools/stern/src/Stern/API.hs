@@ -295,30 +295,6 @@ sitemap = do
 
     -- feature flags
 
-    get "/teams/:tid/features/legalhold" (continue getLegalholdStatus) $
-        capture "tid"
-
-    document "GET" "getLegalholdStatus" $ do
-        summary "Shows whether legalhold feature is enabled for team"
-        Doc.parameter Doc.Path "tid" Doc.bytes' $
-            description "Team ID"
-        Doc.returns Doc.bool'
-        Doc.response 200 "Legalhold status" Doc.end
-        Doc.returns Doc.bool'
-
-    put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
-        contentType "application" "json"
-        .&. capture "tid"
-        .&. jsonRequest @Bool
-
-    document "PUT" "setLegalholdStatus" $ do
-        summary "Disable / enable legalhold feature for team"
-        Doc.parameter Doc.Path "tid" Doc.bytes' $
-            description "Team ID"
-        Doc.body Doc.bool' $
-            Doc.description "JSON body"
-        Doc.response 200 "Legalhold status" Doc.end
-
     get "/teams/:tid/features/sso" (continue getSSOStatus) $
         capture "tid"
 
