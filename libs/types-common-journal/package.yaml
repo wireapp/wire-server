@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: types-common-journal
 version: '0.1.0'
@@ -26,13 +26,13 @@ library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported
   exposed-modules:
+  # do not remove this list!  stack won't be able to generate it from the protobuf source files!
   - Data.Proto
   - Data.Proto.Id
   - Proto.TeamEvents
   - Proto.TeamEvents_Fields
   - Proto.UserEvents
   - Proto.UserEvents_Fields
-
 build-type: Custom
 verbatim: |
   custom-setup

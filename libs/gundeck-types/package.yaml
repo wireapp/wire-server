@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: gundeck-types
 version: '1.45.0'
@@ -26,13 +26,3 @@ dependencies:
 - unordered-containers >=0.2
 library:
   source-dirs: src
-  exposed-modules:
-  - Gundeck.Types
-  - Gundeck.Types.BulkPush
-  - Gundeck.Types.Common
-  - Gundeck.Types.Event
-  - Gundeck.Types.Notification
-  - Gundeck.Types.Presence
-  - Gundeck.Types.Push
-  - Gundeck.Types.Push.V2
-  - Gundeck.Types.Swagger

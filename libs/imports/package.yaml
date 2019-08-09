@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: imports
 version: '0.1.0'
@@ -30,6 +30,4 @@ dependencies:
 - tinylog
 library:
   source-dirs: src
-  exposed-modules:
-  - Imports
 stability: experimental

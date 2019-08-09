@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: zauth
 version: '0.10.3'
@@ -17,10 +17,6 @@ library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
-  exposed-modules:
-  - Data.ZAuth.Token
-  - Data.ZAuth.Creation
-  - Data.ZAuth.Validation
   dependencies:
   - attoparsec >=0.11
   - base >=4.6 && <5
