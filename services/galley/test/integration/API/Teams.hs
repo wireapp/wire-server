@@ -175,7 +175,11 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    check "Teams should start with SSO disabled" SSODisabled
+    if True {- disabledByDefault -}
+      then do
+        check "Teams should start with SSO disabled" SSODisabled
+      else do
+        check "Teams should start with SSO enabled" SSOEnabled
 
     putSSOEnabledInternal tid SSOEnabled
     check "Calling 'putEnabled True' should enable SSO" SSOEnabled
@@ -1166,12 +1170,20 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    getSSO SSODisabled
-    getSSOInternal SSODisabled
+    if True {- disabledByDefault -}
+      then do
+        getSSO SSODisabled
+        getSSOInternal SSODisabled
 
-    setSSOInternal SSOEnabled
-    getSSO SSOEnabled
-    getSSOInternal SSOEnabled
+        setSSOInternal SSOEnabled
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
+
+      else do
+        -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
+        -- much here.  (disable failure is covered in "enable/disable SSO" above.)
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
 
     -- legalhold
 
