@@ -6,6 +6,7 @@ import Bilge.Assert
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.Data.PasswordReset
 import Control.Lens ((^?), preview)
 import Data.Aeson
@@ -250,3 +251,17 @@ toAddressBook xs = do
   where
     toCard sha (cardId, entries) = Card (Just $ CardId cardId)
                                         (map (Entry . digestBS sha . T.encodeUtf8) entries)
+
+requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> Http ResponseLBS
+requestLegalHoldDevice brig requesterId targetUserId lastPrekey' = post $ brig
+    . paths ["i", "clients", "legalhold", toByteString' targetUserId, "request"]
+    . contentJson
+    . body payload
+  where
+    payload = RequestBodyLBS . encode
+                $ LegalHoldClientRequest requesterId lastPrekey'
+
+deleteLegalHoldDevice :: Brig -> UserId -> Http ResponseLBS
+deleteLegalHoldDevice brig uid = delete $ brig
+    . paths ["i", "clients", "legalhold", toByteString' uid]
+    . contentJson

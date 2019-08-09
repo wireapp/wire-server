@@ -62,6 +62,31 @@ data IdPList = IdPList
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
 
+-- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
+-- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
+-- from the server against the pinned one and the metadata url in the metadata against the one
+-- we fetched the xml from, but it's unclear what the benefit would be.)
+newtype IdPMetadataInfo = IdPMetadataValue SAML.IdPMetadata
+  deriving (Eq, Show, Generic)
+
+instance SAML.HasXMLRoot IdPMetadataInfo where
+  renderRoot = error "instance SAML.HasXML IdPMetadataInfo: render not implemented"
+    -- FUTUREWORK: split up HasXML in saml-web-sso into FromXML and ToXML, then we probably
+    -- can actually not implement this (this even as an error).  should be a nice,
+    -- backwards-compatible change!
+
+instance SAML.HasXML IdPMetadataInfo where
+  parse = fmap IdPMetadataValue . SAML.parse
+
+instance FromJSON IdPMetadataInfo where
+  parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
+    either fail (pure . IdPMetadataValue) . SAML.decode =<< (obj .: "value")
+
+instance ToJSON IdPMetadataInfo where
+  toJSON (IdPMetadataValue xml) =
+    object [ "value" .= SAML.encode xml ]
+
+
 ----------------------------------------------------------------------------
 -- SCIM
 

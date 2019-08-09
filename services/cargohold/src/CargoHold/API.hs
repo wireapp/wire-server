@@ -5,18 +5,18 @@ import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Lens (view, (^.))
-import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
 import Data.Predicate
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
-import Network.Wai (Response, Request, responseLBS)
+import Network.Wai (Response, Request)
 import Network.Wai.Conduit (sourceRequestBody)
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (message)
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import URI.ByteString
@@ -42,8 +42,8 @@ sitemap = do
 
     get "/assets/api-docs"
         (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) [] sitemap
-            in k $ responseLBS status200 [jsonContent] doc) $
+            let doc = mkSwaggerApi (decodeLatin1 url) [] sitemap
+            in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
 

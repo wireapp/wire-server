@@ -1,3 +1,43 @@
+# 2019-08-08 #822
+
+## Features
+
+- legalhold (#802), but block feature activation (#823)
+- a few shell scripts for self-hosters (#805, #801)
+- release nginz_disco (#759)
+
+## Client-facing internal changes
+
+- feature flags (starting with legalhold, sso) (#813, #818)
+  - SSO is disabled by default now; but enabled for all teams that already have an IdP.
+  - new public end-points:
+    - get "/teams/:tid/features/legalhold"
+    - get "/teams/:tid/features/sso"
+  - new internal end-points:
+    - get "/i/teams/:tid/features/legalhold"
+    - get "/i/teams/:tid/features/sso"
+    - put "/i/teams/:tid/features/legalhold"
+    - put "/i/teams/:tid/features/sso"
+  - new backoffice end-points:
+    - get "/teams/:tid/features/legalhold"
+    - get "/teams/:tid/features/sso"
+    - put "/teams/:tid/features/legalhold"
+    - put "/teams/:tid/features/sso"
+- Always throw json errors, never plaintext (#722, #814)
+- Register IdP: allow json bodies with xml strings (#722)
+
+## Backend-internal changes
+
+- [stern aka backoffice] allow galeb returning a 404 (#820)
+- Cleanup logging (#816, #819)
+- Canonicalize http request path capture names (#808, #809)
+- Galley depends on libsodium too now (#807)
+- Add generics instances to common, brig, galley types. (#804)
+- Upgrade CQL protocol version to V4 (#763)
+- Log last prekey used only at debug level (#785)
+- Cleanup (#799)
+
+
 # 2019-07-08 #798
 
 ## Internal Changes

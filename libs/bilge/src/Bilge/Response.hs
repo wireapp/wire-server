@@ -7,6 +7,7 @@ module Bilge.Response
     , getHeader
     , getHeader'
     , getCookie
+    , getCookieValue
     , showResponse
 
       -- * Re-exports
@@ -15,12 +16,16 @@ module Bilge.Response
     , responseHeaders
     , responseVersion
     , responseBody
+    , responseJson
     ) where
 
 import Imports
+import Control.Lens
+import Data.Aeson (FromJSON, eitherDecode)
 import Data.CaseInsensitive (original)
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
+import Web.Cookie
 
 import qualified Data.ByteString.Char8 as C
 import qualified Network.HTTP.Types    as HTTP
@@ -42,6 +47,19 @@ getHeader' h = fromMaybe "NO_HEADER_VALUE" . getHeader h
 getCookie :: ByteString -> Response a -> Maybe Cookie
 getCookie n r = find ((n ==) . cookie_name) (destroyCookieJar $ responseCookieJar r)
 
+-- | Retrieve the value of a given cookie name from a "Set-Cookie" header on the response
+getCookieValue :: ByteString -> Response a -> Maybe ByteString
+getCookieValue cookieName resp =
+        resp
+        ^? to responseHeaders
+        . traversed -- Over each header
+        . filtered ((== "Set-Cookie") . fst) -- Select the cookie headers by name
+        . _2 -- Select Set-Cookie values
+        . to parseSetCookie
+        . filtered ((== cookieName) . setCookieName) -- Select only the cookie we want
+        . to setCookieValue -- extract the cookie value
+
+
 showResponse :: Show a => Response a -> String
 showResponse r = showString "HTTP/"
     . shows (httpMajor . responseVersion $ r)
@@ -59,3 +77,9 @@ showResponse r = showString "HTTP/"
   where
     showHeaders = foldl' (.) (showString "") (map showHdr (responseHeaders r))
     showHdr (k, v) = showString . C.unpack $ original k <> ": " <> v <> "\n"
+
+
+responseJson :: FromJSON a => Response (Maybe LByteString) -> Either String a
+responseJson resp = case responseBody resp of
+    Nothing  -> Left "no body"
+    Just raw -> eitherDecode raw

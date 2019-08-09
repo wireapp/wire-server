@@ -8,7 +8,7 @@ module Orphans () where
 
 import Data.Aeson
 import GHC.Generics
-import System.Logger as Logger
+import System.Logger.Class as Logger
 
 deriving instance Generic Logger.Level
 instance FromJSON Logger.Level

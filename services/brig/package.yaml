@@ -161,10 +161,10 @@ executables:
     source-dirs: test/integration
     dependencies:
     - async
-    - brig
-    - bytestring >=0.9
     - bilge
+    - brig
     - brig-types
+    - bytestring >=0.9
     - cargohold-types
     - cassandra-util
     - data-timeout
@@ -172,10 +172,11 @@ executables:
     - filepath >=1.4
     - galley-types
     - gundeck-types
+    - HsOpenSSL
     - http-client
     - http-client-tls >=0.2
-    - HsOpenSSL
     - lens >=3.9
+    - metrics-wai
     - mime >=0.4
     - network
     - options >=0.1
@@ -188,12 +189,13 @@ executables:
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2
-    - time >=1.5
     - temporary >=1.2.1
+    - time >=1.5
     - tinylog
     - types-common >=0.3
     - types-common-aws >=0.1
     - unix >=2.5
+    - unliftio
     - unordered-containers
     - vector >=0.10
     - wai
@@ -202,7 +204,6 @@ executables:
     - warp
     - warp-tls >=3.2
     - zauth
-    - unliftio
   brig-index:
     main: Main.hs
     source-dirs: index/src

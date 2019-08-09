@@ -19,6 +19,12 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , getSSOStatus
+    , getSSOStatusInternal
+    , setSSOStatusInternal
+    , getLegalholdStatus
+    , getLegalholdStatusInternal
+    , setLegalholdStatusInternal
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedGetTeamMembers
@@ -27,6 +33,7 @@ module Galley.API.Teams
     ) where
 
 import Imports
+import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (result, hasMore)
 import Control.Lens hiding (from, to)
 import Control.Monad.Catch
@@ -38,6 +45,7 @@ import Data.Time.Clock (getCurrentTime, UTCTime (..))
 import Data.Set (fromList)
 import Galley.App
 import Galley.API.Error
+import Galley.API.LegalHold
 import Galley.API.Util
 import Galley.Data.Types
 import Galley.Data.Services (BotMember)
@@ -46,6 +54,7 @@ import Galley.Intra.User
 import Galley.Options
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -54,6 +63,8 @@ import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Data.SSO as SSOData
 import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
@@ -478,3 +489,57 @@ getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure . json $ newTeamMemberList members
+
+-- Public endpoints for feature checks
+
+getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getSSOStatus (uid ::: tid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewSSOTeamSettings membs
+    getSSOStatusInternal (tid ::: ct)
+
+getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getLegalholdStatus (uid ::: tid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+    getLegalholdStatusInternal (tid ::: ct)
+
+-- Enable / Disable team features
+-- These endpoints are internal only and  meant to be called
+-- only from authorized personnel (e.g., from a backoffice tool)
+
+-- | Get legal SSO status for a team.
+getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
+getSSOStatusInternal (tid ::: _) = do
+    ssoTeamConfig <- SSOData.getSSOTeamConfig tid
+    pure . json . fromMaybe defConfig $ ssoTeamConfig
+  where
+    defConfig = SSOTeamConfig SSODisabled
+
+-- | Enable or disable SSO for a team.
+setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
+setSSOStatusInternal (tid ::: req ::: _) = do
+    ssoTeamConfig <- fromJsonBody req
+    case ssoTeamConfigStatus ssoTeamConfig of
+        SSODisabled -> throwM disableSsoNotImplemented
+        SSOEnabled  -> pure () -- this one is easy to implement :)
+    SSOData.setSSOTeamConfig tid ssoTeamConfig
+    pure noContent
+
+-- | Get legal hold status for a team.
+getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
+getLegalholdStatusInternal (tid ::: _) = do
+    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
+  where
+    defConfig = LegalHoldTeamConfig LegalHoldDisabled
+
+-- | Enable or disable legal hold for a team.
+setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setLegalholdStatusInternal (tid ::: req ::: _) = do
+    legalHoldTeamConfig <- fromJsonBody req
+    case legalHoldTeamConfigStatus legalHoldTeamConfig of
+        LegalHoldDisabled -> removeSettings' tid Nothing
+        LegalHoldEnabled -> pure ()
+    LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+    pure noContent

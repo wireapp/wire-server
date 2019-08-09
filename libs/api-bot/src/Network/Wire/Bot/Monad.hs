@@ -355,7 +355,7 @@ removeBotClient self bc = do
     liftIO $ deleteBox (botId self) (botClientLabel bc)
     liftIO $ atomically $ modifyTVar' (botClients self) (filter (/= bc))
 
--- | Remove all bot clients, even the 'PermanentClient' ones on the server.
+-- | Remove all bot clients, even the 'PermanentClientType' ones on the server.
 resetBotClients :: MonadBotNet m => Bot -> m ()
 resetBotClients self = do
     let rm = RmClient (Just (botPassphrase self))

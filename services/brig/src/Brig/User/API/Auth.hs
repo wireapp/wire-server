@@ -147,8 +147,8 @@ routes = do
         accept "application" "json"
         .&. param "phone"
 
-    get "/i/users/:id/reauthenticate" (continue reAuthUser) $
-        capture "id"
+    get "/i/users/:uid/reauthenticate" (continue reAuthUser) $
+        capture "uid"
         .&. jsonRequest @ReAuthUser
 
 -- Handlers

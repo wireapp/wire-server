@@ -4,7 +4,6 @@
 module Spar.App
   ( Spar(..)
   , Env(..)
-  , condenseLogMsg
   , toLevel
   , wrapMonadClientWithEnv
   , wrapMonadClient
@@ -17,7 +16,7 @@ module Spar.App
   , autoprovisionSamlUserWithId
   ) where
 
-import Imports
+import Imports hiding (log)
 import Bilge
 import Brig.Types (Name, ManagedBy(..))
 import Cassandra
@@ -41,7 +40,6 @@ import Web.Cookie (SetCookie, renderSetCookie)
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Builder as Builder
-import qualified Data.Text as ST
 import qualified Data.UUID.V4 as UUID
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -49,6 +47,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
+import System.Logger.Class (MonadLogger(log))
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
@@ -71,16 +70,14 @@ instance HasNow Spar where
 instance HasCreateUUID Spar where
 instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  logger (toLevel -> lv) mg = do
+  logger lv = log (toLevel lv) . Log.msg
+
+instance MonadLogger Spar where
+  log level mg = do
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
-    let fields, mg' :: Log.Msg -> Log.Msg
-        fields = Log.field "request" (unRequestId reqid)
-        mg'    = Log.msg . condenseLogMsg . cs $ mg
-    Spar . Log.log lg lv $ fields Log.~~ mg'
-
-condenseLogMsg :: ST -> ST
-condenseLogMsg = ST.intercalate " " . filter (not . ST.null) . ST.split isSpace
+    let fields = Log.field "request" (unRequestId reqid)
+    Spar . Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case

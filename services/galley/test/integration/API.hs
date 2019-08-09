@@ -10,7 +10,6 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc
 import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification
@@ -18,12 +17,14 @@ import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import TestHelpers
 import TestSetup
 import API.SQS
 
 import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
+import qualified API.Teams.LegalHold      as Teams.LegalHold
 import qualified API.MessageTimer         as MessageTimer
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
@@ -35,7 +36,11 @@ import qualified Data.Code                as Code
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests"
-    [ mainTests, Teams.tests s, MessageTimer.tests s ]
+    [ Teams.LegalHold.tests s
+    , mainTests
+    , Teams.tests s
+    , MessageTimer.tests s
+    ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status
@@ -187,7 +192,7 @@ postCryptoMessage1 = do
 
     -- Deleted eve
     WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
-        deleteClient eve ec (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
+        deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (eve, ec, "ciphertext4")]
         postOtrMessage id alice ac conv m4 !!! do
             const 201 === statusCode

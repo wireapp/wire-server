@@ -27,7 +27,7 @@ import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (setStatus, json, addHeader)
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 
 import qualified Brig.AWS                     as AWS
 import qualified Brig.Whitelist               as Whitelist

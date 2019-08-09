@@ -162,11 +162,11 @@ data RemoveCookies = RemoveCookies
 -- Cookies can be listed and deleted based on their labels.
 newtype CookieLabel = CookieLabel
     { cookieLabelText :: Text }
-    deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString)
+    deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString, Generic)
 
 newtype CookieId = CookieId
     { cookieIdNum :: Word32 }
-    deriving (Eq, Show, FromJSON, ToJSON)
+    deriving (Eq, Show, FromJSON, ToJSON, Generic)
 
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
@@ -178,7 +178,7 @@ data Cookie a = Cookie
     , cookieLabel   :: !(Maybe CookieLabel)
     , cookieSucc    :: !(Maybe CookieId)
     , cookieValue   :: !a
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data CookieList = CookieList
     { cookieList :: [Cookie ()]
@@ -195,7 +195,7 @@ data CookieType
         -- ^ A regular persistent cookie that expires at a specific date.
         -- These cookies are regularly renewed as part of an access token
         -- refresh.
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON AccessToken where
     toJSON (AccessToken u t tt e) =

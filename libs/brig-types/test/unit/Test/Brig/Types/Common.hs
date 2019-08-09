@@ -9,18 +9,23 @@
 module Test.Brig.Types.Common where
 
 import Imports
+
 import Brig.Types.Common
+import Brig.Types.Team.LegalHold
+import Brig.Types.Test.Arbitrary ()
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
-import Test.Brig.Types.Arbitrary ()
+import Galley.Types.Teams.SSO
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+
+-- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
@@ -36,6 +41,21 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ExcludedPrefix Proxy
     , run @ManagedBy Proxy
     , run @TeamMemberDeleteData Proxy
+    , run @LegalHoldStatus Proxy
+    , run @LegalHoldTeamConfig Proxy
+    , run @NewLegalHoldService Proxy
+    , run @LegalHoldService Proxy
+    , run @ViewLegalHoldService Proxy
+    , run @NewLegalHoldClient Proxy
+    , run @RequestNewLegalHoldClient Proxy
+    , run @UserLegalHoldStatusResponse Proxy
+    , run @LegalHoldServiceConfirm Proxy
+    , run @LegalHoldClientRequest Proxy
+    , run @RemoveLegalHoldSettingsRequest Proxy
+    , run @DisableLegalHoldForUserRequest Proxy
+    , run @ApproveLegalHoldForUserRequest Proxy
+    , run @SSOStatus Proxy
+    , run @SSOTeamConfig Proxy
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -57,3 +77,9 @@ instance Eq TeamMemberDeleteData where
 
 instance Show TeamMemberDeleteData where
   show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
+
+instance Arbitrary SSOStatus where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary SSOTeamConfig where
+  arbitrary = SSOTeamConfig <$> arbitrary
