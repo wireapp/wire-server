@@ -514,7 +514,7 @@ getSSOStatusInternal (tid ::: _) = do
     ssoTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
   where
-    defConfig = SSOTeamConfig SSODisabled
+    defConfig = SSOTeamConfig SSOEnabled
 
 -- | Enable or disable SSO for a team.
 setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
