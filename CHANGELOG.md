@@ -4,13 +4,13 @@
 
 - legalhold (#802), but block feature activation (#823)
 - a few shell scripts for self-hosters (#805, #801)
-- release nginz_disco (#759)
+- Release nginz_disco (#759)
 
-## Client-facing internal changes
+## Public API changes
 
+- SSO is disabled by default now; but enabled for all teams that already have an IdP.
 - feature flags (starting with legalhold, sso) (#813, #818)
-  - SSO is disabled by default now; but enabled for all teams that already have an IdP.
-  - new public end-points:
+  - new public end-points (#813, #818):
     - get "/teams/:tid/features/legalhold"
     - get "/teams/:tid/features/sso"
   - new internal end-points:
