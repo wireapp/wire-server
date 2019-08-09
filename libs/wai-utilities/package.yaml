@@ -39,11 +39,3 @@ dependencies:
 - warp >=3.0
 library:
   source-dirs: src
-  exposed-modules:
-  - Network.Wai.Utilities
-  - Network.Wai.Utilities.Error
-  - Network.Wai.Utilities.Request
-  - Network.Wai.Utilities.Response
-  - Network.Wai.Utilities.Server
-  - Network.Wai.Utilities.Swagger
-  - Network.Wai.Utilities.ZAuth

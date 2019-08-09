@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: api-simulations
 version: '0.4.2'
@@ -19,8 +19,6 @@ dependencies:
 - split >=0.2
 library:
   source-dirs: lib/src
-  exposed-modules:
-  - Network.Wire.Simulations
   dependencies:
   - aeson >=0.7
   - base >=4.6

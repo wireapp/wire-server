@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: bonanza
 version: '3.6.0'
@@ -19,28 +19,6 @@ library:
   ghc-options:
   - -funbox-small-strict-fields
   - -fno-warn-unused-do-bind
-  exposed-modules:
-  - Bonanza.Anon
-  - Bonanza.App
-  - Bonanza.Geo
-  - Bonanza.Metrics
-  - Bonanza.Parser.CommonLog
-  - Bonanza.Parser.IP
-  - Bonanza.Parser.Internal
-  - Bonanza.Parser.Journald
-  - Bonanza.Parser.Netstrings
-  - Bonanza.Parser.Nginz
-  - Bonanza.Parser.Rkt
-  - Bonanza.Parser.Socklog
-  - Bonanza.Parser.Svlogd
-  - Bonanza.Parser.Time
-  - Bonanza.Parser.Tinylog
-  - Bonanza.Streaming.Binary
-  - Bonanza.Streaming.Kibana
-  - Bonanza.Streaming.Parser
-  - Bonanza.Streaming.Protobuf
-  - Bonanza.Streaming.Snappy
-  - Bonanza.Types
   dependencies:
   - base ==4.*
   - aeson >=1.0

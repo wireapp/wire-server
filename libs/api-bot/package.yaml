@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: api-bot
 version: '0.4.2'
@@ -58,15 +58,4 @@ dependencies:
 - vector >=0.10
 library:
   source-dirs: src
-  exposed-modules:
-  - Network.Wire.Bot
-  - Network.Wire.Bot.Assert
-  - Network.Wire.Bot.Clients
-  - Network.Wire.Bot.Crypto
-  - Network.Wire.Bot.Email
-  - Network.Wire.Bot.Metrics
-  - Network.Wire.Bot.Monad
-  - Network.Wire.Bot.Report
-  - Network.Wire.Bot.Report.Text
-  - Network.Wire.Bot.Settings
 stability: experimental

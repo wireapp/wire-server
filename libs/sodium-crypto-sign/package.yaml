@@ -21,7 +21,5 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - Sodium.Crypto.Sign
   pkg-config-dependencies:
   - libsodium >= 0.4.5
