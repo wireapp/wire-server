@@ -515,6 +515,9 @@ getSSOStatusInternal (tid ::: _) = do
     pure . json . fromMaybe defConfig $ ssoTeamConfig
   where
     defConfig = SSOTeamConfig SSOEnabled
+    -- IMPORTANT: If you change the default to 'SSODisabled', you need to run
+    -- `/tools/db/migrate-sso-feature-flag/`.  This will explicitly enable the feature for all
+    -- teams that already make use of it.
 
 -- | Enable or disable SSO for a team.
 setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
