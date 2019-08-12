@@ -12,6 +12,7 @@ import Brig.ZAuth (ZAuth, runZAuth)
 import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
 import Data.Aeson
+import Data.Proxy
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
@@ -54,8 +55,11 @@ tests conf m z b = testGroup "auth"
                 ]
             ]
         , testGroup "refresh"
+            -- TODO decide which of these 4 cases is invalid
             [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
-            , test m "invalid-cookie /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser "/legalhold/access" z b)
+            , test m "invalid-cookie @legalhold /access" (testInvalidCookie @ZAuth.LegalHoldUser "/access" z b)
+            , test m "invalid-cookie @legalhold /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser "/legalhold/access" z b)
+            , test m "invalid-cookie @user /legalhold/access" (testInvalidCookie @ZAuth.User "/legalhold/access" z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie z b)
             , test m "unknown-cookie" (testUnknownCookie z b)
@@ -284,7 +288,7 @@ testInvalidCookie accessPath z b = do
 
     -- Expired
     user <- userId <$> randomUser b
-    let f = set ZAuth.userTokenTimeout (ZAuth.UserTokenTimeout 0)
+    let f = set (ZAuth.userTTL (Proxy @u)) 0
     t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
     liftIO $ threadDelay 1000000
     post (b . path accessPath . cookieRaw "zuid" t) !!! do

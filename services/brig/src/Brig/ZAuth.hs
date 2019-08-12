@@ -24,13 +24,10 @@ module Brig.ZAuth
     , sessionTokenTimeout
     , ProviderTokenTimeout (..)
     , providerTokenTimeout
-    , UserTokenTimeout (..) -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
-    , AccessTokenTimeout (..) -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
-    , accessTokenTimeout -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
-    , userTokenTimeout -- TODO this should not be exposed to avoid using it in the wrong place, settingsTTL should be used instead
 
       -- * timeout settings for access and legalholdaccess
     , settingsTTL
+    , userTTL
 
       -- * Token Creation
     , Token
@@ -73,9 +70,10 @@ module Brig.ZAuth
     ) where
 
 import Imports
-import Control.Lens ((^.), makeLenses, over)
+import Control.Lens ((^.), makeLenses, over, Lens')
 import Data.Aeson
 import Data.Bits
+import Data.Proxy
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -136,7 +134,7 @@ type LegalHoldUserToken   = Token LegalHoldUser
 type LegalHoldAccessToken = Token LegalHoldAccess
 
 newtype UserTokenTimeout = UserTokenTimeout
-    { userTokenTimeoutSeconds :: Integer }
+    { _userTokenTimeoutSeconds :: Integer }
     deriving (Show, Generic)
 
 newtype SessionTokenTimeout = SessionTokenTimeout
@@ -144,7 +142,7 @@ newtype SessionTokenTimeout = SessionTokenTimeout
     deriving (Show, Generic)
 
 newtype AccessTokenTimeout = AccessTokenTimeout
-    { accessTokenTimeoutSeconds :: Integer }
+    { _accessTokenTimeoutSeconds :: Integer }
     deriving (Show, Generic)
 
 newtype ProviderTokenTimeout = ProviderTokenTimeout
@@ -152,11 +150,11 @@ newtype ProviderTokenTimeout = ProviderTokenTimeout
     deriving (Show, Generic)
 
 newtype LegalHoldUserTokenTimeout = LegalHoldUserTokenTimeout
-    { legalHoldUserTokenTimeoutSeconds :: Integer }
+    { _legalHoldUserTokenTimeoutSeconds :: Integer }
     deriving (Show, Generic)
 
 newtype LegalHoldAccessTokenTimeout = LegalHoldAccessTokenTimeout
-    { legalHoldAccessTokenTimeoutSeconds :: Integer }
+    { _legalHoldAccessTokenTimeoutSeconds :: Integer }
     deriving (Show, Generic)
 
 instance FromJSON UserTokenTimeout
@@ -177,6 +175,10 @@ instance FromJSON Settings where
     (LegalHoldUserTokenTimeout <$> o .: "legalHoldUserTokenTimeout") <*>
     (LegalHoldAccessTokenTimeout <$> o .: "legalHoldAccessTokenTimeout")
 
+makeLenses ''LegalHoldAccessTokenTimeout
+makeLenses ''AccessTokenTimeout
+makeLenses ''UserTokenTimeout
+makeLenses ''LegalHoldUserTokenTimeout
 makeLenses ''Settings
 makeLenses ''Env
 
@@ -204,17 +206,17 @@ instance TokenPair LegalHoldUser LegalHoldAccess where
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
-    settingsTTL :: Maybe (Token a) -> Settings -> Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
+    settingsTTL :: Proxy a -> Lens' Settings Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
 
 instance AccessTokenLike Access where
     accessTokenOf = accessTokenOf'
     renewAccessToken = renewAccessToken'
-    settingsTTL _ = accessTokenTimeoutSeconds . (^.accessTokenTimeout)
+    settingsTTL _ = accessTokenTimeout . accessTokenTimeoutSeconds
 
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
     renewAccessToken = renewLegalHoldAccessToken
-    settingsTTL _ = legalHoldAccessTokenTimeoutSeconds . (^.legalHoldAccessTokenTimeout)
+    settingsTTL _ = legalHoldAccessTokenTimeout . legalHoldAccessTokenTimeoutSeconds 
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     userTokenOf :: Token u -> UserId
@@ -222,6 +224,7 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     userTokenRand :: Token u -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token u)
     newSessionToken :: MonadZAuth m => UserId -> m (Token u)
+    userTTL :: Proxy u -> Lens' Settings Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
 
 instance UserTokenLike User where
     mkUserToken = mkUserToken'
@@ -229,12 +232,14 @@ instance UserTokenLike User where
     userTokenRand = userTokenRand'
     newUserToken = newUserToken'
     newSessionToken = newSessionToken'
+    userTTL _ = userTokenTimeout . userTokenTimeoutSeconds
 
 instance UserTokenLike LegalHoldUser where
     mkUserToken = mkLegalHoldUserToken
     userTokenOf = legalHoldUserTokenOf
     userTokenRand = legalHoldUserTokenRand
     newUserToken = newLegalHoldUserToken
+    userTTL _ = legalHoldUserTokenTimeout . legalHoldUserTokenTimeoutSeconds
     newSessionToken = undefined -- TODO: sessions tokens are not intended to be supported for the legal hold case. Throw an error leading to a 4xx when this is tried? Alternatively refactor the User/Auth/Cookie.hs `newCookie` function so that this function isn't needed on the `UserTokenLike` class.
 
 mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken

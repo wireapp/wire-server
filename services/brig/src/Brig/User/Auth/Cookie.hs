@@ -30,6 +30,7 @@ import Brig.User.Auth.Cookie.Limit
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Network.Wai (Response)
@@ -110,13 +111,13 @@ renewCookie old = do
     DB.insertCookie u old' (Just (DB.TTL (fromIntegral ttl)))
     return new
 
-newAccessToken :: ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
+newAccessToken :: forall u a . ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
        Just  t -> ZAuth.renewAccessToken t
     zSettings <- view (zauthEnv.ZAuth.settings)
-    let ttl = ZAuth.settingsTTL mt zSettings
+    let ttl = view (ZAuth.settingsTTL (Proxy @a)) zSettings
     return $ bearerToken (ZAuth.accessTokenOf t')
                          (toByteString t')
                          ttl
