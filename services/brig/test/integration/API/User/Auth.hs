@@ -54,7 +54,8 @@ tests conf m z b = testGroup "auth"
                 ]
             ]
         , testGroup "refresh"
-            [ test m "invalid-cookie" (testInvalidCookie z b)
+            [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
+            , test m "invalid-cookie /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser "/legalhold/access" z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie z b)
             , test m "unknown-cookie" (testUnknownCookie z b)
@@ -274,19 +275,19 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
-testInvalidCookie :: ZAuth.Env -> Brig -> Http ()
-testInvalidCookie z b = do
+testInvalidCookie :: forall u . ZAuth.UserTokenLike u => ByteString -> ZAuth.Env -> Brig -> Http ()
+testInvalidCookie accessPath z b = do
     -- Syntactically invalid
-    post (b . path "/access" . cookieRaw "zuid" "xxx") !!! do
+    post (b . path accessPath . cookieRaw "zuid" "xxx") !!! do
         const 403 === statusCode
         const (Just "Invalid user token") =~= responseBody
 
     -- Expired
-    u <- userId <$> randomUser b
+    user <- userId <$> randomUser b
     let f = set ZAuth.userTokenTimeout (ZAuth.UserTokenTimeout 0)
-    t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @ZAuth.User u))
+    t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
     liftIO $ threadDelay 1000000
-    post (b . path "/access" . cookieRaw "zuid" t) !!! do
+    post (b . path accessPath . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
         const (Just "expired") =~= responseBody
 
