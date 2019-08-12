@@ -11,6 +11,7 @@ import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
 import Data.Aeson
 import Data.Aeson.Lens
+import Data.Proxy
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (PlainTextPassword(..))
@@ -29,6 +30,7 @@ import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
+import qualified Data.ZAuth.Token     as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
 
@@ -280,7 +282,7 @@ testInvalidCookie z b = do
     -- Expired
     u <- userId <$> randomUser b
     let f = set ZAuth.userTokenTimeout (ZAuth.UserTokenTimeout 0)
-    t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken u))
+    t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @ZAuth.User u))
     liftIO $ threadDelay 1000000
     post (b . path "/access" . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
@@ -469,12 +471,12 @@ testTooManyCookies config b = do
         (do
             tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
             cs  <- listCookiesWithLabel b (userId u) ["persistent"]
-            liftIO $ map cookieId cs @=? map getCookieId (drop carry tcs))
+            liftIO $ map cookieId cs @=? map (getCookieId (Proxy @ZAuth.User)) (drop carry tcs))
         -- Session logins
         (do
             tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
             cs' <- listCookiesWithLabel b (userId u) ["session"]
-            liftIO $ map cookieId cs' @=? map getCookieId (drop carry tcs'))
+            liftIO $ map cookieId cs' @=? map (getCookieId (Proxy @ZAuth.User)) (drop carry tcs'))
   where
     -- We expect that after `setUserCookieLimit` login attempts, we get rate
     -- limited; in those cases, we need to wait `Retry-After` seconds.
@@ -542,9 +544,9 @@ decodeToken r = fromMaybe (error "invalid access_token") $ do
     t <- x ^? key "access_token" . _String
     fromByteString (encodeUtf8 t)
 
-getCookieId :: HasCallStack => Http.Cookie -> CookieId
-getCookieId c = maybe (error "no cookie value")
-                      (CookieId . ZAuth.userTokenRand)
+getCookieId :: forall u . (HasCallStack, ZAuth.UserTokenLike u) => Proxy u -> Http.Cookie -> CookieId
+getCookieId _ c = maybe (error "no cookie value")
+                      (CookieId . ZAuth.userTokenRand @u)
                       (fromByteString (cookie_value c))
 
 listCookies :: HasCallStack => Brig -> UserId -> Http [Auth.Cookie ()]

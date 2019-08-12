@@ -76,7 +76,7 @@ import Imports
 import Control.Lens ((^.), makeLenses, over)
 import Data.Aeson
 import Data.Bits
-import Data.ByteString.Conversion.To
+import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Time.Clock
@@ -216,7 +216,7 @@ instance AccessTokenLike LegalHoldAccess where
     renewAccessToken = renewLegalHoldAccessToken
     settingsTTL _ = legalHoldAccessTokenTimeoutSeconds . (^.legalHoldAccessTokenTimeout)
 
-class ToByteString u => UserTokenLike u where
+class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     userTokenOf :: Token u -> UserId
     mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
     userTokenRand :: Token u -> Word32
