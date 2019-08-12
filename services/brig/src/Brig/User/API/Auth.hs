@@ -239,6 +239,8 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
+-- FUTUREWORK: let renew take an Either (Token User, Token Access), (Token LegalHoldUser, Token LegalHoldAccess)
+-- Then remove /legalhold/access endpoint.
 renew :: ZAuth.TokenPair u a => JSON ::: Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a) -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
 renew (_ ::: Just ut ::: at) = do
@@ -257,7 +259,7 @@ tokenRequest = opt userToken .&. opt accessToken
     tokenHeader = bearer    <$> header "authorization"
     tokenQuery  = query "access_token"
 
-    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
+    cookieErr :: Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
     cookieErr x@Okay{} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
 
@@ -271,7 +273,7 @@ tokenRequest = opt userToken .&. opt accessToken
                       (setMessage "Invalid authorization scheme" (err status403)))
 
     -- Parse the access token
-    parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
+    parse :: Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail   x) = Fail x
     parse (Okay _ b) = case fromByteString b of
         Nothing -> Fail (setReason TypeError

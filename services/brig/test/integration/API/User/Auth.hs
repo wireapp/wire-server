@@ -55,11 +55,8 @@ tests conf m z b = testGroup "auth"
                 ]
             ]
         , testGroup "refresh"
-            -- TODO decide which of these 4 cases is invalid
             [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
-            , test m "invalid-cookie @legalhold /access" (testInvalidCookie @ZAuth.LegalHoldUser "/access" z b)
             , test m "invalid-cookie @legalhold /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser "/legalhold/access" z b)
-            , test m "invalid-cookie @user /legalhold/access" (testInvalidCookie @ZAuth.User "/legalhold/access" z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie z b)
             , test m "unknown-cookie" (testUnknownCookie z b)
