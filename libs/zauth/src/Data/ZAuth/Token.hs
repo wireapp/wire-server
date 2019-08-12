@@ -146,37 +146,37 @@ makeLenses ''LegalHoldAccess
 
 instance FromByteString (Token Access) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readAccessBody b of
+        case readToken A readAccessBody b of
             Nothing -> fail "Invalid access token"
             Just  t -> return t
 
 instance FromByteString (Token User) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readUserBody b of
+        case readToken U readUserBody b of
             Nothing -> fail "Invalid user token"
             Just  t -> return t
 
 instance FromByteString (Token Bot) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readBotBody b of
+        case readToken B readBotBody b of
             Nothing -> fail "Invalid bot token"
             Just  t -> return t
 
 instance FromByteString (Token Provider) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readProviderBody b of
+        case readToken P readProviderBody b of
             Nothing -> fail "Invalid provider token"
             Just  t -> return t
 
 instance FromByteString (Token LegalHoldAccess) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readLegalHoldAccessBody b of
+        case readToken LA readLegalHoldAccessBody b of
             Nothing -> fail "Invalid access token"
             Just  t -> return t
 
 instance FromByteString (Token LegalHoldUser) where
     parser = takeLazyByteString >>= \b ->
-        case readToken readLegalHoldUserBody b of
+        case readToken LU readLegalHoldUserBody b of
             Nothing -> fail "Invalid user token"
             Just  t -> return t
 
@@ -213,24 +213,24 @@ mkLegalHoldUser uid r = LegalHoldUser $ User uid r
 -----------------------------------------------------------------------------
 -- Reading
 
-readToken :: (Properties -> Maybe a) -> LByteString -> Maybe (Token a)
-readToken f b = case split '.' b of
+readToken :: Type -> (Properties -> Maybe a) -> LByteString -> Maybe (Token a)
+readToken t f b = case split '.' b of
     (s:rest) ->
         let p = map pairwise rest in
         Token <$> hush (Signature <$> decode (toStrict s))
-              <*> readHeader p
+              <*> readHeader t p
               <*> f p
     _ -> Nothing
   where
     pairwise :: LByteString -> (LByteString, LByteString)
     pairwise x = let (k, v) = break (== '=') x in (k, drop 1 v)
 
-readHeader :: Properties -> Maybe Header
-readHeader p = Header
+readHeader :: Type -> Properties -> Maybe Header
+readHeader t p = Header
     <$> (lookup "v" p >>= fromByteString')
     <*> (lookup "k" p >>= fromByteString')
     <*> (lookup "d" p >>= fromByteString')
-    <*> (lookup "t" p >>= readType)
+    <*> (lookup "t" p >>= readType >>= \t' -> if t == t' then Just t' else Nothing)
     <*> (readTag <$> lookup "l" p)
   where
     readType "a" = Just A

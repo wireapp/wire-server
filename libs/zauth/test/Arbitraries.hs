@@ -11,10 +11,10 @@ import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
 instance Arbitrary (Token Access) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = mkToken <$> arbitrary <*> (mkHeader <$> arbitrary <*> arbitrary <*> arbitrary <*> pure A <*> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token User) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = mkToken <$> arbitrary <*> (mkHeader <$> arbitrary <*> arbitrary <*> arbitrary <*> pure U <*> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token Bot) where
     arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
@@ -23,10 +23,10 @@ instance Arbitrary (Token Provider) where
     arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary (Token LegalHoldAccess) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = mkToken <$> arbitrary <*> (mkHeader <$> arbitrary <*> arbitrary <*> arbitrary <*> pure LA <*> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token LegalHoldUser) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = mkToken <$> arbitrary <*> (mkHeader <$> arbitrary <*> arbitrary <*> arbitrary <*> pure LU <*> arbitrary) <*> arbitrary
 
 instance Arbitrary Header where
     arbitrary = mkHeader
@@ -61,7 +61,7 @@ instance Arbitrary Signature where
     arbitrary = Signature <$> arbitrary
 
 instance Arbitrary Type where
-    arbitrary = elements [A, U]
+    arbitrary = elements [A, U, LA, LU]
 
 instance Arbitrary Tag where
     arbitrary = return S
