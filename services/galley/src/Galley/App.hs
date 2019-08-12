@@ -15,7 +15,7 @@ module Galley.App
     , extEnv
     , aEnv
 
-    , ExtEnv
+    , ExtEnv (..)
     , extGetManager
 
       -- * Galley monad
@@ -30,6 +30,7 @@ module Galley.App
     , ifNothing
     , fromJsonBody
     , fromProtoBody
+    , initExtEnv
     ) where
 
 import Imports
@@ -149,7 +150,7 @@ initCassandra o l = do
             . C.setPoolStripes 4
             . C.setSendTimeout 3
             . C.setResponseTimeout 10
-            . C.setProtocolVersion C.V3
+            . C.setProtocolVersion C.V4
             $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager

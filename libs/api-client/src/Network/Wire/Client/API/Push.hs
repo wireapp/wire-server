@@ -51,6 +51,7 @@ import qualified Data.HashMap.Strict       as M
 import qualified Data.Text                 as T
 import qualified Network.WebSockets        as WS
 import qualified Network.WebSockets.Stream as WS
+-- FUTUREWORK: We can probably monadunliftio the Session monad somehow?
 import qualified System.Logger             as Log
 
 -------------------------------------------------------------------------------

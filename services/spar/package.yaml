@@ -47,6 +47,7 @@ dependencies:
   - http-client-tls
   - http-types
   - imports
+  - insert-ordered-containers
   - interpolate
   - lens
   - metrics-core
@@ -95,6 +96,7 @@ tests:
     dependencies:
       - hspec
       - hspec-discover
+      - metrics-wai
       - QuickCheck
       - spar
       - uri-bytestring

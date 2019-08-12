@@ -7,13 +7,14 @@ module Proxy.Options
     , maxConns
     , logLevel
     , logNetStrings
+    , mockOpts
     ) where
 
 import Imports
 import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
-import System.Logger (Level)
+import System.Logger.Class (Level(Debug))
 
 data Opts = Opts
     { _host          :: !String     -- ^ Host to listen on
@@ -30,3 +31,15 @@ data Opts = Opts
 makeLenses ''Opts
 
 deriveJSON defaultOptions{fieldLabelModifier = drop 1} ''Opts
+
+-- | for testing.
+mockOpts :: FilePath -> Opts
+mockOpts secrets = Opts
+    { _host          = mempty
+    , _port          = 0
+    , _secretsConfig = secrets
+    , _httpPoolSize  = 0
+    , _maxConns      = 0
+    , _logLevel      = Debug
+    , _logNetStrings = True
+    }

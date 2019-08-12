@@ -630,6 +630,7 @@ clientType :: DataType
 clientType = string $ enum
     [ "permanent"
     , "temporary"
+    , "legalhold"
     ]
 
 clientClass :: DataType
@@ -637,6 +638,7 @@ clientClass = string $ enum
     [ "phone"
     , "tablet"
     , "desktop"
+    , "legalhold"
     ]
 
 newClient :: Model

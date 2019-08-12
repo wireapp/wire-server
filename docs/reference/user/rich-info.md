@@ -18,7 +18,7 @@ Only team members and partners can see the user's rich info.
 
 ### Querying rich info {#RefRichInfoGet}
 
-`GET /users/:user/rich-info`. Sample output:
+`GET /users/:uid/rich-info`. Sample output:
 
 ```json
 {

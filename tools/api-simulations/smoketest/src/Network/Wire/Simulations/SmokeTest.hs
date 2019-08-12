@@ -108,11 +108,11 @@ mainBotNet n = do
 
     info $ msg "Registering clients for everyone"
 
-    allyPhone  <- addBotClient ally PermanentClient (Just "iPhone")
-    billPC     <- addBotClient bill PermanentClient (Just "Linux PC")
-    carlTablet <- addBotClient carl PermanentClient (Just "Android tablet")
+    allyPhone  <- addBotClient ally PermanentClientType (Just "iPhone")
+    billPC     <- addBotClient bill PermanentClientType (Just "Linux PC")
+    carlTablet <- addBotClient carl PermanentClientType (Just "Android tablet")
     goonClients <- for goons $ \goon ->
-        addBotClient goon PermanentClient (Just "Calculator")
+        addBotClient goon PermanentClientType (Just "Calculator")
 
     let allyWithPhone  = (ally, allyPhone)
     let billWithPC     = (bill, billPC)
@@ -205,7 +205,7 @@ mainBotNet n = do
 
     info $ msg "Bill gets a new phone"
 
-    billPhone <- addBotClient bill PermanentClient (Just "Linux phone")
+    billPhone <- addBotClient bill PermanentClientType (Just "Linux phone")
     let billWithPhone = (bill, billPhone)
 
     -- Bill writes Ally from his new phone

@@ -538,7 +538,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
     -- Prepare user with client
     usr <- createUser "User" brig
     let uid = userId usr
-    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
     let Just uc = clientId <$> decodeBody _rs
 
@@ -562,7 +562,7 @@ testBadFingerprint config db brig galley _cannon = do
         -- Prepare user with client
         usr <- createUser "User" brig
         let uid = userId usr
-        let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+        let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
         _rs <- addClient brig uid new <!! const 201 === statusCode
         -- Create conversation
         _rs <- createConv galley uid [] <!! const 201 === statusCode
@@ -618,7 +618,7 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
 
     -- Prepare user with client
     (uid, tid) <- Team.createUserWithTeam brig galley
-    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
     let Just uc = clientId <$> decodeBody _rs
 

@@ -16,27 +16,6 @@ library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
-  exposed-modules:
-  - Brig.Types
-  - Brig.Types.Activation
-  - Brig.Types.AddressBook
-  - Brig.Types.Client
-  - Brig.Types.Client.Prekey
-  - Brig.Types.Code
-  - Brig.Types.Common
-  - Brig.Types.Connection
-  - Brig.Types.Intra
-  - Brig.Types.Properties
-  - Brig.Types.Provider
-  - Brig.Types.Provider.External
-  - Brig.Types.Provider.Tag
-  - Brig.Types.Search
-  - Brig.Types.Swagger
-  - Brig.Types.Team.Invitation
-  - Brig.Types.TURN
-  - Brig.Types.TURN.Internal
-  - Brig.Types.User
-  - Brig.Types.User.Auth
   dependencies:
   - aeson >=0.11
   - attoparsec >=0.10
@@ -64,6 +43,19 @@ library:
   - types-common >=0.16
   - unordered-containers >=0.2
   - uuid >=1.3
+  when:
+  - condition: flag(cql)
+    cpp-options: -DWITH_CQL
+    dependencies:
+    - cassandra-util
+  - condition: flag(arbitrary)
+    cpp-options: -DWITH_ARBITRARY
+    dependencies:
+    - extra
+    - QuickCheck >=2.9
+    - quickcheck-instances >=0.3.16
+    - random
+    - uri-bytestring
 tests:
   brig-types-tests:
     main: Main.hs
@@ -83,6 +75,7 @@ tests:
     - galley-types
     - iproute
     - iso639
+    - pem
     - QuickCheck
     - quickcheck-instances
     - random
@@ -94,4 +87,14 @@ tests:
     - types-common
     - unordered-containers
     - uuid
+    - uri-bytestring
     - vector
+flags:
+  cql:
+    description: Enable cql instances
+    manual: true
+    default: false
+  arbitrary:
+    description: Enable quickcheck arbitrary instances
+    manual: true
+    default: true

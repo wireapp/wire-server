@@ -24,6 +24,10 @@ module Stern.Intra
     , canBeDeleted
     , isBlacklisted
     , setBlacklistStatus
+    , getLegalholdStatus
+    , setLegalholdStatus
+    , getSSOStatus
+    , setSSOStatus
     , getTeamBillingInfo
     , setTeamBillingInfo
     , getEmailConsentLog
@@ -41,23 +45,27 @@ import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold hiding (teamId)
 import Stern.App
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error)
+import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Text (Text, strip)
+import Data.Text.Lazy (pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Imports
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Gundeck.Types
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
@@ -343,6 +351,68 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True  = POST
 
+getLegalholdStatus :: TeamId -> Handler Bool
+getLegalholdStatus tid = do
+    info $ msg "Getting legalhold status"
+    gly <- view galley
+    (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
+         ( method GET
+         . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+         . expect2xx
+         )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody resp = case responseJson resp of
+      Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure False
+      Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure True
+      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+
+setLegalholdStatus :: TeamId -> Bool -> Handler ()
+setLegalholdStatus tid status = do
+    info $ msg "Setting legalhold status"
+    gly <- view galley
+    void . catchRpcErrors $ rpc' "galley" gly
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = LegalHoldTeamConfig LegalHoldDisabled
+    toRequestBody True  = LegalHoldTeamConfig LegalHoldEnabled
+
+getSSOStatus :: TeamId -> Handler Bool
+getSSOStatus tid = do
+    info $ msg "Getting SSO status"
+    gly <- view galley
+    (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
+         ( method GET
+         . paths ["/i/teams", toByteString' tid, "features", "sso"]
+         . expect2xx
+         )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody resp = case responseJson resp of
+      Right (SSOTeamConfig SSODisabled) -> pure False
+      Right (SSOTeamConfig SSOEnabled) -> pure True
+      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+
+setSSOStatus :: TeamId -> Bool -> Handler ()
+setSSOStatus tid status = do
+    info $ msg "Setting SSO status"
+    gly <- view galley
+    void . catchRpcErrors $ rpc' "galley" gly
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "features", "sso"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = SSOTeamConfig SSODisabled
+    toRequestBody True  = SSOTeamConfig SSOEnabled
+
 --------------------------------------------------------------------------------
 -- Helper functions
 stripBS :: ByteString -> ByteString
@@ -430,9 +500,15 @@ getMarketoResult email = do
     r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/marketo/emails", toByteString' email]
-         . expect2xx
+         . expect [status200, status404]
          )
-    parseResponse (Error status502 "bad-upstream") r
+    -- 404 is acceptable when marketo doesn't know about this user, return an empty result
+    case statusCode r of
+         200 -> parseResponse (Error status502 "bad-upstream") r
+         404 -> return noEmail
+         _   -> throwE (Error status502 "bad-upstream" "")
+  where
+    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do

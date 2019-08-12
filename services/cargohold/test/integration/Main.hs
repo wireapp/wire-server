@@ -1,24 +1,31 @@
 module Main (main) where
 
 import Imports hiding (local)
+
 import Bilge hiding (header, body)
+import Data.Metrics.Test (pathsConsistencyCheck)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml hiding (Parser)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
+import Network.Wai.Utilities.Server (compile)
 import OpenSSL
 import Options.Applicative
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.Options
 import Util.Options
 import Util.Options.Common
 import Util.Test
-import Test.Tasty
-import Test.Tasty.Options
 
 import TestSetup
 import qualified API.V3
 import qualified Metrics
+import qualified CargoHold.API (sitemap)
+
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoint
@@ -58,9 +65,13 @@ main :: IO ()
 main = withOpenSSL $ runTests go
   where
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
-        testGroup "Cargohold" [ API.V3.tests opts
-                              , Metrics.tests opts
-                              ]
+        testGroup "Cargohold"
+            [ testCase "sitemap" $ assertEqual "inconcistent sitemap"
+                mempty
+                (pathsConsistencyCheck . treeToPaths . compile $ CargoHold.API.sitemap)
+            , API.V3.tests opts
+            , Metrics.tests opts
+            ]
 
     getOpts _ i = do
         -- TODO: It would actually be useful to read some

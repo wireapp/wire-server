@@ -28,9 +28,9 @@ tests conf p b c ch g aws = do
     at <- optOrEnv (Opt.setActivationTimeout . Opt.optSettings)                    conf read                     "USER_ACTIVATION_TIMEOUT"
     z  <- mkZAuthEnv conf
     return $ testGroup "user"
-        [ API.User.Account.tests       cl at conf p b c ch g aws
+        [ API.User.Client.tests        cl at conf p b c g
+        , API.User.Account.tests       cl at conf p b c ch g aws
         , API.User.Auth.tests          conf p z b
-        , API.User.Client.tests        cl at conf p b c g
         , API.User.Connection.tests    cl at conf p b c g
         , API.User.Handles.tests       cl at conf p b c g
         , API.User.Onboarding.tests    cl at conf p b c g

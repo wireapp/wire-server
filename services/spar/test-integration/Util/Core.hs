@@ -27,6 +27,9 @@ module Util.Core
   -- * Other
   , defPassword
   , createUserWithTeam
+  , createUserWithTeamDisableSSO
+  , getSSOEnabledInternal
+  , putSSOEnabledInternal
   , createTeamMember
   , deleteUserOnBrig
   , getTeams
@@ -56,7 +59,7 @@ module Util.Core
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
   , callIdpGetAll, callIdpGetAll'
-  , callIdpCreate, callIdpCreate'
+  , callIdpCreate, callIdpCreate', callIdpCreateRaw, callIdpCreateRaw'
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , ssoToUidSpar
@@ -69,8 +72,9 @@ module Util.Core
   ) where
 
 import Imports hiding (head)
-import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
+
 import Bilge.Assert ((!!!), (===), (<!!))
+import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
 import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
@@ -116,6 +120,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
+import qualified Galley.Types.Teams.SSO as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
@@ -223,6 +228,12 @@ aFewTimes action good = do
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
+    (uid, tid) <- createUserWithTeamDisableSSO brg gly
+    putSSOEnabledInternal gly tid Galley.SSOEnabled
+    pure (uid, tid)
+
+createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeamDisableSSO brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
     let p = RequestBodyLBS . Aeson.encode $ object
@@ -240,6 +251,18 @@ createUserWithTeam brg gly = do
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
     return (uid, tid)
+
+getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
+getSSOEnabledInternal gly tid = do
+    get $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> Galley.SSOStatus -> m ()
+putSSOEnabledInternal gly tid enabled = do
+    void . put $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . json (Galley.SSOTeamConfig enabled)
+        . expect2xx
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
@@ -709,6 +732,20 @@ callIdpCreate' sparreq_ muid metadata = do
     . path "/identity-providers/"
     . body (RequestBodyLBS . cs $ SAML.encode metadata)
     . header "Content-Type" "application/xml"
+
+callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m IdP
+callIdpCreateRaw sparreq_ muid ctyp metadata = do
+  resp <- callIdpCreateRaw' (sparreq_ . expect2xx) muid ctyp metadata
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJSON @IdP resp
+
+callIdpCreateRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m ResponseLBS
+callIdpCreateRaw' sparreq_ muid ctyp metadata = do
+  post $ sparreq_
+    . maybe id zUser muid
+    . path "/identity-providers/"
+    . body (RequestBodyLBS metadata)
+    . header "Content-Type" ctyp
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid

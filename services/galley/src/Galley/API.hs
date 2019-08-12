@@ -1,6 +1,7 @@
 module Galley.API where
 
 import Imports hiding (head)
+import Brig.Types.Team.LegalHold
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
@@ -15,9 +16,11 @@ import Galley.API.Create
 import Galley.API.Update
 import Galley.API.Teams
 import Galley.API.Query
+import Galley.API.Swagger (swagger)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Network.HTTP.Types
@@ -33,6 +36,8 @@ import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
+import qualified Galley.API.LegalHold          as LegalHold
+import qualified Galley.API.Teams              as Teams
 import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
@@ -53,10 +58,10 @@ sitemap = do
         response 201 "Team ID as `Location` header value" end
         errorResponse Error.notConnected
 
-    put "/teams/:id" (continue updateTeam) $
+    put "/teams/:tid" (continue updateTeam) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @TeamUpdateData
         .&. accept "application" "json"
 
@@ -84,9 +89,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id" (continue getTeam) $
+    get "/teams/:tid" (continue getTeam) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeam" $ do
@@ -99,10 +104,10 @@ sitemap = do
 
     --
 
-    delete "/teams/:id" (continue deleteTeam) $
+    delete "/teams/:tid" (continue deleteTeam) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. request
         .&. opt (contentType "application" "json")
         .&. accept "application" "json"
@@ -123,9 +128,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id/members" (continue getTeamMembers) $
+    get "/teams/:tid/members" (continue getTeamMembers) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeamMembers" $ do
@@ -157,10 +162,10 @@ sitemap = do
 
     --
 
-    post "/teams/:id/members" (continue addTeamMember) $
+    post "/teams/:tid/members" (continue addTeamMember) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
@@ -202,10 +207,10 @@ sitemap = do
 
     --
 
-    put "/teams/:id/members" (continue updateTeamMember) $
+    put "/teams/:tid/members" (continue updateTeamMember) $
         zauthUserId
         .&. zauthConnId
-        .&. capture "id"
+        .&. capture "tid"
         .&. jsonRequest @NewTeamMember
         .&. accept "application" "json"
 
@@ -221,9 +226,9 @@ sitemap = do
 
     --
 
-    get "/teams/:id/conversations" (continue getTeamConversations) $
+    get "/teams/:tid/conversations" (continue getTeamConversations) $
         zauthUserId
-        .&. capture "id"
+        .&. capture "tid"
         .&. accept "application" "json"
 
     document "GET" "getTeamConversations" $ do
@@ -274,6 +279,59 @@ sitemap = do
         errorResponse (Error.operationDenied DeleteConversation)
 
    --
+
+    -- i added servant-based swagger docs here because (a) it was faster to write than
+    -- learning our legacy approach and (b) swagger2 is more useful for the client teams.  we
+    -- can discuss at the end of the sprint whether to keep it here, move it elsewhere, or
+    -- abandon it entirely.
+    get "/teams/api-docs" (continue . const . pure . json $ swagger) $
+        accept "application" "json"
+
+    post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. jsonRequest @NewLegalHoldService
+        .&. accept "application" "json"
+
+    get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettings) $
+        zauthUserId
+        .&. capture "tid"
+        .&. jsonRequest @RemoveLegalHoldSettingsRequest
+        .&. accept "application" "json"
+
+    get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
+    post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDevice) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
+    delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUser) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. jsonRequest @DisableLegalHoldForUserRequest
+        .&. accept "application" "json"
+
+    put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDevice) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. zauthConnId
+        .&. jsonRequest @ApproveLegalHoldForUserRequest
+        .&. accept "application" "json"
+
+   ---
 
     get "/bot/conversation" (continue getBotConversation) $
         zauth ZAuthBot
@@ -515,7 +573,7 @@ sitemap = do
         body (ref Model.conversationAccessUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
         errorResponse Error.invalidTargetAccess
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
@@ -540,7 +598,7 @@ sitemap = do
         body (ref Model.conversationReceiptModeUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
 
     ---
 
@@ -560,7 +618,7 @@ sitemap = do
         body (ref Model.conversationMessageTimerUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
         errorResponse Error.invalidConnectOp
@@ -585,7 +643,7 @@ sitemap = do
         errorResponse Error.convNotFound
         errorResponse (Error.invalidOp "Conversation type does not allow adding members")
         errorResponse Error.notConnected
-        errorResponse Error.accessDenied
+        errorResponse Error.convAccessDenied
 
     ---
 
@@ -854,8 +912,43 @@ sitemap = do
     get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
+    -- Start of team features; enabling this should only be
+    -- possible internally. Viewing the status should be allowed
+    -- for any admin
+
+    get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternal) $
+        capture "tid"
+        .&. jsonRequest @LegalHoldTeamConfig
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternal) $
+        capture "tid"
+        .&. jsonRequest @SSOTeamConfig
+        .&. accept "application" "json"
+
+    -- End of team features
+
     get "/i/test/clients" (continue getClients)
         zauthUserId
+        -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
     post "/i/clients/:client" (continue addClient) $
         zauthUserId

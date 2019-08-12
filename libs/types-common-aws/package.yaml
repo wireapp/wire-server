@@ -52,9 +52,9 @@ library:
 flags:
   arbitrary:
     description: Enable quickcheck's arbitrary instances
-    manual: false
+    manual: true
     default: false
   protobuf:
     description: Enable protocol buffers instances
-    manual: false
+    manual: true
     default: false

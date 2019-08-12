@@ -20,7 +20,7 @@ import Brig.RPC
 import Brig.Types.Provider (HttpsUrl (..))
 import Brig.Types.Provider.External
 import Control.Error
-import Control.Lens (view, set, (^.), (<&>))
+import Control.Lens (view, set, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -79,15 +79,6 @@ extReq scon ps =
   where
     url = httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
-
-extHost :: URI -> Maybe ByteString
-extHost u = u^.authorityL <&> view (authorityHostL.hostBSL)
-
-extPort :: URI -> Maybe Word16
-extPort u = do
-    a <- u^.authorityL
-    p <- a^.authorityPortL
-    return (fromIntegral (p^.portNumberL))
 
 extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
 extHandleAll f ma = catches ma

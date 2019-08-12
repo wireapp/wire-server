@@ -10,6 +10,7 @@ import Galley.Types
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import TestHelpers
 import TestSetup
 import Control.Lens (view)
 

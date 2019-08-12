@@ -15,7 +15,7 @@ import Cassandra.CQL as C (
   BatchType(BatchLogged, BatchUnLogged),
   Value(CqlInt, CqlBlob, CqlText, CqlUdt, CqlBigInt, CqlList, CqlAscii, CqlDouble, CqlBoolean),
   ColumnType(IntColumn, BlobColumn, TextColumn, BigIntColumn, UdtColumn, TimestampColumn, ListColumn, AsciiColumn, DoubleColumn, MaybeColumn, UuidColumn, BooleanColumn),
-  Version(V3),
+  Version(V4),
   R,
   W,
   S,
@@ -39,6 +39,7 @@ import Cassandra.Exec as C (
   Page,
   PrepQuery,
   BatchM,
+  Row,
   query,
   retry,
   query1,
@@ -60,5 +61,6 @@ import Cassandra.Exec as C (
   shutdown,
   init,
   write,
+  trans,
   x5,
   x1)

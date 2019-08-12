@@ -70,7 +70,7 @@ tests conf m b c g aws = do
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
-            , test m "delete /i/users/:id - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
+            , test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
             , test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
             ]
         ]

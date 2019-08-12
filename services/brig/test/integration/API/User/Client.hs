@@ -2,7 +2,7 @@ module API.User.Client (tests) where
 
 import Imports
 import API.User.Util
-import Bilge hiding (accept, timeout)
+import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
@@ -26,8 +26,12 @@ import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
 tests _cl _at _conf p b c g = testGroup "client"
-    [ test p "get /users/:user/prekeys - 200"         $ testGetUserPrekeys b
-    , test p "get /users/:user/prekeys/:client - 200" $ testGetClientPrekey b
+    [ test p "delete /clients/:client 403 - can't delete legalhold clients"
+               $ testCan'tDeleteLegalHoldClient b
+    , test p "post /clients 400 - can't add legalhold clients manually"
+               $ testCan'tAddLegalHoldClient b
+    , test p "get /users/:uid/prekeys - 200"          $ testGetUserPrekeys b
+    , test p "get /users/:uid/prekeys/:client - 200"  $ testGetClientPrekey b
     , test p "post /clients - 201 (pwd)"              $ testAddGetClient True b c
     , test p "post /clients - 201 (no pwd)"           $ testAddGetClient False b c
     , test p "post /clients - 403"                    $ testClientReauthentication b
@@ -44,7 +48,7 @@ tests _cl _at _conf p b c g = testGroup "client"
 testAddGetClient :: Bool -> Brig -> Cannon -> Http ()
 testAddGetClient hasPwd brig cannon = do
     uid <- userId <$> randomUser' hasPwd brig
-    let rq = addClientReq brig uid (defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    let rq = addClientReq brig uid (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
            . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
     c <- WS.bracketR cannon uid $ \ws -> do
         c <- decodeBody =<< (post rq <!! do
@@ -67,11 +71,11 @@ testClientReauthentication brig = do
     let (pk2, lk2) = (somePrekeys !! 1, someLastPrekeys !! 1)
     let (pk3, lk3) = (somePrekeys !! 2, someLastPrekeys !! 2)
 
-    let payload1 = (defNewClient PermanentClient [pk1] lk1)
+    let payload1 = (defNewClient PermanentClientType [pk1] lk1)
                  { newClientPassword = Nothing }
-    let payload2 = (defNewClient PermanentClient [pk2] lk2)
+    let payload2 = (defNewClient PermanentClientType [pk2] lk2)
                  { newClientPassword = Nothing }
-    let payload3 = (defNewClient TemporaryClient [pk3] lk3)
+    let payload3 = (defNewClient TemporaryClientType [pk3] lk3)
                  { newClientPassword = Nothing }
 
     -- User with password
@@ -104,9 +108,9 @@ testListClients brig = do
     let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
     let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
     let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
-    c1 <- decodeBody <$> addClient brig uid (defNewClient PermanentClient [pk1] lk1)
-    c2 <- decodeBody <$> addClient brig uid (defNewClient PermanentClient [pk2] lk2)
-    c3 <- decodeBody <$> addClient brig uid (defNewClient TemporaryClient [pk3] lk3)
+    c1 <- decodeBody <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+    c2 <- decodeBody <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+    c3 <- decodeBody <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
     let cs = sortBy (compare `on` clientId) $ catMaybes [c1, c2, c3]
     get ( brig
         . path "clients"
@@ -118,7 +122,7 @@ testListClients brig = do
 testListPrekeyIds :: Brig -> Http ()
 testListPrekeyIds brig = do
     uid <- userId <$> randomUser brig
-    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     c <- decodeBody =<< addClient brig uid new
     let pks = [PrekeyId 1, lastPrekeyId]
     get ( brig
@@ -131,7 +135,7 @@ testListPrekeyIds brig = do
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
     uid <- userId <$> randomUser brig
-    let new = defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     c <- decodeBody =<< addClient brig uid new
     let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
@@ -147,7 +151,7 @@ testGetUserPrekeys brig = do
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
     uid <- userId <$> randomUser brig
-    let new = defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     c <- decodeBody =<< addClient brig uid new
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
@@ -162,15 +166,15 @@ testTooManyClients brig = do
     forM_ [0..(9 :: Int)] $ \i ->
         let pk = somePrekeys !! i
             lk = someLastPrekeys !! i
-        in addClient brig uid (defNewClient TemporaryClient [pk] lk) !!! const 201 === statusCode
+        in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
 
     -- But there can be only up to 7 permanent clients
     forM_ [10..(16 :: Int)] $ \i ->
         let pk = somePrekeys !! i
             lk = someLastPrekeys !! i
-        in addClient brig uid (defNewClient PermanentClient [pk] lk) !!! const 201 === statusCode
+        in addClient brig uid (defNewClient PermanentClientType [pk] lk) !!! const 201 === statusCode
 
-    addClient brig uid (defNewClient PermanentClient [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
+    addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
         const 403 === statusCode
         const (Just "too-many-clients") === fmap Error.label . decodeBody
 
@@ -187,7 +191,7 @@ testRemoveClient hasPwd brig cannon = do
         numCookies <- countCookies brig uid defCookieLabel
         liftIO $ Just 1 @=? numCookies
 
-    c <- decodeBody =<< addClient brig uid (client PermanentClient (someLastPrekeys !! 10))
+    c <- decodeBody =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
 
     when hasPwd $ do
         -- Missing password
@@ -222,7 +226,7 @@ testRemoveClient hasPwd brig cannon = do
 testUpdateClient :: Brig -> Http ()
 testUpdateClient brig = do
     uid <- userId <$> randomUser brig
-    let clt = (defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    let clt = (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
                 { newClientClass = Just PhoneClient
                 , newClientModel = Just "featurephone"
                 }
@@ -256,7 +260,7 @@ testUpdateClient brig = do
         const 200            === statusCode
         const (Just "label") === (clientLabel <=< decodeBody)
 
-    -- via `/users/:user/clients/:client`, only `id` and `class` are visible:
+    -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
     get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
         const 200                 === statusCode
         const (Just $ clientId c) === (fmap pubClientId . decodeBody)
@@ -283,7 +287,7 @@ testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do
     uid <- userId <$> randomUser brig
 
-    let clt1 = (defNewClient TemporaryClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    let clt1 = (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
                 { newClientClass = Just PhoneClient
                 , newClientModel = Just "featurephone1"
                 }
@@ -293,7 +297,7 @@ testAddMultipleTemporary brig galley = do
     liftIO $ assertEqual "Too many clients found" (Just 1) brigClients1
     liftIO $ assertEqual "Too many clients found" (Just 1) galleyClients1
 
-    let clt2 = (defNewClient TemporaryClient [somePrekeys !! 1] (someLastPrekeys !! 1))
+    let clt2 = (defNewClient TemporaryClientType [somePrekeys !! 1] (someLastPrekeys !! 1))
                 { newClientClass = Just PhoneClient
                 , newClientModel = Just "featurephone2"
                 }
@@ -320,7 +324,7 @@ testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
     uid <- userId <$> randomUser brig
     let pks = map (\i -> somePrekeys !! i) [1..10]
-    c <- decodeBody =<< addClient brig uid (defNewClient PermanentClient pks (someLastPrekeys !! 0))
+    c <- decodeBody =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
     pks' <- flip mapConcurrently pks $ \_ -> do
         rs <- getPreKey brig uid (clientId c) <!! const 200 === statusCode
         return $ prekeyId . prekeyData <$> decodeBody rs
@@ -330,3 +334,30 @@ testPreKeyRace brig = do
     let regular = filter (/= lastPrekeyId) actual
     liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
     deleteClient brig uid (clientId c) (Just defPassword) !!! const 200 === statusCode
+
+testCan'tDeleteLegalHoldClient :: Brig -> Http ()
+testCan'tDeleteLegalHoldClient brig = do
+    let hasPassword = False
+    user <- randomUser' hasPassword brig
+    let uid = userId user
+
+    let pk = head somePrekeys
+    let lk = head someLastPrekeys
+
+    resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
+                <!! const 201 === statusCode
+    lhClientId <- clientId <$> decodeBody resp
+
+    deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
+
+testCan'tAddLegalHoldClient :: Brig -> Http ()
+testCan'tAddLegalHoldClient brig = do
+    let hasPassword = False
+    user <- randomUser' hasPassword brig
+    let uid = userId user
+
+    let pk = head somePrekeys
+    let lk = head someLastPrekeys
+
+    -- Regular users cannot add legalhold clients
+    addClient brig uid (defNewClient LegalHoldClientType [pk] lk) !!! const 400 === statusCode

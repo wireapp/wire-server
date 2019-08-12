@@ -19,7 +19,7 @@ import Servant.API
 
 
 routesToPaths :: forall routes. RoutesToPaths routes => Paths
-routesToPaths = Paths (getRoutes @routes)
+routesToPaths = Paths (meltTree (getRoutes @routes))
 
 class RoutesToPaths routes where
   getRoutes :: Forest PathSegment

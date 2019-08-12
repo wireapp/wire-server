@@ -44,7 +44,7 @@ tests defOpts manager brig galley = return $ do
                 . runHttpT manager
                 $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleToSelf
                 ]
-            , testGroup "/users/:id"
+            , testGroup "/users/:uid"
                 [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
                 $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam

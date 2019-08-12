@@ -20,15 +20,31 @@ import Data.Misc (Location, PlainTextPassword (..))
 
 -- * Data Types:
 
+-- [Note: LegalHold]
+--
+-- Short feature description:
+-- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
+-- team on a per-user basis
+-- * A LegalHoldClient is a client outside that user's control (but under the
+--   control of that team's business)
+-- * Users need to click "accept" before a LegalHoldClient is added to their
+--   account.
+-- * Any user interacting with a user which has a LegalHoldClient will upon
+--   first interaction receive a warning, have the option of cancelling the
+--   interation, and on an ongoing basis see a visual indication in all
+--   conversations where such a device is active.
+
 data ClientType
-    = TemporaryClient
-    | PermanentClient
+    = TemporaryClientType
+    | PermanentClientType
+    | LegalHoldClientType -- see Note [LegalHold]
     deriving (Eq, Ord, Show)
 
 data ClientClass
     = PhoneClient
     | TabletClient
     | DesktopClient
+    | LegalHoldClient -- see Note [LegalHold]
     deriving (Eq, Ord, Show)
 
 data NewClient = NewClient
@@ -48,7 +64,7 @@ newClient t k = NewClient
     , newClientLastKey  = k
     , newClientType     = t
     , newClientLabel    = Nothing
-    , newClientClass    = Nothing
+    , newClientClass    = if t == LegalHoldClientType then Just LegalHoldClient else Nothing
     , newClientCookie   = Nothing
     , newClientPassword = Nothing
     , newClientModel    = Nothing
@@ -117,26 +133,30 @@ instance FromJSON PubClient where
                   <*> o .:? "class"
 
 instance ToJSON ClientType where
-    toJSON TemporaryClient = String "temporary"
-    toJSON PermanentClient = String "permanent"
+    toJSON TemporaryClientType = String "temporary"
+    toJSON PermanentClientType = String "permanent"
+    toJSON LegalHoldClientType = String "legalhold"
 
 instance FromJSON ClientType where
     parseJSON = withText "ClientType" $ \txt -> case txt of
-        "temporary" -> return TemporaryClient
-        "permanent" -> return PermanentClient
-        _           -> fail "Must be one of {'temporary', 'permanent'}."
+        "temporary" -> return TemporaryClientType
+        "permanent" -> return PermanentClientType
+        "legalhold" -> return LegalHoldClientType
+        _           -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
 
 instance ToJSON ClientClass where
     toJSON PhoneClient   = String "phone"
     toJSON TabletClient  = String "tablet"
     toJSON DesktopClient = String "desktop"
+    toJSON LegalHoldClient = String "legalhold"
 
 instance FromJSON ClientClass where
     parseJSON = withText "ClientClass" $ \txt -> case txt of
-        "phone"   -> return PhoneClient
-        "tablet"  -> return TabletClient
-        "desktop" -> return DesktopClient
-        _         -> fail "Must be one of {'phone', 'tablet', 'desktop'}."
+        "phone"     -> return PhoneClient
+        "tablet"    -> return TabletClient
+        "desktop"   -> return DesktopClient
+        "legalhold" -> return LegalHoldClient
+        _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 instance ToJSON NewClient where
     toJSON c = object

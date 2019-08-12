@@ -26,7 +26,7 @@ main = do
         <> fullDesc
 
     initLogger
-        = Log.new  -- TODO: use mkLogger'?
+        = Log.new
         . Log.setOutput Log.StdOut
         . Log.setFormat Nothing
         . Log.setBufSize 0
@@ -38,5 +38,5 @@ main = do
         . C.setContacts        (cas^.cHosts) []
         . C.setPortNumber      (fromIntegral $ cas^.cPort)
         . C.setKeyspace        (cas^.cKeyspace)
-        . C.setProtocolVersion C.V3
+        . C.setProtocolVersion C.V4
         $ C.defSettings

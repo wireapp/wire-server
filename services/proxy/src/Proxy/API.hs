@@ -27,7 +27,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as Client
 import qualified Network.Wai.Internal as I
-import qualified System.Logger as Logger
+import qualified System.Logger.Class as Logger
 
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
@@ -73,8 +73,8 @@ googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy      = ProxyDest "api.giphy.com" 443
 
 proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxy e qparam keyname reroute path phost rq k = liftIO $ do
-    s <- Config.require (e^.secrets) keyname
+proxy e qparam keyname reroute path phost rq k = do
+    s <- liftIO $ Config.require (e^.secrets) keyname
     let r  = getRequest rq
     let q  = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
     let r' = defaultRequest
@@ -85,18 +85,19 @@ proxy e qparam keyname reroute path phost rq k = liftIO $ do
                 Prefix -> snd $ breakSubstring path (I.rawPathInfo r)
            , I.rawQueryString = q
            }
-    loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
+    runInIO <- askRunInIO
+    liftIO $ loop runInIO (2 :: Int) r (WPRModifiedRequestSecure r' phost)
   where
-    loop !n waiReq req =
-        waiProxyTo (const $ return req) onUpstreamError (e^.manager) waiReq $ \res ->
+    loop runInIO !n waiReq req =
+        waiProxyTo (const $ return req) (onUpstreamError runInIO) (e^.manager) waiReq $ \res ->
             if responseStatus res == status502 && n > 0 then do
                 threadDelay 5000
-                loop (n - 1) waiReq req
+                loop runInIO (n - 1) waiReq req
             else
                 runProxy e waiReq (k res)
 
-    onUpstreamError x _ next = do
-        Logger.warn (e^.applog) (msg (val "gateway error") ~~ field "error" (show x))
+    onUpstreamError runInIO x _ next = do
+        void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
         next (errorRs' error502)
 
 spotifyToken :: Request -> Proxy Response

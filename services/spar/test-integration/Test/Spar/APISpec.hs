@@ -1,6 +1,7 @@
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)
+
 import Bilge
 import Brig.Types.User
 import Control.Lens
@@ -552,7 +553,7 @@ specCRUDIdentityProvider = do
             <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
-            `shouldRespondWith` ((== 403) . statusCode)
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       context "client is team owner" $ do
         context "no idps registered" $ do
@@ -585,7 +586,8 @@ specCRUDIdentityProvider = do
             `shouldRespondWith` checkErr (== 404) "not-found"
 
 
-    describe "PUT /identity-providers/:idp" $ do
+    -- there are no routes for PUT yet.
+    xdescribe "PUT /identity-providers/:idp" $ do
       xdescribe "need to implement `callIdpGet'` for these tests" $ do
         let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
             callIdpPut' = undefined  -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
@@ -602,6 +604,19 @@ specCRUDIdentityProvider = do
 
 
     describe "POST /identity-providers" $ do
+      context "sso disabled for team" $ do
+        it "responds with 403 forbidden" $ do
+          env <- ask
+          (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
+          (callIdpCreate' (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata)
+            `shouldRespondWith` checkErr (== 403) "sso-disabled"
+
+      context "bad xml" $ do
+        it "responds with a 'client error'" $ do
+          env <- ask
+          callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
+            `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
@@ -654,6 +669,22 @@ specCRUDIdentityProvider = do
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
+
+      describe "with json body" $ do
+        context "bad json" $ do
+          it "responds with a 'client error'" $ do
+            env <- ask
+            callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
+              `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+
+        context "good json" $ do
+          it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+            env <- ask
+            (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
+            idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ idp `shouldBe` idp'
 
 
 specScimAndSAML :: SpecWith TestEnv

@@ -64,8 +64,8 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
     , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
-    , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
-    , test' aws p "get /users/:id - 200"                     $ testExistingUser b
+    , test' aws p "get /users/:uid - 404"                    $ testNonExistingUser b
+    , test' aws p "get /users/:uid - 200"                    $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
     , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
@@ -76,13 +76,14 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
     , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
     , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
-    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
+    , test' aws p "put /i/users/:uid/status (suspend)"       $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
     , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
+    , test' aws p "delete/with-legalhold"                    $ testDeleteUserWithLegalHold b c aws
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
+    , test' aws p "delete /i/users/:uid - 202"               $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b g
     ]
@@ -861,7 +862,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login
@@ -894,6 +895,19 @@ testDeleteUserByPassword brig cannon aws = do
     listConnections brig uid3 !!! do
         const 200 === statusCode
         const (Just u3Conns) === decodeBody
+
+testDeleteUserWithLegalHold :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithLegalHold brig cannon aws = do
+    user <- randomUser brig
+    let uid = userId user
+
+    -- Register a legalhold client
+    addClientInternal brig uid (defNewClient LegalHoldClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+        !!! const 201 === statusCode
+
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled user)
+    setHandleAndDeleteUser brig cannon user [] aws $
+        \uid' -> deleteUser uid' (Just defPassword) brig !!! const 200 === statusCode
 
 testDeleteUserByCode :: Brig -> Http ()
 testDeleteUserByCode brig = do

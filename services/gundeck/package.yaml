@@ -211,6 +211,7 @@ tests:
     - gundeck-types
     - HsOpenSSL
     - lens
+    - metrics-wai
     - MonadRandom
     - mtl
     - multiset
@@ -230,6 +231,7 @@ tests:
     - unordered-containers
     - uuid
     - vector
+    - wai-utilities
 benchmarks:
   gundeck-bench:
     main: Main.hs
@@ -249,5 +251,5 @@ benchmarks:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false
