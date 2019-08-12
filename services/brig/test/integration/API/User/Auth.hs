@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module API.User.Auth (tests) where
 
 import Imports
@@ -11,7 +13,6 @@ import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.Proxy
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (PlainTextPassword(..))
@@ -471,12 +472,12 @@ testTooManyCookies config b = do
         (do
             tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
             cs  <- listCookiesWithLabel b (userId u) ["persistent"]
-            liftIO $ map cookieId cs @=? map (getCookieId (Proxy @ZAuth.User)) (drop carry tcs))
+            liftIO $ map cookieId cs @=? map (getCookieId @ZAuth.User) (drop carry tcs))
         -- Session logins
         (do
             tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
             cs' <- listCookiesWithLabel b (userId u) ["session"]
-            liftIO $ map cookieId cs' @=? map (getCookieId (Proxy @ZAuth.User)) (drop carry tcs'))
+            liftIO $ map cookieId cs' @=? map (getCookieId @ZAuth.User) (drop carry tcs'))
   where
     -- We expect that after `setUserCookieLimit` login attempts, we get rate
     -- limited; in those cases, we need to wait `Retry-After` seconds.
@@ -544,8 +545,8 @@ decodeToken r = fromMaybe (error "invalid access_token") $ do
     t <- x ^? key "access_token" . _String
     fromByteString (encodeUtf8 t)
 
-getCookieId :: forall u . (HasCallStack, ZAuth.UserTokenLike u) => Proxy u -> Http.Cookie -> CookieId
-getCookieId _ c = maybe (error "no cookie value")
+getCookieId :: forall u . (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
+getCookieId c = maybe (error "no cookie value")
                       (CookieId . ZAuth.userTokenRand @u)
                       (fromByteString (cookie_value c))
 
