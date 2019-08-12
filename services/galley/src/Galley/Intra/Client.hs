@@ -59,7 +59,7 @@ getLegalHoldAuthToken uid = do
            method POST
             . host brigHost
             . port brigPort
-            . path "/i/sso-login" -- ^ TODO: switch to '/i/legalhold-login'
+            . path "/i/legalhold-login"
             . queryItem "persist" "true"
             . json (SsoLogin uid Nothing)
             . expect2xx
