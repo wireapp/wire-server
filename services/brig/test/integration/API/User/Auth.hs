@@ -76,10 +76,11 @@ tests conf m z b = testGroup "auth"
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: ZAuth ZAuth.AccessToken
-randomAccessToken = randomUserToken >>= ZAuth.newAccessToken
 
-randomUserToken :: ZAuth ZAuth.UserToken
+randomAccessToken :: forall u a . ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
+randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
+
+randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
 randomUserToken = (Id <$> liftIO UUID.nextRandom) >>= ZAuth.newUserToken
 
 -------------------------------------------------------------------------------
@@ -306,7 +307,7 @@ testMissingCookie z r = do
     -- Missing cookie, i.e. token refresh mandates a cookie.
     post (r . path "/access")
         !!! errResponse
-    t <- toByteString' <$> runZAuth z randomAccessToken
+    t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
     post (r . path "/access" . header "Authorization" ("Bearer " <> t))
         !!! errResponse
     post (r . path "/access" . queryItem "access_token" t)
@@ -320,7 +321,7 @@ testMissingCookie z r = do
 testUnknownCookie :: ZAuth.Env -> Brig -> Http ()
 testUnknownCookie z r = do
     -- Valid cookie but unknown to the server.
-    t <- toByteString' <$> runZAuth z randomUserToken
+    t <- toByteString' <$> runZAuth z (randomUserToken @ZAuth.User)
     post (r . path "/access" . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") =~= responseBody
