@@ -244,6 +244,13 @@ ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
 
+legalHoldLogin :: Brig -> LegalHoldLogin -> CookieType -> Http ResponseLBS
+legalHoldLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/legalhold-login"
+    . contentJson
+    . (if t == PersistentCookie then queryItem "persist" "true" else id)
+    . body js
+
 data LoginCodeType = LoginCodeSMS | LoginCodeVoice
     deriving Eq
 

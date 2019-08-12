@@ -10,7 +10,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import UnliftIO.Async hiding (wait)
-import Control.Lens ((^?), set)
+import Control.Lens ((^?), (^.), set)
 import Data.Aeson
 import Data.Proxy
 import Data.Aeson.Lens
@@ -52,6 +52,9 @@ tests conf m z b = testGroup "auth"
                 [ test m "email" (testEmailSsoLogin b)
                 , test m "failure-suspended" (testSuspendedSsoLogin b)
                 , test m "failure-no-user" (testNoUserSsoLogin b)
+                ]
+            , testGroup "legalhold-login"
+                [ test m "internal" (testLegalHoldLogin b)
                 ]
             ]
         , testGroup "refresh"
@@ -98,7 +101,7 @@ testEmailLogin brig = do
     rs <- login brig (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
     liftIO $ do
-        assertSanePersistentCookie (decodeCookie rs)
+        assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
         assertSaneAccessToken now (userId u) (decodeToken rs)
 
     -- Login again, but with capitalised email address
@@ -236,6 +239,33 @@ testThrottleLogins conf b = do
     void $ login b (defEmailLogin e) SessionCookie
 
 -------------------------------------------------------------------------------
+-- LegalHold Login
+--
+--
+--
+-- testTimeoutSettingsIndependent :: ZAuth.Env -> Brig -> Http ()
+-- testTimeoutSettingsIndependent = undefined
+
+-- /i/legalhold-login -> legalhold cookie
+--
+testLegalHoldLogin :: Brig -> Http ()
+testLegalHoldLogin brig = do
+    -- Create a user
+    uid <- userId <$> randomUser brig
+    now <- liftIO getCurrentTime
+    -- Login and do some checks
+    _rs <- legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    -- TODO: should this succeed if legalhold isn't activated yet for this user?
+    liftIO $ do
+        assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie _rs)
+        assertSaneAccessToken now uid (decodeToken' @ZAuth.LegalHoldAccess _rs)
+
+
+
+
+
+-------------------------------------------------------------------------------
 -- Sso login
 
 -- | Check that login works with @/sso-login@ even without having the
@@ -249,7 +279,7 @@ testEmailSsoLogin brig = do
     _rs <- ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
         <!! const 200 === statusCode
     liftIO $ do
-        assertSanePersistentCookie (decodeCookie _rs)
+        assertSanePersistentCookie @ZAuth.User  (decodeCookie _rs)
         assertSaneAccessToken now uid (decodeToken _rs)
 
 -- | Check that @/sso-login@ can not be used to login as a suspended
@@ -543,7 +573,10 @@ decodeCookie :: HasCallStack => Response a -> Http.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
 decodeToken :: HasCallStack => Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
-decodeToken r = fromMaybe (error "invalid access_token") $ do
+decodeToken = decodeToken' @ZAuth.Access
+
+decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe Lazy.ByteString) -> ZAuth.Token a
+decodeToken' r = fromMaybe (error "invalid access_token") $ do
     x <- responseBody r
     t <- x ^? key "access_token" . _String
     fromByteString (encodeUtf8 t)
@@ -570,19 +603,24 @@ listCookiesWithLabel b u l = do
 -- | Check that the cookie returned after login is sane.
 --
 -- Doesn't check everything, just some basic properties.
-assertSanePersistentCookie :: Http.Cookie -> Assertion
+assertSanePersistentCookie :: forall u . ZAuth.UserTokenLike u => Http.Cookie -> Assertion
 assertSanePersistentCookie ck = do
     assertBool "type" (cookie_persistent ck)
     assertBool "http-only" (cookie_http_only ck)
     assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
     assertBool "domain" (cookie_domain ck /= "")
     assertBool "path" (cookie_path ck /= "")
+    let mtoken = (fromByteString (cookie_value ck)) :: Maybe (ZAuth.Token u)
+    assertBool "cookie token exists" (isJust mtoken)
+    let (Just token) = mtoken
+    assertBool "cookie token has correct type" ((token^.ZAuth.header.ZAuth.typ) == ZAuth.zauthType @u)
 
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken
-    :: UTCTime           -- ^ Some moment in time before the user was created
+    :: ZAuth.AccessTokenLike a
+    => UTCTime           -- ^ Some moment in time before the user was created
     -> UserId
-    -> ZAuth.AccessToken
+    -> ZAuth.Token a
     -> Assertion
 assertSaneAccessToken now uid tk = do
     assertEqual "user" uid (ZAuth.accessTokenOf tk)

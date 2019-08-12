@@ -63,6 +63,7 @@ module Brig.ZAuth
     , tokenExpires
     , tokenExpiresUTC
     , tokenKeyIndex
+    , zauthType
 
       -- * Re-exports
     , SecretKey
@@ -224,7 +225,8 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     userTokenRand :: Token u -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token u)
     newSessionToken :: MonadZAuth m => UserId -> m (Token u)
-    userTTL :: Proxy u -> Lens' Settings Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
+    userTTL :: Proxy u -> Lens' Settings Integer
+    zauthType :: Type -- see libs/zauth/src/Token.hs
 
 instance UserTokenLike User where
     mkUserToken = mkUserToken'
@@ -233,6 +235,7 @@ instance UserTokenLike User where
     newUserToken = newUserToken'
     newSessionToken = newSessionToken'
     userTTL _ = userTokenTimeout . userTokenTimeoutSeconds
+    zauthType = U
 
 instance UserTokenLike LegalHoldUser where
     mkUserToken = mkLegalHoldUserToken
@@ -240,6 +243,7 @@ instance UserTokenLike LegalHoldUser where
     userTokenRand = legalHoldUserTokenRand
     newUserToken = newLegalHoldUserToken
     userTTL _ = legalHoldUserTokenTimeout . legalHoldUserTokenTimeoutSeconds
+    zauthType = LU
     newSessionToken = undefined -- TODO: sessions tokens are not intended to be supported for the legal hold case. Throw an error leading to a 4xx when this is tried? Alternatively refactor the User/Auth/Cookie.hs `newCookie` function so that this function isn't needed on the `UserTokenLike` class.
 
 mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
