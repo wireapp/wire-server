@@ -201,7 +201,7 @@ instance TokenPair User Access where
 instance TokenPair LegalHoldUser LegalHoldAccess where
     newAccessToken = newLegalHoldAccessToken
 
-class ToByteString a => AccessTokenLike a where
+class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
     settingsTTL :: Maybe (Token a) -> Settings -> Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?

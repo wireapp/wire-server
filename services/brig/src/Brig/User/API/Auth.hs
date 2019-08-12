@@ -27,11 +27,12 @@ import qualified Brig.Types.Swagger            as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Brig.ZAuth                    as ZAuth
+import qualified Data.ZAuth.Token              as ZAuth
 import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
-    post "/access" (continue renew) $
+    post "/access" (continue (renew @ZAuth.User @ZAuth.Access)) $
         accept "application" "json" .&. tokenRequest
 
     document "POST" "newAccessToken" $ do
@@ -137,8 +138,8 @@ routes = do
         Doc.errorResponse badCredentials
 
     -- for the LegalHoldService to refresh its tokens.
-    post "/legalhold/access" (continue renewLegalHold) $
-        accept "application" "json" .&. legalHoldTokenRequest
+    post "/legalhold/access" (continue (renew @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)) $
+        accept "application" "json" .&. tokenRequest
 
     document "POST" "newAccessToken" $ do
         Doc.summary "Obtain an access tokens for a cookie."
@@ -238,29 +239,17 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
-renew :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
+renew :: ZAuth.TokenPair u a => JSON ::: Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a) -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
 renew (_ ::: Just ut ::: at) = do
     a <- Auth.renewAccess ut at !>> zauthError
     tokenResponse a
 
-renewLegalHold :: JSON ::: Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken -> Handler Response
-renewLegalHold (_ ::: Nothing :::  _) = throwStd authMissingCookie
-renewLegalHold (_ ::: Just ut ::: at) = do
-    a <- Auth.renewAccess ut at !>> zauthError
-    tokenResponse a
-
 -- Utilities
 
-
 -- | A predicate that captures user and access tokens for a request handler.
-legalHoldTokenRequest :: (HasCookies r, HasHeaders r, HasQuery r)
-    => Predicate r P.Error (Maybe ZAuth.LegalHoldUserToken ::: Maybe ZAuth.LegalHoldAccessToken)
-legalHoldTokenRequest = undefined --TODO
-
--- | A predicate that captures user and access tokens for a request handler.
-tokenRequest :: (HasCookies r, HasHeaders r, HasQuery r)
-    => Predicate r P.Error (Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken)
+tokenRequest :: forall u a r . (HasCookies r, HasHeaders r, HasQuery r, ZAuth.TokenPair u a)
+    => Predicate r P.Error (Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a))
 tokenRequest = opt userToken .&. opt accessToken
   where
     userToken   = cookieErr <$> cookie "zuid"
@@ -268,7 +257,7 @@ tokenRequest = opt userToken .&. opt accessToken
     tokenHeader = bearer    <$> header "authorization"
     tokenQuery  = query "access_token"
 
-    cookieErr :: Result P.Error ZAuth.UserToken -> Result P.Error ZAuth.UserToken
+    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
     cookieErr x@Okay{} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
 
@@ -282,7 +271,7 @@ tokenRequest = opt userToken .&. opt accessToken
                       (setMessage "Invalid authorization scheme" (err status403)))
 
     -- Parse the access token
-    parse :: Result P.Error ByteString -> Result P.Error ZAuth.AccessToken
+    parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail   x) = Fail x
     parse (Okay _ b) = case fromByteString b of
         Nothing -> Fail (setReason TypeError
