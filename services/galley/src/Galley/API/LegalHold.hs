@@ -8,7 +8,7 @@ import Brig.Types.Client.Prekey
 import Control.Monad.Catch
 import Control.Lens (view, (^.))
 import Data.Id
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion (toByteString', toByteString)
 import Data.Misc
 import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.API.Util
@@ -42,6 +42,9 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
 
     membs <- Data.teamMembers tid
+    Log.debug $ Log.field "targets" (toByteString (show membs))
+              . Log.msg (Log.val "LegalHold.createSettings")
+    
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
 
     newService :: NewLegalHoldService
@@ -71,8 +74,10 @@ getSettings (zusr ::: tid ::: _) = do
 removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
-
     membs <- Data.teamMembers tid
+    Log.debug $ Log.field "targets" (toByteString (show membs))
+              . Log.msg (Log.val "LegalHold.removeSettings")
+
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
     RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
     ensureReAuthorised zusr mPassword
@@ -87,6 +92,9 @@ removeSettings'
     -> Galley ()
 removeSettings' tid mMembers = do
     membs <- maybe (Data.teamMembers tid) pure mMembers
+    Log.debug $ Log.field "targets" (toByteString (show membs))
+              . Log.msg (Log.val "LegalHold.removeSettings'")
+
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
     -- I picked this number by fair dice roll, feel free to change it :P
     pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
@@ -129,6 +137,8 @@ requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 requestDevice (zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
+    Log.debug $ Log.field "target" (toByteString uid)
+              . Log.msg (Log.val "LegalHold.requestDevice")
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
 
@@ -164,6 +174,8 @@ approveDevice
     -> Galley Response
 approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     assertLegalHoldEnabled tid
+    Log.debug $ Log.field "target" (toByteString uid)
+              . Log.msg (Log.val "LegalHold.approveDevice")
 
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
@@ -199,6 +211,8 @@ disableForUser
   :: UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON
   -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
+    Log.debug $ Log.field "target" (toByteString uid)
+              . Log.msg (Log.val "LegalHold.disableForUser")
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
     if userLHNotDisabled membs
