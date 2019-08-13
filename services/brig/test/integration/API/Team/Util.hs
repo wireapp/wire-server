@@ -161,6 +161,7 @@ putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> Galley -> Http ()
 putEnabled tid enabled g = do
     void . put $ g
          . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+         . contentJson
          . lbytes (encode (LegalHoldTeamConfig enabled))
          . expect2xx
 

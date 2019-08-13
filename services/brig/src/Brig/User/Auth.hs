@@ -28,6 +28,7 @@ import Brig.User.Phone
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
+import Brig.Types.Team.LegalHold (ViewLegalHoldService (..))
 import Brig.Types.User.Auth hiding (user)
 import Control.Error
 import Data.Id
@@ -39,6 +40,7 @@ import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
 import qualified Brig.ZAuth as ZAuth
 import qualified Data.ZAuth.Token as ZAuth
+import qualified Brig.IO.Intra as Intra
 
 data Access u = Access
     { accessToken  :: !AccessToken
@@ -198,13 +200,33 @@ ssoLogin (SsoLogin uid label) typ = do
     newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
-legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.LegalHoldUser)
+legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError AppIO (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid label) typ = do
     Data.reauthenticate uid Nothing `catchE` \case
         ReAuthMissingPassword -> pure ()
         ReAuthError e -> case e of
             AuthInvalidCredentials -> pure ()
-            AuthSuspended          -> throwE LoginSuspended
-            AuthEphemeral          -> throwE LoginEphemeral
-            AuthInvalidUser        -> throwE LoginFailed
-    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
+            AuthSuspended          -> throwE LegalHoldLoginSuspended
+            AuthEphemeral          -> throwE LegalHoldLoginEphemeral
+            AuthInvalidUser        -> throwE LegalHoldLoginFailed
+    -- legalhold login is only possible if
+    -- * the user is a team user
+    -- * and the team has legalhold enabled
+    mteam <- lift $ Data.lookupUserTeam uid
+    case mteam of
+         Nothing -> throwE LegalHoldLoginNoBindingTeam
+         Just tid -> assertLegalHoldEnabled uid tid
+    -- create access token and cookie
+    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label `catchE` \case
+       LoginFailed -> throwE LegalHoldLoginFailed
+       LoginSuspended -> throwE LegalHoldLoginSuspended
+       LoginEphemeral -> throwE LegalHoldLoginEphemeral
+       LoginPendingActivation -> throwE LegalHoldLoginPendingActivation
+       LoginThrottled after -> throwE $ LegalHoldLoginThrottled after
+
+assertLegalHoldEnabled :: UserId -> TeamId -> ExceptT LegalHoldLoginError AppIO ()
+assertLegalHoldEnabled uid tid = do
+    stat <- lift $ Intra.getTeamLegalHoldStatus uid tid
+    case stat of
+        ViewLegalHoldServiceDisabled      -> throwE LegalHoldLoginLegalHoldNotEnabled
+        _                                 -> pure ()

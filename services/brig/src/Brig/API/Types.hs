@@ -106,6 +106,16 @@ data PasswordResetError
     | InvalidPasswordResetCode
     | ResetPasswordMustDiffer
 
+data LegalHoldLoginError
+    = LegalHoldLoginNoBindingTeam
+    | LegalHoldLoginLegalHoldNotEnabled
+    -- same as LoginError
+    | LegalHoldLoginFailed
+    | LegalHoldLoginSuspended
+    | LegalHoldLoginEphemeral
+    | LegalHoldLoginPendingActivation
+    | LegalHoldLoginThrottled RetryAfter
+
 data LoginError
     = LoginFailed
     | LoginSuspended

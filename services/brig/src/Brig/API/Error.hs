@@ -102,6 +102,16 @@ changeHandleError ChangeHandleNoIdentity  = StdError noIdentity
 changeHandleError ChangeHandleExists      = StdError handleExists
 changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 
+legalHoldLoginError :: LegalHoldLoginError -> Error
+legalHoldLoginError LegalHoldLoginFailed              = StdError badCredentials
+legalHoldLoginError LegalHoldLoginSuspended           = StdError accountSuspended
+legalHoldLoginError LegalHoldLoginEphemeral           = StdError accountEphemeral
+legalHoldLoginError LegalHoldLoginPendingActivation   = StdError accountPending
+legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
+legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
+legalHoldLoginError (LegalHoldLoginThrottled wait)    = RichError loginsTooFrequent ()
+    [("Retry-After", toByteString' (retryAfterSeconds wait))]
+
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
 loginError LoginSuspended         = StdError accountSuspended
@@ -401,3 +411,7 @@ can'tAddLegalHoldClient =
     Wai.Error status400
               "client-error"
               "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
+
+legalHoldNotEnabled :: Wai.Error
+legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first."
+

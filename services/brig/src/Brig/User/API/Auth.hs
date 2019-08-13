@@ -217,7 +217,7 @@ legalHoldLogin :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
 legalHoldLogin (req ::: _) = do
     l <- parseJsonBody req
     let typ = PersistentCookie -- Session cookie isn't a supported use case here
-    a <- Auth.legalHoldLogin l typ !>> loginError
+    a <- Auth.legalHoldLogin l typ !>> legalHoldLoginError
     tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
