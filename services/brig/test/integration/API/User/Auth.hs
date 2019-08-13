@@ -23,6 +23,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options.Common
+import API.Team.Util
+import Brig.Types.Team.LegalHold (LegalHoldStatus (..))
 
 import qualified Brig.Options         as Opts
 import qualified Brig.Types.User.Auth as Auth
@@ -38,8 +40,8 @@ import qualified Data.UUID.V4         as UUID
 
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> TestTree
-tests conf m z b = testGroup "auth"
+tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> TestTree
+tests conf m z b g = testGroup "auth"
         [ testGroup "login"
             [ test m "email" (testEmailLogin b)
             , test m "phone" (testPhoneLogin b)
@@ -54,7 +56,11 @@ tests conf m z b = testGroup "auth"
                 , test m "failure-no-user" (testNoUserSsoLogin b)
                 ]
             , testGroup "legalhold-login"
-                [ test m "internal" (testLegalHoldLogin b)
+                [ test m "failure-no-team" (testRegularUserLegalHoldLogin b)
+                , test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g)
+                , test m "failure-suspended" (testSuspendedLegalHoldLogin b g)
+                , test m "failure-no-user" (testNoUserLegalHoldLogin b)
+                , test m "other login tests - see galley integration/API/Teams/LegalHold.hs" (pure ())
                 ]
             ]
         , testGroup "refresh"
@@ -246,24 +252,51 @@ testThrottleLogins conf b = do
 -- testTimeoutSettingsIndependent :: ZAuth.Env -> Brig -> Http ()
 -- testTimeoutSettingsIndependent = undefined
 
--- /i/legalhold-login -> legalhold cookie
---
-testLegalHoldLogin :: Brig -> Http ()
-testLegalHoldLogin brig = do
-    -- Create a user
+testRegularUserLegalHoldLogin :: Brig -> Http ()
+testRegularUserLegalHoldLogin brig = do
+    -- Create a regular user
     uid <- userId <$> randomUser brig
+    -- fail if user is not a team user
+    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+
+testTeamUserLegalHoldLogin :: Brig -> Galley -> Http ()
+testTeamUserLegalHoldLogin brig galley = do
+    -- create team user Alice
+    (alice, tid) <- createUserWithTeam brig galley
     now <- liftIO getCurrentTime
-    -- Login and do some checks
-    _rs <- legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie
+    -- fail if legalhold isn't activated yet for this user
+    legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+
+    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+    _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
         <!! const 200 === statusCode
-    -- TODO: should this succeed if legalhold isn't activated yet for this user?
+    -- check for the correct (legalhold) token and cookie
     liftIO $ do
         assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie _rs)
-        assertSaneAccessToken now uid (decodeToken' @ZAuth.LegalHoldAccess _rs)
+        assertSaneAccessToken now alice (decodeToken' @ZAuth.LegalHoldAccess _rs)
 
+-- | Check that @/i/legalhold-login/@ can not be used to login as a suspended
+-- user.
+testSuspendedLegalHoldLogin :: Brig -> Galley -> Http ()
+testSuspendedLegalHoldLogin brig galley = do
+    -- Create a user and immediately suspend them
+    (uid, _tid) <- createUserWithTeam brig galley
+    setStatus brig uid Suspended
+    -- Try to login and see if we fail
+    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "suspended") === errorLabel
 
-
-
+-- | Check that @/i/legalhold-login@ fails if the user doesn't exist.
+testNoUserLegalHoldLogin :: Brig -> Http ()
+testNoUserLegalHoldLogin brig = do
+    -- Try to login with random UID and see if we fail
+    uid <- randomId
+    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -------------------------------------------------------------------------------
 -- Sso login

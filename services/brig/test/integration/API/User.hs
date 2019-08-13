@@ -30,7 +30,7 @@ tests conf p b c ch g aws = do
     return $ testGroup "user"
         [ API.User.Client.tests        cl at conf p b c g
         , API.User.Account.tests       cl at conf p b c ch g aws
-        , API.User.Auth.tests          conf p z b
+        , API.User.Auth.tests          conf p z b g
         , API.User.Connection.tests    cl at conf p b c g
         , API.User.Handles.tests       cl at conf p b c g
         , API.User.Onboarding.tests    cl at conf p b c g
