@@ -18,6 +18,11 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified System.Logger.Class as LC
 
+data Renderer 
+  = JSON
+  | Netstring
+  | Default
+
 mkLogger :: Log.Level -> Bool -> IO Log.Logger
 mkLogger lvl netstr = Log.new
     . Log.setReadEnvironment False
@@ -40,8 +45,8 @@ simpleSettings lvl netstr
   $ Log.defSettings
   where
     rndr = case netstr of
-      True  -> \_ _ _ -> Log.renderNetstr
-      False -> \s _ _ -> Log.renderDefault s
+      True  -> \_separator _dateFormat _level -> Log.renderNetstr
+      False -> \ separator _dateFormat _level -> Log.renderDefault separator
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
 -- Log output must be ASCII encoding.
