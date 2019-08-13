@@ -23,7 +23,7 @@ mkLogger lvl netstr = Log.new
     . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
-    $ simpleSettings (Just lvl) (Just netstr)
+    $ simpleSettings lvl netstr
 
 -- | Variant of Log.defSettings:
 --
@@ -33,15 +33,15 @@ mkLogger lvl netstr = Log.new
 --
 --   * use 'canonicalizeWhitespace'.
 --
-simpleSettings :: Maybe Level -> Maybe Bool -> Log.Settings
+simpleSettings :: Log.Level -> Bool -> Log.Settings
 simpleSettings lvl netstr
-  = maybe id setLogLevel lvl
-  . setRenderer (canonicalizeWhitespace rndr)
+  = Log.setLogLevel lvl
+  . Log.setRenderer (canonicalizeWhitespace rndr)
   $ Log.defSettings
   where
     rndr = case netstr of
-      Just True  -> \_ _ _ -> renderNetstr
-      _          -> \s _ _ -> renderDefault s
+      True  -> \_ _ _ -> Log.renderNetstr
+      False -> \s _ _ -> Log.renderDefault s
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
 -- Log output must be ASCII encoding.
@@ -50,7 +50,7 @@ simpleSettings lvl netstr
 -- places and situations in your code and your dependencies that inject newlines
 -- into your log messages, you can choose to call 'canonicalizeWhitespace' on
 -- your renderer.)
-canonicalizeWhitespace :: Renderer -> Renderer
+canonicalizeWhitespace :: Log.Renderer -> Log.Renderer
 canonicalizeWhitespace rndrRaw delim df lvl
   = B.lazyByteString . nl2sp . B.toLazyByteString . rndrRaw delim df lvl
   where
