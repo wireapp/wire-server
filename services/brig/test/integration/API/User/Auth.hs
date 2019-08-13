@@ -60,15 +60,16 @@ tests conf m z b g = testGroup "auth"
                 , test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g)
                 , test m "failure-suspended" (testSuspendedLegalHoldLogin b g)
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
-                , test m "other login tests - see galley integration/API/Teams/LegalHold.hs" (pure ())
                 ]
             ]
         , testGroup "refresh"
             [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
-            , test m "invalid-cookie @legalhold /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser "/legalhold/access" z b)
+            , test m "invalid-cookie @legalhold /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser lhAccess z b)
             , test m "invalid-token" (testInvalidToken b)
-            , test m "missing-cookie" (testMissingCookie z b)
-            , test m "unknown-cookie" (testUnknownCookie z b)
+            , test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access "/access" z b)
+            , test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lhAccess z b)
+            , test m "unknown-cookie" (testUnknownCookie @ZAuth.User "/access" z b)
+            , test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser lhAccess z b)
             , test m "new-persistent-cookie" (testNewPersistentCookie conf b)
             , test m "new-session-cookie" (testNewSessionCookie conf b)
             ]
@@ -356,26 +357,26 @@ testInvalidCookie accessPath z b = do
         const (Just "expired") =~= responseBody
 
 testInvalidToken :: Brig -> Http ()
-testInvalidToken r = do
+testInvalidToken b = do
     -- Syntactically invalid
-    post (r . path "/access" . queryItem "access_token" "xxx")
+    post (b . path "/access" . queryItem "access_token" "xxx")
         !!! errResponse
-    post (r . path "/access" . header "Authorization" "Bearer xxx")
+    post (b . path "/access" . header "Authorization" "Bearer xxx")
         !!! errResponse
   where
     errResponse = do
         const 403 === statusCode
         const (Just "Invalid access token") =~= responseBody
 
-testMissingCookie :: ZAuth.Env -> Brig -> Http ()
-testMissingCookie z r = do
+testMissingCookie :: forall u a . ZAuth.TokenPair u a => ByteString -> ZAuth.Env -> Brig -> Http ()
+testMissingCookie accessPath z b = do
     -- Missing cookie, i.e. token refresh mandates a cookie.
-    post (r . path "/access")
+    post (b . path accessPath)
         !!! errResponse
-    t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
-    post (r . path "/access" . header "Authorization" ("Bearer " <> t))
+    t <- toByteString' <$> runZAuth z (randomAccessToken @u @a)
+    post (b . path accessPath . header "Authorization" ("Bearer " <> t))
         !!! errResponse
-    post (r . path "/access" . queryItem "access_token" t)
+    post (b . path accessPath . queryItem "access_token" t)
         !!! errResponse
   where
     errResponse = do
@@ -383,11 +384,11 @@ testMissingCookie z r = do
         const (Just "Missing cookie") =~= responseBody
         const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: ZAuth.Env -> Brig -> Http ()
-testUnknownCookie z r = do
+testUnknownCookie :: forall u . ZAuth.UserTokenLike u => ByteString -> ZAuth.Env -> Brig -> Http ()
+testUnknownCookie accessPath z b = do
     -- Valid cookie but unknown to the server.
-    t <- toByteString' <$> runZAuth z (randomUserToken @ZAuth.User)
-    post (r . path "/access" . cookieRaw "zuid" t) !!! do
+    t <- toByteString' <$> runZAuth z (randomUserToken @u)
+    post (b . path accessPath . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") =~= responseBody
 
@@ -680,3 +681,6 @@ remJson p l ids = object
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
+
+lhAccess :: ByteString
+lhAccess = "/legalhold/access"
