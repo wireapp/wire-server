@@ -60,11 +60,12 @@ tests conf m z b g = testGroup "auth"
                 , test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g)
                 , test m "failure-suspended" (testSuspendedLegalHoldLogin b g)
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
+                , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
                 ]
             ]
         , testGroup "refresh"
             [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
-            , test m "invalid-cookie @legalhold /legalhold/access" (testInvalidCookie @ZAuth.LegalHoldUser lhAccess z b)
+            , test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser lhAccess z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access "/access" z b)
             , test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lhAccess z b)
@@ -247,11 +248,6 @@ testThrottleLogins conf b = do
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
---
---
---
--- testTimeoutSettingsIndependent :: ZAuth.Env -> Brig -> Http ()
--- testTimeoutSettingsIndependent = undefined
 
 testRegularUserLegalHoldLogin :: Brig -> Http ()
 testRegularUserLegalHoldLogin brig = do
@@ -277,6 +273,17 @@ testTeamUserLegalHoldLogin brig galley = do
     liftIO $ do
         assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie _rs)
         assertSaneAccessToken now alice (decodeToken' @ZAuth.LegalHoldAccess _rs)
+
+testLegalHoldSessionCookie :: Brig -> Galley -> Http ()
+testLegalHoldSessionCookie brig galley = do
+    (alice, tid) <- createUserWithTeam brig galley
+    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+
+    -- attempt a legalhold login with a session cookie (?persist=false)
+    rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) SessionCookie
+        <!! const 200 === statusCode
+    -- ensure server always returns a refreshable PersistentCookie irrespective of argument passed
+    liftIO $ assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie rs)
 
 -- | Check that @/i/legalhold-login/@ can not be used to login as a suspended
 -- user.
