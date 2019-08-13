@@ -18,11 +18,13 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified System.Logger.Class as LC
 
-data Renderer 
-  = JSON
-  | Netstring
-  | Default
-
+-- TODO(arianvp): Get rid of boolean blindness
+-- TODO(arianvp): Add JSON log format. This will make our lives a lot easier
+--    This will add a dependency on aeson for this package,
+--    but it already transitively depended on it through imports.
+--    Interestingly, the only place where imports uses Aeson
+--    is in the Orphans module which defines Aeson Orphans instances for Log.Level.
+--    So while we're at it, we should probably move those orphans here.
 mkLogger :: Log.Level -> Bool -> IO Log.Logger
 mkLogger lvl netstr = Log.new
     . Log.setReadEnvironment False
