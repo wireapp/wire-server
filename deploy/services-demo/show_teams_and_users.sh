@@ -12,10 +12,9 @@
 
 function print_team_user() {
     local tid=$1
-    local team=$2
     echo "=> users"
     head -10 users.txt | grep email | grep handle
-    cat users.txt | grep $tid
+    cat users.txt | grep ".*|.*|.*|.*|\ *$tid"
     echo ""
     echo ""
 }
@@ -39,4 +38,3 @@ done <teams.txt
 
 echo "---------users without a team:"
 print_team_user "null"
-
