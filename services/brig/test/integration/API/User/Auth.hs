@@ -228,7 +228,7 @@ testThrottleLogins conf b = do
     liftIO $ do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
-    void $ login b (defEmailLogin e) SessionCookie
+    login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
