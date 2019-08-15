@@ -164,6 +164,22 @@ data EmailSMSOpts = EmailSMSOpts
 
 instance FromJSON EmailSMSOpts
 
+-- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
+-- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
+-- of an attacker blocking legitimate login attempts of a user by constantly keeping the retry
+-- limit for that user exhausted with failed login attempts.
+--
+-- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
+-- password policy.
+data LoginRetryOpts = LoginRetryOpts
+    { loginRetryTimeout :: !Int   -- ^ Time the user is blocked when retry limit is reached
+                                  -- (in seconds mostly for making it easier to write a
+                                  -- fast-ish integration test.)
+    , loginRetryLimit   :: !Int   -- ^ Maximum number of failed login attempts for one user.
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON LoginRetryOpts
+
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
     { privateKeys  :: !FilePath        -- ^ Private key file
@@ -229,6 +245,10 @@ data Opts = Opts
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts           -- ^ Email and SMS settings
 
+    -- Login
+    , loginRetry    :: !(Maybe LoginRetryOpts) -- ^ Block user from logging in for m minutes
+                                               -- after n failed logins
+
     -- ZAuth
     , zauth         :: !ZAuthOpts              -- ^ ZAuth settings
 
@@ -267,7 +287,8 @@ data Settings = Settings
     , setUserCookieRenewAge    :: !Integer  -- ^ Minimum age of a user cookie before
                                             --   it is renewed during token refresh
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
-    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
+    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings (not to be confused
+                                                  -- with 'LoginRetryOpts')
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
                                            --   field names and values), should be in sync
                                            --   with Spar

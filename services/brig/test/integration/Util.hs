@@ -515,6 +515,9 @@ someLastPrekeys =
 defPassword :: PlainTextPassword
 defPassword = PlainTextPassword "secret"
 
+defWrongPassword :: PlainTextPassword
+defWrongPassword = PlainTextPassword "not secret"
+
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 

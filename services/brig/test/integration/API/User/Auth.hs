@@ -44,6 +44,7 @@ tests conf m z b = testGroup "auth"
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
             , test m "throttle" (testThrottleLogins conf b)
+            , test m "limit-retry" (testLimitRetries conf b)
             , testGroup "sso-login"
                 [ test m "email" (testEmailSsoLogin b)
                 , test m "failure-suspended" (testSuspendedSsoLogin b)
@@ -228,6 +229,49 @@ testThrottleLogins conf b = do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
     void $ login b (defEmailLogin e) SessionCookie
+
+testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
+testLimitRetries conf brig = do
+    let Just opts = Opts.loginRetry =<< conf
+    unless (Opts.loginRetryTimeout opts <= 30) $
+        error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
+
+    usr <- randomUser brig
+    let Just email = userEmail usr
+
+    usr' <- randomUser brig
+    let Just email' = userEmail usr'
+
+    -- Login 5 times with bad password.
+    forM_ [1..Opts.loginRetryLimit opts] $ \_ ->
+        login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
+            <!! const 403 === statusCode
+
+    -- Login once more. This should fail for usr, even though password is correct...
+    resp <- login brig (defEmailLogin email) SessionCookie
+        <!! const 403 === statusCode
+    -- ...  but not for usr'!
+    login brig (defEmailLogin email') SessionCookie
+        !!! const 200 === statusCode
+
+    -- After the amount of time specified in "Retry-After", though,
+    -- throttling should stop and login should work again
+    do  let Just n = fromByteString =<< getHeader "Retry-After" resp
+        liftIO $ do
+            assertBool "throttle delay" (n == Opts.loginRetryTimeout opts)
+            threadDelay (1000000 * (n - 1))
+
+    -- fail again later into the block time window
+    rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
+    do  let Just n = fromByteString =<< getHeader "Retry-After" rsp
+        liftIO $ do
+            assertBool "throttle delay" (n <= 2)
+            threadDelay (1000000 * (n - 2))
+
+    -- wait long enough and login successfully!
+    liftIO $ threadDelay (1000000 * 2)
+    login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
+
 
 -------------------------------------------------------------------------------
 -- Sso login

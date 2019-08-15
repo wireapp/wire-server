@@ -104,6 +104,10 @@ emailSMS:
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
+loginRetry:
+  loginRetryTimeout: 5
+  loginRetryLimit: 5
+
 zauth:
   privateKeys: test/resources/zauth/privkeys.txt
   publicKeys: test/resources/zauth/pubkeys.txt
