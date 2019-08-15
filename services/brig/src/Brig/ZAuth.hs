@@ -83,6 +83,7 @@ import Data.Time.Clock.POSIX
 import Data.ZAuth.Token
 import OpenSSL.Random
 import Sodium.Crypto.Sign
+import Control.Monad.Catch
 
 import qualified Data.ByteString       as BS
 import qualified Data.List.NonEmpty    as NonEmpty
@@ -207,7 +208,7 @@ instance TokenPair LegalHoldUser LegalHoldAccess where
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
     accessTokenOf :: Token a -> UserId
     renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
-    settingsTTL :: Proxy a -> Lens' Settings Integer -- The token is not used, the compiler just needs a nudge. TODO: Other way to do that?
+    settingsTTL :: Proxy a -> Lens' Settings Integer
 
 instance AccessTokenLike Access where
     accessTokenOf = accessTokenOf'
@@ -224,7 +225,7 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
     userTokenRand :: Token u -> Word32
     newUserToken :: MonadZAuth m => UserId -> m (Token u)
-    newSessionToken :: MonadZAuth m => UserId -> m (Token u)
+    newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> m (Token u)
     userTTL :: Proxy u -> Lens' Settings Integer
     zauthType :: Type -- see libs/zauth/src/Token.hs
 
@@ -233,7 +234,7 @@ instance UserTokenLike User where
     userTokenOf = userTokenOf'
     userTokenRand = userTokenRand'
     newUserToken = newUserToken'
-    newSessionToken = newSessionToken'
+    newSessionToken uid = newSessionToken' uid
     userTTL _ = userTokenTimeout . userTokenTimeoutSeconds
     zauthType = U
 
@@ -242,9 +243,9 @@ instance UserTokenLike LegalHoldUser where
     userTokenOf = legalHoldUserTokenOf
     userTokenRand = legalHoldUserTokenRand
     newUserToken = newLegalHoldUserToken
+    newSessionToken _ = throwM ZV.Unsupported
     userTTL _ = legalHoldUserTokenTimeout . legalHoldUserTokenTimeoutSeconds
     zauthType = LU
-    newSessionToken = undefined -- TODO: sessions tokens are not intended to be supported for the legal hold case. Throw an error leading to a 4xx when this is tried? Alternatively refactor the User/Auth/Cookie.hs `newCookie` function so that this function isn't needed on the `UserTokenLike` class.
 
 mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
 mkUserToken' u r t = liftZAuth $ do
