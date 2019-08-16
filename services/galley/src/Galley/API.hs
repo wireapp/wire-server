@@ -828,6 +828,32 @@ sitemap = do
         accept "application" "json"
         .&. query "base_url"
 
+    --- team feature flags (public)
+
+    get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    document "GET" "getLegalholdStatus" $ do
+        summary "Shows whether the LegalHold feature is enabled for team"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        returns (ref Model.legalHoldTeamConfig)
+        response 200 "LegalHold status" end
+
+    get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    document "GET" "getSSOStatus" $ do
+        summary "Shows whether SSO feature is enabled for team"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        returns (ref Model.ssoTeamConfig)
+        response 200 "SSO status" end
+
     -- internal
 
     put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -912,19 +938,9 @@ sitemap = do
     get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
-    -- Start of team features; enabling this should only be
+    -- Start of team features (internal); enabling this should only be
     -- possible internally. Viewing the status should be allowed
     -- for any admin
-
-    get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
-        zauthUserId
-        .&. capture "tid"
-        .&. accept "application" "json"
-
-    get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
-        zauthUserId
-        .&. capture "tid"
-        .&. accept "application" "json"
 
     get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
         capture "tid"
