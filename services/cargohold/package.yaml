@@ -34,6 +34,10 @@ dependencies:
 - imports
 library:
   source-dirs: src
+  exposed-modules:
+  - CargoHold.API
+  - CargoHold.Options
+  - CargoHold.Run
   dependencies:
   - base >=4 && <5
   - attoparsec >=0.12

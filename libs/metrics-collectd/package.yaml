@@ -18,6 +18,12 @@ dependencies:
 - transformers >=0.3
 library:
   source-dirs: src
+  exposed-modules:
+  - System.Metrics.Collectd.Collectd
+  - System.Metrics.Collectd.IO
+  - System.Metrics.Collectd.Json
+  - System.Metrics.Collectd.Json.Path
+  - System.Metrics.Collectd.Config
   dependencies:
   - aeson >=0.8
   - async >=2.0

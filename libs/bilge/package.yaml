@@ -40,4 +40,12 @@ dependencies:
 - wai-extra
 library:
   source-dirs: src
+  exposed-modules:
+  - Bilge
+  - Bilge.Assert
+  - Bilge.IO
+  - Bilge.Request
+  - Bilge.Response
+  - Bilge.Retry
+  - Bilge.RPC
 stability: experimental
