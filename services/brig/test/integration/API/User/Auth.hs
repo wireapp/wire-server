@@ -232,8 +232,8 @@ testThrottleLogins conf b = do
 
 testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
-    let Just opts = Opts.loginRetry =<< conf
-    unless (Opts.loginRetryTimeout opts <= 30) $
+    let Just opts = Opts.limitFailedLogins . Opts.optSettings =<< conf
+    unless (Opts.timeout opts <= 30) $
         error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
 
     usr <- randomUser brig
@@ -243,7 +243,7 @@ testLimitRetries conf brig = do
     let Just email' = userEmail usr'
 
     -- Login 5 times with bad password.
-    forM_ [1..Opts.loginRetryLimit opts] $ \_ ->
+    forM_ [1..Opts.retryLimit opts] $ \_ ->
         login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
             <!! const 403 === statusCode
 
@@ -258,7 +258,7 @@ testLimitRetries conf brig = do
     -- throttling should stop and login should work again
     do  let Just n = fromByteString =<< getHeader "Retry-After" resp
         liftIO $ do
-            assertBool "throttle delay" (n == Opts.loginRetryTimeout opts)
+            assertBool "throttle delay" (n == Opts.timeout opts)
             threadDelay (1000000 * (n - 1))
 
     -- fail again later into the block time window

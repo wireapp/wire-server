@@ -17,7 +17,7 @@ module Brig.User.Auth
 
 import Imports
 
-import Control.Lens (view)
+import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
 import Brig.Budget
@@ -104,17 +104,13 @@ withRetryLimit
     -> UserId
     -> ExceptT LoginError AppIO ()
 withRetryLimit action uid = do
-    () <- traceShow 'a' $ pure ()
-    mLoginRetryOpts <- view loginRetry
-    () <- traceShow mLoginRetryOpts $ pure ()
-    forM_ mLoginRetryOpts $ \opts -> do
+    mLimitFailedLogins <- view (settings . to Opt.limitFailedLogins)
+    forM_ mLimitFailedLogins $ \opts -> do
         let bkey = BudgetKey ("login#" <> idToText uid)
             budget = Budget
-                (fromIntegral $ Opt.loginRetryTimeout opts)
-                (fromIntegral $ Opt.loginRetryLimit opts)
-        () <- traceShow (bkey, budget) $ pure ()
+                (fromIntegral $ Opt.timeout opts)
+                (fromIntegral $ Opt.retryLimit opts)
         bresult <- action bkey budget
-        () <- traceShow bresult $ pure ()
         case bresult of
             BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
             BudgetedValue () _ -> pure ()

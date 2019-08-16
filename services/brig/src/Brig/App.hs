@@ -26,7 +26,6 @@ module Brig.App
     , settings
     , currentTime
     , geoDb
-    , loginRetry
     , zauthEnv
     , digestSHA256
     , digestMD5
@@ -49,7 +48,7 @@ module Brig.App
 import Imports
 import Bilge (MonadHttp, Manager, newManager, RequestId (..), withResponse)
 import Bilge.RPC (HasRequestId (..))
-import Brig.Options (Opts, LoginRetryOpts, Settings)
+import Brig.Options (Opts, Settings)
 import Brig.Queue.Types (Queue (..))
 import Brig.Template (Localised, forLocale, genTemplateBranding, TemplateBranding)
 import Brig.Provider.Template
@@ -142,7 +141,6 @@ data Env = Env
     , _turnEnv       :: IORef TURN.Env
     , _turnEnvV2     :: IORef TURN.Env
     , _currentTime   :: IO UTCTime
-    , _loginRetry    :: Maybe LoginRetryOpts
     , _zauthEnv      :: ZAuth.Env
     , _digestSHA256  :: Digest
     , _digestMD5     :: Digest
@@ -212,7 +210,6 @@ newEnv o = do
         , _turnEnvV2         = turnV2
         , _fsWatcher         = w
         , _currentTime       = clock
-        , _loginRetry        = Opt.loginRetry o
         , _zauthEnv          = zau
         , _digestMD5         = md5
         , _digestSHA256      = sha256

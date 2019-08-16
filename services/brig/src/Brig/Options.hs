@@ -171,14 +171,14 @@ instance FromJSON EmailSMSOpts
 --
 -- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
 -- password policy.
-data LoginRetryOpts = LoginRetryOpts
-    { loginRetryTimeout :: !Int   -- ^ Time the user is blocked when retry limit is reached
-                                  -- (in seconds mostly for making it easier to write a
-                                  -- fast-ish integration test.)
-    , loginRetryLimit   :: !Int   -- ^ Maximum number of failed login attempts for one user.
+data LimitFailedLogins = LimitFailedLogins
+    { timeout    :: !Int   -- ^ Time the user is blocked when retry limit is reached (in
+                           -- seconds mostly for making it easier to write a fast-ish
+                           -- integration test.)
+    , retryLimit :: !Int   -- ^ Maximum number of failed login attempts for one user.
     } deriving (Eq, Show, Generic)
 
-instance FromJSON LoginRetryOpts
+instance FromJSON LimitFailedLogins
 
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
@@ -245,10 +245,6 @@ data Opts = Opts
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts           -- ^ Email and SMS settings
 
-    -- Login
-    , loginRetry    :: !(Maybe LoginRetryOpts) -- ^ Block user from logging in for m minutes
-                                               -- after n failed logins
-
     -- ZAuth
     , zauth         :: !ZAuthOpts              -- ^ ZAuth settings
 
@@ -289,6 +285,9 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
     , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings (not to be confused
                                                   -- with 'LoginRetryOpts')
+    , limitFailedLogins        :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
+                                                             -- for m minutes after n failed
+                                                             -- logins
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
                                            --   field names and values), should be in sync
                                            --   with Spar

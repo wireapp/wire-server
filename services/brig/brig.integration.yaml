@@ -104,10 +104,6 @@ emailSMS:
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
-loginRetry:
-  loginRetryTimeout: 5
-  loginRetryLimit: 5
-
 zauth:
   privateKeys: test/resources/zauth/privkeys.txt
   publicKeys: test/resources/zauth/pubkeys.txt
@@ -141,6 +137,9 @@ optSettings:
   setUserCookieThrottle:
     stdDev: 5
     retryAfter: 1
+  limitFailedLogins:
+    timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
+    retryLimit: 5  # how many times can you have a failed login in that timeframe.
   setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultLocale: en
   setMaxTeamSize: 32
