@@ -1,3 +1,5 @@
+.. _understand:
+
 Understanding wire-server components
 =======================================
 

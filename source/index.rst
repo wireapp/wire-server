@@ -18,7 +18,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    :caption: Contents:
    :glob:
 
-   Administrator's Guide <guides/administrator/index>
+   Administrator's Guide <how-to/index.rst>
    Understanding wire-server components <understand/index.rst>
    Single-sign-on how-tos <how-to/single-sign-on/index.rst>
 
