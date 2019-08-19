@@ -285,7 +285,7 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
     , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings (not to be confused
                                                   -- with 'LoginRetryOpts')
-    , limitFailedLogins        :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
+    , setLimitFailedLogins     :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
                                                              -- for m minutes after n failed
                                                              -- logins
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in

@@ -234,7 +234,7 @@ testThrottleLogins conf b = do
 
 testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
 testLimitRetries (Just conf) brig = do
-    let Just opts = Opts.limitFailedLogins . Opts.optSettings $ conf
+    let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
     unless (Opts.timeout opts <= 30) $
         error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
 
