@@ -262,14 +262,14 @@ testLimitRetries (Just conf) brig = do
             retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
         liftIO $ do
             assertEqual "throttle delay (1)" retryTimeout (Opts.timeout opts)
-            threadDelay (1000000 * (retryAfterSecs - 1))
+            threadDelay (1000000 * (retryAfterSecs - 1))  -- wait almost long enough.
 
     -- fail again later into the block time window
     rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
     do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" rsp
         liftIO $ do
             assertBool ("throttle delay (2): " <> show retryAfterSecs) (retryAfterSecs <= 2)
-            threadDelay (1000000 * (retryAfterSecs - 2))
+            threadDelay (1000000 * (retryAfterSecs + 1))  -- wait one more second, just to be safe.
 
     -- wait long enough and login successfully!
     liftIO $ threadDelay (1000000 * 2)
