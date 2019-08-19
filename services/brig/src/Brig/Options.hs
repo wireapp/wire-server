@@ -14,7 +14,7 @@ import Data.Aeson.Types (typeMismatch)
 import Data.Aeson (withText)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
-import Data.Time.Clock (DiffTime, secondsToDiffTime)
+import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
 import System.Logger.Class (Level)
@@ -23,13 +23,13 @@ import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
-    { timeoutDiff :: DiffTime
+    { timeoutDiff :: NominalDiffTime
     } deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Read Timeout where
     readsPrec i s =
         case readsPrec i s of
-            [(x, s')] -> [(Timeout (secondsToDiffTime x), s')]
+            [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -172,10 +172,10 @@ instance FromJSON EmailSMSOpts
 -- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
 -- password policy.
 data LimitFailedLogins = LimitFailedLogins
-    { timeout    :: !Int   -- ^ Time the user is blocked when retry limit is reached (in
-                           -- seconds mostly for making it easier to write a fast-ish
-                           -- integration test.)
-    , retryLimit :: !Int   -- ^ Maximum number of failed login attempts for one user.
+    { timeout    :: !Timeout  -- ^ Time the user is blocked when retry limit is reached (in
+                              -- seconds mostly for making it easier to write a fast-ish
+                              -- integration test.)
+    , retryLimit :: !Int      -- ^ Maximum number of failed login attempts for one user.
     } deriving (Eq, Show, Generic)
 
 instance FromJSON LimitFailedLogins
@@ -308,7 +308,7 @@ instance FromJSON Timeout where
             bounded = toBoundedInteger n :: Maybe Int64
         in pure $
            Timeout $
-           secondsToDiffTime $ maybe defaultV fromIntegral bounded
+           fromIntegral @Int $ maybe defaultV fromIntegral bounded
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings

@@ -258,17 +258,18 @@ testLimitRetries (Just conf) brig = do
 
     -- After the amount of time specified in "Retry-After", though,
     -- throttling should stop and login should work again
-    do  let Just n = fromByteString =<< getHeader "Retry-After" resp
+    do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
+            retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
         liftIO $ do
-            assertBool "throttle delay" (n == Opts.timeout opts)
-            threadDelay (1000000 * (n - 1))
+            assertEqual "throttle delay (1)" retryTimeout (Opts.timeout opts)
+            threadDelay (1000000 * (retryAfterSecs - 1))
 
     -- fail again later into the block time window
     rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
-    do  let Just n = fromByteString =<< getHeader "Retry-After" rsp
+    do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" rsp
         liftIO $ do
-            assertBool "throttle delay" (n <= 2)
-            threadDelay (1000000 * (n - 2))
+            assertBool ("throttle delay (2): " <> show retryAfterSecs) (retryAfterSecs <= 2)
+            threadDelay (1000000 * (retryAfterSecs - 2))
 
     -- wait long enough and login successfully!
     liftIO $ threadDelay (1000000 * 2)

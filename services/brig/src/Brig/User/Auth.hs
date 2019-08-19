@@ -108,7 +108,7 @@ withRetryLimit action uid = do
     forM_ mLimitFailedLogins $ \opts -> do
         let bkey = BudgetKey ("login#" <> idToText uid)
             budget = Budget
-                (fromIntegral $ Opt.timeout opts)
+                (Opt.timeoutDiff $ Opt.timeout opts)
                 (fromIntegral $ Opt.retryLimit opts)
         bresult <- action bkey budget
         case bresult of
