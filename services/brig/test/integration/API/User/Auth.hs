@@ -626,14 +626,6 @@ assertSaneAccessToken now uid tk = do
     assertEqual "user" uid (ZAuth.accessTokenOf tk)
     assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
 
--- | Set user's status to something (e.g. 'Suspended').
-setStatus :: Brig -> UserId -> AccountStatus -> HttpT IO ()
-setStatus brig u s =
-    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-    in put ( brig . paths ["i", "users", toByteString' u, "status"]
-           . contentJson . Http.body js
-           ) !!! const 200 === statusCode
-
 -- | Get error label from the response (for use in assertions).
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
 errorLabel = fmap Error.label . decodeBody

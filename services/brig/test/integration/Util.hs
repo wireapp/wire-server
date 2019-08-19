@@ -16,7 +16,7 @@ import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
-import Data.Aeson.Lens (key, _String, _Integral)
+import Data.Aeson.Lens (key, _String, _Integral, _JSON)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id
@@ -350,22 +350,25 @@ isMember g usr cnv = do
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> Http AccountStatus
-getStatus brig u = do
-    r <- get (brig . paths ["i", "users", toByteString' u, "status"]) <!!
-        const 200 === statusCode
-
-    case responseBody r of
-        Nothing -> error $ "getStatus: failed to parse response: " ++ show r
-        Just  j -> do
-            let st = maybeFromJSON =<< (j ^? key "status")
-            return $ fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
+getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
+getStatus brig u =
+    either (error . show) (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJson @Value) <$>
+    get ( brig . paths ["i", "users", toByteString' u, "status"]
+        . expect2xx
+        )
 
 chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
 chkStatus brig u s =
     get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
         const 200 === statusCode
         const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
+
+setStatus :: Brig -> UserId -> AccountStatus -> Http ()
+setStatus brig u s =
+    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
+    in put ( brig . paths ["i", "users", toByteString' u, "status"]
+           . contentJson . body js
+           ) !!! const 200 === statusCode
 
 --------------------------------------------------------------------------------
 -- Utilities
