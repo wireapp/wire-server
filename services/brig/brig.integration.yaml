@@ -140,6 +140,8 @@ optSettings:
   setLimitFailedLogins:
     timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
     retryLimit: 5  # how many times can you have a failed login in that timeframe.
+  setSuspendInactiveUsers:
+    suspendTimeout: 10
   setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultLocale: en
   setMaxTeamSize: 32
