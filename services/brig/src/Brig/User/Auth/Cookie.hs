@@ -3,7 +3,6 @@ module Brig.User.Auth.Cookie
       newCookie
     , newAccessToken
     , nextCookie
-    , renewCookie
     , lookupCookie
     , revokeCookies
     , revokeAllCookies
