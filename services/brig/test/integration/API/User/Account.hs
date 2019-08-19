@@ -590,7 +590,7 @@ testSuspendUser brig = do
     u <- randomUser brig
     let uid        = userId u
         Just email = userEmail u
-    setStatus uid Suspended
+    setStatus brig uid Suspended
     -- login fails
     login brig (defEmailLogin email) PersistentCookie !!! do
         const 403 === statusCode
@@ -603,17 +603,11 @@ testSuspendUser brig = do
     Search.assertCan'tFind brig suid uid (fromName (userName u))
 
     -- re-activate
-    setStatus uid Active
+    setStatus brig uid Active
     chkStatus brig uid Active
     -- should appear in search again
     Search.refreshIndex brig
     Search.assertCanFind brig suid uid (fromName (userName u))
-  where
-    setStatus u s =
-        let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-        in put ( brig . paths ["i", "users", toByteString' u, "status"]
-               . contentJson . body js
-               ) !!! const 200 === statusCode
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
