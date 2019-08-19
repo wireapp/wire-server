@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 module API.User.Auth (tests) where
 
 import Imports
@@ -231,8 +233,8 @@ testThrottleLogins conf b = do
     login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
-testLimitRetries conf brig = do
-    let Just opts = Opts.limitFailedLogins . Opts.optSettings =<< conf
+testLimitRetries (Just conf) brig = do
+    let Just opts = Opts.limitFailedLogins . Opts.optSettings $ conf
     unless (Opts.timeout opts <= 30) $
         error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
 
