@@ -695,13 +695,10 @@ deleteUser uid pwd = do
         Just tid -> do
             ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
             case ownerSituation of
-               Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
-               Team.IsOneOfManyTeamOwners -> pure ()
-               Team.IsNotTeamOwner        -> pure ()
-               Team.NoTeamOwnersAreLeft   -> do
-                   Log.warn $ field "user" (toByteString uid)
-                            . field "team" (toByteString tid)
-                            . msg (val "Team.NoTeamOwnersAreLeft")
+               Team.IsOnlyTeamOwnerWithEmail       -> throwE DeleteUserOnlyOwner
+               Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+               Team.IsTeamOwnerWithoutEmail        -> pure ()
+               Team.IsNotTeamOwner                 -> pure ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 
