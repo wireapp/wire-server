@@ -189,7 +189,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy
     else throwError . SAML.Forbidden $
-            "bad credentials (note that your team has uses SCIM, " <>
+            "bad credentials (note that your team uses SCIM, " <>
             "which disables saml auto-provisioning)"
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
