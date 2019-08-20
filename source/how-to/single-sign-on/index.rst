@@ -8,3 +8,4 @@ Single-sign-on how-tos
    Generic instructions <./generic-setup.rst>
    Instructions for Okta <./okta/main.rst>
    Instructions for Centrify <./centrify/main.rst>
+   Instructions for Azure <./azure/main.rst>
