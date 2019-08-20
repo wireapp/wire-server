@@ -33,6 +33,8 @@ module Util.Core
   , createTeamMember
   , deleteUserOnBrig
   , getTeams
+  , getTeamMembers
+  , promoteTeamMember
   , getSelfProfile
   , nextWireId
   , nextSAMLID
@@ -370,6 +372,23 @@ getTeams u gly = do
              . expect2xx
              )
     return $ decodeBody' r
+
+getTeamMembers :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
+getTeamMembers usr tid = do
+  gly <- view teGalley
+  resp <- call $ get (gly . paths ["teams", toByteString' tid, "members"] . zUser usr)
+            <!! const 200 === statusCode
+  let mems :: Galley.TeamMemberList
+      Right mems = responseJson resp
+  pure $ (^. Galley.userId) <$> (mems ^. Galley.teamMembers)
+
+promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
+promoteTeamMember usr tid memid = do
+  gly <- view teGalley
+  let bdy :: Galley.NewTeamMember
+      bdy = Galley.newNewTeamMember $ Galley.newTeamMember memid Galley.fullPermissions Nothing
+  call $ put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
+    !!! const 200 === statusCode
 
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
