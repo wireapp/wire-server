@@ -263,7 +263,8 @@ testLimitRetries (Just conf) brig = do
         liftIO $ do
             assertBool ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
                 -- (this accounts for slow CI systems that lose up to 2 secs)
-                (retryTimeout `elem` [Opts.timeout opts - 2 .. Opts.timeout opts])
+                (retryTimeout >= Opts.timeout opts - 2 &&
+                 retryTimeout <= Opts.timeout opts)
             threadDelay (1000000 * (retryAfterSecs - 1))  -- wait almost long enough.
 
     -- fail again later into the block time window
