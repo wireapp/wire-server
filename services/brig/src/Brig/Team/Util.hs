@@ -20,7 +20,6 @@ data TeamOwnershipStatus
   | IsNotTeamOwner
   deriving (Eq, Show, Bounded, Enum)
 
--- | A team owner is a team member with full permissions *and* an email address.
 teamOwnershipStatus :: UserId -> TeamId -> AppIO TeamOwnershipStatus
 teamOwnershipStatus uid tid = compute <$> Intra.getTeamOwnersWithEmail tid
   where
