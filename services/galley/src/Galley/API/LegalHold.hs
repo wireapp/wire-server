@@ -42,7 +42,8 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
 
     membs <- Data.teamMembers tid
-    Log.debug $ Log.field "targets" (toByteString (show membs))
+    let zothers = map (view userId) membs
+    Log.debug $ Log.field "targets" (toByteString (show zothers))
               . Log.msg (Log.val "LegalHold.createSettings")
     
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
@@ -75,7 +76,9 @@ removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsReque
 removeSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
     membs <- Data.teamMembers tid
-    Log.debug $ Log.field "targets" (toByteString (show membs))
+    let zothers = map (view userId) membs
+    -- TODO user id's of members
+    Log.debug $ Log.field "targets" (toByteString (show zothers))
               . Log.msg (Log.val "LegalHold.removeSettings")
 
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
@@ -92,7 +95,8 @@ removeSettings'
     -> Galley ()
 removeSettings' tid mMembers = do
     membs <- maybe (Data.teamMembers tid) pure mMembers
-    Log.debug $ Log.field "targets" (toByteString (show membs))
+    let zothers = map (view userId) membs
+    Log.debug $ Log.field "targets" (toByteString (show zothers))
               . Log.msg (Log.val "LegalHold.removeSettings'")
 
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
@@ -137,7 +141,7 @@ requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 requestDevice (zusr ::: tid ::: uid ::: _) = do
     assertLegalHoldEnabled tid
 
-    Log.debug $ Log.field "target" (toByteString uid)
+    Log.debug $ Log.field "targets" (toByteString uid)
               . Log.msg (Log.val "LegalHold.requestDevice")
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
@@ -174,7 +178,7 @@ approveDevice
     -> Galley Response
 approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     assertLegalHoldEnabled tid
-    Log.debug $ Log.field "target" (toByteString uid)
+    Log.debug $ Log.field "targets" (toByteString uid)
               . Log.msg (Log.val "LegalHold.approveDevice")
 
     unless (zusr == uid) (throwM accessDenied)
@@ -211,7 +215,7 @@ disableForUser
   :: UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON
   -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
-    Log.debug $ Log.field "target" (toByteString uid)
+    Log.debug $ Log.field "targets" (toByteString uid)
               . Log.msg (Log.val "LegalHold.disableForUser")
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
