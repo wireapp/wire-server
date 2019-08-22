@@ -195,12 +195,10 @@ testApproveLegalHoldDevice = do
         -- Requires password
         approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
         approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-        liftIO $ putStrLn "--XX 6"
 
         -- checks if the cookie we give to the legalhold service is actually valid
         assertMatchJSON chan $ \(LegalHoldServiceConfirm _clientId _uid _tid authToken) ->
-            renewLegalHoldToken authToken
-        liftIO $ putStrLn "--XX 6a"
+          renewToken authToken
         cassState <- view tsCass
         liftIO $ do
             clients' <- Cql.runClient cassState $ Data.lookupClients [member]
@@ -604,13 +602,13 @@ getEnabled tid = do
     get $ g
          . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
-renewLegalHoldToken :: HasCallStack => Text -> TestM ()
-renewLegalHoldToken tok = do
-    b <- view tsBrig
-    void . post $ b
-         . paths ["legalhold", "access" ]
-         . cookieRaw "zuid" (toByteString' tok)
-         . expect2xx
+renewToken :: HasCallStack => Text -> TestM ()
+renewToken tok = do
+  b <- view tsBrig
+  void . post $ b
+       . paths [ "access" ]
+       . cookieRaw "zuid" (toByteString' tok)
+       . expect2xx
 
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = do
