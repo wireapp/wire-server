@@ -265,7 +265,7 @@ testLimitRetries (Just conf) brig = do
                 -- (this accounts for slow CI systems that lose up to 2 secs)
                 (retryTimeout >= Opts.timeout opts - 2 &&
                  retryTimeout <= Opts.timeout opts)
-            threadDelay (1000000 * (retryAfterSecs - 1))  -- wait almost long enough.
+            threadDelay (1000000 * (retryAfterSecs - 2))  -- wait almost long enough.
 
     -- fail again later into the block time window
     rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode

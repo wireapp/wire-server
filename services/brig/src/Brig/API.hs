@@ -59,7 +59,6 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
-import qualified System.Logger.Class           as Log
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -1442,22 +1441,20 @@ canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
-       Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
-       Team.IsOneOfManyTeamOwners -> pure ()
-       Team.IsNotTeamOwner        -> pure ()
-       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
-           Log.warn $ Log.field "user" (toByteString uid)
-                    . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+       Team.IsOnlyTeamOwnerWithEmail       -> throwStd noOtherOwner
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+       Team.IsTeamOwnerWithoutEmail        -> pure ()
+       Team.IsNotTeamOwner                 -> pure ()
     return empty
 
 isTeamOwner :: UserId ::: TeamId -> Handler Response
 isTeamOwner (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
-       Team.IsOnlyTeamOwner       -> pure ()
-       Team.IsOneOfManyTeamOwners -> pure ()
-       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
-       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
+       Team.IsOnlyTeamOwnerWithEmail       -> pure ()
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+       Team.IsTeamOwnerWithoutEmail        -> pure ()
+       Team.IsNotTeamOwner                 -> throwStd insufficientTeamPermissions
     return empty
 
 updateSSOId :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
