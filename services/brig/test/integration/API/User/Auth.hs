@@ -261,7 +261,10 @@ testLimitRetries (Just conf) brig = do
     do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
             retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
         liftIO $ do
-            assertEqual "throttle delay (1)" retryTimeout (Opts.timeout opts)
+            assertBool ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
+                -- (this accounts for slow CI systems that lose up to 2 secs)
+                (retryTimeout >= Opts.timeout opts - 2 &&
+                 retryTimeout <= Opts.timeout opts)
             threadDelay (1000000 * (retryAfterSecs - 2))  -- wait almost long enough.
 
     -- fail again later into the block time window
