@@ -71,7 +71,7 @@ newCookie uid typ label = do
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
-nextCookie :: ZAuth.UserTokenLike t => Cookie (ZAuth.Token t) -> AppIO (Maybe (Cookie (ZAuth.Token t)))
+nextCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
     s   <- view settings
     now <- liftIO =<< view currentTime
@@ -87,28 +87,28 @@ nextCookie c = do
     getNext = case cookieSucc c of
         Nothing -> renewCookie c
         Just ck -> do
-            let u = ZAuth.userTokenOf (cookieValue c)
-            trackSuperseded u (cookieId c)
-            cs <- DB.listCookies u
+            let uid = ZAuth.userTokenOf (cookieValue c)
+            trackSuperseded uid (cookieId c)
+            cs <- DB.listCookies uid
             case List.find (\x -> cookieId x == ck && persist x) cs of
                 Nothing -> renewCookie c
                 Just c' -> do
-                    t <- ZAuth.mkUserToken u (cookieIdNum ck) (cookieExpires c')
+                    t <- ZAuth.mkUserToken uid (cookieIdNum ck) (cookieExpires c')
                     return c' { cookieValue = t }
 
 -- | Renew the given cookie with a fresh token.
-renewCookie :: ZAuth.UserTokenLike t => Cookie (ZAuth.Token t) -> AppIO (Cookie (ZAuth.Token t))
+renewCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Cookie (ZAuth.Token u))
 renewCookie old = do
     let t = cookieValue old
-    let u = ZAuth.userTokenOf t
+    let uid = ZAuth.userTokenOf t
     -- Insert new cookie
-    new <- newCookie u (cookieType old) (cookieLabel old)
+    new <- newCookie uid (cookieType old) (cookieLabel old)
     -- Link the old cookie to the new (successor), keeping it
     -- around only for another renewal period so as not to build
     -- an ever growing chain of superseded cookies.
     let old' = old { cookieSucc = Just (cookieId new) }
     ttl <- setUserCookieRenewAge <$> view settings
-    DB.insertCookie u old' (Just (DB.TTL (fromIntegral ttl)))
+    DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
     return new
 
 newAccessToken :: forall u a . ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken

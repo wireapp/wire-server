@@ -5,6 +5,7 @@ a (blacklist (path "/provider")
              (path "/i/**"))
 
 u (whitelist (path "/access"))
+lu (whitelist (path "/access"))
 
 b (whitelist (path "/bot")
              (path "/bot/**"))
@@ -12,7 +13,4 @@ b (whitelist (path "/bot")
 p (whitelist (path "/provider")
              (path "/provider/**"))
 
-lu (whitelist (path "/legalhold/access"))
-
-# TODO: add other routes
 la (whitelist (path "/notifications"))
