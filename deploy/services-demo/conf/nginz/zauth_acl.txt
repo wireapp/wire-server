@@ -13,4 +13,7 @@ b (whitelist (path "/bot")
 p (whitelist (path "/provider")
              (path "/provider/**"))
 
-la (whitelist (path "/notifications"))
+# TODO restrict this
+la (whitelist (path "/notifications")
+              (path "/assets/v3/**")
+              (path "/users/**"))
