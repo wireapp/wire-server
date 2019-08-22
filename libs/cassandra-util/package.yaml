@@ -42,3 +42,13 @@ library:
   - Cassandra.Schema
   - Cassandra.Settings
   - Cassandra.Util
+tests:
+  tests:
+    main: Main.hs
+    source-dirs: test/integration
+    dependencies:
+     - cassandra-util
+     - tasty >=1.0
+     - tasty-hunit
+     - optparse-applicative >=0.10
+     
