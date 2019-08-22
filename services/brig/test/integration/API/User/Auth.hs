@@ -62,16 +62,18 @@ tests conf m z b g = testGroup "auth"
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
                 , test m "check only single cookie for legalhold - TODO" (undefined)
+                , test m "logout for legalhold - TODO" (undefined)
                 ]
             ]
         , testGroup "refresh"
-            [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User "/access" z b)
-            , test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser lhAccess z b)
+            [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User z b)
+            , test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b)
             , test m "invalid-token" (testInvalidToken b)
-            , test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access "/access" z b)
-            , test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lhAccess z b)
-            , test m "unknown-cookie" (testUnknownCookie @ZAuth.User "/access" z b)
-            , test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser lhAccess z b)
+            , test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b)
+            , test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b)
+            , test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b)
+            , test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser z b)
+            , test m "token mismatch" (testTokenMismatch z b g)
             , test m "new-persistent-cookie" (testNewPersistentCookie conf b)
             , test m "new-session-cookie" (testNewSessionCookie conf b)
             ]
@@ -348,10 +350,10 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
-testInvalidCookie :: forall u . ZAuth.UserTokenLike u => ByteString -> ZAuth.Env -> Brig -> Http ()
-testInvalidCookie accessPath z b = do
+testInvalidCookie :: forall u . ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
+testInvalidCookie z b = do
     -- Syntactically invalid
-    post (b . path accessPath . cookieRaw "zuid" "xxx") !!! do
+    post (b . path "/access" . cookieRaw "zuid" "xxx") !!! do
         const 403 === statusCode
         const (Just "Invalid user token") =~= responseBody
 
@@ -360,7 +362,7 @@ testInvalidCookie accessPath z b = do
     let f = set (ZAuth.userTTL (Proxy @u)) 0
     t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
     liftIO $ threadDelay 1000000
-    post (b . path accessPath . cookieRaw "zuid" t) !!! do
+    post (b . path "/access" . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
         const (Just "expired") =~= responseBody
 
@@ -376,15 +378,15 @@ testInvalidToken b = do
         const 403 === statusCode
         const (Just "Invalid access token") =~= responseBody
 
-testMissingCookie :: forall u a . ZAuth.TokenPair u a => ByteString -> ZAuth.Env -> Brig -> Http ()
-testMissingCookie accessPath z b = do
+testMissingCookie :: forall u a . ZAuth.TokenPair u a => ZAuth.Env -> Brig -> Http ()
+testMissingCookie z b = do
     -- Missing cookie, i.e. token refresh mandates a cookie.
-    post (b . path accessPath)
+    post (b . path "/access")
         !!! errResponse
     t <- toByteString' <$> runZAuth z (randomAccessToken @u @a)
-    post (b . path accessPath . header "Authorization" ("Bearer " <> t))
+    post (b . path "/access" . header "Authorization" ("Bearer " <> t))
         !!! errResponse
-    post (b . path accessPath . queryItem "access_token" t)
+    post (b . path "/access" . queryItem "access_token" t)
         !!! errResponse
   where
     errResponse = do
@@ -392,13 +394,37 @@ testMissingCookie accessPath z b = do
         const (Just "Missing cookie") =~= responseBody
         const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: forall u . ZAuth.UserTokenLike u => ByteString -> ZAuth.Env -> Brig -> Http ()
-testUnknownCookie accessPath z b = do
+testUnknownCookie :: forall u . ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
+testUnknownCookie z b = do
     -- Valid cookie but unknown to the server.
     t <- toByteString' <$> runZAuth z (randomUserToken @u)
-    post (b . path accessPath . cookieRaw "zuid" t) !!! do
+    post (b . path "/access" . cookieRaw "zuid" t) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") =~= responseBody
+
+testTokenMismatch :: ZAuth.Env -> Brig -> Galley -> Http ()
+testTokenMismatch z brig galley = do
+    u <- randomUser brig
+    let Just email = userEmail u
+    _rs <- login brig (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+        <!! const 200 === statusCode
+
+    -- try refresh with a regular UserCookie but a LegalHoldAccessToken
+    let c = decodeCookie _rs
+    t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)
+    post (brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
+        const 403 === statusCode
+        const (Just "Token mismatch") =~= responseBody
+
+    -- try refresh with a regular AccessToken but a LegalHoldUserCookie
+    (alice, tid) <- createUserWithTeam brig galley
+    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+    _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
+    let c' = decodeCookie _rs
+    t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
+    post (brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
+        const 403 === statusCode
+        const (Just "Token mismatch") =~= responseBody
 
 testNewPersistentCookie :: Maybe Opts.Opts -> Brig -> Http ()
 testNewPersistentCookie config b = do
@@ -689,6 +715,3 @@ remJson p l ids = object
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
-
-lhAccess :: ByteString
-lhAccess = "/legalhold/access"

@@ -238,7 +238,8 @@ renew (_ ::: Just userToken ::: accessToken) = do
 
 -- | A predicate that captures user and access tokens for a request handler.
 tokenRequest :: forall r . (HasCookies r, HasHeaders r, HasQuery r)
-    => Predicate r P.Error (Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) )
+    => Predicate r P.Error (Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
+    ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
     userToken            = cookieErr @ZAuth.User            <$> cookie "zuid"
