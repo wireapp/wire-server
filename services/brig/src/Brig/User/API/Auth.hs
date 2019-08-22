@@ -32,7 +32,7 @@ import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
-    post "/access" (continue (renew @ZAuth.User @ZAuth.Access)) $
+    post "/access" (continue renew) $
         accept "application" "json" .&. tokenRequest
 
     document "POST" "newAccessToken" $ do
@@ -137,28 +137,6 @@ routes = do
         Doc.body (Doc.ref Doc.removeCookies) Doc.end
         Doc.errorResponse badCredentials
 
-    -- for the LegalHoldService to refresh its tokens.
-    post "/legalhold/access" (continue (renew @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)) $
-        accept "application" "json" .&. tokenRequest
-
-    document "POST" "newAccessToken" $ do
-        Doc.summary "Obtain an access tokens for a cookie."
-        Doc.notes "You can provide only a cookie or a cookie and token. \
-              \Every other combination is invalid. \
-              \Access tokens can be given as query parameter or authorisation \
-              \header, with the latter being preferred."
-        Doc.returns (Doc.ref Doc.accessToken)
-        Doc.parameter Doc.Header "cookie" Doc.bytes' $ do
-            Doc.description "The 'zuid' cookie header"
-            Doc.optional
-        Doc.parameter Doc.Header "Authorization" Doc.bytes' $ do
-            Doc.description "The access-token as 'Authorization' header."
-            Doc.optional
-        Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
-            Doc.description "The access-token as query parameter."
-            Doc.optional
-        Doc.errorResponse badCredentials
-
     -- Internal
 
     -- galley can query this endpoint at the right moment in the LegalHold flow
@@ -220,11 +198,17 @@ legalHoldLogin (req ::: _) = do
     a <- Auth.legalHoldLogin l typ !>> legalHoldLoginError
     tokenResponse a
 
-logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
+-- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
+logout :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 logout (_ ::: Nothing ::: Nothing) = throwStd authMissingCookieAndToken
 logout (_ ::: Nothing ::: Just _ ) = throwStd authMissingCookie
 logout (_ ::: Just _  ::: Nothing) = throwStd authMissingToken
-logout (_ ::: Just ut ::: Just at) = do
+logout (_ ::: Just (Left _) ::: Just (Right _)) = throwStd authTokenMismatch
+logout (_ ::: Just (Right _) ::: Just (Left _)) = throwStd authTokenMismatch
+logout (_ ::: Just (Left ut) ::: Just (Left at)) = do
+    Auth.logout ut at !>> zauthError
+    return empty
+logout (_ ::: Just (Right ut) ::: Just (Right at)) = do
     Auth.logout ut at !>> zauthError
     return empty
 
@@ -239,27 +223,32 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
--- FUTUREWORK: let renew take an Either (Token User, Token Access), (Token LegalHoldUser, Token LegalHoldAccess)
--- Then remove /legalhold/access endpoint.
-renew :: ZAuth.TokenPair u a => JSON ::: Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a) -> Handler Response
+renew :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
-renew (_ ::: Just ut ::: at) = do
-    a <- Auth.renewAccess ut at !>> zauthError
-    tokenResponse a
+renew (_ ::: Just userToken ::: accessToken) = do
+    case (userToken, accessToken) of
+         (Left ut, Just (Left at)) -> (Auth.renewAccess ut (Just at) !>> zauthError) >>= tokenResponse
+         (Left ut, Nothing) -> Auth.renewAccess @ZAuth.User @ZAuth.Access ut Nothing !>> zauthError >>= tokenResponse
+         (Right lut, Just (Right lat)) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut (Just lat) !>> zauthError >>= tokenResponse
+         (Right lut, Nothing) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut Nothing !>> zauthError >>= tokenResponse
+         (_, _) -> throwStd authTokenMismatch
 
 -- Utilities
+--
 
 -- | A predicate that captures user and access tokens for a request handler.
-tokenRequest :: forall u a r . (HasCookies r, HasHeaders r, HasQuery r, ZAuth.TokenPair u a)
-    => Predicate r P.Error (Maybe (ZAuth.Token u) ::: Maybe (ZAuth.Token a))
-tokenRequest = opt userToken .&. opt accessToken
+tokenRequest :: forall r . (HasCookies r, HasHeaders r, HasQuery r)
+    => Predicate r P.Error (Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) )
+tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
-    userToken   = cookieErr <$> cookie "zuid"
-    accessToken = parse     <$> (tokenHeader .|. tokenQuery)
-    tokenHeader = bearer    <$> header "authorization"
-    tokenQuery  = query "access_token"
+    userToken            = cookieErr @ZAuth.User            <$> cookie "zuid"
+    legalHoldUserToken   = cookieErr @ZAuth.LegalHoldUser   <$> cookie "zuid"
+    accessToken          = parse @ZAuth.Access              <$> (tokenHeader .|. tokenQuery)
+    legalHoldAccessToken = parse @ZAuth.LegalHoldAccess     <$> (tokenHeader .|. tokenQuery)
+    tokenHeader          = bearer <$> header "authorization"
+    tokenQuery           = query "access_token"
 
-    cookieErr :: Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
+    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
     cookieErr x@Okay{} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
 
@@ -273,7 +262,7 @@ tokenRequest = opt userToken .&. opt accessToken
                       (setMessage "Invalid authorization scheme" (err status403)))
 
     -- Parse the access token
-    parse :: Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
+    parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail   x) = Fail x
     parse (Okay _ b) = case fromByteString b of
         Nothing -> Fail (setReason TypeError

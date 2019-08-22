@@ -61,6 +61,7 @@ tests conf m z b g = testGroup "auth"
                 , test m "failure-suspended" (testSuspendedLegalHoldLogin b g)
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
+                , test m "check only single cookie for legalhold - TODO" (undefined)
                 ]
             ]
         , testGroup "refresh"

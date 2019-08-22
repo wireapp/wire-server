@@ -88,7 +88,7 @@ login (SmsLogin phone code label) typ = do
         throwE LoginFailed
     newAccess @ZAuth.User @ZAuth.Access uid typ label
 
-logout :: ZAuth.UserToken -> ZAuth.AccessToken -> ExceptT ZAuth.Failure AppIO ()
+logout :: ZAuth.TokenPair u a => ZAuth.Token u -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
 logout ut at = do
     (u, ck) <- validateTokens ut (Just at)
     lift $ revokeCookies u [cookieId ck] []
