@@ -3,7 +3,7 @@ module Galley.API.LegalHold where
 import Imports
 import Galley.API.Error
 import Brig.Types.Provider
-import Brig.Types.Team.LegalHold
+import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Client.Prekey
 import Control.Monad.Catch
 import Control.Lens (view, (^.))
