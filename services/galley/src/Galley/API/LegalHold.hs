@@ -77,7 +77,6 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
     membs <- Data.teamMembers tid
     let zothers = map (view userId) membs
-    -- TODO user id's of members
     Log.debug $ Log.field "targets" (toByteString (show zothers))
               . Log.msg (Log.val "LegalHold.removeSettings")
 
