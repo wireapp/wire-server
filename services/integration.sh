@@ -92,7 +92,23 @@ function run() {
         | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
+function run_nginz() {
+    colour=$1
+    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+}
+
 check_prerequisites
+
+if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+    SCRIPT_DIR="$TOP_LEVEL/deploy/services-demo"
+    run_nginz ${purpleish}
+    # run nginz "" ${purpleish}
+    # ./dist/nginx -p deploy/services-demo -c conf/nginz/nginx.conf
+    # docker run -it --network=host -v $(pwd)/deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
+fi
+
 
 run brig "" ${green}
 run galley "" ${yellow}
