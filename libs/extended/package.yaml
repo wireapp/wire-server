@@ -17,6 +17,7 @@ dependencies:
 - base
 - bytestring
 - extra
+- aeson
 - imports
 - optparse-applicative
 - tinylog

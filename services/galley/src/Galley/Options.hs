@@ -5,7 +5,7 @@ import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Util.Options
 import Util.Options.Common
-import System.Logger.Class (Level)
+import System.Logger.Extended (Level, LogFormat)
 import Data.Misc
 
 data Settings = Settings
@@ -45,7 +45,8 @@ data Opts = Opts
                                              --   disables journaling)
     -- Logging
     , _optLogLevel      :: !Level            -- ^ Log level (Debug, Info, etc)
-    , _optLogNetStrings :: !Bool             -- ^ Use netstrings encoding:
+    , _optLogNetStrings :: !(Last Bool)             -- ^ (DEPRECATED) Use netstrings encoding
+    , _optLogFormat     :: !(Last LogFormat) -- ^ What log format to use
                                              --   <http://cr.yp.to/proto/netstrings.txt>
     }
 

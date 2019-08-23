@@ -27,6 +27,7 @@ import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
+import System.Logger.Extended (LogFormat)
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
@@ -189,7 +190,8 @@ data Opts' a = Opts
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
     -- IPs using describe-instances.
     , discoUrl       :: !(Maybe Text)
-    , logNetStrings  :: !Bool
+    , logNetStrings  :: !(Last Bool)
+    , logFormat      :: !(Last LogFormat)
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     , derivedOpts    :: !a
     }

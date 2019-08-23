@@ -155,7 +155,7 @@ newEnv o = do
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o)
+    lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager

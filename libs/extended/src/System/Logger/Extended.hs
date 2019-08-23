@@ -1,32 +1,54 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DerivingStrategies         #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Tinylog convenience things.
 module System.Logger.Extended
     ( module Log
+    , LogFormat(..)
     , mkLogger
     , mkLogger'
     , LoggerT(..)
     , runWithLogger
+    , netStringsToLogFormat
     ) where
 
-import Imports
 import Control.Monad.Catch
+import Data.Aeson
 import Database.CQL.IO
+import GHC.Generics
+import Imports
 import System.Logger as Log
 
-import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.Builder as B
+import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.Logger.Class as LC
 
--- TODO(arianvp): Get rid of boolean blindness
--- TODO(arianvp): Add JSON log format. This will make our lives a lot easier
---    This will add a dependency on aeson for this package,
---    but it already transitively depended on it through imports.
---    Interestingly, the only place where imports uses Aeson
---    is in the Orphans module which defines Aeson Orphans instances for Log.Level.
---    So while we're at it, we should probably move those orphans here.
-mkLogger :: Log.Level -> Bool -> IO Log.Logger
-mkLogger lvl netstr = Log.new
+deriving instance Generic LC.Level
+instance FromJSON LC.Level
+instance ToJSON LC.Level
+
+-- | The log formats supported
+data LogFormat = JSON | Plain | Netstring 
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON) -- TODO write this instance manually?
+
+
+-- | Here for backwards-compatibility reasons
+netStringsToLogFormat :: Bool -> LogFormat
+netStringsToLogFormat True = Netstring
+netStringsToLogFormat False = Plain
+
+-- | TODO(arianvp): Add a descriptive description
+-- TODO: Deprecate the  isNetstring argument and export mkLogger'' instead of mkLogger
+mkLogger :: Log.Level -> Last Bool -> Last LogFormat -> IO  Log.Logger
+mkLogger level isNetstring logFormat = do
+  mkLogger'' level $
+    case getLast $ (netStringsToLogFormat <$> isNetstring) <> logFormat of
+      Just x -> x
+      Nothing -> Plain
+    
+mkLogger'' :: Log.Level -> LogFormat -> IO Log.Logger
+mkLogger'' lvl netstr = Log.new
     . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
@@ -40,15 +62,16 @@ mkLogger lvl netstr = Log.new
 --
 --   * use 'canonicalizeWhitespace'.
 --
-simpleSettings :: Log.Level -> Bool -> Log.Settings
+simpleSettings :: Log.Level -> LogFormat -> Log.Settings
 simpleSettings lvl netstr
   = Log.setLogLevel lvl
   . Log.setRenderer (canonicalizeWhitespace rndr)
   $ Log.defSettings
   where
     rndr = case netstr of
-      True  -> \_separator _dateFormat _level -> Log.renderNetstr
-      False -> \ separator _dateFormat _level -> Log.renderDefault separator
+      Netstring  -> \_separator _dateFormat _level -> Log.renderNetstr
+      Plain -> \ separator _dateFormat _level -> Log.renderDefault separator
+      JSON -> error "unimplemented"
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
 -- Log output must be ASCII encoding.

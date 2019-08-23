@@ -7,6 +7,7 @@ module Proxy.Options
     , maxConns
     , logLevel
     , logNetStrings
+    , logFormat
     , mockOpts
     ) where
 
@@ -14,7 +15,7 @@ import Imports
 import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
-import System.Logger.Class (Level(Debug))
+import System.Logger.Extended (Level(Debug), LogFormat)
 
 data Opts = Opts
     { _host          :: !String     -- ^ Host to listen on
@@ -24,8 +25,8 @@ data Opts = Opts
     , _maxConns      :: !Int        -- ^ Maximum number of incoming connections
     -- Logging
     , _logLevel      :: !Level       -- ^ Log level (Debug, Info, etc)
-    , _logNetStrings :: !Bool        -- ^ Use netstrings encoding (see
-                                     --   <http://cr.yp.to/proto/netstrings.txt>)
+    , _logNetStrings :: !(Last Bool)        -- ^ Use netstrings encoding (see
+    , _logFormat     :: !(Last LogFormat)        -- ^ choose Encoding
     } deriving (Show, Generic)
 
 makeLenses ''Opts
@@ -41,5 +42,6 @@ mockOpts secrets = Opts
     , _httpPoolSize  = 0
     , _maxConns      = 0
     , _logLevel      = Debug
-    , _logNetStrings = True
+    , _logNetStrings = pure True
+    , _logFormat     = mempty
     }

@@ -28,7 +28,7 @@ run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- Middleware.metrics
-    g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings)
+    g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o

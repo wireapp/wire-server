@@ -17,7 +17,8 @@ import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
-import System.Logger.Class (Level)
+import System.Logger.Extended (Level, LogFormat)
+import Data.Monoid (Last)
 
 import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y
@@ -257,9 +258,9 @@ data Opts = Opts
 
     -- Logging
     , logLevel      :: !Level                  -- ^ Log level (Debug, Info, etc)
-    , logNetStrings :: !Bool                   -- ^ Use netstrings encoding (see
+    , logNetStrings :: !(Last Bool)                   -- ^ Use netstrings encoding (see
                                                --   <http://cr.yp.to/proto/netstrings.txt>)
-
+    , logFormat :: !(Last LogFormat)
     -- TURN
     , turn          :: !TurnOpts               -- ^ TURN server settings
 

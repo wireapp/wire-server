@@ -56,7 +56,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     mt <- Metrics.metrics
-    l  <- Log.mkLogger (O.logLevel o) (O.logNetStrings o)
+    l  <- Log.mkLogger (O.logLevel o) (O.logNetStrings o) (O.logFormat o)
     Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt
         <$> pure def
         <*> Bilge.newManager (Bilge.defaultManagerSettings { Bilge.managerResponseTimeout = responseTimeoutMicro 10000000 })

@@ -37,7 +37,7 @@ makeLenses ''Env
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- Logger.mkLogger (o^.logLevel) (o^.logNetStrings)
+    g <- Logger.mkLogger (o^.logLevel) (o^.logNetStrings) (o^.logFormat)
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)
