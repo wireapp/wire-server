@@ -19,6 +19,7 @@ import GHC.Generics
 import Imports
 import System.Logger as Log
 
+import Data.Text.Lazy.Encoding (encodeUtf8Builder)
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.Logger.Class as LC
@@ -32,6 +33,12 @@ data LogFormat = JSON | Plain | Netstring
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON) -- TODO write this instance manually?
 
+eltsToJson :: [Element] -> Encoding
+eltsToJson = error "TODO: Bikeshed about a log format"
+
+jsonRenderer :: Renderer
+jsonRenderer sep dateFormat logLevel elts = fromEncoding (eltsToJson elts)
+  -- encodeUtf8Builder
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
@@ -71,7 +78,7 @@ simpleSettings lvl netstr
     rndr = case netstr of
       Netstring  -> \_separator _dateFormat _level -> Log.renderNetstr
       Plain -> \ separator _dateFormat _level -> Log.renderDefault separator
-      JSON -> error "unimplemented"
+      JSON -> jsonRenderer
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
 -- Log output must be ASCII encoding.
