@@ -35,10 +35,3 @@ dependencies:
 - retry
 library:
   source-dirs: src
-  exposed-modules:
-  - Cassandra
-  - Cassandra.CQL
-  - Cassandra.Exec
-  - Cassandra.Schema
-  - Cassandra.Settings
-  - Cassandra.Util
