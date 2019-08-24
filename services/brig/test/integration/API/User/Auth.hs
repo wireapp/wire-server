@@ -587,8 +587,9 @@ testTooManyCookies config b = do
                 let Just n = fromByteString =<< getHeader "Retry-After" x
                 liftIO $ threadDelay (1000000 * (n + 1))
                 loginWhenAllowed pwl t
-            403 -> error ("forbidden.  " <>
-                          "make sure setSuspendInactiveUsers.suspendTimeout >= 10")
+            403 -> error ("forbidden; " <>
+                          "perhaps setSuspendInactiveUsers.suspendTimeout is too small? " <>
+                          "(try 29 seconds).")
             xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
 
 testLogout :: Brig -> Http ()
