@@ -18,6 +18,7 @@ import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (withArgs)
+import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Options
@@ -35,6 +36,7 @@ import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
 import qualified System.Logger         as Logger
+import qualified UnliftIO.Temporary    as Temp
 
 data Config = Config
   -- internal endpoints
@@ -48,6 +50,20 @@ data Config = Config
 
 instance FromJSON Config
 
+lookupTempDir :: IO FilePath
+lookupTempDir = fromMaybe "/tmp" . getFirst . mconcat . map First
+                <$> lookupEnv `mapM` ["TMP", "TEMP", "TMPDIR", "TEMPDIR"]
+
+withTurnFiles :: (FilePath -> FilePath -> IO TestTree) -> IO TestTree
+withTurnFiles act = do
+    tmpdirRoot <- lookupTempDir
+    Temp.withTempDirectory tmpdirRoot "wire.temp" $ \tempdir -> do
+        let turn = tempdir </> "servers.txt"
+        let turnv2 = tempdir </> "servers-v2.txt"
+        writeFile turn   "turn:127.0.0.1:3478"
+        writeFile turnv2 "turn:localhost:3478"
+        act turn turnv2
+
 runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
 runTests iConf bConf otherArgs = do
     -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
@@ -59,8 +75,6 @@ runTests iConf bConf otherArgs = do
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
     ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
     g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-    turnFile   <- optOrEnv (Opts.servers   . Opts.turn) bConf id "TURN_SERVERS"
-    turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
     casHost <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
     casPort <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
     casKey  <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
@@ -76,7 +90,7 @@ runTests iConf bConf otherArgs = do
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
-    turnApi     <- TURN.tests mg b turnFile turnFileV2
+    turnApi     <- withTurnFiles $ TURN.tests mg b
     metricsApi  <- Metrics.tests mg b
     settingsApi <- Settings.tests brigOpts mg b g
 

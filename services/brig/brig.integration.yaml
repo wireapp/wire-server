@@ -115,8 +115,6 @@ zauth:
     providerTokenTimeout: 60
 
 turn:
-  servers: test/resources/turn/servers.txt
-  serversV2: test/resources/turn/servers-v2.txt
   # This should be the same secret as used by the TURN servers
   secret: test/resources/turn/secret.txt
   configTTL: 3600
