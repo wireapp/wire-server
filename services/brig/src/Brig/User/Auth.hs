@@ -34,8 +34,10 @@ import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
 import Control.Error hiding (bool)
 import Data.Id
+import Data.ByteString.Conversion (toByteString)
 import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword (..))
+import System.Logger (msg, field, (~~), val)
 
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
@@ -151,7 +153,9 @@ revokeAccess u pw cc ll = do
 catchSuspendInactiveUser :: UserId -> e -> ExceptT e AppIO ()
 catchSuspendInactiveUser uid errval = do
   mustsuspend <- lift $ mustSuspendInactiveUser uid
-  Log.debug . Log.msg $ show (uid, mustsuspend)
+  Log.warn $ msg (val "catchSuspendInactiveUser")
+    ~~ field "user" (toByteString uid)
+    ~~ field "mustsuspend" mustsuspend
   when mustsuspend $ do
     lift $ suspendAccount (singleton uid)
     throwE errval
