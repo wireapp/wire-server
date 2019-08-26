@@ -613,7 +613,7 @@ testDeleteTeam = do
             Util.getConv u x !!! const 404 === statusCode
             Util.getSelfMember u x !!! do
                 const 200         === statusCode
-                const (Just Null) === Util.decodeBody
+                const (Just Null) === Util.decodeBodyM
     assertQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
