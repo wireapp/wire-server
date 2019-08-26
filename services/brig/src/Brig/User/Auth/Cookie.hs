@@ -116,7 +116,7 @@ renewCookie old = do
 -- implicitly because of cyclical dependencies).
 mustSuspendInactiveUser :: UserId -> AppIO Bool
 mustSuspendInactiveUser uid = view (settings . to setSuspendInactiveUsers) >>= \case
-    Nothing -> pure True
+    Nothing -> pure False
     Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
         now <- liftIO =<< view currentTime
 
@@ -129,7 +129,7 @@ mustSuspendInactiveUser uid = view (settings . to setSuspendInactiveUsers) >>= \
         ckies <- listCookies uid []
         let mustSuspend
               | null ckies            = False
-              | all youngEnough ckies = False
+              | any youngEnough ckies = False
               | otherwise             = True
 
         pure mustSuspend
