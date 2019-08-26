@@ -98,8 +98,8 @@ import Data.Void
 import Data.Bool
 import Data.Char
 import Data.Ord
-import Data.Semigroup (Semigroup)
-import Data.Monoid
+import Data.Semigroup hiding (diff, Option, option) -- conflicts with Options.Applicative.Option (should we care?)
+import Data.Monoid hiding (First(..), Last(..)) -- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Maybe
 import Data.Either
 import Data.Foldable

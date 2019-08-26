@@ -50,9 +50,9 @@ data Opts = Opts
     , _optSettings  :: !Settings
     -- Logging
     , _optLogLevel      :: !Level       -- ^ Log level (Debug, Info, etc)
-    , _optLogNetStrings :: !(Last Bool)        -- ^ Use netstrings encoding:
+    , _optLogNetStrings :: !(Maybe (Last Bool))        -- ^ Use netstrings encoding:
                                         --   <http://cr.yp.to/proto/netstrings.txt>
-    , _optLogFormat :: !(Last LogFormat)
+    , _optLogFormat :: !(Maybe (Last LogFormat))
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Opts

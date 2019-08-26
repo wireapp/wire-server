@@ -8,7 +8,6 @@ import GHC.Generics
 import Imports
 import Util.Options
 import System.Logger.Extended (Level, LogFormat)
-import Data.Monoid (Last)
 
 -- | Options that are consumed on startup
 data Opts = Opts
@@ -22,8 +21,8 @@ data Opts = Opts
     , galeb   :: !Endpoint
     -- Logging
     , logLevel      :: !Level
-    , logNetStrings :: !(Last Bool)
-    , logFormat     :: !(Last LogFormat)
+    , logNetStrings :: !(Maybe (Last Bool))
+    , logFormat     :: !(Maybe (Last LogFormat))
     } deriving (Show, Generic)
 
 instance FromJSON Opts

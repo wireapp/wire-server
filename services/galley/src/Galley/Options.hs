@@ -45,9 +45,9 @@ data Opts = Opts
                                              --   disables journaling)
     -- Logging
     , _optLogLevel      :: !Level            -- ^ Log level (Debug, Info, etc)
-    , _optLogNetStrings :: !(Last Bool)             -- ^ (DEPRECATED) Use netstrings encoding
-    , _optLogFormat     :: !(Last LogFormat) -- ^ What log format to use
-                                             --   <http://cr.yp.to/proto/netstrings.txt>
+    , _optLogNetStrings :: !(Maybe (Last Bool))             -- ^ Use netstrings encoding
+                                                            --  <http://cr.yp.to/proto/netstrings.txt>
+    , _optLogFormat     :: !(Maybe (Last LogFormat)) -- ^ What log format to use
     }
 
 deriveFromJSON toOptionFieldName ''Opts

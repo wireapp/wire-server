@@ -16,7 +16,6 @@ module Cannon.Options
 where
 
 import Imports
-import Data.Monoid (Last)
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
 import System.Logger.Extended (Level, LogFormat)
@@ -44,8 +43,8 @@ data Opts = Opts
     { _optsCannon         :: !Cannon
     , _optsGundeck        :: !Gundeck
     , _optsLogLevel       :: !Level
-    , _optsLogNetStrings  :: !(Last Bool)
-    , _optsLogFormat      :: !(Last LogFormat)
+    , _optsLogNetStrings  :: !(Maybe (Last Bool))
+    , _optsLogFormat      :: !(Maybe (Last LogFormat))
     } deriving (Eq, Show, Generic)
 
 makeFields ''Opts

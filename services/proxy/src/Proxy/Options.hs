@@ -25,8 +25,8 @@ data Opts = Opts
     , _maxConns      :: !Int        -- ^ Maximum number of incoming connections
     -- Logging
     , _logLevel      :: !Level       -- ^ Log level (Debug, Info, etc)
-    , _logNetStrings :: !(Last Bool)        -- ^ Use netstrings encoding (see
-    , _logFormat     :: !(Last LogFormat)        -- ^ choose Encoding
+    , _logNetStrings :: !(Maybe (Last Bool)) -- ^ Use netstrings encoding
+    , _logFormat     :: !(Maybe (Last LogFormat))-- ^ choose Encoding
     } deriving (Show, Generic)
 
 makeLenses ''Opts
@@ -42,6 +42,6 @@ mockOpts secrets = Opts
     , _httpPoolSize  = 0
     , _maxConns      = 0
     , _logLevel      = Debug
-    , _logNetStrings = pure True
+    , _logNetStrings = pure $ pure $ True
     , _logFormat     = mempty
     }

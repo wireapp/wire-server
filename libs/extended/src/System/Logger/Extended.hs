@@ -20,7 +20,6 @@ import GHC.Generics
 import Imports
 import System.Logger as Log
 import Data.String.Conversions (cs)
-
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.Logger.Class as LC
@@ -77,11 +76,11 @@ netStringsToLogFormat False = Plain
 -- TODO: Once we get rid of the useNetstrings in our config files, we can
 -- change the type of mkLogger to  mkLogger :: Log.Level -> LogFormat -> IO
 -- Log.Logger
-mkLogger :: Log.Level -> Last Bool -> Last LogFormat -> IO  Log.Logger
+mkLogger :: Log.Level -> Maybe (Last Bool) -> Maybe (Last LogFormat) -> IO  Log.Logger
 mkLogger lvl useNetstrings logFormat = do
   mkLogger'' lvl $
-    case getLast $ (netStringsToLogFormat <$> useNetstrings) <> logFormat of
-      Just x -> x
+    case (fmap netStringsToLogFormat <$> useNetstrings) <> logFormat of
+      Just x -> getLast x
       Nothing -> Plain
     
 mkLogger'' :: Log.Level -> LogFormat -> IO Log.Logger

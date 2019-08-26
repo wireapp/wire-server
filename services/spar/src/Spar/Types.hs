@@ -190,8 +190,8 @@ data Opts' a = Opts
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
     -- IPs using describe-instances.
     , discoUrl       :: !(Maybe Text)
-    , logNetStrings  :: !(Last Bool)
-    , logFormat      :: !(Last LogFormat)
+    , logNetStrings  :: !(Maybe (Last Bool))
+    , logFormat      :: !(Maybe (Last LogFormat))
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     , derivedOpts    :: !a
     }
