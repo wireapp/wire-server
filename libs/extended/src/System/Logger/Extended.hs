@@ -14,15 +14,17 @@ module System.Logger.Extended
 
 import Control.Monad.Catch
 import Data.Aeson
+import Data.Aeson.Encoding (pair, list, text)
 import Database.CQL.IO
 import GHC.Generics
 import Imports
 import System.Logger as Log
+import Data.String.Conversions (cs)
 
-import Data.Text.Lazy.Encoding (encodeUtf8Builder)
 import qualified Data.ByteString.Lazy.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.Logger.Class as LC
+
 
 deriving instance Generic LC.Level
 instance FromJSON LC.Level
@@ -33,24 +35,52 @@ data LogFormat = JSON | Plain | Netstring
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON) -- TODO write this instance manually?
 
-eltsToJson :: [Element] -> Encoding
-eltsToJson = error "TODO: Bikeshed about a log format"
+-- | We use this as an intermediate structure to ease the implementation of the
+-- ToJSON instance but we could just inline everything. I think this has
+-- negligible impact and makes the code a bit more readable. Let me know
+data Element' = Element' [(Builder, Builder)] [Builder]
+
+instance ToJSON Element' where
+  toJSON = error "Use toEncoding"
+  toEncoding :: Element' -> Encoding
+  toEncoding (Element' fields msgs) = pairs $ fieldsToSeries fields <> msgsToSeries msgs
+    where
+      fieldsToSeries :: [(Builder, Builder)] -> Series
+      fieldsToSeries = foldMap $ \(k,v) -> pair (cs . eval $ k) (text . cs . eval $ v)
+      msgsToSeries :: [Builder] -> Series
+      msgsToSeries  = pair "msgs" . list (text . cs . eval)
+
+collect :: [Element] -> Element'
+collect = foldr go (Element' [] []) 
+  where
+    go :: Element -> Element' -> Element'
+    go (Bytes b) (Element' f m) =
+      Element' f (b : m)
+    go (Field k v) (Element' f m) = 
+      Element' ((k,v) : f) m
 
 jsonRenderer :: Renderer
-jsonRenderer sep dateFormat logLevel elts = fromEncoding (eltsToJson elts)
-  -- encodeUtf8Builder
+jsonRenderer _sep _dateFormat _logLevel = fromEncoding  . toEncoding . collect
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
 netStringsToLogFormat True = Netstring
 netStringsToLogFormat False = Plain
 
--- | TODO(arianvp): Add a descriptive description
--- TODO: Deprecate the  isNetstring argument and export mkLogger'' instead of mkLogger
+-- | Creates a logger given a log format Also takes an useNetstrings argument
+-- which is there because we cannot immediatelly deprecate the old interface.
+-- Old configs only provide the useNetstrings argument and not the logFormat
+-- argument, and in that case implement the old behaviour of either enabling
+-- plain text logging or netstring logging.  If both arguments are set,
+-- logFormat takes presedence over useNetstrings
+--
+-- TODO: Once we get rid of the useNetstrings in our config files, we can
+-- change the type of mkLogger to  mkLogger :: Log.Level -> LogFormat -> IO
+-- Log.Logger
 mkLogger :: Log.Level -> Last Bool -> Last LogFormat -> IO  Log.Logger
-mkLogger level isNetstring logFormat = do
-  mkLogger'' level $
-    case getLast $ (netStringsToLogFormat <$> isNetstring) <> logFormat of
+mkLogger lvl useNetstrings logFormat = do
+  mkLogger'' lvl $
+    case getLast $ (netStringsToLogFormat <$> useNetstrings) <> logFormat of
       Just x -> x
       Nothing -> Plain
     
