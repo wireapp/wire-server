@@ -48,7 +48,7 @@ module Bilge.IO
     , HttpException (..)
     ) where
 
-import Imports hiding (head, trace)
+import Imports hiding (head)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control

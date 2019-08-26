@@ -2,7 +2,7 @@
 -- instead.
 module API.SQS where
 
-import Imports hiding (trace)
+import Imports
 import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)

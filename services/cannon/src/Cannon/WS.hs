@@ -30,7 +30,7 @@ module Cannon.WS
     )
 where
 
-import Imports hiding (threadDelay, trace)
+import Imports hiding (threadDelay)
 import Bilge hiding (trace)
 import Bilge.Retry
 import Bilge.RPC
