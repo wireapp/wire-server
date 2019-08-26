@@ -473,13 +473,18 @@ testSuspendInactiveUsers (Just config) brig = do
                         const 403 === statusCode
                         const Nothing === getHeader "Set-Cookie"
 
-            let retr = recoverAll rpolicy
-                rpolicy = exponentialBackoff 200000 <> limitRetries 6
-            retr $ \_ -> getStatus brig (userId user)
-                         >>= let errmsg = "testSuspendInactiveUsers: " <> show (cookieType, endPoint, waitTime, suspendAge)
-                             in liftIO . HUnit.assertEqual errmsg Suspended
+            let assertStatus want = do
+                  have <- retrying (exponentialBackoff 200000 <> limitRetries 6)
+                    (\_ have -> pure $ have == Suspended)
+                    (\_ -> getStatus brig (userId user))
+                  let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
+                  liftIO $ HUnit.assertEqual errmsg want have
+
+            assertStatus Suspended
             setStatus brig (userId user) Active
-            retr $ \_ -> login brig (emailLogin email defPassword Nothing) cookieType
+            assertStatus Active
+
+            login brig (emailLogin email defPassword Nothing) cookieType
                 !!! const 200 === statusCode
 
     check SessionCookie "/access"
