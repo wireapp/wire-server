@@ -1146,12 +1146,15 @@ getLegalHoldEnabledInternal tid = do
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
-putLegalHoldEnabledInternal tid enabled = do
+putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
+
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal' reqmod tid enabled = do
     g <- view tsGalley
     void . put $ g
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . json (LegalHoldTeamConfig enabled)
-        . expect2xx
+        . reqmod
 
 
 testFeatureFlags :: TestM ()
@@ -1210,6 +1213,13 @@ testFeatureFlags = do
     getLegalHold LegalHoldDisabled
     getLegalHoldInternal LegalHoldDisabled
 
-    setLegalHoldInternal LegalHoldEnabled
-    getLegalHold LegalHoldEnabled
-    getLegalHoldInternal LegalHoldEnabled
+    FeatureFlags ((FeatureLegalHold `elem`) -> featureLegalHold)
+        <- view (tsGConf . optSettings . setFeatureFlags)
+
+    if featureLegalHold
+      then do
+        setLegalHoldInternal LegalHoldEnabled
+        getLegalHold LegalHoldEnabled
+        getLegalHoldInternal LegalHoldEnabled
+      else do
+        putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled
