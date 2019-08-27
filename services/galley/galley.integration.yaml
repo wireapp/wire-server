@@ -26,6 +26,9 @@ settings:
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
+  featureFlags:
+    sso: true
+    legalhold: true
 
 logLevel: Info
 logNetStrings: false

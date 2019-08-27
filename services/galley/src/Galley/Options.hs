@@ -7,6 +7,7 @@ import Util.Options
 import Util.Options.Common
 import System.Logger.Class (Level)
 import Data.Misc
+import Galley.Types.Teams (FeatureFlags)
 
 data Settings = Settings
     {
@@ -20,6 +21,7 @@ data Settings = Settings
     , _setIntraListing          :: !Bool
     -- | URI prefix for conversations with access mode @code@
     , _setConversationCodeURI   :: !HttpsUrl
+    , _setFeatureFlags          :: !FeatureFlags
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
