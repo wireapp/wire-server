@@ -27,8 +27,8 @@ settings:
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
 
-logLevel: Info
-logNetStrings: false
+logLevel: Debug
+logFormat: JSON
 
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
