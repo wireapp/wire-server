@@ -540,6 +540,9 @@ getLegalholdStatusInternal (tid ::: _) = do
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setLegalholdStatusInternal (tid ::: req ::: _) = do
+    do  FeatureFlags flags <- view (options . optSettings . setFeatureFlags)
+        unless (FeatureLegalHold `elem` flags) $ throwM legalHoldFeatureFlagNotEnabled
+
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of
         LegalHoldDisabled -> removeSettings' tid Nothing
