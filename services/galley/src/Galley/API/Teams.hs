@@ -113,7 +113,7 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     let zothers = map (view userId) others
     ensureUnboundUsers (zusr : zothers)
     ensureConnected zusr zothers
-    Log.debug $ Log.field "targets" (toByteString (show zothers))
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.msg (Log.val "Teams.createNonBindingTeam")
     team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
     finishCreateTeam team owner others (Just zcon)
@@ -153,7 +153,7 @@ updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromJsonBody req
     membs <- Data.teamMembers tid
     let zothers = map (view userId) membs
-    Log.debug $ Log.field "targets" (toByteString (show zothers))
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.msg (Log.val "Teams.updateTeam")
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body

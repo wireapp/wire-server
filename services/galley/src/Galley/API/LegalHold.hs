@@ -43,7 +43,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
     membs <- Data.teamMembers tid
     let zothers = map (view userId) membs
-    Log.debug $ Log.field "targets" (toByteString (show zothers))
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.msg (Log.val "LegalHold.createSettings")
     
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
@@ -77,7 +77,7 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
     membs <- Data.teamMembers tid
     let zothers = map (view userId) membs
-    Log.debug $ Log.field "targets" (toByteString (show zothers))
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.msg (Log.val "LegalHold.removeSettings")
 
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
@@ -95,7 +95,7 @@ removeSettings'
 removeSettings' tid mMembers = do
     membs <- maybe (Data.teamMembers tid) pure mMembers
     let zothers = map (view userId) membs
-    Log.debug $ Log.field "targets" (toByteString (show zothers))
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.msg (Log.val "LegalHold.removeSettings'")
 
     let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
