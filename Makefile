@@ -1,4 +1,8 @@
 SHELL            := /usr/bin/env bash
+# STACK_OPTIONS are the options used for most stack calls in this
+# Makefile; WIRE_STACK_OPTIONS is the place for the user to override
+# things.
+STACK_OPTIONS := --pedantic --test --bench --no-run-benchmarks --local-bin-path=$(shell stack path --project-root)/dist
 LANG             := en_US.UTF-8
 DOCKER_USER      ?= quay.io/wire
 DOCKER_TAG       ?= local
@@ -11,12 +15,12 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(STACK_OPTIONS) $(WIRE_STACK_OPTIONS)
 
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(STACK_OPTIONS) --fast $(WIRE_STACK_OPTIONS)
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -26,20 +30,20 @@ services: init install
 # Build haddocks
 .PHONY: haddock
 haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal $(WIRE_STACK_OPTIONS)" make fast
 
 # Build haddocks only for wire-server
 .PHONY: haddock-shallow
 haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps $(WIRE_STACK_OPTIONS)" make fast
 
 # Clean
 .PHONY: clean
 clean:
-	stack clean
+	stack clean $(STACK_OPTIONS)
 	$(MAKE) -C services/nginz clean
-	-rm -rf dist
-	-rm -f .metadata
+	rm -rf dist
+	rm -f .metadata
 
 #################################
 ## running integration tests

@@ -1,5 +1,9 @@
 LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
+# STACK_OPTIONS are the options used for most stack calls in this
+# Makefile; WIRE_STACK_OPTIONS is the place for the user to override
+# things.
+STACK_OPTIONS := --pedantic --test --bench --no-run-benchmarks --local-bin-path=$(shell stack path --project-root)/dist
 NAME         := $(lastword $(subst /, ,$(CURDIR)))
 VERSION       = $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
 BUILD_NUMBER ?= 0
@@ -12,26 +16,24 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
-	stack clean metrics-collectd
-	-rm -rf dist
-	-rm -f .metadata
+	stack clean . $(STACK_OPTIONS)
+	rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install . $(STACK_OPTIONS) $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . $(STACK_OPTIONS) --no-copy-bins $(WIRE_STACK_OPTIONS)
 
 .PHONY: sdist
 sdist: init
-	stack sdist .
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
+	stack sdist . $(STACK_OPTIONS)
 
 .PHONY: dist
 dist: sdist install $(DEB) .metadata

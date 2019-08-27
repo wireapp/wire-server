@@ -66,11 +66,11 @@ default: compile
 
 .PHONY: clean
 clean:
-	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
+	rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
 .PHONY: compile
 compile: $(BIN)
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 	cp src/objs/nginx ../../dist/
 
 .PHONY: dist

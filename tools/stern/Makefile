@@ -1,6 +1,10 @@
 LANG         := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := stern
+# STACK_OPTIONS are the options used for most stack calls in this
+# Makefile; WIRE_STACK_OPTIONS is the place for the user to override
+# things.
+STACK_OPTIONS := --pedantic --test --bench --no-run-benchmarks --local-bin-path=$(shell stack path --project-root)/dist
 VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
@@ -21,25 +25,24 @@ default: fast
 all: clean install
 
 init:
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
-	stack clean $(NAME)
-	-rm -rf dist
-	-rm -f .metadata
+	stack clean . $(STACK_OPTIONS)
+	rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install . $(STACK_OPTIONS) $(WIRE_STACK_OPTIONS)
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . $(STACK_OPTIONS) --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . $(STACK_OPTIONS) --no-copy-bins $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_IT) .metadata
@@ -68,7 +71,7 @@ docker:
 
 .PHONY: time
 time: clean
-	-rm -f .stack-work/logs/*
-	stack build . --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
+	rm -f $(shell stack path --project-root)/.stack-work/logs/*
+	stack build . $(STACK_OPTIONS) --no-copy-bins --ghc-options="-j +RTS -s -RTS"
 	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
 	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2

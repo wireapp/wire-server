@@ -1,6 +1,10 @@
 LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := makedeb
+# STACK_OPTIONS are the options used for most stack calls in this
+# Makefile; WIRE_STACK_OPTIONS is the place for the user to override
+# things.
+STACK_OPTIONS := --pedantic --test --bench --no-run-benchmarks --local-bin-path=$(shell stack path --project-root)/dist
 VERSION      ?=
 ARCH  	     := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
 BUILD_NUMBER ?= 0
@@ -19,22 +23,20 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
 	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
-	stack clean makedeb
-	-rm -rf dist
-	-rm -f .metadata
+	stack clean . $(STACK_OPTIONS)
+	rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install . $(STACK_OPTIONS) $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . $(STACK_OPTIONS) --no-copy-bins $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata
