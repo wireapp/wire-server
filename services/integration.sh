@@ -106,14 +106,17 @@ run spar "" ${orange}
 function run_nginz() {
     colour=$1
     prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
-    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+    (cd ${NGINZ_WORK_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 
 NGINZ_PORT=""
 if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
     NGINZ_PORT=8080
-    export SCRIPT_DIR="$TOP_LEVEL/deploy/services-demo"
+    # Note: for integration tests involving nginz,
+    # nginz and brig must share the same zauth public/private keys
+    export NGINZ_WORK_DIR="$TOP_LEVEL/services/nginz/integration-test"
+
     run_nginz ${purpleish}
 fi
 
