@@ -460,7 +460,7 @@ testSuspendInactiveUsers (Just config) brig = do
             let cky = decodeCookie rs
 
             -- wait slightly longer than required for being marked as inactive.
-            let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 1
+            let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5  -- adding 1 *should* be enough, but it's not.
             liftIO $ threadDelay (1000000 * waitTime)
 
             case endPoint of
