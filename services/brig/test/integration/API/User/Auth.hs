@@ -111,21 +111,18 @@ testNginz :: Brig -> Nginz -> Http ()
 testNginz b n = do
     u <- randomUser b
     let Just email = userEmail u
-    traceShowM email
     -- Login with email
     rs <- login b (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
     let c = decodeCookie rs
         t = decodeToken rs
     -- ensure nginz allows refresh at /access
-    rs' <- post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
+    _rs <- post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
         const 200 === statusCode
-    let t' = decodeToken rs'
-    traceShowM ("----------dude!" :: String)
-    traceShowM t'
-    traceShowM (toByteString' t')
     -- ensure regular user tokens can be used with (for example) /clients
-    get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t'))) !!! const 200 === statusCode
+    get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+    -- ensure regular user tokens can fetch notifications
+    get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
 
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
@@ -140,8 +137,12 @@ testNginzLegalHold b g n = do
     post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) !!! do
         const 200 === statusCode
 
-    -- ensure legalhold tokens cannot be used with (for example) /clients
-    get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 401 === statusCode
+    -- ensure legalhold tokens CANNOT fetch /clients
+    get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
+    get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
+
+    -- ensure legal hold tokens can fetch notifications
+    get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
 
 
 -------------------------------------------------------------------------------

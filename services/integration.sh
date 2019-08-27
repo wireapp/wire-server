@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
@@ -92,25 +92,8 @@ function run() {
         | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
-function run_nginz() {
-    colour=$1
-    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
-    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
-        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
-}
 
 check_prerequisites
-
-NGINZ_PORT=""
-if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
-    NGINZ_PORT=8080
-    SCRIPT_DIR="$TOP_LEVEL/deploy/services-demo"
-    run_nginz ${purpleish}
-    # run nginz "" ${purpleish}
-    # ./dist/nginx -p deploy/services-demo -c conf/nginz/nginx.conf
-    # docker run -it --network=host -v $(pwd)/deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
-fi
-
 
 run brig "" ${green}
 run galley "" ${yellow}
@@ -119,6 +102,20 @@ run cannon "" ${orange}
 run cannon "2" ${orange}
 run cargohold "" ${purpleish}
 run spar "" ${orange}
+
+function run_nginz() {
+    colour=$1
+    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+}
+
+NGINZ_PORT=""
+if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+    NGINZ_PORT=8080
+    export SCRIPT_DIR="$TOP_LEVEL/deploy/services-demo"
+    run_nginz ${purpleish}
+fi
 
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
