@@ -511,13 +511,13 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- | Get legal SSO status for a team.
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
+    defConfig <- do
+        FeatureFlags flags <- view (options . optSettings . setFeatureFlags)
+        pure $ if FeatureSSO `elem` flags
+            then SSOTeamConfig SSOEnabled
+            else SSOTeamConfig SSODisabled
     ssoTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
-  where
-    defConfig = SSOTeamConfig SSOEnabled
-    -- IMPORTANT: If you change the default to 'SSODisabled', you need to run
-    -- `/tools/db/migrate-sso-feature-flag/`.  This will explicitly enable the feature for all
-    -- teams that already make use of it.
 
 -- | Enable or disable SSO for a team.
 setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response

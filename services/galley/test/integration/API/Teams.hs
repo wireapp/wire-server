@@ -15,6 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -22,7 +23,7 @@ import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status403)
 import TestHelpers (test)
-import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley, tsGConf)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
@@ -175,7 +176,10 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    if True {- disabledByDefault -}
+    FeatureFlags ((FeatureSSO `elem`) -> featureSSO)
+        <- view (tsGConf . optSettings . setFeatureFlags)
+
+    if not featureSSO
       then do
         check "Teams should start with SSO disabled" SSODisabled
       else do
@@ -1170,8 +1174,11 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    if True {- disabledByDefault -}
-      then do
+    FeatureFlags ((FeatureSSO `elem`) -> featureSSO)
+        <- view (tsGConf . optSettings . setFeatureFlags)
+
+    if not featureSSO
+      then do -- disabled
         getSSO SSODisabled
         getSSOInternal SSODisabled
 
@@ -1179,7 +1186,7 @@ testFeatureFlags = do
         getSSO SSOEnabled
         getSSOInternal SSOEnabled
 
-      else do
+      else do -- enabled
         -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
         -- much here.  (disable failure is covered in "enable/disable SSO" above.)
         getSSO SSOEnabled

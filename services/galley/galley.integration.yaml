@@ -27,6 +27,12 @@ settings:
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
   featureFlags:
+    # IMPORTANT: if you change sso from 'enabled' to 'disabled' after
+    # running 'enabled' in production, you need to run this migration
+    # script to fix all teams that have registered an idp:
+    # https://github.com/wireapp/wire-server/tree/master/tools/db/migrate-sso-feature-flag
+    # if you don't, the idp will keep working, but the admin won't be
+    # able to register new idps.
     sso: true
     legalhold: true
 
