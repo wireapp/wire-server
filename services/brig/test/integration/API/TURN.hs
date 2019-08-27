@@ -168,8 +168,7 @@ type TurnUpdater = String -> IO ()
 
 withTurnFile :: FilePath -> (TurnUpdater -> Http ()) -> Http ()
 withTurnFile cfgDest action = do
-    tmpdirRoot <- lookupTempDir
-    Temp.withTempDirectory tmpdirRoot "wire.temp" $ \tempdir -> do
+    Temp.withSystemTempDirectory "wire.temp" $ \tempdir -> do
         let backup = tempdir </> "backup"
         copyFile cfgDest backup
         action (setTurn tempdir cfgDest)
@@ -185,7 +184,3 @@ setTurn tmpDir cfgDest newConf = do
     -- TODO: This must be higher than the value specified
     -- in the watcher in Brig.App (currently, 0.5 seconds)
     threadDelay 1000000
-
-lookupTempDir :: MonadIO m => m FilePath
-lookupTempDir = fromMaybe "/tmp" . listToMaybe . catMaybes
-                <$> liftIO (lookupEnv `mapM` ["TMP", "TEMP", "TMPDIR", "TEMPDIR"])
