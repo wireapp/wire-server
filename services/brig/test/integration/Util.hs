@@ -53,6 +53,7 @@ type Brig      = Request -> Request
 type Cannon    = Request -> Request
 type CargoHold = Request -> Request
 type Galley    = Request -> Request
+type Nginz     = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 

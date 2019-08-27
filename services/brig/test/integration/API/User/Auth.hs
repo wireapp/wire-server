@@ -40,8 +40,8 @@ import qualified Data.UUID.V4         as UUID
 
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> TestTree
-tests conf m z b g = testGroup "auth"
+tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
+tests conf m z b g n = testGroup "auth"
         [ testGroup "login"
             [ test m "email" (testEmailLogin b)
             , test m "phone" (testPhoneLogin b)
@@ -63,6 +63,10 @@ tests conf m z b g = testGroup "auth"
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
                 , test m "check only single cookie for legalhold - TODO" (undefined)
                 , test m "logout for legalhold - TODO" (undefined)
+                ]
+            , testGroup "nginz"
+                [ test m "nginz-login" (testNginz b n)
+                , test m "nginz-legalhold-login" (testNginzLegalHold b g n)
                 ]
             ]
         , testGroup "refresh"
@@ -98,6 +102,47 @@ randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
 randomUserToken = (Id <$> liftIO UUID.nextRandom) >>= ZAuth.newUserToken
+
+-------------------------------------------------------------------------------
+-- Nginz authentication tests (end-to-end sanity checks)
+--
+
+testNginz :: Brig -> Nginz -> Http ()
+testNginz b n = do
+    u <- randomUser b
+    let Just email = userEmail u
+    traceShowM email
+    -- Login with email
+    rs <- login b (defEmailLogin email) PersistentCookie
+        <!! const 200 === statusCode
+    let c = decodeCookie rs
+        t = decodeToken rs
+    -- ensure nginz allows refresh at /access
+    rs' <- post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
+        const 200 === statusCode
+    let t' = decodeToken rs'
+    traceShowM ("----------dude!" :: String)
+    traceShowM t'
+    traceShowM (toByteString' t')
+    -- ensure regular user tokens can be used with (for example) /clients
+    get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t'))) !!! const 200 === statusCode
+
+testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
+testNginzLegalHold b g n = do
+    -- create team user Alice
+    (alice, tid) <- createUserWithTeam b g
+    putEnabled tid LegalHoldEnabled g -- enable it for this team
+    rs <- legalHoldLogin b (LegalHoldLogin alice Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    let c = decodeCookie rs
+        t = decodeToken' @ZAuth.LegalHoldAccess rs
+    -- ensure nginz allows passing legalhold cookies / tokens through to /access
+    post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) !!! do
+        const 200 === statusCode
+
+    -- ensure legalhold tokens cannot be used with (for example) /clients
+    get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 401 === statusCode
+
 
 -------------------------------------------------------------------------------
 -- Login
