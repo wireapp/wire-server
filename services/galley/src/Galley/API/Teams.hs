@@ -508,7 +508,7 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- These endpoints are internal only and  meant to be called
 -- only from authorized personnel (e.g., from a backoffice tool)
 
--- | Get legal SSO status for a team.
+-- | Get SSO status for a team.
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
     defConfig <- do
