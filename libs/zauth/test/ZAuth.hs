@@ -28,8 +28,8 @@ tests = do
             , testProperty "decode . encode == id [user]" testDecEncUserToken
             , testProperty "decode . encode == id [legalhold access]" testDecEncLegalHoldAccessToken
             , testProperty "decode . encode == id [legalhold user]" testDecEncLegalHoldUserToken
-            , testProperty "decode as User . encode as LegalHoldUser == Nothing " testUserIsNotLegalHoldUser
-            , testProperty "decode as LegalHoldUser . encode as User == Nothing " testUserIsNotLegalHoldUser'
+            , testProperty "decode as User . encode as LegalHoldUser == Nothing" testUserIsNotLegalHoldUser
+            , testProperty "decode as LegalHoldUser . encode as User == Nothing" testUserIsNotLegalHoldUser'
             ]
         , testGroup "Signing and Verifying"
             [ testCase "expired"                      (runCreate z 1 $ testExpired v)

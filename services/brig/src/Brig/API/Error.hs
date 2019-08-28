@@ -417,5 +417,5 @@ can'tAddLegalHoldClient =
               "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
 
 legalHoldNotEnabled :: Wai.Error
-legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first."
+legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
 
