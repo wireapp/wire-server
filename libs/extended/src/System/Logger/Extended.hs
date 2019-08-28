@@ -32,7 +32,7 @@ instance ToJSON LC.Level
 -- | The log formats supported
 data LogFormat = JSON | Plain | Netstring 
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON) -- TODO write this instance manually?
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | We use this as an intermediate structure to ease the implementation of the
 -- ToJSON instance but we could just inline everything. I think this has
@@ -69,22 +69,22 @@ netStringsToLogFormat False = Plain
 -- plain text logging or netstring logging.  If both arguments are set,
 -- logFormat takes presedence over useNetstrings
 --
--- TODO: Once we get rid of the useNetstrings in our config files, we can
--- change the type of mkLogger to  mkLogger :: Log.Level -> LogFormat -> IO
--- Log.Logger
+-- FUTUREWORK: Once we get rid of the useNetstrings in our config files, we can
+-- remove this function and rename 'mkLoggerNew' to 'mkLogger'
 mkLogger :: Log.Level -> Maybe (Last Bool) -> Maybe (Last LogFormat) -> IO  Log.Logger
 mkLogger lvl useNetstrings logFormat = do
-  mkLogger'' lvl $
+  mkLoggerNew lvl $
     case (fmap netStringsToLogFormat <$> useNetstrings) <> logFormat of
       Just x -> getLast x
       Nothing -> Plain
-    
-mkLogger'' :: Log.Level -> LogFormat -> IO Log.Logger
-mkLogger'' lvl netstr = Log.new
+   
+-- | Version of mkLogger that doesn't support the deprecated useNetstrings option
+mkLoggerNew :: Log.Level -> LogFormat -> IO Log.Logger
+mkLoggerNew lvl netstr = Log.new
     . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
-    $ simpleSettings lvl netstr
+    $ simpleSettings lvl logFormat
 
 -- | Variant of Log.defSettings:
 --
@@ -95,12 +95,12 @@ mkLogger'' lvl netstr = Log.new
 --   * use 'canonicalizeWhitespace'.
 --
 simpleSettings :: Log.Level -> LogFormat -> Log.Settings
-simpleSettings lvl netstr
+simpleSettings lvl logFormat
   = Log.setLogLevel lvl
   . Log.setRenderer (canonicalizeWhitespace rndr)
   $ Log.defSettings
   where
-    rndr = case netstr of
+    rndr = case logFormat of
       Netstring  -> \_separator _dateFormat _level -> Log.renderNetstr
       Plain -> \ separator _dateFormat _level -> Log.renderDefault separator
       JSON -> jsonRenderer
