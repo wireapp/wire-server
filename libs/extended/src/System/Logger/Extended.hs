@@ -37,29 +37,25 @@ data LogFormat = JSON | Plain | Netstring
 -- | We use this as an intermediate structure to ease the implementation of the
 -- ToJSON instance but we could just inline everything. I think this has
 -- negligible impact and makes the code a bit more readable. Let me know
-data Element' = Element' [(Builder, Builder)] [Builder]
+data Element' = Element' Series [Builder]
 
-instance ToJSON Element' where
-  toJSON = error "Use toEncoding"
-  toEncoding :: Element' -> Encoding
-  toEncoding (Element' fields msgs) = pairs $ fieldsToSeries fields <> msgsToSeries msgs
+elementToEncoding :: Element' -> Encoding
+elementToEncoding (Element' fields msgs) = pairs $ fields <> msgsToSeries msgs
     where
-      fieldsToSeries :: [(Builder, Builder)] -> Series
-      fieldsToSeries = foldMap $ \(k,v) -> pair (cs . eval $ k) (text . cs . eval $ v)
       msgsToSeries :: [Builder] -> Series
       msgsToSeries  = pair "msgs" . list (text . cs . eval)
 
 collect :: [Element] -> Element'
-collect = foldr go (Element' [] []) 
+collect = foldr go (Element' mempty [])
   where
     go :: Element -> Element' -> Element'
     go (Bytes b) (Element' f m) =
       Element' f (b : m)
     go (Field k v) (Element' f m) = 
-      Element' ((k,v) : f) m
+      Element' (f <> pair (cs . eval $ k) (text . cs . eval $ v)) m
 
 jsonRenderer :: Renderer
-jsonRenderer _sep _dateFormat _logLevel = fromEncoding  . toEncoding . collect
+jsonRenderer _sep _dateFormat _logLevel = fromEncoding  . elementToEncoding . collect
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
