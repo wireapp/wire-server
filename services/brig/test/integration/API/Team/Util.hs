@@ -158,7 +158,7 @@ newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
 
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> Galley -> Http ()
-putEnabled tid enabled g = do
+putLegalHoldEnabled tid enabled g = do
     void . put $ g
          . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
          . contentJson

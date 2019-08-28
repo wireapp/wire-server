@@ -120,7 +120,7 @@ defSettings = Settings 1
     (AccessTokenTimeout 900)                        -- 15 minutes
     (ProviderTokenTimeout (60 * 60 * 24 * 7))       -- 7 days
     (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
-    (LegalHoldAccessTokenTimeout (60 * 15 ))        -- 15 minutes
+    (LegalHoldAccessTokenTimeout (60 * 15))        -- 15 minutes
 
 data Env = Env
     { _private  :: !ZC.Env
