@@ -81,6 +81,7 @@ data Type = A -- ^ Access (Used as short-lived token for Users)
 
 -- | Tag: Tokens for Users with no tag are refreshable themselves and called "UserToken"
 -- Tokens for Users with the tag 'S' are non-refreshable themselves and called "SessionToken"
+-- FUTUREWORK: rename 'S' to 'SessionTag' for clarity
 data Tag  = S deriving (Eq, Show)
 
 data Token a = Token
@@ -89,6 +90,9 @@ data Token a = Token
     , _body      :: !a
     } deriving (Eq, Show)
 
+-- FUTUREWORK: maybe refactor to
+-- data Header (t :: Type) =
+--      Header { ... everything except _typ ...} ?
 data Header = Header
     { _version   :: !Int
     , _key       :: !Int
