@@ -88,11 +88,13 @@ sessionToken dur usr rnd = do
     d <- expiry dur
     newToken d U (Just S) (mkUser usr rnd)
 
+-- | Create an access token taking a duration, userId and a (random) number that can be used as connection identifier
 accessToken :: Integer -> UUID -> Word64 -> Create (Token Access)
 accessToken dur usr con = do
     d <- expiry dur
     newToken d A Nothing (mkAccess usr con)
 
+-- | Create an access token taking a duration and userId. Similar to 'accessToken', except that the connection identifier is randomly generated.
 accessToken1 :: Integer -> UUID -> Create (Token Access)
 accessToken1 dur usr = do
     g <- Create $ asks randGen
@@ -104,11 +106,13 @@ legalHoldUserToken dur usr rnd = do
     d <- expiry dur
     newToken d LU Nothing (mkLegalHoldUser usr rnd)
 
+-- | Create a legal hold access token taking a duration, userId and a (random) number that can be used as connection identifier
 legalHoldAccessToken :: Integer -> UUID -> Word64 -> Create (Token LegalHoldAccess)
 legalHoldAccessToken dur usr con = do
     d <- expiry dur
     newToken d LA Nothing (mkLegalHoldAccess usr con)
 
+-- | Create a legal hold access token taking a duration, userId. Similar to 'legalHoldAccessToken', except that the connection identifier is randomly generated.
 legalHoldAccessToken1 :: Integer -> UUID -> Create (Token LegalHoldAccess)
 legalHoldAccessToken1 dur usr = do
     g <- Create $ asks randGen
