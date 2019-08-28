@@ -128,7 +128,7 @@ testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
     -- create team user Alice
     (alice, tid) <- createUserWithTeam b g
-    putEnabled tid LegalHoldEnabled g -- enable it for this team
+    putLegalHoldEnabled tid LegalHoldEnabled g -- enable it for this team
     rs <- legalHoldLogin b (LegalHoldLogin alice Nothing) PersistentCookie
         <!! const 200 === statusCode
     let c = decodeCookie rs
@@ -315,7 +315,7 @@ testTeamUserLegalHoldLogin brig galley = do
     legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie !!! do
         const 403 === statusCode
 
-    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
     _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
         <!! const 200 === statusCode
     -- check for the correct (legalhold) token and cookie
@@ -326,7 +326,7 @@ testTeamUserLegalHoldLogin brig galley = do
 testLegalHoldSessionCookie :: Brig -> Galley -> Http ()
 testLegalHoldSessionCookie brig galley = do
     (alice, tid) <- createUserWithTeam brig galley
-    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
 
     -- attempt a legalhold login with a session cookie (?persist=false)
     rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) SessionCookie
@@ -464,7 +464,7 @@ testTokenMismatch z brig galley = do
 
     -- try refresh with a regular AccessToken but a LegalHoldUserCookie
     (alice, tid) <- createUserWithTeam brig galley
-    putEnabled tid LegalHoldEnabled galley -- enable it for this team
+    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
     _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
     let c' = decodeCookie _rs
     t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
