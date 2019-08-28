@@ -5,13 +5,14 @@
 module Arbitraries where
 
 import Imports
+import Control.Lens ((.~))
 import Data.UUID hiding (fromString)
 import Data.ZAuth.Token
 import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
 instance Arbitrary (Token Access) where
-    arbitrary = mkToken <$> arbitrary <*> (mkHeader <$> arbitrary <*> arbitrary <*> arbitrary <*> pure A <*> arbitrary) <*> arbitrary
+    arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token User) where
     arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
