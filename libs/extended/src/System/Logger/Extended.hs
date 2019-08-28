@@ -80,7 +80,7 @@ mkLogger lvl useNetstrings logFormat = do
    
 -- | Version of mkLogger that doesn't support the deprecated useNetstrings option
 mkLoggerNew :: Log.Level -> LogFormat -> IO Log.Logger
-mkLoggerNew lvl netstr = Log.new
+mkLoggerNew lvl logFormat = Log.new
     . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
