@@ -296,6 +296,12 @@ newProviderToken pid = liftZAuth $ do
         let ProviderTokenTimeout ttl = z^.settings.providerTokenTimeout
         in ZC.providerToken ttl (toUUID pid)
 
+-- FUTUREWORK: this function is very similar to mkUserToken',
+-- the differences are
+-- 1) LU / U
+-- 2) (mkLegalHoldUser uid r) / (mkUser uid r)
+-- Possibly some duplication could be removed.
+-- See https://github.com/wireapp/wire-server/pull/761/files#r318612423
 mkLegalHoldUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m LegalHoldUserToken
 mkLegalHoldUserToken u r t = liftZAuth $ do
     z <- ask
