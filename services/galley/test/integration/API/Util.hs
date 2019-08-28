@@ -93,25 +93,25 @@ getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
+    pure (decodeBody r)
 
 getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
+    pure (decodeBody r)
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember usr tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
+    pure (decodeBody r)
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
 getTeamMemberInternal tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
+    pure (decodeBody r)
 
 addTeamMember :: HasCallStack => UserId -> TeamId -> TeamMember -> TestM ()
 addTeamMember usr tid mem = do
@@ -449,13 +449,13 @@ assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =
     getSelfMember u c !!! do
         const 200      === statusCode
-        const (Just u) === (fmap memId <$> decodeBody)
+        const (Right u) === (fmap memId <$> decodeBodyE)
 
 assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertNotConvMember u c =
     getSelfMember u c !!! do
-        const 200         === statusCode
-        const (Just Null) === decodeBody
+        const 200          === statusCode
+        const (Right Null) === decodeBodyE
 
 -------------------------------------------------------------------------------
 -- Common Assertions
@@ -608,10 +608,10 @@ decodeConvId r = fromMaybe (error "Failed to parse conversation") $
     cnvId <$> decodeBody r
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
-decodeConvList = convList . decodeBody' "conversations"
+decodeConvList = convList . decodeBodyMsg "conversations"
 
 decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
-decodeConvIdList = convList . decodeBody' "conversation-ids"
+decodeConvIdList = convList . decodeBodyMsg "conversation-ids"
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -785,15 +785,19 @@ randomUserWithClient lk = do
 newNonce :: TestM (Id ())
 newNonce = randomId
 
-decodeBody :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Maybe a
-decodeBody r = do
-    b <- responseBody r
-    case decode b of
-        Nothing -> traceShow b Nothing
-        Just  a -> Just a
+decodeBodyE :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Either String a
+decodeBodyE rsp = do
+    bdy <- maybe (Left "no body") Right $ responseBody rsp
+    eitherDecode bdy
 
-decodeBody' :: (HasCallStack, FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
-decodeBody' s = fromMaybe (error $ "decodeBody: " ++ s) . decodeBody
+decodeBodyM :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Maybe a
+decodeBodyM = either (const Nothing) Just . decodeBodyE
+
+decodeBody :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> a
+decodeBody = decodeBodyMsg mempty
+
+decodeBodyMsg :: (HasCallStack, FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
+decodeBodyMsg usrerr = either (\prserr -> error $ "decodeBody: " ++ show (prserr, usrerr)) id . decodeBodyE
 
 fromBS :: (HasCallStack, FromByteString a, Monad m) => ByteString -> m a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString

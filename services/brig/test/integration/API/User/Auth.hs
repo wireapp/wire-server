@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module API.User.Auth (tests) where
 
@@ -50,6 +51,7 @@ tests conf m z b g n = testGroup "auth"
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
             , test m "throttle" (testThrottleLogins conf b)
+            , test m "limit-retry" (testLimitRetries conf b)
             , testGroup "sso-login"
                 [ test m "email" (testEmailSsoLogin b)
                 , test m "failure-suspended" (testSuspendedSsoLogin b)
@@ -293,7 +295,54 @@ testThrottleLogins conf b = do
     liftIO $ do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
-    void $ login b (defEmailLogin e) SessionCookie
+    login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
+
+testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
+testLimitRetries (Just conf) brig = do
+    let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
+    unless (Opts.timeout opts <= 30) $
+        error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
+
+    usr <- randomUser brig
+    let Just email = userEmail usr
+
+    usr' <- randomUser brig
+    let Just email' = userEmail usr'
+
+    -- Login 5 times with bad password.
+    forM_ [1..Opts.retryLimit opts] $ \_ ->
+        login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
+            <!! const 403 === statusCode
+
+    -- Login once more. This should fail for usr, even though password is correct...
+    resp <- login brig (defEmailLogin email) SessionCookie
+        <!! const 403 === statusCode
+    -- ...  but not for usr'!
+    login brig (defEmailLogin email') SessionCookie
+        !!! const 200 === statusCode
+
+    -- After the amount of time specified in "Retry-After", though,
+    -- throttling should stop and login should work again
+    do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
+            retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
+        liftIO $ do
+            assertBool ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
+                -- (this accounts for slow CI systems that lose up to 2 secs)
+                (retryTimeout >= Opts.timeout opts - 2 &&
+                 retryTimeout <= Opts.timeout opts)
+            threadDelay (1000000 * (retryAfterSecs - 2))  -- wait almost long enough.
+
+    -- fail again later into the block time window
+    rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
+    do  let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" rsp
+        liftIO $ do
+            assertBool ("throttle delay (2): " <> show retryAfterSecs) (retryAfterSecs <= 2)
+            threadDelay (1000000 * (retryAfterSecs + 1))  -- wait one more second, just to be safe.
+
+    -- wait long enough and login successfully!
+    liftIO $ threadDelay (1000000 * 2)
+    login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
+
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -739,14 +788,6 @@ assertSaneAccessToken
 assertSaneAccessToken now uid tk = do
     assertEqual "user" uid (ZAuth.accessTokenOf tk)
     assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
-
--- | Set user's status to something (e.g. 'Suspended').
-setStatus :: Brig -> UserId -> AccountStatus -> HttpT IO ()
-setStatus brig u s =
-    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-    in put ( brig . paths ["i", "users", toByteString' u, "status"]
-           . contentJson . Http.body js
-           ) !!! const 200 === statusCode
 
 -- | Get error label from the response (for use in assertions).
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text

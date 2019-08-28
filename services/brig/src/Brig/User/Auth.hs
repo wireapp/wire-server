@@ -17,8 +17,11 @@ module Brig.User.Auth
     ) where
 
 import Imports
+
+import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
+import Brig.Budget
 import Brig.Email
 import Brig.Data.UserKey
 import Brig.Phone
@@ -38,6 +41,7 @@ import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
+import qualified Brig.Options as Opt
 import qualified Brig.ZAuth as ZAuth
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Brig.IO.Intra as Intra
@@ -75,18 +79,45 @@ lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
+    checkRetryLimit uid
     Data.authenticate uid pw `catchE` \case
         AuthSuspended          -> throwE LoginSuspended
         AuthEphemeral          -> throwE LoginEphemeral
-        AuthInvalidCredentials -> throwE LoginFailed
-        AuthInvalidUser        -> throwE LoginFailed
+        AuthInvalidCredentials -> loginFailed uid
+        AuthInvalidUser        -> loginFailed uid
     newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
     uid <- resolveLoginId (LoginByPhone phone)
+    checkRetryLimit uid
     ok <- lift $ Data.verifyLoginCode uid code
     unless ok $
-        throwE LoginFailed
+        loginFailed uid
     newAccess @ZAuth.User @ZAuth.Access uid typ label
+
+loginFailed :: UserId -> ExceptT LoginError AppIO ()
+loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+
+decrRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
+
+checkRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+checkRetryLimit = withRetryLimit checkBudget
+
+withRetryLimit
+    :: (BudgetKey -> Budget -> ExceptT LoginError AppIO (Budgeted ()))
+    -> UserId
+    -> ExceptT LoginError AppIO ()
+withRetryLimit action uid = do
+    mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+    forM_ mLimitFailedLogins $ \opts -> do
+        let bkey = BudgetKey ("login#" <> idToText uid)
+            budget = Budget
+                (Opt.timeoutDiff $ Opt.timeout opts)
+                (fromIntegral $ Opt.retryLimit opts)
+        bresult <- action bkey budget
+        case bresult of
+            BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
+            BudgetedValue () _ -> pure ()
 
 logout :: ZAuth.TokenPair u a => ZAuth.Token u -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
 logout ut at = do

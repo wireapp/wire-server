@@ -195,7 +195,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
     Util.createOne2OneTeamConv (mem1^.userId) (mem2^.userId) Nothing tid !!! do
         const 404 === statusCode
-        const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team" === (Error.label . Util.decodeBodyMsg "error label")
     -- Both have a binding team but not the same team
     owner1 <- Util.randomUser
     tid1 <- Util.createTeamInternal "foo" owner1
@@ -205,7 +205,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     assertQueue "create another team" tActivate
     Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
-        const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team-members" === (Error.label . Util.decodeBodyMsg "error label")
 
 testCreateOne2OneWithMembers
     :: HasCallStack
@@ -384,7 +384,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
     -- Mem1 is still part of Wire
     Util.ensureDeletedState False owner (mem1^.userId)
@@ -491,7 +491,7 @@ testAddTeamConvAsExternalPartner = do
         (Just "blaa") acc (Just TeamAccessRole) Nothing
       !!! do
         const 403 === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
 testAddManagedConv :: TestM ()
 testAddManagedConv = do
@@ -550,7 +550,7 @@ testAddTeamMemberToConv = do
     Util.assertNotConvMember (mem3^.userId) cid
     Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
         const 403                === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
 testUpdateTeamConv
     :: Role  -- ^ Role of the user who creates the conversation
@@ -613,7 +613,7 @@ testDeleteTeam = do
             Util.getConv u x !!! const 404 === statusCode
             Util.getSelfMember u x !!! do
                 const 200         === statusCode
-                const (Just Null) === Util.decodeBody
+                const (Just Null) === Util.decodeBodyM
     assertQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -644,7 +644,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
@@ -809,7 +809,7 @@ testUpdateTeamMember = do
         . json changeOwner
         ) !!! do
         const 403 === statusCode
-        const "no-other-owner" === (Error.label . Util.decodeBody' "error label")
+        const "no-other-owner" === (Error.label . Util.decodeBodyMsg "error label")
     let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
@@ -869,7 +869,7 @@ testUpdateTeamStatus = do
                . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
-        const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
+        const "invalid-team-status-update" === (Error.label . Util.decodeBodyMsg "error label")
 
 checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do

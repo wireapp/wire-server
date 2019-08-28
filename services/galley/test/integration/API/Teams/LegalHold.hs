@@ -345,7 +345,7 @@ testCreateLegalHoldTeamSettings = do
     -- behaving or not)
     let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
         lhapp NotWorking _ _   cont = cont respondBad
-        lhapp Working  _ req cont = trace "APP" $ do
+        lhapp Working  _ req cont = do
             if | pathInfo req /= ["legalhold", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> cont respondOk

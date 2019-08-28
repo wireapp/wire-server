@@ -24,7 +24,6 @@ module Imports
     , module Data.Tuple
     , module Data.String
     , module Data.List
-    , module Debug.Trace
     , Generic
     , Typeable
     , HasCallStack
@@ -112,7 +111,6 @@ import Data.List hiding (insert, delete)  -- 'insert' and 'delete' are
 import Data.String
 import Control.Monad hiding (mapM_, sequence_, forM_, msum, mapM, sequence, forM)
 import Control.Monad.Extra (whenM, unlessM)
-import Debug.Trace
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
 import GHC.Stack (HasCallStack)

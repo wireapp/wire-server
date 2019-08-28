@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: makedeb
 version: '0.3.0'
@@ -13,8 +13,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - System.MakeDeb
   dependencies:
   - base >=4.6 && <5.0
   - directory >=1.2

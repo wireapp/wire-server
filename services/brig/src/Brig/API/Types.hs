@@ -118,6 +118,7 @@ data LoginError
     | LoginEphemeral
     | LoginPendingActivation
     | LoginThrottled RetryAfter
+    | LoginBlocked RetryAfter
 
 data ChangePasswordError
     = InvalidCurrentPassword

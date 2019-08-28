@@ -306,7 +306,6 @@ sitemap = do
             description "Team ID"
         Doc.returns Doc.bool'
         Doc.response 200 "SSO status" Doc.end
-        Doc.returns Doc.bool'
 
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"

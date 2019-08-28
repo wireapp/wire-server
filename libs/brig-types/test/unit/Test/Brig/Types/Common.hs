@@ -16,7 +16,6 @@ import Brig.Types.Test.Arbitrary ()
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Proxy
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
@@ -29,40 +28,40 @@ import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
-    [ run @Handle Proxy
-    , run @Name Proxy
-    , run @ColourId Proxy
-    , run @Email Proxy
-    , run @Phone Proxy
-    , run @UserIdentity Proxy
-    , run @UserSSOId Proxy
-    , run @AssetSize Proxy
-    , run @Asset Proxy
-    , run @ExcludedPrefix Proxy
-    , run @ManagedBy Proxy
-    , run @TeamMemberDeleteData Proxy
-    , run @LegalHoldStatus Proxy
-    , run @LegalHoldTeamConfig Proxy
-    , run @NewLegalHoldService Proxy
-    , run @LegalHoldService Proxy
-    , run @ViewLegalHoldService Proxy
-    , run @NewLegalHoldClient Proxy
-    , run @RequestNewLegalHoldClient Proxy
-    , run @UserLegalHoldStatusResponse Proxy
-    , run @LegalHoldServiceConfirm Proxy
-    , run @LegalHoldClientRequest Proxy
-    , run @RemoveLegalHoldSettingsRequest Proxy
-    , run @DisableLegalHoldForUserRequest Proxy
-    , run @ApproveLegalHoldForUserRequest Proxy
-    , run @SSOStatus Proxy
-    , run @SSOTeamConfig Proxy
+    [ run @Handle
+    , run @Name
+    , run @ColourId
+    , run @Email
+    , run @Phone
+    , run @UserIdentity
+    , run @UserSSOId
+    , run @AssetSize
+    , run @Asset
+    , run @ExcludedPrefix
+    , run @ManagedBy
+    , run @TeamMemberDeleteData
+    , run @LegalHoldStatus
+    , run @LegalHoldTeamConfig
+    , run @NewLegalHoldService
+    , run @LegalHoldService
+    , run @ViewLegalHoldService
+    , run @NewLegalHoldClient
+    , run @RequestNewLegalHoldClient
+    , run @UserLegalHoldStatusResponse
+    , run @LegalHoldServiceConfirm
+    , run @LegalHoldClientRequest
+    , run @RemoveLegalHoldSettingsRequest
+    , run @DisableLegalHoldForUserRequest
+    , run @ApproveLegalHoldForUserRequest
+    , run @SSOStatus
+    , run @SSOTeamConfig
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)
-         => Proxy a -> TestTree
-    run Proxy = testProperty msg trip
+         => TestTree
+    run = testProperty msg trip
       where
         msg = show $ typeOf (undefined :: a)
         trip (v :: a) = counterexample (show $ toJSON v)

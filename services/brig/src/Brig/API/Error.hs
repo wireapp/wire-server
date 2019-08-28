@@ -114,6 +114,8 @@ loginError LoginEphemeral         = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
 loginError (LoginThrottled wait)  = RichError loginsTooFrequent ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
+loginError (LoginBlocked wait)    = RichError tooManyFailedLogins ()
+    [("Retry-After", toByteString' (retryAfterSeconds wait))]
 
 authError :: AuthError -> Error
 authError AuthInvalidUser        = StdError badCredentials
@@ -386,8 +388,12 @@ tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too ma
 tooManyTeamMembers :: Wai.Error
 tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
 
+-- | In contrast to 'tooManyFailedLogins', this is about too many *successful* logins.
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
+
+tooManyFailedLogins :: Wai.Error
+tooManyFailedLogins = Wai.Error status403 "client-error" "Too many failed logins"
 
 tooLargeRichInfo :: Wai.Error
 tooLargeRichInfo = Wai.Error status413 "too-large-rich-info" "Rich info has exceeded the limit"

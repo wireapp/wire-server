@@ -621,8 +621,9 @@ getTeamContacts u = do
 getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
 getTeamOwners tid = filter Team.isTeamOwner . view Team.teamMembers <$> getTeamMembers tid
 
--- | Like 'getTeamOwners', but only returns owners with an email address.
-getTeamOwnersWithEmail :: TeamId -> AppIO [Team.TeamMember]
+-- | Like 'getTeamOwners', but only returns owners with an flag indicating whether they have
+-- an email address.
+getTeamOwnersWithEmail :: TeamId -> AppIO [(Team.TeamMember, Bool)]
 getTeamOwnersWithEmail tid = do
     mems <- getTeamOwners tid
     usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
@@ -636,7 +637,7 @@ getTeamOwnersWithEmail tid = do
         hasEmail :: Team.TeamMember -> Bool
         hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
 
-    pure $ filter hasEmail mems
+    pure $ (\mem -> (mem, hasEmail mem)) <$> mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do
