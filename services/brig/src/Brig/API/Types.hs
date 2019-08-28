@@ -8,6 +8,7 @@ module Brig.API.Types
     , PropertiesDataError (..)
     , AuthError           (..)
     , ReAuthError         (..)
+    , LegalHoldLoginError (..)
     , RetryAfter          (..)
     , foldKey
     ) where
@@ -109,12 +110,7 @@ data PasswordResetError
 data LegalHoldLoginError
     = LegalHoldLoginNoBindingTeam
     | LegalHoldLoginLegalHoldNotEnabled
-    -- same as LoginError
-    | LegalHoldLoginFailed
-    | LegalHoldLoginSuspended
-    | LegalHoldLoginEphemeral
-    | LegalHoldLoginPendingActivation
-    | LegalHoldLoginThrottled RetryAfter
+    | LegalHoldLoginError LoginError
 
 data LoginError
     = LoginFailed

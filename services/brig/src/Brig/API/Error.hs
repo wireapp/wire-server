@@ -103,14 +103,9 @@ changeHandleError ChangeHandleExists      = StdError handleExists
 changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
-legalHoldLoginError LegalHoldLoginFailed              = StdError badCredentials
-legalHoldLoginError LegalHoldLoginSuspended           = StdError accountSuspended
-legalHoldLoginError LegalHoldLoginEphemeral           = StdError accountEphemeral
-legalHoldLoginError LegalHoldLoginPendingActivation   = StdError accountPending
 legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
-legalHoldLoginError (LegalHoldLoginThrottled wait)    = RichError loginsTooFrequent ()
-    [("Retry-After", toByteString' (retryAfterSeconds wait))]
+legalHoldLoginError (LegalHoldLoginError e)           = loginError e
 
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials

@@ -206,9 +206,9 @@ legalHoldLogin (LegalHoldLogin uid label) typ = do
         ReAuthMissingPassword -> pure ()
         ReAuthError e -> case e of
             AuthInvalidCredentials -> pure ()
-            AuthSuspended          -> throwE LegalHoldLoginSuspended
-            AuthEphemeral          -> throwE LegalHoldLoginEphemeral
-            AuthInvalidUser        -> throwE LegalHoldLoginFailed
+            AuthSuspended          -> throwE $ LegalHoldLoginError LoginSuspended
+            AuthEphemeral          -> throwE $ LegalHoldLoginError LoginEphemeral
+            AuthInvalidUser        -> throwE $ LegalHoldLoginError LoginFailed
     -- legalhold login is only possible if
     -- * the user is a team user
     -- * and the team has legalhold enabled
@@ -217,12 +217,8 @@ legalHoldLogin (LegalHoldLogin uid label) typ = do
          Nothing -> throwE LegalHoldLoginNoBindingTeam
          Just tid -> assertLegalHoldEnabled uid tid
     -- create access token and cookie
-    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label `catchE` \case
-       LoginFailed -> throwE LegalHoldLoginFailed
-       LoginSuspended -> throwE LegalHoldLoginSuspended
-       LoginEphemeral -> throwE LegalHoldLoginEphemeral
-       LoginPendingActivation -> throwE LegalHoldLoginPendingActivation
-       LoginThrottled after -> throwE $ LegalHoldLoginThrottled after
+    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
+        `catchE` \e -> throwE $ LegalHoldLoginError e
 
 assertLegalHoldEnabled :: UserId -> TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled uid tid = do
