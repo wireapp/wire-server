@@ -234,16 +234,16 @@ readHeader t p = Header
     <$> (lookup "v" p >>= fromByteString')
     <*> (lookup "k" p >>= fromByteString')
     <*> (lookup "d" p >>= fromByteString')
-    <*> (lookup "t" p >>= readType >>= \t' -> if t == t' then Just t' else Nothing)
+    <*> (lookup "t" p >>= readType t)
     <*> (readTag <$> lookup "l" p)
   where
-    readType "a" = Just A
-    readType "u" = Just U
-    readType "b" = Just B
-    readType "p" = Just P
-    readType "la" = Just LA
-    readType "lu" = Just LU
-    readType _   = Nothing
+    readType A "a" = Just A
+    readType U "u" = Just U
+    readType B "b" = Just B
+    readType P "p" = Just P
+    readType LA "la" = Just LA
+    readType LU "lu" = Just LU
+    readType _  _ = Nothing
 
     readTag "s" = Just S
     readTag _   = Nothing
