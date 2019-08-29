@@ -7,7 +7,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
-import System.Logger (Level)
+import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
 
@@ -50,8 +50,9 @@ data Opts = Opts
     , _optSettings  :: !Settings
     -- Logging
     , _optLogLevel      :: !Level       -- ^ Log level (Debug, Info, etc)
-    , _optLogNetStrings :: !Bool        -- ^ Use netstrings encoding:
+    , _optLogNetStrings :: !(Maybe (Last Bool))        -- ^ Use netstrings encoding:
                                         --   <http://cr.yp.to/proto/netstrings.txt>
+    , _optLogFormat :: !(Maybe (Last LogFormat))
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Opts

@@ -70,8 +70,6 @@ module Imports
     , unlessM
     ) where
 
-import Orphans ()
-
 -- Explicitly saying what to import because some things from Prelude clash
 -- with e.g. UnliftIO modules
 import Prelude (
@@ -99,8 +97,8 @@ import Data.Void
 import Data.Bool
 import Data.Char
 import Data.Ord
-import Data.Semigroup (Semigroup)
-import Data.Monoid
+import Data.Semigroup hiding (diff, Option, option) -- conflicts with Options.Applicative.Option (should we care?)
+import Data.Monoid hiding (First(..), Last(..)) -- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Maybe
 import Data.Either
 import Data.Foldable

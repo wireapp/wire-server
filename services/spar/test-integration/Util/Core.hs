@@ -182,7 +182,7 @@ cliOptsParser = (,) <$>
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts)
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   let _teBrig            = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley          = endpointToReq (cfgGalley _teTstOpts)
