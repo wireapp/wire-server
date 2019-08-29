@@ -163,10 +163,10 @@ testCancelConnection2 brig galley = do
 
     -- A cannot see the conversation (due to cancelling)
     getConversation galley uid1 cnv !!! do
-        const 404 === statusCode
+        const 403 === statusCode
 
     -- B cannot see the conversation
-    getConversation galley uid2 cnv !!! const 404 === statusCode
+    getConversation galley uid2 cnv !!! const 403 === statusCode
 
     -- B initiates a connection request himself
     postConnection brig uid2 uid1 !!! const 200 === statusCode
@@ -182,7 +182,7 @@ testCancelConnection2 brig galley = do
 
     -- A is a past member, cannot see the conversation
     getConversation galley uid1 cnv !!! do
-        const 404 === statusCode
+        const 403 === statusCode
 
     -- A finally accepts
     putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
@@ -270,7 +270,7 @@ testBlockAndResendConnection brig galley = do
 
     -- B never accepted and thus does not see the conversation
     let Just cnv = ucConvId =<< decodeBody rsp
-    getConversation galley uid2 cnv !!! const 404 === statusCode
+    getConversation galley uid2 cnv !!! const 403 === statusCode
 
     -- A can see the conversation and is a current member
     getConversation galley uid1 cnv !!! do
