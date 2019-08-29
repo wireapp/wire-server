@@ -512,8 +512,8 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
     defConfig <- do
-        FeatureFlags flags <- view (options . optSettings . setFeatureFlags)
-        pure $ if FeatureSSO `elem` flags
+        yes <- view (options . optSettings . featureEnabled FeatureSSO)
+        pure $ if yes
             then SSOTeamConfig SSOEnabled
             else SSOTeamConfig SSODisabled
     ssoTeamConfig <- SSOData.getSSOTeamConfig tid
@@ -540,8 +540,8 @@ getLegalholdStatusInternal (tid ::: _) = do
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setLegalholdStatusInternal (tid ::: req ::: _) = do
-    do  FeatureFlags flags <- view (options . optSettings . setFeatureFlags)
-        unless (FeatureLegalHold `elem` flags) $ throwM legalHoldFeatureFlagNotEnabled
+    do  yes <- view (options . optSettings . featureEnabled FeatureLegalHold)
+        unless yes $ throwM legalHoldFeatureFlagNotEnabled
 
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of

@@ -7,7 +7,7 @@ import Util.Options
 import Util.Options.Common
 import System.Logger.Class (Level)
 import Data.Misc
-import Galley.Types.Teams (FeatureFlags)
+import Galley.Types.Teams (FeatureFlags(..), FeatureFlag)
 
 data Settings = Settings
     {
@@ -21,11 +21,18 @@ data Settings = Settings
     , _setIntraListing          :: !Bool
     -- | URI prefix for conversations with access mode @code@
     , _setConversationCodeURI   :: !HttpsUrl
-    , _setFeatureFlags          :: !FeatureFlags
+    , _setFeatureFlags          :: !(Maybe FeatureFlags)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
+
+featureEnabled :: FeatureFlag -> Getter Settings Bool
+featureEnabled flag
+    = setFeatureFlags
+    . to (\case
+             Nothing -> False
+             Just (FeatureFlags flags) -> flag `elem` flags)
 
 data JournalOpts = JournalOpts
     { _awsQueueName :: !Text         -- ^ SQS queue name to send team events

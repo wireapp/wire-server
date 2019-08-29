@@ -15,7 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options (optSettings, featureEnabled)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -176,9 +176,7 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    FeatureFlags ((FeatureSSO `elem`) -> featureSSO)
-        <- view (tsGConf . optSettings . setFeatureFlags)
-
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
     if not featureSSO
       then do
         check "Teams should start with SSO disabled" SSODisabled
@@ -1177,9 +1175,7 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    FeatureFlags ((FeatureSSO `elem`) -> featureSSO)
-        <- view (tsGConf . optSettings . setFeatureFlags)
-
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
     if not featureSSO
       then do -- disabled
         getSSO SSODisabled
@@ -1213,9 +1209,7 @@ testFeatureFlags = do
     getLegalHold LegalHoldDisabled
     getLegalHoldInternal LegalHoldDisabled
 
-    FeatureFlags ((FeatureLegalHold `elem`) -> featureLegalHold)
-        <- view (tsGConf . optSettings . setFeatureFlags)
-
+    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
     if featureLegalHold
       then do
         setLegalHoldInternal LegalHoldEnabled
