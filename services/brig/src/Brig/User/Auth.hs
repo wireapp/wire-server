@@ -36,6 +36,7 @@ import Brig.Types.User.Auth hiding (user)
 import Control.Error
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
+import Network.Wai.Utilities.Error ((!>>))
 
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
@@ -232,14 +233,8 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError AppIO (Access ZAuth.LegalHoldUser)
-legalHoldLogin (LegalHoldLogin uid label) typ = do
-    Data.reauthenticate uid Nothing `catchE` \case
-        ReAuthMissingPassword -> pure ()
-        ReAuthError e -> case e of
-            AuthInvalidCredentials -> pure ()
-            AuthSuspended          -> throwE $ LegalHoldLoginError LoginSuspended
-            AuthEphemeral          -> throwE $ LegalHoldLoginError LoginEphemeral
-            AuthInvalidUser        -> throwE $ LegalHoldLoginError LoginFailed
+legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
+    Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
     -- legalhold login is only possible if
     -- * the user is a team user
     -- * and the team has legalhold enabled
@@ -249,7 +244,7 @@ legalHoldLogin (LegalHoldLogin uid label) typ = do
          Just tid -> assertLegalHoldEnabled uid tid
     -- create access token and cookie
     newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
-        `catchE` (throwE . LegalHoldLoginError)
+        !>> LegalHoldLoginError
 
 assertLegalHoldEnabled :: UserId -> TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled uid tid = do

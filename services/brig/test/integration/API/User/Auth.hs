@@ -65,6 +65,7 @@ tests conf m z b g n = testGroup "auth"
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
                 , test m "check only single cookie for legalhold - TODO" (undefined)
                 , test m "logout for legalhold - TODO" (undefined)
+                , test m "check failure if providing wrong or no password" (undefined)
                 ]
             , testGroup "nginz"
                 [ test m "nginz-login" (testNginz b n)
@@ -132,7 +133,7 @@ testNginzLegalHold b g n = do
     -- create team user Alice
     (alice, tid) <- createUserWithTeam b g
     putLegalHoldEnabled tid LegalHoldEnabled g -- enable it for this team
-    rs <- legalHoldLogin b (LegalHoldLogin alice Nothing) PersistentCookie
+    rs <- legalHoldLogin b (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
         <!! const 200 === statusCode
     let c = decodeCookie rs
         t = decodeToken' @ZAuth.LegalHoldAccess rs
@@ -353,7 +354,7 @@ testRegularUserLegalHoldLogin brig = do
     -- Create a regular user
     uid <- userId <$> randomUser brig
     -- fail if user is not a team user
-    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+    legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
         const 403 === statusCode
 
 testTeamUserLegalHoldLogin :: Brig -> Galley -> Http ()
@@ -362,11 +363,11 @@ testTeamUserLegalHoldLogin brig galley = do
     (alice, tid) <- createUserWithTeam brig galley
     now <- liftIO getCurrentTime
     -- fail if legalhold isn't activated yet for this user
-    legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie !!! do
+    legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie !!! do
         const 403 === statusCode
 
     putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
-    _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
+    _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
         <!! const 200 === statusCode
     -- check for the correct (legalhold) token and cookie
     liftIO $ do
@@ -379,7 +380,7 @@ testLegalHoldSessionCookie brig galley = do
     putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
 
     -- attempt a legalhold login with a session cookie (?persist=false)
-    rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) SessionCookie
+    rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) SessionCookie
         <!! const 200 === statusCode
     -- ensure server always returns a refreshable PersistentCookie irrespective of argument passed
     liftIO $ assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie rs)
@@ -392,7 +393,7 @@ testSuspendedLegalHoldLogin brig galley = do
     (uid, _tid) <- createUserWithTeam brig galley
     setStatus brig uid Suspended
     -- Try to login and see if we fail
-    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+    legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
 
@@ -401,7 +402,7 @@ testNoUserLegalHoldLogin :: Brig -> Http ()
 testNoUserLegalHoldLogin brig = do
     -- Try to login with random UID and see if we fail
     uid <- randomId
-    legalHoldLogin brig (LegalHoldLogin uid Nothing) PersistentCookie !!! do
+    legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
@@ -515,7 +516,7 @@ testTokenMismatch z brig galley = do
     -- try refresh with a regular AccessToken but a LegalHoldUserCookie
     (alice, tid) <- createUserWithTeam brig galley
     putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
-    _rs <- legalHoldLogin brig (LegalHoldLogin alice Nothing) PersistentCookie
+    _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
     let c' = decodeCookie _rs
     t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
     post (brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do

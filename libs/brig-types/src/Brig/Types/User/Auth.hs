@@ -55,7 +55,7 @@ data SsoLogin
 -- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
 -- tokens.
 data LegalHoldLogin
-    = LegalHoldLogin !UserId !(Maybe CookieLabel)
+    = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
@@ -115,11 +115,15 @@ instance ToJSON SsoLogin where
 
 instance FromJSON LegalHoldLogin where
     parseJSON = withObject "LegalHoldLogin" $ \o ->
-        LegalHoldLogin <$> o .: "user" <*> o .:? "label"
+        LegalHoldLogin  <$> o .: "user"
+                        <*> o .:? "password"
+                        <*> o .:? "label"
 
 instance ToJSON LegalHoldLogin where
-    toJSON (LegalHoldLogin uid label) =
-        object [ "user" .= uid, "label" .= label ]
+    toJSON (LegalHoldLogin uid password label) =
+        object [ "user"     .= uid
+               , "password" .= password
+               , "label"    .= label ]
 
 instance FromJSON PendingLoginCode where
     parseJSON = withObject "PendingLoginCode" $ \o ->

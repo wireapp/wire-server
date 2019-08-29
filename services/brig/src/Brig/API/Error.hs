@@ -106,6 +106,7 @@ legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
 legalHoldLoginError (LegalHoldLoginError e)           = loginError e
+legalHoldLoginError (LegalHoldReAuthError e)          = reauthError e
 
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
