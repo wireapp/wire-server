@@ -111,6 +111,7 @@ randomUserToken = (Id <$> liftIO UUID.nextRandom) >>= ZAuth.newUserToken
 
 testNginz :: Brig -> Nginz -> Http ()
 testNginz b n = do
+    -- Note: If you get 403 test failures: check that the private/public keys in brig and nginz match.
     u <- randomUser b
     let Just email = userEmail u
     -- Login with email

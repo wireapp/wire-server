@@ -59,7 +59,6 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
---import qualified System.Logger.Class           as Log
 import qualified Data.ZAuth.Token              as ZAuth
 
 ---------------------------------------------------------------------------
