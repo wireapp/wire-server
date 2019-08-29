@@ -249,7 +249,7 @@ legalHoldLogin (LegalHoldLogin uid label) typ = do
          Just tid -> assertLegalHoldEnabled uid tid
     -- create access token and cookie
     newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
-        `catchE` \e -> throwE $ LegalHoldLoginError e
+        `catchE` (throwE . LegalHoldLoginError)
 
 assertLegalHoldEnabled :: UserId -> TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled uid tid = do
