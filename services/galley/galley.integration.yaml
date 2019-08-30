@@ -35,7 +35,9 @@ settings:
     # https://github.com/wireapp/wire-server/tree/master/tools/db/migrate-sso-feature-flag
     # if you don't, the idp will keep working, but the admin won't be
     # able to register new idps.
-    sso: true
+    # disabled for integration tests (the ones who need it on will
+    # turn it on themselves).
+    sso: false
 
     # Legal Hold: this decides whether customer support / backoffice
     # is allowed to turn the feature on for individual teams.  the
