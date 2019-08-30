@@ -62,10 +62,10 @@ tests conf m z b g n = testGroup "auth"
                 , test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g)
                 , test m "failure-suspended" (testSuspendedLegalHoldLogin b g)
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
+                , test m "failure-wrong-password" (testWrongPasswordLegalHoldLogin b g)
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
                 , test m "check only single cookie for legalhold - TODO" (undefined)
                 , test m "logout for legalhold - TODO" (undefined)
-                , test m "check failure if providing wrong or no password" (undefined)
                 ]
             , testGroup "nginz"
                 [ test m "nginz-login" (testNginz b n)
@@ -405,6 +405,21 @@ testNoUserLegalHoldLogin brig = do
     legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
+
+testWrongPasswordLegalHoldLogin :: Brig -> Galley -> Http ()
+testWrongPasswordLegalHoldLogin brig galley = do
+    (alice, tid) <- createUserWithTeam brig galley
+    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
+
+    -- attempt a legalhold login with a wrong password
+    legalHoldLogin brig (LegalHoldLogin alice (Just (PlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
+
+    legalHoldLogin brig (LegalHoldLogin alice Nothing Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "missing-auth") === errorLabel
+
 
 -------------------------------------------------------------------------------
 -- Sso login
