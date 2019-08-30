@@ -523,13 +523,16 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- These endpoints are internal only and  meant to be called
 -- only from authorized personnel (e.g., from a backoffice tool)
 
--- | Get legal SSO status for a team.
+-- | Get SSO status for a team.
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
+    defConfig <- do
+        featureSSO <- view (options . optSettings . featureEnabled FeatureSSO)
+        pure $ if featureSSO
+            then SSOTeamConfig SSOEnabled
+            else SSOTeamConfig SSODisabled
     ssoTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
-  where
-    defConfig = SSOTeamConfig SSODisabled
 
 -- | Enable or disable SSO for a team.
 setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
@@ -552,6 +555,9 @@ getLegalholdStatusInternal (tid ::: _) = do
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setLegalholdStatusInternal (tid ::: req ::: _) = do
+    do  featureLegalHold <- view (options . optSettings . featureEnabled FeatureLegalHold)
+        unless featureLegalHold $ throwM legalHoldFeatureFlagNotEnabled
+
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of
         LegalHoldDisabled -> removeSettings' tid Nothing
