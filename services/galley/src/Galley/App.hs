@@ -128,7 +128,7 @@ instance HasRequestId Galley where
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l   <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings)
+    l   <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
     mgr <- initHttpManager o
     Env def m o l mgr <$> initCassandra o l
                       <*> Q.new 16000

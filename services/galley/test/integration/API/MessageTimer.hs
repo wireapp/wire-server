@@ -80,7 +80,7 @@ messageTimerChangeGuest = do
     -- Try to change the timer (as the guest user) and observe failure
     putMessageTimerUpdate guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
-        const "access-denied" === (label . decodeBody' "error label")
+        const "access-denied" === (label . decodeBodyMsg "error label")
     getConv guest cid !!!
         const Nothing === (cnvMessageTimer <=< decodeBody)
     -- Try to change the timer (as a team member) and observe success
@@ -100,9 +100,9 @@ messageTimerChangeO2O = do
     -- Try to change the timer and observe failure
     putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
-        const "invalid-op" === (label . decodeBody' "error label")
+        const "invalid-op" === (label . decodeBodyMsg "error label")
     getConv alice cid !!!
-        const Nothing === (cnvMessageTimer <=< decodeBody)
+        const Nothing === (cnvMessageTimer <=< decodeBodyM)
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do
