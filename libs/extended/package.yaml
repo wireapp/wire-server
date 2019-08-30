@@ -17,6 +17,7 @@ dependencies:
 - base
 - bytestring
 - extra
+- aeson
 - imports
 - optparse-applicative
 - tinylog
@@ -34,6 +35,7 @@ dependencies:
 - servant-swagger
 - string-conversions
 - transformers
+- text
 - wai
 library:
   source-dirs: src

@@ -360,6 +360,7 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         errorResponse Error.convNotFound
+        errorResponse Error.convAccessDenied
 
     ---
 

@@ -16,7 +16,6 @@ copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base
-- aeson
 - extra
 - unliftio
 - unliftio-core

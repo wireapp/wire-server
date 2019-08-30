@@ -83,7 +83,7 @@ runServer sparCtxOpts = do
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
-  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
+  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
