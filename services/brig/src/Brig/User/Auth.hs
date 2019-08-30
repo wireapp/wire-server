@@ -238,7 +238,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     -- legalhold login is only possible if
     -- * the user is a team user
     -- * and the team has legalhold enabled
-    mteam <- lift $ Data.lookupUserTeam uid
+    mteam <- lift $ Intra.getTeamId uid
     case mteam of
          Nothing -> throwE LegalHoldLoginNoBindingTeam
          Just tid -> assertLegalHoldEnabled uid tid

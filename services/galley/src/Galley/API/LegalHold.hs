@@ -180,7 +180,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
 
     clientId <- Client.addLegalHoldClientToUser uid connId prekeys lastPrekey'
 
-    legalHoldAuthToken <- Client.getLegalHoldAuthToken uid
+    legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
     -- TODO: send event at this point (see also:
