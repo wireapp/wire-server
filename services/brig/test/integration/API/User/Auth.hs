@@ -71,8 +71,8 @@ tests conf m z b g n = testGroup "auth"
                 , test m "nginz-legalhold-login" (testNginzLegalHold b g n)
                 ]
             ]
-        , testGroup "refresh"
-            [ test m "invalid-cookie /access" (testInvalidCookie @ZAuth.User z b)
+        , testGroup "refresh /access"
+            [ test m "invalid-cookie" (testInvalidCookie @ZAuth.User z b)
             , test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b)
@@ -111,7 +111,6 @@ randomUserToken = (Id <$> liftIO UUID.nextRandom) >>= ZAuth.newUserToken
 
 testNginz :: Brig -> Nginz -> Http ()
 testNginz b n = do
-    -- Note: If you get 403 test failures: check that the private/public keys in brig and nginz match.
     u <- randomUser b
     let Just email = userEmail u
     -- Login with email
@@ -119,11 +118,19 @@ testNginz b n = do
         <!! const 200 === statusCode
     let c = decodeCookie rs
         t = decodeToken rs
+
+    -- ensure regular user tokens can be used with (for example) /clients
+    --
+    -- Note: If you get 403 test failures:
+    -- 1. check that the private/public keys in brig and nginz match.
+    -- 2. check that the nginz acl file is correct.
+    _rs <- get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t)))
+    liftIO $ assertEqual "Ensure nginz is started. Ensure nginz and brig share the same private/public zauth keys. Ensure ACL file is correct." 200 (statusCode _rs)
+
     -- ensure nginz allows refresh at /access
     _rs <- post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
         const 200 === statusCode
-    -- ensure regular user tokens can be used with (for example) /clients
-    get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+
     -- ensure regular user tokens can fetch notifications
     get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
 
