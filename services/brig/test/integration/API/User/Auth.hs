@@ -64,8 +64,7 @@ tests conf m z b g n = testGroup "auth"
                 , test m "failure-no-user" (testNoUserLegalHoldLogin b)
                 , test m "failure-wrong-password" (testWrongPasswordLegalHoldLogin b g)
                 , test m "always-persistent-cookie" (testLegalHoldSessionCookie b g)
-                , test m "check only single cookie for legalhold - TODO" (undefined)
-                , test m "logout for legalhold - TODO" (undefined)
+                , test m "legalhold-logout" (testLegalHoldLogout b g)
                 ]
             , testGroup "nginz"
                 [ test m "nginz-login" (testNginz b n)
@@ -376,9 +375,7 @@ testTeamUserLegalHoldLogin brig galley = do
 
 testLegalHoldSessionCookie :: Brig -> Galley -> Http ()
 testLegalHoldSessionCookie brig galley = do
-    (alice, tid) <- createUserWithTeam brig galley
-    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
-
+    alice <- prepareLegalHoldUser brig galley
     -- attempt a legalhold login with a session cookie (?persist=false)
     rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) SessionCookie
         <!! const 200 === statusCode
@@ -408,17 +405,30 @@ testNoUserLegalHoldLogin brig = do
 
 testWrongPasswordLegalHoldLogin :: Brig -> Galley -> Http ()
 testWrongPasswordLegalHoldLogin brig galley = do
-    (alice, tid) <- createUserWithTeam brig galley
-    putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
-
+    alice <- prepareLegalHoldUser brig galley
     -- attempt a legalhold login with a wrong password
     legalHoldLogin brig (LegalHoldLogin alice (Just (PlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
-
+    -- attempt a legalhold login with a no password
     legalHoldLogin brig (LegalHoldLogin alice Nothing Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "missing-auth") === errorLabel
+
+testLegalHoldLogout :: Brig -> Galley -> Http ()
+testLegalHoldLogout brig galley = do
+    uid <- prepareLegalHoldUser brig galley
+    _rs <- legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie <!! const 200 === statusCode
+    let (t, c) = (decodeToken' @ZAuth.LegalHoldAccess _rs, decodeCookie _rs)
+
+    post (brig . path "/access" . cookie c) !!!
+        const 200 === statusCode
+
+    post (brig . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t)) !!!
+        const 200 === statusCode
+
+    post (brig . path "/access" . cookie c) !!!
+        const 403 === statusCode
 
 
 -------------------------------------------------------------------------------
@@ -748,6 +758,13 @@ testReauthentication b = do
 
 -----------------------------------------------------------------------------
 -- Helpers
+
+prepareLegalHoldUser :: Brig -> Galley -> Http (UserId)
+prepareLegalHoldUser brig galley = do
+    (uid, tid) <- createUserWithTeam brig galley
+    -- enable it for this team - without that, legalhold login will fail.
+    putLegalHoldEnabled tid LegalHoldEnabled galley
+    return uid
 
 decodeCookie :: HasCallStack => Response a -> Http.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
