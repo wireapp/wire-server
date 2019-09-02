@@ -55,6 +55,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ApproveLegalHoldForUserRequest
     , run @SSOStatus
     , run @SSOTeamConfig
+    , run @FeatureFlags
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -82,3 +83,10 @@ instance Arbitrary SSOStatus where
 
 instance Arbitrary SSOTeamConfig where
   arbitrary = SSOTeamConfig <$> arbitrary
+
+instance Arbitrary FeatureFlags where
+  arbitrary = FeatureFlags <$> arbitrary
+  shrink (FeatureFlags ls) = FeatureFlags <$> shrink ls
+
+instance Arbitrary FeatureFlag where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
