@@ -251,4 +251,5 @@ assertLegalHoldEnabled uid tid = do
     stat <- lift $ Intra.getTeamLegalHoldStatus uid tid
     case stat of
         ViewLegalHoldServiceDisabled      -> throwE LegalHoldLoginLegalHoldNotEnabled
-        _                                 -> pure ()
+        ViewLegalHoldService _            -> pure ()
+        ViewLegalHoldServiceNotConfigured -> pure ()

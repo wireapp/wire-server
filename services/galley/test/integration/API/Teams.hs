@@ -15,6 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Galley.Options (optSettings, featureEnabled)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -22,7 +23,7 @@ import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status403)
 import TestHelpers (test)
-import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley, tsGConf)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
@@ -175,7 +176,12 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    check "Teams should start with SSO disabled" SSODisabled
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
+    if not featureSSO
+      then do
+        check "Teams should start with SSO disabled" SSODisabled
+      else do
+        check "Teams should start with SSO enabled" SSOEnabled
 
     putSSOEnabledInternal tid SSOEnabled
     check "Calling 'putEnabled True' should enable SSO" SSOEnabled
@@ -1138,12 +1144,15 @@ getLegalHoldEnabledInternal tid = do
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
-putLegalHoldEnabledInternal tid enabled = do
+putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
+
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal' reqmod tid enabled = do
     g <- view tsGalley
     void . put $ g
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . json (LegalHoldTeamConfig enabled)
-        . expect2xx
+        . reqmod
 
 
 testFeatureFlags :: TestM ()
@@ -1166,12 +1175,21 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    getSSO SSODisabled
-    getSSOInternal SSODisabled
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
+    if not featureSSO
+      then do -- disabled
+        getSSO SSODisabled
+        getSSOInternal SSODisabled
 
-    setSSOInternal SSOEnabled
-    getSSO SSOEnabled
-    getSSOInternal SSOEnabled
+        setSSOInternal SSOEnabled
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
+
+      else do -- enabled
+        -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
+        -- much here.  (disable failure is covered in "enable/disable SSO" above.)
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
 
     -- legalhold
 
@@ -1191,6 +1209,11 @@ testFeatureFlags = do
     getLegalHold LegalHoldDisabled
     getLegalHoldInternal LegalHoldDisabled
 
-    setLegalHoldInternal LegalHoldEnabled
-    getLegalHold LegalHoldEnabled
-    getLegalHoldInternal LegalHoldEnabled
+    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
+    if featureLegalHold
+      then do
+        setLegalHoldInternal LegalHoldEnabled
+        getLegalHold LegalHoldEnabled
+        getLegalHoldInternal LegalHoldEnabled
+      else do
+        putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled

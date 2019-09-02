@@ -759,7 +759,7 @@ postRepeatConnectConvCancel = do
         g <- view tsGalley
         put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u) !!!
             const 200 === statusCode
-        getConv u (cnvId c) !!! const 404 === statusCode
+        getConv u (cnvId c) !!! const 403 === statusCode
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
@@ -769,7 +769,7 @@ putBlockConvOk = do
     conv  <- decodeBodyMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
 
     getConv alice (cnvId conv) !!! const 200 === statusCode
-    getConv bob (cnvId conv)   !!! const 404 === statusCode
+    getConv bob (cnvId conv)   !!! const 403 === statusCode
 
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "block"] . zUser bob) !!!
         const 200 === statusCode
@@ -789,7 +789,7 @@ putBlockConvOk = do
         const 200 === statusCode
 
     -- B no longer sees the 1-1
-    getConv bob (cnvId conv) !!! const 404 === statusCode
+    getConv bob (cnvId conv) !!! const 403 === statusCode
 
     -- B unblocks A in the 1-1
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob) !!!
@@ -922,6 +922,10 @@ deleteMembersOk = do
     conv  <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
     deleteMember bob bob conv     !!! const 200 === statusCode
     deleteMember bob bob conv     !!! const 404 === statusCode
+
+    -- if conversation still exists, don't respond with 404, but with 403.
+    getConv bob conv !!! const 403 === statusCode
+
     deleteMember alice eve conv   !!! const 200 === statusCode
     deleteMember alice eve conv   !!! const 204 === statusCode
     deleteMember alice alice conv !!! const 200 === statusCode
