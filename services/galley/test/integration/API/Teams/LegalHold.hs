@@ -460,16 +460,11 @@ testRemoveLegalHoldFromTeam = do
         newService <- newLegalHoldService
         postSettings owner tid newService !!! testResponse 201 Nothing
 
-        liftIO $ putStrLn "---2"
         -- enable legalhold for member
-        do  requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-            liftIO $ putStrLn "---2a"
-            liftIO $ threadDelay 1000000
-            -- TODO: the line below fails with a 500 somewhere. Why?
-            approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-            liftIO $ putStrLn "---2b"
-            UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-            liftIO $ assertEqual "After approval user legalhold status should be Enabled"
+        do requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
+           approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
+           UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
+           liftIO $ assertEqual "After approval user legalhold status should be Enabled"
                         UserLegalHoldEnabled userStatus
 
         -- returns 403 if user is not in team or has unsufficient permissions.
