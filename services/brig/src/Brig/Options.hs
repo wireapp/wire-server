@@ -180,6 +180,12 @@ data LimitFailedLogins = LimitFailedLogins
 
 instance FromJSON LimitFailedLogins
 
+data SuspendInactiveUsers = SuspendInactiveUsers
+    { suspendTimeout :: !Timeout
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON SuspendInactiveUsers
+
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
     { privateKeys  :: !FilePath        -- ^ Private key file
@@ -288,6 +294,9 @@ data Settings = Settings
     , setLimitFailedLogins     :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
                                                              -- for m minutes after n failed
                                                              -- logins
+    , setSuspendInactiveUsers  :: !(Maybe SuspendInactiveUsers)
+                                               -- ^ If last cookie renewal is too long ago,
+                                               -- suspend the user.
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
                                            --   field names and values), should be in sync
                                            --   with Spar

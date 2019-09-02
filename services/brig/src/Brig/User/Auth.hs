@@ -20,6 +20,7 @@ import Imports
 import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
+import Brig.API.User (suspendAccount)
 import Brig.Budget
 import Brig.Email
 import Brig.Data.UserKey
@@ -31,9 +32,12 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
-import Control.Error
+import Control.Error hiding (bool)
 import Data.Id
+import Data.ByteString.Conversion (toByteString)
+import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword (..))
+import System.Logger (msg, field, (~~), val)
 
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
@@ -41,6 +45,8 @@ import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
 import qualified Brig.Options as Opt
 import qualified Brig.ZAuth as ZAuth
+import qualified System.Logger.Class as Log
+
 
 data Access = Access
     { accessToken  :: !AccessToken
@@ -125,7 +131,8 @@ renewAccess
     -> Maybe ZAuth.AccessToken
     -> ExceptT ZAuth.Failure AppIO Access
 renewAccess ut at = do
-    (_, ck) <- validateTokens ut at
+    (uid, ck) <- validateTokens ut at
+    catchSuspendInactiveUser uid ZAuth.Expired
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
@@ -143,8 +150,19 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
+catchSuspendInactiveUser :: UserId -> e -> ExceptT e AppIO ()
+catchSuspendInactiveUser uid errval = do
+  mustsuspend <- lift $ mustSuspendInactiveUser uid
+  Log.warn $ msg (val "catchSuspendInactiveUser")
+    ~~ field "user" (toByteString uid)
+    ~~ field "mustsuspend" mustsuspend
+  when mustsuspend $ do
+    lift $ suspendAccount (singleton uid)
+    throwE errval
+
 newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO Access
 newAccess u ct cl = do
+    catchSuspendInactiveUser u LoginSuspended
     r <- lift $ newCookieLimited u ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay

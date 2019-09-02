@@ -12,6 +12,7 @@ module Brig.API.User
     , lookupHandle
     , changeManagedBy
     , changeAccountStatus
+    , suspendAccount
     , Data.lookupAccounts
     , Data.lookupAccount
     , Data.lookupStatus
@@ -465,6 +466,12 @@ changeAccountStatus usrs status = do
     update ev u = do
         Data.updateStatus u status
         Intra.onUserEvent u Nothing (ev u)
+
+suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
+suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
+    Right _ -> pure ()
+    Left InvalidAccountStatus -> error "impossible."
+
 
 -------------------------------------------------------------------------------
 -- Activation
