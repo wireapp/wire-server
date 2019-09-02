@@ -50,7 +50,7 @@ import Brig.API.Types
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (ViewLegalHoldService)
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig)
 import Brig.User.Event
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
@@ -666,14 +666,12 @@ getTeamName tid = do
     req = paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
-getTeamLegalHoldStatus :: UserId -> TeamId -> AppIO ViewLegalHoldService
-getTeamLegalHoldStatus u tid = do
+getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
+getTeamLegalHoldStatus tid = do
     debug $ remote "galley" . msg (val "Get legalhold settings")
     galleyRequest GET req >>= decodeBody "galley"
   where
-    req = paths ["teams", toByteString' tid, "legalhold", "settings"]
-        . header "Content-Type" "application/json"
-        . zUser u
+    req = paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . expect2xx
 
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()

@@ -31,7 +31,7 @@ import Brig.User.Phone
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
-import Brig.Types.Team.LegalHold (ViewLegalHoldService (..))
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig (..), LegalHoldStatus (..))
 import Brig.Types.User.Auth hiding (user)
 import Control.Error
 import Data.Id
@@ -241,15 +241,14 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     mteam <- lift $ Intra.getTeamId uid
     case mteam of
          Nothing -> throwE LegalHoldLoginNoBindingTeam
-         Just tid -> assertLegalHoldEnabled uid tid
+         Just tid -> assertLegalHoldEnabled tid
     -- create access token and cookie
     newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
         !>> LegalHoldLoginError
 
-assertLegalHoldEnabled :: UserId -> TeamId -> ExceptT LegalHoldLoginError AppIO ()
-assertLegalHoldEnabled uid tid = do
-    stat <- lift $ Intra.getTeamLegalHoldStatus uid tid
+assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError AppIO ()
+assertLegalHoldEnabled tid = do
+    LegalHoldTeamConfig stat <- lift $ Intra.getTeamLegalHoldStatus tid
     case stat of
-        ViewLegalHoldServiceDisabled      -> throwE LegalHoldLoginLegalHoldNotEnabled
-        ViewLegalHoldService _            -> pure ()
-        ViewLegalHoldServiceNotConfigured -> pure ()
+        LegalHoldDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
+        LegalHoldEnabled  -> pure ()
