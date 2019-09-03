@@ -12,6 +12,7 @@ import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), (^.), set)
+import Control.Retry
 import Data.Aeson
 import Data.Proxy
 import Data.Aeson.Lens
@@ -38,7 +39,7 @@ import qualified Brig.ZAuth           as ZAuth
 import qualified Data.ZAuth.Token     as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
-
+import qualified Test.Tasty.HUnit     as HUnit
 import qualified Network.Wai.Utilities.Error as Error
 
 tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
@@ -82,6 +83,7 @@ tests conf m z b g n = testGroup "auth"
             , test m "token mismatch" (testTokenMismatch z b g)
             , test m "new-persistent-cookie" (testNewPersistentCookie conf b)
             , test m "new-session-cookie" (testNewSessionCookie conf b)
+            , test m "suspend-inactive" (testSuspendInactiveUsers conf b)
             ]
         , testGroup "cookies"
             [ test m "list" (testListCookies b)
@@ -622,6 +624,57 @@ testNewSessionCookie config b = do
         const 200     === statusCode
         const Nothing === getHeader "Set-Cookie"
 
+testSuspendInactiveUsers :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
+testSuspendInactiveUsers (Just config) brig = do
+    -- (context information: cookies are stored by user, not be device; so if there if the
+    -- cookie is old it means none of the devices of a user has used it for a request.)
+
+    let Just suspendAge = Opts.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
+    unless (suspendAge <= 30) $
+        error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
+
+    let check :: HasCallStack => CookieType -> String -> Http ()
+        check cookieType endPoint = do
+            user <- randomUser brig
+            let Just email = userEmail user
+            rs <- login brig (emailLogin email defPassword Nothing) cookieType
+                <!! const 200 === statusCode
+            let cky = decodeCookie rs
+
+            -- wait slightly longer than required for being marked as inactive.
+            let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5  -- adding 1 *should* be enough, but it's not.
+            liftIO $ threadDelay (1000000 * waitTime)
+
+            case endPoint of
+                "/access" -> do
+                    post (brig . path "/access" . cookie cky) !!! do
+                        const 403     === statusCode
+                        const Nothing === getHeader "Set-Cookie"
+                "/login" -> do
+                    login brig (emailLogin email defPassword Nothing) cookieType !!! do
+                        const 403 === statusCode
+                        const Nothing === getHeader "Set-Cookie"
+
+            let assertStatus want = do
+                  have <- retrying (exponentialBackoff 200000 <> limitRetries 6)
+                    (\_ have -> pure $ have == Suspended)
+                    (\_ -> getStatus brig (userId user))
+                  let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
+                  liftIO $ HUnit.assertEqual errmsg want have
+
+            assertStatus Suspended
+            setStatus brig (userId user) Active
+            assertStatus Active
+
+            login brig (emailLogin email defPassword Nothing) cookieType
+                !!! const 200 === statusCode
+
+    check SessionCookie "/access"
+    check SessionCookie "/login"
+    check PersistentCookie "/access"
+    check PersistentCookie "/login"
+
+
 -------------------------------------------------------------------------------
 -- Cookie Management
 
@@ -721,6 +774,9 @@ testTooManyCookies config b = do
                 let Just n = fromByteString =<< getHeader "Retry-After" x
                 liftIO $ threadDelay (1000000 * (n + 1))
                 loginWhenAllowed pwl t
+            403 -> error ("forbidden; " <>
+                          "perhaps setSuspendInactiveUsers.suspendTimeout is too small? " <>
+                          "(try 29 seconds).")
             xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
 
 testLogout :: Brig -> Http ()
