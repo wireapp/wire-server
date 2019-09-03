@@ -12,6 +12,7 @@ module Brig.API.User
     , lookupHandle
     , changeManagedBy
     , changeAccountStatus
+    , suspendAccount
     , Data.lookupAccounts
     , Data.lookupAccount
     , Data.lookupStatus
@@ -466,6 +467,12 @@ changeAccountStatus usrs status = do
         Data.updateStatus u status
         Intra.onUserEvent u Nothing (ev u)
 
+suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
+suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
+    Right _ -> pure ()
+    Left InvalidAccountStatus -> error "impossible."
+
+
 -------------------------------------------------------------------------------
 -- Activation
 
@@ -695,13 +702,10 @@ deleteUser uid pwd = do
         Just tid -> do
             ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
             case ownerSituation of
-               Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
-               Team.IsOneOfManyTeamOwners -> pure ()
-               Team.IsNotTeamOwner        -> pure ()
-               Team.NoTeamOwnersAreLeft   -> do
-                   Log.warn $ field "user" (toByteString uid)
-                            . field "team" (toByteString tid)
-                            . msg (val "Team.NoTeamOwnersAreLeft")
+               Team.IsOnlyTeamOwnerWithEmail       -> throwE DeleteUserOnlyOwner
+               Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+               Team.IsTeamOwnerWithoutEmail        -> pure ()
+               Team.IsNotTeamOwner                 -> pure ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 

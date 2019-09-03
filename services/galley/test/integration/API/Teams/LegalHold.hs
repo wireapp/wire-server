@@ -31,6 +31,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.Types.Teams
+import Galley.Options (optSettings, featureEnabled)
 import GHC.Generics hiding (to)
 import GHC.TypeLits
 import Gundeck.Types.Notification (ntfPayload)
@@ -39,6 +40,7 @@ import Network.Wai
 import Network.Wai as Wai
 import Servant.Swagger (validateEveryToJSON)
 import System.Environment (withArgs)
+import System.IO (hPutStrLn)
 import TestHelpers
 import Test.Hspec (hspec)
 import Test.QuickCheck.Instances ()
@@ -65,27 +67,34 @@ import qualified Galley.Types.Clients              as Clients
 import qualified Test.Tasty.Cannon                 as WS
 
 
+onlyIfLhEnabled :: TestM () -> TestM ()
+onlyIfLhEnabled action = do
+    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
+    if featureLegalHold
+        then action
+        else liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
+
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
-    [ test s "swagger / json consistency" testSwaggerJsonConsistency
+    [ test s "swagger / json consistency" (onlyIfLhEnabled testSwaggerJsonConsistency)
 
       -- device handling (CRUD)
-    , test s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice
-    , test s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice
+    , test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testRequestLegalHoldDevice)
+    , test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhEnabled testApproveLegalHoldDevice)
     , test s "(user denies approval: nothing needs to be done in backend)" (pure ())
-    , test s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus
-    , test s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser
+    , test s "GET /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testGetLegalHoldDeviceStatus)
+    , test s "DELETE /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testDisableLegalHoldForUser)
 
       -- legal hold settings
-    , test s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings
-    , test s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings
-    , test s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam
-    , test s "GET, PUT [/i]?/teams/{tid}/legalhold" testEnablePerTeam
+    , test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testCreateLegalHoldTeamSettings)
+    , test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings)
+    , test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam)
+    , test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam)
 
       -- behavior of existing end-points
-    , test s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI
+    , test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI)
 
-    , test s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus
+    , test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus)
 
     -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
     -- tested
@@ -345,7 +354,7 @@ testCreateLegalHoldTeamSettings = do
     -- behaving or not)
     let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
         lhapp NotWorking _ _   cont = cont respondBad
-        lhapp Working  _ req cont = trace "APP" $ do
+        lhapp Working  _ req cont = do
             if | pathInfo req /= ["legalhold", "status"] -> cont respondBad
                | requestMethod req /= "GET" -> cont respondBad
                | otherwise -> cont respondOk

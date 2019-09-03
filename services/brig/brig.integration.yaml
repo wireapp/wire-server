@@ -115,7 +115,6 @@ zauth:
     providerTokenTimeout: 60
 
 turn:
-  # Replace this with the list of supported URIs
   servers: test/resources/turn/servers.txt
   serversV2: test/resources/turn/servers-v2.txt
   # This should be the same secret as used by the TURN servers
@@ -137,6 +136,11 @@ optSettings:
   setUserCookieThrottle:
     stdDev: 5
     retryAfter: 1
+  setLimitFailedLogins:
+    timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
+    retryLimit: 5  # how many times can you have a failed login in that timeframe.
+  setSuspendInactiveUsers:  # this this is omitted: never suspend inactive users.
+    suspendTimeout: 10
   setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultLocale: en
   setMaxTeamSize: 32

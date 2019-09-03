@@ -141,7 +141,7 @@ postConvOk = do
         cvs <- mapM (convView cid) [alice, bob, jane]
         liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
   where
-    convView cnv usr = decodeBody' "conversation" <$> getConv usr cnv
+    convView cnv usr = decodeBodyMsg "conversation" <$> getConv usr cnv
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
         ntfTransient n @?= False
         let e = List1.head (WS.unpackPayload n)
@@ -251,12 +251,12 @@ postCryptoMessage2 = do
     let m = [(bob, bc, "hello bob")]
     r1 <- postOtrMessage id alice ac conv m <!!
         const 412 === statusCode
-    let x = decodeBody' "ClientMismatch" r1
+    let x = decodeBodyMsg "ClientMismatch" r1
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
     -- Fetch all missing clients prekeys
     r2 <- post (b . path "/users/prekeys" . json (missingClients x)) <!!
         const 200 === statusCode
-    let p = decodeBody' "prekeys" r2 :: UserClientMap (Maybe Prekey)
+    let p = decodeBodyMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
     liftIO $ do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
@@ -274,12 +274,12 @@ postCryptoMessage3 = do
     let m = otrRecipients [(bob, [(bc, ciphertext)])]
     r1 <- postProtoOtrMessage alice ac conv m <!!
         const 412 === statusCode
-    let x = decodeBody' "ClientMismatch" r1
+    let x = decodeBodyMsg "ClientMismatch" r1
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
     -- Fetch all missing clients prekeys
     r2 <- post (b . path "/users/prekeys" . json (missingClients x)) <!!
         const 200 === statusCode
-    let p = decodeBody' "prekeys" r2 :: UserClientMap (Maybe Prekey)
+    let p = decodeBodyMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
     liftIO $ do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
@@ -327,7 +327,7 @@ postCryptoMessage5 = do
         const 201 === statusCode
     _rs <- postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv [] <!!
         const 412 === statusCode
-    let _mm = decodeBody' "ClientMismatch" _rs
+    let _mm = decodeBodyMsg "ClientMismatch" _rs
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just _mm))
 
     -- Ignore missing clients of a specific user only
@@ -335,7 +335,7 @@ postCryptoMessage5 = do
         const 201 === statusCode
     _rs <- postOtrMessage (queryItem "ignore_missing" (toByteString' eve)) alice ac conv [] <!!
         const 412 === statusCode
-    let _mm = decodeBody' "ClientMismatch" _rs
+    let _mm = decodeBodyMsg "ClientMismatch" _rs
     liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just _mm))
 
 postJoinConvOk :: TestM ()
@@ -490,14 +490,14 @@ getConvsOk2 = do
     [alice, bob] <- randomUsers 2
     connectUsers alice (singleton bob)
     -- create & get one2one conv
-    cnv1 <- decodeBody' "conversation" <$> postO2OConv alice bob (Just "gossip1")
+    cnv1 <- decodeBodyMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
     getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
         const 200 === statusCode
         const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . decodeBody
     -- create & get group conv
     carl <- randomUser
     connectUsers alice (singleton carl)
-    cnv2 <- decodeBody' "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+    cnv2 <- decodeBodyMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
     getConvs alice (Just $ Left [cnvId cnv2]) Nothing !!! do
         const 200 === statusCode
         const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . decodeBody
@@ -709,7 +709,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice wants to connect
     rsp1 <- postConnectConv alice bob "A" "a" Nothing <!! const 201 === statusCode
-    let cnv = decodeBody' "conversation" rsp1
+    let cnv = decodeBodyMsg "conversation" rsp1
     liftIO $ do
         ConnectConv   @=? cnvType cnv
         (Just "A")    @=? cnvName cnv
@@ -721,7 +721,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice makes another connect attempt
     rsp2 <- postConnectConv alice bob "A2" "a2" Nothing <!! const 200 === statusCode
-    let cnv2 = decodeBody' "conversation" rsp2
+    let cnv2 = decodeBodyMsg "conversation" rsp2
     liftIO $ do
         ConnectConv   @=? cnvType cnv2
         (Just "A2")   @=? cnvName cnv2
@@ -733,7 +733,7 @@ postRepeatConnectConvCancel = do
 
     -- Now Bob attempts to connect
     rsp3 <- postConnectConv bob alice "B" "b" Nothing <!! const 200 === statusCode
-    let cnv3 = decodeBody' "conversation" rsp3
+    let cnv3 = decodeBodyMsg "conversation" rsp3
     liftIO $ do
         ConnectConv   @=? cnvType cnv3
         (Just "B")    @=? cnvName cnv3
@@ -741,7 +741,7 @@ postRepeatConnectConvCancel = do
 
     -- Bob accepting is a no-op, since he is already a member
     putConvAccept bob (cnvId cnv) !!! const 200 === statusCode
-    cnvX <- decodeBody' "conversation" <$> getConv bob (cnvId cnv)
+    cnvX <- decodeBodyMsg "conversation" <$> getConv bob (cnvId cnv)
     liftIO $ do
         ConnectConv   @=? cnvType cnvX
         (Just "B")    @=? cnvName cnvX
@@ -749,7 +749,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice accepts, finally turning it into a 1-1
     putConvAccept alice (cnvId cnv) !!! const 200 === statusCode
-    cnv4 <- decodeBody' "conversation" <$> getConv alice (cnvId cnv)
+    cnv4 <- decodeBodyMsg "conversation" <$> getConv alice (cnvId cnv)
     liftIO $ do
         One2OneConv     @=? cnvType cnv4
         (Just "B")      @=? cnvName cnv4
@@ -759,17 +759,17 @@ postRepeatConnectConvCancel = do
         g <- view tsGalley
         put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u) !!!
             const 200 === statusCode
-        getConv u (cnvId c) !!! const 404 === statusCode
+        getConv u (cnvId c) !!! const 403 === statusCode
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
     g <- view tsGalley
     alice <- randomUser
     bob   <- randomUser
-    conv  <- decodeBody' "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
+    conv  <- decodeBodyMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
 
     getConv alice (cnvId conv) !!! const 200 === statusCode
-    getConv bob (cnvId conv)   !!! const 404 === statusCode
+    getConv bob (cnvId conv)   !!! const 403 === statusCode
 
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "block"] . zUser bob) !!!
         const 200 === statusCode
@@ -777,7 +777,7 @@ putBlockConvOk = do
     -- A is still the only member of the 1-1
     getConv alice (cnvId conv) !!! do
         const 200 === statusCode
-        const (cnvMembers conv) === cnvMembers . decodeBody' "conversation"
+        const (cnvMembers conv) === cnvMembers . decodeBodyMsg "conversation"
 
     -- B accepts the conversation by unblocking
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob) !!!
@@ -789,7 +789,7 @@ putBlockConvOk = do
         const 200 === statusCode
 
     -- B no longer sees the 1-1
-    getConv bob (cnvId conv) !!! const 404 === statusCode
+    getConv bob (cnvId conv) !!! const 403 === statusCode
 
     -- B unblocks A in the 1-1
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob) !!!
@@ -922,6 +922,10 @@ deleteMembersOk = do
     conv  <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
     deleteMember bob bob conv     !!! const 200 === statusCode
     deleteMember bob bob conv     !!! const 404 === statusCode
+
+    -- if conversation still exists, don't respond with 404, but with 403.
+    getConv bob conv !!! const 403 === statusCode
+
     deleteMember alice eve conv   !!! const 200 === statusCode
     deleteMember alice eve conv   !!! const 204 === statusCode
     deleteMember alice alice conv !!! const 200 === statusCode

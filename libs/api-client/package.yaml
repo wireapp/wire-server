@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: api-client
 version: '0.4.2'
@@ -47,16 +47,4 @@ dependencies:
 - websockets >=0.9
 library:
   source-dirs: src
-  exposed-modules:
-  - Network.Wire.Client
-  - Network.Wire.Client.API.Auth
-  - Network.Wire.Client.API.Asset
-  - Network.Wire.Client.API.Conversation
-  - Network.Wire.Client.API.Push
-  - Network.Wire.Client.API.Search
-  - Network.Wire.Client.API.User
-  - Network.Wire.Client.API.Client
-  - Network.Wire.Client.HTTP
-  - Network.Wire.Client.Monad
-  - Network.Wire.Client.Session
 stability: experimental

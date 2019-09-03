@@ -16,8 +16,12 @@ module Brig.User.Auth
     ) where
 
 import Imports
+
+import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
+import Brig.API.User (suspendAccount)
+import Brig.Budget
 import Brig.Email
 import Brig.Data.UserKey
 import Brig.Phone
@@ -28,15 +32,21 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
-import Control.Error
+import Control.Error hiding (bool)
 import Data.Id
+import Data.ByteString.Conversion (toByteString)
+import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword (..))
+import System.Logger (msg, field, (~~), val)
 
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
+import qualified Brig.Options as Opt
 import qualified Brig.ZAuth as ZAuth
+import qualified System.Logger.Class as Log
+
 
 data Access = Access
     { accessToken  :: !AccessToken
@@ -71,18 +81,45 @@ lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
 login :: Login -> CookieType -> ExceptT LoginError AppIO Access
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
+    checkRetryLimit uid
     Data.authenticate uid pw `catchE` \case
         AuthSuspended          -> throwE LoginSuspended
         AuthEphemeral          -> throwE LoginEphemeral
-        AuthInvalidCredentials -> throwE LoginFailed
-        AuthInvalidUser        -> throwE LoginFailed
+        AuthInvalidCredentials -> loginFailed uid
+        AuthInvalidUser        -> loginFailed uid
     newAccess uid typ label
 login (SmsLogin phone code label) typ = do
     uid <- resolveLoginId (LoginByPhone phone)
+    checkRetryLimit uid
     ok <- lift $ Data.verifyLoginCode uid code
     unless ok $
-        throwE LoginFailed
+        loginFailed uid
     newAccess uid typ label
+
+loginFailed :: UserId -> ExceptT LoginError AppIO ()
+loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+
+decrRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
+
+checkRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+checkRetryLimit = withRetryLimit checkBudget
+
+withRetryLimit
+    :: (BudgetKey -> Budget -> ExceptT LoginError AppIO (Budgeted ()))
+    -> UserId
+    -> ExceptT LoginError AppIO ()
+withRetryLimit action uid = do
+    mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+    forM_ mLimitFailedLogins $ \opts -> do
+        let bkey = BudgetKey ("login#" <> idToText uid)
+            budget = Budget
+                (Opt.timeoutDiff $ Opt.timeout opts)
+                (fromIntegral $ Opt.retryLimit opts)
+        bresult <- action bkey budget
+        case bresult of
+            BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
+            BudgetedValue () _ -> pure ()
 
 logout :: ZAuth.UserToken -> ZAuth.AccessToken -> ExceptT ZAuth.Failure AppIO ()
 logout ut at = do
@@ -94,7 +131,8 @@ renewAccess
     -> Maybe ZAuth.AccessToken
     -> ExceptT ZAuth.Failure AppIO Access
 renewAccess ut at = do
-    (_, ck) <- validateTokens ut at
+    (uid, ck) <- validateTokens ut at
+    catchSuspendInactiveUser uid ZAuth.Expired
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
@@ -112,8 +150,19 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
+catchSuspendInactiveUser :: UserId -> e -> ExceptT e AppIO ()
+catchSuspendInactiveUser uid errval = do
+  mustsuspend <- lift $ mustSuspendInactiveUser uid
+  Log.warn $ msg (val "catchSuspendInactiveUser")
+    ~~ field "user" (toByteString uid)
+    ~~ field "mustsuspend" mustsuspend
+  when mustsuspend $ do
+    lift $ suspendAccount (singleton uid)
+    throwE errval
+
 newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO Access
 newAccess u ct cl = do
+    catchSuspendInactiveUser u LoginSuspended
     r <- lift $ newCookieLimited u ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay

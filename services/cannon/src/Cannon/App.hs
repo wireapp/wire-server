@@ -142,7 +142,6 @@ rejectOnError p x = do
         _                         -> pure ()
     throwM x
 
--- TODO
 ioErrors :: (MonadLogger m, MonadIO m) => Key -> [Handler m ()]
 ioErrors k = let f s = Logger.err $ client (key2bytes k) . msg s in
     [ Handler $ \(x :: HandshakeException) -> f (show x)

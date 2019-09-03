@@ -21,6 +21,9 @@ module Galley.Types.Teams
     , TeamCreationTime (..)
     , tcTime
 
+    , FeatureFlags(..)
+    , FeatureFlag(..)
+
     , TeamList
     , newTeamList
     , teamListTeams
@@ -312,6 +315,25 @@ newtype TeamDeleteData = TeamDeleteData
 newtype TeamCreationTime = TeamCreationTime
     { _tcTime :: Int64
     }
+
+newtype FeatureFlags = FeatureFlags (Set FeatureFlag)
+    deriving (Eq, Show, Generic)
+
+data FeatureFlag = FeatureSSO | FeatureLegalHold
+    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+instance FromJSON FeatureFlags where
+    parseJSON = withObject "FeatureFlags" $ \obj -> do
+        sso       <- fromMaybe False <$> obj .:? "sso"
+        legalhold <- fromMaybe False <$> obj .:? "legalhold"
+        pure . FeatureFlags . Set.fromList $
+            [ FeatureSSO       | sso ] <>
+            [ FeatureLegalHold | legalhold ]
+
+instance ToJSON FeatureFlags where
+    toJSON (FeatureFlags flags) = object $
+        [ "sso"       .= (FeatureSSO       `elem` flags) ] <>
+        [ "legalhold" .= (FeatureLegalHold `elem` flags) ]
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd

@@ -15,6 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Galley.Options (optSettings, featureEnabled)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -22,7 +23,7 @@ import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status403)
 import TestHelpers (test)
-import TestSetup (TestSetup, TestM, tsCannon, tsGalley)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley, tsGConf)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
@@ -175,7 +176,12 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    check "Teams should start with SSO disabled" SSODisabled
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
+    if not featureSSO
+      then do
+        check "Teams should start with SSO disabled" SSODisabled
+      else do
+        check "Teams should start with SSO enabled" SSOEnabled
 
     putSSOEnabledInternal tid SSOEnabled
     check "Calling 'putEnabled True' should enable SSO" SSOEnabled
@@ -195,7 +201,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
     Util.createOne2OneTeamConv (mem1^.userId) (mem2^.userId) Nothing tid !!! do
         const 404 === statusCode
-        const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team" === (Error.label . Util.decodeBodyMsg "error label")
     -- Both have a binding team but not the same team
     owner1 <- Util.randomUser
     tid1 <- Util.createTeamInternal "foo" owner1
@@ -205,7 +211,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     assertQueue "create another team" tActivate
     Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
-        const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team-members" === (Error.label . Util.decodeBodyMsg "error label")
 
 testCreateOne2OneWithMembers
     :: HasCallStack
@@ -384,7 +390,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
     -- Mem1 is still part of Wire
     Util.ensureDeletedState False owner (mem1^.userId)
@@ -491,7 +497,7 @@ testAddTeamConvAsExternalPartner = do
         (Just "blaa") acc (Just TeamAccessRole) Nothing
       !!! do
         const 403 === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
 testAddManagedConv :: TestM ()
 testAddManagedConv = do
@@ -550,7 +556,7 @@ testAddTeamMemberToConv = do
     Util.assertNotConvMember (mem3^.userId) cid
     Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
         const 403                === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
 testUpdateTeamConv
     :: Role  -- ^ Role of the user who creates the conversation
@@ -613,7 +619,7 @@ testDeleteTeam = do
             Util.getConv u x !!! const 404 === statusCode
             Util.getSelfMember u x !!! do
                 const 200         === statusCode
-                const (Just Null) === Util.decodeBody
+                const (Just Null) === Util.decodeBodyM
     assertQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -644,7 +650,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
 
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
@@ -809,7 +815,7 @@ testUpdateTeamMember = do
         . json changeOwner
         ) !!! do
         const 403 === statusCode
-        const "no-other-owner" === (Error.label . Util.decodeBody' "error label")
+        const "no-other-owner" === (Error.label . Util.decodeBodyMsg "error label")
     let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
@@ -869,7 +875,7 @@ testUpdateTeamStatus = do
                . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
-        const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
+        const "invalid-team-status-update" === (Error.label . Util.decodeBodyMsg "error label")
 
 checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
@@ -1138,12 +1144,15 @@ getLegalHoldEnabledInternal tid = do
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
-putLegalHoldEnabledInternal tid enabled = do
+putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
+
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal' reqmod tid enabled = do
     g <- view tsGalley
     void . put $ g
         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . json (LegalHoldTeamConfig enabled)
-        . expect2xx
+        . reqmod
 
 
 testFeatureFlags :: TestM ()
@@ -1166,12 +1175,21 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    getSSO SSODisabled
-    getSSOInternal SSODisabled
+    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
+    if not featureSSO
+      then do -- disabled
+        getSSO SSODisabled
+        getSSOInternal SSODisabled
 
-    setSSOInternal SSOEnabled
-    getSSO SSOEnabled
-    getSSOInternal SSOEnabled
+        setSSOInternal SSOEnabled
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
+
+      else do -- enabled
+        -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
+        -- much here.  (disable failure is covered in "enable/disable SSO" above.)
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
 
     -- legalhold
 
@@ -1191,6 +1209,11 @@ testFeatureFlags = do
     getLegalHold LegalHoldDisabled
     getLegalHoldInternal LegalHoldDisabled
 
-    setLegalHoldInternal LegalHoldEnabled
-    getLegalHold LegalHoldEnabled
-    getLegalHoldInternal LegalHoldEnabled
+    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
+    if featureLegalHold
+      then do
+        setLegalHoldInternal LegalHoldEnabled
+        getLegalHold LegalHoldEnabled
+        getLegalHoldInternal LegalHoldEnabled
+      else do
+        putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled

@@ -14,22 +14,22 @@ import Data.Aeson.Types (typeMismatch)
 import Data.Aeson (withText)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
-import Data.Time.Clock (DiffTime, secondsToDiffTime)
+import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
-import System.Logger.Class (Level)
+import System.Logger.Extended (Level, LogFormat)
 
 import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
-    { timeoutDiff :: DiffTime
+    { timeoutDiff :: NominalDiffTime
     } deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Read Timeout where
     readsPrec i s =
         case readsPrec i s of
-            [(x, s')] -> [(Timeout (secondsToDiffTime x), s')]
+            [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -164,6 +164,28 @@ data EmailSMSOpts = EmailSMSOpts
 
 instance FromJSON EmailSMSOpts
 
+-- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
+-- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
+-- of an attacker blocking legitimate login attempts of a user by constantly keeping the retry
+-- limit for that user exhausted with failed login attempts.
+--
+-- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
+-- password policy.
+data LimitFailedLogins = LimitFailedLogins
+    { timeout    :: !Timeout  -- ^ Time the user is blocked when retry limit is reached (in
+                              -- seconds mostly for making it easier to write a fast-ish
+                              -- integration test.)
+    , retryLimit :: !Int      -- ^ Maximum number of failed login attempts for one user.
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON LimitFailedLogins
+
+data SuspendInactiveUsers = SuspendInactiveUsers
+    { suspendTimeout :: !Timeout
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON SuspendInactiveUsers
+
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
     { privateKeys  :: !FilePath        -- ^ Private key file
@@ -241,9 +263,9 @@ data Opts = Opts
 
     -- Logging
     , logLevel      :: !Level                  -- ^ Log level (Debug, Info, etc)
-    , logNetStrings :: !Bool                   -- ^ Use netstrings encoding (see
+    , logNetStrings :: !(Maybe (Last Bool))    -- ^ Use netstrings encoding (see
                                                --   <http://cr.yp.to/proto/netstrings.txt>)
-
+    , logFormat     :: !(Maybe (Last LogFormat)) -- ^ Logformat to use
     -- TURN
     , turn          :: !TurnOpts               -- ^ TURN server settings
 
@@ -267,7 +289,14 @@ data Settings = Settings
     , setUserCookieRenewAge    :: !Integer  -- ^ Minimum age of a user cookie before
                                             --   it is renewed during token refresh
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
-    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
+    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings (not to be confused
+                                                  -- with 'LoginRetryOpts')
+    , setLimitFailedLogins     :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
+                                                             -- for m minutes after n failed
+                                                             -- logins
+    , setSuspendInactiveUsers  :: !(Maybe SuspendInactiveUsers)
+                                               -- ^ If last cookie renewal is too long ago,
+                                               -- suspend the user.
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
                                            --   field names and values), should be in sync
                                            --   with Spar
@@ -288,7 +317,7 @@ instance FromJSON Timeout where
             bounded = toBoundedInteger n :: Maybe Int64
         in pure $
            Timeout $
-           secondsToDiffTime $ maybe defaultV fromIntegral bounded
+           fromIntegral @Int $ maybe defaultV fromIntegral bounded
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
