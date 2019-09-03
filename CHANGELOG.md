@@ -1,3 +1,29 @@
+# 2019-09-03
+
+## Relevant for self-hosters
+
+- Option for limiting login retries (#830)
+- Option for suspending inactive users (#831)
+- Add json logging (#828) (#836)
+- Feature Flags in galley options. (#825)
+
+## Relevant for client developers
+
+- Specialize the error cases on conversation lookup. (#841)
+
+## Bug fixes
+
+- Fix is-team-owner logic (don't require email in all cases) (#833)
+- Typos in swagger (#826)
+
+## Internal changes
+
+- Fix flaky integration test. (#834)
+- Remove `exposed-modules` sections from all package.yaml files. (#832)
+- Remove Debug.Trace from Imports. (#838)
+- Cleanup integration tests (#839)
+
+
 # 2019-08-08 #822
 
 ## Features
