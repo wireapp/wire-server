@@ -195,6 +195,11 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
 
     clientId <- Client.addLegalHoldClientToUser uid connId prekeys lastPrekey'
 
+    -- Note: teamId could be passed in the getLegalHoldAuthToken request instead of lookup up again
+    -- Note: both 'Client.getLegalHoldToken' and 'ensureReAuthorized' check the password
+    -- Note: both 'Client.getLegalHoldToken' and this function in 'assertOnTeam' above
+    --       checks that the user is part of a binding team
+    -- FUTUREWORK: reduce double checks
     legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
     LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
     LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled

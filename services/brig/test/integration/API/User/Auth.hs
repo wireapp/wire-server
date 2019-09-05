@@ -870,10 +870,9 @@ assertSanePersistentCookie ck = do
     assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
     assertBool "domain" (cookie_domain ck /= "")
     assertBool "path" (cookie_path ck /= "")
-    let mtoken = (fromByteString (cookie_value ck)) :: Maybe (ZAuth.Token u)
-    assertBool "cookie token exists" (isJust mtoken)
-    let (Just token) = mtoken
-    assertBool "cookie token has correct type" ((token^.ZAuth.header.ZAuth.typ) == ZAuth.zauthType @u)
+    let Just (token :: ZAuth.Token u) = fromByteString (cookie_value ck)
+        tokentype = ZAuth.zauthType @u
+    assertBool "type field (t=)" $ token ^. ZAuth.header . ZAuth.typ == tokentype
 
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken
