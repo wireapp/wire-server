@@ -441,7 +441,7 @@ catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
     catchRPCException :: RPCException -> App (Either Error a)
     catchRPCException rpcE = do
       Log.err $ rpcExceptionMsg rpcE
-      pure . Left $ Error status500 "io-error" "I/O Error"
+      pure . Left $ Error status500 "io-error" (pack $ show rpcE)
 
 getTeamData :: TeamId -> Handler TeamData
 getTeamData tid = do
