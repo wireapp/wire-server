@@ -27,6 +27,7 @@ import Data.Id
 import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
+import Data.Tagged
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text (Text, unpack)
 import Network.HTTP.Types
@@ -297,7 +298,7 @@ sitemap = do
 
     -- feature flags
 
-    get "/teams/:tid/features/sso" (continue getSSOStatus) $
+    get "/teams/:tid/features/sso" (continue (liftM json . Intra.getSSOStatus)) $
         capture "tid"
 
     document "GET" "getSSOStatus" $ do
@@ -310,7 +311,7 @@ sitemap = do
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"
         .&. capture "tid"
-        .&. jsonRequest @Bool
+        .&. jsonRequest @(Tagged "sso" Bool)
 
     document "PUT" "setSSOStatus" $ do
         summary "Disable / enable SSO feature for team"
@@ -512,20 +513,14 @@ getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
 
 
-getLegalholdStatus :: TeamId -> Handler Response
-getLegalholdStatus = liftM json . Intra.getLegalholdStatus
-
-setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest (Tagged "legalhold" Bool) -> Handler Response
 setLegalholdStatus (_ ::: tid ::: req) = do
     status <- parseBody req !>> Error status400 "client-error"
     liftM json $ Intra.setLegalholdStatus tid status
 
-getSSOStatus :: TeamId -> Handler Response
-getSSOStatus = liftM json . Intra.getSSOStatus
-
-setSSOStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setSSOStatus :: JSON ::: TeamId ::: JsonRequest (Tagged "sso" Bool) -> Handler Response
 setSSOStatus (_ ::: tid ::: req) = do
-  status <- parseBody req !>> Error status400 "client-error"
+  status :: Tagged "sso" Bool <- parseBody req !>> Error status400 "client-error"
   liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response

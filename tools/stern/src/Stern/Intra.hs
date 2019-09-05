@@ -58,6 +58,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
+import Data.Tagged
 import Data.Text (Text, strip)
 import Data.Text.Lazy (pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
@@ -351,8 +352,8 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True  = POST
 
-getLegalholdStatus :: TeamId -> Handler Bool
-getLegalholdStatus tid = do
+getLegalholdStatus :: TeamId -> Handler (Tagged "legalhold" Bool)
+getLegalholdStatus tid = Tagged <$> do
     info $ msg "Getting legalhold status"
     gly <- view galley
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
@@ -367,8 +368,8 @@ getLegalholdStatus tid = do
       Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure True
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setLegalholdStatus :: TeamId -> Bool -> Handler ()
-setLegalholdStatus tid status = do
+setLegalholdStatus :: TeamId -> Tagged "legalhold" Bool -> Handler ()
+setLegalholdStatus tid (Tagged status) = do
     info $ msg "Setting legalhold status"
     gly <- view galley
     void . catchRpcErrors $ rpc' "galley" gly
@@ -382,8 +383,8 @@ setLegalholdStatus tid status = do
     toRequestBody False = LegalHoldTeamConfig LegalHoldDisabled
     toRequestBody True  = LegalHoldTeamConfig LegalHoldEnabled
 
-getSSOStatus :: TeamId -> Handler Bool
-getSSOStatus tid = do
+getSSOStatus :: TeamId -> Handler (Tagged "sso" Bool)
+getSSOStatus tid = Tagged <$> do
     info $ msg "Getting SSO status"
     gly <- view galley
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
@@ -398,8 +399,8 @@ getSSOStatus tid = do
       Right (SSOTeamConfig SSOEnabled) -> pure True
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setSSOStatus :: TeamId -> Bool -> Handler ()
-setSSOStatus tid status = do
+setSSOStatus :: TeamId -> Tagged "sso" Bool -> Handler ()
+setSSOStatus tid (Tagged status) = do
     info $ msg "Setting SSO status"
     gly <- view galley
     void . catchRpcErrors $ rpc' "galley" gly
