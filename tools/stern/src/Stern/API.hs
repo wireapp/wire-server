@@ -520,8 +520,8 @@ setLegalholdStatus (_ ::: tid ::: req) = do
 
 setSSOStatus :: JSON ::: TeamId ::: JsonRequest (Tagged "sso" Bool) -> Handler Response
 setSSOStatus (_ ::: tid ::: req) = do
-  status :: Tagged "sso" Bool <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setSSOStatus tid status
+    status :: Tagged "sso" Bool <- parseBody req !>> Error status400 "client-error"
+    liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do
