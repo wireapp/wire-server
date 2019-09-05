@@ -30,6 +30,7 @@ import Brig.User.Auth.Cookie.Limit
 import Control.Lens (view, to)
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Network.Wai (Response)
@@ -46,16 +47,16 @@ import qualified Brig.ZAuth               as ZAuth
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
 
-newCookie
-    :: UserId
+newCookie :: ZAuth.UserTokenLike u
+    => UserId
     -> CookieType
     -> Maybe CookieLabel
-    -> AppIO (Cookie ZAuth.UserToken)
-newCookie u typ label = do
+    -> AppIO (Cookie (ZAuth.Token u))
+newCookie uid typ label = do
     now <- liftIO =<< view currentTime
     tok <- if typ == PersistentCookie
-            then ZAuth.newUserToken u
-            else ZAuth.newSessionToken u
+            then ZAuth.newUserToken uid
+            else ZAuth.newSessionToken uid
     let c = Cookie
           { cookieId      = CookieId (ZAuth.userTokenRand tok)
           , cookieCreated = now
@@ -65,12 +66,12 @@ newCookie u typ label = do
           , cookieSucc    = Nothing
           , cookieValue   = tok
           }
-    DB.insertCookie u c Nothing
+    DB.insertCookie uid c Nothing
     return c
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
-nextCookie :: Cookie ZAuth.UserToken -> AppIO (Maybe (Cookie ZAuth.UserToken))
+nextCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
     s   <- view settings
     now <- liftIO =<< view currentTime
@@ -86,28 +87,28 @@ nextCookie c = do
     getNext = case cookieSucc c of
         Nothing -> renewCookie c
         Just ck -> do
-            let u = ZAuth.userTokenOf (cookieValue c)
-            trackSuperseded u (cookieId c)
-            cs <- DB.listCookies u
+            let uid = ZAuth.userTokenOf (cookieValue c)
+            trackSuperseded uid (cookieId c)
+            cs <- DB.listCookies uid
             case List.find (\x -> cookieId x == ck && persist x) cs of
                 Nothing -> renewCookie c
                 Just c' -> do
-                    t <- ZAuth.mkUserToken u (cookieIdNum ck) (cookieExpires c')
+                    t <- ZAuth.mkUserToken uid (cookieIdNum ck) (cookieExpires c')
                     return c' { cookieValue = t }
 
 -- | Renew the given cookie with a fresh token.
-renewCookie :: Cookie ZAuth.UserToken -> AppIO (Cookie ZAuth.UserToken)
+renewCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> AppIO (Cookie (ZAuth.Token u))
 renewCookie old = do
     let t = cookieValue old
-    let u = ZAuth.userTokenOf t
+    let uid = ZAuth.userTokenOf t
     -- Insert new cookie
-    new <- newCookie u (cookieType old) (cookieLabel old)
+    new <- newCookie uid (cookieType old) (cookieLabel old)
     -- Link the old cookie to the new (successor), keeping it
     -- around only for another renewal period so as not to build
     -- an ever growing chain of superseded cookies.
     let old' = old { cookieSucc = Just (cookieId new) }
     ttl <- setUserCookieRenewAge <$> view settings
-    DB.insertCookie u old' (Just (DB.TTL (fromIntegral ttl)))
+    DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
     return new
 
 -- | Whether a user has not renewed any of her cookies for longer than
@@ -134,19 +135,20 @@ mustSuspendInactiveUser uid = view (settings . to setSuspendInactiveUsers) >>= \
 
         pure mustSuspend
 
-newAccessToken :: Cookie ZAuth.UserToken -> Maybe ZAuth.AccessToken -> AppIO AccessToken
+newAccessToken :: forall u a . ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do
     t' <- case mt of
        Nothing -> ZAuth.newAccessToken (cookieValue c)
        Just  t -> ZAuth.renewAccessToken t
-    ttl <- view (zauthEnv.ZAuth.settings.ZAuth.accessTokenTimeout)
+    zSettings <- view (zauthEnv.ZAuth.settings)
+    let ttl = view (ZAuth.settingsTTL (Proxy @a)) zSettings
     return $ bearerToken (ZAuth.accessTokenOf t')
                          (toByteString t')
-                         (ZAuth.accessTokenTimeoutSeconds ttl)
+                         ttl
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: ZAuth.UserToken -> AppIO (Maybe (Cookie ZAuth.UserToken))
+lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> AppIO (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
     let user = ZAuth.userTokenOf t
     let rand = ZAuth.userTokenRand t
@@ -177,10 +179,11 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited
-    :: UserId
+    :: ZAuth.UserTokenLike t
+    => UserId
     -> CookieType
     -> Maybe CookieLabel
-    -> AppIO (Either RetryAfter (Cookie ZAuth.UserToken))
+    -> AppIO (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
     cs  <- filter ((typ ==) . cookieType) <$> DB.listCookies u
     now <- liftIO =<< view currentTime
@@ -199,8 +202,8 @@ newCookieLimited u typ label = do
 -- HTTP
 
 setResponseCookie
-    :: Monad m
-    => Cookie ZAuth.UserToken
+    :: (Monad m, ZAuth.UserTokenLike u)
+    => Cookie (ZAuth.Token u)
     -> Response
     -> AppT m Response
 setResponseCookie c r = do

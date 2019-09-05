@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
@@ -92,6 +92,7 @@ function run() {
         | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
+
 check_prerequisites
 
 run brig "" ${green}
@@ -102,10 +103,27 @@ run cannon "2" ${orange}
 run cargohold "" ${purpleish}
 run spar "" ${orange}
 
+function run_nginz() {
+    colour=$1
+    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+    (cd ${NGINZ_WORK_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+}
+
+NGINZ_PORT=""
+if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+    NGINZ_PORT=8080
+    # Note: for integration tests involving nginz,
+    # nginz and brig must share the same zauth public/private keys
+    export NGINZ_WORK_DIR="$TOP_LEVEL/services/nginz/integration-test"
+
+    run_nginz ${purpleish}
+fi
+
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
-    for port in $(seq 8082 8086) 8088; do
+    for port in $(seq 8082 8086) 8088 $NGINZ_PORT; do
         ( curl --write-out '%{http_code}' --silent --output /dev/null http://localhost:"$port"/i/status \
                 | grep -q '^20[04]' ) \
             || export all_services_are_up=""

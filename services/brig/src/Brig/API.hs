@@ -59,6 +59,7 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
+import qualified Data.ZAuth.Token              as ZAuth
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -1118,8 +1119,8 @@ createUser (_ ::: req) = do
         for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
             sendWelcomeEmail e ct ut (Just lang)
     cok <- case acc of
-        UserAccount _ Ephemeral -> lift $ Auth.newCookie (userId usr) SessionCookie (newUserLabel new)
-        UserAccount _ _         -> lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
+        UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User (userId usr) SessionCookie (newUserLabel new)
+        UserAccount _ _         -> lift $ Auth.newCookie @ZAuth.User (userId usr) PersistentCookie (newUserLabel new)
     lift $ Auth.setResponseCookie cok
         $ setStatus status201
         . addHeader "Location" (toByteString' (userId usr))

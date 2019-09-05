@@ -100,11 +100,6 @@ tests s = testGroup "Teams LegalHold API"
     -- tested
 
 {- TODO:
-    zauth/libzauth level: Allow access to legal hold service tokens
-        conversations/{cnv}/otr/messages
-        /notifications
-        /access
-        (maybe others?)
     conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
     GET /team/{tid}/members - show legal hold status of all members
 

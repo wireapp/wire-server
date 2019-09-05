@@ -2,13 +2,14 @@
 
 module Brig.API.Types
     ( module Brig.API.Types
-    , Activation          (..)
-    , ActivationError     (..)
-    , ClientDataError     (..)
-    , PropertiesDataError (..)
-    , AuthError           (..)
-    , ReAuthError         (..)
-    , RetryAfter          (..)
+    , Activation           (..)
+    , ActivationError      (..)
+    , ClientDataError      (..)
+    , PropertiesDataError  (..)
+    , AuthError            (..)
+    , ReAuthError          (..)
+    , LegalHoldLoginError  (..)
+    , RetryAfter           (..)
     , foldKey
     ) where
 
@@ -105,6 +106,12 @@ data PasswordResetError
     | InvalidPasswordResetKey
     | InvalidPasswordResetCode
     | ResetPasswordMustDiffer
+
+data LegalHoldLoginError
+    = LegalHoldLoginNoBindingTeam
+    | LegalHoldLoginLegalHoldNotEnabled
+    | LegalHoldLoginError LoginError
+    | LegalHoldReAuthError ReAuthError
 
 data LoginError
     = LoginFailed

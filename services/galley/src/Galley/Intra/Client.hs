@@ -10,7 +10,7 @@ import Imports
 import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
-import Brig.Types.User.Auth (SsoLogin(..))
+import Brig.Types.User.Auth (LegalHoldLogin(..))
 import Brig.Types.Client.Prekey (LastPrekey, Prekey)
 import Brig.Types.Client
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
@@ -23,6 +23,7 @@ import Galley.Intra.Util
 import Galley.Types (UserClients, filterClients)
 import Data.Id
 import Data.Text.Encoding
+import Data.Misc
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -52,16 +53,16 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
                 . json (LegalHoldClientRequest requesterUid lastPrekey')
                 . expect2xx
 
-getLegalHoldAuthToken :: UserId -> Galley OpaqueAuthToken
-getLegalHoldAuthToken uid = do
+getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley OpaqueAuthToken
+getLegalHoldAuthToken uid pw = do
     (brigHost, brigPort) <- brigReq
     r <- call "brig" $
            method POST
             . host brigHost
             . port brigPort
-            . path "/i/sso-login" -- ^ TODO: switch to '/i/legalhold-login'
+            . path "/i/legalhold-login"
             . queryItem "persist" "true"
-            . json (SsoLogin uid Nothing)
+            . json (LegalHoldLogin uid pw Nothing)
             . expect2xx
     case getCookieValue "zuid" r of
         Nothing -> do

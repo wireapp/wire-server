@@ -5,6 +5,7 @@ import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types.User
 import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Control.Lens (view, (^?))
@@ -155,6 +156,14 @@ getTeams u galley =
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+
+putLegalHoldEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> Galley -> Http ()
+putLegalHoldEnabled tid enabled g = do
+    void . put $ g
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+         . contentJson
+         . lbytes (encode (LegalHoldTeamConfig enabled))
+         . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = RequestBodyLBS . encode $ object

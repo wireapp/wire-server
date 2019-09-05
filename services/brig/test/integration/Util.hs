@@ -53,6 +53,7 @@ type Brig      = Request -> Request
 type Cannon    = Request -> Request
 type CargoHold = Request -> Request
 type Galley    = Request -> Request
+type Nginz     = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 
@@ -240,6 +241,13 @@ login b l t = let js = RequestBodyLBS (encode l) in post $ b
 ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
 ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
     . path "/i/sso-login"
+    . contentJson
+    . (if t == PersistentCookie then queryItem "persist" "true" else id)
+    . body js
+
+legalHoldLogin :: Brig -> LegalHoldLogin -> CookieType -> Http ResponseLBS
+legalHoldLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/legalhold-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js

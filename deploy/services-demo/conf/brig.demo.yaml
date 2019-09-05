@@ -84,6 +84,8 @@ zauth:
     sessionTokenTimeout: 604800  # 7 days
     accessTokenTimeout: 900      # 15 minutes
     providerTokenTimeout: 604800 # 7 days
+    legalHoldUserTokenTimeout: 4838400    # 56 days
+    legalHoldSessionTokenTimeout: 604800  # 7 days
 
 turn:
   serversV2: resources/turn/servers-v2.txt

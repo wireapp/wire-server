@@ -547,10 +547,15 @@ setSSOStatusInternal (tid ::: req ::: _) = do
 -- | Get legal hold status for a team.
 getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
 getLegalholdStatusInternal (tid ::: _) = do
-    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
+    legalholdEnabled <- view (options . optSettings . featureEnabled FeatureLegalHold)
+    if legalholdEnabled
+      then do
+        legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+        pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
+      else do
+        pure . json $ disabledConfig
   where
-    defConfig = LegalHoldTeamConfig LegalHoldDisabled
+    disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
