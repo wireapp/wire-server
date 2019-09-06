@@ -225,4 +225,4 @@ checkErr status mlabel = do
     const status === statusCode
     case mlabel of
       Nothing -> pure ()
-      Just label -> const (Right label) === responseJSON
+      Just label -> const (Right label) === responseJsonEither

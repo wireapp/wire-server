@@ -4,7 +4,6 @@
 module Network.Wire.Client.HTTP
     ( clientRequest
     , readBody
-    , fromBody
     , unexpected
     , mkErrorResponse
     ) where
@@ -77,8 +76,8 @@ clientRequest rq expected f = do
 -------------------------------------------------------------------------------
 -- Utilities
 
-readBody :: FromJSON a => Response BodyReader -> IO a
-readBody = consumeBody >=> fromBody
+readBody :: (Typeable a, FromJSON a) => Response BodyReader -> IO a
+readBody = consumeBody >=> responseJsonThrow (ParseError . pack)
 
 unexpected :: MonadIO m => Response a -> Text -> m b
 unexpected r = liftIO . throwIO . UnexpectedResponse (responseStatus r) (responseHeaders r)

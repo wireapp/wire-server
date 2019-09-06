@@ -5,6 +5,7 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
+import Control.Exception (ErrorCall(ErrorCall))
 import Data.Aeson
 import Test.Tasty hiding (Timeout)
 import Util
@@ -31,7 +32,7 @@ testSetGetProperty brig = do
         const 200 === statusCode
     getProperty brig (userId u) "foo" !!! do
         const 200               === statusCode
-        const (Just objectProp) === decodeBody
+        const (Just objectProp) === responseJsonThrow ErrorCall
     -- String Literals
     setProperty brig (userId u) "foo" (String "foo") !!!
         const 200 === statusCode
@@ -83,7 +84,7 @@ testListProperties' endpoint rval brig = do
         const 200 === statusCode
     get (brig . path endpoint . zUser (userId u)) !!! do
         const 200         === statusCode
-        const (Just rval) === decodeBody
+        const (Just rval) === responseJsonThrow ErrorCall
 
 testClearProperties :: Brig -> Http ()
 testClearProperties brig = do
@@ -105,12 +106,12 @@ testPropertyLimits brig = do
     -- Maximum key length
     setProperty brig (userId u) (C.replicate 257 'x') (String "y") !!! do
         const 403 === statusCode
-        const (Just "property-key-too-large") === fmap Error.label . decodeBody
+        const (Just "property-key-too-large") === fmap Error.label . responseJsonThrow ErrorCall
 
     -- Maximum value length
     setProperty brig (userId u) "foo" (String (T.replicate 513 "x")) !!! do
         const 403 === statusCode
-        const (Just "property-value-too-large") === fmap Error.label . decodeBody
+        const (Just "property-value-too-large") === fmap Error.label . responseJsonThrow ErrorCall
 
     -- Maximum count
     forM_ [1..16 :: Int] $ \i ->
@@ -118,4 +119,4 @@ testPropertyLimits brig = do
             const 200 === statusCode
     setProperty brig (userId u) "bar" (String "hello") !!! do
         const 403 === statusCode
-        const (Just "too-many-properties") === fmap Error.label . decodeBody
+        const (Just "too-many-properties") === fmap Error.label . responseJsonThrow ErrorCall

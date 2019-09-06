@@ -163,13 +163,13 @@ testEnableSSOPerTeam = do
 
     let check :: HasCallStack => String -> SSOStatus -> TestM ()
         check msg enabledness = do
-          SSOTeamConfig status <- jsonBody <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+          SSOTeamConfig status <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
           liftIO $ assertEqual msg enabledness status
 
     let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
         putSSOEnabledInternalCheckNotImplemented = do
           g <- view tsGalley
-          Wai.Error status label _ <- jsonBody <$> put (g
+          Wai.Error status label _ <- responseJsonUnsafe <$> put (g
               . paths ["i", "teams", toByteString' tid, "features", "sso"]
               . json (SSOTeamConfig SSODisabled))
           liftIO $ do
@@ -201,7 +201,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
     Util.createOne2OneTeamConv (mem1^.userId) (mem2^.userId) Nothing tid !!! do
         const 404 === statusCode
-        const "non-binding-team" === (Error.label . Util.decodeBodyMsg "error label")
+        const "non-binding-team" === (Error.label . responseJsonUnsafeWithMsg "error label")
     -- Both have a binding team but not the same team
     owner1 <- Util.randomUser
     tid1 <- Util.createTeamInternal "foo" owner1
@@ -211,7 +211,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     assertQueue "create another team" tActivate
     Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
-        const "non-binding-team-members" === (Error.label . Util.decodeBodyMsg "error label")
+        const "non-binding-team-members" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testCreateOne2OneWithMembers
     :: HasCallStack
@@ -390,7 +390,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
+        const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
     -- Mem1 is still part of Wire
     Util.ensureDeletedState False owner (mem1^.userId)
@@ -497,7 +497,7 @@ testAddTeamConvAsExternalPartner = do
         (Just "blaa") acc (Just TeamAccessRole) Nothing
       !!! do
         const 403 === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
+        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddManagedConv :: TestM ()
 testAddManagedConv = do
@@ -556,7 +556,7 @@ testAddTeamMemberToConv = do
     Util.assertNotConvMember (mem3^.userId) cid
     Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
         const 403                === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBodyMsg "error label")
+        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testUpdateTeamConv
     :: Role  -- ^ Role of the user who creates the conversation
@@ -619,7 +619,7 @@ testDeleteTeam = do
             Util.getConv u x !!! const 404 === statusCode
             Util.getSelfMember u x !!! do
                 const 200         === statusCode
-                const (Just Null) === Util.decodeBodyM
+                const (Just Null) === responseJsonMaybe
     assertQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -650,7 +650,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBodyMsg "error label")
+        const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
@@ -815,7 +815,7 @@ testUpdateTeamMember = do
         . json changeOwner
         ) !!! do
         const 403 === statusCode
-        const "no-other-owner" === (Error.label . Util.decodeBodyMsg "error label")
+        const "no-other-owner" === (Error.label . responseJsonUnsafeWithMsg "error label")
     let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
@@ -875,7 +875,7 @@ testUpdateTeamStatus = do
                . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
-        const "invalid-team-status-update" === (Error.label . Util.decodeBodyMsg "error label")
+        const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
@@ -970,7 +970,7 @@ postCryptoBroadcastMessageJson = do
             WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
                 Util.postOtrBroadcastMessage id alice ac msg !!! do
                     const 201 === statusCode
-                    assertTrue_ (eqMismatch [] [] [] . decodeBody)
+                    assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
                 -- Bob should get the broadcast (team member of alice)
                 void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
                 -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1000,14 +1000,14 @@ postCryptoBroadcastMessageJson2 = do
     let m1 = [(bob, bc, "ciphertext1")]
     Util.postOtrBroadcastMessage id alice ac m1 !!! do
         const 412 === statusCode
-        assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
+        assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . responseJsonUnsafe)
 
     -- Complete
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
         let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
         Util.postOtrBroadcastMessage id alice ac m2 !!! do
             const 201 === statusCode
-            assertTrue "No devices expected" (eqMismatch [] [] [] . decodeBody)
+            assertTrue "No devices expected" (eqMismatch [] [] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
 
@@ -1016,7 +1016,7 @@ postCryptoBroadcastMessageJson2 = do
         let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
         Util.postOtrBroadcastMessage id alice ac m3 !!! do
             const 201 === statusCode
-            assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
+            assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
         -- Alice should not get it
@@ -1028,7 +1028,7 @@ postCryptoBroadcastMessageJson2 = do
         let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
         Util.postOtrBroadcastMessage id alice ac m4 !!! do
             const 201 === statusCode
-            assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
+            assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
         -- charlie should not get it
         assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
@@ -1057,7 +1057,7 @@ postCryptoBroadcastMessageProto = do
         let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
         Util.postProtoOtrBroadcast alice ac msg !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (selfConv bob) alice ac bc ciphertext)
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1089,7 +1089,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         let msg = (bob, bc, "ciphertext") : (f <$> others)
         Util.postOtrBroadcastMessage id alice ac msg !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
         for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
@@ -1165,12 +1165,12 @@ testFeatureFlags = do
     let getSSO :: HasCallStack => SSOStatus -> TestM ()
         getSSO expected = getSSOEnabled owner tid !!! do
           statusCode === const 200
-          responseJson === const (Right (SSOTeamConfig expected))
+          responseJsonEither === const (Right (SSOTeamConfig expected))
 
         getSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         getSSOInternal expected = getSSOEnabledInternal tid !!! do
           statusCode === const 200
-          responseJson === const (Right (SSOTeamConfig expected))
+          responseJsonEither === const (Right (SSOTeamConfig expected))
 
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
@@ -1196,12 +1196,12 @@ testFeatureFlags = do
     let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
         getLegalHold expected = getLegalHoldEnabled owner tid !!! do
           statusCode === const 200
-          responseJson === const (Right (LegalHoldTeamConfig expected))
+          responseJsonEither === const (Right (LegalHoldTeamConfig expected))
 
         getLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
         getLegalHoldInternal expected = getLegalHoldEnabledInternal tid !!! do
           statusCode === const 200
-          responseJson === const (Right (LegalHoldTeamConfig expected))
+          responseJsonEither === const (Right (LegalHoldTeamConfig expected))
 
         setLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
         setLegalHoldInternal = putLegalHoldEnabledInternal tid

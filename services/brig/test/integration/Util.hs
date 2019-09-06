@@ -12,6 +12,7 @@ import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadThrow)
 import Control.Retry
@@ -22,8 +23,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
-import Data.Proxy (Proxy(..))
-import Data.Typeable (typeRep)
 import Galley.Types (Member (..))
 import Gundeck.Types.Notification
 import System.Random (randomRIO, randomIO)
@@ -36,7 +35,6 @@ import Util.AWS
 import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
-import qualified Brig.RPC as RPC
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import qualified Data.Text.Ascii as Ascii
@@ -95,13 +93,13 @@ createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
 createUser' hasPwd name brig = do
     r <- postUser' hasPwd True name True False Nothing Nothing brig <!!
            const 201 === statusCode
-    decodeBody r
+    responseJsonThrow ErrorCall r
 
 createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
 createUserWithEmail name email brig = do
     r <- postUserWithEmail True True name (Just email) False Nothing Nothing brig <!!
            const 201 === statusCode
-    decodeBody r
+    responseJsonThrow ErrorCall r
 
 createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
 createUserUntrustedEmail name brig = do
@@ -115,7 +113,7 @@ createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http Us
 createAnonUserExpiry expires name brig = do
     let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
-    decodeBody r
+    responseJsonThrow ErrorCall r
 
 requestActivationCode :: HasCallStack => Brig -> Int -> Either Email Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
@@ -196,12 +194,12 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
     rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (responseJsonThrow ErrorCall rs)
 
 postUserRegister :: Object -> Brig -> Http User
 postUserRegister payload brig = do
     rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonThrow ErrorCall rs)
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
@@ -222,7 +220,7 @@ activate brig (k, c) = get $ brig
 
 getSelfProfile :: Brig -> UserId -> Http SelfProfile
 getSelfProfile brig usr = do
-    decodeBody =<< get (brig . path "/self" . zUser usr)
+    responseJsonThrow ErrorCall =<< get (brig . path "/self" . zUser usr)
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
@@ -335,7 +333,7 @@ getPreKey brig u c = get $ brig
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley =
-    decodeBody =<<
+    responseJsonThrow ErrorCall =<<
          get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
              . zUser u
@@ -352,13 +350,13 @@ isMember g usr cnv = do
     res <- get $ g
         . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
         . expect2xx
-    case decodeBody res of
+    case responseJsonThrow ErrorCall res of
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
 getStatus brig u =
-    either (error . show) (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJson @Value) <$>
+    (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value) <$>
     get ( brig . paths ["i", "users", toByteString' u, "status"]
         . expect2xx
         )
@@ -399,7 +397,7 @@ zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
 asValue :: (HasCallStack, MonadThrow m) => Response (Maybe Lazy.ByteString) -> m Value
-asValue = decodeBody
+asValue = responseJsonThrow ErrorCall
 
 mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do
@@ -442,7 +440,7 @@ updatePhone brig uid phn = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 200 === statusCode
-            const (Just False) === fmap activatedFirst . decodeBody
+            const (Just False) === fmap activatedFirst . responseJsonThrow ErrorCall
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)

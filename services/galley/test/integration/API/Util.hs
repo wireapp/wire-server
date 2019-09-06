@@ -4,12 +4,12 @@ import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Conversion
-import Data.EitherR (fmapL)
 import Data.Id
 import Data.List1 as List1
 import Data.Misc
@@ -93,25 +93,25 @@ getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
-    pure (decodeBody r)
+    responseJsonThrow ErrorCall r
 
 getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
-    pure (decodeBody r)
+    responseJsonThrow ErrorCall r
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember usr tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
-    pure (decodeBody r)
+    responseJsonThrow ErrorCall r
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
 getTeamMemberInternal tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
-    pure (decodeBody r)
+    responseJsonThrow ErrorCall r
 
 addTeamMember :: HasCallStack => UserId -> TeamId -> TeamMember -> TestM ()
 addTeamMember usr tid mem = do
@@ -449,13 +449,13 @@ assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =
     getSelfMember u c !!! do
         const 200      === statusCode
-        const (Right u) === (fmap memId <$> decodeBodyE)
+        const (Right u) === (fmap memId <$> responseJsonEither)
 
 assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertNotConvMember u c =
     getSelfMember u c !!! do
         const 200          === statusCode
-        const (Right Null) === decodeBodyE
+        const (Right Null) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Common Assertions
@@ -485,7 +485,7 @@ assertConv :: HasCallStack
            -> TestM ConvId
 assertConv r t c s us n mt = do
     cId <- fromBS $ getHeader' "Location" r
-    let cnv = decodeBody r :: Maybe Conversation
+    let cnv = responseJsonMaybe @Conversation r
     let _self = cmSelf . cnvMembers <$> cnv
     let others = cmOthers . cnvMembers <$> cnv
     liftIO $ do
@@ -573,8 +573,8 @@ testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 testResponse status mlabel = do
     const status === statusCode
     case mlabel of
-        Just label -> responseJSON === const (Right label)
-        Nothing    -> (isLeft <$> responseJSON @TestErrorLabel) === const True
+        Just label -> responseJsonEither === const (Right label)
+        Nothing    -> (isLeft <$> responseJsonEither @TestErrorLabel) === const True
 
 newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
     deriving (Eq, Show)
@@ -586,23 +586,21 @@ instance FromJSON TestErrorLabel where
     parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
 
 decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
-decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
-    decodeBody r
+decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
-decodeConvCodeEvent r = case fromMaybe (error "Failed to parse Event") $ decodeBody r of
+decodeConvCodeEvent r = case responseJsonUnsafe r of
     (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
     _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId r = fromMaybe (error "Failed to parse conversation") $
-    cnvId <$> decodeBody r
+decodeConvId = cnvId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
-decodeConvList = convList . decodeBodyMsg "conversations"
+decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
 decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
-decodeConvIdList = convList . decodeBodyMsg "conversation-ids"
+decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -690,7 +688,7 @@ ephemeralUser = do
     name <- UUID.toText <$> liftIO nextRandom
     let p = object [ "name" .= name ]
     r <- post (b . path "/register" . json p) <!! const 201 === statusCode
-    let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
+    user <- responseJsonThrow ErrorCall r
     return $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
@@ -698,8 +696,7 @@ randomClient uid lk = do
     b <- view tsBrig
     resp <- post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
             <!! const rStatus === statusCode
-    let client = fromMaybe (error "randomClientWithType: failed to parse response")
-                           (decodeBody resp)
+    client <- responseJsonThrow ErrorCall resp
     return (clientId client)
   where
     cType = PermanentClientType
@@ -715,7 +712,7 @@ ensureDeletedState check from u = do
         . paths ["users", toByteString' u]
         . zUser from
         . zConn "conn"
-        ) !!! const (Just check) === fmap profileDeleted . decodeBody
+        ) !!! const (Just check) === fmap profileDeleted . responseJsonMaybe
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do
@@ -765,7 +762,7 @@ isMember usr cnv = do
     res <- get $ g
                . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
                . expect2xx
-    return $ isJust (decodeBody res :: Maybe Member)
+    return $ isJust (responseJsonMaybe @Member res)
 
 randomUserWithClient :: LastPrekey -> TestM (UserId, ClientId)
 randomUserWithClient lk = do

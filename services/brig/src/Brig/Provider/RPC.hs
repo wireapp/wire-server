@@ -62,6 +62,10 @@ createBot scon new = do
             409 -> throwE ServiceBotConflict
             _   -> extLogError scon rs >> throwE ServiceUnavailable
   where
+    decodeBytes ctx bs = case eitherDecode' bs of
+        Left  e -> throwM $ ParseException ctx e
+        Right a -> return a
+
     reqBuilder
         = extReq scon ["bots"]
         . method POST

@@ -261,7 +261,7 @@ specFinalizeLogin = do
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
-            responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
+            responseJsonEither sparresp `shouldBe` Right (TestErrorLabel "not-found")
 
       context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
@@ -327,7 +327,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 statusCode resp `shouldBe` 403
                 resp `shouldSatisfy` (not . checkRespBody)
                 hasSetBindCookieHeader resp `shouldBe` Left "no set-cookie header"
-                responseJSON resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
+                responseJsonEither resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
 
     describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session without authentication" $ do
@@ -490,7 +490,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
     let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-        checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
+        checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
 
         testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetPutDelete whichone = do
@@ -700,10 +700,10 @@ specCRUDIdentityProvider = do
             statusCode resp1 `shouldBe` 201
 
             statusCode resp2 `shouldBe` 400
-            responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+            responseJsonEither resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
             statusCode resp3 `shouldBe` 400
-            responseJSON resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+            responseJsonEither resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "client is owner with email" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do

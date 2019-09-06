@@ -8,6 +8,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.Activation
 import Brig.Types.Connection
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens (view, (^?))
 import Data.Aeson
 import Data.Aeson.Lens
@@ -49,7 +50,7 @@ createUserWithTeam brig galley = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    user <- decodeBody =<< post (brig . path "/i/users" . contentJson . body p)
+    user <- responseJsonThrow ErrorCall =<< post (brig . path "/i/users" . contentJson . body p)
     let Just tid = userTeam user
     (team:_) <- view Team.teamListTeams <$> getTeams (userId user) galley
     liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
@@ -74,13 +75,13 @@ inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- decodeBody =<< postInvitation brig tid u invite
+    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"
                              . contentJson
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
-    let Just invitee = decodeBody rspInvitee
+    let Just invitee = responseJsonThrow ErrorCall rspInvitee
     liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
     selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
     liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
@@ -147,7 +148,7 @@ deleteTeam g tid u = do
 
 getTeams :: UserId -> Galley -> Http Team.TeamList
 getTeams u galley =
-    decodeBody =<<
+    responseJsonThrow ErrorCall =<<
          get ( galley
              . paths ["teams"]
              . zAuthAccess u "conn"
@@ -196,7 +197,7 @@ register' e t c brig = post (brig . path "/register" . contentJson . body (
 
 listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
 listConnections u brig = do
-    decodeBody =<<
+    responseJsonThrow ErrorCall =<<
          get ( brig
              . path "connections"
              . zUser u
@@ -228,7 +229,7 @@ unsuspendTeam brig t = post $ brig
 
 getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t =
-    decodeBody =<< get (galley . paths ["i", "teams", toByteString' t])
+    responseJsonThrow ErrorCall =<< get (galley . paths ["i", "teams", toByteString' t])
 
 getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
@@ -248,11 +249,11 @@ assertNoInvitationCode brig t i =
         . queryItem "invitation_id" (toByteString' i)
         ) !!! do
           const 400 === statusCode
-          const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
+          const (Just "invalid-invitation-code") === fmap Error.label . responseJsonThrow ErrorCall
 
 isActivatedUser :: UserId -> Brig -> Http Bool
 isActivatedUser uid brig = do
     resp <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid) . expect2xx)
-    pure $ case decodeBody @[User] resp of
+    pure $ case responseJsonMaybe @[User] resp of
         Just (_:_) -> True
         _ -> False
