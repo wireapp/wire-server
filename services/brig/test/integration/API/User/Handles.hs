@@ -5,7 +5,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^?!))
 import Data.Aeson
 import Data.Aeson.Lens
@@ -42,7 +41,7 @@ testHandleUpdate brig cannon = do
         let upd = RequestBodyLBS . encode $ HandleUpdate h
         put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body upd) !!! do
             const 400 === statusCode
-            const (Just "invalid-handle") === fmap Error.label . responseJsonThrow ErrorCall
+            const (Just "invalid-handle") === fmap Error.label . responseJsonMaybe
 
     -- Claim a valid handle & receive notification
     hdl <- randomHandle
@@ -67,7 +66,7 @@ testHandleUpdate brig cannon = do
     uid2 <- userId <$> randomUser brig
     put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update) !!! do
         const 409 === statusCode
-        const (Just "handle-exists") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "handle-exists") === fmap Error.label . responseJsonMaybe
 
     -- The owner appears by that handle in search
     Search.refreshIndex brig
@@ -113,7 +112,7 @@ testHandleRace brig = do
         let update = RequestBodyLBS . encode $ HandleUpdate hdl
         void $ flip mapConcurrently us $ \u ->
             put (brig . path "/self/handle" . contentJson . zUser u . zConn "c" . body update)
-        ps <- forM us $ \u -> responseJsonThrow ErrorCall <$> get (brig . path "/self" . zUser u)
+        ps <- forM us $ \u -> responseJsonMaybe <$> get (brig . path "/self" . zUser u)
         let owners = catMaybes $ filter (maybe False ((== Just (Handle hdl)) . userHandle)) ps
         liftIO $ assertBool "More than one owner of a handle" (length owners <= 1)
 
@@ -134,7 +133,7 @@ testHandleQuery brig = do
     -- Query the updated profile
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just (Handle hdl)) === (>>= userHandle) . responseJsonThrow ErrorCall
+        const (Just (Handle hdl)) === (>>= userHandle) . responseJsonMaybe
 
     -- Query for the handle availability (must be taken)
     Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid) !!!
@@ -143,14 +142,14 @@ testHandleQuery brig = do
     -- Query user profiles by handles
     get (brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
         const 200 === statusCode
-        const (Just (Handle hdl)) === (>>= (listToMaybe >=> userHandle)) . responseJsonThrow ErrorCall
+        const (Just (Handle hdl)) === (>>= (listToMaybe >=> userHandle)) . responseJsonMaybe
 
     -- Bulk availability check
     hdl2 <- randomHandle
     hdl3 <- randomHandle
     checkHandles brig uid [hdl, hdl2, "InVa£iD", hdl3] 1 !!! do
         const 200 === statusCode
-        const (Just [hdl2]) === responseJsonThrow ErrorCall
+        const (Just [hdl2]) === responseJsonMaybe
     checkHandles brig uid [hdl2, hdl, hdl3] 3 !!! do
         const 200 === statusCode
-        const (Just [hdl2, hdl3]) === responseJsonThrow ErrorCall
+        const (Just [hdl2, hdl3]) === responseJsonMaybe

@@ -91,7 +91,7 @@ testUpdateEvents brig galley cannon = do
                        . contentJson
                        . body (accept inviteeEmail inviteeCode))
                   <!! const 201 === statusCode
-    let Just bob = userId <$> responseJsonThrow ErrorCall rsp2
+    let Just bob = userId <$> responseJsonMaybe rsp2
 
     -- ensure Alice and Bob are not connected
     void $ getConnection brig bob alice <!! const 404 === statusCode
@@ -130,7 +130,7 @@ testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
     --       invitations have likely expired already and this test will actually _fail_
     postInvitation brig tid inviter (invite e) !!! do
         const 403 === statusCode
-        const (Just "too-many-team-invitations") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
 
 -- | Admins can invite external partners, but not owners.
 testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
@@ -144,7 +144,7 @@ testInvitationRoles brig galley = do
                                . contentJson
                                . body (accept invemail inviteeCode))
                           <!! const 201 === statusCode
-            let Just invitee = userId <$> responseJsonThrow ErrorCall rsp
+            let Just invitee = userId <$> responseJsonMaybe rsp
             pure invitee
 
     -- owner creates a member alice.
@@ -172,7 +172,7 @@ testInvitationRoles brig galley = do
         let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just Team.RoleOwner)
         postInvitation brig tid alice invite !!! do
             const 403 === statusCode
-            const (Just "insufficient-permissions") === fmap Error.label . responseJsonThrow ErrorCall
+            const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
@@ -186,7 +186,7 @@ testInvitationEmailAccepted brig galley = do
                        . contentJson
                        . body (accept inviteeEmail inviteeCode))
                   <!! const 201 === statusCode
-    let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonThrow ErrorCall rsp2
+    let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
     let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
     liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
     -- Verify that the invited user is active
@@ -259,7 +259,7 @@ testInvitationNoPermission brig galley = do
     let invite = InvitationRequest email (Name "Bob") Nothing Nothing
     postInvitation brig tid alice invite !!! do
         const 403 === statusCode
-        const (Just "insufficient-permissions") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
 
 testTeamNoPassword :: Brig -> Http ()
 testTeamNoPassword brig = do
@@ -289,7 +289,7 @@ testInvitationCodeExists brig galley = do
     let invite email_ = InvitationRequest email_ (Name "Bob") Nothing Nothing
     rsp   <- postInvitation brig tid uid (invite email) <!! const 201 === statusCode
 
-    let Just invId = inInvitation <$> responseJsonThrow ErrorCall rsp
+    let Just invId = inInvitation <$> responseJsonMaybe rsp
     Just invCode <- getInvitationCode brig tid invId
 
     post (brig . path "/register" . contentJson . body (accept email invCode)) !!!
@@ -297,12 +297,12 @@ testInvitationCodeExists brig galley = do
 
     post (brig . path "/register" . contentJson . body (accept email invCode)) !!! do
         const 409                 === statusCode
-        const (Just "key-exists") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
     email2 <- randomEmail
     post (brig . path "/register" . contentJson . body (accept email2 invCode)) !!! do
         const 400 === statusCode
-        const (Just "invalid-invitation-code") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 testInvitationInvalidCode :: Brig -> Http ()
 testInvitationInvalidCode brig = do
@@ -311,19 +311,19 @@ testInvitationInvalidCode brig = do
     let code1 = InvitationCode (Ascii.unsafeFromText "8z6JVcO1o4o¿9kFeb4Y3N-BmhIjH6b33")
     post (brig . path "/register" . contentJson . body (accept email code1)) !!! do
         const 400 === statusCode
-        const (Just "bad-request") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "bad-request") === fmap Error.label . responseJsonMaybe
     -- Syntactically valid but semantically invalid
     code2 <- liftIO $ InvitationCode . Ascii.encodeBase64Url <$> randomBytes 24
     post (brig . path "/register" . contentJson . body (accept email code2)) !!! do
         const 400 === statusCode
-        const (Just "invalid-invitation-code") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 testInvitationCodeNoIdentity :: Brig -> Http ()
 testInvitationCodeNoIdentity brig = do
     uid <- liftIO $ Id <$> UUID.nextRandom
     post (brig . path "/register" . contentJson . body (payload uid)) !!! do
         const 403                       === statusCode
-        const (Just "missing-identity") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "missing-identity") === fmap Error.label . responseJsonMaybe
   where
     payload u = RequestBodyLBS . encode $ object
         [ "name"      .= ("Bob" :: Text)
@@ -367,7 +367,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
                . contentJson
                . body (accept em inviteeCode)) !!! do
         const 403 === statusCode
-        const (Just "too-many-team-members") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "too-many-team-members") === fmap Error.label . responseJsonMaybe
 
 testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
@@ -389,7 +389,7 @@ testInvitationPaging brig galley = do
             let range = queryRange (toByteString' <$> start) (Just step)
             r <- get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range) <!!
                 const 200 === statusCode
-            let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> responseJsonThrow ErrorCall r
+            let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> responseJsonMaybe r
             liftIO $ assertEqual "page size" actualPageLen (length invs)
             liftIO $ assertEqual "has more" (count' < total) more
             liftIO $ validateInv `mapM_` invs
@@ -466,7 +466,7 @@ testSuspendTeam brig galley = do
                        . contentJson
                        . body (accept inviteeEmail inviteeCode))
                   <!! const 201 === statusCode
-    let Just (invitee, Just email) = (userId &&& userEmail) <$> responseJsonThrow ErrorCall rsp2
+    let Just (invitee, Just email) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
 
     -- invite invitee2 (don't register)
     let invite2 = InvitationRequest inviteeEmail2 (Name "Bob") Nothing Nothing
@@ -478,7 +478,7 @@ testSuspendTeam brig galley = do
     -- login fails
     login brig (defEmailLogin email) PersistentCookie !!! do
        const 403 === statusCode
-       const (Just "suspended") === fmap Error.label . responseJsonThrow ErrorCall
+       const (Just "suspended") === fmap Error.label . responseJsonMaybe
     -- check status
     chkStatus brig inviter Suspended
     chkStatus brig invitee Suspended
@@ -497,13 +497,13 @@ testDeleteTeamUser brig galley = do
     -- Cannot delete the user since it will make the team orphan
     deleteUser creator (Just defPassword) brig !!! do
         const 403 === statusCode
-        const (Just "no-other-owner") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
     -- We need to invite another user to a full permission member
     invitee <- userId <$> inviteAndRegisterUser creator tid brig
     -- Still cannot delete, need to make this a full permission member
     deleteUser creator (Just defPassword) brig !!! do
         const 403 === statusCode
-        const (Just "no-other-owner") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
     -- Let's promote the other user
     updatePermissions creator tid (invitee, Team.fullPermissions) galley
     -- Now the creator can delete the account
@@ -520,7 +520,7 @@ testDeleteTeamUser brig galley = do
 
     deleteUser invitee (Just defPassword) brig !!! do
         const 403 === statusCode
-        const (Just "no-other-owner") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
     -- Ensure internal endpoints are also exercised
     deleteUserInternal invitee brig !!! const 202 === statusCode
     -- Eventually the user will be deleted, leaving the team orphan
@@ -549,7 +549,7 @@ testConnectionSameTeam brig galley = do
 
     postConnection brig creatorA inviteeA !!! do
         const 403 === statusCode
-        const (Just "same-binding-team-users") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "same-binding-team-users") === fmap Error.label . responseJsonMaybe
 
     creatorB <- userId <$> randomUser brig
 
@@ -575,7 +575,7 @@ testNonSearchableDefault brig galley = do
       Nothing -> liftIO $ assertFailure "activation key/code not found"
       Just kc -> activate brig kc !!! const 200 === statusCode
 
-    let Just creator = responseJsonThrow ErrorCall rsp
+    let Just creator = responseJsonMaybe rsp
     [team]  <- view Team.teamListTeams <$> getTeams (userId creator) galley
     let tid = view Team.teamId team
     invitee <- inviteAndRegisterUser (userId creator) tid brig
@@ -619,10 +619,10 @@ testCreateUserInternalSSO brig galley = do
     -- creating user with sso_id, team_id is ok
     resp <- postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
-        const (Just ssoid) === (userSSOId . selfUser <=< responseJsonThrow ErrorCall)
+        const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
 
     -- self profile contains sso id
-    let Just uid = userId <$> responseJsonThrow ErrorCall resp
+    let Just uid = userId <$> responseJsonMaybe resp
     profile <- getSelfProfile brig uid
     liftIO $ assertEqual "self profile user identity mismatch"
         (Just ssoid)
@@ -643,7 +643,7 @@ testDeleteUserSSO brig galley = do
     (creator, tid) <- createUserWithTeam brig galley
     let ssoid = UserSSOId "nil" "nil"
         mkuser :: Bool -> Http (Maybe User)
-        mkuser withemail = responseJsonThrow ErrorCall <$>
+        mkuser withemail = responseJsonMaybe <$>
             (postUser "dummy" withemail False (Just ssoid) (Just tid) brig
              <!! const 201 === statusCode)
 

@@ -81,7 +81,7 @@ inviteAndRegisterUser u tid brig = do
                              . contentJson
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
-    let Just invitee = responseJsonThrow ErrorCall rspInvitee
+    let Just invitee = responseJsonMaybe rspInvitee
     liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
     selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
     liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
@@ -249,7 +249,7 @@ assertNoInvitationCode brig t i =
         . queryItem "invitation_id" (toByteString' i)
         ) !!! do
           const 400 === statusCode
-          const (Just "invalid-invitation-code") === fmap Error.label . responseJsonThrow ErrorCall
+          const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 isActivatedUser :: UserId -> Brig -> Http Bool
 isActivatedUser uid brig = do

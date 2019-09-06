@@ -64,7 +64,7 @@ testAddGetClient hasPwd brig cannon = do
         return c
     getClient brig uid (clientId c) !!! do
         const 200      === statusCode
-        const (Just c) === responseJsonThrow ErrorCall
+        const (Just c) === responseJsonMaybe
 
 testClientReauthentication :: Brig -> Http ()
 testClientReauthentication brig = do
@@ -86,7 +86,7 @@ testClientReauthentication brig = do
     -- Adding a second client requires reauthentication, if a password is set.
     addClient brig uid payload2 !!! do
         const 403 === statusCode
-        const (Just "missing-auth") === (fmap Error.label . responseJsonThrow ErrorCall)
+        const (Just "missing-auth") === (fmap Error.label . responseJsonMaybe)
     -- Removing a client requires reauthentication, if a password is set.
     deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
 
@@ -109,16 +109,16 @@ testListClients brig = do
     let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
     let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
     let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
-    c1 <- responseJsonThrow ErrorCall <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
-    c2 <- responseJsonThrow ErrorCall <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
-    c3 <- responseJsonThrow ErrorCall <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
+    c1 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+    c2 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+    c3 <- responseJsonMaybe <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
     let cs = sortBy (compare `on` clientId) $ catMaybes [c1, c2, c3]
     get ( brig
         . path "clients"
         . zUser uid
         ) !!! do
             const 200       === statusCode
-            const (Just cs) === responseJsonThrow ErrorCall
+            const (Just cs) === responseJsonMaybe
 
 testListPrekeyIds :: Brig -> Http ()
 testListPrekeyIds brig = do
@@ -131,7 +131,7 @@ testListPrekeyIds brig = do
         . zUser uid
         ) !!! do
             const 200        === statusCode
-            const (Just pks) === fmap sort . responseJsonThrow ErrorCall
+            const (Just pks) === fmap sort . responseJsonMaybe
 
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
@@ -141,13 +141,13 @@ testGetUserPrekeys brig = do
     let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
         const 200 === statusCode
-        const (Just $ PrekeyBundle uid [cpk]) === responseJsonThrow ErrorCall
+        const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
     -- prekeys are deleted when retrieved, except the last one
     let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
     replicateM_ 2 $ get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
         const 200 === statusCode
-        const (Just $ PrekeyBundle uid [lpk]) === responseJsonThrow ErrorCall
+        const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
@@ -156,7 +156,7 @@ testGetClientPrekey brig = do
     c <- responseJsonThrow ErrorCall =<< addClient brig uid new
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonThrow ErrorCall
+        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
 testTooManyClients :: Brig -> Http ()
 testTooManyClients brig = do
@@ -177,7 +177,7 @@ testTooManyClients brig = do
 
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
         const 403 === statusCode
-        const (Just "too-many-clients") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -234,13 +234,13 @@ testUpdateClient brig = do
     c <- responseJsonThrow ErrorCall =<< addClient brig uid clt
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonThrow ErrorCall
+        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
     getClient brig uid (clientId c) !!! do
         const 200                   === statusCode
-        const (Just "Test Device")  === (clientLabel <=< responseJsonThrow ErrorCall)
-        const (Just PhoneClient)    === (clientClass <=< responseJsonThrow ErrorCall)
-        const (Just "featurephone") === (clientModel <=< responseJsonThrow ErrorCall)
+        const (Just "Test Device")  === (clientLabel <=< responseJsonMaybe)
+        const (Just PhoneClient)    === (clientClass <=< responseJsonMaybe)
+        const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
 
     let newPrekey = somePrekeys !! 2
     let update    = UpdateClient [newPrekey] Nothing (Just "label")
@@ -254,18 +254,18 @@ testUpdateClient brig = do
 
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonThrow ErrorCall
+        const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
 
     -- check if label has been updated
     getClient brig uid (clientId c) !!! do
         const 200            === statusCode
-        const (Just "label") === (clientLabel <=< responseJsonThrow ErrorCall)
+        const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
     -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
     get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
         const 200                 === statusCode
-        const (Just $ clientId c) === (fmap pubClientId . responseJsonThrow ErrorCall)
-        const (Just PhoneClient)  === (pubClientClass <=< responseJsonThrow ErrorCall)
+        const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
+        const (Just PhoneClient)  === (pubClientClass <=< responseJsonMaybe)
         const Nothing             === (preview (key "label") <=< responseJsonMaybe @Value)
 
     let update' = UpdateClient [] Nothing Nothing
@@ -281,7 +281,7 @@ testUpdateClient brig = do
     -- check if label is still present
     getClient brig uid (clientId c) !!! do
         const 200            === statusCode
-        const (Just "label") === (clientLabel <=< responseJsonThrow ErrorCall)
+        const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
@@ -328,7 +328,7 @@ testPreKeyRace brig = do
     c <- responseJsonThrow ErrorCall =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
     pks' <- flip mapConcurrently pks $ \_ -> do
         rs <- getPreKey brig uid (clientId c) <!! const 200 === statusCode
-        return $ prekeyId . prekeyData <$> responseJsonThrow ErrorCall rs
+        return $ prekeyId . prekeyData <$> responseJsonMaybe rs
     -- We should not hand out regular prekeys more than once (i.e. at most once).
     let actual = catMaybes pks'
     liftIO $ assertEqual "insufficient prekeys" (length pks) (length actual)

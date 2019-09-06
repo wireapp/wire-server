@@ -14,7 +14,6 @@ import qualified Brig.Options as Opt
 
 import Bilge.Assert
 import Brig.Types
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Arrow ((&&&))
 import Data.Aeson
 import Data.Aeson.Lens
@@ -105,7 +104,7 @@ testUsersEmailVisibleIffExpected opts brig galley visibilitySetting = do
             const 200 === statusCode
             const (Just expected) === result
   where
-    result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonThrow ErrorCall r
+    result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
 testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> Opt.EmailVisibility -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
@@ -132,4 +131,4 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
                 const expectedEmail === emailResult
   where
     emailResult :: Response (Maybe LByteString) -> Maybe Email
-    emailResult r = responseJsonThrow ErrorCall r >>= jsonField "email"
+    emailResult r = responseJsonMaybe r >>= jsonField "email"

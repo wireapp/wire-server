@@ -184,7 +184,7 @@ testUpdateProvider db brig = do
             }
     updateProvider brig pid upd !!! const 200 === statusCode
     _rs <- getProvider brig pid <!! const 200 === statusCode
-    let Just prv' = responseJsonThrow ErrorCall _rs
+    let Just prv' = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "name" newName (providerName prv')
         assertEqual "url" newUrl (providerUrl prv')
@@ -300,11 +300,11 @@ testAddGetService config db brig = do
     -- Add service
     new <- defNewService config
     _rs <- addService brig pid new <!! const 201 === statusCode
-    let Just srs = responseJsonThrow ErrorCall _rs
+    let Just srs = responseJsonMaybe _rs
     let sid = rsNewServiceId srs
     -- Get service definition as seen by provider
     _rs <- getService brig pid sid <!! const 200 === statusCode
-    let Just svc = responseJsonThrow ErrorCall _rs
+    let Just svc = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "auth token" (List1.singleton <$> rsNewServiceToken srs) (Just (serviceTokens svc))
         assertEqual "name" defServiceName (serviceName svc)
@@ -317,7 +317,7 @@ testAddGetService config db brig = do
     -- Get public service profile
     uid <- randomId
     _rs <- getServiceProfile brig uid pid sid <!! const 200 === statusCode
-    let Just svp = responseJsonThrow ErrorCall _rs
+    let Just svp = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "id" (serviceId svc) (serviceProfileId svp)
         assertEqual "provider" pid (serviceProfileProvider svp)
@@ -351,7 +351,7 @@ testUpdateService config db brig = do
             }
     updateService brig pid sid upd !!! const 200 === statusCode
     _rs <- getService brig pid sid <!! const 200 === statusCode
-    let Just _svc = responseJsonThrow ErrorCall _rs
+    let Just _svc = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "name" newName (serviceName _svc)
         assertEqual "description" newDescr (serviceDescr _svc)
@@ -363,7 +363,7 @@ testUpdateService config db brig = do
         let u = upd { updateServiceTags = Just (unsafeRange t) }
         updateService brig pid sid u !!! const 200 === statusCode
         _rs <- getService brig pid sid <!! const 200 === statusCode
-        let Just _svc = responseJsonThrow ErrorCall _rs
+        let Just _svc = responseJsonMaybe _rs
         liftIO $ assertEqual "tags" t (serviceTags _svc)
 
 testUpdateServiceConn :: Config -> DB.ClientState -> Brig -> Http ()
@@ -387,7 +387,7 @@ testUpdateServiceConn config db brig = do
     updateServiceConn brig pid sid upd !!!
         const 200 === statusCode
     _rs <- getService brig pid sid <!! const 200 === statusCode
-    let Just _svc = responseJsonThrow ErrorCall _rs
+    let Just _svc = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "url" newUrl (serviceUrl _svc)
         assertEqual "keys" newKeys (fmap serviceKeyPEM (serviceKeys _svc))
@@ -526,7 +526,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
 
     -- Create conversation
     _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
-    let Just cnv = responseJsonThrow ErrorCall _rs
+    let Just cnv = responseJsonMaybe _rs
     let cid = cnvId cnv
 
     testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
@@ -541,11 +541,11 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
     let uid = userId usr
     let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
-    let Just uc = clientId <$> responseJsonThrow ErrorCall _rs
+    let Just uc = clientId <$> responseJsonMaybe _rs
 
     -- Create conversation
     _rs <- createConv galley uid [] <!! const 201 === statusCode
-    let Just cid = cnvId <$> responseJsonThrow ErrorCall _rs
+    let Just cid = cnvId <$> responseJsonMaybe _rs
 
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
@@ -567,7 +567,7 @@ testBadFingerprint config db brig galley _cannon = do
         _rs <- addClient brig uid new <!! const 201 === statusCode
         -- Create conversation
         _rs <- createConv galley uid [] <!! const 201 === statusCode
-        let Just cid = cnvId <$> responseJsonThrow ErrorCall _rs
+        let Just cid = cnvId <$> responseJsonMaybe _rs
         -- Try to add a bot and observe failure
         addBot brig uid pid sid cid !!!
             const 502 === statusCode
@@ -580,7 +580,7 @@ testAddRemoveBotTeam config db brig galley cannon = withTestService config db br
     cidFail <- Team.createManagedConv galley tid uid1 [uid2] Nothing
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
-        const (Just "invalid-conversation") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
     testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
 
 testBotTeamOnlyConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -592,7 +592,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     setAccessRole uid1 cid TeamAccessRole
     addBot brig uid1 pid sid cid !!! do
         const 403 === statusCode
-        const (Just "invalid-conversation") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
     -- Make the conversation allowed for guests and add the bot successfully
     setAccessRole uid1 cid NonActivatedAccessRole
     bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
@@ -621,7 +621,7 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
     (uid, tid) <- Team.createUserWithTeam brig galley
     let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
-    let Just uc = clientId <$> responseJsonThrow ErrorCall _rs
+    let Just uc = clientId <$> responseJsonMaybe _rs
 
     -- Whitelist the bot
     whitelistService brig uid tid pid sid
@@ -688,7 +688,7 @@ testWhitelistSearchPermissions _config _db brig galley = do
     nonMember <- userId <$> randomUser brig
     listTeamServiceProfilesByPrefix brig nonMember tid Nothing True 20 !!! do
         const 403 === statusCode
-        const (Just "insufficient-permissions") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
     -- Check that team members with no permissions can search
     member <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
     listTeamServiceProfilesByPrefix brig member tid Nothing True 20 !!!
@@ -710,12 +710,12 @@ testWhitelistUpdatePermissions config db brig galley = do
     _uid <- userId <$> randomUser brig
     updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
         const 403 === statusCode
-        const (Just "insufficient-permissions") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
     -- Check that a member who's not a team admin also can't add it to the whitelist
     _uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
     updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
         const 403 === statusCode
-        const (Just "insufficient-permissions") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
     -- Check that a team admin can add and remove from the whitelist
     whitelistService brig admin tid pid sid
     dewhitelistService brig admin tid pid sid
@@ -844,7 +844,7 @@ testWhitelistBasic config db brig galley =
     cid <- Team.createTeamConv galley tid owner [] Nothing
     addBot brig owner pid sid cid !!! do
         const 403 === statusCode
-        const (Just "service-not-whitelisted") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "service-not-whitelisted") === fmap Error.label . responseJsonMaybe
     -- Check that after whitelisting the service, it can be added to the conversation
     whitelistService brig owner tid pid sid
     bid <- fmap rsAddBotId . responseJsonThrow ErrorCall =<<
@@ -856,7 +856,7 @@ testWhitelistBasic config db brig galley =
     dewhitelistService brig owner tid pid sid
     addBot brig owner pid sid cid !!! do
         const 403 === statusCode
-        const (Just "service-not-whitelisted") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "service-not-whitelisted") === fmap Error.label . responseJsonMaybe
     -- Check that a disabled service can be whitelisted
     disableService brig pid sid
     whitelistService brig owner tid pid sid
@@ -1295,7 +1295,7 @@ testRegisterProvider db' brig = do
     _rs <- registerProvider brig new <!!
         const 201 === statusCode
 
-    let Just npr = responseJsonThrow ErrorCall _rs :: Maybe NewProviderResponse
+    let Just npr = responseJsonMaybe _rs :: Maybe NewProviderResponse
     -- Since a password was given, none should have been generated
     liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
     let pid = rsNewProviderId npr
@@ -1303,7 +1303,7 @@ testRegisterProvider db' brig = do
     -- No login possible directly after registration
     loginProvider brig email defProviderPassword !!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "invalid-credentials") === fmap Error.label . responseJsonMaybe
 
     -- Activate email
     case db' of
@@ -1317,7 +1317,7 @@ testRegisterProvider db' brig = do
             _rs <- getProviderActivationCodeInternal brig email <!!
                 const 200 === statusCode
 
-            let Just pair = responseJsonThrow ErrorCall _rs :: Maybe Code.KeyValuePair
+            let Just pair = responseJsonMaybe _rs :: Maybe Code.KeyValuePair
             activateProvider brig (Code.kcKey pair) (Code.kcCode pair) !!!
                 const 200 === statusCode
 
@@ -1328,15 +1328,15 @@ testRegisterProvider db' brig = do
     -- Email address is now taken
     registerProvider brig new !!! do
         const 409 === statusCode
-        const (Just "email-exists") === fmap Error.label . responseJsonThrow ErrorCall
+        const (Just "email-exists") === fmap Error.label . responseJsonMaybe
 
     -- Retrieve full account and public profile
     -- (these are identical for now).
     uid <- randomId
     _rs <- getProvider brig pid <!! const 200 === statusCode
-    let Just p  = responseJsonThrow ErrorCall _rs
+    let Just p  = responseJsonMaybe _rs
     _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
-    let Just pp = responseJsonThrow ErrorCall _rs
+    let Just pp = responseJsonMaybe _rs
     -- When updating the Provider dataype, one _must_ remember to also add
     -- an extra check in this integration test.
     liftIO $ do
@@ -1355,23 +1355,23 @@ randomProvider db brig = do
     let new = defNewProvider email
     _rs <- registerProvider brig new <!!
         const 201 === statusCode
-    let Just pid = rsNewProviderId <$> responseJsonThrow ErrorCall _rs
+    let Just pid = rsNewProviderId <$> responseJsonMaybe _rs
     -- Activate (auto-approval)
     Just vcode <- lookupCode db gen Code.IdentityVerification
     activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
         const 200 === statusCode
     -- Fetch
     _rs <- getProvider brig pid <!! const 200 === statusCode
-    let Just prv = responseJsonThrow ErrorCall _rs
+    let Just prv = responseJsonMaybe _rs
     return prv
 
 addGetService :: HasCallStack => Brig -> ProviderId -> NewService -> Http Service
 addGetService brig pid new = do
     _rs <- addService brig pid new <!! const 201 === statusCode
-    let Just srs = responseJsonThrow ErrorCall _rs
+    let Just srs = responseJsonMaybe _rs
     let sid = rsNewServiceId srs
     _rs <- getService brig pid sid <!! const 200 === statusCode
-    let Just svc = responseJsonThrow ErrorCall _rs
+    let Just svc = responseJsonMaybe _rs
     return svc
 
 enableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
@@ -1775,7 +1775,7 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
     -- including the bot itself.
     (rs, bot) <- WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
         _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
-        let Just rs = responseJsonThrow ErrorCall _rs
+        let Just rs = responseJsonMaybe _rs
         let bid = rsAddBotId rs
         bot <- svcAssertBotCreated buf bid cid
         liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
@@ -1808,7 +1808,7 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
 
     -- Check that the bot user exists and can be identified as a bot
     _rs <- getUser brig uid1 buid <!! const 200 === statusCode
-    let Just bp = responseJsonThrow ErrorCall _rs
+    let Just bp = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "service" (Just sref) (profileService bp)
         assertEqual "name" defServiceName (profileName bp)
@@ -1819,14 +1819,14 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
     let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
     getPreKey brig buid (rsAddBotClient rs) !!! do
         const 200 === statusCode
-        const (Just True) === fmap isBotPrekey . responseJsonThrow ErrorCall
+        const (Just True) === fmap isBotPrekey . responseJsonMaybe
 
     -- Remove the bot and check that everyone is notified via an event,
     -- including the bot itself.
     WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
         -- 200 response with event on success
         _rs <- removeBot brig uid2 cid bid <!! const 200 === statusCode
-        let Just ev = rsRemoveBotEvent <$> responseJsonThrow ErrorCall _rs
+        let Just ev = rsRemoveBotEvent <$> responseJsonMaybe _rs
         liftIO $ assertEqual "bot event" MemberLeave (evtType ev)
         -- Events for both users
         forM_ [ws1, ws2] $ \ws -> wsAssertMemberLeave ws cid uid2 [buid]
@@ -1852,7 +1852,7 @@ testMessageBotUtil :: UserId
 testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     -- Add bot to conversation
     _rs <- addBot brig uid pid sid cid <!! const 201 === statusCode
-    let Just ars = responseJsonThrow ErrorCall _rs
+    let Just ars = responseJsonMaybe _rs
     let bid  = rsAddBotId ars
     let buid = botUserId bid
     let bc   = rsAddBotClient ars
@@ -1861,7 +1861,7 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
 
     -- The bot can now fetch the conversation
     _rs <- getBotConv galley bid cid <!! const 200 === statusCode
-    let Just bcnv = responseJsonThrow ErrorCall _rs
+    let Just bcnv = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "id" cid (bcnv^.Ext.botConvId)
         assertEqual "members" [OtherMember uid Nothing] (bcnv^.Ext.botConvMembers)
@@ -1934,7 +1934,7 @@ addBotConv brig cannon uid1 uid2 cid pid sid buf =
     -- including the bot itself.
     WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
         _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
-        let Just rs = responseJsonThrow ErrorCall _rs
+        let Just rs = responseJsonMaybe _rs
         let bid = rsAddBotId rs
         bot <- svcAssertBotCreated buf bid cid
         liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)

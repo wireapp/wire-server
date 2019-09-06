@@ -68,7 +68,7 @@ createRandomPhoneUser brig = do
     -- check new phone
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (userPhone <=< responseJsonThrow ErrorCall)
+        const (Just phn) === (userPhone <=< responseJsonMaybe)
 
     return (uid, phn)
 
@@ -87,13 +87,13 @@ activateEmail brig email = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 200 === statusCode
-            const(Just False) === fmap activatedFirst . responseJsonThrow ErrorCall
+            const(Just False) === fmap activatedFirst . responseJsonMaybe
 
 checkEmail :: HasCallStack => Brig -> UserId -> Email -> HttpT IO ()
 checkEmail brig uid expectedEmail =
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just expectedEmail) === (userEmail <=< responseJsonThrow ErrorCall)
+        const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
 
 initiateEmailUpdate :: Brig -> Email -> UserId -> Http ResponseLBS
 initiateEmailUpdate brig email uid =
@@ -189,7 +189,7 @@ countCookies brig u label = do
 assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
 assertConnections brig u cs = listConnections brig u !!! do
     const 200 === statusCode
-    const (Just True) === fmap (check . map status . clConnections) . responseJsonThrow ErrorCall
+    const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
     check xs = all (`elem` xs) cs
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
@@ -199,8 +199,8 @@ assertEmailVisibility brig a b visible =
     get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
         const 200 === statusCode
         if visible
-            then const (Just (userEmail b)) === fmap userEmail . responseJsonThrow ErrorCall
-            else const Nothing === (userEmail <=< responseJsonThrow ErrorCall)
+            then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe
+            else const Nothing === (userEmail <=< responseJsonMaybe)
 
 uploadAsset :: HasCallStack => CargoHold -> UserId -> ByteString -> Http CHV3.Asset
 uploadAsset c usr dat = do
@@ -233,7 +233,7 @@ uploadAddressBook b u a m =
          . body (RequestBodyLBS $ encode a)
          ) !!! do
             const 200 === statusCode
-            const (Just (f m)) === (fmap f . responseJsonThrow ErrorCall)
+            const (Just (f m)) === (fmap f . responseJsonMaybe)
   where
     f :: MatchingResult -> MatchingResult
     f (MatchingResult x y) = MatchingResult (sort x) (sort y)

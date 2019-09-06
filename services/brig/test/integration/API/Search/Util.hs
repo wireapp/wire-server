@@ -4,7 +4,6 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types
-import Control.Exception      (ErrorCall(ErrorCall))
 import Data.Aeson             (decode, encode)
 import Data.Id
 import Data.Text.Encoding     (encodeUtf8)
@@ -78,4 +77,4 @@ assertSearchable :: HasCallStack => String -> (Request -> Request) -> UserId -> 
 assertSearchable label brig uid status = do
     response <- get (brig . path "/self/searchable" . zUser uid)
     liftIO $ assertEqual (label ++ ", statuscode") 200 (statusCode response)
-    liftIO $ assertEqual label (Just status) (isSearchable <$> responseJsonThrow ErrorCall response)
+    liftIO $ assertEqual label (Just status) (isSearchable <$> responseJsonMaybe response)

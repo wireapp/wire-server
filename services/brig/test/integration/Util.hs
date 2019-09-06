@@ -192,12 +192,12 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
     rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (responseJsonThrow ErrorCall rs)
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
 postUserRegister :: Object -> Brig -> Http User
 postUserRegister payload brig = do
     rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonThrow ErrorCall rs)
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
@@ -348,7 +348,7 @@ isMember g usr cnv = do
     res <- get $ g
         . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
         . expect2xx
-    case responseJsonThrow ErrorCall res of
+    case responseJsonMaybe res of
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
@@ -435,7 +435,7 @@ updatePhone brig uid phn = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 200 === statusCode
-            const (Just False) === fmap activatedFirst . responseJsonThrow ErrorCall
+            const (Just False) === fmap activatedFirst . responseJsonMaybe
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
