@@ -7,7 +7,7 @@ import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async       (Async, async, wait, concurrently_, forConcurrently_)
 import Control.Lens                   ((.~), (^.), (^?), view, (<&>), _2, (%~))
-import Control.Retry                  (retrying, constantDelay, limitRetries)
+import Control.Retry                  (retrying, recoverAll, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -160,7 +160,8 @@ removeStalePresence = do
     wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
     sendPush (push uid [uid])
-    ensurePresent uid 0
+    recoverAll (constantDelay 1000000 <> limitRetries 10) $ \_ -> do
+        ensurePresent uid 0
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
