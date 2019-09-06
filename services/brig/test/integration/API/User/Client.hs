@@ -266,7 +266,7 @@ testUpdateClient brig = do
         const 200                 === statusCode
         const (Just $ clientId c) === (fmap pubClientId . responseJsonThrow ErrorCall)
         const (Just PhoneClient)  === (pubClientClass <=< responseJsonThrow ErrorCall)
-        const Nothing             === (preview (key "label") <=< asValue)
+        const Nothing             === (preview (key "label") <=< responseJsonMaybe @Value)
 
     let update' = UpdateClient [] Nothing Nothing
 
@@ -313,13 +313,13 @@ testAddMultipleTemporary brig galley = do
         r <- get $ brig
                  . path "clients"
                  . zUser u
-        return $ Vec.length <$> (preview _Array =<< asValue r)
+        return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
     numOfGalleyClients u = do
         r <- get $ galley
                  . path "i/test/clients"
                  . zUser u
-        return $ Vec.length <$> (preview _Array =<< asValue r)
+        return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do

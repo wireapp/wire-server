@@ -14,7 +14,6 @@ import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^?!))
-import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral, _JSON)
@@ -39,7 +38,6 @@ import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
@@ -395,9 +393,6 @@ zUser = header "Z-User" . C8.pack . show
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
-asValue :: (HasCallStack, MonadThrow m) => Response (Maybe Lazy.ByteString) -> m Value
-asValue = responseJsonThrow ErrorCall
 
 mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do

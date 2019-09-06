@@ -184,7 +184,7 @@ countCookies brig u label = do
              . queryItem "labels" (toByteString' label)
              . header "Z-User" (toByteString' u)
              ) <!! const 200 === statusCode
-    return $ Vec.length <$> (preview (key "cookies" . _Array) =<< asValue r)
+    return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
 assertConnections brig u cs = listConnections brig u !!! do
