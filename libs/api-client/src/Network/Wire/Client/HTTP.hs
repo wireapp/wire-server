@@ -80,14 +80,6 @@ clientRequest rq expected f = do
 readBody :: FromJSON a => Response BodyReader -> IO a
 readBody = consumeBody >=> fromBody
 
-fromBody :: (MonadIO m, FromJSON a) => Response (Maybe Lazy.ByteString) -> m a
-fromBody = either (liftIO . throwIO . ParseError . ("fromBody: "<>)) return . parse
-  where
-    parse = maybe (Left "missing response body")
-                  (fmapL pack . eitherDecode)
-                  .
-                  responseBody
-
 unexpected :: MonadIO m => Response a -> Text -> m b
 unexpected r = liftIO . throwIO . UnexpectedResponse (responseStatus r) (responseHeaders r)
 

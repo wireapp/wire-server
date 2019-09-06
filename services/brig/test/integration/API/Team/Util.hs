@@ -250,9 +250,6 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe LByteString) -> Http a
-decodeBody' x = maybe (error $ "Failed to decodeBody: " ++ show x) return $ decodeBody x
-
 isActivatedUser :: UserId -> Brig -> Http Bool
 isActivatedUser uid brig = do
     resp <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid) . expect2xx)

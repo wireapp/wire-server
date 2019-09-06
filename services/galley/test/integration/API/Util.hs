@@ -39,7 +39,7 @@ import qualified Galley.Types.Proto     as Proto
 import qualified Test.QuickCheck        as Q
 import qualified Test.Tasty.Cannon      as WS
 
-type ResponseLBS = Response (Maybe LByteString)
+
 -------------------------------------------------------------------------------
 -- API Operations
 
@@ -569,15 +569,6 @@ assertNoMsg ws f = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-jsonBody :: (HasCallStack, FromJSON v) => ResponseLBS -> v
-jsonBody resp = either (error . show . (, bdy)) id . eitherDecode $ bdy
-  where
-    bdy = fromJust $ responseBody resp
-
--- FUTUREWORK: move this to /lib/bilge?  (there is another copy of this in spar.)
-responseJSON :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
-responseJSON = fmapL show . eitherDecode <=< maybe (Left "no body") pure . responseBody
-
 testResponse :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 testResponse status mlabel = do
     const status === statusCode
@@ -784,20 +775,6 @@ randomUserWithClient lk = do
 
 newNonce :: TestM (Id ())
 newNonce = randomId
-
-decodeBodyE :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Either String a
-decodeBodyE rsp = do
-    bdy <- maybe (Left "no body") Right $ responseBody rsp
-    eitherDecode bdy
-
-decodeBodyM :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Maybe a
-decodeBodyM = either (const Nothing) Just . decodeBodyE
-
-decodeBody :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> a
-decodeBody = decodeBodyMsg mempty
-
-decodeBodyMsg :: (HasCallStack, FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
-decodeBodyMsg usrerr = either (\prserr -> error $ "decodeBody: " ++ show (prserr, usrerr)) id . decodeBodyE
 
 fromBS :: (HasCallStack, FromByteString a, Monad m) => ByteString -> m a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString

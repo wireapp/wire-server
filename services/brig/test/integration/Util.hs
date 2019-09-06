@@ -55,8 +55,6 @@ type CargoHold = Request -> Request
 type Galley    = Request -> Request
 type Nginz     = Request -> Request
 
-type ResponseLBS = Response (Maybe Lazy.ByteString)
-
 instance ToJSON SESBounceType where
     toJSON BounceUndetermined = String "Undetermined"
     toJSON BouncePermanent    = String "Permanent"
@@ -399,13 +397,6 @@ zUser = header "Z-User" . C8.pack . show
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
--- TODO: we have a bunch of 'decodeBody's lying around, they should be
--- unified and moved into some utils module
-decodeBody :: forall a m.
-              (HasCallStack, Typeable a, FromJSON a, MonadThrow m)
-           => Response (Maybe Lazy.ByteString) -> m a
-decodeBody = RPC.decodeBody (Text.pack (show (typeRep (Proxy @a))))
 
 asValue :: (HasCallStack, MonadThrow m) => Response (Maybe Lazy.ByteString) -> m Value
 asValue = decodeBody

@@ -362,6 +362,3 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
-decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
-decodeBody = responseBody >=> decode

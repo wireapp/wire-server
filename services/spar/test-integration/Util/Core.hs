@@ -358,12 +358,6 @@ createRandomPhoneUser brig_ = do
 
     return (uid, phn)
 
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
-decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
-
-decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
-decodeBody' = either (error . show) id . decodeBody
-
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
     r <- get ( gly
@@ -667,10 +661,6 @@ loginSsoUserFirstTime idp = do
 
   pure uid
 
-
--- TODO: move this to /lib/bilge?
-responseJSON :: FromJSON a => ResponseLBS -> Either String a
-responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
 
 callAuthnReq :: forall m. (HasCallStack, MonadIO m, MonadHttp m)
              => SparReq -> SAML.IdPId -> m (URI, SAML.AuthnRequest)
