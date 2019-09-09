@@ -12,7 +12,7 @@ BUILDDIR      = build
 .PHONY: help Makefile push docker docs exec
 
 docs:
-	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make html
+	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
 
 exec:
 	docker run -it -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)

@@ -26,6 +26,8 @@ With downtime, it's very easy::
 How to restart restund without having downtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+For maintenance you may need to restart a restund server.
+
 1. Remove that restund server you want to restart from the list of advertised nodes (by taking it out of the turn server list that brig advertises, see the `turnStatic configuration <https://github.com/wireapp/wire-server-deploy/blob/master/charts/brig/values.yaml#L68-L73>`_
 2. Wait for traffic to drain. This can take up to 12 hours after the configuration change. Wait until current allocations (people connected to the restund server) return 0.
 3. It's now safe to ``systemctl restart restund``
