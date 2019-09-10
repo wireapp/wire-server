@@ -600,6 +600,8 @@ testDeleteTeam = do
             const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember
+        checkConvDeleteEvent cid1 wsOwner
+        checkConvDeleteEvent cid1 wsMember
         checkConvDeleteEvent cid1 wsExtern
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
 
@@ -733,6 +735,8 @@ testDeleteTeamConv = do
 
         checkTeamConvDeleteEvent tid cid1 wsOwner
         checkTeamConvDeleteEvent tid cid1 wsMember
+        checkConvDeletevent cid1 wsOwner
+        checkConvDeletevent cid1 wsMember
         checkConvDeletevent cid1 wsExtern
 
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
