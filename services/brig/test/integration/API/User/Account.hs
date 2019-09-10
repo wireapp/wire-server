@@ -11,7 +11,6 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Control.Arrow ((&&&))
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^.))
 import Control.Monad.Catch
 import Data.Aeson
@@ -330,7 +329,7 @@ testCreateUserExternalSSO brig = do
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
-    u <- responseJsonThrow ErrorCall =<< registerUser "dilbert" brig
+    u <- responseJsonError =<< registerUser "dilbert" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
     case act of
@@ -744,7 +743,7 @@ testInternalPhonePrefixes brig = do
     getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
   where
     getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
-    getPrefixes prefix = responseJsonThrow ErrorCall =<< getPrefix (phonePrefix prefix)
+    getPrefixes prefix = responseJsonError =<< getPrefix (phonePrefix prefix)
 
     getPrefix :: PhonePrefix -> Http ResponseLBS
     getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
@@ -980,7 +979,7 @@ testUpdateSSOId brig galley = do
                 . Bilge.json ssoid
                 )
                 !!! const 200 === statusCode
-            profile :: SelfProfile <- responseJsonThrow ErrorCall =<< get (brig . path "/self" . zUser uid)
+            profile :: SelfProfile <- responseJsonError =<< get (brig . path "/self" . zUser uid)
             let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
             liftIO $ do
                 assertEqual "updateSSOId/ssoid" ssoid ssoid'
@@ -996,7 +995,7 @@ testUpdateSSOId brig galley = do
                 updatePhone brig (userId member) =<< randomPhone
             when (not hasEmail) $ do
                 error "not implemented"
-            selfUser <$> (responseJsonThrow ErrorCall =<< get (brig . path "/self" . zUser (userId member)))
+            selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
 
     let ssoids1 = [ UserSSOId "1" "1", UserSSOId "1" "2" ]
         ssoids2 = [ UserSSOId "2" "1", UserSSOId "2" "2" ]

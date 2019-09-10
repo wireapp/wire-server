@@ -12,7 +12,6 @@ import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^?!))
 import Control.Retry
 import Data.Aeson
@@ -91,13 +90,13 @@ createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
 createUser' hasPwd name brig = do
     r <- postUser' hasPwd True name True False Nothing Nothing brig <!!
            const 201 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
 createUserWithEmail name email brig = do
     r <- postUserWithEmail True True name (Just email) False Nothing Nothing brig <!!
            const 201 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
 createUserUntrustedEmail name brig = do
@@ -111,7 +110,7 @@ createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http Us
 createAnonUserExpiry expires name brig = do
     let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 requestActivationCode :: HasCallStack => Brig -> Int -> Either Email Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
@@ -218,7 +217,7 @@ activate brig (k, c) = get $ brig
 
 getSelfProfile :: Brig -> UserId -> Http SelfProfile
 getSelfProfile brig usr = do
-    responseJsonThrow ErrorCall =<< get (brig . path "/self" . zUser usr)
+    responseJsonError =<< get (brig . path "/self" . zUser usr)
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
@@ -331,7 +330,7 @@ getPreKey brig u c = get $ brig
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley =
-    responseJsonThrow ErrorCall =<<
+    responseJsonError =<<
          get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
              . zUser u

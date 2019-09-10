@@ -10,7 +10,6 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Exception (ErrorCall(ErrorCall))
 import UnliftIO.Async (mapConcurrently_, replicateConcurrently, pooledForConcurrentlyN_)
 import Control.Lens ((^.), view)
 import Data.Aeson
@@ -85,7 +84,7 @@ testUpdateEvents brig galley cannon = do
 
     -- invite and register Bob
     let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid alice invite
+    inv <- responseJsonError =<< postInvitation brig tid alice invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
                        . contentJson
@@ -151,19 +150,19 @@ testInvitationRoles brig galley = do
     alice :: UserId <- do
         aliceEmail <- randomEmail
         let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
-        inv :: Invitation <- responseJsonThrow ErrorCall =<< postInvitation brig tid owner invite
+        inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
         registerInvite inv aliceEmail
 
     -- alice creates a external partner bob.  success!  bob only has externalPartner perms.
     do
         bobEmail <- randomEmail
         let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleExternalPartner)
-        inv :: Invitation <- responseJsonThrow ErrorCall =<< (postInvitation brig tid alice invite <!! do
+        inv :: Invitation <- responseJsonError =<< (postInvitation brig tid alice invite <!! do
             const 201 === statusCode)
         uid <- registerInvite inv bobEmail
         let memreq = galley . zUser owner . zConn "c" .
               paths ["teams", toByteString' tid, "members", toByteString' uid]
-        mem :: Team.TeamMember <- responseJsonThrow ErrorCall =<< (get memreq <!! const 200 === statusCode)
+        mem :: Team.TeamMember <- responseJsonError =<< (get memreq <!! const 200 === statusCode)
         liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleExternalPartner) (mem ^. Team.permissions)
 
     -- alice creates an owner charly.  failure!
@@ -179,7 +178,7 @@ testInvitationEmailAccepted brig galley = do
     (inviter, tid) <- createUserWithTeam brig galley
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid inviter invite
+    inv <- responseJsonError =<< postInvitation brig tid inviter invite
     let invmeta = Just (inviter, inCreatedAt inv)
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
@@ -201,7 +200,7 @@ testInvitationEmailAccepted brig galley = do
 testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeam brig galley aws = do
     email <- randomEmail
-    usr <- responseJsonThrow ErrorCall =<< register email newTeam brig
+    usr <- responseJsonError =<< register email newTeam brig
     let uid = userId usr
     -- Verify that the user is part of exactly one (binding) team
     teams <- view Team.teamListTeams <$> getTeams uid galley
@@ -235,7 +234,7 @@ testCreateTeamPreverified brig galley aws = do
     case act of
         Nothing     -> liftIO $ assertFailure "activation key/code not found"
         Just (_, c) -> do
-            usr <- responseJsonThrow ErrorCall =<< register' email newTeam c brig <!! const 201 === statusCode
+            usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
             let uid  = userId usr
             liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
             teams <- view Team.teamListTeams <$> getTeams uid galley
@@ -361,7 +360,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
 
     em <- randomEmail
     let invite = InvitationRequest em (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid creator invite
+    inv <- responseJsonError =<< postInvitation brig tid creator invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     post (brig . path "/register"
                . contentJson
@@ -414,7 +413,7 @@ testInvitationInfo brig galley = do
     email    <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
     let invite = InvitationRequest email (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid uid invite
+    inv <- responseJsonError =<< postInvitation brig tid uid invite
 
     Just invCode    <- getInvitationCode brig tid (inInvitation inv)
     Just invitation <- getInvitation brig invCode
@@ -433,7 +432,7 @@ testInvitationInfoExpired brig galley timeout = do
     email      <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
     let invite = InvitationRequest email (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid uid invite
+    inv <- responseJsonError =<< postInvitation brig tid uid invite
     -- Note: This value must be larger than the option passed as `team-invitation-timeout`
     awaitExpiry (round timeout + 5) tid (inInvitation inv)
     getCode tid (inInvitation inv) !!! const 400 === statusCode
@@ -460,7 +459,7 @@ testSuspendTeam brig galley = do
 
     -- invite and register invitee
     let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid inviter invite
+    inv <- responseJsonError =<< postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
                        . contentJson
@@ -470,7 +469,7 @@ testSuspendTeam brig galley = do
 
     -- invite invitee2 (don't register)
     let invite2 = InvitationRequest inviteeEmail2 (Name "Bob") Nothing Nothing
-    inv2 <- responseJsonThrow ErrorCall =<< postInvitation brig tid inviter invite2
+    inv2 <- responseJsonError =<< postInvitation brig tid inviter invite2
     Just _ <- getInvitationCode brig tid (inInvitation inv2)
 
     -- suspend team

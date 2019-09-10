@@ -6,7 +6,6 @@ import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), preview)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -52,7 +51,7 @@ testAddGetClient hasPwd brig cannon = do
     let rq = addClientReq brig uid (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
            . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
     c <- WS.bracketR cannon uid $ \ws -> do
-        c <- responseJsonThrow ErrorCall =<< (post rq <!! do
+        c <- responseJsonError =<< (post rq <!! do
             const 201  === statusCode
             const True === isJust . getHeader "Location")
         void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
@@ -82,7 +81,7 @@ testClientReauthentication brig = do
     -- User with password
     uid <- userId <$> randomUser brig
     -- The first client never requires authentication
-    c <- responseJsonThrow ErrorCall =<< (addClient brig uid payload1 <!! const 201 === statusCode)
+    c <- responseJsonError =<< (addClient brig uid payload1 <!! const 201 === statusCode)
     -- Adding a second client requires reauthentication, if a password is set.
     addClient brig uid payload2 !!! do
         const 403 === statusCode
@@ -92,15 +91,15 @@ testClientReauthentication brig = do
 
     -- User without a password
     uid2 <- userId <$> createAnonUser "Mr. X" brig
-    c2 <- responseJsonThrow ErrorCall =<< (addClient brig uid2 payload1 <!! const 201 === statusCode)
-    c3 <- responseJsonThrow ErrorCall =<< (addClient brig uid2 payload2 <!! const 201 === statusCode)
+    c2 <- responseJsonError =<< (addClient brig uid2 payload1 <!! const 201 === statusCode)
+    c3 <- responseJsonError =<< (addClient brig uid2 payload2 <!! const 201 === statusCode)
     deleteClient brig uid2 (clientId c2) Nothing !!! const 200 === statusCode
     deleteClient brig uid2 (clientId c3) Nothing !!! const 200 === statusCode
 
     -- Temporary client can always be deleted without a password
-    c4 <- responseJsonThrow ErrorCall =<< addClient brig uid payload3
+    c4 <- responseJsonError =<< addClient brig uid payload3
     deleteClient brig uid (clientId c4) Nothing !!! const 200 === statusCode
-    c5 <- responseJsonThrow ErrorCall =<< addClient brig uid2 payload3
+    c5 <- responseJsonError =<< addClient brig uid2 payload3
     deleteClient brig uid2 (clientId c5) Nothing !!! const 200 === statusCode
 
 testListClients :: Brig -> Http ()
@@ -124,7 +123,7 @@ testListPrekeyIds :: Brig -> Http ()
 testListPrekeyIds brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     let pks = [PrekeyId 1, lastPrekeyId]
     get ( brig
         . paths ["clients", toByteString' (clientId c), "prekeys"]
@@ -137,7 +136,7 @@ testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
         const 200 === statusCode
@@ -153,7 +152,7 @@ testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
         const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
@@ -192,7 +191,7 @@ testRemoveClient hasPwd brig cannon = do
         numCookies <- countCookies brig uid defCookieLabel
         liftIO $ Just 1 @=? numCookies
 
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
+    c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
 
     when hasPwd $ do
         -- Missing password
@@ -231,7 +230,7 @@ testUpdateClient brig = do
                 { newClientClass = Just PhoneClient
                 , newClientModel = Just "featurephone"
                 }
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid clt
+    c <- responseJsonError =<< addClient brig uid clt
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
         const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
@@ -325,7 +324,7 @@ testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
     uid <- userId <$> randomUser brig
     let pks = map (\i -> somePrekeys !! i) [1..10]
-    c <- responseJsonThrow ErrorCall =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
+    c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
     pks' <- flip mapConcurrently pks $ \_ -> do
         rs <- getPreKey brig uid (clientId c) <!! const 200 === statusCode
         return $ prekeyId . prekeyData <$> responseJsonMaybe rs
@@ -347,7 +346,7 @@ testCan'tDeleteLegalHoldClient brig = do
 
     resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
                 <!! const 201 === statusCode
-    lhClientId <- clientId <$> responseJsonThrow ErrorCall resp
+    lhClientId <- clientId <$> responseJsonError resp
 
     deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
 

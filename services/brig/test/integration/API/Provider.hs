@@ -12,7 +12,6 @@ import Brig.Types.Provider.Tag
 import Control.Arrow ((&&&))
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout (timeout, threadDelay)
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson
@@ -254,7 +253,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
     activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm) !!!
         const 200 === statusCode
 
-    p <- responseJsonThrow ErrorCall =<< (getProvider brig pid <!! const 200 === statusCode)
+    p <- responseJsonError =<< (getProvider brig pid <!! const 200 === statusCode)
     liftIO $ assertEqual "email" newEmail (providerEmail p)
 
     -- attempting to complete password reset should fail
@@ -481,7 +480,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     let uid2 = userId u2
     postConnection brig uid1 uid2 !!! const 201 === statusCode
     putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-    cnv <- responseJsonThrow ErrorCall =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
+    cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
     let cid = cnvId cnv
 
     -- Add two bots there
@@ -847,7 +846,7 @@ testWhitelistBasic config db brig galley =
         const (Just "service-not-whitelisted") === fmap Error.label . responseJsonMaybe
     -- Check that after whitelisting the service, it can be added to the conversation
     whitelistService brig owner tid pid sid
-    bid <- fmap rsAddBotId . responseJsonThrow ErrorCall =<<
+    bid <- fmap rsAddBotId . responseJsonError =<<
            (addBot brig owner pid sid cid <!! const 201 === statusCode)
     _ <- svcAssertBotCreated buf bid cid
     -- Check that after de-whitelisting the service can't be added to conversations
@@ -872,7 +871,7 @@ testWhitelistKickout config db brig galley cannon = do
     let pid = sref^.serviceRefProvider
         sid = sref^.serviceRefId
     whitelistService brig owner tid pid sid
-    bot <- responseJsonThrow ErrorCall =<<
+    bot <- responseJsonError =<<
            (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid  = rsAddBotId bot
         buid = botUserId bid
@@ -1867,7 +1866,7 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
         assertEqual "members" [OtherMember uid Nothing] (bcnv^.Ext.botConvMembers)
 
     -- The user can identify the bot in the member list
-    mems <- fmap cnvMembers . responseJsonThrow ErrorCall =<< getConversation galley uid cid
+    mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
     let other = listToMaybe (cmOthers mems)
     liftIO $ do
         assertEqual "id" (Just buid) (omId <$> other)
@@ -1962,7 +1961,7 @@ searchAndAssertNameChange
     -> Http ()
 searchAndAssertNameChange brig pid sid uid uniq search = do
     -- First let's figure out how the service is called now
-    origName <- fmap serviceProfileName . responseJsonThrow ErrorCall =<<
+    origName <- fmap serviceProfileName . responseJsonError =<<
         (getServiceProfile brig uid pid sid <!! const 200 === statusCode)
     -- Check that we can find the service
     searchFor "before name change" origName [(sid, origName)]
@@ -2013,11 +2012,11 @@ searchServices brig size uid mbStart mbTags = case (mbStart, mbTags) of
     (Nothing, Nothing) ->
         error "searchServices: query not supported"
     (Just start, Nothing) ->
-        responseJsonThrow ErrorCall =<<
+        responseJsonError =<<
             (listServiceProfilesByPrefix brig uid start size
              <!! const 200 === statusCode)
     (_, Just tags) ->
-        responseJsonThrow ErrorCall =<<
+        responseJsonError =<<
             (listServiceProfilesByTag brig uid tags mbStart size
              <!! const 200 === statusCode)
 
@@ -2026,7 +2025,7 @@ searchServiceWhitelist
     :: HasCallStack
     => Brig -> Int -> UserId -> TeamId -> Maybe Text -> Http ServiceProfilePage
 searchServiceWhitelist brig size uid tid mbStart =
-    responseJsonThrow ErrorCall =<<
+    responseJsonError =<<
         (listTeamServiceProfilesByPrefix brig uid tid mbStart True size
          <!! const 200 === statusCode)
 
@@ -2036,6 +2035,6 @@ searchServiceWhitelistAll
     :: HasCallStack
     => Brig -> Int -> UserId -> TeamId -> Maybe Text -> Http ServiceProfilePage
 searchServiceWhitelistAll brig size uid tid mbStart =
-    responseJsonThrow ErrorCall =<<
+    responseJsonError =<<
         (listTeamServiceProfilesByPrefix brig uid tid mbStart False size
          <!! const 200 === statusCode)

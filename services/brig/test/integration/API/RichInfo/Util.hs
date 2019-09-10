@@ -3,7 +3,6 @@ module API.RichInfo.Util where
 import Imports
 import Bilge
 import Brig.Types
-import Control.Exception (ErrorCall(ErrorCall))
 import Data.ByteString.Conversion
 import Data.Id
 import Util
@@ -19,7 +18,7 @@ getRichInfo brig self uid = do
              . paths ["users", toByteString' uid, "rich-info"]
              . zUser self
              )
-    if | statusCode r == 200 -> Right <$> responseJsonThrow ErrorCall r
+    if | statusCode r == 200 -> Right <$> responseJsonError r
        | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
        | otherwise -> error $
            "expected status code 200, 403, or 404, got: " <> show (statusCode r)

@@ -14,7 +14,7 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
-import Control.Exception (asyncExceptionFromException, SomeAsyncException, ErrorCall(ErrorCall))
+import Control.Exception (asyncExceptionFromException, SomeAsyncException)
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Lens
 import Control.Monad.Catch
@@ -700,7 +700,7 @@ disableLegalHoldForUser mPassword tid zusr uid = do
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
     clients :: [Client]
-        <- getClients uid >>= responseJsonThrow ErrorCall
+        <- getClients uid >>= responseJsonError
     liftIO $ do
         let numdevs = length $ clientType <$> clients
         assertEqual ("expected exactly one legal hold device for user: " <> show uid) numdevs  1
@@ -708,7 +708,7 @@ assertExactlyOneLegalHoldDevice uid = do
 assertZeroLegalHoldDevices :: HasCallStack  => UserId -> TestM ()
 assertZeroLegalHoldDevices uid = do
     clients :: [Client]
-        <- getClients uid >>= responseJsonThrow ErrorCall
+        <- getClients uid >>= responseJsonError
     liftIO $ do
         let numdevs = length $ clientType <$> clients
         assertBool ("a legal hold device was found when none was expected for user"

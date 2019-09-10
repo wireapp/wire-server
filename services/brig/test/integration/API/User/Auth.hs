@@ -11,7 +11,6 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import UnliftIO.Async hiding (wait)
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), (^.), set)
 import Control.Retry
 import Data.Aeson
@@ -268,7 +267,7 @@ testLoginFailure brig = do
                 ]
     res <- post (brig . path "/i/users" . contentJson . Http.body newUser) <!!
         const 201 === statusCode
-    uid <- userId <$> responseJsonThrow ErrorCall res
+    uid <- userId <$> responseJsonError res
     eml <- randomEmail
 
     -- Add email

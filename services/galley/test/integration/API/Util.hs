@@ -4,7 +4,6 @@ import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
@@ -93,25 +92,25 @@ getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember usr tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
 getTeamMemberInternal tid mid = do
     g <- view tsGalley
     r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
-    responseJsonThrow ErrorCall r
+    responseJsonError r
 
 addTeamMember :: HasCallStack => UserId -> TeamId -> TeamMember -> TestM ()
 addTeamMember usr tid mem = do
@@ -688,7 +687,7 @@ ephemeralUser = do
     name <- UUID.toText <$> liftIO nextRandom
     let p = object [ "name" .= name ]
     r <- post (b . path "/register" . json p) <!! const 201 === statusCode
-    user <- responseJsonThrow ErrorCall r
+    user <- responseJsonError r
     return $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
@@ -696,7 +695,7 @@ randomClient uid lk = do
     b <- view tsBrig
     resp <- post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
             <!! const rStatus === statusCode
-    client <- responseJsonThrow ErrorCall resp
+    client <- responseJsonError resp
     return (clientId client)
   where
     cType = PermanentClientType

@@ -8,7 +8,6 @@ import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.Data.PasswordReset
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^?), preview)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -214,7 +213,7 @@ uploadAsset c usr dat = do
                 . content "multipart/mixed"
                 . lbytes (toLazyByteString mpb)
                 ) <!! const 201 === statusCode
-    responseJsonThrow ErrorCall rsp
+    responseJsonError rsp
 
 downloadAsset :: CargoHold -> UserId -> ByteString -> Http (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =

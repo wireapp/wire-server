@@ -8,7 +8,6 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.Activation
 import Brig.Types.Connection
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens (view, (^?))
 import Data.Aeson
 import Data.Aeson.Lens
@@ -50,7 +49,7 @@ createUserWithTeam brig galley = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    user <- responseJsonThrow ErrorCall =<< post (brig . path "/i/users" . contentJson . body p)
+    user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
     let Just tid = userTeam user
     (team:_) <- view Team.teamListTeams <$> getTeams (userId user) galley
     liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
@@ -75,7 +74,7 @@ inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- responseJsonThrow ErrorCall =<< postInvitation brig tid u invite
+    inv <- responseJsonError =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"
                              . contentJson
@@ -148,7 +147,7 @@ deleteTeam g tid u = do
 
 getTeams :: UserId -> Galley -> Http Team.TeamList
 getTeams u galley =
-    responseJsonThrow ErrorCall =<<
+    responseJsonError =<<
          get ( galley
              . paths ["teams"]
              . zAuthAccess u "conn"
@@ -197,7 +196,7 @@ register' e t c brig = post (brig . path "/register" . contentJson . body (
 
 listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
 listConnections u brig = do
-    responseJsonThrow ErrorCall =<<
+    responseJsonError =<<
          get ( brig
              . path "connections"
              . zUser u
@@ -229,7 +228,7 @@ unsuspendTeam brig t = post $ brig
 
 getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t =
-    responseJsonThrow ErrorCall =<< get (galley . paths ["i", "teams", toByteString' t])
+    responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 
 getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do

@@ -4,7 +4,6 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^.))
 import Data.ByteString.Conversion
 import Data.Id
@@ -141,7 +140,7 @@ getTurnConfiguration suffix u b = get ( b
 
 getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfiguration suffix u b =
-    responseJsonThrow ErrorCall =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
+    responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 
 getTurnConfigurationV2Limit :: Int -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
 getTurnConfigurationV2Limit limit u b = get ( b
@@ -153,7 +152,7 @@ getTurnConfigurationV2Limit limit u b = get ( b
 
 getAndValidateTurnConfigurationLimit :: HasCallStack => Int -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfigurationLimit limit u b =
-    responseJsonThrow ErrorCall =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
+    responseJsonError =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
 
 toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing

@@ -20,11 +20,13 @@ module Bilge.Response
     , responseJsonEither
     , responseJsonMaybe
     , responseJsonThrow
+    , responseJsonError
     , responseJsonUnsafe
     , responseJsonUnsafeWithMsg
     ) where
 
 import Imports
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson (FromJSON, eitherDecode)
@@ -94,6 +96,12 @@ responseJsonThrow
   :: (HasCallStack, MonadThrow m, Typeable a, FromJSON a, Exception e)
   => (String -> e) -> ResponseLBS -> m a
 responseJsonThrow mkErr = either (throwM . mkErr) pure . responseJsonEither
+
+{-# INLINE responseJsonError #-}
+responseJsonError
+  :: (HasCallStack, MonadThrow m, Typeable a, FromJSON a)
+  => ResponseLBS -> m a
+responseJsonError = responseJsonThrow ErrorCall
 
 {-# INLINE responseJsonUnsafe #-}
 responseJsonUnsafe
