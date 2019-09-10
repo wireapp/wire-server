@@ -22,6 +22,7 @@ import Network.Wai.Predicate
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 
+import qualified Data.Set       as Set
 import qualified Data.Text.Lazy as LT
 import qualified Galley.Data    as Data
 
@@ -151,6 +152,12 @@ location = addHeader hLocation . toByteString'
 
 nonTeamMembers :: [Member] -> [TeamMember] -> [Member]
 nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
+
+convMembsAndTeamMembs :: [Member] -> [TeamMember] -> [Recipient]
+convMembsAndTeamMembs convMembs teamMembs
+    = fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
+  where
+    setnub = Set.toList . Set.fromList
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)

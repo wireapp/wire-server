@@ -214,9 +214,9 @@ uncheckedDeleteTeam zusr zcon tid = do
         -> Galley ([Push],[(BotMember, Conv.Event)])
     pushConvDeleteEvents now teamMembs c (pp, ee) = do
         (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
-        let mm = nonTeamMembers convMembs teamMembs
+        let mm = convMembsAndTeamMembs convMembs teamMembs
         let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-        let p = newPush zusr (ConvEvent e) (map recipient mm)
+        let p = newPush zusr (ConvEvent e) mm
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
@@ -398,7 +398,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
     let tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
     let p  = newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon
-    case map recipient (nonTeamMembers cmems tmems) of
+    case convMembsAndTeamMembs cmems tmems of
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
