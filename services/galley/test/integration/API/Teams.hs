@@ -726,6 +726,9 @@ testDeleteTeamConv = do
 
         checkTeamConvDeleteEvent tid cid2 wsOwner
         checkTeamConvDeleteEvent tid cid2 wsMember
+        checkConvDeleteEvent cid2 wsOwner
+        checkConvDeleteEvent cid2 wsMember
+        WS.assertNoEvent timeout [wsOwner, wsMember]
 
         delete ( g
                . paths ["teams", toByteString' tid, "conversations", toByteString' cid1]
@@ -738,8 +741,7 @@ testDeleteTeamConv = do
         checkConvDeleteEvent cid1 wsOwner
         checkConvDeleteEvent cid1 wsMember
         checkConvDeleteEvent cid1 wsExtern
-
-        WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
+        WS.assertNoEvent timeout [wsOwner, wsMember, wsExtern]
 
     for_ [cid1, cid2] $ \x ->
         for_ [owner, member^.userId, extern] $ \u -> do
