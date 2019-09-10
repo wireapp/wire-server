@@ -51,7 +51,7 @@ testAddGetClient hasPwd brig cannon = do
     let rq = addClientReq brig uid (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
            . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
     c <- WS.bracketR cannon uid $ \ws -> do
-        c <- decodeBody =<< (post rq <!! do
+        c <- responseJsonError =<< (post rq <!! do
             const 201  === statusCode
             const True === isJust . getHeader "Location")
         void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
@@ -63,7 +63,7 @@ testAddGetClient hasPwd brig cannon = do
         return c
     getClient brig uid (clientId c) !!! do
         const 200      === statusCode
-        const (Just c) === decodeBody
+        const (Just c) === responseJsonMaybe
 
 testClientReauthentication :: Brig -> Http ()
 testClientReauthentication brig = do
@@ -81,25 +81,25 @@ testClientReauthentication brig = do
     -- User with password
     uid <- userId <$> randomUser brig
     -- The first client never requires authentication
-    c <- decodeBody =<< (addClient brig uid payload1 <!! const 201 === statusCode)
+    c <- responseJsonError =<< (addClient brig uid payload1 <!! const 201 === statusCode)
     -- Adding a second client requires reauthentication, if a password is set.
     addClient brig uid payload2 !!! do
         const 403 === statusCode
-        const (Just "missing-auth") === (fmap Error.label . decodeBody)
+        const (Just "missing-auth") === (fmap Error.label . responseJsonMaybe)
     -- Removing a client requires reauthentication, if a password is set.
     deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
 
     -- User without a password
     uid2 <- userId <$> createAnonUser "Mr. X" brig
-    c2 <- decodeBody =<< (addClient brig uid2 payload1 <!! const 201 === statusCode)
-    c3 <- decodeBody =<< (addClient brig uid2 payload2 <!! const 201 === statusCode)
+    c2 <- responseJsonError =<< (addClient brig uid2 payload1 <!! const 201 === statusCode)
+    c3 <- responseJsonError =<< (addClient brig uid2 payload2 <!! const 201 === statusCode)
     deleteClient brig uid2 (clientId c2) Nothing !!! const 200 === statusCode
     deleteClient brig uid2 (clientId c3) Nothing !!! const 200 === statusCode
 
     -- Temporary client can always be deleted without a password
-    c4 <- decodeBody =<< addClient brig uid payload3
+    c4 <- responseJsonError =<< addClient brig uid payload3
     deleteClient brig uid (clientId c4) Nothing !!! const 200 === statusCode
-    c5 <- decodeBody =<< addClient brig uid2 payload3
+    c5 <- responseJsonError =<< addClient brig uid2 payload3
     deleteClient brig uid2 (clientId c5) Nothing !!! const 200 === statusCode
 
 testListClients :: Brig -> Http ()
@@ -108,54 +108,54 @@ testListClients brig = do
     let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
     let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
     let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
-    c1 <- decodeBody <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
-    c2 <- decodeBody <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
-    c3 <- decodeBody <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
+    c1 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+    c2 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+    c3 <- responseJsonMaybe <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
     let cs = sortBy (compare `on` clientId) $ catMaybes [c1, c2, c3]
     get ( brig
         . path "clients"
         . zUser uid
         ) !!! do
             const 200       === statusCode
-            const (Just cs) === decodeBody
+            const (Just cs) === responseJsonMaybe
 
 testListPrekeyIds :: Brig -> Http ()
 testListPrekeyIds brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- decodeBody =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     let pks = [PrekeyId 1, lastPrekeyId]
     get ( brig
         . paths ["clients", toByteString' (clientId c), "prekeys"]
         . zUser uid
         ) !!! do
             const 200        === statusCode
-            const (Just pks) === fmap sort . decodeBody
+            const (Just pks) === fmap sort . responseJsonMaybe
 
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- decodeBody =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
         const 200 === statusCode
-        const (Just $ PrekeyBundle uid [cpk]) === decodeBody
+        const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
     -- prekeys are deleted when retrieved, except the last one
     let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
     replicateM_ 2 $ get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
         const 200 === statusCode
-        const (Just $ PrekeyBundle uid [lpk]) === decodeBody
+        const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
     uid <- userId <$> randomUser brig
     let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-    c <- decodeBody =<< addClient brig uid new
+    c <- responseJsonError =<< addClient brig uid new
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === decodeBody
+        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
 testTooManyClients :: Brig -> Http ()
 testTooManyClients brig = do
@@ -176,7 +176,7 @@ testTooManyClients brig = do
 
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
         const 403 === statusCode
-        const (Just "too-many-clients") === fmap Error.label . decodeBody
+        const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -191,7 +191,7 @@ testRemoveClient hasPwd brig cannon = do
         numCookies <- countCookies brig uid defCookieLabel
         liftIO $ Just 1 @=? numCookies
 
-    c <- decodeBody =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
+    c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
 
     when hasPwd $ do
         -- Missing password
@@ -230,16 +230,16 @@ testUpdateClient brig = do
                 { newClientClass = Just PhoneClient
                 , newClientModel = Just "featurephone"
                 }
-    c <- decodeBody =<< addClient brig uid clt
+    c <- responseJsonError =<< addClient brig uid clt
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === decodeBody
+        const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
     getClient brig uid (clientId c) !!! do
         const 200                   === statusCode
-        const (Just "Test Device")  === (clientLabel <=< decodeBody)
-        const (Just PhoneClient)    === (clientClass <=< decodeBody)
-        const (Just "featurephone") === (clientModel <=< decodeBody)
+        const (Just "Test Device")  === (clientLabel <=< responseJsonMaybe)
+        const (Just PhoneClient)    === (clientClass <=< responseJsonMaybe)
+        const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
 
     let newPrekey = somePrekeys !! 2
     let update    = UpdateClient [newPrekey] Nothing (Just "label")
@@ -253,19 +253,19 @@ testUpdateClient brig = do
 
     get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
         const 200 === statusCode
-        const (Just $ ClientPrekey (clientId c) newPrekey) === decodeBody
+        const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
 
     -- check if label has been updated
     getClient brig uid (clientId c) !!! do
         const 200            === statusCode
-        const (Just "label") === (clientLabel <=< decodeBody)
+        const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
     -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
     get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
         const 200                 === statusCode
-        const (Just $ clientId c) === (fmap pubClientId . decodeBody)
-        const (Just PhoneClient)  === (pubClientClass <=< decodeBody)
-        const Nothing             === (preview (key "label") <=< asValue)
+        const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
+        const (Just PhoneClient)  === (pubClientClass <=< responseJsonMaybe)
+        const Nothing             === (preview (key "label") <=< responseJsonMaybe @Value)
 
     let update' = UpdateClient [] Nothing Nothing
 
@@ -280,7 +280,7 @@ testUpdateClient brig = do
     -- check if label is still present
     getClient brig uid (clientId c) !!! do
         const 200            === statusCode
-        const (Just "label") === (clientLabel <=< decodeBody)
+        const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
@@ -312,22 +312,22 @@ testAddMultipleTemporary brig galley = do
         r <- get $ brig
                  . path "clients"
                  . zUser u
-        return $ Vec.length <$> (preview _Array =<< asValue r)
+        return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
     numOfGalleyClients u = do
         r <- get $ galley
                  . path "i/test/clients"
                  . zUser u
-        return $ Vec.length <$> (preview _Array =<< asValue r)
+        return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
     uid <- userId <$> randomUser brig
     let pks = map (\i -> somePrekeys !! i) [1..10]
-    c <- decodeBody =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
+    c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
     pks' <- flip mapConcurrently pks $ \_ -> do
         rs <- getPreKey brig uid (clientId c) <!! const 200 === statusCode
-        return $ prekeyId . prekeyData <$> decodeBody rs
+        return $ prekeyId . prekeyData <$> responseJsonMaybe rs
     -- We should not hand out regular prekeys more than once (i.e. at most once).
     let actual = catMaybes pks'
     liftIO $ assertEqual "insufficient prekeys" (length pks) (length actual)
@@ -346,7 +346,7 @@ testCan'tDeleteLegalHoldClient brig = do
 
     resp <- addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
                 <!! const 201 === statusCode
-    lhClientId <- clientId <$> decodeBody resp
+    lhClientId <- clientId <$> responseJsonError resp
 
     deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
 

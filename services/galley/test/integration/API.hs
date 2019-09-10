@@ -141,7 +141,7 @@ postConvOk = do
         cvs <- mapM (convView cid) [alice, bob, jane]
         liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
   where
-    convView cnv usr = decodeBodyMsg "conversation" <$> getConv usr cnv
+    convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
         ntfTransient n @?= False
         let e = List1.head (WS.unpackPayload n)
@@ -168,14 +168,14 @@ postCryptoMessage1 = do
     let m1 = [(bob, bc, "ciphertext1")]
     postOtrMessage id alice ac conv m1 !!! do
         const 412 === statusCode
-        assertTrue_ (eqMismatch [(eve, Set.singleton ec)] [] [] . decodeBody)
+        assertTrue_ (eqMismatch [(eve, Set.singleton ec)] [] [] . responseJsonUnsafe)
 
     -- Complete
     WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
         let m2 = [(bob, bc, "ciphertext2"), (eve, ec, "ciphertext2")]
         postOtrMessage id alice ac conv m2 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext2")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr conv alice ac ec "ciphertext2")
 
@@ -184,7 +184,7 @@ postCryptoMessage1 = do
         let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (eve, ec, "ciphertext3")]
         postOtrMessage id alice ac conv m3 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext3")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr conv alice ac ec "ciphertext3")
         -- Alice should not get it
@@ -196,7 +196,7 @@ postCryptoMessage1 = do
         let m4 = [(bob, bc, "ciphertext4"), (eve, ec, "ciphertext4")]
         postOtrMessage id alice ac conv m4 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [(eve, Set.singleton ec)] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [(eve, Set.singleton ec)] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext4")
         -- Eve should not get it
         assertNoMsg wsE (wsAssertOtr conv alice ac ec "ciphertext4")
@@ -206,7 +206,7 @@ postCryptoMessage1 = do
         let m5 = [(bob, bc, "ciphertext5"), (eve, ec, "ciphertext5"), (alice, ac, "ciphertext5")]
         postOtrMessage id alice ac conv m5 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)] . decodeBody)
+            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext5")
         -- Neither Alice nor Eve should get it
         assertNoMsg wsA (wsAssertOtr conv alice ac ac "ciphertext5")
@@ -218,7 +218,7 @@ postCryptoMessage1 = do
         const 412 === statusCode
         assertTrue_ (eqMismatch [(bob, Set.singleton bc)]
                                 [(alice, Set.singleton ac)]
-                                [(eve, Set.singleton ec)] . decodeBody)
+                                [(eve, Set.singleton ec)] . responseJsonUnsafe)
 
     -- A second client for Bob
     bc2 <- randomClient bob (someLastPrekeys !! 3)
@@ -230,7 +230,7 @@ postCryptoMessage1 = do
             let m7 = [(bob, bc, cipher), (bob, bc2, cipher)]
             postOtrMessage id alice ac conv m7 !!! do
                 const 201 === statusCode
-                assertTrue_ (eqMismatch [] [] [] . decodeBody)
+                assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
             -- Bob's first client gets both messages
             void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc cipher)
             void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc2 cipher)
@@ -251,12 +251,12 @@ postCryptoMessage2 = do
     let m = [(bob, bc, "hello bob")]
     r1 <- postOtrMessage id alice ac conv m <!!
         const 412 === statusCode
-    let x = decodeBodyMsg "ClientMismatch" r1
+    let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
     -- Fetch all missing clients prekeys
     r2 <- post (b . path "/users/prekeys" . json (missingClients x)) <!!
         const 200 === statusCode
-    let p = decodeBodyMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
+    let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
     liftIO $ do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
@@ -274,12 +274,12 @@ postCryptoMessage3 = do
     let m = otrRecipients [(bob, [(bc, ciphertext)])]
     r1 <- postProtoOtrMessage alice ac conv m <!!
         const 412 === statusCode
-    let x = decodeBodyMsg "ClientMismatch" r1
+    let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
     -- Fetch all missing clients prekeys
     r2 <- post (b . path "/users/prekeys" . json (missingClients x)) <!!
         const 200 === statusCode
-    let p = decodeBodyMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
+    let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
     liftIO $ do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
@@ -327,7 +327,7 @@ postCryptoMessage5 = do
         const 201 === statusCode
     _rs <- postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv [] <!!
         const 412 === statusCode
-    let _mm = decodeBodyMsg "ClientMismatch" _rs
+    let _mm = responseJsonUnsafeWithMsg "ClientMismatch" _rs
     liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just _mm))
 
     -- Ignore missing clients of a specific user only
@@ -335,7 +335,7 @@ postCryptoMessage5 = do
         const 201 === statusCode
     _rs <- postOtrMessage (queryItem "ignore_missing" (toByteString' eve)) alice ac conv [] <!!
         const 412 === statusCode
-    let _mm = decodeBodyMsg "ClientMismatch" _rs
+    let _mm = responseJsonUnsafeWithMsg "ClientMismatch" _rs
     liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just _mm))
 
 postJoinConvOk :: TestM ()
@@ -490,20 +490,20 @@ getConvsOk2 = do
     [alice, bob] <- randomUsers 2
     connectUsers alice (singleton bob)
     -- create & get one2one conv
-    cnv1 <- decodeBodyMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+    cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
     getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
         const 200 === statusCode
-        const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . decodeBody
+        const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
     -- create & get group conv
     carl <- randomUser
     connectUsers alice (singleton carl)
-    cnv2 <- decodeBodyMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+    cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
     getConvs alice (Just $ Left [cnvId cnv2]) Nothing !!! do
         const 200 === statusCode
-        const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . decodeBody
+        const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
     -- get both
     rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
-    let cs = convList <$> decodeBody rs
+    let cs = convList <$> responseJsonUnsafe rs
     let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
     let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
     liftIO $ forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
@@ -546,7 +546,7 @@ paginateConvIds = do
   where
     getChunk size alice start n = do
         resp <- getConvIds alice start (Just size) <!! const 200 === statusCode
-        let c = fromMaybe (ConversationList [] False) (decodeBody resp)
+        let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
         liftIO $ do
             length (convList c) @?= fromIntegral size
             convHasMore c       @?= n > 0
@@ -570,11 +570,11 @@ getConvsPagingOk = do
     walk u = foldM_ (next u 3) Nothing
     next u step start n = do
         r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
-        let ids1 = convList <$> decodeBody r1
+        let ids1 = convList <$> responseJsonUnsafe r1
         liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
 
         r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
-        let ids3 = map cnvId . convList <$> decodeBody r2
+        let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
         liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
 
         liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
@@ -588,7 +588,7 @@ postConvFailNotConnected = do
     jane  <- randomUser
     postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
         const 403 === statusCode
-        const (Just "not-connected") === fmap label . decodeBody
+        const (Just "not-connected") === fmap label . responseJsonUnsafe
 
 postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
@@ -598,7 +598,7 @@ postConvFailNumMembers = do
     connectUsers alice (list1 bob others)
     postConv alice (bob:others) Nothing [] Nothing Nothing !!! do
         const 400 === statusCode
-        const (Just "client-error") === fmap label . decodeBody
+        const (Just "client-error") === fmap label . responseJsonUnsafe
 
 -- | If somebody has blocked a user, that user shouldn't be able to create a
 -- group conversation which includes them.
@@ -612,7 +612,7 @@ postConvFailBlocked = do
         !!! const 200 === statusCode
     postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
         const 403 === statusCode
-        const (Just "not-connected") === fmap label . decodeBody
+        const (Just "not-connected") === fmap label . responseJsonUnsafe
 
 postSelfConvOk :: TestM ()
 postSelfConvOk = do
@@ -641,7 +641,7 @@ postConvO2OFailWithSelf = do
     let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
-        const (Just "invalid-op") === fmap label . decodeBody
+        const (Just "invalid-op") === fmap label . responseJsonUnsafe
 
 postConnectConvOk :: TestM ()
 postConnectConvOk = do
@@ -674,10 +674,10 @@ putConvAcceptOk = do
     putConvAccept bob cnv !!! const 200 === statusCode
     getConv alice cnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . decodeBody
+        const (Just One2OneConv) === fmap cnvType . responseJsonUnsafe
     getConv bob cnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . decodeBody
+        const (Just One2OneConv) === fmap cnvType . responseJsonUnsafe
 
 putConvAcceptRetry :: TestM ()
 putConvAcceptRetry = do
@@ -709,7 +709,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice wants to connect
     rsp1 <- postConnectConv alice bob "A" "a" Nothing <!! const 201 === statusCode
-    let cnv = decodeBodyMsg "conversation" rsp1
+    let cnv = responseJsonUnsafeWithMsg "conversation" rsp1
     liftIO $ do
         ConnectConv   @=? cnvType cnv
         (Just "A")    @=? cnvName cnv
@@ -721,7 +721,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice makes another connect attempt
     rsp2 <- postConnectConv alice bob "A2" "a2" Nothing <!! const 200 === statusCode
-    let cnv2 = decodeBodyMsg "conversation" rsp2
+    let cnv2 = responseJsonUnsafeWithMsg "conversation" rsp2
     liftIO $ do
         ConnectConv   @=? cnvType cnv2
         (Just "A2")   @=? cnvName cnv2
@@ -733,7 +733,7 @@ postRepeatConnectConvCancel = do
 
     -- Now Bob attempts to connect
     rsp3 <- postConnectConv bob alice "B" "b" Nothing <!! const 200 === statusCode
-    let cnv3 = decodeBodyMsg "conversation" rsp3
+    let cnv3 = responseJsonUnsafeWithMsg "conversation" rsp3
     liftIO $ do
         ConnectConv   @=? cnvType cnv3
         (Just "B")    @=? cnvName cnv3
@@ -741,7 +741,7 @@ postRepeatConnectConvCancel = do
 
     -- Bob accepting is a no-op, since he is already a member
     putConvAccept bob (cnvId cnv) !!! const 200 === statusCode
-    cnvX <- decodeBodyMsg "conversation" <$> getConv bob (cnvId cnv)
+    cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConv bob (cnvId cnv)
     liftIO $ do
         ConnectConv   @=? cnvType cnvX
         (Just "B")    @=? cnvName cnvX
@@ -749,7 +749,7 @@ postRepeatConnectConvCancel = do
 
     -- Alice accepts, finally turning it into a 1-1
     putConvAccept alice (cnvId cnv) !!! const 200 === statusCode
-    cnv4 <- decodeBodyMsg "conversation" <$> getConv alice (cnvId cnv)
+    cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice (cnvId cnv)
     liftIO $ do
         One2OneConv     @=? cnvType cnv4
         (Just "B")      @=? cnvName cnv4
@@ -766,7 +766,7 @@ putBlockConvOk = do
     g <- view tsGalley
     alice <- randomUser
     bob   <- randomUser
-    conv  <- decodeBodyMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
+    conv  <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
 
     getConv alice (cnvId conv) !!! const 200 === statusCode
     getConv bob (cnvId conv)   !!! const 403 === statusCode
@@ -777,7 +777,7 @@ putBlockConvOk = do
     -- A is still the only member of the 1-1
     getConv alice (cnvId conv) !!! do
         const 200 === statusCode
-        const (cnvMembers conv) === cnvMembers . decodeBodyMsg "conversation"
+        const (cnvMembers conv) === cnvMembers . responseJsonUnsafeWithMsg "conversation"
 
     -- B accepts the conversation by unblocking
     put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob) !!!
@@ -828,7 +828,7 @@ leaveConnectConversation = do
     alice <- randomUser
     bob   <- randomUser
     bdy   <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-    let c = fromMaybe (error "invalid connect conversation") (cnvId <$> decodeBody bdy)
+    let c = fromMaybe (error "invalid connect conversation") (cnvId <$> responseJsonUnsafe bdy)
     deleteMember alice alice c !!! const 403 === statusCode
 
 postMembersOk :: TestM ()
@@ -855,7 +855,7 @@ postMembersOk2 = do
     connectUsers bob (singleton chuck)
     conv  <- decodeConvId <$> postConv alice [bob, chuck] Nothing [] Nothing Nothing
     postMembers bob (singleton chuck) conv !!! const 204 === statusCode
-    chuck' <- decodeBody <$> (getSelfMember chuck conv <!! const 200 === statusCode)
+    chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
     liftIO $
         assertEqual "wrong self member" (memId <$> chuck') (Just chuck)
 
@@ -895,7 +895,7 @@ postMembersFail = do
     postMembers chuck (singleton eve) conv !!! const 204 === statusCode
     postMembers chuck (singleton dave) conv !!! do
         const 403 === statusCode
-        const (Just "not-connected") === fmap label . decodeBody
+        const (Just "not-connected") === fmap label . responseJsonUnsafe
     void $ connectUsers chuck (singleton dave)
     postMembers chuck (singleton dave) conv !!! const 200 === statusCode
     postMembers chuck (singleton dave) conv !!! const 204 === statusCode
@@ -911,7 +911,7 @@ postTooManyMembersFail = do
     x:xs  <- randomUsers (n - 2)
     postMembers chuck (list1 x xs) conv !!! do
         const 403 === statusCode
-        const (Just "too-many-members") === fmap label . decodeBody
+        const (Just "too-many-members") === fmap label . responseJsonUnsafe
 
 deleteMembersOk :: TestM ()
 deleteMembersOk = do
@@ -1040,7 +1040,7 @@ putMemberOk update = do
 
     -- Verify new member state
     rs <- getConv bob conv <!! const 200 === statusCode
-    let bob' = cmSelf . cnvMembers <$> decodeBody rs
+    let bob' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
     liftIO $ do
         assertBool   "user"             (isJust bob')
         let newBob = fromJust bob'
@@ -1065,7 +1065,7 @@ putReceiptModeOk = do
         -- By default, nothing is set
         getConv alice cnv !!! do
             const 200 === statusCode
-            const (Just Nothing) === fmap cnvReceiptMode . decodeBody
+            const (Just Nothing) === fmap cnvReceiptMode . responseJsonUnsafe
 
         -- Set receipt mode
         put ( g
@@ -1079,7 +1079,7 @@ putReceiptModeOk = do
         -- Ensure the field is properly set
         getConv alice cnv !!! do
             const 200 === statusCode
-            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
 
         void . liftIO $ checkWs alice (cnv, wsB)
 
@@ -1097,12 +1097,12 @@ putReceiptModeOk = do
         -- Ensure that the new field remains unchanged
         getConv alice cnv !!! do
             const 200 === statusCode
-            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
 
     cnv' <- decodeConvId <$> postConvWithReceipt alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
     getConv alice cnv' !!! do
         const 200 === statusCode
-        const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . decodeBody
+        const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . responseJsonUnsafe
   where
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
         ntfTransient n @?= False
@@ -1156,9 +1156,9 @@ removeUser = do
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
             matchMemberLeave conv2 bob
     -- Check memberships
-    mems1 <- fmap cnvMembers . decodeBody <$> getConv alice conv1
-    mems2 <- fmap cnvMembers . decodeBody <$> getConv alice conv2
-    mems3 <- fmap cnvMembers . decodeBody <$> getConv alice conv3
+    mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
+    mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
+    mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
     let other u = find ((== u) . omId) . cmOthers
     liftIO $ do
         (mems1 >>= other bob)  @?= Nothing

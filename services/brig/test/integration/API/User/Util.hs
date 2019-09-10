@@ -67,7 +67,7 @@ createRandomPhoneUser brig = do
     -- check new phone
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (userPhone <=< decodeBody)
+        const (Just phn) === (userPhone <=< responseJsonMaybe)
 
     return (uid, phn)
 
@@ -86,13 +86,13 @@ activateEmail brig email = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 200 === statusCode
-            const(Just False) === fmap activatedFirst . decodeBody
+            const(Just False) === fmap activatedFirst . responseJsonMaybe
 
 checkEmail :: HasCallStack => Brig -> UserId -> Email -> HttpT IO ()
 checkEmail brig uid expectedEmail =
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just expectedEmail) === (userEmail <=< decodeBody)
+        const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
 
 initiateEmailUpdate :: Brig -> Email -> UserId -> Http ResponseLBS
 initiateEmailUpdate brig email uid =
@@ -183,12 +183,12 @@ countCookies brig u label = do
              . queryItem "labels" (toByteString' label)
              . header "Z-User" (toByteString' u)
              ) <!! const 200 === statusCode
-    return $ Vec.length <$> (preview (key "cookies" . _Array) =<< asValue r)
+    return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
 assertConnections brig u cs = listConnections brig u !!! do
     const 200 === statusCode
-    const (Just True) === fmap (check . map status . clConnections) . decodeBody
+    const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
     check xs = all (`elem` xs) cs
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
@@ -198,8 +198,8 @@ assertEmailVisibility brig a b visible =
     get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
         const 200 === statusCode
         if visible
-            then const (Just (userEmail b)) === fmap userEmail . decodeBody
-            else const Nothing === (userEmail <=< decodeBody)
+            then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe
+            else const Nothing === (userEmail <=< responseJsonMaybe)
 
 uploadAsset :: HasCallStack => CargoHold -> UserId -> ByteString -> Http CHV3.Asset
 uploadAsset c usr dat = do
@@ -213,7 +213,7 @@ uploadAsset c usr dat = do
                 . content "multipart/mixed"
                 . lbytes (toLazyByteString mpb)
                 ) <!! const 201 === statusCode
-    decodeBody rsp
+    responseJsonError rsp
 
 downloadAsset :: CargoHold -> UserId -> ByteString -> Http (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =
@@ -232,7 +232,7 @@ uploadAddressBook b u a m =
          . body (RequestBodyLBS $ encode a)
          ) !!! do
             const 200 === statusCode
-            const (Just (f m)) === (fmap f . decodeBody)
+            const (Just (f m)) === (fmap f . responseJsonMaybe)
   where
     f :: MatchingResult -> MatchingResult
     f (MatchingResult x y) = MatchingResult (sort x) (sort y)

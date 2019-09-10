@@ -12,21 +12,32 @@ module Bilge.Response
 
       -- * Re-exports
     , Response
+    , ResponseLBS
     , responseStatus
     , responseHeaders
     , responseVersion
     , responseBody
-    , responseJson
+    , responseJsonEither
+    , responseJsonMaybe
+    , responseJsonThrow
+    , responseJsonError
+    , responseJsonUnsafe
+    , responseJsonUnsafeWithMsg
     ) where
 
 import Imports
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens
+import Control.Monad.Catch
 import Data.Aeson (FromJSON, eitherDecode)
 import Data.CaseInsensitive (original)
+import Data.EitherR (fmapL)
+import Data.Typeable (typeRep)
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
 import Web.Cookie
 
+import qualified Data.Proxy
 import qualified Data.ByteString.Char8 as C
 import qualified Network.HTTP.Types    as HTTP
 
@@ -60,6 +71,55 @@ getCookieValue cookieName resp =
         . to setCookieValue -- extract the cookie value
 
 
+type ResponseLBS = Response (Maybe LByteString)
+
+{-# INLINE responseJsonEither #-}
+responseJsonEither
+  :: forall a. (HasCallStack, Typeable a, FromJSON a)
+  => ResponseLBS -> Either String a
+responseJsonEither = fmapL addTypeInfo . eitherDecode <=< maybe err pure . responseBody
+  where
+    err :: Either String void
+    err = Left "Missing response body."
+
+    addTypeInfo :: String -> String
+    addTypeInfo = ((show (typeRep (Data.Proxy.Proxy @a)) <> " ") <>)
+
+{-# INLINE responseJsonMaybe #-}
+responseJsonMaybe
+  :: (HasCallStack, Typeable a, FromJSON a)
+  => ResponseLBS -> Maybe a
+responseJsonMaybe = either (const Nothing) Just . responseJsonEither
+
+{-# INLINE responseJsonThrow #-}
+responseJsonThrow
+  :: (HasCallStack, MonadThrow m, Typeable a, FromJSON a, Exception e)
+  => (String -> e) -> ResponseLBS -> m a
+responseJsonThrow mkErr = either (throwM . mkErr) pure . responseJsonEither
+
+{-# INLINE responseJsonError #-}
+responseJsonError
+  :: (HasCallStack, MonadThrow m, Typeable a, FromJSON a)
+  => ResponseLBS -> m a
+responseJsonError = responseJsonThrow ErrorCall
+
+{-# INLINE responseJsonUnsafe #-}
+responseJsonUnsafe
+  :: (HasCallStack, Typeable a, FromJSON a)
+  => ResponseLBS -> a
+responseJsonUnsafe = responseJsonUnsafeWithMsg ""
+
+{-# INLINE responseJsonUnsafeWithMsg #-}
+responseJsonUnsafeWithMsg
+  :: (HasCallStack, Typeable a, FromJSON a)
+  => String -> ResponseLBS -> a
+responseJsonUnsafeWithMsg userErr = either err id . responseJsonEither
+  where
+    err parserErr = error . intercalate " " $
+        [ "responseJsonUnsafeWithMsg:" ] <>
+        [ userErr | not $ null userErr ] <>
+        [ parserErr ]
+
 showResponse :: Show a => Response a -> String
 showResponse r = showString "HTTP/"
     . shows (httpMajor . responseVersion $ r)
@@ -77,9 +137,3 @@ showResponse r = showString "HTTP/"
   where
     showHeaders = foldl' (.) (showString "") (map showHdr (responseHeaders r))
     showHdr (k, v) = showString . C.unpack $ original k <> ": " <> v <> "\n"
-
-
-responseJson :: FromJSON a => Response (Maybe LByteString) -> Either String a
-responseJson resp = case responseBody resp of
-    Nothing  -> Left "no body"
-    Just raw -> eitherDecode raw

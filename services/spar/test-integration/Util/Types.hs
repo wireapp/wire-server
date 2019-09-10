@@ -57,8 +57,6 @@ data TestEnv = TestEnv
 
 type Select = TestEnv -> (Request -> Request)
 
-type ResponseLBS = Bilge.Response (Maybe LBS)
-
 data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint

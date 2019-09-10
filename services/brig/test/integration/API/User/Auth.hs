@@ -234,7 +234,7 @@ testSendLoginCode brig = do
     rsp1 <- sendLoginCode brig p LoginCodeSMS True
         <!! const 200 === statusCode
 
-    let _timeout = fromLoginCodeTimeout <$> decodeBody rsp1
+    let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp1
     liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
     -- Retry with a voice call
@@ -242,7 +242,7 @@ testSendLoginCode brig = do
         <!! const 200 === statusCode
 
     -- Timeout is reset
-    let _timeout = fromLoginCodeTimeout <$> decodeBody rsp2
+    let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
     liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
 testLoginFailure :: Brig -> Http ()
@@ -267,7 +267,7 @@ testLoginFailure brig = do
                 ]
     res <- post (brig . path "/i/users" . contentJson . Http.body newUser) <!!
         const 201 === statusCode
-    uid <- userId <$> decodeBody res
+    uid <- userId <$> responseJsonError res
     eml <- randomEmail
 
     -- Add email
@@ -855,7 +855,7 @@ listCookiesWithLabel b u l = do
                  . queryItem "labels" labels
                  . header "Z-User" (toByteString' u)) <!!
         const 200 === statusCode
-    let Just cs = cookieList <$> decodeBody rs
+    let Just cs = cookieList <$> responseJsonMaybe rs
     return cs
   where
     labels = BS.intercalate "," $ map toByteString' l
@@ -887,7 +887,7 @@ assertSaneAccessToken now uid tk = do
 
 -- | Get error label from the response (for use in assertions).
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
-errorLabel = fmap Error.label . decodeBody
+errorLabel = fmap Error.label . responseJsonMaybe
 
 remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object
