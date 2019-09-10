@@ -193,7 +193,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
-        (ue, be) <- foldrM (pushEvents now membs) ([],[]) convs
+        (ue, be) <- foldrM (pushConvDeleteEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
@@ -206,11 +206,16 @@ uncheckedDeleteTeam zusr zcon tid = do
             Journal.teamDelete tid
         Data.deleteTeam tid
   where
-    pushEvents :: UTCTime -> [TeamMember] -> TeamConversation -> ([Push],[(BotMember, Conv.Event)]) -> Galley ([Push],[(BotMember, Conv.Event)])
-    pushEvents now membs c (pp, ee) = do
-        (bots, users) <- botsAndUsers <$> Data.members (c^.conversationId)
-        let mm = nonTeamMembers users membs
-        let e = Conv.Event Conv.ConvDelete (c^.conversationId) zusr now Nothing
+    pushConvDeleteEvents
+        :: UTCTime
+        -> [TeamMember]
+        -> TeamConversation
+        -> ([Push],[(BotMember, Conv.Event)])
+        -> Galley ([Push],[(BotMember, Conv.Event)])
+    pushConvDeleteEvents now teamMembs c (pp, ee) = do
+        (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+        let mm = nonTeamMembers convMembs teamMembs
+        let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
         let p = newPush zusr (ConvEvent e) (map recipient mm)
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
