@@ -397,10 +397,11 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
     let tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
-    let p  = newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon
-    case convMembsAndTeamMembs cmems tmems of
-        []     -> push1 p
-        (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    let teamPush = [newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon]
+        convPush = case convMembsAndTeamMembs cmems tmems of
+            []     -> []
+            (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    pushSome $ teamPush <> convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
