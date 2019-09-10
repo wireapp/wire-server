@@ -53,6 +53,7 @@ import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
+import Data.Misc ((<$$>))
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Gundeck.Types
 import Network.HTTP.Client
@@ -250,7 +251,14 @@ awaitMatchN :: (HasCallStack, MonadIO m)
             -> [WebSocket]
             -> (Notification -> Assertion)
             -> m [Either MatchTimeout Notification]
-awaitMatchN t wss f = liftIO $ mapConcurrently (\ws -> awaitMatch t ws f) wss
+awaitMatchN t wss f = snd <$$> awaitMatchN' t (((),) <$> wss) f
+
+awaitMatchN' :: (HasCallStack, MonadIO m)
+            => Timeout
+            -> [(extra, WebSocket)]
+            -> (Notification -> Assertion)
+            -> m [(extra, Either MatchTimeout Notification)]
+awaitMatchN' t wss f = liftIO $ mapConcurrently (\(extra, ws) -> (extra,) <$> awaitMatch t ws f) wss
 
 assertMatchN :: (HasCallStack, MonadIO m, MonadThrow m)
              => Timeout
@@ -264,11 +272,11 @@ assertSuccess = either throwM return
 
 assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
-    results <- awaitMatchN t ww (const $ pure ())
-    for_ results $
-        either (const $ pure ()) (liftIO . f)
+    results <- awaitMatchN' t (zip [(0 :: Int)..] ww) (const $ pure ())
+    for_ results $ \(ix, result) ->
+        either (const $ pure ()) (liftIO . f ix) result
   where
-    f n = assertFailure $ "unexpected notification received: " ++ show n
+    f ix n = assertFailure $ "unexpected notification received: " ++ show (ix, n)
 
 -----------------------------------------------------------------------------
 -- Unpacking Notifications
