@@ -8,4 +8,4 @@ main :: IO ()
 main = getOptions desc Nothing defaultPath >>= start
   where
     desc = "Stern - Backoffice Service"
-    defaultPath = "/etc/wire/stern/conf/stern.yaml"
+    defaultPath = "./stern.example.yaml"

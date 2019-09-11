@@ -1212,5 +1212,5 @@ testFeatureFlags = do
         setLegalHoldInternal LegalHoldEnabled
         getLegalHold LegalHoldEnabled
         getLegalHoldInternal LegalHoldEnabled
-      FeatureLegalHoldDisabledPermantently -> do
+      FeatureLegalHoldDisabledPermanently -> do
         putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled

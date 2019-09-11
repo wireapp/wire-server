@@ -558,7 +558,7 @@ getLegalholdStatusInternal (tid ::: _) = do
       FeatureLegalHoldDisabledByDefault -> do
         legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
         pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
-      FeatureLegalHoldDisabledPermantently -> do
+      FeatureLegalHoldDisabledPermanently -> do
         pure . json $ disabledConfig
   where
     disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
@@ -570,7 +570,7 @@ setLegalholdStatusInternal (tid ::: req ::: _) = do
         case featureLegalHold of
           FeatureLegalHoldDisabledByDefault -> do
             pure ()
-          FeatureLegalHoldDisabledPermantently -> do
+          FeatureLegalHoldDisabledPermanently -> do
             throwM legalHoldFeatureFlagNotEnabled
 
     legalHoldTeamConfig <- fromJsonBody req

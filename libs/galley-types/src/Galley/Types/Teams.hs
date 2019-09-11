@@ -330,7 +330,7 @@ data FeatureSSO
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 data FeatureLegalHold
-    = FeatureLegalHoldDisabledPermantently
+    = FeatureLegalHoldDisabledPermanently
     | FeatureLegalHoldDisabledByDefault
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
@@ -355,12 +355,12 @@ instance ToJSON FeatureSSO where
     toJSON FeatureSSODisabledByDefault = String "disabled-by-default"
 
 instance FromJSON FeatureLegalHold where
-    parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermantently
+    parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
     parseJSON (String "disabled-by-default")  = pure $ FeatureLegalHoldDisabledByDefault
     parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
 
 instance ToJSON FeatureLegalHold where
-    toJSON FeatureLegalHoldDisabledPermantently = String "disabled-permanently"
+    toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
     toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team

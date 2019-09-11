@@ -71,7 +71,7 @@ onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
     featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
-        FeatureLegalHoldDisabledPermantently
+        FeatureLegalHoldDisabledPermanently
             -> liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
         FeatureLegalHoldDisabledByDefault
             -> action
