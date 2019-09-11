@@ -13,6 +13,7 @@ import Imports hiding (head)
 
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.Team.LegalHold (LegalHoldStatus(..))
 import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens (view, (^.))
@@ -27,9 +28,9 @@ import Data.Id
 import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
-import Data.Tagged
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text (Text, unpack)
+import Galley.Types.Teams.SSO
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -305,19 +306,19 @@ sitemap = do
         summary "Shows whether SSO feature is enabled for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
-        Doc.returns Doc.bool'
+        Doc.returns Doc.docSSOStatus
         Doc.response 200 "SSO status" Doc.end
 
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"
         .&. capture "tid"
-        .&. jsonRequest @(Tagged "sso" Bool)
+        .&. jsonRequest @SSOStatus
 
     document "PUT" "setSSOStatus" $ do
         summary "Disable / enable SSO feature for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
-        Doc.body Doc.bool' $
+        Doc.body Doc.docSSOStatus $
             Doc.description "JSON body"
         Doc.response 200 "SSO status" Doc.end
 
@@ -513,14 +514,14 @@ getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
 
 
-setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest (Tagged "legalhold" Bool) -> Handler Response
+setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest LegalHoldStatus -> Handler Response
 setLegalholdStatus (_ ::: tid ::: req) = do
     status <- parseBody req !>> Error status400 "client-error"
     liftM json $ Intra.setLegalholdStatus tid status
 
-setSSOStatus :: JSON ::: TeamId ::: JsonRequest (Tagged "sso" Bool) -> Handler Response
+setSSOStatus :: JSON ::: TeamId ::: JsonRequest SSOStatus -> Handler Response
 setSSOStatus (_ ::: tid ::: req) = do
-    status :: Tagged "sso" Bool <- parseBody req !>> Error status400 "client-error"
+    status :: SSOStatus <- parseBody req !>> Error status400 "client-error"
     liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response

@@ -42,7 +42,6 @@ library:
   - semigroups                >= 0.16
   - split                     >= 0.2
   - swagger                   >= 0.3
-  - tagged
   - text                      >= 1.1
   - text-format               >= 0.3
   - time                      >= 1.4

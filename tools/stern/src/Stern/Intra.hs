@@ -58,7 +58,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
-import Data.Tagged
 import Data.Text (Text, strip)
 import Data.Text.Lazy (pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
@@ -352,8 +351,8 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True  = POST
 
-getLegalholdStatus :: TeamId -> Handler (Tagged "legalhold" Bool)
-getLegalholdStatus tid = Tagged <$> do
+getLegalholdStatus :: TeamId -> Handler LegalHoldStatus
+getLegalholdStatus tid = do
     info $ msg "Getting legalhold status"
     gly <- view galley
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
@@ -362,29 +361,25 @@ getLegalholdStatus tid = Tagged <$> do
          . expect2xx
          )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody :: Response (Maybe LByteString) -> Handler LegalHoldStatus
     fromResponseBody resp = case responseJsonEither resp of
-      Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure False
-      Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure True
+      Right (LegalHoldTeamConfig status) -> pure status
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setLegalholdStatus :: TeamId -> Tagged "legalhold" Bool -> Handler ()
-setLegalholdStatus tid (Tagged status) = do
+setLegalholdStatus :: TeamId -> LegalHoldStatus -> Handler ()
+setLegalholdStatus tid status = do
     info $ msg "Setting legalhold status"
     gly <- view galley
     void . catchRpcErrors $ rpc' "galley" gly
          ( method PUT
          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
-         . lbytes (encode $ toRequestBody status)
+         . lbytes (encode $ LegalHoldTeamConfig status)
          . contentJson
          . expect2xx
          )
-  where
-    toRequestBody False = LegalHoldTeamConfig LegalHoldDisabled
-    toRequestBody True  = LegalHoldTeamConfig LegalHoldEnabled
 
-getSSOStatus :: TeamId -> Handler (Tagged "sso" Bool)
-getSSOStatus tid = Tagged <$> do
+getSSOStatus :: TeamId -> Handler SSOStatus
+getSSOStatus tid = do
     info $ msg "Getting SSO status"
     gly <- view galley
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
@@ -393,26 +388,22 @@ getSSOStatus tid = Tagged <$> do
          . expect2xx
          )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody :: Response (Maybe LByteString) -> Handler SSOStatus
     fromResponseBody resp = case responseJsonEither resp of
-      Right (SSOTeamConfig SSODisabled) -> pure False
-      Right (SSOTeamConfig SSOEnabled) -> pure True
+      Right (SSOTeamConfig status) -> pure status
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setSSOStatus :: TeamId -> Tagged "sso" Bool -> Handler ()
-setSSOStatus tid (Tagged status) = do
+setSSOStatus :: TeamId -> SSOStatus -> Handler ()
+setSSOStatus tid status = do
     info $ msg "Setting SSO status"
     gly <- view galley
     void . catchRpcErrors $ rpc' "galley" gly
          ( method PUT
          . paths ["/i/teams", toByteString' tid, "features", "sso"]
-         . lbytes (encode $ toRequestBody status)
+         . lbytes (encode $ SSOTeamConfig status)
          . contentJson
          . expect2xx
          )
-  where
-    toRequestBody False = SSOTeamConfig SSODisabled
-    toRequestBody True  = SSOTeamConfig SSOEnabled
 
 --------------------------------------------------------------------------------
 -- Helper functions
