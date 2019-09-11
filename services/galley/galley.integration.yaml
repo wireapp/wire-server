@@ -37,13 +37,11 @@ settings:
     # able to register new idps.
     # disabled for integration tests (the ones who need it on will
     # turn it on themselves).
-    sso: false
+    sso: disabled-by-default
 
     # Legal Hold: this decides whether customer support / backoffice
-    # is allowed to turn the feature on for individual teams.  the
-    # default for new teams is always "false", no matter what the
-    # feature flag is set to.
-    legalhold: true
+    # is allowed to turn the feature on for individual teams.
+    legalhold: disabled-by-default
 
 logLevel: Info
 logNetStrings: false
