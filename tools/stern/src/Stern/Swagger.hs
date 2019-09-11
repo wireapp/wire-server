@@ -72,8 +72,8 @@ teamBillingInfoUpdate = defineModel "teamBillingInfoUpdate" $ do
         description "State of the company address (1 - 256 characters)"
         optional
 
-docSSOStatus :: DataType
-docSSOStatus = string $ enum ["enabled", "disabled"]
+docSetSSOStatus :: DataType
+docSetSSOStatus = string $ enum ["\"SetSSODisabled\"","\"SetSSOEnabled\""]
 
-docLegalHoldStatus :: DataType
-docLegalHoldStatus = string $ enum ["enabled", "disabled"]
+docSetLegalHoldStatus :: DataType
+docSetLegalHoldStatus = string $ enum ["\"SetLegalHoldDisabled\"","\"SetLegalHoldEnabled\""]
