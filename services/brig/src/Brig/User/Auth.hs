@@ -162,7 +162,7 @@ catchSuspendInactiveUser uid errval = do
   when mustsuspend $ do
     Log.warn $ msg (val "Suspending user due to inactivity")
       ~~ field "user" (toByteString uid)
-      ~~ field "action" "user.suspend"
+      ~~ field "action" ("user.suspend" :: String)
     lift $ suspendAccount (singleton uid)
     throwE errval
 
