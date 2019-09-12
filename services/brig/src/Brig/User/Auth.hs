@@ -161,7 +161,7 @@ catchSuspendInactiveUser uid errval = do
   mustsuspend <- lift $ mustSuspendInactiveUser uid
   when mustsuspend $ do
     Log.warn $ msg (val "Suspending user due to inactivity")
-        ~~ field "user" (toByteString uid)
+      ~~ field "user" (toByteString uid)
     lift $ suspendAccount (singleton uid)
     throwE errval
 
