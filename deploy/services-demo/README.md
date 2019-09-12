@@ -75,16 +75,24 @@ If you wish to send verification SMS/calls (to support registration using phone 
 
 Note: This demo setup comes bundled with a postfix email sending docker image; however due to the minimal setup, emails will likely land in the Spam/Junk folder of the target email address, if you configure a common email provider. To get the smoketester to check the Spam folder as well, use e.g. (in the case of gmail) `--mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam'`.
 
-Example:
+Configure an email inbox for the smoketester:
 
 ```
-# from the wire-server directory, after having compiled everything with 'make install'
+# from the root of wire-server directory
+cp tools/api-simulations/mailboxes.example.json mailboxes.json
+```
+
+Now adjust `mailboxes.json` and use credentials for an email account you own.
+
+Next, from the wire-server directory, after having compiled everything with 'make install':
+
+```bash
 ./dist/api-smoketest \
     --api-host=127.0.0.1 \
     --api-port=8080 \
     --api-websocket-host=127.0.0.1 \
     --api-websocket-port=8081 \
-    --mailbox-config=<path_to_mailboxes_file> \
+    --mailbox-config=mailboxes.json \
     --sender-email=backend-demo@mail.wiredemo.example.com \
     --mailbox-folder INBOX \
     --mailbox-folder '[Gmail]/Spam' \
