@@ -15,7 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
-import Galley.Options (optSettings, featureEnabled)
+import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -176,12 +176,10 @@ testEnableSSOPerTeam = do
             assertEqual "bad status" status403 status
             assertEqual "bad label" "not-implemented" label
 
-    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
-    if not featureSSO
-      then do
-        check "Teams should start with SSO disabled" SSODisabled
-      else do
-        check "Teams should start with SSO enabled" SSOEnabled
+    featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+    case featureSSO of
+        FeatureSSOEnabledByDefault  -> check "Teams should start with SSO enabled" SSOEnabled
+        FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" SSODisabled
 
     putSSOEnabledInternal tid SSOEnabled
     check "Calling 'putEnabled True' should enable SSO" SSOEnabled
@@ -1175,17 +1173,16 @@ testFeatureFlags = do
         setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
         setSSOInternal = putSSOEnabledInternal tid
 
-    featureSSO <- view (tsGConf . optSettings . featureEnabled FeatureSSO)
-    if not featureSSO
-      then do -- disabled
+    featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+    case featureSSO of
+      FeatureSSODisabledByDefault -> do
         getSSO SSODisabled
         getSSOInternal SSODisabled
 
         setSSOInternal SSOEnabled
         getSSO SSOEnabled
         getSSOInternal SSOEnabled
-
-      else do -- enabled
+      FeatureSSOEnabledByDefault -> do
         -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
         -- much here.  (disable failure is covered in "enable/disable SSO" above.)
         getSSO SSOEnabled
@@ -1209,11 +1206,11 @@ testFeatureFlags = do
     getLegalHold LegalHoldDisabled
     getLegalHoldInternal LegalHoldDisabled
 
-    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
-    if featureLegalHold
-      then do
+    featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
         setLegalHoldInternal LegalHoldEnabled
         getLegalHold LegalHoldEnabled
         getLegalHoldInternal LegalHoldEnabled
-      else do
+      FeatureLegalHoldDisabledPermanently -> do
         putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled

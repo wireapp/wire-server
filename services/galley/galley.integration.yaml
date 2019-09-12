@@ -26,24 +26,9 @@ settings:
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
-  featureFlags:
-    # SSO: this sets the default setting for each time, which can
-    # always be overridden by customer support / backoffice.
-    # IMPORTANT: if you change sso from 'enabled' to 'disabled' after
-    # running 'enabled' in production, you need to run this migration
-    # script to fix all teams that have registered an idp:
-    # https://github.com/wireapp/wire-server/tree/master/tools/db/migrate-sso-feature-flag
-    # if you don't, the idp will keep working, but the admin won't be
-    # able to register new idps.
-    # disabled for integration tests (the ones who need it on will
-    # turn it on themselves).
-    sso: false
-
-    # Legal Hold: this decides whether customer support / backoffice
-    # is allowed to turn the feature on for individual teams.  the
-    # default for new teams is always "false", no matter what the
-    # feature flag is set to.
-    legalhold: true
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: disabled-by-default
 
 logLevel: Info
 logNetStrings: false

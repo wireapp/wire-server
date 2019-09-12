@@ -31,7 +31,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.Types.Teams
-import Galley.Options (optSettings, featureEnabled)
+import Galley.Options (optSettings, setFeatureFlags)
 import GHC.Generics hiding (to)
 import GHC.TypeLits
 import Gundeck.Types.Notification (ntfPayload)
@@ -69,10 +69,12 @@ import qualified Test.Tasty.Cannon                 as WS
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
-    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
-    if featureLegalHold
-        then action
-        else liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
+    featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+        FeatureLegalHoldDisabledPermanently
+            -> liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
+        FeatureLegalHoldDisabledByDefault
+            -> action
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
