@@ -1,3 +1,27 @@
+# 2019-09-16 #858
+
+## Relevant for self-hosters
+
+- Documentation changes for Twilio configurations and TURN setup. (#775)
+
+## Relevant for client developers
+
+- Better events for deletion of team conversations (also send `conversation.delete` to team members) (#849)
+- Add a new type of authorization tokens for legalhold (for details on legalhold, see https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md) (#761)
+
+## Bug fixes
+
+- Fix swagger docs. (#852)
+- Fix intra call in stern (aka customer support, aka backoffice) (#844)
+
+## Internal Changes
+
+- Change feature flags from boolean to custom enum types. (#850)
+- Fix flaky integration test. (#848)
+- Cleanup: incoherent functions for response body parsing. (#847)
+- add route for consistency (#851)
+
+
 # 2019-09-03 #843
 
 ## Relevant for self-hosters
