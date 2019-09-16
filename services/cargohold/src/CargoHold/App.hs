@@ -27,7 +27,7 @@ module CargoHold.App
     ) where
 
 import Imports hiding (log)
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (Manager, MonadHttp, RequestId(..), newManager, withResponse)
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
 import CargoHold.Options as Opt
@@ -84,7 +84,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     met  <- Metrics.metrics
-    lgr  <- Log.mkLogger (o^.optLogLevel) (o^.optLogNetStrings)
+    lgr  <- Log.mkLogger (o^.optLogLevel) (o^.optLogNetStrings) (o^.optLogFormat)
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr def (o^.optSettings)
@@ -165,13 +165,15 @@ instance MonadLogger (ExceptT e App) where
     log l = lift . log l
 
 instance MonadHttp App where
-    getManager = view httpManager
+    handleRequestWithCont req handler = do
+        manager <- view httpManager
+        liftIO $ withResponse req manager handler
 
 instance HasRequestId App where
     getRequestId = view requestId
 
 instance MonadHttp (ExceptT e App) where
-    getManager = lift Bilge.getManager
+    handleRequestWithCont req handler = lift $ Bilge.handleRequestWithCont req handler
 
 instance HasRequestId (ExceptT e App) where
     getRequestId = lift getRequestId

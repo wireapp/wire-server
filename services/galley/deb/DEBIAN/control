@@ -2,6 +2,6 @@ Package: galley
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
 Maintainer: Wire Swiss GmbH <backend@wire.com>
 Architecture: amd64
-Depends: runit
+Depends: runit,libsodium23 (>= 1.0.16)
 Description: Conversation Service
  Galley is a web service for managing conversations

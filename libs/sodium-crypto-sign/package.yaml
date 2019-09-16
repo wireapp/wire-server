@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: sodium-crypto-sign
 version: '0.1.2'
@@ -13,7 +13,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 ghc-prof-options:
 - -prof
-- -auto-all
+- -fprof-auto
 dependencies:
 - base >=4.6 && <5
 - base64-bytestring >=1.0
@@ -21,7 +21,5 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - Sodium.Crypto.Sign
-  pkg-config-dependencies: 
+  pkg-config-dependencies:
   - libsodium >= 0.4.5

@@ -51,6 +51,12 @@ data Login
 data SsoLogin
     = SsoLogin !UserId !(Maybe CookieLabel)
 
+-- | A special kind of login that is only used for an internal endpoint.
+-- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
+-- tokens.
+data LegalHoldLogin
+    = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
 loginLabel (SmsLogin      _ _ l) = l
@@ -107,6 +113,18 @@ instance ToJSON SsoLogin where
     toJSON (SsoLogin uid label) =
         object [ "user" .= uid, "label" .= label ]
 
+instance FromJSON LegalHoldLogin where
+    parseJSON = withObject "LegalHoldLogin" $ \o ->
+        LegalHoldLogin  <$> o .: "user"
+                        <*> o .:? "password"
+                        <*> o .:? "label"
+
+instance ToJSON LegalHoldLogin where
+    toJSON (LegalHoldLogin uid password label) =
+        object [ "user"     .= uid
+               , "password" .= password
+               , "label"    .= label ]
+
 instance FromJSON PendingLoginCode where
     parseJSON = withObject "PendingLoginCode" $ \o ->
         PendingLoginCode <$> o .: "code"
@@ -162,11 +180,11 @@ data RemoveCookies = RemoveCookies
 -- Cookies can be listed and deleted based on their labels.
 newtype CookieLabel = CookieLabel
     { cookieLabelText :: Text }
-    deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString)
+    deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString, Generic)
 
 newtype CookieId = CookieId
     { cookieIdNum :: Word32 }
-    deriving (Eq, Show, FromJSON, ToJSON)
+    deriving (Eq, Show, FromJSON, ToJSON, Generic)
 
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
@@ -178,7 +196,7 @@ data Cookie a = Cookie
     , cookieLabel   :: !(Maybe CookieLabel)
     , cookieSucc    :: !(Maybe CookieId)
     , cookieValue   :: !a
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data CookieList = CookieList
     { cookieList :: [Cookie ()]
@@ -195,7 +213,7 @@ data CookieType
         -- ^ A regular persistent cookie that expires at a specific date.
         -- These cookies are regularly renewed as part of an access token
         -- refresh.
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON AccessToken where
     toJSON (AccessToken u t tt e) =

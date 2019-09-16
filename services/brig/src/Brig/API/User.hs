@@ -12,6 +12,7 @@ module Brig.API.User
     , lookupHandle
     , changeManagedBy
     , changeAccountStatus
+    , suspendAccount
     , Data.lookupAccounts
     , Data.lookupAccount
     , Data.lookupStatus
@@ -119,6 +120,7 @@ import qualified Brig.InternalEvent.Types   as Internal
 -------------------------------------------------------------------------------
 -- Create User
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
@@ -287,6 +289,9 @@ createUser new@NewUser{..} = do
 
 -------------------------------------------------------------------------------
 -- Update Profile
+
+-- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
+-- {#DevScimOneWaySync}
 
 updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
 updateUser uid conn uu = do
@@ -462,6 +467,12 @@ changeAccountStatus usrs status = do
         Data.updateStatus u status
         Intra.onUserEvent u Nothing (ev u)
 
+suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
+suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
+    Right _ -> pure ()
+    Left InvalidAccountStatus -> error "impossible."
+
+
 -------------------------------------------------------------------------------
 -- Activation
 
@@ -513,6 +524,7 @@ onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
     return (uid, Just (PhoneIdentity phone), False)
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do
@@ -690,13 +702,10 @@ deleteUser uid pwd = do
         Just tid -> do
             ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
             case ownerSituation of
-               Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
-               Team.IsOneOfManyTeamOwners -> pure ()
-               Team.IsNotTeamOwner        -> pure ()
-               Team.NoTeamOwnersAreLeft   -> do
-                   Log.warn $ field "user" (toByteString uid)
-                            . field "team" (toByteString tid)
-                            . msg (val "Team.NoTeamOwnersAreLeft")
+               Team.IsOnlyTeamOwnerWithEmail       -> throwE DeleteUserOnlyOwner
+               Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+               Team.IsTeamOwnerWithoutEmail        -> pure ()
+               Team.IsNotTeamOwner                 -> pure ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 
@@ -760,7 +769,7 @@ verifyDeleteUser d = do
     for_ account $ lift . deleteAccount
     lift $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:id@.  Team users can be
+-- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
 -- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
 -- in the team.
 deleteAccount :: UserAccount -> AppIO ()
@@ -850,14 +859,29 @@ lookupProfiles :: UserId   -- ^ User 'A' on whose behalf the profiles are reques
 lookupProfiles self others = do
     users <- Data.lookupUsers others >>= mapM userGC
     css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
-    return $ map (toProfile css) users
+    emailVisibility' <- view (settings . emailVisibility)
+    return $ map (toProfile emailVisibility' css) users
   where
+    toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
-    toProfile css u =
+    toProfile :: EmailVisibility -> Map UserId Relation -> User -> UserProfile
+    toProfile emailVisibility' css u =
         let cs = Map.lookup (userId u) css
-        in if userId u == self || cs == Just Accepted || cs == Just Sent
-            then connectedProfile u
-            else publicProfile u
+            profileEmail' = getEmailForProfile u emailVisibility'
+            baseProfile = if userId u == self || cs == Just Accepted || cs == Just Sent
+                            then connectedProfile u
+                            else publicProfile u
+         in baseProfile{ profileEmail = profileEmail'}
+
+-- | Gets the email if it's visible to the requester according to configured settings
+getEmailForProfile :: User -- ^ The user who's profile is being requested
+                   -> EmailVisibility
+                   -> Maybe Email
+getEmailForProfile _ EmailVisibleToSelf = Nothing
+getEmailForProfile u EmailVisibleIfOnTeam =
+    if isJust (userTeam u)
+        then userEmail u
+        else Nothing
 
 -- | Obtain a profile for a user as he can see himself.
 lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)

@@ -5,7 +5,7 @@ module Test.Brig.Types.TURN where
 import Imports
 import Brig.Types.TURN hiding (turnURI)
 import Data.Aeson
-import Test.Brig.Types.Arbitrary ()
+import Brig.Types.Test.Arbitrary ()
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
 

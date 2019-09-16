@@ -15,12 +15,6 @@ library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
-  exposed-modules:
-  - Proxy.API
-  - Proxy.Env
-  - Proxy.Options
-  - Proxy.Proxy
-  - Proxy.Run
   dependencies:
   - base >=4.6 && <5
   - aeson >=1.0
@@ -52,6 +46,7 @@ library:
   - wai-utilities >=0.14.3
   - warp >=3.0
   - yaml >=0.8.22
+  - unliftio-core
 executables:
   proxy:
     main: src/Main.hs
@@ -69,5 +64,5 @@ executables:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false

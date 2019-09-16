@@ -7,7 +7,7 @@ import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Imports
 import Util.Options
-import System.Logger (Level)
+import System.Logger.Extended (Level, LogFormat)
 
 -- | Options that are consumed on startup
 data Opts = Opts
@@ -21,7 +21,8 @@ data Opts = Opts
     , galeb   :: !Endpoint
     -- Logging
     , logLevel      :: !Level
-    , logNetStrings :: !Bool
+    , logNetStrings :: !(Maybe (Last Bool))
+    , logFormat     :: !(Maybe (Last LogFormat))
     } deriving (Show, Generic)
 
 instance FromJSON Opts

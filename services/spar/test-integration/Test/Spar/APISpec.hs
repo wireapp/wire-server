@@ -1,6 +1,7 @@
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)
+
 import Bilge
 import Brig.Types.User
 import Control.Lens
@@ -11,9 +12,10 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Network.HTTP.Types (status200)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Lenses
+import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
@@ -259,7 +261,7 @@ specFinalizeLogin = do
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
-            responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
+            responseJsonEither sparresp `shouldBe` Right (TestErrorLabel "not-found")
 
       context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
@@ -325,7 +327,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 statusCode resp `shouldBe` 403
                 resp `shouldSatisfy` (not . checkRespBody)
                 hasSetBindCookieHeader resp `shouldBe` Left "no set-cookie header"
-                responseJSON resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
+                responseJsonEither resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
 
     describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session without authentication" $ do
@@ -488,7 +490,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
     let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-        checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
+        checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
 
         testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetPutDelete whichone = do
@@ -530,6 +532,20 @@ specCRUDIdentityProvider = do
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
+        -- Authenticate via sso, and assign owner status to the thus created user.  (This
+        -- doesn't work via the cookie, since we don't talk to nginz here, so we assume there
+        -- is only one user in the team, which is the original owner.)
+        mkSsoOwner :: UserId -> TeamId -> IdP -> TestSpar UserId
+        mkSsoOwner firstOwner tid idp = do
+          spmeta <- getTestSPMetadata
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+          loginresp <- submitAuthnResponse authnresp
+          liftIO $ responseStatus loginresp `shouldBe` status200
+          [ssoOwner] <- filter (/= firstOwner) <$> getTeamMembers firstOwner tid
+          promoteTeamMember firstOwner tid ssoOwner
+          pure ssoOwner
+
 
     describe "GET /identity-providers/:idp" $ do
       testGetPutDelete callIdpGet'
@@ -539,6 +555,14 @@ specCRUDIdentityProvider = do
           env <- ask
           (owner, _, (^. idpId) -> idpid) <- registerTestIdP
           _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
+          passes
+
+      context "known IdP, client is team owner (authenticated via sso, user without email)" $ do
+        it "responds with 2xx and IdP" $ do
+          env <- ask
+          (firstOwner, tid, idp) <- registerTestIdP
+          ssoOwner <- mkSsoOwner firstOwner tid idp
+          _ <- call $ callIdpGet (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           passes
 
 
@@ -552,10 +576,10 @@ specCRUDIdentityProvider = do
             <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
-            `shouldRespondWith` ((== 403) . statusCode)
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
-      context "client is team owner" $ do
-        context "no idps registered" $ do
+      context "no idps registered" $ do
+        context "client is team owner" $ do
           it "returns an empty list" $ do
             env <- ask
             (owner :: UserId, _teamid :: TeamId)
@@ -563,7 +587,8 @@ specCRUDIdentityProvider = do
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (null . _idplProviders)
 
-        context "some idps are registered" $ do
+      context "some idps are registered" $ do
+        context "client is team owner with email" $ do
           it "returns a non-empty empty list" $ do
             env <- ask
             metadata <- makeTestIdPMetadata
@@ -571,12 +596,21 @@ specCRUDIdentityProvider = do
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
 
+        context "client is team owner without email" $ do
+          it "returns a non-empty empty list" $ do
+            env <- ask
+            metadata <- makeTestIdPMetadata
+            (firstOwner, tid, idp) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            ssoOwner <- mkSsoOwner firstOwner tid idp
+            callIdpGetAll (env ^. teSpar) (Just ssoOwner)
+              `shouldRespondWith` (not . null . _idplProviders)
+
 
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
 
       context "known IdP, client is team owner" $ do
-        it "responds with 2xx and removes IdP" $ do
+        context "without email" $ it "responds with 2xx and removes IdP" $ do
           env <- ask
           (userid, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpDelete' (env ^. teSpar) (Just userid) idpid
@@ -584,8 +618,18 @@ specCRUDIdentityProvider = do
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
 
+        context "with email" $ it "responds with 2xx and removes IdP" $ do
+          env <- ask
+          (firstOwner, tid, idp) <- registerTestIdP
+          ssoOwner <- mkSsoOwner firstOwner tid idp
+          callIdpDelete' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+            `shouldRespondWith` \resp -> statusCode resp < 300
+          callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
-    describe "PUT /identity-providers/:idp" $ do
+
+    -- there are no routes for PUT yet.
+    xdescribe "PUT /identity-providers/:idp" $ do
       xdescribe "need to implement `callIdpGet'` for these tests" $ do
         let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
             callIdpPut' = undefined  -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
@@ -600,8 +644,23 @@ specCRUDIdentityProvider = do
             pending  -- (only test for signature here, but make sure that the same validity tests
                      -- are performed as for POST in Spar.API.)
 
+      it "also works with sso-authenticated users (see above)" $ pending
+
 
     describe "POST /identity-providers" $ do
+      context "sso disabled for team" $ do
+        it "responds with 403 forbidden" $ do
+          env <- ask
+          (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
+          (callIdpCreate' (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata)
+            `shouldRespondWith` checkErr (== 403) "sso-disabled"
+
+      context "bad xml" $ do
+        it "responds with a 'client error'" $ do
+          env <- ask
+          callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
+            `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
@@ -641,12 +700,12 @@ specCRUDIdentityProvider = do
             statusCode resp1 `shouldBe` 201
 
             statusCode resp2 `shouldBe` 400
-            responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+            responseJsonEither resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
             statusCode resp3 `shouldBe` 400
-            responseJSON resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+            responseJsonEither resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
-      context "everything in order" $ do
+      context "client is owner with email" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
           (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -654,6 +713,26 @@ specCRUDIdentityProvider = do
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
+
+      context "client is owner without email" $ do
+        it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+          pending
+
+      describe "with json body" $ do
+        context "bad json" $ do
+          it "responds with a 'client error'" $ do
+            env <- ask
+            callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
+              `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+
+        context "good json" $ do
+          it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+            env <- ask
+            (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
+            idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ idp `shouldBe` idp'
 
 
 specScimAndSAML :: SpecWith TestEnv

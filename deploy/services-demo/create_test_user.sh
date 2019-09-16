@@ -8,32 +8,40 @@ set -e
 # if you have direct access to brig
 #
 
-# Usage:
-#   --csv                      Output users in CSV format
-#   --count=INT                Generate several users (by default it's just one)
+USAGE="USAGE: $0
+    -n <N>:  Create <N> users. default: 1
+    -h <host>: Base URI of brig. default: http://localhost:8082
+    -c: Output as headerless CSV in format 'User-Id,Email,Password'. default: false
+"
 
-CSV=false
-COUNT=1
+BRIG_HOST="http://localhost:8082"
+COUNT="1"
+CSV="false"
 
-# Parse CLI options
+# Option parsing:
+# https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
+while getopts ":n:h:c" opt; do
+  case ${opt} in
+    n ) COUNT="$OPTARG"
+      ;;
+    h ) BRIG_HOST="$OPTARG"
+      ;;
+    c ) CSV="true"
+      ;;
+    : ) echo "-$OPTARG" requires an argument 1>&2
+        exit 1
+      ;;
+    \? ) echo "$USAGE" 1>&2
+         exit 1
+      ;;
+  esac
+done
+shift $((OPTIND -1))
 
-if ! [ $# -eq 0 ]; then
-    TEMP=`getopt -o "" -l csv,count: -n 'create_test_user.sh' -- "$@"`
-    eval set -- "$TEMP"
-
-    while true ; do
-        case "$1" in
-            --csv) CSV=true ; shift ;;
-            --count)
-                case "$2" in
-                    "") shift 2 ;;
-                    *) COUNT=$2 ; shift 2 ;;
-                esac ;;
-            --) shift ; break ;;
-            *) echo "Unrecognized option $1" ; exit 1 ;;
-        esac
-    done
-fi
+if [ "$#" -ne 0 ]; then
+  echo "$USAGE" 1>&2
+  exit 1
+fi;
 
 # Generate users
 
@@ -43,7 +51,7 @@ do
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \
-        -XPOST "http://localhost:8082/i/users" \
+        -XPOST "$BRIG_HOST/i/users" \
         -H'Content-type: application/json' \
         -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
 

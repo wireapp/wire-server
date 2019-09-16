@@ -102,6 +102,17 @@ teamMember = defineModel "TeamMember" $ do
     property "created_by" bytes' $ do
         description "ID of the inviting user.  Requires created_at."
         optional
+    property "legalhold_status" legalHoldStatusType $ do
+        description "The state of Legal Hold compliance for the member"
+        optional
+
+legalHoldStatusType :: DataType
+legalHoldStatusType = string $ enum
+    [ "enabled"
+    , "pending"
+    , "disabled"
+    ]
+
 
 permissions :: Model
 permissions = defineModel "Permissions" $ do

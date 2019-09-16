@@ -63,5 +63,14 @@ swagger-ui
 deploy/services-demo/resources/templates/*
 deploy/services-demo/conf/nginz/zwagger-ui/*
 
+deploy/docker-ephemeral/build/airdock_base-all/
+deploy/docker-ephemeral/build/airdock_base/
+deploy/docker-ephemeral/build/airdock_fakesqs-all/
+deploy/docker-ephemeral/build/airdock_fakesqs/
+deploy/docker-ephemeral/build/airdock_rvm-all/
+deploy/docker-ephemeral/build/airdock_rvm/
+deploy/docker-ephemeral/build/dynamodb_local/
+deploy/docker-ephemeral/build/smtp/
+
 # Ignore cabal files; use package.yaml instead
 *.cabal

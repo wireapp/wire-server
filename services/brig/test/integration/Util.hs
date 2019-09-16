@@ -13,32 +13,30 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
-import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
-import Data.Aeson.Lens (key, _String, _Integral)
+import Data.Aeson.Lens (key, _String, _Integral, _JSON)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
-import Data.Proxy (Proxy(..))
-import Data.Typeable (typeRep)
 import Galley.Types (Member (..))
 import Gundeck.Types.Notification
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
 import Test.Tasty.Cannon
+import qualified Network.Wai.Test as WaiTest
 import Util.AWS
 
 import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
-import qualified Brig.RPC as RPC
+import qualified Brig.Options as Opts
+import qualified Brig.Run as Run
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
@@ -50,8 +48,7 @@ type Brig      = Request -> Request
 type Cannon    = Request -> Request
 type CargoHold = Request -> Request
 type Galley    = Request -> Request
-
-type ResponseLBS = Response (Maybe Lazy.ByteString)
+type Nginz     = Request -> Request
 
 instance ToJSON SESBounceType where
     toJSON BounceUndetermined = String "Undetermined"
@@ -93,13 +90,13 @@ createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
 createUser' hasPwd name brig = do
     r <- postUser' hasPwd True name True False Nothing Nothing brig <!!
            const 201 === statusCode
-    decodeBody r
+    responseJsonError r
 
 createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
 createUserWithEmail name email brig = do
     r <- postUserWithEmail True True name (Just email) False Nothing Nothing brig <!!
            const 201 === statusCode
-    decodeBody r
+    responseJsonError r
 
 createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
 createUserUntrustedEmail name brig = do
@@ -113,7 +110,7 @@ createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http Us
 createAnonUserExpiry expires name brig = do
     let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
-    decodeBody r
+    responseJsonError r
 
 requestActivationCode :: HasCallStack => Brig -> Int -> Either Email Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
@@ -194,12 +191,12 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
     rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
 postUserRegister :: Object -> Brig -> Http User
 postUserRegister payload brig = do
     rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
@@ -220,7 +217,7 @@ activate brig (k, c) = get $ brig
 
 getSelfProfile :: Brig -> UserId -> Http SelfProfile
 getSelfProfile brig usr = do
-    decodeBody =<< get (brig . path "/self" . zUser usr)
+    responseJsonError =<< get (brig . path "/self" . zUser usr)
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
@@ -237,6 +234,13 @@ login b l t = let js = RequestBodyLBS (encode l) in post $ b
 ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
 ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
     . path "/i/sso-login"
+    . contentJson
+    . (if t == PersistentCookie then queryItem "persist" "true" else id)
+    . body js
+
+legalHoldLogin :: Brig -> LegalHoldLogin -> CookieType -> Http ResponseLBS
+legalHoldLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/legalhold-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
@@ -297,6 +301,12 @@ putHandle brig usr h = put $ brig
 addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
+addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClientInternal brig uid new = post $ brig
+    . paths ["i", "clients", toByteString' uid]
+    . contentJson
+    . body (RequestBodyLBS $ encode new)
+
 addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
 addClientReq brig uid new = brig
     . path "/clients"
@@ -320,7 +330,7 @@ getPreKey brig u c = get $ brig
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley =
-    decodeBody =<<
+    responseJsonError =<<
          get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
              . zUser u
@@ -337,26 +347,29 @@ isMember g usr cnv = do
     res <- get $ g
         . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
         . expect2xx
-    case decodeBody res of
+    case responseJsonMaybe res of
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> Http AccountStatus
-getStatus brig u = do
-    r <- get (brig . paths ["i", "users", toByteString' u, "status"]) <!!
-        const 200 === statusCode
-
-    case responseBody r of
-        Nothing -> error $ "getStatus: failed to parse response: " ++ show r
-        Just  j -> do
-            let st = maybeFromJSON =<< (j ^? key "status")
-            return $ fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
+getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
+getStatus brig u =
+    (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value) <$>
+    get ( brig . paths ["i", "users", toByteString' u, "status"]
+        . expect2xx
+        )
 
 chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
 chkStatus brig u s =
     get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
         const 200 === statusCode
         const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
+
+setStatus :: Brig -> UserId -> AccountStatus -> Http ()
+setStatus brig u s =
+    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
+    in put ( brig . paths ["i", "users", toByteString' u, "status"]
+           . contentJson . body js
+           ) !!! const 200 === statusCode
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -379,16 +392,6 @@ zUser = header "Z-User" . C8.pack . show
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
--- TODO: we have a bunch of 'decodeBody's lying around, they should be
--- unified and moved into some utils module
-decodeBody :: forall a m.
-              (HasCallStack, Typeable a, FromJSON a, MonadThrow m)
-           => Response (Maybe Lazy.ByteString) -> m a
-decodeBody = RPC.decodeBody (Text.pack (show (typeRep (Proxy @a))))
-
-asValue :: (HasCallStack, MonadThrow m) => Response (Maybe Lazy.ByteString) -> m Value
-asValue = decodeBody
 
 mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do
@@ -431,7 +434,7 @@ updatePhone brig uid phn = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 200 === statusCode
-            const (Just False) === fmap activatedFirst . decodeBody
+            const (Just False) === fmap activatedFirst . responseJsonMaybe
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
@@ -469,6 +472,10 @@ somePrekeys =
     , Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
     ]
 
+-- | The client ID of the first of 'someLastPrekeys'
+someClientId :: ClientId
+someClientId = ClientId "1dbfbe22c8a35cb2"
+
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =
     [ lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
@@ -501,6 +508,9 @@ someLastPrekeys =
 
 defPassword :: PlainTextPassword
 defPassword = PlainTextPassword "secret"
+
+defWrongPassword :: PlainTextPassword
+defWrongPassword = PlainTextPassword "not secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
@@ -548,3 +558,12 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const (return . f))
                              (const m)
+
+
+-- | This allows you to run requests against a brig instantiated using the given options.
+--   Note that ONLY 'brig' calls should occur within the provided action, calls to other
+--   services will fail.
+withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides opts action = liftIO $ do
+    (brigApp, _) <- Run.mkApp opts
+    WaiTest.runSession action brigApp

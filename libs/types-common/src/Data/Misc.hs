@@ -65,7 +65,7 @@ import qualified Data.Text                        as Text
 --------------------------------------------------------------------------------
 -- IpAddr / Port
 
-newtype IpAddr = IpAddr { ipAddr :: IP } deriving (Eq, Ord, Show)
+newtype IpAddr = IpAddr { ipAddr :: IP } deriving (Eq, Ord, Show, Generic)
 
 instance FromByteString IpAddr where
     parser = do
@@ -84,7 +84,7 @@ instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
 newtype Port = Port
     { portNumber :: Word16
-    } deriving (Eq, Ord, Show, Real, Enum, Num, Integral, NFData)
+    } deriving (Eq, Ord, Show, Real, Enum, Num, Integral, NFData, Generic)
 
 instance Read Port where
     readsPrec n = map (\x -> (Port (fst x), snd x)) . readsPrec n
@@ -123,8 +123,8 @@ instance NFData Location
 
 makeLenses ''Location
 
-newtype Latitude  = Latitude  Double deriving NFData
-newtype Longitude = Longitude Double deriving NFData
+newtype Latitude  = Latitude  Double deriving (NFData, Generic)
+newtype Longitude = Longitude Double deriving (NFData, Generic)
 
 location :: Latitude -> Longitude -> Location
 location (Latitude lat) (Longitude lon) =
@@ -161,7 +161,7 @@ instance Cql Longitude where
 
 newtype Milliseconds = Ms
     { ms :: Word64
-    } deriving (Eq, Ord, Show, Num)
+    } deriving (Eq, Ord, Show, Num, Generic)
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64
@@ -191,7 +191,7 @@ instance Cql Milliseconds where
 
 newtype HttpsUrl = HttpsUrl
     { httpsUrl :: URIRef Absolute
-    } deriving Eq
+    } deriving (Eq, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri = if uri ^. uriSchemeL . schemeBSL == "https"
@@ -226,17 +226,18 @@ instance Cql HttpsUrl where
 --------------------------------------------------------------------------------
 -- Fingerprint
 
+-- Tag for Rsa encoded fingerprints
 data Rsa
 
 newtype Fingerprint a = Fingerprint
     { fingerprintBytes :: ByteString
-    } deriving (Eq, Show, FromByteString, ToByteString, NFData)
+    } deriving (Eq, Show, FromByteString, ToByteString, NFData, Generic)
 
-instance FromJSON (Fingerprint a) where
+instance FromJSON (Fingerprint Rsa) where
     parseJSON = withText "Fingerprint" $
         either fail (pure . Fingerprint) . B64.decode . encodeUtf8
 
-instance ToJSON (Fingerprint a) where
+instance ToJSON (Fingerprint Rsa) where
     toJSON = String . decodeUtf8 . B64.encode . fingerprintBytes
 
 #ifdef WITH_CQL
@@ -253,7 +254,7 @@ instance Cql (Fingerprint a) where
 
 newtype PlainTextPassword = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (Eq, ToJSON)
+    deriving (Eq, ToJSON, Generic)
 
 instance Show PlainTextPassword where
     show _ = "PlainTextPassword <hidden>"

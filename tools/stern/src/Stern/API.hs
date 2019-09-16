@@ -5,30 +5,30 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE LambdaCase        #-}
 
+{-# OPTIONS_GHC -Wno-unused-binds #-}
+
 module Stern.API (start) where
 
-import Stern.API.Predicates
+import Imports hiding (head)
+
 import Brig.Types
 import Brig.Types.Intra
 import Control.Applicative ((<|>))
-import Control.Lens (view, (^.))
-import Control.Monad (liftM, void, when, unless)
-import Control.Monad.Catch (throwM)
 import Control.Error
+import Control.Lens (view, (^.))
+import Control.Monad.Catch (throwM)
+import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Id
-import Data.Int
-import Data.Either
 import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
-import Data.Text (Text, unpack)
 import Data.Text.Encoding (decodeLatin1)
-import Imports hiding (head)
+import Data.Text (Text, unpack)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -36,7 +36,7 @@ import Network.Wai.Predicate hiding (Error, setStatus, reason)
 import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Prelude hiding (log, head)
+import Stern.API.Predicates
 import Stern.App
 import Stern.Options
 import Stern.Types
@@ -44,7 +44,7 @@ import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 
 import qualified Data.Metrics.Middleware      as Metrics
-import qualified Data.Swagger                 as Doc
+import qualified "types-common" Data.Swagger as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
 import qualified Network.Wai.Middleware.Gzip  as GZip
@@ -295,11 +295,36 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Team Information" Doc.end
 
+    -- feature flags
+
+    get "/teams/:tid/features/sso" (continue getSSOStatus) $
+        capture "tid"
+
+    document "GET" "getSSOStatus" $ do
+        summary "Shows whether SSO feature is enabled for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.returns Doc.bool'
+        Doc.response 200 "SSO status" Doc.end
+
+    put "/teams/:tid/features/sso" (continue setSSOStatus) $
+        contentType "application" "json"
+        .&. capture "tid"
+        .&. jsonRequest @Bool
+
+    document "PUT" "setSSOStatus" $ do
+        summary "Disable / enable SSO feature for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.body Doc.bool' $
+            Doc.description "JSON body"
+        Doc.response 200 "SSO status" Doc.end
+
     --- Swagger ---
     get "/stern/api-docs"
         (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
-            in k $ responseLBS status200 [jsonContent] doc) $
+            let doc = mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
+            in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
 
@@ -470,8 +495,8 @@ isUserKeyBlacklisted emailOrPhone = do
         else response status404 "The given user key is NOT blacklisted"
   where
     response st reason = return
-                       . responseLBS st [jsonContent]
-                       . encode $ object ["status" .= (reason :: Text)]
+                       . setStatus st
+                       . json $ object ["status" .= (reason :: Text)]
 
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
@@ -485,6 +510,23 @@ deleteFromBlacklist emailOrPhone = do
 
 getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
+
+
+getLegalholdStatus :: TeamId -> Handler Response
+getLegalholdStatus = liftM json . Intra.getLegalholdStatus
+
+setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setLegalholdStatus (_ ::: tid ::: req) = do
+    status <- parseBody req !>> Error status400 "client-error"
+    liftM json $ Intra.setLegalholdStatus tid status
+
+getSSOStatus :: TeamId -> Handler Response
+getSSOStatus = liftM json . Intra.getSSOStatus
+
+setSSOStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setSSOStatus (_ ::: tid ::: req) = do
+  status <- parseBody req !>> Error status400 "client-error"
+  liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do

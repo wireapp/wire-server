@@ -7,6 +7,7 @@ module Network.Wire.Client.Monad
     , setServer
     , Client
     , MonadClient (..)
+    , liftClient
     , asyncClient
     , runClient
     , ClientException (..)
@@ -14,6 +15,7 @@ module Network.Wire.Client.Monad
 
 import Imports hiding (log)
 import Bilge
+import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Concurrent.Async
 import Network.HTTP.Types
 import System.Logger.Class
@@ -26,7 +28,16 @@ data Env = Env
     }
 
 newtype Client a = Client (ReaderT Env IO a)
-    deriving (Functor, Applicative, Monad, MonadIO)
+    deriving ( Functor
+             , Applicative
+             , Monad
+             , MonadIO
+             , MonadReader Env
+             , MonadUnliftIO
+             , MonadThrow
+             , MonadCatch
+             , MonadMask
+             )
 
 data Server = Server
     { serverHost    :: ByteString
@@ -41,8 +52,19 @@ class (MonadHttp m, MonadLogger m, MonadIO m) => MonadClient m where
     getServer :: m Server
     getLogger :: m Logger
 
+-- | Allows running a 'Client' inside a 'MonadClient'.
+-- This is sometimes useful to regain a MonadUnliftIO instance
+-- which is invalid for the 'MonadClient' itself.
+liftClient :: MonadClient m => Client a -> m a
+liftClient m = do
+    s <- getServer
+    l <- getLogger
+    liftIO $ runClient s l m
+
 instance MonadHttp Client where
-    getManager = Client $ asks (serverManager . clientServer)
+    handleRequestWithCont req handler = do
+        manager <- asks (serverManager . clientServer)
+        liftIO $ withResponse req manager handler
 
 instance MonadClient Client where
     getServer = Client $ asks clientServer

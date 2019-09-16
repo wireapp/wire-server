@@ -9,6 +9,7 @@ module Data.Metrics.Types
     , Paths(..)
     , PathSegment
     , mkTree
+    , meltTree
     , treeLookup
     ) where
 
@@ -31,7 +32,7 @@ type PathSegment = Either ByteString ByteString
 -- | Turn a list of paths into a 'Paths' tree.  Treat all path segments that start with @':'@
 -- as equal and turn them into 'Nothing'.
 mkTree :: [[ByteString]] -> Either String Paths
-mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fmap mknode)
+mkTree = fmap (Paths . meltTree) . mapM mkbranch . sortBy (flip compare) . fmap (fmap mknode)
   where
     mkbranch :: [PathSegment] -> Either String (Tree PathSegment)
     mkbranch (seg : segs@(_:_)) = Node seg . (:[]) <$> mkbranch segs
@@ -41,13 +42,15 @@ mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fma
     mknode :: ByteString -> PathSegment
     mknode seg = if BS.head seg /= ':' then Right seg else Left seg
 
-    melt :: Forest PathSegment -> Forest PathSegment
-    melt [] = []
-    melt (tree : []) = [tree]
-    melt (tree : tree' : trees) = if rootLabel tree == rootLabel tree'
-        then let tree'' = Node (rootLabel tree) (melt $ subForest tree <> subForest tree')
-             in melt (tree'' : trees)
-        else tree : melt (tree' : trees)
+-- | If two sibling nodes in the forest are equal, make them one node that shares their
+-- subtrees.
+meltTree :: Forest PathSegment -> Forest PathSegment
+meltTree = go
+  where
+    go = fmap push . groupBy ((==) `on` rootLabel)
+
+    push [] = error "violation of groupBy invariant: empty list!"
+    push trees@(Node r _ : _) = Node r (meltTree . mconcat $ subForest <$> trees)
 
 -- | A variant of 'Network.Wai.Route.Tree.lookup'.  The segments contain values to be captured
 -- when running the 'App', here we simply replace them with their identifier;

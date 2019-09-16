@@ -1,6 +1,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
+
+-- | > docs/reference/user/connection.md {#RefConnection}
+--
+-- User connection logic.
 module Brig.API.Connection
     ( -- * Connections
       autoConnect
@@ -57,6 +61,8 @@ createConnection self ConnectionRequest{..} conn = do
     unless otherActive $
         throwE $ InvalidUser crUser
 
+    -- Users belonging to the same team are always treated as connected, so creating a
+    -- connection between them is useless. {#RefConnectionTeam}
     sameTeam <- lift $ belongSameTeam
     when sameTeam $
         throwE ConnectSameBindingTeamUsers
@@ -122,6 +128,11 @@ createConnection self ConnectionRequest{..} conn = do
         Just mems -> return $ Team.isTeamMember crUser (mems^.Team.teamMembers)
         _         -> return False
 
+-- | Change the status of a connection from one user to another.
+--
+-- Note: 'updateConnection' doesn't explicitly check that users don't belong to the same team,
+-- because a connection between two team members can not exist in the first place.
+-- {#RefConnectionTeam}
 updateConnection :: UserId       -- ^ From
                  -> UserId       -- ^ To
                  -> Relation     -- ^ Desired relation status

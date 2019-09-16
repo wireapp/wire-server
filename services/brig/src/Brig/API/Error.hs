@@ -102,12 +102,20 @@ changeHandleError ChangeHandleNoIdentity  = StdError noIdentity
 changeHandleError ChangeHandleExists      = StdError handleExists
 changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 
+legalHoldLoginError :: LegalHoldLoginError -> Error
+legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
+legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
+legalHoldLoginError (LegalHoldLoginError e)           = loginError e
+legalHoldLoginError (LegalHoldReAuthError e)          = reauthError e
+
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
 loginError LoginSuspended         = StdError accountSuspended
 loginError LoginEphemeral         = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
 loginError (LoginThrottled wait)  = RichError loginsTooFrequent ()
+    [("Retry-After", toByteString' (retryAfterSeconds wait))]
+loginError (LoginBlocked wait)    = RichError tooManyFailedLogins ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
 
 authError :: AuthError -> Error
@@ -121,14 +129,17 @@ reauthError ReAuthMissingPassword = StdError missingAuthError
 reauthError (ReAuthError e)       = authError e
 
 zauthError :: ZAuth.Failure -> Error
-zauthError ZAuth.Expired   = StdError authTokenExpired
-zauthError ZAuth.Falsified = StdError authTokenInvalid
-zauthError ZAuth.Invalid   = StdError authTokenInvalid
+zauthError ZAuth.Expired     = StdError authTokenExpired
+zauthError ZAuth.Falsified   = StdError authTokenInvalid
+zauthError ZAuth.Invalid     = StdError authTokenInvalid
+zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
 clientError ClientNotFound         = StdError clientNotFound
 clientError (ClientDataError e)    = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
+clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
+clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
@@ -345,6 +356,9 @@ authTokenExpired = Wai.Error status403 "invalid-credentials" "Token expired"
 authTokenInvalid :: Wai.Error
 authTokenInvalid = Wai.Error status403 "invalid-credentials" "Invalid token"
 
+authTokenUnsupported :: Wai.Error
+authTokenUnsupported = Wai.Error status403 "invalid-credentials" "Unsupported token operation for this token type"
+
 incorrectPermissions :: Wai.Error
 incorrectPermissions = Wai.Error status403 "invalid-permissions" "Copy permissions must be a subset of self permissions"
 
@@ -375,8 +389,12 @@ tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too ma
 tooManyTeamMembers :: Wai.Error
 tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
 
+-- | In contrast to 'tooManyFailedLogins', this is about too many *successful* logins.
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
+
+tooManyFailedLogins :: Wai.Error
+tooManyFailedLogins = Wai.Error status403 "client-error" "Too many failed logins"
 
 tooLargeRichInfo :: Wai.Error
 tooLargeRichInfo = Wai.Error status413 "too-large-rich-info" "Rich info has exceeded the limit"
@@ -386,3 +404,20 @@ internalServerError = Wai.Error status500 "internal-server-error" "Internal Serv
 
 invalidRange :: LText -> Wai.Error
 invalidRange = Wai.Error status400 "client-error"
+
+--- Legalhold
+can'tDeleteLegalHoldClient :: Wai.Error
+can'tDeleteLegalHoldClient =
+    Wai.Error status400
+              "client-error"
+              "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
+
+can'tAddLegalHoldClient :: Wai.Error
+can'tAddLegalHoldClient =
+    Wai.Error status400
+              "client-error"
+              "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
+
+legalHoldNotEnabled :: Wai.Error
+legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
+

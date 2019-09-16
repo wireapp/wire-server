@@ -18,7 +18,7 @@ import Data.Range
 data TeamBinding =
       Binding
     | NonBinding
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data Team = Team
     { _teamId      :: TeamId
@@ -27,7 +27,7 @@ data Team = Team
     , _teamIcon    :: Text
     , _teamIconKey :: Maybe Text
     , _teamBinding :: TeamBinding
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data NewTeam a = NewTeam
     { _newTeamName    :: Range 1 256 Text
@@ -35,7 +35,7 @@ data NewTeam a = NewTeam
     , _newTeamIconKey :: Maybe (Range 1 256 Text)
     , _newTeamMembers :: Maybe a
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 
 instance ToJSON TeamBinding where

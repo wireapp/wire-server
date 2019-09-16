@@ -47,6 +47,7 @@ dependencies:
   - http-client-tls
   - http-types
   - imports
+  - insert-ordered-containers
   - interpolate
   - lens
   - metrics-core
@@ -95,6 +96,7 @@ tests:
     dependencies:
       - hspec
       - hspec-discover
+      - metrics-wai
       - QuickCheck
       - spar
       - uri-bytestring
@@ -103,7 +105,11 @@ executables:
   spar:
     main: Main.hs
     source-dirs: exec
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
     dependencies:
       - spar
 

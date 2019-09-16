@@ -11,6 +11,7 @@ module Bilge.IO
       HttpT        (..)
     , Http
     , MonadHttp    (..)
+    , handleRequest
     , Debug        (..)
     , runHttpT
     , http
@@ -47,14 +48,23 @@ module Bilge.IO
     , HttpException (..)
     ) where
 
-import Imports hiding (head, trace)
+import Imports hiding (head)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
-import Network.HTTP.Client hiding (method, httpLbs)
+import Network.HTTP.Client as Client hiding (method, httpLbs)
+import qualified Network.HTTP.Client as Client (method)
+import qualified Data.ByteString.Lazy as LB
+
+-- It's impossible to create a Response body without using internals :'(
+import qualified Network.HTTP.Client.Internal as Client (Response(..), ResponseClose(..))
 import Network.HTTP.Types
 import Bilge.Request
 import Bilge.Response
+import Data.CaseInsensitive (CI)
+
+import qualified Network.Wai.Test as Wai
+import qualified Network.Wai      as Wai
 
 import qualified Data.ByteString.Lazy as Lazy
 
@@ -80,13 +90,69 @@ newtype HttpT m a = HttpT
                )
 
 class MonadHttp m where
-    getManager :: m Manager
+    handleRequestWithCont :: Request -> (Response BodyReader -> IO a) -> m a
+    {-# MINIMAL handleRequestWithCont #-}
 
-instance {-# OVERLAPPING #-} Monad m => MonadHttp (HttpT m) where
-    getManager = HttpT ask
+handleRequest :: MonadHttp m => Request -> m (Response (Maybe LByteString))
+handleRequest req = handleRequestWithCont req consumeBody
+
+instance MonadIO m => MonadHttp (HttpT m) where
+  handleRequestWithCont req h = do
+      m <- ask
+      liftIO $ withResponse req m h
+
+-- | Returns the entire ByteString immediately on first read
+-- then empty ByteString on all subsequent reads.
+-- This is used for back-compatability on MonadHttp so that we can write an instance for
+-- MonadHttp of Wai.Session while maintaining compatability with the previous interface.
+trivialBodyReader :: ByteString -> IO BodyReader
+trivialBodyReader bodyBytes = do
+    bodyVar <- newTVarIO bodyBytes
+    return $ mkBodyReader bodyVar
+      where
+        mkBodyReader :: TVar ByteString -> BodyReader
+        mkBodyReader bodyVar = do
+            atomically $ swapTVar bodyVar ""
+
+
+instance MonadHttp Wai.Session where
+  handleRequestWithCont req cont = do
+      wResponse :: Wai.SResponse <- Wai.request wRequest
+      bodyReader <- liftIO $ trivialBodyReader $ LB.toStrict $ Wai.simpleBody wResponse
+      let bilgeResponse :: Response BodyReader
+          bilgeResponse = toBilgeResponse bodyReader wResponse
+      liftIO $ cont bilgeResponse
+    where
+      wRequest :: Wai.Request
+      wRequest =
+          flip Wai.setPath (Client.path req <> Client.queryString req)
+          $ Wai.defaultRequest
+          { Wai.requestMethod = Client.method req
+          , Wai.httpVersion = Client.requestVersion req
+          , Wai.requestHeaders = Client.requestHeaders req
+          , Wai.isSecure = Client.secure req
+          , Wai.remoteHost = error "no remote host"
+          , Wai.requestHeaderHost = lookupHeader "HOST" req
+          , Wai.requestHeaderRange = lookupHeader "RANGE" req
+          , Wai.requestHeaderReferer = lookupHeader "REFERER" req
+          , Wai.requestHeaderUserAgent = lookupHeader "USER-AGENT" req
+          }
+      toBilgeResponse :: BodyReader -> Wai.SResponse -> Response BodyReader
+      toBilgeResponse bodyReader Wai.SResponse {Wai.simpleStatus, Wai.simpleHeaders} =
+          Client.Response
+          { responseStatus        = simpleStatus
+            -- I just picked an arbitrary version; shouldn't matter.
+          , responseVersion       = http11
+          , responseHeaders       = simpleHeaders
+          , responseBody          = bodyReader
+          , responseCookieJar     = mempty
+          , Client.responseClose' = Client.ResponseClose $ pure ()
+          }
+      lookupHeader :: CI ByteString -> Client.Request -> Maybe ByteString
+      lookupHeader headerName r = lookup headerName (Client.requestHeaders r)
 
 instance {-# OVERLAPPABLE #-} (MonadTrans t, MonadHttp m, Monad m) => MonadHttp (t m) where
-  getManager = lift getManager
+  handleRequestWithCont req cont = lift $ handleRequestWithCont req cont
 
 instance MonadBase IO (HttpT IO) where
     liftBase = liftIO
@@ -151,9 +217,7 @@ http :: (MonadIO m, MonadHttp m)
      -> (Request -> Request)
      -> (Response BodyReader -> IO a)
      -> m a
-http r f h = do
-    m <- getManager
-    liftIO $ withResponse (f r) m h
+http r f h = handleRequestWithCont (f r) h
 
 httpDebug :: (MonadIO m, MonadHttp m)
           => Debug
@@ -162,19 +226,17 @@ httpDebug :: (MonadIO m, MonadHttp m)
           -> (Response (Maybe Lazy.ByteString) -> IO a)
           -> m a
 httpDebug debug r f h = do
-    m <- getManager
     let rq = f r
-    liftIO $ do
+    if debug > Head
+        then putStrLn (showRequest rq)
+        else putStrLn (showRequest (rq { requestBody = RequestBodyLBS "" }))
+    putStrLn "-"
+    handleRequestWithCont rq $ consumeBody >=> \rsp -> do
         if debug > Head
-            then putStrLn (showRequest rq)
-            else putStrLn (showRequest (rq { requestBody = RequestBodyLBS "" }))
-        putStrLn "-"
-        withResponse rq m $ consumeBody >=> \rsp -> do
-            if debug > Head
-                then putStrLn (showResponse rsp)
-                else putStrLn (showResponse $ rsp { responseBody = ("" :: String) })
-            putStrLn "--"
-            h rsp
+            then putStrLn (showResponse rsp)
+            else putStrLn (showResponse $ rsp { responseBody = ("" :: String) })
+        putStrLn "--"
+        h rsp
 
 consumeBody :: Response BodyReader -> IO (Response (Maybe Lazy.ByteString))
 consumeBody r = do

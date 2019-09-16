@@ -4,7 +4,7 @@ module Galley.Types.Swagger where
 
 import Imports
 import Data.Swagger.Build.Api as Swagger
-import qualified Data.Swagger as Swagger
+import qualified "types-common" Data.Swagger as Swagger
 
 galleyModels :: [Model]
 galleyModels =
@@ -41,6 +41,8 @@ galleyModels =
     , clientMismatch
     , serviceRef
     , teamInfo
+    , legalHoldTeamConfig
+    , ssoTeamConfig
     ]
 
 event :: Model
@@ -441,3 +443,20 @@ serviceRef = defineModel "ServiceRef" $ do
 
 errorObj :: Model
 errorObj = Swagger.errorModel
+
+
+legalHoldTeamConfig :: Model
+legalHoldTeamConfig = defineModel "LegalHoldTeamConfig" $ do
+    description "Configuration of LegalHold feature for team"
+    property "status" featureStatus $ description "status"
+
+ssoTeamConfig :: Model
+ssoTeamConfig = defineModel "SSOTeamConfig" $ do
+    description "Configuration of SSO feature for team"
+    property "status" featureStatus $ description "status"
+
+featureStatus :: DataType
+featureStatus = string $ enum
+    [ "enabled"
+    , "disabled"
+    ]

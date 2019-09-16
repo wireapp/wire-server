@@ -384,6 +384,8 @@ deleteTeam team = do
 
 ----------------------------------------------------------------------
 -- SCIM auth
+--
+-- docs/developer/scim/storage.md {#DevScimStorageTokens}
 
 type ScimTokenRow = (ScimToken, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text)
 
@@ -499,6 +501,8 @@ deleteTeamScimTokens team = do
 
 ----------------------------------------------------------------------
 -- SCIM user records
+--
+-- docs/developer/scim/storage.md {#DevScimStorageUsers}
 
 -- | Store the scim user in its entirety and return the 'Scim.StoredUser'.
 --

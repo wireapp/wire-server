@@ -4,9 +4,9 @@
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE RecordWildCards            #-}
 
--- | Relations between users.
+-- | > docs/reference/user/connection.md {#RefConnection}
 --
--- See {#RefConnection}.
+-- Types for connections between users.
 module Brig.Types.Connection
     ( module Brig.Types.Connection
     , module C
@@ -28,11 +28,11 @@ import Data.Text as Text
 -- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
 -- works as a nice source of spam. TODO deprecate and remove.
 newtype Message = Message { messageText :: Text }
-    deriving (Eq, Ord, Show, ToJSON)
+    deriving (Eq, Ord, Show, ToJSON, Generic)
 
--- | Possible relations between two users.
+-- | Possible relations between two users. For detailed descriptions of these states, see:
 --
--- See {#RefConnectionStates} for detailed descriptions of these states.
+-- > docs/reference/user/connection.md {#RefConnectionStates}
 data Relation
     = Accepted
     | Blocked
@@ -40,7 +40,7 @@ data Relation
     | Ignored
     | Sent
     | Cancelled
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Exact state of the connection between two users, stored in Brig database (see
 -- 'Brig.Data.Connection.lookupConnections').
@@ -54,25 +54,25 @@ data UserConnection = UserConnection
     , ucLastUpdate :: !UTCTimeMillis     -- ^ When 'ucStatus' was last changed
     , ucMessage    :: !(Maybe Message)
     , ucConvId     :: !(Maybe ConvId)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Payload type for a connection request from one user to another.
 data ConnectionRequest = ConnectionRequest
     { crUser    :: !UserId    -- ^ Connection recipient
     , crName    :: !Text      -- ^ Name of the conversation to be created
     , crMessage :: !Message   -- ^ Initial message
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Payload type for "please change the status of this connection".
 data ConnectionUpdate = ConnectionUpdate
     { cuStatus :: !Relation
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Response type for endpoints returning lists of connections.
 data UserConnectionList = UserConnectionList
     { clConnections :: [UserConnection]
     , clHasMore     :: !Bool     -- ^ Pagination flag ("we have more results")
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
 -- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
@@ -84,7 +84,7 @@ data UserIds = UserIds
 data ConnectionsStatusRequest = ConnectionsStatusRequest
     { csrFrom :: ![UserId]
     , csrTo   :: ![UserId]
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 ----------------------------------------------------------------------------
 -- JSON instances

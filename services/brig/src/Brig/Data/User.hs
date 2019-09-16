@@ -485,6 +485,7 @@ userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
+-- | Construct a 'UserAccount' from a raw user record in the database.
 toUserAccount :: Locale -> AccountRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
@@ -517,7 +518,20 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
-toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+-- | Construct a 'UserIdentity'.
+--
+-- If the user is not activated, 'toIdentity' will return 'Nothing' as a precaution, because
+-- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the user is
+-- activated.
+--
+-- The reason it's just a "precaution" is that we /also/ have an invariant that having an
+-- email or phone in the database means the user has to be activated.
+toIdentity
+    :: Bool                 -- ^ Whether the user is activated
+    -> Maybe Email
+    -> Maybe Phone
+    -> Maybe UserSSOId
+    -> Maybe UserIdentity
 toIdentity True  (Just e) (Just p) Nothing      = Just $! FullIdentity e p
 toIdentity True  (Just e) Nothing  Nothing      = Just $! EmailIdentity e
 toIdentity True  Nothing  (Just p) Nothing      = Just $! PhoneIdentity p

@@ -35,6 +35,7 @@ module Brig.IO.Intra
     , getTeamContacts
     , getTeamOwners
     , getTeamOwnersWithEmail
+    , getTeamLegalHoldStatus
     , changeTeamStatus
     ) where
 
@@ -49,6 +50,7 @@ import Brig.API.Types
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig)
 import Brig.User.Event
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
@@ -124,6 +126,9 @@ updateSearchIndex orig e = case e of
     UserCreated{}         -> return ()
     UserIdentityUpdated{} -> return ()
     UserIdentityRemoved{} -> return ()
+    UserLegalHoldDisabled{} -> return ()
+    UserLegalHoldEnabled{} -> return ()
+    LegalHoldClientRequested {} -> return ()
 
     UserSuspended{}       -> Search.reindex orig
     UserResumed{}         -> Search.reindex orig
@@ -158,6 +163,9 @@ dispatchNotifications orig conn e = case e of
     UserCreated{}         -> return ()
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
+    LegalHoldClientRequested{} -> notifyContacts event orig Push.RouteAny conn
+    UserLegalHoldDisabled{} -> notifyContacts event orig Push.RouteAny conn
+    UserLegalHoldEnabled{} -> notifyContacts event orig Push.RouteAny conn
 
     UserUpdated{..}
         | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
@@ -328,6 +336,14 @@ toPushFormat (UserEvent (UserDeleted i)) = Just $ M.fromList
     [ "type" .= ("user.delete" :: Text)
     , "id"   .= i
     ]
+toPushFormat (UserEvent (UserLegalHoldDisabled  i)) = Just $ M.fromList
+    [ "type" .= ("user.legalhold-disable" :: Text)
+    , "id"   .= i
+    ]
+toPushFormat (UserEvent (UserLegalHoldEnabled  i)) = Just $ M.fromList
+    [ "type" .= ("user.legalhold-enable" :: Text)
+    , "id"   .= i
+    ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) = Just $ M.fromList
     [ "type"  .= ("user.properties-set" :: Text)
     , "key"   .= k
@@ -346,8 +362,16 @@ toPushFormat (ClientEvent (ClientAdded _ c)) = Just $ M.fromList
     ]
 toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     [ "type"   .= ("user.client-remove" :: Text)
-    , "client" .= object ["id" .= clientId c]
+    , "client" .= IdObject (clientId c)
     ]
+toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
+    let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
+    in Just
+       $ M.fromList [ "type" .= ("user.legalhold-request" :: Text)
+                    , "id" .= targetUser
+                    , "last_prekey" .= lastPrekey'
+                    , "client" .= IdObject clientId
+                    ]
 
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
@@ -597,8 +621,9 @@ getTeamContacts u = do
 getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
 getTeamOwners tid = filter Team.isTeamOwner . view Team.teamMembers <$> getTeamMembers tid
 
--- | Like 'getTeamOwners', but only returns owners with an email address.
-getTeamOwnersWithEmail :: TeamId -> AppIO [Team.TeamMember]
+-- | Like 'getTeamOwners', but only returns owners with an flag indicating whether they have
+-- an email address.
+getTeamOwnersWithEmail :: TeamId -> AppIO [(Team.TeamMember, Bool)]
 getTeamOwnersWithEmail tid = do
     mems <- getTeamOwners tid
     usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
@@ -612,7 +637,7 @@ getTeamOwnersWithEmail tid = do
         hasEmail :: Team.TeamMember -> Bool
         hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
 
-    pure $ filter hasEmail mems
+    pure $ (\mem -> (mem, hasEmail mem)) <$> mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do
@@ -639,6 +664,14 @@ getTeamName tid = do
     galleyRequest GET req >>= decodeBody "galley"
   where
     req = paths ["i", "teams", toByteString' tid, "name"]
+        . expect2xx
+
+getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
+getTeamLegalHoldStatus tid = do
+    debug $ remote "galley" . msg (val "Get legalhold settings")
+    galleyRequest GET req >>= decodeBody "galley"
+  where
+    req = paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . expect2xx
 
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()

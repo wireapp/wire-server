@@ -16,8 +16,8 @@ data Event
 data UserEvent
     = UserCreated !UserAccount
     | UserActivated !UserAccount
-        -- ^ A user is activated when the first user identity
-        -- (email address or phone number) is verified.
+        -- ^ A user is activated when the first user identity (email address or phone number)
+        -- is verified. {#RefActivationEvent}
     | UserSuspended !UserId
         -- ^ Account & API access of a user has been suspended.
     | UserResumed !UserId
@@ -46,6 +46,9 @@ data UserEvent
         , eirEmail :: !(Maybe Email)
         , eirPhone :: !(Maybe Phone)
         }
+    | UserLegalHoldDisabled !UserId
+    | UserLegalHoldEnabled !UserId
+    | LegalHoldClientRequested LegalHoldClientRequestedData
 
 data ConnectionEvent
     = ConnectionUpdated
@@ -62,6 +65,13 @@ data PropertyEvent
 data ClientEvent
     = ClientAdded !UserId !Client
     | ClientRemoved !UserId !Client
+
+data LegalHoldClientRequestedData =
+    LegalHoldClientRequestedData
+    { lhcTargetUser :: !UserId
+    , lhcLastPrekey :: !LastPrekey
+    , lhcClientId   :: !ClientId
+    } deriving stock (Show)
 
 emailRemoved :: UserId -> Email -> UserEvent
 emailRemoved u e = UserIdentityRemoved u (Just e) Nothing
@@ -105,6 +115,9 @@ userEventUserId (UserDeleted u)         = u
 userEventUserId UserUpdated{..}         = eupId
 userEventUserId UserIdentityUpdated{..} = eiuId
 userEventUserId UserIdentityRemoved{..} = eirId
+userEventUserId (UserLegalHoldDisabled uid) = uid
+userEventUserId (UserLegalHoldEnabled uid) = uid
+userEventUserId (LegalHoldClientRequested dat) = lhcTargetUser dat
 
 propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet       u _ _) = u

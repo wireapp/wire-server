@@ -4,7 +4,6 @@
 module Spar.App
   ( Spar(..)
   , Env(..)
-  , condenseLogMsg
   , toLevel
   , wrapMonadClientWithEnv
   , wrapMonadClient
@@ -17,7 +16,7 @@ module Spar.App
   , autoprovisionSamlUserWithId
   ) where
 
-import Imports
+import Imports hiding (log)
 import Bilge
 import Brig.Types (Name, ManagedBy(..))
 import Cassandra
@@ -41,7 +40,6 @@ import Web.Cookie (SetCookie, renderSetCookie)
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Builder as Builder
-import qualified Data.Text as ST
 import qualified Data.UUID.V4 as UUID
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -49,6 +47,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
+import System.Logger.Class (MonadLogger(log))
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
@@ -71,16 +70,14 @@ instance HasNow Spar where
 instance HasCreateUUID Spar where
 instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  logger (toLevel -> lv) mg = do
+  logger lv = log (toLevel lv) . Log.msg
+
+instance MonadLogger Spar where
+  log level mg = do
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
-    let fields, mg' :: Log.Msg -> Log.Msg
-        fields = Log.field "request" (unRequestId reqid)
-        mg'    = Log.msg . condenseLogMsg . cs $ mg
-    Spar . Log.log lg lv $ fields Log.~~ mg'
-
-condenseLogMsg :: ST -> ST
-condenseLogMsg = ST.intercalate " " . filter (not . ST.null) . ST.split isSpace
+    let fields = Log.field "request" (unRequestId reqid)
+    Spar . Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -192,7 +189,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy
     else throwError . SAML.Forbidden $
-            "bad credentials (note that your team has uses SCIM, " <>
+            "bad credentials (note that your team uses SCIM, " <>
             "which disables saml auto-provisioning)"
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
@@ -227,7 +224,9 @@ instance SPHandler SparError Spar where
       throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
-  getManager = asks sparCtxHttpManager
+  handleRequestWithCont req handler = do
+    manager <- asks sparCtxHttpManager
+    liftIO $ withResponse req manager handler
 
 instance Intra.MonadSparToBrig Spar where
   call modreq = do
@@ -268,6 +267,13 @@ data VerdictHandlerResult
   = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
   | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
   | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
+    deriving (Eq, Show)
+
+verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult bindCky verdict = do
+  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
+  SAML.logger SAML.Debug (show result)
+  pure result
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
@@ -280,15 +286,13 @@ catchVerdictErrors = (`catchError` hndlr)
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
-verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = catchVerdictErrors . \case
-  denied@(SAML.AccessDenied reasons) -> do
-    SAML.logger SAML.Debug (show denied)
+verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResultCore bindCky = \case
+  SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
 
-  granted@(SAML.AccessGranted userref) -> do
+  SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      SAML.logger SAML.Debug (show granted)
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
       viaSparCass   <- getUser userref
         -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
@@ -316,6 +320,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
     case mcky of
       Just cky -> pure $ VerifyHandlerGranted cky uid
       Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

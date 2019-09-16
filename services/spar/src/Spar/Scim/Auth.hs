@@ -6,7 +6,9 @@
 -- For @instance AuthDB Spar@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Logic for doing authentication in SCIM routes.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
+--
+-- Logic for doing authentication in SCIM routes.
 --
 -- Every time a request to SCIM API is done, we grab a 'ScimToken' from the @"Authorization"@
 -- header, check that it's valid, and resolve the team that this operation should apply to.
@@ -60,7 +62,9 @@ apiScimToken
   :<|> deleteScimToken
   :<|> listScimTokens
 
--- | Create a token for user's team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+--
+-- Create a token for user's team.
 createScimToken
     :: Maybe UserId           -- ^ Who is trying to create a token
     -> CreateScimToken        -- ^ Request body
@@ -101,7 +105,9 @@ createScimToken zusr CreateScimToken{..} = do
                 "SCIM tokens can only be created for a team with exactly one IdP, \
                 \but more are found"
 
--- | Delete a token belonging to user's team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenDelete}
+--
+-- Delete a token belonging to user's team.
 deleteScimToken
     :: Maybe UserId           -- ^ Who is trying to delete a token
     -> ScimTokenId
@@ -111,7 +117,9 @@ deleteScimToken zusr tokenid = do
     wrapMonadClient $ Data.deleteScimToken teamid tokenid
     pure NoContent
 
--- | List all tokens belonging to user's team. Tokens themselves are not available, only
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
+--
+-- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens
     :: Maybe UserId           -- ^ Who is trying to list tokens

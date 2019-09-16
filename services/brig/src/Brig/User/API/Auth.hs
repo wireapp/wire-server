@@ -27,6 +27,7 @@ import qualified Brig.Types.Swagger            as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Brig.ZAuth                    as ZAuth
+import qualified Data.ZAuth.Token              as ZAuth
 import qualified Network.Wai.Predicate         as P
 
 routes :: Routes Doc.ApiBuilder Handler ()
@@ -138,6 +139,11 @@ routes = do
 
     -- Internal
 
+    -- galley can query this endpoint at the right moment in the LegalHold flow
+    post "/i/legalhold-login" (continue legalHoldLogin) $
+        jsonRequest @LegalHoldLogin
+        .&. accept "application" "json"
+
     post "/i/sso-login" (continue ssoLogin) $
         jsonRequest @SsoLogin
         .&. def False (query "persist")
@@ -147,8 +153,8 @@ routes = do
         accept "application" "json"
         .&. param "phone"
 
-    get "/i/users/:id/reauthenticate" (continue reAuthUser) $
-        capture "id"
+    get "/i/users/:uid/reauthenticate" (continue reAuthUser) $
+        capture "uid"
         .&. jsonRequest @ReAuthUser
 
 -- Handlers
@@ -185,11 +191,24 @@ ssoLogin (req ::: persist ::: _) = do
     a <- Auth.ssoLogin l typ !>> loginError
     tokenResponse a
 
-logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
+legalHoldLogin :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
+legalHoldLogin (req ::: _) = do
+    l <- parseJsonBody req
+    let typ = PersistentCookie -- Session cookie isn't a supported use case here
+    a <- Auth.legalHoldLogin l typ !>> legalHoldLoginError
+    tokenResponse a
+
+-- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
+logout :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 logout (_ ::: Nothing ::: Nothing) = throwStd authMissingCookieAndToken
 logout (_ ::: Nothing ::: Just _ ) = throwStd authMissingCookie
 logout (_ ::: Just _  ::: Nothing) = throwStd authMissingToken
-logout (_ ::: Just ut ::: Just at) = do
+logout (_ ::: Just (Left _) ::: Just (Right _)) = throwStd authTokenMismatch
+logout (_ ::: Just (Right _) ::: Just (Left _)) = throwStd authTokenMismatch
+logout (_ ::: Just (Left ut) ::: Just (Left at)) = do
+    Auth.logout ut at !>> zauthError
+    return empty
+logout (_ ::: Just (Right ut) ::: Just (Right at)) = do
     Auth.logout ut at !>> zauthError
     return empty
 
@@ -204,25 +223,33 @@ rmCookies (uid ::: req) = do
     Auth.revokeAccess uid pw ids lls !>> authError
     return empty
 
-renew :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
+renew :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 renew (_ ::: Nothing :::  _) = throwStd authMissingCookie
-renew (_ ::: Just ut ::: at) = do
-    a <- Auth.renewAccess ut at !>> zauthError
-    tokenResponse a
+renew (_ ::: Just userToken ::: accessToken) = do
+    case (userToken, accessToken) of
+         (Left ut, Just (Left at)) -> (Auth.renewAccess ut (Just at) !>> zauthError) >>= tokenResponse
+         (Left ut, Nothing) -> Auth.renewAccess @ZAuth.User @ZAuth.Access ut Nothing !>> zauthError >>= tokenResponse
+         (Right lut, Just (Right lat)) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut (Just lat) !>> zauthError >>= tokenResponse
+         (Right lut, Nothing) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut Nothing !>> zauthError >>= tokenResponse
+         (_, _) -> throwStd authTokenMismatch
 
 -- Utilities
+--
 
 -- | A predicate that captures user and access tokens for a request handler.
-tokenRequest :: (HasCookies r, HasHeaders r, HasQuery r)
-    => Predicate r P.Error (Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken)
-tokenRequest = opt userToken .&. opt accessToken
+tokenRequest :: forall r . (HasCookies r, HasHeaders r, HasQuery r)
+    => Predicate r P.Error (Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
+    ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) )
+tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
-    userToken   = cookieErr <$> cookie "zuid"
-    accessToken = parse     <$> (tokenHeader .|. tokenQuery)
-    tokenHeader = bearer    <$> header "authorization"
-    tokenQuery  = query "access_token"
+    userToken            = cookieErr @ZAuth.User            <$> cookie "zuid"
+    legalHoldUserToken   = cookieErr @ZAuth.LegalHoldUser   <$> cookie "zuid"
+    accessToken          = parse @ZAuth.Access              <$> (tokenHeader .|. tokenQuery)
+    legalHoldAccessToken = parse @ZAuth.LegalHoldAccess     <$> (tokenHeader .|. tokenQuery)
+    tokenHeader          = bearer <$> header "authorization"
+    tokenQuery           = query "access_token"
 
-    cookieErr :: Result P.Error ZAuth.UserToken -> Result P.Error ZAuth.UserToken
+    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
     cookieErr x@Okay{} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
 
@@ -236,13 +263,13 @@ tokenRequest = opt userToken .&. opt accessToken
                       (setMessage "Invalid authorization scheme" (err status403)))
 
     -- Parse the access token
-    parse :: Result P.Error ByteString -> Result P.Error ZAuth.AccessToken
+    parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail   x) = Fail x
     parse (Okay _ b) = case fromByteString b of
         Nothing -> Fail (setReason TypeError
                         (setMessage "Invalid access token" (err status403)))
         Just  t -> return t
 
-tokenResponse :: Auth.Access -> Handler Response
+tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> Handler Response
 tokenResponse (Auth.Access t  Nothing) = return (json t)
 tokenResponse (Auth.Access t (Just c)) = lift $ Auth.setResponseCookie c (json t)

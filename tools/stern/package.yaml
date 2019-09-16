@@ -11,14 +11,11 @@ license: AGPL-3
 dependencies:
 - imports
 - extended
+- unliftio
 library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
-  exposed-modules:
-  - Stern.API
-  - Stern.App
-  - Stern.Options
   dependencies:
   - base                      >= 4.5     && < 5
   - aeson                     >= 0.11
@@ -77,5 +74,5 @@ executables:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false

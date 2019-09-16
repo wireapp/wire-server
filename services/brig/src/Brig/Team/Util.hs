@@ -11,19 +11,33 @@ import Control.Error
 import qualified Brig.IO.Intra as Intra
 import qualified Data.Set as Set
 
-data TeamOwnershipStatus = IsOnlyTeamOwner | IsOneOfManyTeamOwners | IsNotTeamOwner | NoTeamOwnersAreLeft
+-- | Every team must have at least one owner with an email address for billing and
+-- administration.  'TeamOwnershipStatus' distinguishes all the relevant cases.
+data TeamOwnershipStatus
+  = IsOnlyTeamOwnerWithEmail
+  | IsOneOfManyTeamOwnersWithEmail
+  | IsTeamOwnerWithoutEmail
+  | IsNotTeamOwner
   deriving (Eq, Show, Bounded, Enum)
 
--- | A team owner is a team member with full permissions *and* an email address.
 teamOwnershipStatus :: UserId -> TeamId -> AppIO TeamOwnershipStatus
-teamOwnershipStatus uid tid = teamOwnershipStatus' uid . fmap (^. userId) <$> Intra.getTeamOwnersWithEmail tid
+teamOwnershipStatus uid tid = compute <$> Intra.getTeamOwnersWithEmail tid
+  where
+    compute :: [(TeamMember, Bool)] -> TeamOwnershipStatus
+    compute owners = search (getuid <$> owners) (getuid <$> ownersWithEmail)
+      where
+        ownersWithEmail = filter (^. _2) owners
+        getuid = (^. _1 . userId)
 
-teamOwnershipStatus' :: UserId -> [UserId] -> TeamOwnershipStatus
-teamOwnershipStatus' _ [] = NoTeamOwnersAreLeft
-teamOwnershipStatus' uid (Set.fromList -> owners)
-    | uid `Set.notMember` owners       = IsNotTeamOwner
-    | Set.null (Set.delete uid owners) = IsOnlyTeamOwner
-    | otherwise                        = IsOneOfManyTeamOwners
+    search :: [UserId] -> [UserId] -> TeamOwnershipStatus
+    search [] [] = IsNotTeamOwner  -- this shouldn't happen, but we don't handle that here.
+    search (Set.fromList -> owners) (Set.fromList -> ownersWithEmail)
+        = case (uid `Set.member` owners, uid `Set.member` ownersWithEmail) of
+            (False, _)     -> IsNotTeamOwner
+            (True,  False) -> IsTeamOwnerWithoutEmail
+            (True,  True)  -> if Set.null (Set.delete uid ownersWithEmail)
+                then IsOnlyTeamOwnerWithEmail
+                else IsOneOfManyTeamOwnersWithEmail
 
 ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error AppIO ()
 ensurePermissions u t perms = do

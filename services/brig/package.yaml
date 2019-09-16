@@ -35,23 +35,10 @@ dependencies:
 - tinylog >=0.10
 - types-common-journal >=0.1
 - uuid >=1.3.5
+- wai-extra >=3.0
 - yaml >=0.8.22
 library:
   source-dirs: src
-  exposed-modules:
-  - Brig.App
-  - Brig.API
-  - Brig.AWS
-  - Brig.AWS.Types
-  - Brig.Code
-  - Brig.Data.PasswordReset
-  - Brig.Options
-  - Brig.Provider.DB
-  - Brig.RPC
-  - Brig.Run
-  - Brig.User.Auth.Cookie.Limit
-  - Brig.User.Search.Index
-  - Brig.ZAuth
   dependencies:
   - amazonka >=1.3.7
   - amazonka-dynamodb >=1.3.7
@@ -137,7 +124,6 @@ library:
   - vault >=0.3
   - vector >=0.11
   - wai >=3.0
-  - wai-extra >=3.0
   - wai-middleware-gunzip >=0.0.2
   - wai-predicates >=0.8
   - wai-routing >=0.12
@@ -161,10 +147,10 @@ executables:
     source-dirs: test/integration
     dependencies:
     - async
-    - brig
-    - bytestring >=0.9
     - bilge
+    - brig
     - brig-types
+    - bytestring >=0.9
     - cargohold-types
     - cassandra-util
     - data-timeout
@@ -172,10 +158,11 @@ executables:
     - filepath >=1.4
     - galley-types
     - gundeck-types
+    - HsOpenSSL
     - http-client
     - http-client-tls >=0.2
-    - HsOpenSSL
     - lens >=3.9
+    - metrics-wai
     - mime >=0.4
     - network
     - options >=0.1
@@ -188,12 +175,13 @@ executables:
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2
-    - time >=1.5
     - temporary >=1.2.1
+    - time >=1.5
     - tinylog
     - types-common >=0.3
     - types-common-aws >=0.1
     - unix >=2.5
+    - unliftio
     - unordered-containers
     - vector >=0.10
     - wai
@@ -202,7 +190,6 @@ executables:
     - warp
     - warp-tls >=3.2
     - zauth
-    - unliftio
   brig-index:
     main: Main.hs
     source-dirs: index/src

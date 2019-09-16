@@ -50,6 +50,7 @@ spec = do
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
     it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -74,13 +75,26 @@ testCreateUser = do
     let userid = scimUserId scimStoredUser
     -- Check that this user is present in Brig and that Brig's view of the user
     -- matches SCIM's view of the user
-    brigUser :: User <- fmap decodeBody' . call . get $
+    brigUser :: User <- fmap responseJsonUnsafe . call . get $
         ( (env ^. teBrig)
         . header "Z-User" (toByteString' userid)
         . path "/self"
         . expect2xx
         )
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+
+-- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
+-- were not present in the original record during creation.
+testSchemaIsAdded :: TestSpar ()
+testSchemaIsAdded = do
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    scimStoredUser <- createUser tok (user {Scim.User.schemas = []})
+    -- Check that the created user has the right schemas
+    liftIO $
+        Scim.User.schemas (Scim.value (Scim.thing scimStoredUser)) `shouldBe`
+        userSchemas
 
 -- | Test that @externalId@ (for SSO login) is required when creating a user.
 testExternalIdIsRequired :: TestSpar ()
@@ -168,7 +182,7 @@ testLocation = do
     req <- parseRequest (show (Scim.unURI location))
                <&> scimAuth (Just tok) . acceptScim
     r <- call (get (const req)) <!! const 200 === statusCode
-    liftIO $ decodeBody' r `shouldBe` scimStoredUser
+    liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
 testRichInfo :: TestSpar ()
 testRichInfo = do
@@ -205,7 +219,7 @@ testRichInfo = do
                                )
             liftIO $ do
                 statusCode resp `shouldBe` 200
-                decodeBody resp `shouldBe` Right rinf
+                responseJsonEither resp `shouldBe` Right rinf
 
     -- post response contains correct rich info.
     scimStoredUser <- createUser tok user
@@ -248,7 +262,7 @@ testScimCreateVsUserRef = do
         <- do
           resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
               <!! const 201 === statusCode
-          pure $ decodeBody' resp
+          pure $ responseJsonUnsafe resp
     samlUserShouldSatisfy uref (== Just (scimUserId storedusr))
 
     -- now with a scim token in the team, we can't auto-provision via saml any more.
@@ -410,7 +424,7 @@ testUserGetFailsWithNotFoundIfOutsideTeam = do
     env <- ask
     -- Check that the (non-SCIM-provisioned) team owner can be fetched and that the
     -- data from Brig matches
-    brigUser <- fmap decodeBody' . call . get $
+    brigUser <- fmap responseJsonUnsafe . call . get $
         ( (env ^. teBrig)
         . header "Z-User" (toByteString' (env^.teUserId))
         . path "/self"

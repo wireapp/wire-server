@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Brig.Options where
 
@@ -8,25 +9,27 @@ import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
+import qualified Control.Lens as Lens
 import Data.Aeson.Types (typeMismatch)
+import Data.Aeson (withText)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
-import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON(..))
+import Data.Time.Clock (NominalDiffTime)
+import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
-import System.Logger (Level)
+import System.Logger.Extended (Level, LogFormat)
 
 import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
-    { timeoutDiff :: DiffTime
-    } deriving (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
+    { timeoutDiff :: NominalDiffTime
+    } deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Read Timeout where
     readsPrec i s =
         case readsPrec i s of
-            [(x, s')] -> [(Timeout (secondsToDiffTime x), s')]
+            [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -161,6 +164,28 @@ data EmailSMSOpts = EmailSMSOpts
 
 instance FromJSON EmailSMSOpts
 
+-- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
+-- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
+-- of an attacker blocking legitimate login attempts of a user by constantly keeping the retry
+-- limit for that user exhausted with failed login attempts.
+--
+-- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
+-- password policy.
+data LimitFailedLogins = LimitFailedLogins
+    { timeout    :: !Timeout  -- ^ Time the user is blocked when retry limit is reached (in
+                              -- seconds mostly for making it easier to write a fast-ish
+                              -- integration test.)
+    , retryLimit :: !Int      -- ^ Maximum number of failed login attempts for one user.
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON LimitFailedLogins
+
+data SuspendInactiveUsers = SuspendInactiveUsers
+    { suspendTimeout :: !Timeout
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON SuspendInactiveUsers
+
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
     { privateKeys  :: !FilePath        -- ^ Private key file
@@ -186,43 +211,66 @@ data TurnOpts = TurnOpts
 
 instance FromJSON TurnOpts
 
+-- | Configurations for whether to show a user's email to others.
+data EmailVisibility
+    = EmailVisibleIfOnTeam
+    {- ^ Anyone can see the email of someone who is on ANY team.
+         This may sound strange; but certain on-premise hosters have many different teams
+         and still want them to see each-other's emails.
+    -}
+    | EmailVisibleToSelf
+    -- ^ Show your email only to yourself
+    deriving (Eq, Show)
+
+instance FromJSON EmailVisibility where
+    parseJSON = withText "EmailVisibility" $ \case
+        "visible_if_on_team" -> pure EmailVisibleIfOnTeam
+        "visible_to_self"      -> pure EmailVisibleToSelf
+        _ -> fail
+            $  "unexpected value for EmailVisibility settings: "
+            <> "expected one of [visible_if_on_team, visible_to_self]"
+
+instance ToJSON EmailVisibility where
+    toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
+    toJSON EmailVisibleToSelf   = "visible_to_self"
+
 -- | Options that are consumed on startup
 data Opts = Opts
     -- services
-    { brig          :: !Endpoint           -- ^ Host and port to bind to
-    , cargohold     :: !Endpoint           -- ^ Cargohold address
-    , galley        :: !Endpoint           -- ^ Galley address
-    , gundeck       :: !Endpoint           -- ^ Gundeck address
+    { brig          :: !Endpoint               -- ^ Host and port to bind to
+    , cargohold     :: !Endpoint               -- ^ Cargohold address
+    , galley        :: !Endpoint               -- ^ Galley address
+    , gundeck       :: !Endpoint               -- ^ Gundeck address
 
     -- external
-    , cassandra     :: !CassandraOpts      -- ^ Cassandra settings
-    , elasticsearch :: !ElasticSearchOpts  -- ^ ElasticSearch settings
-    , aws           :: !AWSOpts            -- ^ AWS settings
-    , stomp         :: !(Maybe StompOpts)  -- ^ STOMP broker settings
+    , cassandra     :: !CassandraOpts          -- ^ Cassandra settings
+    , elasticsearch :: !ElasticSearchOpts      -- ^ ElasticSearch settings
+    , aws           :: !AWSOpts                -- ^ AWS settings
+    , stomp         :: !(Maybe StompOpts)      -- ^ STOMP broker settings
 
     -- Email & SMS
-    , emailSMS      :: !EmailSMSOpts       -- ^ Email and SMS settings
+    , emailSMS      :: !EmailSMSOpts           -- ^ Email and SMS settings
 
     -- ZAuth
-    , zauth         :: !ZAuthOpts          -- ^ ZAuth settings
+    , zauth         :: !ZAuthOpts              -- ^ ZAuth settings
 
     -- Misc.
-    , discoUrl      :: !(Maybe Text)       -- ^ Disco URL
-    , geoDb         :: !(Maybe FilePath)   -- ^ GeoDB file path
-    , internalEvents :: !InternalEventsOpts -- ^ Event queue for
-                                            --   Brig-generated events (e.g.
-                                            --   user deletion)
+    , discoUrl      :: !(Maybe Text)           -- ^ Disco URL
+    , geoDb         :: !(Maybe FilePath)       -- ^ GeoDB file path
+    , internalEvents :: !InternalEventsOpts     -- ^ Event queue for
+                                                --   Brig-generated events (e.g.
+                                                --   user deletion)
 
     -- Logging
-    , logLevel      :: !Level              -- ^ Log level (Debug, Info, etc)
-    , logNetStrings :: !Bool               -- ^ Use netstrings encoding (see
-                                           --   <http://cr.yp.to/proto/netstrings.txt>)
-
+    , logLevel      :: !Level                  -- ^ Log level (Debug, Info, etc)
+    , logNetStrings :: !(Maybe (Last Bool))    -- ^ Use netstrings encoding (see
+                                               --   <http://cr.yp.to/proto/netstrings.txt>)
+    , logFormat     :: !(Maybe (Last LogFormat)) -- ^ Logformat to use
     -- TURN
-    , turn          :: !TurnOpts           -- ^ TURN server settings
+    , turn          :: !TurnOpts               -- ^ TURN server settings
 
     -- Runtime settings
-    , optSettings :: !Settings             -- ^ Runtime settings
+    , optSettings :: !Settings                 -- ^ Runtime settings
     } deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
@@ -241,7 +289,14 @@ data Settings = Settings
     , setUserCookieRenewAge    :: !Integer  -- ^ Minimum age of a user cookie before
                                             --   it is renewed during token refresh
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
-    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
+    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings (not to be confused
+                                                  -- with 'LoginRetryOpts')
+    , setLimitFailedLogins     :: !(Maybe LimitFailedLogins) -- ^ Block user from logging in
+                                                             -- for m minutes after n failed
+                                                             -- logins
+    , setSuspendInactiveUsers  :: !(Maybe SuspendInactiveUsers)
+                                               -- ^ If last cookie renewal is too long ago,
+                                               -- suspend the user.
     , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
                                            --   field names and values), should be in sync
                                            --   with Spar
@@ -253,6 +308,7 @@ data Settings = Settings
                                            --   NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId) -- ^ Filter ONLY services with
                                                       --   the given provider id
+    , setEmailVisibility       :: !EmailVisibility -- ^ Whether to expose user emails and to whom
     } deriving (Show, Generic)
 
 instance FromJSON Timeout where
@@ -261,9 +317,12 @@ instance FromJSON Timeout where
             bounded = toBoundedInteger n :: Maybe Int64
         in pure $
            Timeout $
-           secondsToDiffTime $ maybe defaultV fromIntegral bounded
+           fromIntegral @Int $ maybe defaultV fromIntegral bounded
     parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
 
 instance FromJSON Opts
+
+Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
+Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings

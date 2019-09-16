@@ -5,7 +5,7 @@ import           Eval
 import           Options
 import           Options.Applicative
 import           System.Exit
-import qualified System.Logger       as Log
+import qualified System.Logger.Class as Log
 
 main :: IO ()
 main = do

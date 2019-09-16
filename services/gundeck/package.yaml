@@ -15,32 +15,6 @@ library:
   source-dirs: src
   ghc-options:
   - -fwarn-incomplete-uni-patterns
-  exposed-modules:
-  - Gundeck.API
-  - Gundeck.API.Error
-  - Gundeck.Aws
-  - Gundeck.Aws.Arn
-  - Gundeck.Aws.Sns
-  - Gundeck.Client
-  - Gundeck.Env
-  - Gundeck.Instances
-  - Gundeck.Monad
-  - Gundeck.Notification
-  - Gundeck.Notification.Data
-  - Gundeck.Options
-  - Gundeck.Presence
-  - Gundeck.Presence.Data
-  - Gundeck.Push
-  - Gundeck.Push.Data
-  - Gundeck.Push.Native
-  - Gundeck.Push.Native.Serialise
-  - Gundeck.Push.Native.Types
-  - Gundeck.Push.Websocket
-  - Gundeck.React
-  - Gundeck.Run
-  - Gundeck.Util
-  - Gundeck.Util.DelayQueue
-  - Gundeck.Util.Redis
   dependencies:
   - aeson >=0.11
   - amazonka >=1.3.7
@@ -211,6 +185,7 @@ tests:
     - gundeck-types
     - HsOpenSSL
     - lens
+    - metrics-wai
     - MonadRandom
     - mtl
     - multiset
@@ -230,6 +205,7 @@ tests:
     - unordered-containers
     - uuid
     - vector
+    - wai-utilities
 benchmarks:
   gundeck-bench:
     main: Main.hs
@@ -249,5 +225,5 @@ benchmarks:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false

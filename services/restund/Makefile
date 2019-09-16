@@ -13,7 +13,7 @@ RESTUND_TARBALL := restund-$(RESTUND_VERSION).tar.gz
 RESTUND_SRC     := src/restund-$(RESTUND_VERSION)/Makefile
 RESTUND_URL     := https://github.com/wireapp/restund/archive
 
-WIRE_VERSION    := 6
+WIRE_VERSION    := 7
 
 EXTRA_MODULES   := zrest drain
 

@@ -10,6 +10,7 @@ module Cannon.Options
     , externalHostFile
     , logLevel
     , logNetStrings
+    , logFormat
     , Opts
     )
 where
@@ -17,7 +18,7 @@ where
 import Imports
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
-import System.Logger (Level)
+import System.Logger.Extended (Level, LogFormat)
 
 
 data Cannon = Cannon
@@ -42,7 +43,8 @@ data Opts = Opts
     { _optsCannon         :: !Cannon
     , _optsGundeck        :: !Gundeck
     , _optsLogLevel       :: !Level
-    , _optsLogNetStrings  :: !Bool
+    , _optsLogNetStrings  :: !(Maybe (Last Bool))
+    , _optsLogFormat      :: !(Maybe (Last LogFormat))
     } deriving (Eq, Show, Generic)
 
 makeFields ''Opts

@@ -27,13 +27,14 @@ import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (setStatus, json, addHeader)
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 
 import qualified Brig.AWS                     as AWS
 import qualified Brig.Whitelist               as Whitelist
 import qualified Control.Monad.Catch          as Catch
 import qualified Network.Wai.Utilities.Error  as WaiError
 import qualified Network.Wai.Utilities.Server as Server
+import qualified Data.ZAuth.Validation        as ZV
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -49,6 +50,8 @@ runHandler e r h k = do
     errors =
         [ Catch.Handler $ \(ex :: PhoneException) ->
             pure (Left (phoneError ex))
+        , Catch.Handler $ \(ex :: ZV.Failure) ->
+            pure (Left (zauthError ex))
         , Catch.Handler $ \(ex :: AWS.Error) ->
             case ex of
                 AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
@@ -79,7 +82,7 @@ type JSON = Media "application" "json"
 parseJsonBody :: FromJSON a => JsonRequest a -> Handler a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
--- | If a whitelist is configured, consult it, otherwise a no-op.
+-- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> Handler ()
 checkWhitelist key = do
     eb <- setWhitelist <$> view settings

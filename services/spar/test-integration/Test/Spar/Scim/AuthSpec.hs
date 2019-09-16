@@ -10,7 +10,6 @@ import Bilge
 import Bilge.Assert
 import Control.Lens
 import Data.Misc (PlainTextPassword(..))
-import Network.Wai.Utilities.Error (label)
 import Spar.Scim
 import Spar.Types (ScimTokenInfo(..))
 import Util
@@ -78,7 +77,7 @@ testTokenLimit = do
         { createScimTokenDescr = "testTokenLimit / #3"
         , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
-        !!! const 403 === statusCode
+        !!! checkErr 403 (Just "token-limit-reached")
 
 -- | Test that a token can't be created for a team without an IdP.
 --
@@ -96,7 +95,7 @@ testIdPIsNeeded = do
           { createScimTokenDescr = "testIdPIsNeeded"
           , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
-        !!! const 400 === statusCode
+        !!! checkErr 400 (Just "no-single-idp")
 
 -- | Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()
@@ -115,8 +114,7 @@ testCreateTokenAuthorizesOnlyTeamOwner = do
         { createScimTokenDescr = "testCreateToken"
         , createScimTokenPassword = Just defPassword }
       (env ^. teSpar)
-      !!! const 403
-      === statusCode
+      !!! checkErr 403 (Just "insufficient-permissions")
 
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
@@ -134,8 +132,7 @@ testCreateTokenRequiresPassword = do
         { createScimTokenDescr = "testCreateTokenRequiresPassword"
         , createScimTokenPassword = Nothing }
       (env ^. teSpar)
-      !!! do const 403 === statusCode
-             const "access-denied" === (label . decodeBody')
+      !!! checkErr 403 (Just "access-denied")
     -- Creating a token doesn't work with a wrong password
     createToken_
       owner
@@ -143,8 +140,7 @@ testCreateTokenRequiresPassword = do
         { createScimTokenDescr = "testCreateTokenRequiresPassword"
         , createScimTokenPassword = Just (PlainTextPassword "wrong password") }
       (env ^. teSpar)
-      !!! do const 403 === statusCode
-             const "access-denied" === (label . decodeBody')
+      !!! checkErr 403 (Just "access-denied")
 
 ----------------------------------------------------------------------------
 -- Token listing
@@ -195,7 +191,7 @@ testDeletedTokensAreUnusable = do
     -- Delete the token and now the operation should fail
     deleteToken owner (stiId tokenInfo)
     listUsers_ (Just token) Nothing (env ^. teSpar)
-        !!! const 401 === statusCode
+        !!! checkErr 401 Nothing
 
 -- | Test that when a token is deleted, it no longer appears in the result of @GET
 -- /auth-tokens@.
@@ -222,4 +218,11 @@ testAuthIsNeeded = do
     env <- ask
     -- Try to do @GET /Users@ without a token and check that it fails
     listUsers_ Nothing Nothing (env ^. teSpar)
-        !!! const 401 === statusCode
+        !!! checkErr 401 Nothing
+
+checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
+checkErr status mlabel = do
+    const status === statusCode
+    case mlabel of
+      Nothing -> pure ()
+      Just label -> const (Right label) === responseJsonEither

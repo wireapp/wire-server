@@ -109,7 +109,9 @@ usersFileOption :: Parser (Maybe FilePath)
 usersFileOption = optional . strOption $
     long "users-file"
     <> metavar "FILE"
-    <> help "Path to users file"
+    <> help "Path to users file; which is a headerless csv \
+    \ containing a list of ALREADY EXISTING users with the columns: \
+    \ User-Id,Email,Password"
 
 reportDirOption :: Parser (Maybe FilePath)
 reportDirOption = optional . strOption $

@@ -16,8 +16,8 @@ import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 
-import qualified Data.Text.Lazy as Text
-import qualified System.Logger  as Logger
+import qualified Data.Text.Lazy      as Text
+import qualified System.Logger.Class as Logger
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout
@@ -44,33 +44,34 @@ maxPingInterval = 3600
 maxLifetime :: Word64
 maxLifetime = 3 * 24 * 3600
 
-wsapp :: Key -> Maybe ClientId -> Logger -> Env -> ServerApp
-wsapp k c l e pc = go `catches` ioErrors l k
+wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
+wsapp k c e pc = runWS e (go `catches` ioErrors k)
   where
-    go = runWS e $ do
+    go = do
         ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
         debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
         registerLocal k ws
         registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
         clock <- getClock
-        continue l ws clock k `finally` terminate k ws
+        continue ws clock k `finally` terminate k ws
 
-continue :: MonadIO m => Logger -> Websocket -> Clock -> Key -> m ()
-continue l ws clock k = liftIO $ do
-    ttl    <- TTL . (+ maxLifetime) <$> getTime clock
-    state  <- newIORef $ State 1 (20 # Minute)
-    rloop  <- async (readLoop ws state)
-    wloop  <- async (writeLoop ws clock ttl state)
-    result <- waitEitherCatchCancel rloop wloop
-    case result of
-        (Left  (Left x)) ->
-            let text = client (key2bytes k) . msg (val "read: " +++ show x) in
-            case fromException x of
-                Just ConnectionClosed -> Logger.debug l text
-                _                     -> Logger.warn  l text
-        (Right (Left x)) -> Logger.warn l $
-            client (key2bytes k) . msg (val "write: " +++ show x)
-        _                -> return ()
+continue :: (MonadLogger m, MonadUnliftIO m, MonadIO m) => Websocket -> Clock -> Key -> m ()
+continue ws clock k =  do
+    runInIO <- askRunInIO
+    liftIO $ do
+      ttl    <- TTL . (+ maxLifetime) <$> getTime clock
+      state  <- newIORef $ State 1 (20 # Minute)
+      rloop  <- async (readLoop ws state)
+      wloop  <- async (writeLoop ws clock ttl state)
+      result <- waitEitherCatchCancel rloop wloop
+      case result of
+          (Left (Left x)) ->
+              let text = client (key2bytes k) . msg (val "read: " +++ show x) in
+              runInIO $ Logger.debug text
+          (Right (Left x)) ->
+              let text = client (key2bytes k) . msg (val "write: " +++ show x) in
+              runInIO $ Logger.debug text
+          _                -> return ()
 
 terminate :: Key -> Websocket -> WS ()
 terminate k ws = do
@@ -138,11 +139,11 @@ rejectOnError p x = do
         NotSupported              -> rejectRequest p (f "protocol not supported" "N/A")
         MalformedRequest _ m      -> rejectRequest p (f "malformed-request" (Text.pack m))
         OtherHandshakeException m -> rejectRequest p (f "other-error" (Text.pack m))
-        _                         -> throwM x
+        _                         -> pure ()
     throwM x
 
-ioErrors :: MonadIO m => Logger -> Key -> [Handler m ()]
-ioErrors l k = let f s = Logger.err l $ client (key2bytes k) . msg s in
+ioErrors :: (MonadLogger m, MonadIO m) => Key -> [Handler m ()]
+ioErrors k = let f s = Logger.err $ client (key2bytes k) . msg s in
     [ Handler $ \(x :: HandshakeException) -> f (show x)
     , Handler $ \(x :: IOException)        -> f (show x)
     ]

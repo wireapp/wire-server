@@ -79,10 +79,10 @@ runConv s g = do
             log Info $ msg $ val "Creating clients"
             uniq <- liftIO UUID.nextRandom
             let mainLabel = "main-client-" <> UUID.toText uniq
-            mainClient <- addBotClient b PermanentClient (Just mainLabel)
+            mainClient <- addBotClient b PermanentClientType (Just mainLabel)
             otherClients <- for [1 .. nClients - 1] $ \i -> do
                 let label = "client-" <> Text.pack (show i) <> "-" <> UUID.toText uniq
-                addBotClient b PermanentClient (Just label)
+                addBotClient b PermanentClientType (Just label)
             return $! BotState mainClient otherClients conv bots nmsg nast
     -- Run -----------------------------
     log Info $ msg $ val "Running"

@@ -15,7 +15,7 @@ import Database.CQL.Protocol as C (
   BatchType(BatchLogged, BatchUnLogged),
   Value(CqlInt, CqlBlob, CqlText, CqlUdt, CqlBigInt, CqlList, CqlAscii, CqlDouble, CqlBoolean),
   ColumnType(IntColumn, BlobColumn, TextColumn, BigIntColumn, UdtColumn, TimestampColumn, ListColumn, AsciiColumn, DoubleColumn, MaybeColumn, UuidColumn, BooleanColumn),
-  Version(V3),
+  Version(V4),
   R,
   W,
   S,

@@ -1,0 +1,42 @@
+defaults:
+  local: ../../../package-defaults.yaml
+name: migrate-sso-feature-flag
+version: '1.0.0'
+synopsis: Backfill sso feature flag into teams that already have an IdP.
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2018 Wire Swiss GmbH
+license: UnspecifiedLicense
+ghc-options:
+- -funbox-strict-fields
+- -threaded
+- -with-rtsopts=-N
+- -with-rtsopts=-T
+- -rtsopts
+dependencies:
+- base
+- attoparsec
+- brig-types
+- bytestring
+- bytestring
+- bytestring-conversion
+- cassandra-util
+- conduit
+- extended
+- galley
+- galley-types
+- imports
+- lens
+- mtl
+- optparse-applicative
+- text
+- time
+- tinylog
+- types-common
+- unliftio
+- uuid
+executables:
+  migrate-sso-feature-flag:
+    main: Main.hs
+    source-dirs: src

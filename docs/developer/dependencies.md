@@ -166,3 +166,15 @@ docker login --username=<MY_DOCKER_USERNAME>
 
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
+
+## Nix
+
+Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
+dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `shell.nix` file in the project root.
+Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
+You can then run all the builds, and the native dependencies will be automatically present.
+
+We are currently on a snapshot that uses `ghc863` but Nix only ships `ghc864` as `ghc863` is officially deprecated. The releases should be totally compatible, but we need to convince stack that this is true. Hence, we can add the following to our global stack config in `~/.stack/config.yaml`
+```bash
+skip-ghc-check: true
+```

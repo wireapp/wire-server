@@ -16,10 +16,9 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Proxy
 import Data.Typeable (typeOf)
 import Galley.Types.Teams
-import Test.Brig.Types.Arbitrary ()
+import Brig.Types.Test.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -70,41 +69,41 @@ unitTests =
 
 roundtripTests :: [TestTree]
 roundtripTests =
-    [ run @BindingNewTeamUser Proxy
-    , run @CheckHandles Proxy
-    , run @CompletePasswordReset Proxy
-    , run @DeleteUser Proxy
-    , run @DeletionCodeTimeout Proxy
-    , run @EmailRemove Proxy
-    , run @EmailUpdate Proxy
-    , run @HandleUpdate Proxy
-    , run @InvitationList Proxy
-    , run @Invitation Proxy
-    , run @InvitationRequest Proxy
-    , run @LocaleUpdate Proxy
-    , run @NewPasswordReset Proxy
-    , run @NewUser Proxy
-    , run @PasswordChange Proxy
-    , run @PhoneRemove Proxy
-    , run @PhoneUpdate Proxy
-    , run @ManagedByUpdate Proxy
-    , run @ReAuthUser Proxy
-    , run @SelfProfile Proxy
-    , run @TeamMember Proxy
-    , run @UpdateServiceWhitelist Proxy
-    , run @UserHandleInfo Proxy
-    , run @UserIdentity Proxy
-    , run @UserProfile Proxy
-    , run @User Proxy
-    , run @RichInfo Proxy
-    , run @UserUpdate Proxy
-    , run @RichInfoUpdate Proxy
-    , run @VerifyDeleteUser Proxy
+    [ run @BindingNewTeamUser
+    , run @CheckHandles
+    , run @CompletePasswordReset
+    , run @DeleteUser
+    , run @DeletionCodeTimeout
+    , run @EmailRemove
+    , run @EmailUpdate
+    , run @HandleUpdate
+    , run @InvitationList
+    , run @Invitation
+    , run @InvitationRequest
+    , run @LocaleUpdate
+    , run @NewPasswordReset
+    , run @NewUser
+    , run @PasswordChange
+    , run @PhoneRemove
+    , run @PhoneUpdate
+    , run @ManagedByUpdate
+    , run @ReAuthUser
+    , run @SelfProfile
+    , run @TeamMember
+    , run @UpdateServiceWhitelist
+    , run @UserHandleInfo
+    , run @UserIdentity
+    , run @UserProfile
+    , run @User
+    , run @RichInfo
+    , run @UserUpdate
+    , run @RichInfoUpdate
+    , run @VerifyDeleteUser
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)
-        => Proxy a -> TestTree
-    run Proxy = testProperty msg trip
+        => TestTree
+    run = testProperty msg trip
       where
         msg = show $ typeOf (undefined :: a)
         trip (v :: a) = counterexample (show $ toJSON v)

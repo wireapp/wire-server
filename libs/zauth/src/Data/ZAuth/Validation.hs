@@ -30,7 +30,10 @@ data Failure
     = Falsified -- ^ The token signature is incorrect.
     | Expired   -- ^ The token is expired.
     | Invalid   -- ^ Invalid token.
+    | Unsupported -- ^ This operation is unsupported on this token type
     deriving (Eq, Show)
+
+instance Exception Failure
 
 newtype Env = Env
     { verifyFns :: Vector (Signature -> Strict.ByteString -> IO Bool) }

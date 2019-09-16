@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: ssl-util
 version: '0.1.0'
@@ -19,6 +19,4 @@ dependencies:
 - time >=1.5
 library:
   source-dirs: src
-  exposed-modules:
-  - Ssl.Util
 stability: experimental

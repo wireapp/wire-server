@@ -262,3 +262,14 @@ instance EncodeWire RequestId where
 instance DecodeWire RequestId where
     decodeWire = fmap RequestId . decodeWire
 #endif
+
+-- Rendering Id values in JSON objects -----------------------------------------
+
+newtype IdObject a = IdObject { fromIdObject :: a }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON a => FromJSON (IdObject a) where
+    parseJSON = withObject "Id" $ \o -> IdObject <$> (o .: "id")
+
+instance ToJSON a => ToJSON (IdObject a) where
+    toJSON (IdObject a) = object [ "id" .= a ]

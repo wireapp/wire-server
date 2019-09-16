@@ -34,6 +34,8 @@ module Bilge.Request
     , cookieRaw
     , requestId
     , requestIdName
+    , extHost
+    , extPort
 
     -- * Re-exports
     , Request
@@ -48,6 +50,7 @@ module Bilge.Request
 
 import Imports hiding (intercalate)
 import Control.Exception
+import Control.Lens
 import Data.Aeson (ToJSON, encode)
 import Data.ByteString (intercalate)
 import Data.CaseInsensitive (original)
@@ -61,6 +64,7 @@ import qualified Data.ByteString.Lazy       as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Network.HTTP.Client        as Rq
 import qualified Network.HTTP.Types         as HTTP
+import qualified URI.ByteString             as URI
 
 
 -- Builders
@@ -211,3 +215,15 @@ showRequest r =
         RequestBodyStream l _      -> showString ("RequestBodyStream<" ++ show l ++ ">")
         RequestBodyStreamChunked _ -> showString "RequestBodyStreamChunked"
         RequestBodyIO _            -> showString "RequestBodyIO"
+
+
+-- uri-bytestring
+
+extHost :: URI.URI -> Maybe ByteString
+extHost u = u ^. URI.authorityL <&> view (URI.authorityHostL . URI.hostBSL)
+
+extPort :: URI.URI -> Maybe Word16
+extPort u = do
+    a <- u ^. URI.authorityL
+    p <- a ^. URI.authorityPortL
+    return (fromIntegral (p ^. URI.portNumberL))

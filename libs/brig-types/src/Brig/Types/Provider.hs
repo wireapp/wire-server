@@ -326,7 +326,7 @@ instance ToJSON ServiceKeyPEM where
 data ServiceKeyType
     = RsaServiceKey
     -- Other types may be supported in the future.
-    deriving (Eq, Show)
+    deriving (Eq, Enum, Bounded, Show)
 
 instance FromJSON ServiceKeyType where
     parseJSON (String "rsa") = pure RsaServiceKey

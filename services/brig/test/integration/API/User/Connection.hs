@@ -51,11 +51,11 @@ testCreateConnectionInvalidUser brig = do
     uid2 <- Id <$> liftIO UUID.nextRandom
     postConnection brig uid1 uid2 !!! do
         const 400 === statusCode
-        const (Just "invalid-user") === fmap Error.label . decodeBody
+        const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
     -- cannot create a connection with yourself
     postConnection brig uid1 uid1 !!! do
         const 400 === statusCode
-        const (Just "invalid-user") === fmap Error.label . decodeBody
+        const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
 
 testCreateManualConnections :: Brig -> Http ()
 testCreateManualConnections brig = do
@@ -80,15 +80,15 @@ testCreateMutualConnections brig galley = do
     rsp  <- postConnection brig uid2 uid1 <!! const 200 === statusCode
     assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
     assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-    case decodeBody rsp >>= ucConvId of
+    case responseJsonMaybe rsp >>= ucConvId of
         Nothing  -> liftIO $ assertFailure "incomplete connection"
         Just cnv -> do
             getConversation galley uid1 cnv !!! do
                 const 200                === statusCode
-                const (Just One2OneConv) === fmap cnvType . decodeBody
+                const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
             getConversation galley uid2 cnv !!! do
                 const 200                === statusCode
-                const (Just One2OneConv) === fmap cnvType . decodeBody
+                const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
 
 testAcceptConnection :: Brig -> Http ()
 testAcceptConnection brig = do
@@ -159,14 +159,14 @@ testCancelConnection2 brig galley = do
     assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
     assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
 
-    let Just cnv = ucConvId =<< decodeBody rsp
+    let Just cnv = ucConvId =<< responseJsonMaybe rsp
 
     -- A cannot see the conversation (due to cancelling)
     getConversation galley uid1 cnv !!! do
-        const 404 === statusCode
+        const 403 === statusCode
 
     -- B cannot see the conversation
-    getConversation galley uid2 cnv !!! const 404 === statusCode
+    getConversation galley uid2 cnv !!! const 403 === statusCode
 
     -- B initiates a connection request himself
     postConnection brig uid2 uid1 !!! const 200 === statusCode
@@ -177,12 +177,12 @@ testCancelConnection2 brig galley = do
     getConversation galley uid2 cnv !!! do
         const 200 === statusCode
         const (Just ConnectConv) === \rs -> do
-            conv <- decodeBody rs
+            conv <- responseJsonMaybe rs
             Just (cnvType conv)
 
     -- A is a past member, cannot see the conversation
     getConversation galley uid1 cnv !!! do
-        const 404 === statusCode
+        const 403 === statusCode
 
     -- A finally accepts
     putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
@@ -215,7 +215,7 @@ testBlockConnection brig = do
     -- A does not notice that he got blocked
     postConnection brig uid1 uid2 !!! do
         const 200 === statusCode
-        const (Just Sent) === fmap ucStatus . decodeBody
+        const (Just Sent) === fmap ucStatus . responseJsonMaybe
     assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
 
     -- B accepts after all
@@ -269,8 +269,8 @@ testBlockAndResendConnection brig galley = do
     assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
 
     -- B never accepted and thus does not see the conversation
-    let Just cnv = ucConvId =<< decodeBody rsp
-    getConversation galley uid2 cnv !!! const 404 === statusCode
+    let Just cnv = ucConvId =<< responseJsonMaybe rsp
+    getConversation galley uid2 cnv !!! const 403 === statusCode
 
     -- A can see the conversation and is a current member
     getConversation galley uid1 cnv !!! do
@@ -325,7 +325,7 @@ testBadUpdateConnection brig = do
   where
     assertBadUpdate u1 u2 s = putConnection brig u1 u2 s !!! do
         const 403 === statusCode
-        const (Just "bad-conn-update") === fmap Error.label . decodeBody
+        const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
 
 testConnectionPaging :: Brig -> Http ()
 testConnectionPaging b = do
@@ -343,7 +343,7 @@ testConnectionPaging b = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <- get (b . path "/connections" . zUser u . range) <!!
             const 200 === statusCode
-        let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ decodeBody r
+        let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ responseJsonMaybe r
         liftIO $ assertEqual "page size" (Just n) (length <$> conns)
         liftIO $ assertEqual "has more" (Just (count' < total)) more
         return . (count',) $ (conns >>= fmap ucTo . listToMaybe . reverse)
@@ -373,7 +373,7 @@ testConnectionLimit brig (ConnectionLimit l) = do
 
     assertLimited = do
         const 403 === statusCode
-        const (Just "connection-limit") === fmap Error.label . decodeBody
+        const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
 
 testAutoConnectionOK :: Brig -> Galley -> Http ()
 testAutoConnectionOK brig galley = do
@@ -386,15 +386,15 @@ testAutoConnectionOK brig galley = do
             Vec.length <$> (decode b :: Maybe (Vector UserConnection))
     assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
     assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-    case decodeBody bdy >>= headMay >>= ucConvId of
+    case responseJsonMaybe bdy >>= headMay >>= ucConvId of
         Nothing  -> liftIO $ assertFailure "incomplete connection"
         Just cnv -> do
             getConversation galley uid1 cnv !!! do
                 const 200                === statusCode
-                const (Just One2OneConv) === fmap cnvType . decodeBody
+                const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
             getConversation galley uid2 cnv !!! do
                 const 200                === statusCode
-                const (Just One2OneConv) === fmap cnvType . decodeBody
+                const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
 
 testAutoConnectionNoChanges :: Brig -> Http ()
 testAutoConnectionNoChanges brig = do
@@ -420,7 +420,7 @@ testAutoConnectionBadRequest brig = do
     uid2 <- userId <$> createAnonUser "foo2" brig
     postAutoConnection brig uid2 (take 1 uids) !!! do
         const 403 === statusCode
-        const (Just "no-identity") === fmap Error.label . decodeBody
+        const (Just "no-identity") === fmap Error.label . responseJsonMaybe
     -- unactivated / unverified target users simply get filtered out
     postAutoConnection brig uid1 [uid2] !!! do
         const 200 === statusCode

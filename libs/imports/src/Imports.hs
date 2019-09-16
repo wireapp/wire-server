@@ -24,7 +24,6 @@ module Imports
     , module Data.Tuple
     , module Data.String
     , module Data.List
-    , module Debug.Trace
     , Generic
     , Typeable
     , HasCallStack
@@ -65,9 +64,11 @@ module Imports
     , Map, Set, HashMap, HashSet
     , ByteString, LByteString
     , Text, LText
-    ) where
 
-import Orphans ()
+    -- * Extra Helpers
+    , whenM
+    , unlessM
+    ) where
 
 -- Explicitly saying what to import because some things from Prelude clash
 -- with e.g. UnliftIO modules
@@ -96,8 +97,8 @@ import Data.Void
 import Data.Bool
 import Data.Char
 import Data.Ord
-import Data.Semigroup (Semigroup)
-import Data.Monoid
+import Data.Semigroup hiding (diff, Option, option) -- conflicts with Options.Applicative.Option (should we care?)
+import Data.Monoid hiding (First(..), Last(..)) -- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Maybe
 import Data.Either
 import Data.Foldable
@@ -107,7 +108,7 @@ import Data.List hiding (insert, delete)  -- 'insert' and 'delete' are
                                           -- common in database modules
 import Data.String
 import Control.Monad hiding (mapM_, sequence_, forM_, msum, mapM, sequence, forM)
-import Debug.Trace
+import Control.Monad.Extra (whenM, unlessM)
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
 import GHC.Stack (HasCallStack)
@@ -141,6 +142,7 @@ import Control.Monad.Trans.Reader (
 import Control.Monad.IO.Unlift
 
 import Control.DeepSeq (NFData(..), deepseq)
+
 
 ----------------------------------------------------------------------------
 -- Type aliases

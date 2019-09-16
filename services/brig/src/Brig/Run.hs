@@ -1,4 +1,4 @@
-module Brig.Run (run) where
+module Brig.Run (run, mkApp) where
 
 import           Imports                      hiding (head)
 import           Brig.App
@@ -27,22 +27,28 @@ import qualified Network.Wai.Utilities.Server       as Server
 
 run :: Opts -> IO ()
 run o = do
-    e <- newEnv o
+    (app, e) <- mkApp o
     s <- Server.newSettings (server e)
+    internalEventListener <- Async.async $
+        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
     emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
         Async.async $
         AWS.execute (e^.awsEnv) $
         AWS.listen q (runAppT e . SesNotification.onEvent)
-    internalEventListener <- Async.async $
-        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
-    runSettingsWithShutdown s (middleware e $ serve e) 5 `finally` do
+    runSettingsWithShutdown s app 5 `finally` do
         mapM_ Async.cancel emailListener
         Async.cancel internalEventListener
         closeEnv e
   where
-    rtree      = compile (sitemap o)
     endpoint   = brig o
     server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
+
+mkApp :: Opts -> IO (Wai.Application, Env)
+mkApp o = do
+    e <- newEnv o
+    return (middleware e $ serve e, e)
+  where
+    rtree      = compile (sitemap o)
     middleware :: Env -> Wai.Middleware
     middleware e = Metrics.waiPrometheusMiddleware (sitemap o)
                  . measureRequests (e^.metrics) (treeToPaths rtree)

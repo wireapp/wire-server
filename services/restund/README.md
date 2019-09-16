@@ -66,30 +66,38 @@ Makefile.
 
 ## Running restund on a server
 
-You need a restund config and pem file (for the following assumed to be under /etc/restund), and can then run the aci image with rkt.
+You need
 
-A config file could look like the following (with the ansible-style variables filled in accordingly):
+* the aci image built in the section above, or, alternatively, a natively compiled `restund` binary with all the shared libraries available.
+* an adapted restund config (see below)
+* (optionally) a TLS certificate chain in PEM format, including the private key
 
-```
+Example config file:
+
+```conf
+# /etc/restund/restund.conf
+
 # core
 daemon                  no
 debug                   no
 realm                   dummy.io
 syncinterval            600
-udp_listen              {{ ansible_default_ipv4.address }}:{{ restund_udp_listen_port }}
+udp_listen              {{ ansible_default_ipv4.address }}:3478
 udp_sockbuf_size        524288
-tcp_listen              {{ ansible_default_ipv4.address }}:{{ restund_tcp_listen_port }}
-tls_listen              {{ ansible_default_ipv4.address }}:{{ restund_tls_listen_port }},/usr/local/etc/restund/restund.pem
+tcp_listen              {{ ansible_default_ipv4.address }}:3478
+# tls_listen is optional, you can comment that line out. If set, you must provide a valid TLS certificate for the domain name you're advertising.
+# tls_listen              {{ ansible_default_ipv4.address }}:5349,/usr/local/etc/restund/restund.pem
 
 # modules
 module_path             /usr/local/lib/restund/modules
 module                  stat.so
 module                  drain.so
 module                  binding.so
-module                  auth.so
 module                  turn.so
-module                  zrest.so
 module                  status.so
+# The auth and zrest modules are optional. If enabled, ensure the zrest_secret below is set to a value shared with the configuration in brig.
+module                  zrest.so
+module                  auth.so
 
 # auth
 auth_nonce_expiry       3600
@@ -98,24 +106,40 @@ auth_nonce_expiry       3600
 turn_max_allocations    64000
 turn_max_lifetime       3600
 turn_relay_addr         {{ ansible_default_ipv4.address }}
-{% if ansible_default_ipv4.address != public_ipv4 %}
-turn_public_addr        {{ public_ipv4 }}
-{% endif %}
+
+# You generally don't need to set this (only if your server is on a private network and must be reachable from other restund servers that are on another network):
+# turn_public_addr is an IP which must be reachable for UDP traffic from other restund servers (and from this server itself). If unset, defaults to 'turn_relay_addr'
+#turn_public_addr        {{ public_ipv4 }}
 
 # syslog
 syslog_facility         24
 
 # status
 status_udp_addr         127.0.0.1
-status_udp_port         {{ restund_udp_status_port }}
+status_udp_port         33000
 status_http_addr        127.0.0.1
-status_http_port        {{ restund_http_status_port }}
+status_http_port        8080
 
-# zrest (shared secret shared with brig)
+# zrest (shared secret shared with brig, optional)
 zrest_secret            {{ restund_zrest_secret }}
 ```
 
-Example rkt command:
+Adjust the above configuration:
+
+* Replace the `{{ variables }}` with real values (without `{{`)):
+    * Put your private IP of the server in place of: `{{ ansible_default_ipv4.address }}`.
+* You may comment these out in case you don't want to use authentication:
+```
+module                  zrest.so
+module                  auth.so
+zrest_secret            {{ restund_zrest_secret }}
+```
+
+Next, list out TURN IP and port in `deploy/services-demo/resources/turn/servers.txt`, and `deploy/services-demo/resources/turn/servers-v2.txt`, as given below:
+`turn:<private-ip>:3478`
+Then run the command restund command and you'll get the live stun log in your terminal.
+
+Running restund with `rkt`:
 
 ```
 /usr/bin/rkt run \

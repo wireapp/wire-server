@@ -21,15 +21,17 @@ module Util.Core
   , endpointToReq
   , endpointToSettings
   , endpointToURL
-  , responseJSON
-  , decodeBody
-  , decodeBody'
   -- * Other
   , defPassword
   , createUserWithTeam
+  , createUserWithTeamDisableSSO
+  , getSSOEnabledInternal
+  , putSSOEnabledInternal
   , createTeamMember
   , deleteUserOnBrig
   , getTeams
+  , getTeamMembers
+  , promoteTeamMember
   , getSelfProfile
   , nextWireId
   , nextSAMLID
@@ -56,7 +58,7 @@ module Util.Core
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
   , callIdpGetAll, callIdpGetAll'
-  , callIdpCreate, callIdpCreate'
+  , callIdpCreate, callIdpCreate', callIdpCreateRaw, callIdpCreateRaw'
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , ssoToUidSpar
@@ -69,8 +71,9 @@ module Util.Core
   ) where
 
 import Imports hiding (head)
-import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
+
 import Bilge.Assert ((!!!), (===), (<!!))
+import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
 import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
@@ -82,7 +85,6 @@ import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
-import Data.EitherR (fmapL)
 import Data.Id
 import Data.Misc (PlainTextPassword(..))
 import Data.Proxy
@@ -116,6 +118,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
+import qualified Galley.Types.Teams.SSO as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
@@ -175,7 +178,7 @@ cliOptsParser = (,) <$>
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts)
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   let _teBrig            = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley          = endpointToReq (cfgGalley _teTstOpts)
@@ -223,6 +226,12 @@ aFewTimes action good = do
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
+    (uid, tid) <- createUserWithTeamDisableSSO brg gly
+    putSSOEnabledInternal gly tid Galley.SSOEnabled
+    pure (uid, tid)
+
+createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeamDisableSSO brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
     let p = RequestBodyLBS . Aeson.encode $ object
@@ -231,7 +240,7 @@ createUserWithTeam brg gly = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    bdy <- decodeBody' <$> post (brg . path "/i/users" . contentJson . body p)
+    bdy <- responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
     let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
     (team:_) <- (^. Galley.teamListTeams) <$> getTeams uid gly
     () <- Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid ==  team ^. Galley.teamId)
@@ -240,6 +249,18 @@ createUserWithTeam brg gly = do
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
     return (uid, tid)
+
+getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
+getSSOEnabledInternal gly tid = do
+    get $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> Galley.SSOStatus -> m ()
+putSSOEnabledInternal gly tid enabled = do
+    void . put $ gly
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . json (Galley.SSOTeamConfig enabled)
+        . expect2xx
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
@@ -254,7 +275,7 @@ createTeamMember brigreq galleyreq teamid perms = do
   resp :: ResponseLBS
     <- postUser name False (Just ssoid) (Just teamid) brigreq
        <!! const 201 === statusCode
-  let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
+  let nobody :: UserId            = Brig.userId (responseJsonUnsafe @Brig.User resp)
       tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms Nothing
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
@@ -329,15 +350,9 @@ createRandomPhoneUser brig_ = do
     -- check new phone
     get (brig_ . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Right (Just phn)) === (fmap Brig.userPhone . decodeBody)
+        const (Right (Just phn)) === (fmap Brig.userPhone . responseJsonEither)
 
     return (uid, phn)
-
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
-decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
-
-decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
-decodeBody' = either (error . show) id . decodeBody
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
@@ -346,12 +361,29 @@ getTeams u gly = do
              . zAuthAccess u "conn"
              . expect2xx
              )
-    return $ decodeBody' r
+    return $ responseJsonUnsafe r
+
+getTeamMembers :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
+getTeamMembers usr tid = do
+  gly <- view teGalley
+  resp <- call $ get (gly . paths ["teams", toByteString' tid, "members"] . zUser usr)
+            <!! const 200 === statusCode
+  let mems :: Galley.TeamMemberList
+      Right mems = responseJsonEither resp
+  pure $ (^. Galley.userId) <$> (mems ^. Galley.teamMembers)
+
+promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
+promoteTeamMember usr tid memid = do
+  gly <- view teGalley
+  let bdy :: Galley.NewTeamMember
+      bdy = Galley.newNewTeamMember $ Galley.newTeamMember memid Galley.fullPermissions Nothing
+  call $ put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
+    !!! const 200 === statusCode
 
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
-    return $ decodeBody' rsp
+    return $ responseJsonUnsafe rsp
 
 zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
@@ -379,7 +411,7 @@ createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> BrigReq -> m Brig.User
 createUser name brig_ = do
     r <- postUser name True Nothing Nothing brig_ <!! const 201 === statusCode
-    return $ decodeBody' r
+    return $ responseJsonUnsafe r
 
 -- more flexible variant of 'createUser' (see above).  (check the variant that brig has before you
 -- clone this again!)
@@ -626,10 +658,6 @@ loginSsoUserFirstTime idp = do
   pure uid
 
 
--- TODO: move this to /lib/bilge?
-responseJSON :: FromJSON a => ResponseLBS -> Either String a
-responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
-
 callAuthnReq :: forall m. (HasCallStack, MonadIO m, MonadHttp m)
              => SparReq -> SAML.IdPId -> m (URI, SAML.AuthnRequest)
 callAuthnReq sparreq_ idpid = assert test_parseAuthnReqResp $ do
@@ -680,7 +708,7 @@ callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId 
 callIdpGet sparreq_ muid idpid = do
   resp <- callIdpGet' (sparreq_ . expect2xx) muid idpid
   either (liftIO . throwIO . ErrorCall . show) pure
-    $ responseJSON @IdP resp
+    $ responseJsonEither @IdP resp
 
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
@@ -690,7 +718,7 @@ callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPLis
 callIdpGetAll sparreq_ muid = do
   resp <- callIdpGetAll' (sparreq_ . expect2xx) muid
   either (liftIO . throwIO . ErrorCall . show) pure
-    $ responseJSON resp
+    $ responseJsonEither resp
 
 callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
 callIdpGetAll' sparreq_ muid = do
@@ -700,7 +728,7 @@ callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdP
 callIdpCreate sparreq_ muid metadata = do
   resp <- callIdpCreate' (sparreq_ . expect2xx) muid metadata
   either (liftIO . throwIO . ErrorCall . show) pure
-    $ responseJSON @IdP resp
+    $ responseJsonEither @IdP resp
 
 callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
 callIdpCreate' sparreq_ muid metadata = do
@@ -709,6 +737,20 @@ callIdpCreate' sparreq_ muid metadata = do
     . path "/identity-providers/"
     . body (RequestBodyLBS . cs $ SAML.encode metadata)
     . header "Content-Type" "application/xml"
+
+callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m IdP
+callIdpCreateRaw sparreq_ muid ctyp metadata = do
+  resp <- callIdpCreateRaw' (sparreq_ . expect2xx) muid ctyp metadata
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJsonEither @IdP resp
+
+callIdpCreateRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m ResponseLBS
+callIdpCreateRaw' sparreq_ muid ctyp metadata = do
+  post $ sparreq_
+    . maybe id zUser muid
+    . path "/identity-providers/"
+    . body (RequestBodyLBS metadata)
+    . header "Content-Type" ctyp
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid

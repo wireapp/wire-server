@@ -29,11 +29,13 @@ import Brig.Types
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)
+import Control.Monad.Catch (MonadThrow)
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Parser)
 import Data.Default.Class
 import Data.Id
 import Data.List.NonEmpty
+import Data.Text (pack)
 import Data.Time.Clock
 import Data.UUID (UUID, fromString)
 import Galley.Types hiding (Event, EventType)
@@ -51,6 +53,7 @@ import qualified Data.HashMap.Strict       as M
 import qualified Data.Text                 as T
 import qualified Network.WebSockets        as WS
 import qualified Network.WebSockets.Stream as WS
+-- FUTUREWORK: We can probably monadunliftio the Session monad somehow?
 import qualified System.Logger             as Log
 
 -------------------------------------------------------------------------------
@@ -102,14 +105,14 @@ awaitNotifications f = do
     readChunk  c = (\x -> if C.null x then Nothing else Just x) <$> connectionGetChunk c
     writeChunk c = maybe (return ()) (connectionPut c . L.toStrict)
 
-fetchNotifications :: MonadSession m
+fetchNotifications :: (MonadSession m, MonadThrow m)
                    => Maybe ByteString
                    -> m (Bool, [Notification])
 fetchNotifications snc = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of
-        200 -> (True,)  <$> fromBody rs
-        404 -> (False,) <$> fromBody rs
+        200 -> (True,)  <$> responseJsonThrow (ParseError . pack) rs
+        404 -> (False,) <$> responseJsonThrow (ParseError . pack) rs
         _   -> unexpected rs "fetch: status code"
   where
     req = method GET
@@ -119,11 +122,11 @@ fetchNotifications snc = do
         $ empty
     rsc = status200 :| [status404]
 
-lastNotification :: MonadSession m => m (Maybe Notification)
+lastNotification :: (MonadSession m, MonadThrow m) => m (Maybe Notification)
 lastNotification = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of
-        200 -> Just <$> fromBody rs
+        200 -> Just <$> responseJsonThrow (ParseError . pack) rs
         404 -> return Nothing
         _   -> unexpected rs "last: status code"
   where

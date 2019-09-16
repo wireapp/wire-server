@@ -133,7 +133,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
         tMembers <- Data.teamMembers tid
         -- Only team members can change access mode
         unless (usr `elem` (view userId <$> tMembers)) $
-            throwM accessDenied
+            throwM convAccessDenied
         -- Access mode change for managed conversation is not allowed
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
@@ -241,7 +241,7 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
     ensureTeamMember tid = do
         tMembers <- Data.teamMembers tid
         unless (usr `elem` (view userId <$> tMembers)) $
-            throwM accessDenied
+            throwM convAccessDenied
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -359,6 +359,8 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
+        -- Team members are alwasy considered connected, so we only check 'ensureConnected'
+        -- for non-team-members.
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
 
@@ -634,7 +636,7 @@ ensureConvMember users usr =
 ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
-        throwM accessDenied
+        throwM convAccessDenied
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation

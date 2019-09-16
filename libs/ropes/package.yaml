@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: ropes
 version: '0.4.20'
@@ -16,11 +16,6 @@ dependencies:
 - semigroups >=0.11
 library:
   source-dirs: src
-  exposed-modules:
-  - Ropes.Aws
-  - Ropes.Aws.Ses
-  - Ropes.Nexmo
-  - Ropes.Twilio
   dependencies:
   - aeson >=0.6
   - aws >=0.10.2

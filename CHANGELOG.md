@@ -1,3 +1,157 @@
+# 2019-09-16 #858
+
+## Relevant for self-hosters
+
+- Documentation changes for Twilio configurations and TURN setup. (#775)
+
+## Relevant for client developers
+
+- Better events for deletion of team conversations (also send `conversation.delete` to team members) (#849)
+- Add a new type of authorization tokens for legalhold (for details on legalhold, see https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md) (#761)
+
+## Bug fixes
+
+- Fix swagger docs. (#852)
+- Fix intra call in stern (aka customer support, aka backoffice) (#844)
+
+## Internal Changes
+
+- Change feature flags from boolean to custom enum types. (#850)
+- Fix flaky integration test. (#848)
+- Cleanup: incoherent functions for response body parsing. (#847)
+- add route for consistency (#851)
+
+
+# 2019-09-03 #843
+
+## Relevant for self-hosters
+
+- Option for limiting login retries (#830)
+- Option for suspending inactive users (#831)
+- Add json logging (#828) (#836)
+- Feature Flags in galley options. (#825)
+
+## Relevant for client developers
+
+- Specialize the error cases on conversation lookup. (#841)
+
+## Bug fixes
+
+- Fix is-team-owner logic (don't require email in all cases) (#833)
+- Typos in swagger (#826)
+
+## Internal changes
+
+- Fix flaky integration test. (#834)
+- Remove `exposed-modules` sections from all package.yaml files. (#832)
+- Remove Debug.Trace from Imports. (#838)
+- Cleanup integration tests (#839)
+
+
+# 2019-08-08 #822
+
+## Features
+
+- legalhold (#802), but block feature activation (#823)
+- a few shell scripts for self-hosters (#805, #801)
+- Release nginz_disco (#759)
+
+## Public API changes
+
+- SSO is disabled by default now; but enabled for all teams that already have an IdP.
+- feature flags (starting with legalhold, sso) (#813, #818)
+  - new public end-points (#813, #818):
+    - get "/teams/:tid/features/legalhold"
+    - get "/teams/:tid/features/sso"
+  - new internal end-points:
+    - get "/i/teams/:tid/features/legalhold"
+    - get "/i/teams/:tid/features/sso"
+    - put "/i/teams/:tid/features/legalhold"
+    - put "/i/teams/:tid/features/sso"
+  - new backoffice end-points:
+    - get "/teams/:tid/features/legalhold"
+    - get "/teams/:tid/features/sso"
+    - put "/teams/:tid/features/legalhold"
+    - put "/teams/:tid/features/sso"
+- Always throw json errors, never plaintext (#722, #814)
+- Register IdP: allow json bodies with xml strings (#722)
+
+## Backend-internal changes
+
+- [stern aka backoffice] allow galeb returning a 404 (#820)
+- Cleanup logging (#816, #819)
+- Canonicalize http request path capture names (#808, #809)
+- Galley depends on libsodium too now (#807)
+- Add generics instances to common, brig, galley types. (#804)
+- Upgrade CQL protocol version to V4 (#763)
+- Log last prekey used only at debug level (#785)
+- Cleanup (#799)
+
+
+# 2019-07-08 #798
+
+## Internal Changes
+
+* restund: add EXTRA_CFLAGS  to work on ubuntu 16 (#788)
+* Fix flaky unit test. (#770)
+* Add upstream references in stack.yaml deps (wai-middleware-prometheus). (#760)
+* Cannon analytics (2) (#750)
+* fix this file.
+
+# 2019-05-13 #756
+
+## Documentation changes
+
+* Group provisioning (#748)
+* Instructions for running load tests (#738)
+* Twilio configuration (#733)
+
+## Bug fixes
+
+Cannon no longer reports 500s in the prometheus metrics when establishing websocket connections. (#751, #754)
+
+## Features
+
+Per-installation flag: Allow displaying emails of users in a team (code from #724, see description in #719)
+
+## Internal Changes
+
+Docker image building improvements (#755)
+
+## Changes (potentially) requiring action for self-hosters
+
+Config value `setEmailVisibility` must be set in brig's config file (if you're not sure, `visible_to_self` is the preferred default)
+
+# 2019-05-02 #746
+
+## Documentation changes
+
+* Improved Cassandra documentation in `docs/README.md`
+* Improved documentation on SCIM storage in `docs/README.md`
+* Improved documentation on SCIM Tokens in `docs/reference/provisioning/scim-token.md`
+
+## Bug fixes
+
+* Sanitize metric names to be valid prometheus names in metrics-core
+* Add missing a `.git` suffix on gitlab dependencies in stack.yaml
+* Time bounds checks now allow 60s of tolerance; this is helpful in cases of drifting clocks (#730)
+
+## Features
+
+* Services now provide Prometheus metrics on `/i/metrics`
+* Garbage Collection and memory statistics are available alongside other prometheus metrics
+
+## Internal Changes
+
+* Alpine Builder is no longer built with `--profile`
+* SCIM users now have an additional wire-specific schema attached.
+
+## Changes (potentially) requiring action
+* `/i/monitoring` is *DEPRECATED*. Please use prometheus metrics provided by `/i/metrics` instead.
+* On password reset the new password must be different than the old one
+* Stern is now available as a new tool for performing adminstrative tasks via API (#720)
+* SCIM handler errors are now reported according to SCIM error schema (#575)
+
 # 2019-04-09 #710
 
 ## API changes

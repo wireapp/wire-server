@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: bilge
 version: '0.22.0'
@@ -15,15 +15,17 @@ dependencies:
 - aeson >=0.6
 - ansi-terminal >=0.6
 - base >=4.7 && <5
-- case-insensitive >=1.1
-- data-default >=0.5
 - bytestring >=0.9
+- case-insensitive >=1.1
 - containers >=0.5
+- cookie
+- data-default >=0.5
 - errors >=1.4
 - exceptions >=0.6
 - http-client >=0.5
 - http-types >=0.8
 - imports
+- lens
 - monad-control >=1.0
 - mtl >=2.2
 - text >=0.11
@@ -32,15 +34,10 @@ dependencies:
 - transformers >=0.4
 - transformers-base >=0.4
 - types-common >=0.7
-- unliftio-core >=0.1
+- unliftio
+- uri-bytestring
+- wai
+- wai-extra
 library:
   source-dirs: src
-  exposed-modules:
-  - Bilge
-  - Bilge.Assert
-  - Bilge.IO
-  - Bilge.Request
-  - Bilge.Response
-  - Bilge.Retry
-  - Bilge.RPC
 stability: experimental

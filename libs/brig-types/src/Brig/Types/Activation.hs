@@ -16,13 +16,13 @@ import Data.Text.Ascii
 -- | An opaque identifier of a 'UserKey' awaiting activation.
 newtype ActivationKey = ActivationKey
     { fromActivationKey :: AsciiBase64Url }
-    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 -- | A random code for use with an 'ActivationKey' that is usually transmitted
 -- out-of-band, e.g. via email or sms.
 newtype ActivationCode = ActivationCode
     { fromActivationCode :: AsciiBase64Url }
-    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
 type ActivationPair = (ActivationKey, ActivationCode)

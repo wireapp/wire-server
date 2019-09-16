@@ -4,7 +4,6 @@
 module Network.Wire.Client.HTTP
     ( clientRequest
     , readBody
-    , fromBody
     , unexpected
     , mkErrorResponse
     ) where
@@ -12,7 +11,7 @@ module Network.Wire.Client.HTTP
 import Imports
 import Bilge
 import Control.Error
-import Control.Exception (throwIO)
+import UnliftIO.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error)
@@ -25,7 +24,7 @@ import Network.Wire.Client.Monad
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Encoding   as T
 import qualified Network.HTTP.Client  as Rq
-import qualified System.Logger        as Log
+import qualified System.Logger.Class  as Log
 
 data Error = Error
     { code    :: Int
@@ -42,31 +41,32 @@ instance FromJSON Error where
 -------------------------------------------------------------------------------
 -- Performing Requests
 
-clientRequest :: MonadClient m
+clientRequest :: forall m a. (Log.MonadLogger m, MonadClient m, MonadUnliftIO m, MonadMask m)
               => Request                       -- ^ The request to send.
               -> NonEmpty Status               -- ^ Expected response codes.
               -> (Response BodyReader -> IO a) -- ^ Handler function.
               -> m a
 clientRequest rq expected f = do
-    s <- getServer
-    l <- getLogger
-    m <- getManager
-    liftIO $ recovering retry3x handlers (const (exec l s m))
+    recovering retry3x handlers (const exec)
   where
     idempotent = Rq.method rq `elem` ["GET", "PUT", "DELETE", "HEAD", "OPTIONS"]
     canRetry c = idempotent && c `elem` [408, 420, 500, 502, 503, 504]
     retry3x    = limitRetries 3 <> exponentialBackoff 1000000
+    handlers :: [RetryStatus -> Handler m Bool]
     handlers   = [ const $ Handler (\(e :: ClientException) -> case e of
                         ErrorResponse c _ _ -> return (canRetry c)
                         x                   -> throwIO x)
                  , const $ Handler (\(e :: SomeException)   -> throwIO e)
                  ]
-    exec l s m = do
+    exec :: m a
+    exec = do
+        s <- getServer
         let rq' = rq & setServer s
                      & header hUserAgent "api-client"
-        Log.debug l $ Log.msg (show rq')
-        withResponse rq' m $ \rs -> do
-            Log.debug l $ Log.msg $ show (rs { responseBody = "" :: String })
+        Log.debug $ Log.msg (show rq')
+        runInIO <- askRunInIO
+        handleRequestWithCont rq' $ \rs -> do
+            runInIO $ Log.debug $ Log.msg $ show (rs { responseBody = "" :: String })
             if responseStatus rs `elem` toList expected
                 then f rs
                 else if (statusCode rs `div` 100) `elem` [4,5]
@@ -76,16 +76,8 @@ clientRequest rq expected f = do
 -------------------------------------------------------------------------------
 -- Utilities
 
-readBody :: FromJSON a => Response BodyReader -> IO a
-readBody = consumeBody >=> fromBody
-
-fromBody :: (MonadIO m, FromJSON a) => Response (Maybe Lazy.ByteString) -> m a
-fromBody = either (liftIO . throwIO . ParseError . ("fromBody: "<>)) return . parse
-  where
-    parse = maybe (Left "missing response body")
-                  (fmapL pack . eitherDecode)
-                  .
-                  responseBody
+readBody :: (Typeable a, FromJSON a) => Response BodyReader -> IO a
+readBody = consumeBody >=> responseJsonThrow (ParseError . pack)
 
 unexpected :: MonadIO m => Response a -> Text -> m b
 unexpected r = liftIO . throwIO . UnexpectedResponse (responseStatus r) (responseHeaders r)

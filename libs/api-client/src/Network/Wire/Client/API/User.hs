@@ -14,9 +14,11 @@ module Network.Wire.Client.API.User
 import Imports
 import Bilge
 import Brig.Types as M
+import Control.Monad.Catch (MonadMask)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty
+import Data.Text (pack)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
@@ -28,7 +30,7 @@ import qualified Data.ByteString.Char8 as C
 -------------------------------------------------------------------------------
 -- Unauthenticated
 
-registerUser :: MonadClient m => NewUser -> m User
+registerUser :: (MonadClient m, MonadUnliftIO m, MonadMask m) => NewUser -> m User
 registerUser u = clientRequest req rsc readBody
   where
     req = method POST
@@ -38,7 +40,7 @@ registerUser u = clientRequest req rsc readBody
         $ empty
     rsc = status201 :| []
 
-activateKey :: MonadClient m => ActivationKey -> ActivationCode -> m Bool
+activateKey :: (MonadClient m, MonadUnliftIO m, MonadMask m) => ActivationKey -> ActivationCode -> m Bool
 activateKey (ActivationKey key) (ActivationCode code) = do
     status <- clientRequest req rsc (return . statusCode)
     return $ status /= 404
@@ -52,7 +54,7 @@ activateKey (ActivationKey key) (ActivationCode code) = do
 -------------------------------------------------------------------------------
 -- Authenticated
 
-getSelfProfile :: MonadSession m => m User
+getSelfProfile :: (MonadSession m, MonadUnliftIO m, MonadMask m) => m User
 getSelfProfile = sessionRequest req rsc readBody
   where
     req = method GET
@@ -61,7 +63,7 @@ getSelfProfile = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-getProfile :: MonadSession m => UserId -> m UserProfile
+getProfile :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> m UserProfile
 getProfile uid = sessionRequest req rsc readBody
   where
     req = method GET
@@ -70,7 +72,7 @@ getProfile uid = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-connectTo :: MonadSession m => ConnectionRequest -> m UserConnection
+connectTo :: (MonadSession m, MonadUnliftIO m, MonadMask m) => ConnectionRequest -> m UserConnection
 connectTo cr = sessionRequest req rsc readBody
   where
     req = method POST
@@ -80,7 +82,7 @@ connectTo cr = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| [status200]
 
-updateConnection :: MonadSession m => UserId -> ConnectionUpdate -> m UserConnection
+updateConnection :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> ConnectionUpdate -> m UserConnection
 updateConnection u cu = sessionRequest req rsc readBody
   where
     req = method PUT
@@ -90,11 +92,11 @@ updateConnection u cu = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-getConnection :: MonadSession m => UserId -> m (Maybe UserConnection)
+getConnection :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> m (Maybe UserConnection)
 getConnection u = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of
-        200 -> fromBody rs
+        200 -> responseJsonThrow (ParseError . pack) rs
         404 -> return Nothing
         _   -> unexpected rs "getConnection: status code"
   where

@@ -1,7 +1,7 @@
 module Journal where
 
 import Imports
-import Cassandra as C
+import Cassandra as C hiding (Row)
 import Control.Lens
 import Data.Id
 import Data.ByteString.Conversion
@@ -10,7 +10,7 @@ import Data.Proto.Id as Proto
 import Proto.TeamEvents
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 import UnliftIO (mapConcurrently)
 
 import qualified System.Logger        as Log

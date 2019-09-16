@@ -2,13 +2,14 @@
 
 module Brig.API.Types
     ( module Brig.API.Types
-    , Activation          (..)
-    , ActivationError     (..)
-    , ClientDataError     (..)
-    , PropertiesDataError (..)
-    , AuthError           (..)
-    , ReAuthError         (..)
-    , RetryAfter          (..)
+    , Activation           (..)
+    , ActivationError      (..)
+    , ClientDataError      (..)
+    , PropertiesDataError  (..)
+    , AuthError            (..)
+    , ReAuthError          (..)
+    , LegalHoldLoginError  (..)
+    , RetryAfter           (..)
     , foldKey
     ) where
 
@@ -106,12 +107,19 @@ data PasswordResetError
     | InvalidPasswordResetCode
     | ResetPasswordMustDiffer
 
+data LegalHoldLoginError
+    = LegalHoldLoginNoBindingTeam
+    | LegalHoldLoginLegalHoldNotEnabled
+    | LegalHoldLoginError LoginError
+    | LegalHoldReAuthError ReAuthError
+
 data LoginError
     = LoginFailed
     | LoginSuspended
     | LoginEphemeral
     | LoginPendingActivation
     | LoginThrottled RetryAfter
+    | LoginBlocked RetryAfter
 
 data ChangePasswordError
     = InvalidCurrentPassword
@@ -145,6 +153,8 @@ data ClientError
     = ClientNotFound
     | ClientDataError !ClientDataError
     | ClientUserNotFound !UserId
+    | ClientLegalHoldCannotBeRemoved
+    | ClientLegalHoldCannotBeAdded
 
 data RemoveIdentityError
     = LastIdentity

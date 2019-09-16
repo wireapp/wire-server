@@ -38,7 +38,7 @@ import qualified Data.Text           as Text
 
 -- DEPRECATED
 newtype Pict = Pict { fromPict :: [Object] }
-    deriving (Eq, Show, ToJSON)
+    deriving (Eq, Show, ToJSON, Generic)
 
 instance FromJSON Pict where
     parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
@@ -50,7 +50,7 @@ noPict = Pict []
 -- UserHandleInfo
 
 newtype UserHandleInfo = UserHandleInfo { userHandleId :: UserId }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON UserHandleInfo where
     toJSON (UserHandleInfo u) = object
@@ -69,7 +69,7 @@ data CheckHandles = CheckHandles
         -- ^ Handles to check for availability, in ascending order of preference.
     , checkHandlesNum  :: Range 1 10 Word
         -- ^ Number of free handles to return. Default 1.
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance ToJSON CheckHandles where
     toJSON (CheckHandles l n) = object
@@ -88,7 +88,7 @@ instance FromJSON CheckHandles where
 -- | A self profile.
 data SelfProfile = SelfProfile
     { selfUser       :: !User }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 connectedProfile :: User -> UserProfile
 connectedProfile u = UserProfile
@@ -103,17 +103,49 @@ connectedProfile u = UserProfile
     , profileDeleted  = userDeleted u
     , profileExpire   = userExpire u
     , profileTeam     = userTeam u
+    -- We don't want to show the email by default;
+    -- However we do allow adding it back in intentionally later.
+    , profileEmail    = Nothing
     }
 
 publicProfile :: User -> UserProfile
-publicProfile u = (connectedProfile u)
-    { profileLocale = Nothing
-    }
+publicProfile u =
+    -- Note that we explicitly unpack and repack the types here rather than using
+    -- RecordWildCards or something similar because we want changes to the public profile
+    -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
+    let UserProfile { profileId
+                    , profileHandle
+                    , profileName
+                    , profilePict
+                    , profileAssets
+                    , profileAccentId
+                    , profileService
+                    , profileDeleted
+                    , profileExpire
+                    , profileTeam
+                    } = connectedProfile u
+    in UserProfile
+       { profileLocale   = Nothing
+       , profileEmail    = Nothing
+       , profileId
+       , profileHandle
+       , profileName
+       , profilePict
+       , profileAssets
+       , profileAccentId
+       , profileService
+       , profileDeleted
+       , profileExpire
+       , profileTeam
+       }
 
 -- | The data of an existing user.
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
+        -- ^ User identity. For endpoints like @/self@, it will be present in the response iff
+        -- the user is activated, and the email/phone contained in it will be guaranteedly
+        -- verified. {#RefActivation}
     , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]
@@ -132,7 +164,7 @@ data User = User
         -- ^ How is the user profile managed (e.g. if it's via SCIM then the user profile
         -- can't be edited via normal means)
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -160,8 +192,9 @@ data UserProfile = UserProfile
     , profileLocale   :: !(Maybe Locale)
     , profileExpire   :: !(Maybe UTCTimeMillis)
     , profileTeam     :: !(Maybe TeamId)
+    , profileEmail    :: !(Maybe Email)
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- TODO: disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToJSON User where
@@ -213,6 +246,7 @@ instance FromJSON UserProfile where
                     <*> o .:? "locale"
                     <*> o .:? "expires_at"
                     <*> o .:? "team"
+                    <*> o .:? "email"
 
 instance ToJSON UserProfile where
     toJSON u = object
@@ -227,6 +261,7 @@ instance ToJSON UserProfile where
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
+        # "email"      .= profileEmail u
         # []
 
 instance FromJSON SelfProfile where
@@ -242,7 +277,7 @@ instance ToJSON SelfProfile where
 data RichInfo = RichInfo
     { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON RichInfo where
     toJSON u = object
@@ -270,7 +305,7 @@ data RichField = RichField
     { richFieldType  :: !Text
     , richFieldValue :: !Text
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON RichField where
     -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
@@ -328,7 +363,7 @@ data NewUser = NewUser
     , newUserExpiresIn      :: !(Maybe ExpiresIn)
     , newUserManagedBy      :: !(Maybe ManagedBy)
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
@@ -336,7 +371,7 @@ type ExpiresIn = Range 1 604800 Integer
 data NewUserOrigin =
     NewUserOriginInvitationCode !InvitationCode
   | NewUserOriginTeamUser !NewTeamUser
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
                    -> Object -> Aeson.Parser (Maybe NewUserOrigin)
@@ -435,14 +470,14 @@ parseIdentity ssoid o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
     { fromInvitationCode :: AsciiBase64Url }
-    deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString)
+    deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString, Generic)
 
 data BindingNewTeamUser = BindingNewTeamUser
     { bnuTeam     :: !BindingNewTeam
     , bnuCurrency :: !(Maybe Currency.Alpha)
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON BindingNewTeamUser where
     parseJSON j@(Object o) = do
@@ -460,7 +495,7 @@ instance ToJSON BindingNewTeamUser where
 data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email address
                  | NewTeamCreator   !BindingNewTeamUser
                  | NewTeamMemberSSO !TeamId
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
 -- newtype is used as request body type for the public @\/register@ endpoint, where only a
@@ -476,7 +511,7 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
 --   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
 --     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON NewUserPublic where
     parseJSON val = do
@@ -498,17 +533,17 @@ data UserUpdate = UserUpdate
     , uupPict     :: !(Maybe Pict) -- DEPRECATED
     , uupAssets   :: !(Maybe [Asset])
     , uupAccentId :: !(Maybe ColourId)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
-newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show)
-newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
-newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
-newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
-newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
-newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show)
+newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show, Generic)
+newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show, Generic)
+newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show, Generic)
+newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show, Generic)
+newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show, Generic)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show, Generic)
 
-newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
-newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
+newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show, Generic)
+newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show, Generic)
 
 -- NB: when adding new types, please also add roundtrip tests to
 -- 'Test.Brig.Types.User.roundtripTests'
@@ -591,7 +626,7 @@ instance ToJSON PhoneRemove where
 newtype DeleteUser = DeleteUser
     { deleteUserPassword :: Maybe PlainTextPassword
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -600,7 +635,7 @@ mkDeleteUser = DeleteUser
 data VerifyDeleteUser = VerifyDeleteUser
     { verifyDeleteUserKey  :: !Code.Key
     , verifyDeleteUserCode :: !Code.Value
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
@@ -608,7 +643,7 @@ mkVerifyDeleteUser = VerifyDeleteUser
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
     { fromDeletionCodeTimeout :: Code.Timeout }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON DeleteUser where
     toJSON d = object
@@ -642,17 +677,17 @@ instance ToJSON DeletionCodeTimeout where
 
 -- | The payload for initiating a password reset.
 newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
     { fromPasswordResetKey :: AsciiBase64Url }
-    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 -- | Random code, acting as a very short-lived, single-use password.
 newtype PasswordResetCode = PasswordResetCode
     { fromPasswordResetCode :: AsciiBase64Url }
-    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
 
@@ -664,7 +699,7 @@ data PasswordResetIdentity
         -- ^ A known email address with a pending password reset.
     | PasswordResetPhoneIdentity !Phone
         -- ^ A known phone number with a pending password reset.
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
@@ -672,14 +707,14 @@ data CompletePasswordReset = CompletePasswordReset
     , cpwrCode     :: !PasswordResetCode
     , cpwrPassword :: !PlainTextPassword
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
     { cpOldPassword :: !(Maybe PlainTextPassword)
     , cpNewPassword :: !PlainTextPassword
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON NewPasswordReset where
     parseJSON = withObject "NewPasswordReset" $ \o ->

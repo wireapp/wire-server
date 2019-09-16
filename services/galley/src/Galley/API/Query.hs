@@ -44,7 +44,7 @@ getConversation (zusr ::: cnv ::: _) = do
         Data.deleteConversation cnv
         throwM convNotFound
     unless (zusr `isMember` Data.convMembers c) $
-        throwM convNotFound
+        throwM convAccessDenied
     a <- conversationView zusr c
     return $ json a
 

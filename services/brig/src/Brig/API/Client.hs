@@ -5,6 +5,8 @@ module Brig.API.Client
     , updateClient
     , rmClient
     , pubClient
+    , legalHoldClientRequested
+    , removeLegalHoldClient
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
@@ -22,13 +24,13 @@ import Brig.App
 import Brig.API.Types
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Data.ByteString.Conversion
-import Data.Hashable (hash)
-import Data.Id (UserId, ClientId, newClientId, ConnId)
+import Data.Id (UserId, ClientId, ConnId)
 import Data.IP (IP)
 import Data.List.Split (chunksOf)
 import Data.Misc (PlainTextPassword (..))
@@ -46,24 +48,23 @@ import qualified Brig.User.Auth.Cookie as Auth
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
+addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
-    (clt, old, count) <- Data.addClient u newId new loc !>> ClientDataError
+    (clt, old, count) <- Data.addClient u clientId' new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
-        for_ old $ execDelete u (Just con)
+        for_ old $ execDelete u con
         Intra.newClient u (clientId clt)
-        Intra.onClientEvent u (Just con) (ClientAdded u clt)
+        Intra.onClientEvent u con (ClientAdded u clt)
+        when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
                 sendNewClientEmail (userName usr) email clt (userLocale usr)
     return clt
   where
-    newId = let prekey = unpackLastPrekey (newClientLastKey new)
-                hashCode = hash (prekeyKey prekey)
-            in newClientId (fromIntegral hashCode)
+    clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
 updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError AppIO ()
 updateClient u c r = do
@@ -81,8 +82,13 @@ rmClient u con clt pw =
     maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
     fn client = do
-        unless (clientType client == TemporaryClient) $
-            Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        case clientType client of
+            -- Legal hold clients can't be removed
+            LegalHoldClientType -> throwE ClientLegalHoldCannotBeRemoved
+            -- Temporary clients don't need to re-auth
+            TemporaryClientType -> pure ()
+            -- All other clients must authenticate
+            _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
         lift $ execDelete u (Just con) client
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
@@ -146,3 +152,24 @@ pubClient c = PubClient
     { pubClientId    = clientId c
     , pubClientClass = clientClass c
     }
+
+legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
+legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
+    Intra.onUserEvent targetUser Nothing lhClientEvent
+  where
+    clientId :: ClientId
+    clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
+    eventData :: LegalHoldClientRequestedData
+    eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
+    lhClientEvent :: UserEvent
+    lhClientEvent = LegalHoldClientRequested eventData
+
+removeLegalHoldClient :: UserId -> AppIO ()
+removeLegalHoldClient uid = do
+    clients <- Data.lookupClients uid
+    -- Should only be one; but just in case we'll treat it as a list
+    let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+    -- maybe log if this isn't the case
+    forM_ legalHoldClients  (execDelete uid Nothing)
+    Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+

@@ -6,6 +6,7 @@ module Spar.Intra.Galley where
 import Imports
 import Bilge
 import Galley.Types.Teams
+import Galley.Types.Teams.SSO
 import Control.Monad.Except
 import Control.Lens
 import Data.Aeson (FromJSON, eitherDecode')
@@ -42,3 +43,16 @@ getTeamMembers tid = do
   unless (statusCode resp == 200) $
     throwSpar (SparGalleyError "Could not retrieve team members")
   (^. teamMembers) <$> parseResponse @TeamMemberList resp
+
+assertSSOEnabled
+  :: (HasCallStack, MonadError SparError m, MonadSparToGalley m)
+  => TeamId -> m ()
+assertSSOEnabled tid = do
+  resp :: Response (Maybe LBS) <- call
+    $ method GET
+    . paths ["i", "teams", toByteString' tid, "features", "sso"]
+  unless (statusCode resp == 200) $
+    throwSpar (SparGalleyError "Could not retrieve SSO config")
+  SSOTeamConfig status <- parseResponse resp
+  unless (status == SSOEnabled) $
+    throwSpar SparSSODisabled

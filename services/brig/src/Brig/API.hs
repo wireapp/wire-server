@@ -12,6 +12,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold (LegalHoldClientRequest(..))
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
@@ -26,10 +27,11 @@ import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
 import Network.HTTP.Types.Status
-import Network.Wai (Response, responseLBS, lazyRequestBody)
+import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
 import Network.Wai.Utilities
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 
 import qualified Data.Text.Ascii               as Ascii
@@ -57,7 +59,7 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
-import qualified System.Logger.Class           as Log
+import qualified Data.ZAuth.Token              as ZAuth
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -73,9 +75,9 @@ sitemap o = do
     get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
         accept "application" "json"
 
-    post "/i/users/:id/auto-connect" (continue autoConnect) $
+    post "/i/users/:uid/auto-connect" (continue autoConnect) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
         .&. opt (header "Z-Connection")
         .&. jsonRequest @UserSet
 
@@ -87,8 +89,8 @@ sitemap o = do
         header "Z-User"
         .&. jsonRequest @EmailUpdate
 
-    delete "/i/users/:id" (continue deleteUserNoVerify) $
-        capture "id"
+    delete "/i/users/:uid" (continue deleteUserNoVerify) $
+        capture "uid"
 
     get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
         query "users"
@@ -107,17 +109,17 @@ sitemap o = do
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    put "/i/users/:id/status" (continue changeAccountStatus) $
-        capture "id"
+    put "/i/users/:uid/status" (continue changeAccountStatus) $
+        capture "uid"
         .&. jsonRequest @AccountStatusUpdate
 
-    get "/i/users/:id/status" (continue getAccountStatus) $
+    get "/i/users/:uid/status" (continue getAccountStatus) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
 
-    get "/i/users/:id/contacts" (continue getContactList) $
+    get "/i/users/:uid/contacts" (continue getContactList) $
         accept "application" "json"
-        .&. capture "id"
+        .&. capture "uid"
 
     get "/i/users/activation-code" (continue getActivationCode) $
         accept "application" "json"
@@ -180,38 +182,53 @@ sitemap o = do
       accept "application" "json"
       .&. jsonRequest @UserSet
 
+    post "/i/clients/:uid" (continue addClientInternal) $
+      capture "uid"
+      .&. jsonRequest @NewClient
+      .&. opt (header "Z-Connection")
+      .&. accept "application" "json"
+
+    post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequested) $
+      capture "uid"
+      .&. jsonRequest @LegalHoldClientRequest
+      .&. accept "application" "json"
+
+    delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClient) $
+      capture "uid"
+      .&. accept "application" "json"
+
     -- /users -----------------------------------------------------------------
 
     get "/users/api-docs"
         (\(_ ::: url) k ->
-            let doc = encode $ mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
-            in k $ responseLBS status200 [jsonContent] doc) $
+            let doc = mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
+            in k $ json doc) $
         accept "application" "json"
         .&. query "base_url"
 
     ---
 
-    head "/users/:id" (continue checkUserExists) $
+    head "/users/:uid" (continue checkUserExists) $
         header "Z-User"
-        .&. capture "id"
+        .&. capture "uid"
 
     document "HEAD" "userExists" $ do
         Doc.summary "Check if a user ID exists"
-        Doc.parameter Doc.Path "id" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.response 200 "User exists" Doc.end
         Doc.errorResponse userNotFound
 
     ---
 
-    get "/users/:id" (continue getUser) $
+    get "/users/:uid" (continue getUser) $
         accept "application" "json"
         .&. header "Z-User"
-        .&. capture "id"
+        .&. capture "uid"
 
     document "GET" "user" $ do
         Doc.summary "Get a user by ID"
-        Doc.parameter Doc.Path "id" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.user)
         Doc.response 200 "User" Doc.end
@@ -294,27 +311,27 @@ sitemap o = do
 
     ---
 
-    get "/users/:user/prekeys" (continue getPrekeyBundle) $
-        capture "user"
+    get "/users/:uid/prekeys" (continue getPrekeyBundle) $
+        capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getPrekeyBundle" $ do
         Doc.summary "Get a prekey for each client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.prekeyBundle)
         Doc.response 200 "Prekey Bundle" Doc.end
 
     ---
 
-    get "/users/:user/prekeys/:client" (continue getPrekey) $
-        capture "user"
+    get "/users/:uid/prekeys/:client" (continue getPrekey) $
+        capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
 
     document "GET" "getPrekey" $ do
         Doc.summary "Get a prekey for a specific client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.parameter Doc.Path "client" Doc.bytes' $
             Doc.description "Client ID"
@@ -323,27 +340,27 @@ sitemap o = do
 
     --
 
-    get "/users/:user/clients" (continue getUserClients) $
-        capture "user"
+    get "/users/:uid/clients" (continue getUserClients) $
+        capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getUserClients" $ do
         Doc.summary "Get all of a user's clients."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.array (Doc.ref Doc.pubClient))
         Doc.response 200 "List of clients" Doc.end
 
     --
 
-    get "/users/:user/clients/:client" (continue getUserClient) $
-        capture "user"
+    get "/users/:uid/clients/:client" (continue getUserClient) $
+        capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
 
     document "GET" "getUserClient" $ do
         Doc.summary "Get a specific client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.parameter Doc.Path "client" Doc.bytes' $
             Doc.description "Client ID"
@@ -352,14 +369,14 @@ sitemap o = do
 
     --
 
-    get "/users/:user/rich-info" (continue getRichInfo) $
+    get "/users/:uid/rich-info" (continue getRichInfo) $
         header "Z-User"
-        .&. capture "user"
+        .&. capture "uid"
         .&. accept "application" "json"
 
     document "GET" "getRichInfo" $ do
         Doc.summary "Get user's rich info"
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.richInfo)
         Doc.response 200 "RichInfo" Doc.end
@@ -797,6 +814,7 @@ sitemap o = do
 
     -- /register, /activate, /password-reset ----------------------------------
 
+    -- docs/reference/user/registration.md {#RefRegistration}
     post "/register" (continue createUser) $
         accept "application" "json"
         .&. jsonRequest @NewUserPublic
@@ -838,6 +856,7 @@ sitemap o = do
 
     ---
 
+    -- docs/reference/user/activation.md {#RefActivationSubmit}
     post "/activate" (continue activateKey) $
         accept "application" "json"
         .&. jsonRequest @Activate
@@ -855,6 +874,7 @@ sitemap o = do
 
     ---
 
+    -- docs/reference/user/activation.md {#RefActivationRequest}
     post "/activate/send" (continue sendActivationCode) $
         jsonRequest @SendActivationCode
 
@@ -986,16 +1006,37 @@ getMultiPrekeyBundles (req ::: _) = do
 addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClient (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
-    clt <- API.addClient usr con (ipAddr <$> ip) new !>> clientError
+    -- Users can't add legal hold clients
+    when (newClientType new == LegalHoldClientType)
+        $ throwE (clientError ClientLegalHoldCannotBeAdded)
+    clt <- API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
     return . setStatus status201
            . addHeader "Location" (toByteString' $ clientId clt)
            $ json clt
+
+-- | Add a client without authentication checks
+addClientInternal :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternal (usr ::: req ::: connId ::: _) = do
+    new <- parseJsonBody req
+    clt <- API.addClient usr connId Nothing new !>> clientError
+    return . setStatus status201 $ json clt
 
 rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
+
+legalHoldClientRequested :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequested (targetUser ::: req ::: _) = do
+    clientRequest <- parseJsonBody req
+    lift $ API.legalHoldClientRequested targetUser clientRequest
+    return $ setStatus status200 empty
+
+removeLegalHoldClient :: UserId ::: JSON -> Handler Response
+removeLegalHoldClient (uid ::: _) = do
+    lift $ API.removeLegalHoldClient uid
+    return $ setStatus status200 empty
 
 updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClient (req ::: usr ::: clt ::: _) = do
@@ -1056,6 +1097,7 @@ autoConnect (_ ::: uid ::: conn ::: req) = do
     conns <- API.autoConnect uid to conn !>> connError
     return $ json conns
 
+-- docs/reference/user/registration.md {#RefRegistration}
 createUser :: JSON ::: JsonRequest NewUserPublic -> Handler Response
 createUser (_ ::: req) = do
     NewUserPublic new <- parseJsonBody req
@@ -1077,8 +1119,8 @@ createUser (_ ::: req) = do
         for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
             sendWelcomeEmail e ct ut (Just lang)
     cok <- case acc of
-        UserAccount _ Ephemeral -> lift $ Auth.newCookie (userId usr) SessionCookie (newUserLabel new)
-        UserAccount _ _         -> lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
+        UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User (userId usr) SessionCookie (newUserLabel new)
+        UserAccount _ _         -> lift $ Auth.newCookie @ZAuth.User (userId usr) PersistentCookie (newUserLabel new)
     lift $ Auth.setResponseCookie cok
         $ setStatus status201
         . addHeader "Location" (toByteString' (userId usr))
@@ -1275,6 +1317,7 @@ changeHandle (u ::: conn ::: req) = do
     API.changeHandle u conn handle !>> changeHandleError
     return empty
 
+-- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey :: JSON ::: JsonRequest Activate -> Handler Response
 activateKey (_ ::: req) = parseJsonBody req >>= activate
 
@@ -1295,6 +1338,7 @@ completePasswordReset (_ ::: req) = do
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
     return empty
 
+-- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode :: JsonRequest SendActivationCode -> Handler Response
 sendActivationCode req = do
     SendActivationCode{..} <- parseJsonBody req
@@ -1398,22 +1442,20 @@ canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
-       Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
-       Team.IsOneOfManyTeamOwners -> pure ()
-       Team.IsNotTeamOwner        -> pure ()
-       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
-           Log.warn $ Log.field "user" (toByteString uid)
-                    . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+       Team.IsOnlyTeamOwnerWithEmail       -> throwStd noOtherOwner
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+       Team.IsTeamOwnerWithoutEmail        -> pure ()
+       Team.IsNotTeamOwner                 -> pure ()
     return empty
 
 isTeamOwner :: UserId ::: TeamId -> Handler Response
 isTeamOwner (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
-       Team.IsOnlyTeamOwner       -> pure ()
-       Team.IsOneOfManyTeamOwners -> pure ()
-       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
-       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
+       Team.IsOnlyTeamOwnerWithEmail       -> pure ()
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
+       Team.IsTeamOwnerWithoutEmail        -> pure ()
+       Team.IsNotTeamOwner                 -> throwStd insufficientTeamPermissions
     return empty
 
 updateSSOId :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response

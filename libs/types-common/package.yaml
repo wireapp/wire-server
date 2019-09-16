@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: types-common
 version: '0.16.0'
@@ -14,20 +14,6 @@ dependencies:
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported
-  exposed-modules:
-  - Data.Code
-  - Data.ETag
-  - Data.Id
-  - Data.Json.Util
-  - Data.List1
-  - Data.Misc
-  - Data.Range
-  - Data.Swagger
-  - Data.Text.Ascii
-  - Data.UUID.Tagged
-  - Util.Options
-  - Util.Options.Common
-  - Util.Test
   dependencies:
   - attoparsec >=0.11
   - aeson >=1.0
@@ -109,13 +95,13 @@ tests:
 flags:
   arbitrary:
     description: Enable quickcheck's arbitrary instances
-    manual: false
+    manual: true
     default: false
   protobuf:
     description: Enable protocol buffers instances
-    manual: false
+    manual: true
     default: false
   cql:
     description: Enable cql instances
-    manual: false
+    manual: true
     default: false

@@ -15,7 +15,7 @@ module Galley.App
     , extEnv
     , aEnv
 
-    , ExtEnv
+    , ExtEnv (..)
     , extGetManager
 
       -- * Galley monad
@@ -30,6 +30,7 @@ module Galley.App
     , ifNothing
     , fromJsonBody
     , fromProtoBody
+    , initExtEnv
     ) where
 
 import Imports
@@ -118,14 +119,16 @@ instance MonadLogger Galley where
         Logger.log (e^.applog) l (reqIdMsg (e^.reqId) . m)
 
 instance MonadHttp Galley where
-    getManager = view manager
+    handleRequestWithCont req handler = do
+        httpManager <- view manager
+        liftIO $ withResponse req httpManager handler
 
 instance HasRequestId Galley where
     getRequestId = view reqId
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l   <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings)
+    l   <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
     mgr <- initHttpManager o
     Env def m o l mgr <$> initCassandra o l
                       <*> Q.new 16000
@@ -147,7 +150,7 @@ initCassandra o l = do
             . C.setPoolStripes 4
             . C.setSendTimeout 3
             . C.setResponseTimeout 10
-            . C.setProtocolVersion C.V3
+            . C.setProtocolVersion C.V4
             $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager

@@ -10,6 +10,7 @@ import Galley.Types
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import TestHelpers
 import TestSetup
 import Control.Lens (view)
 
@@ -39,7 +40,7 @@ messageTimerInit mtimer = do
     cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing mtimer
     -- Check that the timer is indeed what it should be
     getConv jane cid !!!
-        const mtimer === (cnvMessageTimer <=< decodeBody)
+        const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChange :: TestM ()
 messageTimerChange = do
@@ -56,17 +57,17 @@ messageTimerChange = do
     putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!!
         const 200 === statusCode
     getConv jane cid !!!
-        const timer1sec === (cnvMessageTimer <=< decodeBody)
+        const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
     -- Set timer to null
     putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate Nothing) !!!
         const 200 === statusCode
     getConv jane cid !!!
-        const Nothing === (cnvMessageTimer <=< decodeBody)
+        const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
     -- Set timer to 1 year
     putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate timer1year) !!!
         const 200 === statusCode
     getConv jane cid !!!
-        const timer1year === (cnvMessageTimer <=< decodeBody)
+        const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChangeGuest :: TestM ()
 messageTimerChangeGuest = do
@@ -79,14 +80,14 @@ messageTimerChangeGuest = do
     -- Try to change the timer (as the guest user) and observe failure
     putMessageTimerUpdate guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
-        const "access-denied" === (label . decodeBody' "error label")
+        const "access-denied" === (label . responseJsonUnsafeWithMsg "error label")
     getConv guest cid !!!
-        const Nothing === (cnvMessageTimer <=< decodeBody)
+        const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
     -- Try to change the timer (as a team member) and observe success
     putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!!
         const 200 === statusCode
     getConv guest cid !!!
-        const timer1sec === (cnvMessageTimer <=< decodeBody)
+        const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
@@ -99,9 +100,9 @@ messageTimerChangeO2O = do
     -- Try to change the timer and observe failure
     putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
-        const "invalid-op" === (label . decodeBody' "error label")
+        const "invalid-op" === (label . responseJsonUnsafeWithMsg "error label")
     getConv alice cid !!!
-        const Nothing === (cnvMessageTimer <=< decodeBody)
+        const Nothing === (cnvMessageTimer <=< responseJsonMaybe)
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do

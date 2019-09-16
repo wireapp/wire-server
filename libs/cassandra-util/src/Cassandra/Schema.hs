@@ -21,7 +21,7 @@ module Cassandra.Schema
     ) where
 
 import Imports hiding (intercalate, fromString, log, All, init)
-import Cassandra (Keyspace(Keyspace), Version(V3), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
+import Cassandra (Keyspace(Keyspace), Version(V4), PrepQuery, Client, Consistency(One, All), R, W, S, QueryString(QueryString), QueryParams(QueryParams), write, query, query1, retry, params, x1, x5, runClient)
 import Cassandra.Settings (initialContactsPlain, Policy, defSettings, setLogger, setPolicy, setPoolStripes, setMaxConnections, setPortNumber, setContacts, setProtocolVersion, setResponseTimeout, setSendTimeout, setConnectTimeout)
 import qualified Cassandra as CQL (init)
 import Control.Monad.Catch
@@ -40,6 +40,7 @@ import Options.Applicative hiding (info)
 import qualified Database.CQL.IO.Tinylog as CT
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text.Lazy as LT
+-- FUTUREWORK: We could use the System.Logger.Class here in the future, but we don't have a ReaderT IO here (yet)
 import qualified System.Logger as Log
 
 data Migration = Migration
@@ -152,7 +153,7 @@ migrateSchema l o ms = do
           . setConnectTimeout 20
           . setSendTimeout 20
           . setResponseTimeout 50
-          . setProtocolVersion V3
+          . setProtocolVersion V4
           $ defSettings
     runClient p $ do
         let keyspace = Keyspace . migKeyspace $ o

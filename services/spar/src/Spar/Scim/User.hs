@@ -35,7 +35,7 @@ import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
 
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, sparCtxLogger, createSamlUserWithId, wrapMonadClient, getUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createSamlUserWithId, wrapMonadClient, getUser)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -47,7 +47,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
-import qualified System.Logger as Log
+import qualified System.Logger.Class as Log
 
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
@@ -58,7 +58,7 @@ import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.ResourceType     as Scim
 import qualified Web.Scim.Schema.User             as Scim
-
+import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -213,7 +213,7 @@ mkUserRef
   => IdP
   -> Maybe Text
   -> m SAML.UserRef
-mkUserRef idp extid  = case extid of
+mkUserRef idp extid = case extid of
     Just subjectTxt -> do
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
         subject <- validateSubject subjectTxt
@@ -252,7 +252,9 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
 
-    -- Create SAML user here in spar, which in turn creates a brig user.
+    -- Create SAML user here in spar, which in turn creates a brig user. The user is created
+    -- with 'ManagedByScim', which signals to client apps that the user should not be editable
+    -- from the app (and ideally brig should also enforce this). See {#DevScimOneWaySync}.
     lift $ createSamlUserWithId buid uref mbName ManagedByScim
 
     -- Set user handle on brig (which can't be done during user creation yet).
@@ -349,7 +351,9 @@ toScimStoredUser'
   -> Scim.User SparTag
   -> Scim.StoredUser SparTag
 toScimStoredUser' (SAML.Time now) baseuri uid usr =
-    Scim.WithMeta meta (Scim.WithId uid usr)
+    Scim.WithMeta meta $
+    Scim.WithId uid $
+    usr { Scim.User.schemas = userSchemas }
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -416,8 +420,7 @@ deleteScimUser ScimTokenInfo{stiTeam} uid = do
   where
     logThenServerError :: String -> Scim.ScimHandler Spar b
     logThenServerError err = do
-      logger <- asks sparCtxLogger
-      Log.err logger $ Log.msg err
+      lift $ Log.err (Log.msg err)
       throwError $ Scim.serverError "Server Error"
 
 

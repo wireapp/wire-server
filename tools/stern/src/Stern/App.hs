@@ -30,6 +30,7 @@ import           System.Logger.Class            hiding (Error, info)
 import           Util.Options
 
 import qualified Bilge
+import qualified Bilge.IO as Bilge (withResponse)
 import qualified Data.Metrics.Middleware        as Metrics
 import qualified System.Logger                  as Log
 import qualified System.Logger.Extended         as Log
@@ -55,7 +56,7 @@ makeLenses ''Env
 newEnv :: Opts -> IO Env
 newEnv o = do
     mt <- Metrics.metrics
-    l  <- Log.mkLogger (O.logLevel o) (O.logNetStrings o)
+    l  <- Log.mkLogger (O.logLevel o) (O.logNetStrings o) (O.logFormat o)
     Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt
         <$> pure def
         <*> Bilge.newManager (Bilge.defaultManagerSettings { Bilge.managerResponseTimeout = responseTimeoutMicro 10000000 })
@@ -72,6 +73,7 @@ newtype AppT m a = AppT (ReaderT Env m a)
              , MonadCatch
              , MonadReader Env
              )
+deriving instance MonadUnliftIO App
 
 type App = AppT IO
 
@@ -84,8 +86,10 @@ instance (Functor m, MonadIO m) => MonadLogger (AppT m) where
 instance MonadLogger (ExceptT e App) where
     log l m = lift (LC.log l m)
 
-instance Monad m => Bilge.MonadHttp (AppT m) where
-    getManager = view httpManager
+instance MonadIO m => Bilge.MonadHttp (AppT m) where
+    handleRequestWithCont req h = do
+        m <- view httpManager
+        liftIO $ Bilge.withResponse req m h
 
 instance Monad m => HasRequestId (AppT m) where
     getRequestId = view requestId
@@ -94,7 +98,9 @@ instance HasRequestId (ExceptT e App) where
     getRequestId = view requestId
 
 instance Bilge.MonadHttp (ExceptT e App) where
-    getManager = view httpManager
+    handleRequestWithCont req h = do
+        m <- view httpManager
+        liftIO $ Bilge.withResponse req m h
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

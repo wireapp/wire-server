@@ -29,7 +29,7 @@ import qualified Data.Text        as Text
 
 newtype Handle = Handle
     { fromHandle :: Text }
-    deriving (Eq, Show, ToJSON, ToByteString, Hashable)
+    deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
 
 instance FromByteString Handle where
     parser = parser >>= maybe (fail "Invalid handle") return . parseHandle
@@ -57,7 +57,7 @@ isValidHandle t = either (const False) (const True)
 
 newtype Name = Name
     { fromName :: Text }
-    deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString)
+    deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString, Generic)
 
 instance FromJSON Name where
     parseJSON x = Name . fromRange
@@ -67,7 +67,7 @@ instance FromJSON Name where
 -- Colour
 
 newtype ColourId = ColourId { fromColourId :: Int32 }
-    deriving (Eq, Num, Ord, Show, FromJSON, ToJSON)
+    deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
@@ -78,7 +78,7 @@ defaultAccentId = ColourId 0
 data Email = Email
     { emailLocal  :: !Text
     , emailDomain :: !Text
-    } deriving (Eq, Ord)
+    } deriving (Eq, Ord, Generic)
 
 instance Show Email where
     show = Text.unpack . fromEmail
@@ -109,7 +109,7 @@ parseEmail t = case Text.split (=='@') t of
 -----------------------------------------------------------------------------
 -- Phone
 
-newtype Phone = Phone { fromPhone :: Text } deriving (Eq, Show, ToJSON)
+newtype Phone = Phone { fromPhone :: Text } deriving (Eq, Show, ToJSON, Generic)
 
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone
@@ -141,7 +141,7 @@ instance ToByteString Phone where
 -- indicates in seconds when another attempt may be made.
 newtype PhoneBudgetTimeout = PhoneBudgetTimeout
     { phoneBudgetTimeout :: NominalDiffTime }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON PhoneBudgetTimeout where
     parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
@@ -153,7 +153,7 @@ instance ToJSON PhoneBudgetTimeout where
 -----------------------------------------------------------------------------
 -- PhonePrefix (for excluding from SMS/calling)
 
-newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show, ToJSON)
+newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show, ToJSON, Generic)
 
 -- | Parses a phone number prefix with a mandatory leading '+'.
 parsePhonePrefix :: Text -> Maybe PhonePrefix
@@ -189,7 +189,7 @@ instance ToByteString PhonePrefix where
 
 data ExcludedPrefix = ExcludedPrefix { phonePrefix :: PhonePrefix
                                      , comment :: Text
-                                     } deriving (Eq, Show)
+                                     } deriving (Eq, Show, Generic)
 
 instance FromJSON ExcludedPrefix where
     parseJSON = withObject "ExcludedPrefix" $ \o -> ExcludedPrefix
@@ -209,7 +209,7 @@ data UserIdentity
     | EmailIdentity !Email
     | PhoneIdentity        !Phone
     | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON UserIdentity where
     parseJSON = withObject "UserIdentity" $ \o -> do
@@ -270,7 +270,7 @@ data UserSSOId = UserSSOId
       userSSOIdTenant :: Text
     -- | An XML blob specifying the user's ID on the identity provider's side.
     , userSSOIdSubject :: Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON UserSSOId where
     parseJSON = withObject "UserSSOId" $ \obj -> UserSSOId
@@ -284,13 +284,13 @@ instance ToJSON UserSSOId where
 -- Asset
 
 data AssetSize = AssetComplete | AssetPreview
-    deriving (Eq, Show, Enum, Bounded)
+    deriving (Eq, Show, Enum, Bounded, Generic)
 
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
     { assetKey  :: !Text
     , assetSize :: !(Maybe AssetSize)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON AssetSize where
     parseJSON = withText "AssetSize" $ \s ->
@@ -322,7 +322,7 @@ instance ToJSON Asset where
 -----------------------------------------------------------------------------
 -- Language
 
-newtype Language = Language { fromLanguage :: ISO639_1 } deriving (Ord, Eq, Show)
+newtype Language = Language { fromLanguage :: ISO639_1 } deriving (Ord, Eq, Show, Generic)
 
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
@@ -336,7 +336,7 @@ parseLanguage = hush . parseOnly languageParser
 -----------------------------------------------------------------------------
 -- Country
 
-newtype Country = Country { fromCountry :: CountryCode } deriving (Ord, Eq, Show)
+newtype Country = Country { fromCountry :: CountryCode } deriving (Ord, Eq, Show, Generic)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -353,7 +353,7 @@ parseCountry = hush . parseOnly countryParser
 data Locale = Locale
     { lLanguage :: !Language
     , lCountry  :: !(Maybe Country)
-    } deriving (Eq, Ord)
+    } deriving (Eq, Ord, Generic)
 
 locToText :: Locale -> Text
 locToText (Locale l c) = lan2Text l <> maybe mempty (("-"<>) . con2Text) c
@@ -410,7 +410,7 @@ data ManagedBy
       -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
       -- are not essential, unlike e.g. passwords.
     | ManagedByScim
-    deriving (Eq, Show, Bounded, Enum)
+    deriving (Eq, Show, Bounded, Enum, Generic)
 
 instance FromJSON ManagedBy where
     parseJSON = withText "ManagedBy" $ \case

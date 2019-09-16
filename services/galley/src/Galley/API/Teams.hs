@@ -19,6 +19,12 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , getSSOStatus
+    , getSSOStatusInternal
+    , setSSOStatusInternal
+    , getLegalholdStatus
+    , getLegalholdStatusInternal
+    , setLegalholdStatusInternal
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedGetTeamMembers
@@ -27,6 +33,7 @@ module Galley.API.Teams
     ) where
 
 import Imports
+import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (result, hasMore)
 import Control.Lens hiding (from, to)
 import Control.Monad.Catch
@@ -38,6 +45,7 @@ import Data.Time.Clock (getCurrentTime, UTCTime (..))
 import Data.Set (fromList)
 import Galley.App
 import Galley.API.Error
+import Galley.API.LegalHold
 import Galley.API.Util
 import Galley.Data.Types
 import Galley.Data.Services (BotMember)
@@ -46,6 +54,7 @@ import Galley.Intra.User
 import Galley.Options
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -54,12 +63,15 @@ import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Data.SSO as SSOData
 import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
 import qualified Galley.Intra.Spar as Spar
+import qualified System.Logger.Class as Log
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -101,6 +113,8 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     let zothers = map (view userId) others
     ensureUnboundUsers (zusr : zothers)
     ensureConnected zusr zothers
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+              . Log.msg (Log.val "Teams.createNonBindingTeam")
     team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
     finishCreateTeam team owner others (Just zcon)
 
@@ -138,6 +152,9 @@ updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JS
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromJsonBody req
     membs <- Data.teamMembers tid
+    let zothers = map (view userId) membs
+    Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+              . Log.msg (Log.val "Teams.updateTeam")
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body
     now <- liftIO getCurrentTime
@@ -176,7 +193,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
-        (ue, be) <- foldrM (pushEvents now membs) ([],[]) convs
+        (ue, be) <- foldrM (pushConvDeleteEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
@@ -189,12 +206,17 @@ uncheckedDeleteTeam zusr zcon tid = do
             Journal.teamDelete tid
         Data.deleteTeam tid
   where
-    pushEvents :: UTCTime -> [TeamMember] -> TeamConversation -> ([Push],[(BotMember, Conv.Event)]) -> Galley ([Push],[(BotMember, Conv.Event)])
-    pushEvents now membs c (pp, ee) = do
-        (bots, users) <- botsAndUsers <$> Data.members (c^.conversationId)
-        let mm = nonTeamMembers users membs
-        let e = Conv.Event Conv.ConvDelete (c^.conversationId) zusr now Nothing
-        let p = newPush zusr (ConvEvent e) (map recipient mm)
+    pushConvDeleteEvents
+        :: UTCTime
+        -> [TeamMember]
+        -> TeamConversation
+        -> ([Push],[(BotMember, Conv.Event)])
+        -> Galley ([Push],[(BotMember, Conv.Event)])
+    pushConvDeleteEvents now teamMembs c (pp, ee) = do
+        (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+        let mm = convMembsAndTeamMembs convMembs teamMembs
+        let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
+        let p = newPush zusr (ConvEvent e) mm
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
@@ -232,16 +254,17 @@ uncheckedGetTeamMembers (tid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     nmem <- fromJsonBody req
+    let uid = nmem^.ntmNewTeamMember.userId
+    Log.debug $ Log.field "targets" (toByteString uid)
+              . Log.msg (Log.val "Teams.addTeamMember")
     mems <- Data.teamMembers tid
-
     -- verify permissions
     tmem <- permissionCheck zusr AddTeamMember mems
     let targetPermissions = nmem^.ntmNewTeamMember.permissions
     targetPermissions `ensureNotElevated` tmem
-
     ensureNonBindingTeam tid
-    ensureUnboundUsers [nmem^.ntmNewTeamMember.userId]
-    ensureConnected zusr [nmem^.ntmNewTeamMember.userId]
+    ensureUnboundUsers [uid]
+    ensureConnected zusr [uid]
     addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -260,6 +283,9 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     targetMember <- view ntmNewTeamMember <$> fromJsonBody req
     let targetId          = targetMember^.userId
         targetPermissions = targetMember^.permissions
+
+    Log.debug $ Log.field "targets" (toByteString targetId)
+              . Log.msg (Log.val "Teams.updateTeamMember")
 
     -- get the team and verify permissions
     team    <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -294,6 +320,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
         privilegedUpdate       = mkUpdate $ Just targetPermissions
         privilegedRecipients   = membersToRecipients Nothing privileged
 
+
     now <- liftIO getCurrentTime
     let ePriv  = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
 
@@ -304,6 +331,8 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
+    Log.debug $ Log.field "targets" (toByteString remove)
+              . Log.msg (Log.val "Teams.deleteTeamMember")
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
     okToDelete <- canBeDeleted [] remove tid
@@ -368,10 +397,11 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
     let tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
-    let p  = newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon
-    case map recipient (nonTeamMembers cmems tmems) of
-        []     -> push1 p
-        (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    let teamPush = [newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon]
+        convPush = case convMembsAndTeamMembs cmems tmems of
+            []     -> []
+            (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    pushSome $ teamPush <> convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
@@ -436,10 +466,12 @@ ensureNotElevated targetPermissions member =
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
 addTeamMemberInternal tid origin originConn newMem mems = do
+    let new = newMem^.ntmNewTeamMember
+    Log.debug $ Log.field "targets" (toByteString (new^.userId))
+              . Log.msg (Log.val "Teams.addTeamMemberInternal")
     o <- view options
     unless (length mems < fromIntegral (o^.optSettings.setMaxTeamSize)) $
         throwM tooManyTeamMembers
-    let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new
     cc  <- filter (view managedConversation) <$> Data.teamConversations tid
     now <- liftIO getCurrentTime
@@ -478,3 +510,72 @@ getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure . json $ newTeamMemberList members
+
+-- Public endpoints for feature checks
+
+getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getSSOStatus (uid ::: tid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewSSOTeamSettings membs
+    getSSOStatusInternal (tid ::: ct)
+
+getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
+getLegalholdStatus (uid ::: tid ::: ct) = do
+    membs <- Data.teamMembers tid
+    void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+    getLegalholdStatusInternal (tid ::: ct)
+
+-- Enable / Disable team features
+-- These endpoints are internal only and  meant to be called
+-- only from authorized personnel (e.g., from a backoffice tool)
+
+-- | Get SSO status for a team.
+getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
+getSSOStatusInternal (tid ::: _) = do
+    defConfig <- do
+        featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
+        pure . SSOTeamConfig $ case featureSSO of
+            FeatureSSOEnabledByDefault  -> SSOEnabled
+            FeatureSSODisabledByDefault -> SSODisabled
+    ssoTeamConfig <- SSOData.getSSOTeamConfig tid
+    pure . json . fromMaybe defConfig $ ssoTeamConfig
+
+-- | Enable or disable SSO for a team.
+setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
+setSSOStatusInternal (tid ::: req ::: _) = do
+    ssoTeamConfig <- fromJsonBody req
+    case ssoTeamConfigStatus ssoTeamConfig of
+        SSODisabled -> throwM disableSsoNotImplemented
+        SSOEnabled  -> pure () -- this one is easy to implement :)
+    SSOData.setSSOTeamConfig tid ssoTeamConfig
+    pure noContent
+
+-- | Get legal hold status for a team.
+getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
+getLegalholdStatusInternal (tid ::: _) = do
+    featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
+        legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+        pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
+      FeatureLegalHoldDisabledPermanently -> do
+        pure . json $ disabledConfig
+  where
+    disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
+
+-- | Enable or disable legal hold for a team.
+setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setLegalholdStatusInternal (tid ::: req ::: _) = do
+    do  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+        case featureLegalHold of
+          FeatureLegalHoldDisabledByDefault -> do
+            pure ()
+          FeatureLegalHoldDisabledPermanently -> do
+            throwM legalHoldFeatureFlagNotEnabled
+
+    legalHoldTeamConfig <- fromJsonBody req
+    case legalHoldTeamConfigStatus legalHoldTeamConfig of
+        LegalHoldDisabled -> removeSettings' tid Nothing
+        LegalHoldEnabled -> pure ()
+    LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+    pure noContent

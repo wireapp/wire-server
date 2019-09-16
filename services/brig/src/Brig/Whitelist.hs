@@ -1,3 +1,6 @@
+-- | > docs/reference/user/activation.md {#RefActivationWhitelist}
+--
+-- Email/phone whitelist.
 module Brig.Whitelist (Whitelist (..), verify) where
 
 import Imports
@@ -22,6 +25,8 @@ data Whitelist = Whitelist
 
 instance FromJSON Whitelist
 
+-- | Do a request to the whitelist service and verify that the provided email/phone address is
+-- whitelisted.
 verify :: (MonadIO m, MonadMask m, MonadHttp m) => Whitelist -> Either Email Phone -> m Bool
 verify (Whitelist url user pass) key = if isKnownDomain key
     then return True

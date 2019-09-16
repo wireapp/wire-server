@@ -64,8 +64,8 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
     , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
-    , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
-    , test' aws p "get /users/:id - 200"                     $ testExistingUser b
+    , test' aws p "get /users/:uid - 404"                    $ testNonExistingUser b
+    , test' aws p "get /users/:uid - 200"                    $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
     , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
@@ -76,13 +76,14 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
     , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
     , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
-    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
+    , test' aws p "put /i/users/:uid/status (suspend)"       $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
     , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
+    , test' aws p "delete/with-legalhold"                    $ testDeleteUserWithLegalHold b c aws
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
+    , test' aws p "delete /i/users/:uid - 202"               $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b g
     ]
@@ -105,7 +106,7 @@ testCreateUserWithPreverified brig aws = do
             let uid = userId usr
             get (brig . path "/self" . zUser uid) !!! do
                 const 200 === statusCode
-                const (Just p) === (userPhone <=< decodeBody)
+                const (Just p) === (userPhone <=< responseJsonMaybe)
 
             liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
 
@@ -125,7 +126,7 @@ testCreateUserWithPreverified brig aws = do
             let uid = userId usr
             get (brig . path "/self" . zUser uid) !!! do
                 const 200 === statusCode
-                const (Just e) === (userEmail <=< decodeBody)
+                const (Just e) === (userEmail <=< responseJsonMaybe)
 
             liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
 
@@ -160,7 +161,7 @@ testCreateUserAnon brig galley = do
     liftIO $ assertBool "Missing zuid cookie" (isJust zuid)
 
     -- Every registered user gets a self conversation.
-    let Just uid = userId <$> decodeBody rs
+    let Just uid = userId <$> responseJsonMaybe rs
     get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
         const 200 === statusCode
 
@@ -198,14 +199,14 @@ testCreateUserPending brig = do
     -- Cannot login via email (pending activation)
     login brig (defEmailLogin e) PersistentCookie !!! do
         const 403 === statusCode
-        const (Just "pending-activation") === fmap Error.label . decodeBody
+        const (Just "pending-activation") === fmap Error.label . responseJsonMaybe
 
     -- The user has no verified / activated identity yet
-    let Just uid = userId <$> decodeBody rs
+    let Just uid = userId <$> responseJsonMaybe rs
     get (brig . path "/self" . zUser uid) !!! do
         const 200  === statusCode
         const (Just True) === \rs' -> do
-            self <- decodeBody rs'
+            self <- responseJsonMaybe rs'
             return $! isNothing (userIdentity (selfUser self))
 
     -- should not appear in search
@@ -223,7 +224,7 @@ testCreateUserNoEmailNoPassword brig = do
     rs <- post (brig . path "/i/users" . contentJson . body newUser) <!!
             const 201 === statusCode
 
-    let Just uid = userId <$> decodeBody rs
+    let Just uid = userId <$> responseJsonMaybe rs
 
     e <- randomEmail
     let setEmail = RequestBodyLBS . encode $ EmailUpdate e
@@ -242,7 +243,7 @@ testCreateUserConflict brig = do
             ]
     post (brig . path "/register" . contentJson . body p) !!! do
         const 409 === statusCode
-        const (Just "key-exists") === fmap Error.label . decodeBody
+        const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
     -- untrusted email domains
     u2 <- createUserUntrustedEmail "conflict" brig
@@ -254,7 +255,7 @@ testCreateUserConflict brig = do
             ]
     post (brig . path "/register" . contentJson . body p2) !!! do
         const 409 === statusCode
-        const (Just "key-exists") === fmap Error.label . decodeBody
+        const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
 testCreateUserInvalidPhone :: Brig -> Http ()
 testCreateUserInvalidPhone brig = do
@@ -283,7 +284,7 @@ testCreateUserBlacklist brig aws =
             awaitBlacklist 30 e
             post (brig . path "/register" . contentJson . body (p e)) !!! do
                 const 403                        === statusCode
-                const (Just "blacklisted-email") === fmap Error.label . decodeBody
+                const (Just "blacklisted-email") === fmap Error.label . responseJsonMaybe
 
     p email = RequestBodyLBS . encode $ object [ "name"     .= ("Alice" :: Text)
                                                , "email"    .= email
@@ -328,7 +329,7 @@ testCreateUserExternalSSO brig = do
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
-    u <- decodeBody =<< registerUser "dilbert" brig
+    u <- responseJsonError =<< registerUser "dilbert" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
     case act of
@@ -342,7 +343,7 @@ testActivateWithExpiry brig timeout = do
             activate brig kc !!! const 404 === statusCode
   where
     actualBody rs = do
-        a <- decodeBody rs
+        a <- responseJsonMaybe rs
         Just (Just (activatedIdentity a), activatedFirst a)
 
     awaitExpiry :: Int -> ActivationPair -> Http ()
@@ -386,7 +387,7 @@ testMultipleUsers brig = do
   where
     result r =  Set.fromList
              .  map (field "name" &&& field "email")
-            <$> decodeBody r
+            <$> responseJsonMaybe r
 
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
@@ -433,10 +434,10 @@ testCreateUserAnonExpiry b = do
                           liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
 
     expire :: ResponseLBS -> Maybe UTCTime
-    expire r = join $ field "expires_at" <$> decodeBody r
+    expire r = join $ field "expires_at" <$> responseJsonMaybe r
 
     deleted :: ResponseLBS -> Maybe Bool
-    deleted r = join $ field "deleted" <$> decodeBody r
+    deleted r = join $ field "deleted" <$> responseJsonMaybe r
 
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
@@ -474,7 +475,7 @@ testUserUpdate brig cannon aws = do
             ( fmap userName u
             , fmap userAccentId u
             , fmap userAssets u
-            )) . decodeBody
+            )) . responseJsonMaybe
 
     -- get only the new name
     get (brig . path "/self/name" . zUser alice) !!! do
@@ -515,7 +516,7 @@ testEmailUpdate brig aws = do
   where
     ensureNoOtherUserWithEmail eml = do
         tk :: Maybe AccessToken <-
-            decodeBody <$> login brig (defEmailLogin eml) SessionCookie
+            responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
         for_ tk $ \t -> do
             deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
             liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
@@ -537,7 +538,7 @@ testPhoneUpdate brig = do
     -- check new phone
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (userPhone <=< decodeBody)
+        const (Just phn) === (userPhone <=< responseJsonMaybe)
 
 testCreateAccountPendingActivationKey :: Brig -> Http ()
 testCreateAccountPendingActivationKey brig = do
@@ -580,7 +581,7 @@ testUserLocaleUpdate brig aws = do
     -- get the updated locale
     get (brig . path "/self" . zUser uid) !!! do
         const 200                   === statusCode
-        const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< decodeBody)
+        const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< responseJsonMaybe)
   where
     locale l = body . RequestBodyLBS . encode $ object ["locale" .= l]
 
@@ -589,11 +590,11 @@ testSuspendUser brig = do
     u <- randomUser brig
     let uid        = userId u
         Just email = userEmail u
-    setStatus uid Suspended
+    setStatus brig uid Suspended
     -- login fails
     login brig (defEmailLogin email) PersistentCookie !!! do
         const 403 === statusCode
-        const (Just "suspended") === fmap Error.label . decodeBody
+        const (Just "suspended") === fmap Error.label . responseJsonMaybe
     -- check status
     chkStatus brig uid Suspended
     -- should not appear in search
@@ -602,17 +603,11 @@ testSuspendUser brig = do
     Search.assertCan'tFind brig suid uid (fromName (userName u))
 
     -- re-activate
-    setStatus uid Active
+    setStatus brig uid Active
     chkStatus brig uid Active
     -- should appear in search again
     Search.refreshIndex brig
     Search.assertCanFind brig suid uid (fromName (userName u))
-  where
-    setStatus u s =
-        let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-        in put ( brig . paths ["i", "users", toByteString' u, "status"]
-               . contentJson . body js
-               ) !!! const 200 === statusCode
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
@@ -629,7 +624,7 @@ testGetByIdentity brig = do
     rs <- post (brig . path "/i/users" . contentJson . body newUser) <!!
             const 201 === statusCode
 
-    let Just uid = userId <$> decodeBody rs
+    let Just uid = userId <$> responseJsonMaybe rs
 
     get (brig . zUser uid . path "i/users" . queryItem "email" emailBs) !!! do
         const 200                === statusCode
@@ -638,7 +633,7 @@ testGetByIdentity brig = do
         const 200                === statusCode
         const (Just [uid]) === getUids
   where
-    getUids r = return . fmap (userId . accountUser) =<< decodeBody r
+    getUids r = return . fmap (userId . accountUser) =<< responseJsonMaybe r
 
 testPasswordSet :: Brig -> Http ()
 testPasswordSet brig = do
@@ -650,7 +645,7 @@ testPasswordSet brig = do
     rs <- post (brig . path "/i/users" . contentJson . body newUser) <!!
             const 201 === statusCode
 
-    let Just uid = userId <$> decodeBody rs
+    let Just uid = userId <$> responseJsonMaybe rs
     -- No password set yet
     Bilge.head (brig . path "/self/password" . zUser uid) !!!
         const 404 === statusCode
@@ -708,7 +703,7 @@ testSendActivationCode brig = do
     requestActivationCode brig 200 . Left =<< randomEmail
     -- Standard email registration flow
     r <- registerUser "Alice" brig <!! const 201 === statusCode
-    let Just email = userEmail =<< decodeBody r
+    let Just email = userEmail =<< responseJsonMaybe r
     -- Re-request existing activation code
     requestActivationCode brig 200 (Left email)
 
@@ -748,7 +743,7 @@ testInternalPhonePrefixes brig = do
     getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
   where
     getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
-    getPrefixes prefix = decodeBody =<< getPrefix (phonePrefix prefix)
+    getPrefixes prefix = responseJsonError =<< getPrefix (phonePrefix prefix)
 
     getPrefix :: PhonePrefix -> Http ResponseLBS
     getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
@@ -799,7 +794,7 @@ testEmailPhoneDelete brig cannon = do
 
     get (brig . path "/self" . zUser uid) !!! do
         const 200     === statusCode
-        const Nothing === (userEmail <=< decodeBody)
+        const Nothing === (userEmail <=< responseJsonMaybe)
 
     -- Cannot remove the only remaining identity
     delete (brig . path "/self/phone" . zUser uid . zConn "c") !!!
@@ -829,7 +824,7 @@ testEmailPhoneDelete brig cannon = do
             ephone @?= Just (fromPhone phone)
     get (brig . path "/self" . zUser uid) !!! do
         const 200     === statusCode
-        const Nothing === (userPhone <=< decodeBody)
+        const Nothing === (userPhone <=< responseJsonMaybe)
 
 testDeleteUserByPassword :: Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteUserByPassword brig cannon aws = do
@@ -861,7 +856,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login
@@ -879,21 +874,34 @@ testDeleteUserByPassword brig cannon aws = do
         Nothing -> liftIO $ assertFailure "missing activation key/code"
         Just kc -> activate brig kc !!! do
             const 404 === statusCode
-            const (Just "invalid-code") === fmap Error.label . decodeBody
+            const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
 
     -- Connections involving uid1 are gone (uid2 <-> uid3 remains)
     let u1Conns = UserConnectionList [] False
-    let u2Conns = UserConnectionList (maybeToList (decodeBody con23)) False
-    let u3Conns = UserConnectionList (maybeToList (decodeBody con32)) False
+    let u2Conns = UserConnectionList (maybeToList (responseJsonMaybe con23)) False
+    let u3Conns = UserConnectionList (maybeToList (responseJsonMaybe con32)) False
     listConnections brig uid1 !!! do
         const 200 === statusCode
-        const (Just u1Conns) === decodeBody
+        const (Just u1Conns) === responseJsonMaybe
     listConnections brig uid2 !!! do
         const 200 === statusCode
-        const (Just u2Conns) === decodeBody
+        const (Just u2Conns) === responseJsonMaybe
     listConnections brig uid3 !!! do
         const 200 === statusCode
-        const (Just u3Conns) === decodeBody
+        const (Just u3Conns) === responseJsonMaybe
+
+testDeleteUserWithLegalHold :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithLegalHold brig cannon aws = do
+    user <- randomUser brig
+    let uid = userId user
+
+    -- Register a legalhold client
+    addClientInternal brig uid (defNewClient LegalHoldClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+        !!! const 201 === statusCode
+
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled user)
+    setHandleAndDeleteUser brig cannon user [] aws $
+        \uid' -> deleteUser uid' (Just defPassword) brig !!! const 200 === statusCode
 
 testDeleteUserByCode :: Brig -> Http ()
 testDeleteUserByCode brig = do
@@ -906,14 +914,14 @@ testDeleteUserByCode brig = do
     let _code = "123" :: Text
     send _key _code !!! do
         const 400 === statusCode
-        const (Just "bad-request") === fmap Error.label . decodeBody
+        const (Just "bad-request") === fmap Error.label . responseJsonMaybe
 
     -- (Semantically) invalid key / code
     let _key  = T.replicate 20 "x"
     let _code = "idontknow" :: Text
     send _key _code !!! do
         const 403 === statusCode
-        const (Just "invalid-code") === fmap Error.label . decodeBody
+        const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
   where
     send k c = post (brig . path "/delete" . contentJson . body (payload k c))
     payload k c = RequestBodyLBS . encode $ object
@@ -971,7 +979,7 @@ testUpdateSSOId brig galley = do
                 . Bilge.json ssoid
                 )
                 !!! const 200 === statusCode
-            profile :: SelfProfile <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            profile :: SelfProfile <- responseJsonError =<< get (brig . path "/self" . zUser uid)
             let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
             liftIO $ do
                 assertEqual "updateSSOId/ssoid" ssoid ssoid'
@@ -987,7 +995,7 @@ testUpdateSSOId brig galley = do
                 updatePhone brig (userId member) =<< randomPhone
             when (not hasEmail) $ do
                 error "not implemented"
-            selfUser <$> (decodeBody =<< get (brig . path "/self" . zUser (userId member)))
+            selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
 
     let ssoids1 = [ UserSSOId "1" "1", UserSSOId "1" "2" ]
         ssoids2 = [ UserSSOId "2" "1", UserSSOId "2" "2" ]
@@ -1035,12 +1043,12 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
     -- Clients are gone
     get (brig . path "clients" . zUser (userId u)) !!! do
         const 200 === statusCode
-        const (Just [] :: Maybe [Client]) === decodeBody
+        const (Just [] :: Maybe [Client]) === responseJsonMaybe
 
     -- Can no longer log in
     login brig (defEmailLogin email) PersistentCookie !!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+        const (Just "invalid-credentials") === fmap Error.label . responseJsonMaybe
 
     -- Deleted flag appears in self profile; email, handle and picture are gone
     get (brig . path "/self" . zUser uid) !!! assertDeletedProfileSelf
@@ -1074,7 +1082,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
             , fmap userDeleted u'
             , fmap userAssets u'
             , userHandle =<< u'
-            )) . decodeBody
+            )) . responseJsonMaybe
 
     assertDeletedProfilePublic = do
         const 200 === statusCode
@@ -1082,4 +1090,4 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
             ( fmap profilePict u'
             , fmap profileDeleted u'
             , profileHandle =<< u'
-            )) . decodeBody
+            )) . responseJsonMaybe

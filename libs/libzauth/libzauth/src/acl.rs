@@ -129,6 +129,9 @@ mod tests {
         b (whitelist (path "/conversation/message")
                      (path "/foo/bar/*"))
 
+        # this is a comment that should not lead to a parse failure.
+        la (whitelist (path "/legalhold/**"))
+
         x (blacklist ())
 
         y (whitelist ())
@@ -151,5 +154,7 @@ mod tests {
         assert!(acl.allowed("x", "/everywhere"));
         assert!(acl.allowed("x", "/"));
         assert!(!acl.allowed("y", "/nowhere"));
+        assert!(acl.allowed("la", "/legalhold/something"));
+        assert!(!acl.allowed("la", "/mistyped/something"));
     }
 }

@@ -17,7 +17,7 @@ import qualified Control.Concurrent.Async           as Async
 import qualified Data.Metrics.Middleware            as M
 import qualified Network.Wai.Middleware.Gunzip      as GZip
 import qualified Network.Wai.Middleware.Gzip        as GZip
-import qualified System.Logger                      as Log
+import qualified System.Logger.Class                 as Log
 
 import           Galley.API          (sitemap)
 import qualified Galley.API.Internal as Internal

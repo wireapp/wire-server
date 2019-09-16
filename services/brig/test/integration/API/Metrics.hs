@@ -47,15 +47,11 @@ testMonitoringEndpoint brig = do
     _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
     _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
 
-    resp :: Value <- jsonBody <$> get (brig . path "i/monitoring")
+    resp :: Value <- responseJsonUnsafe <$> get (brig . path "i/monitoring")
     let have :: Set Text = Set.fromList $ fst <$> (resp ^@.. key "net" . key "resources" . members)
-        want :: Set Text = Set.fromList $ cs <$> [p1, p2 ":user"]
+        want :: Set Text = Set.fromList $ cs <$> [p1, p2 ":uid"]
         errmsg = "some of " <> show want <> " missing in metrics: " <> show have
     liftIO $ assertBool errmsg (want `Set.isSubsetOf` have)
-
--- | Only for testing!  I've seen this in our code-base, but I can't find it any more.
-jsonBody :: ResponseLBS -> Value
-jsonBody = either (error . show) id . eitherDecode . fromJust . responseBody
 
 
 {- FUTUREWORK:

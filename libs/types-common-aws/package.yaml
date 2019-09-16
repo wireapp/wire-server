@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: types-common-aws
 version: '0.16.0'
@@ -36,8 +36,6 @@ dependencies:
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported
-  exposed-modules:
-  - Util.Test.SQS
   when:
   - condition: impl(ghc >=8)
     ghc-options: -fno-warn-redundant-constraints
@@ -52,9 +50,9 @@ library:
 flags:
   arbitrary:
     description: Enable quickcheck's arbitrary instances
-    manual: false
+    manual: true
     default: false
   protobuf:
     description: Enable protocol buffers instances
-    manual: false
+    manual: true
     default: false

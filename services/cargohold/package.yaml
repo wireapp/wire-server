@@ -34,10 +34,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  exposed-modules:
-  - CargoHold.API
-  - CargoHold.Options
-  - CargoHold.Run
   dependencies:
   - base >=4 && <5
   - attoparsec >=0.12
@@ -82,12 +78,13 @@ executables:
     main: Main.hs
     source-dirs: test/integration
     dependencies:
+    - base ==4.*
     - cargohold
     - cargohold-types
-    - base ==4.*
     - cryptohash-md5 >=0.11.7.2
     - http-client-tls >=0.2
     - lens >=3.8
+    - metrics-wai
     - optparse-applicative
     - tagged >=0.8
     - tasty >=1.0
@@ -112,5 +109,5 @@ executables:
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false

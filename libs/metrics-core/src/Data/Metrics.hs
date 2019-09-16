@@ -87,6 +87,7 @@ data Metrics =
         , gauges     :: IORef (HashMap Path Gauge)
         , histograms :: IORef (HashMap Path Histogram)
         }
+  deriving (Generic)
 
 -- Initialize an empty set of metrics
 metrics :: MonadIO m => m Metrics

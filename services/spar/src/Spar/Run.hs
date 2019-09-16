@@ -26,7 +26,7 @@ import Spar.App
 import Spar.Data.Instances ()
 import Spar.Orphans ()
 import Spar.Types as Types
-import System.Logger (Logger)
+import System.Logger.Class (Logger)
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
@@ -60,7 +60,7 @@ initCassandra opts lgr = do
       & Cas.setPoolStripes 4
       & Cas.setSendTimeout 3
       & Cas.setResponseTimeout 10
-      & Cas.setProtocolVersion V3
+      & Cas.setProtocolVersion V4
     runClient cas $ Cas.versionCheck Data.schemaVersion
     pure cas
 
@@ -83,7 +83,7 @@ runServer sparCtxOpts = do
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
   let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
-  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts)
+  sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =

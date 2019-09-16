@@ -27,6 +27,7 @@ import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
+import System.Logger.Extended (LogFormat)
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
@@ -62,11 +63,40 @@ data IdPList = IdPList
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
 
+-- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
+-- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
+-- from the server against the pinned one and the metadata url in the metadata against the one
+-- we fetched the xml from, but it's unclear what the benefit would be.)
+newtype IdPMetadataInfo = IdPMetadataValue SAML.IdPMetadata
+  deriving (Eq, Show, Generic)
+
+instance SAML.HasXMLRoot IdPMetadataInfo where
+  renderRoot = error "instance SAML.HasXML IdPMetadataInfo: render not implemented"
+    -- FUTUREWORK: split up HasXML in saml-web-sso into FromXML and ToXML, then we probably
+    -- can actually not implement this (this even as an error).  should be a nice,
+    -- backwards-compatible change!
+
+instance SAML.HasXML IdPMetadataInfo where
+  parse = fmap IdPMetadataValue . SAML.parse
+
+instance FromJSON IdPMetadataInfo where
+  parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
+    either fail (pure . IdPMetadataValue) . SAML.decode =<< (obj .: "value")
+
+instance ToJSON IdPMetadataInfo where
+  toJSON (IdPMetadataValue xml) =
+    object [ "value" .= SAML.encode xml ]
+
+
 ----------------------------------------------------------------------------
 -- SCIM
 
--- | A bearer token that authorizes a provisioning tool to perform actions
--- with a team. Each token corresponds to one team.
+-- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
+--
+-- A bearer token that authorizes a provisioning tool to perform actions with a team. Each
+-- token corresponds to one team.
+--
+-- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
 newtype ScimToken = ScimToken { fromScimToken :: Text }
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
@@ -160,7 +190,8 @@ data Opts' a = Opts
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
     -- IPs using describe-instances.
     , discoUrl       :: !(Maybe Text)
-    , logNetStrings  :: !Bool
+    , logNetStrings  :: !(Maybe (Last Bool))
+    , logFormat      :: !(Maybe (Last LogFormat))
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     , derivedOpts    :: !a
     }

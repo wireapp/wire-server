@@ -13,7 +13,9 @@ module Network.Wire.Client.API.Auth
 import Imports
 import Bilge
 import Brig.Types.User.Auth as Auth hiding (Cookie, user)
+import Control.Monad.Catch (MonadMask)
 import Data.List.NonEmpty
+import Data.Text (pack)
 import Data.Time (getCurrentTime)
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method
@@ -36,7 +38,7 @@ data Auth = Auth
 -------------------------------------------------------------------------------
 -- Unauthenticated
 
-login :: MonadClient m => Login -> m (Maybe Auth)
+login :: (MonadClient m, MonadUnliftIO m, MonadMask m) => Login -> m (Maybe Auth)
 login l = do
     rs <- clientRequest req rsc consumeBody
     sv <- getServer
@@ -52,7 +54,7 @@ login l = do
 -------------------------------------------------------------------------------
 -- Authenticated
 
-refreshAuth :: MonadClient m => Auth -> m (Maybe Auth)
+refreshAuth :: (MonadClient m, MonadMask m, MonadUnliftIO m) => Auth -> m (Maybe Auth)
 refreshAuth (Auth ac@(AuthCookie c) t) = do
     sv <- getServer
     rs <- clientRequest (req sv) rsc consumeBody
@@ -94,7 +96,7 @@ tokenResponse rq rs ck
   where
     mkAuth = do
         cok <- mkCookie $ parseSetCookie <$> getHeader "Set-Cookie" rs
-        tok <- fromBody rs
+        tok <- responseJsonThrow (ParseError . pack) rs
         return . Just $ Auth cok tok
 
     mkCookie Nothing    = maybe (unexpected rs "missing set-cookie") return ck

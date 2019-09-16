@@ -1,16 +1,20 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- | Servant-based API description types for Spar.
 module Spar.API.Types where
 
 import Imports
 import Data.Id
 import Data.Proxy
-import Data.String.Conversions (ST)
+import Data.String.Conversions (ST, cs)
 import Servant
+import Servant.API.Extended
 import Servant.Multipart
 import Spar.Types
+import Spar.Error
 import Spar.API.Util
 import Spar.Scim (APIScim)
 
@@ -40,15 +44,12 @@ type OutsideWorldAPI = OutsideWorld API
 
 type APISSO
      = OmitDocs :> "api-docs" :> Get '[JSON] Swagger
-  :<|> APIMeta
+  :<|> "metadata" :> SAML.APIMeta
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
   :<|> APIAuthResp
 
 type CheckOK = Verb 'HEAD 200
-
-type APIMeta
-     = "metadata" :> SAML.APIMeta
 
 type APIAuthReqPrecheck
      = QueryParam "success_redirect" URI.URI
@@ -136,8 +137,11 @@ type APIIDP
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
-type IdpCreate  = ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
+type IdpCreate  = ReqBodyCustomError '[SAML.XML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+
+instance MakeCustomError "wai-error" IdPMetadataInfo where
+  makeCustomError = sparToServantErr . SAML.CustomError . SparNewIdPBadMetadata . cs
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent

@@ -2,7 +2,7 @@
 -- instead.
 module API.SQS where
 
-import Imports hiding (trace)
+import Imports
 import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
@@ -32,7 +32,7 @@ import qualified Galley.Aws as Aws
 import qualified Network.AWS as AWS
 import qualified Network.AWS.SQS as SQS
 import qualified OpenSSL.X509.SystemStore as Ssl
-import qualified System.Logger as L
+import qualified System.Logger.Class as L
 
 ensureQueueEmpty :: TestM ()
 ensureQueueEmpty  = view tsAwsEnv >>= ensureQueueEmptyIO

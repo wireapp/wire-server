@@ -11,26 +11,24 @@ import Data.List ((\\))
 import Data.List1 (List1)
 import Data.Misc (Port)
 import Network.HTTP.Client (Manager)
-import System.IO.Temp (writeTempFile)
+import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
+import UnliftIO.Exception (finally)
 import Util
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.List1 as List1
-
-type TurnUpdater = String -> IO ()
+import qualified UnliftIO.Temporary as Temp
 
 tests :: Manager -> Brig -> FilePath -> FilePath -> IO TestTree
 tests m b turn turnV2 = do
     return $ testGroup "turn"
-        [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
+        [ test m "basic /calls/config - 200" $ testCallsConfig b
         -- FIXME: requires tests to run on same host as brig
-        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn turn)
-        , test m "multiple servers /calls/config/v2 - 200" $ resetTurn >> testCallsConfigMultipleV2 b (setTurn turnV2)
+        , test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b
+        , test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
         ]
-  where
-    resetTurn = liftIO $ setTurn turn "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
@@ -142,7 +140,7 @@ getTurnConfiguration suffix u b = get ( b
 
 getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfiguration suffix u b =
-    decodeBody =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
+    responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 
 getTurnConfigurationV2Limit :: Int -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
 getTurnConfigurationV2Limit limit u b = get ( b
@@ -154,7 +152,7 @@ getTurnConfigurationV2Limit limit u b = get ( b
 
 getAndValidateTurnConfigurationLimit :: HasCallStack => Int -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfigurationLimit limit u b =
-    decodeBody =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
+    responseJsonError =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
 
 toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
@@ -165,14 +163,24 @@ toTurnURI s h p t = turnURI s ip p t
     ip = fromMaybe (error "Failed to parse host address")
        $ fromByteString h
 
-setTurn :: FilePath -> String -> IO ()
-setTurn cfgDest newConf = do
-    tmpDir <- getTemporaryDirectory
-    tmpPathFile <- writeTempFile tmpDir "-turn.tmp" newConf
-    copyFile tmpPathFile cfgDest
+
+type TurnUpdater = String -> IO ()
+
+withTurnFile :: FilePath -> (TurnUpdater -> Http ()) -> Http ()
+withTurnFile cfgDest action = do
+    Temp.withSystemTempDirectory "wire.temp" $ \tempdir -> do
+        let backup = tempdir </> "backup"
+        copyFile cfgDest backup
+        action (setTurn tempdir cfgDest)
+          `finally` copyFile backup cfgDest
+
+-- This essentially writes 'newConf' to 'cfgDest', but in a portable way that makes sure
+-- brig's filewatch notices that the file has changed.
+setTurn :: FilePath -> FilePath -> String -> IO ()
+setTurn tmpDir cfgDest newConf = do
+    let tmpFile = tmpDir </> "file"
+    writeFile tmpFile newConf
+    copyFile tmpFile cfgDest
     -- TODO: This must be higher than the value specified
     -- in the watcher in Brig.App (currently, 0.5 seconds)
     threadDelay 1000000
-    -- Note that this may leave temporary files behind in
-    -- case of some exceptions
-    removeFile tmpPathFile

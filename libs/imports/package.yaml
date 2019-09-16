@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: imports
 version: '0.1.0'
@@ -16,7 +16,7 @@ copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base
-- aeson
+- extra
 - unliftio
 - unliftio-core
 - containers
@@ -29,6 +29,4 @@ dependencies:
 - tinylog
 library:
   source-dirs: src
-  exposed-modules:
-  - Imports
 stability: experimental

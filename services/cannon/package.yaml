@@ -14,13 +14,6 @@ dependencies:
 - extended
 library:
   source-dirs: src
-  exposed-modules:
-  - Cannon.API
-  - Cannon.Dict
-  - Cannon.Options
-  - Cannon.Run
-  - Cannon.Types
-  - Cannon.WS
   dependencies:
   - base >=4.6 && <5
   - aeson >=0.11
@@ -88,19 +81,21 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - async
-    - QuickCheck >=2.7 && <2.12
     - base
     - bytestring
     - cannon
     - criterion >=1.0
+    - metrics-wai
+    - QuickCheck >=2.7 && <2.12
     - random >=1.0
     - tasty >=0.8
     - tasty-hunit >=0.8
     - tasty-quickcheck >=0.8
     - types-common
     - uuid
+    - wai-utilities
 flags:
   static:
     description: Enable static linking
-    manual: false
+    manual: true
     default: false

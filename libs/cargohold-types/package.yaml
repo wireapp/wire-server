@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: cargohold-types
 version: '1.5.0'
@@ -31,7 +31,3 @@ dependencies:
 - uuid >=1.2
 library:
   source-dirs: src
-  exposed-modules:
-  - CargoHold.Types
-  - CargoHold.Types.V3
-  - CargoHold.Types.V3.Resumable

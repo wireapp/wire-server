@@ -1,25 +1,31 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Test.Brig.Types.Arbitrary where
+module Brig.Types.Test.Arbitrary where
+
+#ifdef WITH_ARBITRARY
 
 import Imports
 import Brig.Types.Activation
+import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
 import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
@@ -31,6 +37,7 @@ import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
 import Data.List.Extra (nubOn)
 import Data.Misc
+import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
 import Data.Text.Ascii
@@ -43,8 +50,10 @@ import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
+import URI.ByteString.QQ (uri)
 
 import qualified Data.Set as Set
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as ST
 import qualified System.Random
 
@@ -300,6 +309,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary RichField where
     arbitrary = RichField <$> arbitrary <*> arbitrary
@@ -431,3 +441,98 @@ alphaNumChars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
 
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound..]
+
+instance Arbitrary UserLegalHoldStatusResponse where
+    arbitrary = UserLegalHoldStatusResponse <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary LegalHoldStatus where
+    arbitrary = genEnumBounded
+
+instance Arbitrary LegalHoldTeamConfig where
+    arbitrary = LegalHoldTeamConfig <$> arbitrary
+
+instance Arbitrary NewLegalHoldService where
+    arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+    arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ViewLegalHoldService where
+    arbitrary = oneof
+        [ ViewLegalHoldService <$> arbitrary
+        , pure ViewLegalHoldServiceNotConfigured
+        , pure ViewLegalHoldServiceDisabled
+        ]
+
+instance Arbitrary ViewLegalHoldServiceInfo where
+    arbitrary = ViewLegalHoldServiceInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary HttpsUrl where
+    arbitrary = pure $ HttpsUrl [uri|https://example.com|]
+
+instance Arbitrary ServiceKeyType where
+    arbitrary = genEnumBounded
+
+instance Arbitrary ServiceKey where
+    arbitrary = ServiceKey <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ServiceKeyPEM where
+    arbitrary = pure $ ServiceKeyPEM k
+      where Right [k] = pemParseBS . BS.unlines $
+              [ "-----BEGIN PUBLIC KEY-----"
+              , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+              , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+              , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+              , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+              , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+              , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+              , "nQIDAQAB"
+              , "-----END PUBLIC KEY-----"
+              ]
+
+instance Arbitrary (Fingerprint Rsa) where
+    arbitrary = pure $ Fingerprint
+        "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+instance Arbitrary ServiceToken where
+    arbitrary = ServiceToken <$> arbitrary
+
+instance Arbitrary RequestNewLegalHoldClient where
+    arbitrary = RequestNewLegalHoldClient <$> arbitrary <*> arbitrary
+
+instance Arbitrary NewLegalHoldClient where
+    arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary
+
+instance Arbitrary LegalHoldClientRequest where
+    arbitrary =
+        LegalHoldClientRequest
+            <$> arbitrary
+            <*> arbitrary
+
+instance Arbitrary LegalHoldServiceConfirm where
+    arbitrary =
+        LegalHoldServiceConfirm 
+          <$> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+
+instance Arbitrary RemoveLegalHoldSettingsRequest where
+    arbitrary = RemoveLegalHoldSettingsRequest <$> arbitrary
+
+instance Arbitrary DisableLegalHoldForUserRequest where
+    arbitrary = DisableLegalHoldForUserRequest <$> arbitrary
+
+instance Arbitrary ApproveLegalHoldForUserRequest where
+    arbitrary = ApproveLegalHoldForUserRequest <$> arbitrary
+
+instance Arbitrary LastPrekey where
+    arbitrary = lastPrekey <$> arbitrary
+
+instance Arbitrary Prekey where
+    arbitrary = Prekey <$> arbitrary <*> arbitrary
+
+instance Arbitrary PrekeyId where
+    arbitrary = PrekeyId <$> arbitrary
+
+#endif

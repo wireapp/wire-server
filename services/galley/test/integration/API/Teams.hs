@@ -1,9 +1,12 @@
 module API.Teams (tests) where
 
 import Imports
+
+import API.SQS
 import API.Util
-import Bilge hiding (timeout)
 import Bilge.Assert
+import Bilge hiding (timeout)
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig(..), LegalHoldStatus(..))
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
@@ -12,15 +15,18 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
+import Network.HTTP.Types.Status (status403)
+import TestHelpers (test)
+import TestSetup (TestSetup, TestM, tsCannon, tsGalley, tsGConf)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import TestSetup (test,  TestSetup, TestM, tsCannon, tsGalley)
-import API.SQS
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
 import qualified API.Util as Util
@@ -31,6 +37,7 @@ import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Test.Tasty.Cannon as WS
 
 tests :: IO TestSetup -> TestTree
@@ -39,6 +46,7 @@ tests s = testGroup "Teams API"
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
     , test s "create binding team with currency" testCreateBindingTeamWithCurrency
     , test s "create team with members" testCreateTeamWithMembers
+    , test s "enable/disable SSO" testEnableSSOPerTeam
     , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
     , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
     , test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner)
@@ -67,6 +75,7 @@ tests s = testGroup "Teams API"
     , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
     , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
     , test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
+    , test s "feature flags" testFeatureFlags
     ]
 
 timeout :: WS.Timeout
@@ -145,6 +154,39 @@ testCreateTeamWithMembers = do
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
 
+
+testEnableSSOPerTeam :: TestM ()
+testEnableSSOPerTeam = do
+    owner <- Util.randomUser
+    tid   <- Util.createTeamInternal "foo" owner
+    assertQueue "create team" tActivate
+
+    let check :: HasCallStack => String -> SSOStatus -> TestM ()
+        check msg enabledness = do
+          SSOTeamConfig status <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+          liftIO $ assertEqual msg enabledness status
+
+    let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
+        putSSOEnabledInternalCheckNotImplemented = do
+          g <- view tsGalley
+          Wai.Error status label _ <- responseJsonUnsafe <$> put (g
+              . paths ["i", "teams", toByteString' tid, "features", "sso"]
+              . json (SSOTeamConfig SSODisabled))
+          liftIO $ do
+            assertEqual "bad status" status403 status
+            assertEqual "bad label" "not-implemented" label
+
+    featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+    case featureSSO of
+        FeatureSSOEnabledByDefault  -> check "Teams should start with SSO enabled" SSOEnabled
+        FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" SSODisabled
+
+    putSSOEnabledInternal tid SSOEnabled
+    check "Calling 'putEnabled True' should enable SSO" SSOEnabled
+
+    putSSOEnabledInternalCheckNotImplemented
+
+
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do
     owner <- Util.randomUser
@@ -157,7 +199,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
     Util.createOne2OneTeamConv (mem1^.userId) (mem2^.userId) Nothing tid !!! do
         const 404 === statusCode
-        const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team" === (Error.label . responseJsonUnsafeWithMsg "error label")
     -- Both have a binding team but not the same team
     owner1 <- Util.randomUser
     tid1 <- Util.createTeamInternal "foo" owner1
@@ -167,7 +209,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
     assertQueue "create another team" tActivate
     Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
-        const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+        const "non-binding-team-members" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testCreateOne2OneWithMembers
     :: HasCallStack
@@ -346,7 +388,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
     -- Mem1 is still part of Wire
     Util.ensureDeletedState False owner (mem1^.userId)
@@ -358,7 +400,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
                    . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
                    . zUser owner
                    . zConn "conn"
-                   . json (newTeamMemberDeleteData (Just $ PlainTextPassword Util.defPassword))
+                   . json (newTeamMemberDeleteData (Just $ Util.defPassword))
                    ) !!! const 202 === statusCode
 
           else do
@@ -453,7 +495,7 @@ testAddTeamConvAsExternalPartner = do
         (Just "blaa") acc (Just TeamAccessRole) Nothing
       !!! do
         const 403 === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddManagedConv :: TestM ()
 testAddManagedConv = do
@@ -512,7 +554,7 @@ testAddTeamMemberToConv = do
     Util.assertNotConvMember (mem3^.userId) cid
     Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
         const 403                === statusCode
-        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testUpdateTeamConv
     :: Role  -- ^ Role of the user who creates the conversation
@@ -556,6 +598,8 @@ testDeleteTeam = do
             const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember
+        checkConvDeleteEvent cid1 wsOwner
+        checkConvDeleteEvent cid1 wsMember
         checkConvDeleteEvent cid1 wsExtern
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
 
@@ -575,7 +619,7 @@ testDeleteTeam = do
             Util.getConv u x !!! const 404 === statusCode
             Util.getSelfMember u x !!! do
                 const 200         === statusCode
-                const (Just Null) === Util.decodeBody
+                const (Just Null) === responseJsonMaybe
     assertQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -606,14 +650,14 @@ testDeleteBindingTeam ownerHasPassword = do
            . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
-        const "access-denied" === (Error.label . Util.decodeBody' "error label")
+        const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
            . zUser owner
            . zConn "conn"
            . json (newTeamMemberDeleteData (if ownerHasPassword
-                                            then Just $ PlainTextPassword Util.defPassword
+                                            then Just Util.defPassword
                                             else Nothing))
            ) !!! const 202 === statusCode
     assertQueue "team member leave 1" $ tUpdate 3 [owner]
@@ -624,7 +668,7 @@ testDeleteBindingTeam ownerHasPassword = do
                . zUser owner
                . zConn "conn"
                . json (newTeamDeleteData (if ownerHasPassword
-                                          then Just $ PlainTextPassword Util.defPassword
+                                          then Just Util.defPassword
                                           else Nothing))
                ) !!! const 202 === statusCode
 
@@ -680,6 +724,9 @@ testDeleteTeamConv = do
 
         checkTeamConvDeleteEvent tid cid2 wsOwner
         checkTeamConvDeleteEvent tid cid2 wsMember
+        checkConvDeleteEvent cid2 wsOwner
+        checkConvDeleteEvent cid2 wsMember
+        WS.assertNoEvent timeout [wsOwner, wsMember]
 
         delete ( g
                . paths ["teams", toByteString' tid, "conversations", toByteString' cid1]
@@ -689,9 +736,10 @@ testDeleteTeamConv = do
 
         checkTeamConvDeleteEvent tid cid1 wsOwner
         checkTeamConvDeleteEvent tid cid1 wsMember
-        checkConvDeletevent cid1 wsExtern
-
-        WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
+        checkConvDeleteEvent cid1 wsOwner
+        checkConvDeleteEvent cid1 wsMember
+        checkConvDeleteEvent cid1 wsExtern
+        WS.assertNoEvent timeout [wsOwner, wsMember, wsExtern]
 
     for_ [cid1, cid2] $ \x ->
         for_ [owner, member^.userId, extern] $ \u -> do
@@ -699,20 +747,6 @@ testDeleteTeamConv = do
             Util.assertNotConvMember u x
 
     postConvCodeCheck code !!! const 404 === statusCode
-  where
-    checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= ConvDelete
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdConvDelete cid)
-
-    checkConvDeletevent cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        evtType e @?= Conv.ConvDelete
-        evtConv e @?= cid
-        evtData e @?= Nothing
 
 testUpdateTeam :: TestM ()
 testUpdateTeam = do
@@ -771,7 +805,7 @@ testUpdateTeamMember = do
         . json changeOwner
         ) !!! do
         const 403 === statusCode
-        const "no-other-owner" === (Error.label . Util.decodeBody' "error label")
+        const "no-other-owner" === (Error.label . responseJsonUnsafeWithMsg "error label")
     let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
@@ -831,7 +865,7 @@ testUpdateTeamStatus = do
                . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
-        const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
+        const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
@@ -882,6 +916,14 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Nothing
 
+checkTeamConvDeleteEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> TestM ()
+checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    e^.eventType @?= ConvDelete
+    e^.eventTeam @?= tid
+    e^.eventData @?= Just (EdConvDelete cid)
+
 checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
@@ -926,7 +968,7 @@ postCryptoBroadcastMessageJson = do
             WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
                 Util.postOtrBroadcastMessage id alice ac msg !!! do
                     const 201 === statusCode
-                    assertTrue_ (eqMismatch [] [] [] . decodeBody)
+                    assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
                 -- Bob should get the broadcast (team member of alice)
                 void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
                 -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -956,14 +998,14 @@ postCryptoBroadcastMessageJson2 = do
     let m1 = [(bob, bc, "ciphertext1")]
     Util.postOtrBroadcastMessage id alice ac m1 !!! do
         const 412 === statusCode
-        assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
+        assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . responseJsonUnsafe)
 
     -- Complete
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
         let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
         Util.postOtrBroadcastMessage id alice ac m2 !!! do
             const 201 === statusCode
-            assertTrue "No devices expected" (eqMismatch [] [] [] . decodeBody)
+            assertTrue "No devices expected" (eqMismatch [] [] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
 
@@ -972,7 +1014,7 @@ postCryptoBroadcastMessageJson2 = do
         let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
         Util.postOtrBroadcastMessage id alice ac m3 !!! do
             const 201 === statusCode
-            assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
+            assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
         -- Alice should not get it
@@ -980,11 +1022,11 @@ postCryptoBroadcastMessageJson2 = do
 
     -- Deleted charlie
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
-        deleteClient charlie cc (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
+        deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
         Util.postOtrBroadcastMessage id alice ac m4 !!! do
             const 201 === statusCode
-            assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
+            assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
         -- charlie should not get it
         assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
@@ -1013,7 +1055,7 @@ postCryptoBroadcastMessageProto = do
         let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
         Util.postProtoOtrBroadcast alice ac msg !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (selfConv bob) alice ac bc ciphertext)
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1045,7 +1087,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         let msg = (bob, bc, "ciphertext") : (f <$> others)
         Util.postOtrBroadcastMessage id alice ac msg !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
         for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
@@ -1063,3 +1105,112 @@ postCryptoBroadcastMessage100OrMaxConns = do
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing
+
+
+getSSOEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getSSOEnabled uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "features", "sso"]
+        . zUser uid
+
+getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
+getSSOEnabledInternal tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+
+putSSOEnabledInternal :: HasCallStack => TeamId -> SSOStatus -> TestM ()
+putSSOEnabledInternal tid enabled = do
+    g <- view tsGalley
+    void . put $ g
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . json (SSOTeamConfig enabled)
+        . expect2xx
+
+getLegalHoldEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getLegalHoldEnabled uid tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["teams", toByteString' tid, "features", "legalhold"]
+        . zUser uid
+
+getLegalHoldEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
+getLegalHoldEnabledInternal tid = do
+    g <- view tsGalley
+    get $ g
+        . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+
+putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
+
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal' reqmod tid enabled = do
+    g <- view tsGalley
+    void . put $ g
+        . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+        . json (LegalHoldTeamConfig enabled)
+        . reqmod
+
+
+testFeatureFlags :: TestM ()
+testFeatureFlags = do
+    owner <- Util.randomUser
+    tid <- Util.createTeam "foo" owner []
+
+    -- sso
+
+    let getSSO :: HasCallStack => SSOStatus -> TestM ()
+        getSSO expected = getSSOEnabled owner tid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (SSOTeamConfig expected))
+
+        getSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        getSSOInternal expected = getSSOEnabledInternal tid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (SSOTeamConfig expected))
+
+        setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        setSSOInternal = putSSOEnabledInternal tid
+
+    featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+    case featureSSO of
+      FeatureSSODisabledByDefault -> do
+        getSSO SSODisabled
+        getSSOInternal SSODisabled
+
+        setSSOInternal SSOEnabled
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
+      FeatureSSOEnabledByDefault -> do
+        -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
+        -- much here.  (disable failure is covered in "enable/disable SSO" above.)
+        getSSO SSOEnabled
+        getSSOInternal SSOEnabled
+
+    -- legalhold
+
+    let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
+        getLegalHold expected = getLegalHoldEnabled owner tid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (LegalHoldTeamConfig expected))
+
+        getLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        getLegalHoldInternal expected = getLegalHoldEnabledInternal tid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (LegalHoldTeamConfig expected))
+
+        setLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        setLegalHoldInternal = putLegalHoldEnabledInternal tid
+
+    getLegalHold LegalHoldDisabled
+    getLegalHoldInternal LegalHoldDisabled
+
+    featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
+        setLegalHoldInternal LegalHoldEnabled
+        getLegalHold LegalHoldEnabled
+        getLegalHoldInternal LegalHoldEnabled
+      FeatureLegalHoldDisabledPermanently -> do
+        putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled

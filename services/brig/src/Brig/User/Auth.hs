@@ -10,14 +10,19 @@ module Brig.User.Auth
       -- * Internal
     , lookupLoginCode
     , ssoLogin
+    , legalHoldLogin
 
       -- * Re-exports
     , listCookies
     ) where
 
 import Imports
+
+import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
+import Brig.API.User (suspendAccount)
+import Brig.Budget
 import Brig.Email
 import Brig.Data.UserKey
 import Brig.Phone
@@ -27,20 +32,30 @@ import Brig.User.Phone
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig (..), LegalHoldStatus (..))
 import Brig.Types.User.Auth hiding (user)
-import Control.Error
+import Control.Error hiding (bool)
 import Data.Id
+import Data.ByteString.Conversion (toByteString)
+import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword (..))
+import Network.Wai.Utilities.Error ((!>>))
+import System.Logger (msg, field, (~~), val)
 
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as Data
+import qualified Brig.Options as Opt
 import qualified Brig.ZAuth as ZAuth
+import qualified Data.ZAuth.Token as ZAuth
+import qualified Brig.IO.Intra as Intra
+import qualified System.Logger.Class as Log
 
-data Access = Access
+
+data Access u = Access
     { accessToken  :: !AccessToken
-    , accessCookie :: !(Maybe (Cookie ZAuth.UserToken))
+    , accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
     }
 
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
@@ -68,33 +83,62 @@ lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
     Nothing -> return Nothing
     Just  u -> Data.lookupLoginCode u
 
-login :: Login -> CookieType -> ExceptT LoginError AppIO Access
+login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
+    checkRetryLimit uid
     Data.authenticate uid pw `catchE` \case
         AuthSuspended          -> throwE LoginSuspended
         AuthEphemeral          -> throwE LoginEphemeral
-        AuthInvalidCredentials -> throwE LoginFailed
-        AuthInvalidUser        -> throwE LoginFailed
-    newAccess uid typ label
+        AuthInvalidCredentials -> loginFailed uid
+        AuthInvalidUser        -> loginFailed uid
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
     uid <- resolveLoginId (LoginByPhone phone)
+    checkRetryLimit uid
     ok <- lift $ Data.verifyLoginCode uid code
     unless ok $
-        throwE LoginFailed
-    newAccess uid typ label
+        loginFailed uid
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
 
-logout :: ZAuth.UserToken -> ZAuth.AccessToken -> ExceptT ZAuth.Failure AppIO ()
+loginFailed :: UserId -> ExceptT LoginError AppIO ()
+loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+
+decrRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
+
+checkRetryLimit :: UserId -> ExceptT LoginError AppIO ()
+checkRetryLimit = withRetryLimit checkBudget
+
+withRetryLimit
+    :: (BudgetKey -> Budget -> ExceptT LoginError AppIO (Budgeted ()))
+    -> UserId
+    -> ExceptT LoginError AppIO ()
+withRetryLimit action uid = do
+    mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+    forM_ mLimitFailedLogins $ \opts -> do
+        let bkey = BudgetKey ("login#" <> idToText uid)
+            budget = Budget
+                (Opt.timeoutDiff $ Opt.timeout opts)
+                (fromIntegral $ Opt.retryLimit opts)
+        bresult <- action bkey budget
+        case bresult of
+            BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
+            BudgetedValue () _ -> pure ()
+
+logout :: ZAuth.TokenPair u a => ZAuth.Token u -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
 logout ut at = do
     (u, ck) <- validateTokens ut (Just at)
     lift $ revokeCookies u [cookieId ck] []
 
 renewAccess
-    :: ZAuth.UserToken
-    -> Maybe ZAuth.AccessToken
-    -> ExceptT ZAuth.Failure AppIO Access
+    :: ZAuth.TokenPair u a
+    => ZAuth.Token u
+    -> Maybe (ZAuth.Token a)
+    -> ExceptT ZAuth.Failure AppIO (Access u)
 renewAccess ut at = do
-    (_, ck) <- validateTokens ut at
+    (uid, ck) <- validateTokens ut at
+    catchSuspendInactiveUser uid ZAuth.Expired
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
     return $ Access at' ck'
@@ -112,13 +156,24 @@ revokeAccess u pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-newAccess :: UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO Access
-newAccess u ct cl = do
-    r <- lift $ newCookieLimited u ct cl
+catchSuspendInactiveUser :: UserId -> e -> ExceptT e AppIO ()
+catchSuspendInactiveUser uid errval = do
+  mustsuspend <- lift $ mustSuspendInactiveUser uid
+  Log.warn $ msg (val "catchSuspendInactiveUser")
+    ~~ field "user" (toByteString uid)
+    ~~ field "mustsuspend" mustsuspend
+  when mustsuspend $ do
+    lift $ suspendAccount (singleton uid)
+    throwE errval
+
+newAccess :: forall u a. ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access u)
+newAccess uid ct cl = do
+    catchSuspendInactiveUser uid LoginSuspended
+    r <- lift $ newCookieLimited uid ct cl
     case r of
         Left delay -> throwE $ LoginThrottled delay
         Right ck   -> do
-            t <- lift $ newAccessToken ck Nothing
+            t <- lift $ newAccessToken @u @a ck Nothing
             return $ Access t (Just ck)
 
 resolveLoginId :: LoginId -> ExceptT LoginError AppIO UserId
@@ -167,22 +222,23 @@ isPendingActivation ident = case ident of
             Nothing                 -> True
 
 validateTokens
-    :: ZAuth.UserToken
-    -> Maybe ZAuth.AccessToken
-    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie ZAuth.UserToken)
+    :: ZAuth.TokenPair u a
+    => ZAuth.Token u
+    -> Maybe (ZAuth.Token a)
+    -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
 validateTokens ut at = do
     unless (maybe True ((ZAuth.userTokenOf ut ==) . ZAuth.accessTokenOf) at) $
         throwE ZAuth.Invalid
     ExceptT (ZAuth.validateToken ut)
-    forM_ at $ \a ->
-        ExceptT (ZAuth.validateToken a)
+    forM_ at $ \token ->
+        ExceptT (ZAuth.validateToken token)
             `catchE` \e ->
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
-ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access
+ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
     Data.reauthenticate uid Nothing `catchE` \case
         ReAuthMissingPassword -> pure ()
@@ -191,4 +247,26 @@ ssoLogin (SsoLogin uid label) typ = do
             AuthSuspended          -> throwE LoginSuspended
             AuthEphemeral          -> throwE LoginEphemeral
             AuthInvalidUser        -> throwE LoginFailed
-    newAccess uid typ label
+    newAccess @ZAuth.User @ZAuth.Access uid typ label
+
+-- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
+legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError AppIO (Access ZAuth.LegalHoldUser)
+legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
+    Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
+    -- legalhold login is only possible if
+    -- * the user is a team user
+    -- * and the team has legalhold enabled
+    mteam <- lift $ Intra.getTeamId uid
+    case mteam of
+         Nothing -> throwE LegalHoldLoginNoBindingTeam
+         Just tid -> assertLegalHoldEnabled tid
+    -- create access token and cookie
+    newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label
+        !>> LegalHoldLoginError
+
+assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError AppIO ()
+assertLegalHoldEnabled tid = do
+    LegalHoldTeamConfig stat <- lift $ Intra.getTeamLegalHoldStatus tid
+    case stat of
+        LegalHoldDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
+        LegalHoldEnabled  -> pure ()

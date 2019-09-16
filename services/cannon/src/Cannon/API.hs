@@ -17,9 +17,10 @@ import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Request (parseBody')
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.WebSockets
-import System.Logger (msg, val)
+import System.Logger.Class (msg, val)
 
 import qualified Cannon.Dict                 as D
 import qualified Data.ByteString.Lazy        as L
@@ -58,8 +59,8 @@ sitemap = do
     post "/i/bulkpush" (continue bulkpush) $
         request
 
-    head "/i/presences/:user/:conn" (continue checkPresence) $
-        param "user" .&. param "conn"
+    head "/i/presences/:uid/:conn" (continue checkPresence) $
+        param "uid" .&. param "conn"
 
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
@@ -77,8 +78,8 @@ monitoring = const $ do
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do
-    let doc = encode $ mkSwaggerApi url [] sitemap
-    return $ responseLBS status200 [jsonContent] doc
+    let doc = mkSwaggerApi url [] sitemap
+    return $ json doc
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) =
@@ -133,11 +134,10 @@ checkPresence (u ::: c) = do
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
-    l <- logger
     e <- wsenv
-    case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
+    case websocketsApp wsoptions (wsapp (mkKey u a) c e) r of
         Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-        Just rs -> return rs
+        Just rs -> return rs -- ensure all middlewares ignore RawResponse - see Note [Raw Response]
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions

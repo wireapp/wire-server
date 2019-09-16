@@ -19,7 +19,7 @@ import Control.Monad.Catch
 import Data.Conduit
 
 -- Things we just import and re-export.
-import Database.CQL.IO as C (MonadClient, Client, ClientState, BatchM, PrepQuery, Page(hasMore, result, nextPage), adjustResponseTimeout, adjustSendTimeout, adjustConsistency, batch, setSerialConsistency, setConsistency, setType, addPrepQuery, addQuery, queryString, prepared, schema, write, query1, query, emptyPage, shutdown, runClient, retry, localState, liftClient, paginate, init)
+import Database.CQL.IO as C (MonadClient, Client, ClientState, BatchM, PrepQuery, Page(hasMore, result, nextPage), Row, adjustResponseTimeout, adjustSendTimeout, adjustConsistency, batch, setSerialConsistency, setConsistency, setType, addPrepQuery, addQuery, queryString, prepared, schema, write, trans, query1, query, emptyPage, shutdown, runClient, retry, localState, liftClient, paginate, init)
 -- We only use these locally.
 import Database.CQL.IO (RetrySettings, RunQ, eagerRetrySettings, defRetrySettings)
 

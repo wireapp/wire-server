@@ -54,7 +54,7 @@ infixr 5 #
 -- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis

@@ -5,8 +5,9 @@ import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Util.Options
 import Util.Options.Common
-import System.Logger (Level)
+import System.Logger.Extended (Level, LogFormat)
 import Data.Misc
+import Galley.Types.Teams (FeatureFlags(..))
 
 data Settings = Settings
     {
@@ -20,6 +21,7 @@ data Settings = Settings
     , _setIntraListing          :: !Bool
     -- | URI prefix for conversations with access mode @code@
     , _setConversationCodeURI   :: !HttpsUrl
+    , _setFeatureFlags          :: !FeatureFlags
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -45,8 +47,9 @@ data Opts = Opts
                                              --   disables journaling)
     -- Logging
     , _optLogLevel      :: !Level            -- ^ Log level (Debug, Info, etc)
-    , _optLogNetStrings :: !Bool             -- ^ Use netstrings encoding:
-                                             --   <http://cr.yp.to/proto/netstrings.txt>
+    , _optLogNetStrings :: !(Maybe (Last Bool))             -- ^ Use netstrings encoding
+                                                            --  <http://cr.yp.to/proto/netstrings.txt>
+    , _optLogFormat     :: !(Maybe (Last LogFormat)) -- ^ What log format to use
     }
 
 deriveFromJSON toOptionFieldName ''Opts

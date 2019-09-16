@@ -26,6 +26,9 @@ settings:
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: disabled-by-default
 
 logLevel: Info
 logNetStrings: false

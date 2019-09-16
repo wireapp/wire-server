@@ -24,6 +24,10 @@ module Stern.Intra
     , canBeDeleted
     , isBlacklisted
     , setBlacklistStatus
+    , getLegalholdStatus
+    , setLegalholdStatus
+    , getSSOStatus
+    , setSSOStatus
     , getTeamBillingInfo
     , setTeamBillingInfo
     , getEmailConsentLog
@@ -41,23 +45,27 @@ import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
+import Brig.Types.Team.LegalHold hiding (teamId)
 import Stern.App
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error)
+import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Text (Text, strip)
+import Data.Text.Lazy (pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Imports
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import Gundeck.Types
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
@@ -65,6 +73,7 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..))
 import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error)
+import UnliftIO.Exception hiding (Handler)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict   as M
@@ -76,7 +85,7 @@ putUser :: UserId -> UserUpdate -> Handler ()
 putUser uid upd = do
     info $ userMsg uid . msg "Changing user state"
     b <- view brig
-    void $ handleE rpcErr $ rpc' "brig" b
+    void $ catchRpcErrors $ rpc' "brig" b
         ( method PUT
         . path "/self"
         . header "Z-User" (toByteString' uid)
@@ -90,7 +99,7 @@ putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do
     info $ userMsg uid . msg "Changing user status"
     b <- view brig
-    void $ handleE rpcErr $ rpc' "brig" b
+    void $ catchRpcErrors $ rpc' "brig" b
         ( method PUT
         . paths ["/i/users", toByteString' uid, "status"]
         . lbytes (encode payload)
@@ -115,7 +124,7 @@ getUserConnections uid = do
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
         b <- view brig
-        r <- handleE rpcErr $ rpc' "brig" b
+        r <- catchRpcErrors $ rpc' "brig" b
              ( method GET
              . header "Z-User" (toByteString' uid)
              . path "/connections"
@@ -131,7 +140,7 @@ getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
     info $ msg "Getting user connections"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . path "/i/users/connections-status"
          . queryItem "users" users
@@ -150,7 +159,7 @@ getUserProfiles uidsOrHandles = do
   where
     doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
     doRequest b qry = do
-        r <- handleE rpcErr $ rpc' "brig" b
+        r <- catchRpcErrors $ rpc' "brig" b
              ( method GET
              . path "/i/users"
              . qry
@@ -170,7 +179,7 @@ getUserProfilesByIdentity :: Either Email Phone -> Handler [UserAccount]
 getUserProfilesByIdentity emailOrPhone = do
     info $ msg "Getting user accounts by identity"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . path "/i/users"
          . userKeyToParam emailOrPhone
@@ -182,7 +191,7 @@ getContacts :: UserId -> Text -> Int32 -> Handler (SearchResult Contact)
 getContacts u q s = do
     info $ msg "Getting user contacts"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . path "/search/contacts"
          . header "Z-User" (toByteString' u)
@@ -196,7 +205,7 @@ revokeIdentity :: Either Email Phone -> Handler ()
 revokeIdentity emailOrPhone = do
     info $ msg "Revoking user identity"
     b <- view brig
-    void . handleE rpcErr $ rpc' "brig" b
+    void . catchRpcErrors $ rpc' "brig" b
          ( method POST
          . path "/i/users/revoke-identity"
          . userKeyToParam emailOrPhone
@@ -207,7 +216,7 @@ deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
     info $ msg "Deleting account"
     b <- view brig
-    void . handleE rpcErr $ rpc' "brig" b
+    void . catchRpcErrors $ rpc' "brig" b
          ( method DELETE
          . paths [ "/i/users", toByteString' uid ]
          . expect2xx
@@ -217,7 +226,7 @@ changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
     info $ msg "Updating email address"
     b <- view brig
-    void . handleE rpcErr $ rpc' "brig" b
+    void . catchRpcErrors $ rpc' "brig" b
          ( method PUT
          . path "/self/email"
          . header "Z-User" (toByteString' u)
@@ -231,7 +240,7 @@ changePhone :: UserId -> PhoneUpdate -> Handler ()
 changePhone u upd = do
     info $ msg "Updating phone number"
     b <- view brig
-    void . handleE rpcErr $ rpc' "brig" b
+    void . catchRpcErrors $ rpc' "brig" b
          ( method PUT
          . path "/self/phone"
          . header "Z-User" (toByteString' u)
@@ -251,7 +260,7 @@ getUserBindingTeam :: UserId -> Handler (Maybe TeamId)
 getUserBindingTeam u = do
     info $ msg "Getting user binding team"
     g <- view galley
-    r <- handleE rpcErr $ rpc' "galley" g
+    r <- catchRpcErrors $ rpc' "galley" g
          ( method GET
          . path "teams"
          . header "Z-User" (toByteString' u)
@@ -268,7 +277,7 @@ getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
     info $ msg "Getting invoice"
     i <- view ibis
-    r <- handleE rpcErr $ rpc' "ibis" i
+    r <- catchRpcErrors $ rpc' "ibis" i
           ( method GET
           . paths ["i", "team", toByteString' tid, "invoice", toByteString' iid]
           . noRedirect
@@ -280,7 +289,7 @@ getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
     info $ msg "Getting team billing info"
     i <- view ibis
-    r <- handleE rpcErr $ rpc' "ibis" i
+    r <- catchRpcErrors $ rpc' "ibis" i
           ( method GET
           . paths ["i", "team", toByteString' tid, "billing"]
           )
@@ -293,7 +302,7 @@ setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
     info $ msg "Setting team billing info"
     i <- view ibis
-    void . handleE rpcErr $ rpc' "ibis" i
+    void . catchRpcErrors $ rpc' "ibis" i
           ( method PUT
           . paths ["i", "team", toByteString' tid, "billing"]
           . lbytes (encode tbu)
@@ -305,7 +314,7 @@ canBeDeleted :: UserId -> TeamId -> Handler Bool
 canBeDeleted uid tid = do
     info $ msg "Checking if a member can be deleted"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . paths ["/i/users", toByteString' uid, "can-be-deleted", toByteString' tid]
          )
@@ -318,7 +327,7 @@ isBlacklisted :: Either Email Phone -> Handler Bool
 isBlacklisted emailOrPhone = do
     info $ msg "Checking blacklist"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method HEAD
          . path "i/users/blacklist"
          . userKeyToParam emailOrPhone
@@ -332,7 +341,7 @@ setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
     info $ msg "Changing blacklist status"
     b <- view brig
-    void . handleE rpcErr $ rpc' "brig" b
+    void . catchRpcErrors $ rpc' "brig" b
          ( method (statusToMethod status)
          . path "i/users/blacklist"
          . userKeyToParam emailOrPhone
@@ -342,15 +351,72 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True  = POST
 
+getLegalholdStatus :: TeamId -> Handler Bool
+getLegalholdStatus tid = do
+    info $ msg "Getting legalhold status"
+    gly <- view galley
+    (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
+         ( method GET
+         . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+         . expect2xx
+         )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody resp = case responseJsonEither resp of
+      Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure False
+      Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure True
+      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+
+setLegalholdStatus :: TeamId -> Bool -> Handler ()
+setLegalholdStatus tid status = do
+    info $ msg "Setting legalhold status"
+    gly <- view galley
+    void . catchRpcErrors $ rpc' "galley" gly
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = LegalHoldTeamConfig LegalHoldDisabled
+    toRequestBody True  = LegalHoldTeamConfig LegalHoldEnabled
+
+getSSOStatus :: TeamId -> Handler Bool
+getSSOStatus tid = do
+    info $ msg "Getting SSO status"
+    gly <- view galley
+    (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
+         ( method GET
+         . paths ["/i/teams", toByteString' tid, "features", "sso"]
+         . expect2xx
+         )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
+    fromResponseBody resp = case responseJsonEither resp of
+      Right (SSOTeamConfig SSODisabled) -> pure False
+      Right (SSOTeamConfig SSOEnabled) -> pure True
+      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+
+setSSOStatus :: TeamId -> Bool -> Handler ()
+setSSOStatus tid status = do
+    info $ msg "Setting SSO status"
+    gly <- view galley
+    void . catchRpcErrors $ rpc' "galley" gly
+         ( method PUT
+         . paths ["/i/teams", toByteString' tid, "features", "sso"]
+         . lbytes (encode $ toRequestBody status)
+         . contentJson
+         . expect2xx
+         )
+  where
+    toRequestBody False = SSOTeamConfig SSODisabled
+    toRequestBody True  = SSOTeamConfig SSOEnabled
+
 --------------------------------------------------------------------------------
 -- Helper functions
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
-
-rpcErr :: RPCException -> ExceptT Error App a
-rpcErr e = do
-    lift . Log.err $ rpcExceptionMsg e
-    throwE $ Error status500 "io-error" "I/O Error"
 
 -- TODO: Move this to Bilge after merging the current PR's
 expect :: [Status] -> Request -> Request
@@ -366,11 +432,22 @@ userKeyToParam :: Either Email Phone -> Request -> Request
 userKeyToParam (Left e)  = queryItem "email" (stripBS $ toByteString' e)
 userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
 
+-- | Run an App and catch any RPCException's which may occur, lifting them to ExceptT
+-- This isn't an ideal set-up; but is required in certain cases because 'ExceptT' isn't
+-- an instance of 'MonadUnliftIO'
+catchRpcErrors :: forall a. App a -> ExceptT Error App a
+catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
+  where
+    catchRPCException :: RPCException -> App (Either Error a)
+    catchRPCException rpcE = do
+      Log.err $ rpcExceptionMsg rpcE
+      pure . Left $ Error status500 "io-error" "I/O Error"
+
 getTeamData :: TeamId -> Handler TeamData
 getTeamData tid = do
     info $ msg "Getting team information"
     g <- view galley
-    r <- handleE rpcErr $ rpc' "galley" g
+    r <- catchRpcErrors $ rpc' "galley" g
          ( method GET
          . paths ["i", "teams", toByteString' tid]
          . expect [status200, status404]
@@ -383,7 +460,7 @@ getTeamMembers :: TeamId -> Handler TeamMemberList
 getTeamMembers tid = do
     info $ msg "Getting team members"
     g <- view galley
-    r <- handleE rpcErr $ rpc' "galley" g
+    r <- catchRpcErrors $ rpc' "galley" g
          ( method GET
          . paths ["i", "teams", toByteString' tid, "members"]
          . expect2xx
@@ -394,7 +471,7 @@ getEmailConsentLog :: Email -> Handler ConsentLog
 getEmailConsentLog email = do
     info $ msg "Getting email consent log"
     g <- view galeb
-    r <- handleE rpcErr $ rpc' "galeb" g
+    r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/consent/logs/emails", toByteString' email]
          . expect2xx
@@ -408,7 +485,7 @@ getUserConsentValue :: UserId -> Handler ConsentValue
 getUserConsentValue uid = do
     info $ msg "Getting user consent value"
     g <- view galeb
-    r <- handleE rpcErr $ rpc' "galeb" g
+    r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . header "Z-User" (toByteString' uid)
          . path "/self/consent"
@@ -420,18 +497,24 @@ getMarketoResult :: Email -> Handler MarketoResult
 getMarketoResult email = do
     info $ msg "Getting marketo results"
     g <- view galeb
-    r <- handleE rpcErr $ rpc' "galeb" g
+    r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/marketo/emails", toByteString' email]
-         . expect2xx
+         . expect [status200, status404]
          )
-    parseResponse (Error status502 "bad-upstream") r
+    -- 404 is acceptable when marketo doesn't know about this user, return an empty result
+    case statusCode r of
+         200 -> parseResponse (Error status502 "bad-upstream") r
+         404 -> return noEmail
+         _   -> throwE (Error status502 "bad-upstream" "")
+  where
+    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
     info $ msg "Getting user consent log"
     g <- view galeb
-    r <- handleE rpcErr $ rpc' "galeb" g
+    r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/consent/logs/users", toByteString' uid]
          . expect2xx
@@ -442,7 +525,7 @@ getUserCookies :: UserId -> Handler CookieList
 getUserCookies uid = do
     info $ msg "Getting user cookies"
     g <- view brig
-    r <- handleE rpcErr $ rpc' "brig" g
+    r <- catchRpcErrors $ rpc' "brig" g
          ( method GET
          . header "Z-User" (toByteString' uid)
          . path "/cookies"
@@ -465,7 +548,7 @@ getUserConversations uid = do
     fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
     fetchBatch start = do
         b <- view galley
-        r <- handleE rpcErr $ rpc' "galley" b
+        r <- catchRpcErrors $ rpc' "galley" b
              ( method GET
              . header "Z-User" (toByteString' uid)
              . path "/conversations"
@@ -481,7 +564,7 @@ getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do
     info $ msg "Getting user clients"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . header "Z-User" (toByteString' uid)
          . path "/clients"
@@ -494,7 +577,7 @@ getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
     info $ msg "Getting user properties"
     b <- view brig
-    r <- handleE rpcErr $ rpc' "brig" b
+    r <- catchRpcErrors $ rpc' "brig" b
          ( method GET
          . header "Z-User" (toByteString' uid)
          . path "/properties"
@@ -506,7 +589,7 @@ getUserProperties uid = do
   where
     fetchProperty _ []     acc = return acc
     fetchProperty b (x:xs) acc = do
-        r <- handleE rpcErr $ rpc' "brig" b
+        r <- catchRpcErrors $ rpc' "brig" b
              ( method GET
              . header "Z-User" (toByteString' uid)
              . paths ["/properties", toByteString' x]
@@ -531,7 +614,7 @@ getUserNotifications uid = do
     fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
     fetchBatch start = do
         b <- view gundeck
-        r <- handleE rpcErr $ rpc' "galley" b
+        r <- catchRpcErrors $ rpc' "galley" b
              ( method GET
              . header "Z-User" (toByteString' uid)
              . path "/notifications"

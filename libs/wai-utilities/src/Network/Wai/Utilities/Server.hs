@@ -15,6 +15,8 @@ module Network.Wai.Utilities.Server
     , catchErrors
     , OnErrorMetrics
     , heavyDebugLogging
+    , rethrow5xx
+    , lazyResponseBody
 
       -- * Utilities
     , onError
@@ -32,6 +34,7 @@ import Control.Monad.Catch hiding (onException, onError)
 import Data.Aeson (encode)
 import Data.ByteString.Builder
 import Data.Metrics.Middleware
+import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
@@ -47,14 +50,15 @@ import Network.Wai.Utilities.Response
 import System.Logger.Class hiding (Settings, Error, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
 
-import qualified Network.Wai.Utilities.Error as Wai
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.Text.Lazy.Encoding     as LT
+import qualified Network.Wai.Internal        as WaiInt
 import qualified Network.Wai.Predicate       as P
 import qualified Network.Wai.Routing.Route   as Route
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified Prometheus                  as Prm
 import qualified System.Logger               as Log
 import qualified System.Posix.Signals        as Sig
@@ -98,12 +102,19 @@ newSettings (Server h p l m t) = do
 -- connections up to the given number of seconds.
 runSettingsWithShutdown :: Settings -> Application -> Word16 -> IO ()
 runSettingsWithShutdown s app secs = do
+    initialization
     latch <- newEmptyMVar
     let s' = setInstallShutdownHandler (catchSignals latch) s
     srv <- async $ runSettings s' app `finally` void (tryPutMVar latch ())
     takeMVar latch
     await srv secs
   where
+    -- | Code which should be run on server boot-up.
+    -- This is run synchronously so ensure that you fork inside the tasks themselves if necessary.
+    initialization :: IO ()
+    initialization = do
+        spawnGCMetricsCollector
+
     catchSignals latch closeSocket = do
         let shutdown = closeSocket >> putMVar latch ()
         void $ installHandler sigINT  (Sig.CatchOnce shutdown) Nothing
@@ -176,7 +187,7 @@ measureRequests m rtree = withPathTemplate rtree $ \p ->
 -- See 'catchErrors'.
 catchErrors :: Logger -> OnErrorMetrics -> Middleware
 catchErrors l m app req k =
-    app req k `catch` errorResponse
+    rethrow5xx l app req k `catch` errorResponse
   where
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
@@ -222,7 +233,7 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
         else pure ("body omitted because log level was less sensitive than Debug", req)
     app req' $ \resp -> do
         forM_ (sanitizeReq (req', bdy)) $ \(req'', bdy') ->
-            when (statusCode (responseStatus resp) >= 400) $ logBody req'' bdy'
+            when (statusCode (responseStatus resp) >= 400) $ logMostlyEverything req'' bdy' resp
         cont resp
   where
     cloneBody :: Request -> IO (LByteString, Request)
@@ -231,12 +242,14 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
         requestBody' <- emitLByteString bdy
         pure (bdy, req { requestBody = requestBody' })
 
-    logBody :: Request -> LByteString -> IO ()
-    logBody req bdy = Log.debug lgr logMsg
+    logMostlyEverything :: Request -> LByteString -> Response -> IO ()
+    logMostlyEverything req bdy resp = Log.debug lgr logMsg
       where
         logMsg = field "request" (fromMaybe "N/A" $ lookupRequestId req)
                . field "request_details" (show req)
                . field "request_body" bdy
+               . field "response_status" (show $ responseStatus resp)
+               . field "response_headers" (show $ responseHeaders resp)
                . msg (val "full request details")
 
 -- | Compute a stream from a lazy bytestring suitable for putting into the 'Response'.  This
@@ -260,6 +273,38 @@ emitLByteString lbs = do
     tvar <- newTVarIO (cs lbs)
     -- | Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
+
+-- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
+-- label @"server-error"@ and the body as the error message.
+rethrow5xx :: Logger -> Middleware
+rethrow5xx logger app req k = app req k'
+  where
+    k' resp@(WaiInt.ResponseRaw {}) = do  -- See Note [Raw Response]
+        let logMsg = field "canoncalpath" (show $ pathInfo req)
+                   . field "rawpath" (rawPathInfo req)
+                   . field "request" (fromMaybe "N/A" $ lookupRequestId req)
+                   . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
+        Log.log logger Log.Debug logMsg
+        k resp
+    k' resp = do
+        let st = responseStatus resp
+        if statusCode st < 500
+            then k resp
+            else do
+                rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
+                throwM $ Wai.Error st "server-error" rsbody
+
+-- | This flushes the response!  If you want to keep using the response, you need to construct
+-- a new one with a fresh body stream.
+lazyResponseBody :: Response -> IO LByteString
+lazyResponseBody rs = case responseToStream rs of
+    (_, _, cont :: (StreamingBody -> IO ()) -> IO ()) -> do
+        tvar <- atomically $ newTVar mempty
+        let pushstream builder = atomically $ modifyTVar tvar (<> builder)
+        cont $ \streamingBody ->
+            streamingBody pushstream (pure ())
+        atomically $ toLazyByteString <$> readTVar tvar
+
 
 --------------------------------------------------------------------------------
 -- Utilities

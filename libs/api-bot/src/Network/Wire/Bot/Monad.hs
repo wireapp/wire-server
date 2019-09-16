@@ -71,7 +71,7 @@ module Network.Wire.Bot.Monad
     ) where
 
 import Imports hiding (log, rem)
-import Bilge (MonadHttp (..), Manager)
+import Bilge (MonadHttp (..), Manager, withResponse)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (retry)
@@ -204,7 +204,9 @@ instance MonadBaseControl IO BotNet where
     restoreM       = BotNet . restoreM
 
 instance MonadHttp BotNet where
-    getManager = serverManager <$> getServer
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotNet where
     getServer = BotNet $ asks botNetServer
@@ -232,7 +234,7 @@ runBotNet s (BotNet b) = liftIO $ runReaderT b s
 
 newtype BotSession a = BotSession { unBotSession :: ReaderT Bot BotNet a }
     deriving (Functor, Applicative, Monad, MonadIO,
-              MonadThrow, MonadCatch, MonadMask, MonadBase IO)
+              MonadThrow, MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO)
 
 instance MonadBotNet BotSession where
     liftBotNet = BotSession . lift
@@ -243,7 +245,9 @@ instance MonadBaseControl IO BotSession where
     restoreM       = BotSession . restoreM
 
 instance MonadHttp BotSession where
-    getManager = serverManager <$> getServer
+    handleRequestWithCont req handler = do
+        manager <- serverManager <$> getServer
+        liftIO $ withResponse req manager handler
 
 instance MonadClient BotSession where
     getServer = liftBotNet getServer
@@ -351,7 +355,7 @@ removeBotClient self bc = do
     liftIO $ deleteBox (botId self) (botClientLabel bc)
     liftIO $ atomically $ modifyTVar' (botClients self) (filter (/= bc))
 
--- | Remove all bot clients, even the 'PermanentClient' ones on the server.
+-- | Remove all bot clients, even the 'PermanentClientType' ones on the server.
 resetBotClients :: MonadBotNet m => Bot -> m ()
 resetBotClients self = do
     let rm = RmClient (Just (botPassphrase self))
