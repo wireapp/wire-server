@@ -358,6 +358,7 @@ getLegalholdStatus tid = do
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
          ( method GET
          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+         . expect2xx
          )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler SetLegalHoldStatus
@@ -375,6 +376,7 @@ setLegalholdStatus tid status = do
          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
          . lbytes (encode $ toRequestBody status)
          . contentJson
+         . expect2xx
          )
   where
     toRequestBody SetLegalHoldDisabled = LegalHoldTeamConfig LegalHoldDisabled
@@ -387,6 +389,7 @@ getSSOStatus tid = do
     (>>= fromResponseBody) . catchRpcErrors $ rpc' "galley" gly
          ( method GET
          . paths ["/i/teams", toByteString' tid, "features", "sso"]
+         . expect2xx
          )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler SetSSOStatus
@@ -404,6 +407,7 @@ setSSOStatus tid status = do
          . paths ["/i/teams", toByteString' tid, "features", "sso"]
          . lbytes (encode $ toRequestBody status)
          . contentJson
+         . expect2xx
          )
   where
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
