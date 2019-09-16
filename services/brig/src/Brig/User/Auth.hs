@@ -159,10 +159,10 @@ revokeAccess u pw cc ll = do
 catchSuspendInactiveUser :: UserId -> e -> ExceptT e AppIO ()
 catchSuspendInactiveUser uid errval = do
   mustsuspend <- lift $ mustSuspendInactiveUser uid
-  Log.warn $ msg (val "catchSuspendInactiveUser")
-    ~~ field "user" (toByteString uid)
-    ~~ field "mustsuspend" mustsuspend
   when mustsuspend $ do
+    Log.warn $ msg (val "Suspending user due to inactivity")
+      ~~ field "user" (toByteString uid)
+      ~~ field "action" ("user.suspend" :: String)
     lift $ suspendAccount (singleton uid)
     throwE errval
 
