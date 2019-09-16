@@ -30,15 +30,8 @@ zUser = header "Z-User" . toByteString'
 remote :: ByteString -> Msg -> Msg
 remote = field "remote"
 
-decodeBody :: (FromJSON a, MonadThrow m) => Text -> Response (Maybe BL.ByteString) -> m a
-decodeBody rm rs = case responseBody rs of
-    Nothing -> throwM $ ParseException rm "Missing response body."
-    Just bs -> decodeBytes rm bs
-
-decodeBytes :: (FromJSON a, MonadThrow m) => Text -> BL.ByteString -> m a
-decodeBytes ctx bs = case eitherDecode' bs of
-    Left  e -> throwM $ ParseException ctx e
-    Right a -> return a
+decodeBody :: (Typeable a, FromJSON a, MonadThrow m) => Text -> Response (Maybe BL.ByteString) -> m a
+decodeBody ctx = responseJsonThrow (ParseException ctx)
 
 expect :: [Status] -> Request -> Request
 expect ss rq = rq { checkResponse = check }

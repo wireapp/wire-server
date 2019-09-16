@@ -42,6 +42,7 @@ data Config = Config
   , cannon    :: Endpoint
   , cargohold :: Endpoint
   , galley    :: Endpoint
+  , nginz     :: Endpoint
   -- external provider
   , provider  :: Provider.Config
   } deriving (Show, Generic)
@@ -59,6 +60,7 @@ runTests iConf bConf otherArgs = do
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
     ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
     g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+    n  <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
     turnFile   <- optOrEnv (Opts.servers   . Opts.turn) bConf id "TURN_SERVERS"
     turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
     casHost <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
@@ -72,7 +74,7 @@ runTests iConf bConf otherArgs = do
     emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
-    userApi     <- User.tests bConf mg b c ch g awsEnv
+    userApi     <- User.tests bConf mg b c ch g n awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv

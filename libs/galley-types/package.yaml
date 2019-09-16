@@ -27,6 +27,7 @@ library:
   - exceptions >=0.10.0
   - lens >=4.12
   - protobuf >=0.2
+  - string-conversions
   - swagger >=0.1
   - text >=0.11
   - time >=1.4

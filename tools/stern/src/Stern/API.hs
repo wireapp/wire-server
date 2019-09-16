@@ -526,7 +526,7 @@ getSSOStatus = liftM json . Intra.getSSOStatus
 setSSOStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
 setSSOStatus (_ ::: tid ::: req) = do
   status <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setLegalholdStatus tid status
+  liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do

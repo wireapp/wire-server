@@ -67,7 +67,7 @@ testSimpleRoundtrip c = do
             const 201 === statusCode
 
         let      loc = decodeHeader "Location" r1 :: ByteString
-        let Just ast = decodeBody r1 :: Maybe V3.Asset
+        let Just ast = responseJsonMaybe @V3.Asset r1
         let Just tok = view V3.assetToken ast
 
         -- Check mandatory Date header
@@ -111,7 +111,7 @@ testSimpleTokens c = do
         const 201 === statusCode
 
     let      loc = decodeHeader "Location" r1 :: ByteString
-    let Just ast = decodeBody r1 :: Maybe V3.Asset
+    let Just ast = responseJsonMaybe @V3.Asset r1
     let      key = view V3.assetKey ast
     let Just tok = view V3.assetToken ast
 
@@ -126,12 +126,12 @@ testSimpleTokens c = do
     -- Token renewal fails if not done by owner
     post (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do
         const 403 === statusCode
-        const (Just "unauthorised") === fmap label . decodeBody
+        const (Just "unauthorised") === fmap label . responseJsonMaybe
 
     -- Token renewal succeeds if done by owner
     r2 <- post (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid) <!!
         const 200 === statusCode
-    let Just tok' = V3.newAssetToken <$> decodeBody r2
+    let Just tok' = V3.newAssetToken <$> responseJsonMaybe r2
     liftIO $ assertBool "token unchanged" (tok /= tok')
 
     -- Download by owner with new token.
@@ -157,7 +157,7 @@ testSimpleTokens c = do
     -- Delete Token fails if not done by owner
     delete (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid2) !!! do
         const 403 === statusCode
-        const (Just "unauthorised") === fmap label . decodeBody
+        const (Just "unauthorised") === fmap label . responseJsonMaybe
 
     -- Delete Token succeeds by owner
     delete (c . paths ["assets", "v3", toByteString' key, "token"] . zUser uid) !!! do
@@ -277,7 +277,7 @@ createResumable c u sets size = do
                 . header "Upload-Length" (toByteString' size)
                 . lbytes (encode sets)
                 ) <!! const 201 === statusCode
-    let Just ast = decodeBody rsp :: Maybe V3.ResumableAsset
+    let Just ast = responseJsonMaybe @V3.ResumableAsset rsp
     let Just loc = getHeader "Location" rsp
     let loc' = "/assets/v3/resumable/" <> toByteString' (ast^.V3.resumableAsset.V3.assetKey)
     liftIO $ assertEqual "Location" loc' loc
@@ -362,6 +362,3 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
-decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
-decodeBody = responseBody >=> decode

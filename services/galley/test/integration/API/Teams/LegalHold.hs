@@ -31,7 +31,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Galley.API.Swagger (GalleyRoutes)
 import Galley.External.LegalHoldService (validateServiceKey)
 import Galley.Types.Teams
-import Galley.Options (optSettings, featureEnabled)
+import Galley.Options (optSettings, setFeatureFlags)
 import GHC.Generics hiding (to)
 import GHC.TypeLits
 import Gundeck.Types.Notification (ntfPayload)
@@ -69,10 +69,12 @@ import qualified Test.Tasty.Cannon                 as WS
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
-    featureLegalHold <- view (tsGConf . optSettings . featureEnabled FeatureLegalHold)
-    if featureLegalHold
-        then action
-        else liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
+    featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+        FeatureLegalHoldDisabledPermanently
+            -> liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running integration tests"
+        FeatureLegalHoldDisabledByDefault
+            -> action
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams LegalHold API"
@@ -100,11 +102,6 @@ tests s = testGroup "Teams LegalHold API"
     -- tested
 
 {- TODO:
-    zauth/libzauth level: Allow access to legal hold service tokens
-        conversations/{cnv}/otr/messages
-        /notifications
-        /access
-        (maybe others?)
     conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
     GET /team/{tid}/members - show legal hold status of all members
 
@@ -420,7 +417,7 @@ testGetLegalHoldTeamSettings = do
         do  let respOk :: ResponseLBS -> TestM ()
                 respOk resp = liftIO $ do
                   assertEqual "bad status code" 200 (statusCode resp)
-                  assertEqual "bad body" ViewLegalHoldServiceDisabled (jsonBody resp)
+                  assertEqual "bad body" ViewLegalHoldServiceDisabled (responseJsonUnsafe resp)
             getSettings owner  tid >>= respOk
             getSettings member tid >>= respOk
 
@@ -430,7 +427,7 @@ testGetLegalHoldTeamSettings = do
         do  let respOk :: ResponseLBS -> TestM ()
                 respOk resp = liftIO $ do
                   assertEqual "bad status code" 200 (statusCode resp)
-                  assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
+                  assertEqual "bad body" ViewLegalHoldServiceNotConfigured (responseJsonUnsafe resp)
             getSettings owner  tid >>= respOk
             getSettings member tid >>= respOk
 
@@ -487,7 +484,7 @@ testRemoveLegalHoldFromTeam = do
                 assertEqual "path" ["legalhold", "remove"] (pathInfo req)
                 assertEqual "method" "POST"  (requestMethod req)
               resp <- getSettings owner tid
-              liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (jsonBody resp)
+              liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (responseJsonUnsafe resp)
 
         -- returns 204 if legal hold is successfully removed from team
         -- is idempotent (deleting twice in a row works) from BE's PoV
@@ -509,11 +506,11 @@ testEnablePerTeam = do
     addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
     ensureQueueEmpty
 
-    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+    do LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
        liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
 
     putEnabled tid LegalHoldEnabled -- enable it for this team
-    do LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+    do LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
        liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status LegalHoldEnabled
 
     withDummyTestServiceForTeam owner tid $ \_chan -> do
@@ -524,7 +521,7 @@ testEnablePerTeam = do
 
         do
           putEnabled tid LegalHoldDisabled -- disable again
-          LegalHoldTeamConfig status <- jsonBody <$> (getEnabled tid <!! testResponse 200 Nothing)
+          LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
           liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status LegalHoldDisabled
 
         do
@@ -646,7 +643,7 @@ postSettings uid tid new =
     only412 _ resp = pure $ statusCode resp == 412
 
 getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
-getSettingsTyped uid tid = jsonBody <$> (getSettings uid tid <!! testResponse 200 Nothing)
+getSettingsTyped uid tid = responseJsonUnsafe <$> (getSettings uid tid <!! testResponse 200 Nothing)
 
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings uid tid = do
@@ -668,7 +665,7 @@ deleteSettings mPassword uid tid = do
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
     resp <- getUserStatus uid tid <!! testResponse 200 Nothing
-    return $ jsonBody resp
+    return $ responseJsonUnsafe resp
 
 getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getUserStatus uid tid = do
@@ -705,15 +702,15 @@ disableLegalHoldForUser mPassword tid zusr uid = do
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
     clients :: [Client]
-        <- getClients uid >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
+        <- getClients uid >>= responseJsonError
     liftIO $ do
         let numdevs = length $ clientType <$> clients
         assertEqual ("expected exactly one legal hold device for user: " <> show uid) numdevs  1
 
 assertZeroLegalHoldDevices :: HasCallStack  => UserId -> TestM ()
 assertZeroLegalHoldDevices uid = do
-    clients :: [Client] <- getClients uid
-        >>= maybe (error $ "decodeBody: [Client]") pure . decodeBody
+    clients :: [Client]
+        <- getClients uid >>= responseJsonError
     liftIO $ do
         let numdevs = length $ clientType <$> clients
         assertBool ("a legal hold device was found when none was expected for user"

@@ -75,7 +75,7 @@ testCreateUser = do
     let userid = scimUserId scimStoredUser
     -- Check that this user is present in Brig and that Brig's view of the user
     -- matches SCIM's view of the user
-    brigUser :: User <- fmap decodeBody' . call . get $
+    brigUser :: User <- fmap responseJsonUnsafe . call . get $
         ( (env ^. teBrig)
         . header "Z-User" (toByteString' userid)
         . path "/self"
@@ -182,7 +182,7 @@ testLocation = do
     req <- parseRequest (show (Scim.unURI location))
                <&> scimAuth (Just tok) . acceptScim
     r <- call (get (const req)) <!! const 200 === statusCode
-    liftIO $ decodeBody' r `shouldBe` scimStoredUser
+    liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
 testRichInfo :: TestSpar ()
 testRichInfo = do
@@ -219,7 +219,7 @@ testRichInfo = do
                                )
             liftIO $ do
                 statusCode resp `shouldBe` 200
-                decodeBody resp `shouldBe` Right rinf
+                responseJsonEither resp `shouldBe` Right rinf
 
     -- post response contains correct rich info.
     scimStoredUser <- createUser tok user
@@ -262,7 +262,7 @@ testScimCreateVsUserRef = do
         <- do
           resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
               <!! const 201 === statusCode
-          pure $ decodeBody' resp
+          pure $ responseJsonUnsafe resp
     samlUserShouldSatisfy uref (== Just (scimUserId storedusr))
 
     -- now with a scim token in the team, we can't auto-provision via saml any more.
@@ -424,7 +424,7 @@ testUserGetFailsWithNotFoundIfOutsideTeam = do
     env <- ask
     -- Check that the (non-SCIM-provisioned) team owner can be fetched and that the
     -- data from Brig matches
-    brigUser <- fmap decodeBody' . call . get $
+    brigUser <- fmap responseJsonUnsafe . call . get $
         ( (env ^. teBrig)
         . header "Z-User" (toByteString' (env^.teUserId))
         . path "/self"

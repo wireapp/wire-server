@@ -85,8 +85,6 @@ instance Arbitrary SSOTeamConfig where
   arbitrary = SSOTeamConfig <$> arbitrary
 
 instance Arbitrary FeatureFlags where
-  arbitrary = FeatureFlags <$> arbitrary
-  shrink (FeatureFlags ls) = FeatureFlags <$> shrink ls
-
-instance Arbitrary FeatureFlag where
-  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+  arbitrary = FeatureFlags
+      <$> Test.Tasty.QuickCheck.elements [minBound..]
+      <*> Test.Tasty.QuickCheck.elements [minBound..]

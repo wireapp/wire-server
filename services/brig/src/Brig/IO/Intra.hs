@@ -35,6 +35,7 @@ module Brig.IO.Intra
     , getTeamContacts
     , getTeamOwners
     , getTeamOwnersWithEmail
+    , getTeamLegalHoldStatus
     , changeTeamStatus
     ) where
 
@@ -49,6 +50,7 @@ import Brig.API.Types
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.Team.LegalHold (LegalHoldTeamConfig)
 import Brig.User.Event
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
@@ -662,6 +664,14 @@ getTeamName tid = do
     galleyRequest GET req >>= decodeBody "galley"
   where
     req = paths ["i", "teams", toByteString' tid, "name"]
+        . expect2xx
+
+getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
+getTeamLegalHoldStatus tid = do
+    debug $ remote "galley" . msg (val "Get legalhold settings")
+    galleyRequest GET req >>= decodeBody "galley"
+  where
+    req = paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . expect2xx
 
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()

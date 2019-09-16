@@ -149,7 +149,7 @@ createUser tok user = do
              user
              (env ^. teSpar)
          <!! const 201 === statusCode
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 -- | Update a user.
 updateUser
@@ -166,7 +166,7 @@ updateUser tok userid user = do
              user
              (env ^. teSpar)
          <!! const 200 === statusCode
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 -- | Update a user.
 deleteUser
@@ -181,7 +181,7 @@ deleteUser tok userid = do
              (Just userid)
              (env ^. teSpar)
          <!! const 200 === statusCode  -- status code maybe some other 2xx?
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 -- | List all users.
 listUsers
@@ -196,7 +196,7 @@ listUsers tok mbFilter = do
              mbFilter
              (env ^. teSpar)
          <!! const 200 === statusCode
-    let r' = decodeBody' r
+    let r' = responseJsonUnsafe r
     when (Scim.totalResults r' /= length (Scim.resources r')) $
         error "listUsers: got a paginated result, but pagination \
               \is not supported yet"
@@ -215,7 +215,7 @@ getUser tok userid = do
              userid
              (env ^. teSpar)
          <!! const 200 === statusCode
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 -- | Create a SCIM token.
 createToken
@@ -230,7 +230,7 @@ createToken zusr payload = do
              payload
              (env ^. teSpar)
          <!! const 200 === statusCode
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 -- | Delete a SCIM token.
 deleteToken
@@ -257,7 +257,7 @@ listTokens zusr = do
              zusr
              (env ^. teSpar)
          <!! const 200 === statusCode
-    pure (decodeBody' r)
+    pure (responseJsonUnsafe r)
 
 ----------------------------------------------------------------------------
 -- "Raw" API requests

@@ -18,6 +18,7 @@ import Control.Monad.Catch (MonadMask)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty
+import Data.Text (pack)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
@@ -95,7 +96,7 @@ getConnection :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> m (
 getConnection u = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of
-        200 -> fromBody rs
+        200 -> responseJsonThrow (ParseError . pack) rs
         404 -> return Nothing
         _   -> unexpected rs "getConnection: status code"
   where

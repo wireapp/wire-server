@@ -34,6 +34,7 @@ import qualified Brig.Whitelist               as Whitelist
 import qualified Control.Monad.Catch          as Catch
 import qualified Network.Wai.Utilities.Error  as WaiError
 import qualified Network.Wai.Utilities.Server as Server
+import qualified Data.ZAuth.Validation        as ZV
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -49,6 +50,8 @@ runHandler e r h k = do
     errors =
         [ Catch.Handler $ \(ex :: PhoneException) ->
             pure (Left (phoneError ex))
+        , Catch.Handler $ \(ex :: ZV.Failure) ->
+            pure (Left (zauthError ex))
         , Catch.Handler $ \(ex :: AWS.Error) ->
             case ex of
                 AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))

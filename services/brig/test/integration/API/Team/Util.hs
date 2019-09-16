@@ -5,6 +5,7 @@ import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types.User
 import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Control.Lens (view, (^?))
@@ -48,7 +49,7 @@ createUserWithTeam brig galley = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    user <- decodeBody =<< post (brig . path "/i/users" . contentJson . body p)
+    user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
     let Just tid = userTeam user
     (team:_) <- view Team.teamListTeams <$> getTeams (userId user) galley
     liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
@@ -73,13 +74,13 @@ inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    inv <- decodeBody =<< postInvitation brig tid u invite
+    inv <- responseJsonError =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"
                              . contentJson
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
-    let Just invitee = decodeBody rspInvitee
+    let Just invitee = responseJsonMaybe rspInvitee
     liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
     selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
     liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
@@ -146,7 +147,7 @@ deleteTeam g tid u = do
 
 getTeams :: UserId -> Galley -> Http Team.TeamList
 getTeams u galley =
-    decodeBody =<<
+    responseJsonError =<<
          get ( galley
              . paths ["teams"]
              . zAuthAccess u "conn"
@@ -155,6 +156,14 @@ getTeams u galley =
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+
+putLegalHoldEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> Galley -> Http ()
+putLegalHoldEnabled tid enabled g = do
+    void . put $ g
+         . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+         . contentJson
+         . lbytes (encode (LegalHoldTeamConfig enabled))
+         . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = RequestBodyLBS . encode $ object
@@ -187,7 +196,7 @@ register' e t c brig = post (brig . path "/register" . contentJson . body (
 
 listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
 listConnections u brig = do
-    decodeBody =<<
+    responseJsonError =<<
          get ( brig
              . path "connections"
              . zUser u
@@ -219,7 +228,7 @@ unsuspendTeam brig t = post $ brig
 
 getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t =
-    decodeBody =<< get (galley . paths ["i", "teams", toByteString' t])
+    responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 
 getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
@@ -239,14 +248,11 @@ assertNoInvitationCode brig t i =
         . queryItem "invitation_id" (toByteString' i)
         ) !!! do
           const 400 === statusCode
-          const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
-
-decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe LByteString) -> Http a
-decodeBody' x = maybe (error $ "Failed to decodeBody: " ++ show x) return $ decodeBody x
+          const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 isActivatedUser :: UserId -> Brig -> Http Bool
 isActivatedUser uid brig = do
     resp <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid) . expect2xx)
-    pure $ case decodeBody @[User] resp of
+    pure $ case responseJsonMaybe @[User] resp of
         Just (_:_) -> True
         _ -> False

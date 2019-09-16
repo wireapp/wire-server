@@ -127,3 +127,17 @@ Example rkt command:
     --user=restund \
     --group=restund
 ```
+
+In case You have set up restund without docker, you just need to make some of these changes:
+
+Put your private IP of the server in place of: `{{ ansible_default_ipv4.address }}`. And replace restund listen ports with `3478`, for both UDP and TCP.
+
+You may comment these out in case you don't want to use:
+```
+module                  zrest.so
+module                  auth.so
+zrest_secret            {{ restund_zrest_secret }}
+```
+It'll help in running the TURN server without interuption or further configuration for testing purpose. List out TURN IP and port in `deploy/services-demo/resources/turn/servers.txt`, and `deploy/services-demo/resources/turn/servers-v2.txt`, as given below:
+`turn:<private-ip>:3478`
+Then run the command restund command and You'll get the live stun log in your terminal.

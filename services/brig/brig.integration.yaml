@@ -113,6 +113,8 @@ zauth:
     sessionTokenTimeout: 20
     accessTokenTimeout: 30
     providerTokenTimeout: 60
+    legalHoldUserTokenTimeout: 120
+    legalHoldAccessTokenTimeout: 30
 
 turn:
   servers: test/resources/turn/servers.txt

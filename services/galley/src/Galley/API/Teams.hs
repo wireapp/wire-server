@@ -193,7 +193,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
-        (ue, be) <- foldrM (pushEvents now membs) ([],[]) convs
+        (ue, be) <- foldrM (pushConvDeleteEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
@@ -206,12 +206,17 @@ uncheckedDeleteTeam zusr zcon tid = do
             Journal.teamDelete tid
         Data.deleteTeam tid
   where
-    pushEvents :: UTCTime -> [TeamMember] -> TeamConversation -> ([Push],[(BotMember, Conv.Event)]) -> Galley ([Push],[(BotMember, Conv.Event)])
-    pushEvents now membs c (pp, ee) = do
-        (bots, users) <- botsAndUsers <$> Data.members (c^.conversationId)
-        let mm = nonTeamMembers users membs
-        let e = Conv.Event Conv.ConvDelete (c^.conversationId) zusr now Nothing
-        let p = newPush zusr (ConvEvent e) (map recipient mm)
+    pushConvDeleteEvents
+        :: UTCTime
+        -> [TeamMember]
+        -> TeamConversation
+        -> ([Push],[(BotMember, Conv.Event)])
+        -> Galley ([Push],[(BotMember, Conv.Event)])
+    pushConvDeleteEvents now teamMembs c (pp, ee) = do
+        (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+        let mm = convMembsAndTeamMembs convMembs teamMembs
+        let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
+        let p = newPush zusr (ConvEvent e) mm
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
@@ -392,10 +397,11 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
     let tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
-    let p  = newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon
-    case map recipient (nonTeamMembers cmems tmems) of
-        []     -> push1 p
-        (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    let teamPush = [newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon]
+        convPush = case convMembsAndTeamMembs cmems tmems of
+            []     -> []
+            (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    pushSome $ teamPush <> convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
@@ -527,10 +533,10 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
     defConfig <- do
-        featureSSO <- view (options . optSettings . featureEnabled FeatureSSO)
-        pure $ if featureSSO
-            then SSOTeamConfig SSOEnabled
-            else SSOTeamConfig SSODisabled
+        featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
+        pure . SSOTeamConfig $ case featureSSO of
+            FeatureSSOEnabledByDefault  -> SSOEnabled
+            FeatureSSODisabledByDefault -> SSODisabled
     ssoTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
 
@@ -547,16 +553,25 @@ setSSOStatusInternal (tid ::: req ::: _) = do
 -- | Get legal hold status for a team.
 getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
 getLegalholdStatusInternal (tid ::: _) = do
-    legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-    pure . json . fromMaybe defConfig $ legalHoldTeamConfig
+    featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
+        legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+        pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
+      FeatureLegalHoldDisabledPermanently -> do
+        pure . json $ disabledConfig
   where
-    defConfig = LegalHoldTeamConfig LegalHoldDisabled
+    disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setLegalholdStatusInternal (tid ::: req ::: _) = do
-    do  featureLegalHold <- view (options . optSettings . featureEnabled FeatureLegalHold)
-        unless featureLegalHold $ throwM legalHoldFeatureFlagNotEnabled
+    do  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+        case featureLegalHold of
+          FeatureLegalHoldDisabledByDefault -> do
+            pure ()
+          FeatureLegalHoldDisabledPermanently -> do
+            throwM legalHoldFeatureFlagNotEnabled
 
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of

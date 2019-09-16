@@ -31,6 +31,10 @@ spar:
   host: 127.0.0.1
   port: 8088
 
+nginz:
+  host: 127.0.0.1
+  port: 8080
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem

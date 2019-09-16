@@ -104,7 +104,7 @@ testUsersEmailVisibleIffExpected opts brig galley visibilitySetting = do
             const 200 === statusCode
             const (Just expected) === result
   where
-    result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> decodeBody r
+    result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
 testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> Opt.EmailVisibility -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
@@ -131,4 +131,4 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
                 const expectedEmail === emailResult
   where
     emailResult :: Response (Maybe LByteString) -> Maybe Email
-    emailResult r = decodeBody r >>= jsonField "email"
+    emailResult r = responseJsonMaybe r >>= jsonField "email"

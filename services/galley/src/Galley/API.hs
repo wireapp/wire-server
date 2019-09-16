@@ -67,7 +67,7 @@ sitemap = do
 
     document "PUT" "updateTeam" $ do
         summary "Update team properties"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         body (ref TeamsModel.update) $
             description "JSON body"
@@ -96,7 +96,7 @@ sitemap = do
 
     document "GET" "getTeam" $ do
         summary "Get a team by ID"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         returns (ref TeamsModel.team)
         response 200 "Team data" end
@@ -114,7 +114,7 @@ sitemap = do
 
     document "DELETE" "deleteTeam" $ do
         summary "Delete a team"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         body (ref TeamsModel.teamDelete) $ do
             optional
@@ -135,7 +135,7 @@ sitemap = do
 
     document "GET" "getTeamMembers" $ do
         summary "Get team members"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         returns (ref TeamsModel.teamMemberList)
         response 200 "Team members" end
@@ -171,7 +171,7 @@ sitemap = do
 
     document "POST" "addTeamMember" $ do
         summary "Add a new team member"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         body (ref TeamsModel.newTeamMember) $
             description "JSON body"
@@ -216,7 +216,7 @@ sitemap = do
 
     document "PUT" "updateTeamMember" $ do
         summary "Update an existing team member"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         body (ref TeamsModel.newTeamMember) $
             description "JSON body"
@@ -233,7 +233,7 @@ sitemap = do
 
     document "GET" "getTeamConversations" $ do
         summary "Get team conversations"
-        parameter Path "id" bytes' $
+        parameter Path "tid" bytes' $
             description "Team ID"
         returns (ref TeamsModel.teamConversationList)
         response 200 "Team conversations" end

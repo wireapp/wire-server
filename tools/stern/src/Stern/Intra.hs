@@ -362,7 +362,7 @@ getLegalholdStatus tid = do
          )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
-    fromResponseBody resp = case responseJson resp of
+    fromResponseBody resp = case responseJsonEither resp of
       Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure False
       Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure True
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
@@ -393,7 +393,7 @@ getSSOStatus tid = do
          )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler Bool
-    fromResponseBody resp = case responseJson resp of
+    fromResponseBody resp = case responseJsonEither resp of
       Right (SSOTeamConfig SSODisabled) -> pure False
       Right (SSOTeamConfig SSOEnabled) -> pure True
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))

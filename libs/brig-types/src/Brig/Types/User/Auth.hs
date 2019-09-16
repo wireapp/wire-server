@@ -51,6 +51,12 @@ data Login
 data SsoLogin
     = SsoLogin !UserId !(Maybe CookieLabel)
 
+-- | A special kind of login that is only used for an internal endpoint.
+-- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
+-- tokens.
+data LegalHoldLogin
+    = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
 loginLabel (SmsLogin      _ _ l) = l
@@ -106,6 +112,18 @@ instance FromJSON SsoLogin where
 instance ToJSON SsoLogin where
     toJSON (SsoLogin uid label) =
         object [ "user" .= uid, "label" .= label ]
+
+instance FromJSON LegalHoldLogin where
+    parseJSON = withObject "LegalHoldLogin" $ \o ->
+        LegalHoldLogin  <$> o .: "user"
+                        <*> o .:? "password"
+                        <*> o .:? "label"
+
+instance ToJSON LegalHoldLogin where
+    toJSON (LegalHoldLogin uid password label) =
+        object [ "user"     .= uid
+               , "password" .= password
+               , "label"    .= label ]
 
 instance FromJSON PendingLoginCode where
     parseJSON = withObject "PendingLoginCode" $ \o ->

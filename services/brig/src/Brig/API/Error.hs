@@ -102,6 +102,12 @@ changeHandleError ChangeHandleNoIdentity  = StdError noIdentity
 changeHandleError ChangeHandleExists      = StdError handleExists
 changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 
+legalHoldLoginError :: LegalHoldLoginError -> Error
+legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
+legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
+legalHoldLoginError (LegalHoldLoginError e)           = loginError e
+legalHoldLoginError (LegalHoldReAuthError e)          = reauthError e
+
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
 loginError LoginSuspended         = StdError accountSuspended
@@ -123,9 +129,10 @@ reauthError ReAuthMissingPassword = StdError missingAuthError
 reauthError (ReAuthError e)       = authError e
 
 zauthError :: ZAuth.Failure -> Error
-zauthError ZAuth.Expired   = StdError authTokenExpired
-zauthError ZAuth.Falsified = StdError authTokenInvalid
-zauthError ZAuth.Invalid   = StdError authTokenInvalid
+zauthError ZAuth.Expired     = StdError authTokenExpired
+zauthError ZAuth.Falsified   = StdError authTokenInvalid
+zauthError ZAuth.Invalid     = StdError authTokenInvalid
+zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
 clientError ClientNotFound         = StdError clientNotFound
@@ -349,6 +356,9 @@ authTokenExpired = Wai.Error status403 "invalid-credentials" "Token expired"
 authTokenInvalid :: Wai.Error
 authTokenInvalid = Wai.Error status403 "invalid-credentials" "Invalid token"
 
+authTokenUnsupported :: Wai.Error
+authTokenUnsupported = Wai.Error status403 "invalid-credentials" "Unsupported token operation for this token type"
+
 incorrectPermissions :: Wai.Error
 incorrectPermissions = Wai.Error status403 "invalid-permissions" "Copy permissions must be a subset of self permissions"
 
@@ -407,3 +417,7 @@ can'tAddLegalHoldClient =
     Wai.Error status400
               "client-error"
               "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
+
+legalHoldNotEnabled :: Wai.Error
+legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
+

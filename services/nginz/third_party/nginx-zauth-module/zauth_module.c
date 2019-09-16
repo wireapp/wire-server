@@ -429,6 +429,14 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
                         Range range = { (u_char*) "user", 4 };
                         return zauth_set_var(r->pool, v, range);
                 }
+                case ZAUTH_TOKEN_TYPE_LEGAL_HOLD_ACCESS: {
+                        Range range = {(u_char*)  "legal_hold_access", 9 };
+                        return zauth_set_var(r->pool, v, range);
+                }
+                case ZAUTH_TOKEN_TYPE_LEGAL_HOLD_USER: {
+                        Range range = { (u_char*) "legal_hold_user", 10 };
+                        return zauth_set_var(r->pool, v, range);
+                }
                 case ZAUTH_TOKEN_TYPE_PROVIDER: {
                         Range range = { (u_char*) "provider", 8 };
                         return zauth_set_var(r->pool, v, range);
@@ -453,7 +461,7 @@ static ngx_int_t zauth_token_var_conn (ngx_http_request_t * r, ngx_http_variable
         if (t == NULL) {
                 return NGX_ERROR;
         }
-        if (zauth_token_type(t) == ZAUTH_TOKEN_TYPE_ACCESS) {
+        if (zauth_token_type(t) == ZAUTH_TOKEN_TYPE_ACCESS || zauth_token_type(t) == ZAUTH_TOKEN_TYPE_LEGAL_HOLD_ACCESS) {
                 return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'c'));
         } else {
                 zauth_empty_val(v);
