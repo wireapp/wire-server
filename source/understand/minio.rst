@@ -1,5 +1,11 @@
+Minio
+======
+
+Official minio documentation available: `<https://docs.min.io/>`_
+
 Minio philosophy
-================
+-----------------
+
 Minio clusters are configured with a fixed size once, and cannot be resized
 afterwards. It is thus important to make a good estimate about the amount of
 data you are going to store.  The original philosophy was a set-up-and-forget
@@ -16,11 +22,8 @@ cluster is starting to get full, you will need to set up a parallel bigger
 cluster, mirror everything to the new cluster, and then swap the DNS entries to
 the new one and then decomission the old one.
 
-
-
-
 Hurdles from the trenches
-=========================
+---------------------------
 
 I have done some more go code reading and have solved more minio mysteries
 minio will   detect if a directory is a mount point and if it is call statfs(2)
@@ -38,7 +41,6 @@ metric which are derived from statfs. Those are already exposed by node-exporter
 
 Moral of the story: we're probably getting weird numbers because we're not
 using disks but we're using folders instead. We should use disks.
-
 
 When doing a healing procedure , minio will give you feedback per bucket item.
 If a bucket item hapens to be say 500 Megabytes, it might look like the progress
