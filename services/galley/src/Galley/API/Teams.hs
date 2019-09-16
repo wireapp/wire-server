@@ -533,10 +533,10 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
     defConfig :: SSOTeamConfig <- do
-        featureSSO <- view (options . optSettings . featureEnabled FeatureSSO)
-        pure $ if featureSSO
-            then SSOTeamConfig SSOEnabled
-            else SSOTeamConfig SSODisabled
+        featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
+        pure . SSOTeamConfig $ case featureSSO of
+            FeatureSSOEnabledByDefault  -> SSOEnabled
+            FeatureSSODisabledByDefault -> SSODisabled
     ssoTeamConfig :: Maybe SSOTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
 
@@ -553,12 +553,12 @@ setSSOStatusInternal (tid ::: req ::: _) = do
 -- | Get legal hold status for a team.
 getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
 getLegalholdStatusInternal (tid ::: _) = do
-    legalholdEnabled <- view (options . optSettings . featureEnabled FeatureLegalHold)
-    if legalholdEnabled
-      then do
+    featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
         legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
         pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
-      else do
+      FeatureLegalHoldDisabledPermanently -> do
         pure . json $ disabledConfig
   where
     disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
@@ -566,8 +566,12 @@ getLegalholdStatusInternal (tid ::: _) = do
 -- | Enable or disable legal hold for a team.
 setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
 setLegalholdStatusInternal (tid ::: req ::: _) = do
-    do  featureLegalHold <- view (options . optSettings . featureEnabled FeatureLegalHold)
-        unless featureLegalHold $ throwM legalHoldFeatureFlagNotEnabled
+    do  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+        case featureLegalHold of
+          FeatureLegalHoldDisabledByDefault -> do
+            pure ()
+          FeatureLegalHoldDisabledPermanently -> do
+            throwM legalHoldFeatureFlagNotEnabled
 
     legalHoldTeamConfig <- fromJsonBody req
     case legalHoldTeamConfigStatus legalHoldTeamConfig of

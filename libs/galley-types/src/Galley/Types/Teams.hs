@@ -21,8 +21,9 @@ module Galley.Types.Teams
     , TeamCreationTime (..)
     , tcTime
 
-    , FeatureFlags(..)
-    , FeatureFlag(..)
+    , FeatureFlags(..), flagSSO, flagLegalHold
+    , FeatureSSO(..)
+    , FeatureLegalHold(..)
 
     , TeamList
     , newTeamList
@@ -128,6 +129,7 @@ import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
 import Data.LegalHold (UserLegalHoldStatus(..))
 import Galley.Types.Teams.Internal
@@ -316,24 +318,50 @@ newtype TeamCreationTime = TeamCreationTime
     { _tcTime :: Int64
     }
 
-newtype FeatureFlags = FeatureFlags (Set FeatureFlag)
+data FeatureFlags = FeatureFlags
+    { _flagSSO       :: !FeatureSSO
+    , _flagLegalHold :: !FeatureLegalHold
+    }
     deriving (Eq, Show, Generic)
 
-data FeatureFlag = FeatureSSO | FeatureLegalHold
+data FeatureSSO
+    = FeatureSSOEnabledByDefault
+    | FeatureSSODisabledByDefault
+    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+data FeatureLegalHold
+    = FeatureLegalHoldDisabledPermanently
+    | FeatureLegalHoldDisabledByDefault
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 instance FromJSON FeatureFlags where
-    parseJSON = withObject "FeatureFlags" $ \obj -> do
-        sso       <- fromMaybe False <$> obj .:? "sso"
-        legalhold <- fromMaybe False <$> obj .:? "legalhold"
-        pure . FeatureFlags . Set.fromList $
-            [ FeatureSSO       | sso ] <>
-            [ FeatureLegalHold | legalhold ]
+    parseJSON = withObject "FeatureFlags" $ \obj -> FeatureFlags
+        <$> (obj .: "sso")
+        <*> (obj .: "legalhold")
 
 instance ToJSON FeatureFlags where
-    toJSON (FeatureFlags flags) = object $
-        [ "sso"       .= (FeatureSSO       `elem` flags) ] <>
-        [ "legalhold" .= (FeatureLegalHold `elem` flags) ]
+    toJSON (FeatureFlags sso legalhold) = object $
+        [ "sso"       .= sso
+        , "legalhold" .= legalhold
+        ]
+
+instance FromJSON FeatureSSO where
+    parseJSON (String "enabled-by-default")  = pure FeatureSSOEnabledByDefault
+    parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
+    parseJSON bad = fail $ "FeatureSSO: " <> cs (encode bad)
+
+instance ToJSON FeatureSSO where
+    toJSON FeatureSSOEnabledByDefault = String "enabled-by-default"
+    toJSON FeatureSSODisabledByDefault = String "disabled-by-default"
+
+instance FromJSON FeatureLegalHold where
+    parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
+    parseJSON (String "disabled-by-default")  = pure $ FeatureLegalHoldDisabledByDefault
+    parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
+
+instance ToJSON FeatureLegalHold where
+    toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
+    toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
@@ -404,6 +432,7 @@ makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
+makeLenses ''FeatureFlags
 
 
 -- Note [hidden team roles]

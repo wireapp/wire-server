@@ -1,0 +1,7 @@
+[
+    { "host": "imap.bar.com"
+    , "user": "foo@bar.com"
+    , "pass": "secret"
+    , "conn": 1
+    }
+]

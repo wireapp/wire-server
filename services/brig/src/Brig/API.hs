@@ -214,7 +214,7 @@ sitemap o = do
 
     document "HEAD" "userExists" $ do
         Doc.summary "Check if a user ID exists"
-        Doc.parameter Doc.Path "id" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.response 200 "User exists" Doc.end
         Doc.errorResponse userNotFound
@@ -228,7 +228,7 @@ sitemap o = do
 
     document "GET" "user" $ do
         Doc.summary "Get a user by ID"
-        Doc.parameter Doc.Path "id" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.user)
         Doc.response 200 "User" Doc.end
@@ -317,7 +317,7 @@ sitemap o = do
 
     document "GET" "getPrekeyBundle" $ do
         Doc.summary "Get a prekey for each client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.prekeyBundle)
         Doc.response 200 "Prekey Bundle" Doc.end
@@ -331,7 +331,7 @@ sitemap o = do
 
     document "GET" "getPrekey" $ do
         Doc.summary "Get a prekey for a specific client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.parameter Doc.Path "client" Doc.bytes' $
             Doc.description "Client ID"
@@ -346,7 +346,7 @@ sitemap o = do
 
     document "GET" "getUserClients" $ do
         Doc.summary "Get all of a user's clients."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.array (Doc.ref Doc.pubClient))
         Doc.response 200 "List of clients" Doc.end
@@ -360,7 +360,7 @@ sitemap o = do
 
     document "GET" "getUserClient" $ do
         Doc.summary "Get a specific client of a user."
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.parameter Doc.Path "client" Doc.bytes' $
             Doc.description "Client ID"
@@ -376,7 +376,7 @@ sitemap o = do
 
     document "GET" "getRichInfo" $ do
         Doc.summary "Get user's rich info"
-        Doc.parameter Doc.Path "user" Doc.bytes' $
+        Doc.parameter Doc.Path "uid" Doc.bytes' $
             Doc.description "User ID"
         Doc.returns (Doc.ref Doc.richInfo)
         Doc.response 200 "RichInfo" Doc.end

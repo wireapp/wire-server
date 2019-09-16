@@ -13,4 +13,5 @@ p (whitelist (path "/provider")
 # LegalHold Access Tokens
 la (whitelist (path "/notifications")
               (path "/assets/v3/**")
+              (path "/users")
               (path "/users/**"))
