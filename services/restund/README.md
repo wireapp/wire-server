@@ -70,7 +70,7 @@ You need
 
 * the aci image built in the section above, or, alternatively, a natively compiled `restund` binary with all the shared libraries available.
 * an adapted restund config (see below)
-* (optionally) a TLS certificate chain in PEM format
+* (optionally) a TLS certificate chain in PEM format, including the private key
 
 Example config file:
 
