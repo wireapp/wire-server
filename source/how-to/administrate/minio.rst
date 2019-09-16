@@ -115,25 +115,28 @@ will give you more verbose and precise information why the heal only happened pa
 
 .. code:: json
 
-    "after": {
-      "color": "yellow",
-      "offline": 1,
-      "online": 5,
-      "missing": 0,
-      "corrupted": 0,
-      "drives": [
-       {
-        "uuid": "",
-        "endpoint": "http://10.0.0.42:9091/var/lib/minio-server1",
-        "state": "offline"
-       },
-       {
-        "uuid": "",
-        "endpoint": "/var/lib/minio-server1",
-        "state": "ok"
+    {
+       "after" : {
+          "online" : 5,
+          "offline" : 1,
+          "missing" : 0,
+          "corrupted" : 0,
+          "drives" : [
+             {
+                "endpoint" : "http://10.0.0.42:9091/var/lib/minio-server1",
+                "state" : "offline",
+                "uuid" : ""
+             },
+             {
+                "uuid" : "",
+                "endpoint" : "/var/lib/minio-server1",
+                "state" : "ok"
+             }
+          ],
+          "color" : "yellow"
        }
-      ]
     }
+
 
 In our case, we see that the reason for the partial recovery was that
 one the server was still considered offline. Rerunning the command yielded

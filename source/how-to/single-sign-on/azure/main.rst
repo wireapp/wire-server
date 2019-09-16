@@ -14,8 +14,6 @@ Steps
 Azure setup
 ^^^^^^^^^^^
 
-----
-
 Go to https://portal.azure.com/, and click on 'Azure Active Directory'
 in the menu to your left, then on 'Enterprise Applications':
 
