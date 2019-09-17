@@ -2,10 +2,11 @@ networks:
   docker-ephemeral_bo_demo_wire:
     external: false
 
-version: '2'
+version: '3'
+
 services:
   stern:
-    image: quay.io/wire/stern
+    image: quay.io/wire/stern:latest
     ports:
       - 127.0.0.1:8091:8091
     volumes:
@@ -19,7 +20,7 @@ services:
       - docker-ephemeral_bo_demo_wire
 
   nginx:
-    image: quay.io/wire/backoffice-frontend:1.0.0
+    image: quay.io/wire/backoffice-frontend:latest
     depends_on:
       - stern
     ports:
