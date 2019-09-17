@@ -532,18 +532,18 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- | Get SSO status for a team.
 getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
 getSSOStatusInternal (tid ::: _) = do
-    defConfig <- do
+    defConfig :: SSOTeamConfig <- do
         featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
         pure . SSOTeamConfig $ case featureSSO of
             FeatureSSOEnabledByDefault  -> SSOEnabled
             FeatureSSODisabledByDefault -> SSODisabled
-    ssoTeamConfig <- SSOData.getSSOTeamConfig tid
+    ssoTeamConfig :: Maybe SSOTeamConfig <- SSOData.getSSOTeamConfig tid
     pure . json . fromMaybe defConfig $ ssoTeamConfig
 
 -- | Enable or disable SSO for a team.
 setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
 setSSOStatusInternal (tid ::: req ::: _) = do
-    ssoTeamConfig <- fromJsonBody req
+    ssoTeamConfig :: SSOTeamConfig <- fromJsonBody req
     case ssoTeamConfigStatus ssoTeamConfig of
         SSODisabled -> throwM disableSsoNotImplemented
         SSOEnabled  -> pure () -- this one is easy to implement :)

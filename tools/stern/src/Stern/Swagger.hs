@@ -3,6 +3,7 @@
 module Stern.Swagger where
 
 import Data.Swagger.Build.Api
+import Stern.Types
 import Imports
 
 sternModels :: [Model]
@@ -71,3 +72,15 @@ teamBillingInfoUpdate = defineModel "teamBillingInfoUpdate" $ do
     property "state" string' $ do
         description "State of the company address (1 - 256 characters)"
         optional
+
+docSetSSOStatus :: DataType
+docSetSSOStatus = docBoundedEnum @SetSSOStatus
+
+docSetLegalHoldStatus :: DataType
+docSetLegalHoldStatus = docBoundedEnum @SetLegalHoldStatus
+
+-- (the double-call to show is to add extra double-quotes to the string.  this is important
+-- because the json instances also render this into a json string, and json string are wrapped
+-- in double-quotes.)
+docBoundedEnum :: forall a. (Bounded a, Enum a, Show a) => DataType
+docBoundedEnum = string . enum $ show . show <$> [(minBound :: a)..]
