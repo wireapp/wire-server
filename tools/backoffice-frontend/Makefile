@@ -4,7 +4,6 @@ NAME         := backoffice-frontend
 EXECUTABLE   := backoffice-frontend
 DOCKER_USER  ?= quay.io/wire
 DOCKER_TAG   ?= local
-FE_VERSION   ?= backoffice-0.1.8%2B0
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
