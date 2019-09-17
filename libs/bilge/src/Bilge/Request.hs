@@ -28,7 +28,7 @@ module Bilge.Request
     , showRequest
     , noRedirect
     , timeout
-    , expect2xx, expect3xx, expect4xx
+    , expect2xx, expect3xx, expect4xx, expectStatus
     , checkStatus
     , cookie
     , cookieRaw

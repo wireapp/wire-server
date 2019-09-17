@@ -50,7 +50,6 @@ import Stern.App
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
-import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
@@ -67,7 +66,6 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..))
@@ -281,7 +279,7 @@ getInvoiceUrl tid iid = do
           ( method GET
           . paths ["i", "team", toByteString' tid, "invoice", toByteString' iid]
           . noRedirect
-          . expect [status307]
+          . expectStatus (== 307)
           )
     return $ getHeader' "Location" r
 
@@ -422,16 +420,6 @@ setSSOStatus tid status = do
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
--- TODO: Move this to Bilge after merging the current PR's
-expect :: [Status] -> Request -> Request
-expect ss rq = rq { checkResponse = check }
-  where
-    check rq' rs = do
-        let s   = responseStatus rs
-            rs' = rs { responseBody = () }
-        when (statusIsServerError s || s `notElem` ss) $
-            throwM $ HttpExceptionRequest rq' (StatusCodeException rs' mempty)
-
 userKeyToParam :: Either Email Phone -> Request -> Request
 userKeyToParam (Left e)  = queryItem "email" (stripBS $ toByteString' e)
 userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
@@ -454,7 +442,7 @@ getTeamData tid = do
     r <- catchRpcErrors $ rpc' "galley" g
          ( method GET
          . paths ["i", "teams", toByteString' tid]
-         . expect [status200, status404]
+         . expectStatus (`elem` [200, 404])
          )
     case Bilge.statusCode r of
         200 -> parseResponse (Error status502 "bad-upstream") r
@@ -504,7 +492,7 @@ getMarketoResult email = do
     r <- catchRpcErrors $ rpc' "galeb" g
          ( method GET
          . paths ["/i/marketo/emails", toByteString' email]
-         . expect [status200, status404]
+         . expectStatus (`elem` [200, 404])
          )
     -- 404 is acceptable when marketo doesn't know about this user, return an empty result
     case statusCode r of
@@ -624,7 +612,7 @@ getUserNotifications uid = do
              . path "/notifications"
              . queryItem "size" (toByteString' batchSize)
              . maybe id (queryItem "since" . toByteString') start
-             . expect [status200, status404]
+             . expectStatus (`elem` [200, 404])
              )
         -- 404 is an acceptable response, in case, for some reason,
         -- "start" is not found we still return a QueuedNotificationList
