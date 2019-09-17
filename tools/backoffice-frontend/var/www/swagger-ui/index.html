@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Swagger UI</title>
+  <link type="text/css" href="https://fonts.googleapis.com/css?family=Droid+Sans:400,700" rel="stylesheet"/>
+  <link type="text/css" href="css/reset.css" media="screen" rel="stylesheet"/>
+  <link type="text/css" href="css/screen.css" media="screen" rel="stylesheet"/>
+  <link type="text/css" href="css/reset.css" media="print" rel="stylesheet"/>
+  <link type="text/css" href="css/screen.css" media="print" rel="stylesheet"/>
+  <script type="text/javascript" src="lib/shred.bundle.js"></script>
+  <script type="text/javascript" src="lib/jquery-1.8.0.min.js"></script>
+  <script type="text/javascript" src="lib/jquery.slideto.min.js"></script>
+  <script type="text/javascript" src="lib/jquery.wiggle.min.js"></script>
+  <script type="text/javascript" src="lib/jquery.ba-bbq.min.js"></script>
+  <script type="text/javascript" src="lib/handlebars-1.0.0.js"></script>
+  <script type="text/javascript" src="lib/underscore-min.js"></script>
+  <script type="text/javascript" src="lib/backbone-min.js"></script>
+  <script type="text/javascript" src="lib/swagger.js"></script>
+  <script type="text/javascript" src="lib/swagger-ui-min.js"></script>
+  <script type="text/javascript" src="lib/highlight.7.3.pack.js"></script>
+  <!-- enabling this will enable oauth2 implicit scope support -->
+  <script type="text/javascript" src="lib/swagger-oauth.js"></script>
+
+  <script type="text/javascript">
+    loadSwagger = function () {
+        window.swaggerUi = new SwaggerUi({
+          // The base is taken from the domain that is fetched from
+          url: '/api-docs/',
+          dom_id: "swagger-ui-container",
+          supportedSubmitMethods: ['get', 'post', 'put', 'delete'],
+          onComplete: function(swaggerApi, swaggerUi) {
+            log("Loaded SwaggerUI");
+            $('pre code').each(function(i, e) {
+              hljs.highlightBlock(e)
+            });
+          },
+          onFailure: function(data) {
+            log("Unable to Load SwaggerUI");
+          },
+          docExpansion: "list"
+        });
+        window.swaggerUi.load();
+      };
+
+    $(function () {
+      // -- Init
+      loadSwagger();
+  });
+  </script>
+</head>
+
+<body class="swagger-section">
+<br/>
+<div align="center">
+  <img src="https://brand.wire.com/public/og.png" width="10%" height="10%" alt="Wire" />
+  <br/><br/>
+</div>
+
+<div id="swagger-ui-container" class="swagger-ui-wrap">
+</div>
+
+</body>
+</html>

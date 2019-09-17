@@ -14,15 +14,10 @@ guard-%:
 
 default: bo docker
 
-# pull files from s3 and move them around a little to where
-# docker-build will find them.
+# move config file(s) to where docker-build will find them.
 .PHONY: bo
 bo:
-	curl -L https://s3-eu-west-1.amazonaws.com/public.wire.com/artifacts/$(FE_VERSION).tar.gz -o backoffice.tar.gz
-	mkdir -p var/www/swagger-ui/api-docs
-	tar zxvf backoffice.tar.gz -C var/www/swagger-ui --strip-components=1
 	cp conf/resources.json var/www/swagger-ui/api-docs
-	rm backoffice.tar.gz
 
 # docker build, tag, push (if applicable).
 .PHONY: docker
