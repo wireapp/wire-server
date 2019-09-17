@@ -1,6 +1,7 @@
 module Galley.API.Internal
     ( rmUser
     , deleteLoop
+    , refreshMetrics
     ) where
 
 import Imports
@@ -10,6 +11,7 @@ import Control.Lens hiding ((.=))
 import Data.Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
+import Data.Metrics.Middleware as Metrics
 import Data.Range
 import Galley.API.Util (isMember)
 import Galley.API.Teams (uncheckedRemoveTeamMember)
@@ -72,3 +74,12 @@ deleteLoop = do
         unless ok $
             err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
         liftIO $ threadDelay 1000000
+
+refreshMetrics :: Galley ()
+refreshMetrics = do
+    m <- view monitor
+    q <- view deleteQueue
+    forever $ do
+        n <- Q.len q
+        gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
+        threadDelay 100000

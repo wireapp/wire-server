@@ -38,7 +38,6 @@ import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.API.LegalHold          as LegalHold
 import qualified Galley.API.Teams              as Teams
-import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
 import qualified Network.Wai.Predicate         as P
@@ -1004,14 +1003,7 @@ docs (_ ::: url) = do
 
 monitoring :: JSON -> Galley Response
 monitoring _ = do
-    refreshMetrics
     json <$> (render =<< view monitor)
-
-refreshMetrics :: Galley ()
-refreshMetrics = do
-    m <- view monitor
-    n <- Q.len =<< view deleteQueue
-    gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
 
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
