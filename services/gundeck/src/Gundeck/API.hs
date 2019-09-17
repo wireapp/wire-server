@@ -1,7 +1,7 @@
 module Gundeck.API (sitemap) where
 
 import Imports hiding (head)
-import Control.Lens hiding (enum)
+import Control.Lens (view)
 import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
@@ -179,8 +179,5 @@ docs (url ::: _) =
     let doc = mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
     return $ json doc
 
--- REFACTOR: what does this function still do, after the fallback queue is gone?
 monitoring :: JSON -> Gundeck Response
-monitoring = const $ do
-    m  <- view monitor
-    json <$> render m
+monitoring _ = json <$> (render =<< view monitor)

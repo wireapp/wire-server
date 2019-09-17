@@ -1004,10 +1004,14 @@ docs (_ ::: url) = do
 
 monitoring :: JSON -> Galley Response
 monitoring _ = do
+    refreshMetrics
+    json <$> (render =<< view monitor)
+
+refreshMetrics :: Galley ()
+refreshMetrics = do
     m <- view monitor
     n <- Q.len =<< view deleteQueue
     gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
-    json <$> render m
 
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")

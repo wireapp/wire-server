@@ -70,11 +70,15 @@ sitemap = do
     head "/i/status" (continue (const $ return empty)) true
 
 monitoring :: Media "application" "json" -> Cannon Response
-monitoring = const $ do
+monitoring _ = do
+    refreshMetrics
+    json <$> (Metrics.render =<< monitor)
+
+refreshMetrics :: Cannon ()
+refreshMetrics = do
     m <- monitor
     s <- D.size =<< clients
     gaugeSet (fromIntegral s) (path "net.websocket.clients") m
-    json <$> Metrics.render m
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do
