@@ -29,7 +29,9 @@ docker:
 # run docker image in develop mode.
 .PHONY: run-develop
 run-develop:
-	@echo '*** please open http://localhost:8080/'
+	@echo '*** make sure stern is running on http://stern:8091/.'
+	@echo '*** if it is running on localhost, consider adding stern as an alias to /etc/hosts.'
+	@echo '*** then please open http://localhost:8080/'
 	docker run -it --net=host --rm $(DOCKER_USER)/$(EXECUTABLE):$(DOCKER_TAG)
 
 # run docker image in demo-mode, as a composite with stern from
