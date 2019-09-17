@@ -371,13 +371,15 @@ setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> Handler ()
 setLegalholdStatus tid status = do
     info $ msg "Setting legalhold status"
     gly <- view galley
-    void . catchRpcErrors $ rpc' "galley" gly
+    resp <- catchRpcErrors $ rpc' "galley" gly
          ( method PUT
          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
          . lbytes (encode $ toRequestBody status)
          . contentJson
-         . expect2xx
          )
+    case statusCode resp of
+      204 -> pure ()
+      _   -> throwE $ responseJsonUnsafe resp
   where
     toRequestBody SetLegalHoldDisabled = LegalHoldTeamConfig LegalHoldDisabled
     toRequestBody SetLegalHoldEnabled  = LegalHoldTeamConfig LegalHoldEnabled
@@ -402,13 +404,15 @@ setSSOStatus :: TeamId -> SetSSOStatus -> Handler ()
 setSSOStatus tid status = do
     info $ msg "Setting SSO status"
     gly <- view galley
-    void . catchRpcErrors $ rpc' "galley" gly
+    resp <- catchRpcErrors $ rpc' "galley" gly
          ( method PUT
          . paths ["/i/teams", toByteString' tid, "features", "sso"]
          . lbytes (encode $ toRequestBody status)
          . contentJson
-         . expect2xx
          )
+    case statusCode resp of
+      204 -> pure ()
+      _   -> throwE $ responseJsonUnsafe resp
   where
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
     toRequestBody SetSSOEnabled  = SSOTeamConfig SSOEnabled
