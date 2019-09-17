@@ -8,11 +8,13 @@ import Imports
 import Cassandra
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
+import Control.Monad.Catch (MonadCatch)
 import Data.Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Metrics.Middleware as Metrics
 import Data.Range
+import Data.String.Conversions (cs)
 import Galley.API.Util (isMember)
 import Galley.API.Teams (uncheckedRemoveTeamMember)
 import Galley.App
@@ -64,7 +66,7 @@ rmUser (user ::: conn) = do
 deleteLoop :: Galley ()
 deleteLoop = do
     q <- view deleteQueue
-    forever $ do
+    safeForever "deleteLoop" $ do
         i@(TeamItem tid usr con) <- Q.pop q
         Teams.uncheckedDeleteTeam usr con tid `catchAny` someError q i
   where
@@ -79,7 +81,12 @@ refreshMetrics :: Galley ()
 refreshMetrics = do
     m <- view monitor
     q <- view deleteQueue
-    forever $ do
+    safeForever "refreshMetrics" $ do
         n <- Q.len q
         gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
         threadDelay 100000
+
+safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
+safeForever funName action = forever $ action `catchAny` \exc -> do
+    err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+    threadDelay 60000000  -- pause to keep worst-case noise in logs manageable

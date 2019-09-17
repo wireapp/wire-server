@@ -7,6 +7,8 @@ import Cannon.API (sitemap)
 import Cannon.Types (Cannon, mkEnv, applog, runCannon, runCannon', monitor, clients)
 import Cannon.Options
 import Cannon.WS hiding (env)
+import Control.Exception.Safe (catchAny)
+import Control.Monad.Catch (MonadCatch)
 import Control.Lens ((^.))
 import Control.Monad.Catch (finally)
 import Data.Metrics.Middleware (gaugeSet, path)
@@ -24,6 +26,7 @@ import qualified Data.Metrics.Middleware     as Middleware
 import qualified Network.Wai                 as Wai
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified System.IO.Strict            as Strict
+import qualified System.Logger.Class         as LC
 import qualified System.Logger.Extended      as L
 
 run :: Opts -> IO ()
@@ -71,6 +74,11 @@ refreshMetrics :: Cannon ()
 refreshMetrics = do
     m <- monitor
     c <- clients
-    forever $ do
+    safeForever $ do
         s <- D.size c
         gaugeSet (fromIntegral s) (path "net.websocket.clients") m
+  where
+    safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
+    safeForever action = forever $ action `catchAny` \exc -> do
+        LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
+        threadDelay 60000000  -- pause to keep worst-case noise in logs manageable
