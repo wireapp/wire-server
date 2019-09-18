@@ -2,6 +2,7 @@ module Stern.Servant.Handler (rootPrefix, middleware, app, swaggerDoc) where
 
 import Imports hiding (head)
 
+import Data.Aeson (Value)
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
@@ -16,6 +17,7 @@ import Servant.Swagger.UI
 import Stern.Servant.Orphans ()
 import Stern.Servant.Types
 
+import qualified Data.Metrics.Middleware as Metrics
 import qualified Data.Text as Text
 
 
@@ -37,14 +39,27 @@ app = genericServe server
 
 server :: API AsServer
 server = API
-  { _apiSwaggerDoc    = swaggerSchemaUIServer swaggerDoc
-  , _apiSuspendUser   = apiSuspendUser
-  , _apiUnsuspendUser = apiUnsuspendUser
+  { _apiSwaggerDoc         = swaggerSchemaUIServer swaggerDoc
+  , _apiInternalGetStatus  = apiInternalGetStatus
+  , _apiInternalHeadStatus = apiInternalHeadStatus
+  , _apiInternalMonitoring = apiInternalMonitoring
+  , _apiSuspendUser        = apiSuspendUser
+  , _apiUnsuspendUser      = apiUnsuspendUser
   }
 
 
 swaggerDoc :: Swagger
 swaggerDoc = toSwagger (genericApi (Proxy :: Proxy API))
+
+
+apiInternalGetStatus :: Handler NoContent
+apiInternalGetStatus = pure NoContent
+
+apiInternalHeadStatus :: Handler NoContent
+apiInternalHeadStatus = pure NoContent
+
+apiInternalMonitoring :: Handler Value
+apiInternalMonitoring = undefined{- TODO: @view metrics@ -} >>= Metrics.render
 
 
 apiSuspendUser :: UserId -> Handler NoContent

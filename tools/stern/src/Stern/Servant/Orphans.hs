@@ -4,6 +4,7 @@ module Stern.Servant.Orphans where
 
 import Imports
 
+import Data.Aeson (Value)
 import Data.Id
 import Data.Proxy
 import "swagger2" Data.Swagger
@@ -29,4 +30,7 @@ instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
 instance ToSchema NoContent where
+  declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO: is there a more accurate way to do this?
+
+instance ToSchema Value where
   declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO: is there a more accurate way to do this?
