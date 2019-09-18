@@ -57,6 +57,14 @@ library:
   - wai-utilities             >= 0.9
   - warp                      >= 3.0
   - yaml
+  - servant
+  - servant-server
+  - servant-swagger
+  - servant-swagger-ui
+  - servant-swagger-ui-core
+  - swagger2
+  - string-conversions
+  # TODO: once this is running on servant, remove unused deps.
 executables:
   stern:
     main: src/Main.hs

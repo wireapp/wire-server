@@ -49,6 +49,7 @@ import qualified Network.Wai.Middleware.Gzip  as GZip
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Stern.Intra                  as Intra
 import qualified Stern.Swagger                as Doc
+import qualified Stern.Servant.Handler        as SternServant
 
 default (ByteString)
 
@@ -59,7 +60,9 @@ start o = do
     runSettings s (pipeline e)
   where
     server   e     = Server.defaultServer (unpack $ (stern o)^.epHost) ((stern o)^.epPort) (e^.applog) (e^.metrics)
-    pipeline e     = GZip.gzip GZip.def $ serve e
+    pipeline e     = GZip.gzip GZip.def
+                   . SternServant.middleware SternServant.rootPrefix
+                   $ serve e
     serve    e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
