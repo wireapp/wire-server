@@ -7,7 +7,7 @@ import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async       (Async, async, wait, concurrently_, forConcurrently_)
 import Control.Lens                   ((.~), (^.), (^?), view, (<&>), _2, (%~))
-import Control.Retry                  (retrying, constantDelay, limitRetries)
+import Control.Retry                  (retrying, recoverAll, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
