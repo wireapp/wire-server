@@ -22,6 +22,8 @@ instance FromHttpApiData (Id U) where
 
 instance ToParamSchema (Id U) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
+    -- FUTUREWORK: @& description .~ Just ("User ID" :: Text)@ would be nice here, but will
+    -- require a patch to swagger2, I think.
 
 instance ToSchema (SwaggerSchemaUI' dir api) where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)

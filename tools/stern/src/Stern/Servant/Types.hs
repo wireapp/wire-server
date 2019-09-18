@@ -42,10 +42,12 @@ data API route = API
 
   , _apiSuspendUser
     :: route :- RootPrefix :>
+       Summary "Suspends user with this ID" :>
        "users" :> Capture "uid" UserId :> "suspend" :> Post '[JSON] NoContent
 
   , _apiUnsuspendUser
     :: route :- RootPrefix :>
+       Summary "Unsuspends user with this ID" :>
        "users" :> Capture "uid" UserId :> "unsuspend" :> Post '[JSON] NoContent
 
   }
