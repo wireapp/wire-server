@@ -20,30 +20,38 @@ import Servant.Swagger.UI
 
 data API route = API
   { _apiSwaggerDoc
-    :: route :- NoSwagger :> SwaggerSchemaUI "api-docs" "swagger.json"
+    :: route :- RootPrefix :> NoSwagger :>
+       SwaggerSchemaUI "api-docs" "swagger.json"
 
 
   , _apiInternalGetStatus
-    :: route :- NoSwagger :> "i" :> "status" :> Verb 'GET 200 '[JSON] NoContent
+    :: route :- RootPrefix :> NoSwagger :>
+       "i" :> "status" :> Verb 'GET 200 '[JSON] NoContent
     -- FUTUREWORK: status204 would be more correct
 
   , _apiInternalHeadStatus
-    :: route :- NoSwagger :> "i" :> "status" :> Verb 'HEAD 200 '[JSON] NoContent
+    :: route :- RootPrefix :> NoSwagger :>
+       "i" :> "status" :> Verb 'HEAD 200 '[JSON] NoContent
     -- FUTUREWORK: would status204 be more correct here, too?  not sure how 'HEAD works...
 
   , _apiInternalMonitoring
-    :: route :- NoSwagger :> "i" :> "monitoring" :> Get '[JSON] Value
+    :: route :- RootPrefix :> NoSwagger :>
+       "i" :> "monitoring" :> Get '[JSON] Value
     -- This is deprecated in favour of /i/metrics via prometheus middleware.
 
 
   , _apiSuspendUser
-    :: route :- "users" :> Capture "uid" UserId :> "suspend" :> Post '[JSON] NoContent
+    :: route :- RootPrefix :>
+       "users" :> Capture "uid" UserId :> "suspend" :> Post '[JSON] NoContent
 
   , _apiUnsuspendUser
-    :: route :- "users" :> Capture "uid" UserId :> "unsuspend" :> Post '[JSON] NoContent
+    :: route :- RootPrefix :>
+       "users" :> Capture "uid" UserId :> "unsuspend" :> Post '[JSON] NoContent
 
   }
   deriving (Generic)
 
+
+type RootPrefix = "servant"
 
 data NoSwagger

@@ -1,4 +1,4 @@
-module Stern.Servant.Handler (rootPrefix, middleware, app, swaggerDoc) where
+module Stern.Servant.Handler (middleware, app, swaggerDoc) where
 
 import Imports hiding (head)
 
@@ -11,6 +11,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import "swagger2" Data.Swagger
+import GHC.TypeLits (symbolVal)
 import Network.Wai
 import Servant.API.ContentTypes
 import Servant.API.Generic
@@ -23,21 +24,15 @@ import Stern.Servant.Orphans ()
 import Stern.Servant.Types
 
 import qualified Data.Metrics.Middleware as Metrics
-import qualified Data.Text as Text
 
 
-rootPrefix :: [Text]
-rootPrefix = ["servant"]
-
-middleware :: Env -> [Text] -> Middleware
-middleware env prfx innerapp req cont = case stripPrefix prfx (pathInfo req) of
-  Just stripped -> app env (req' stripped) cont
-  Nothing   -> innerapp req cont
+middleware :: Env -> Middleware
+middleware env innerapp req cont = if rootPrefix `isPrefixOf` pathInfo req
+  then app env req cont
+  else innerapp req cont
   where
-    req' pth = req
-      { pathInfo = pth
-      , rawPathInfo = cs $ "/" <> Text.intercalate "/" pth
-      }
+    rootPrefix :: [Text]
+    rootPrefix = [cs $ symbolVal (Proxy @RootPrefix)]
 
 
 ----------------------------------------------------------------------
