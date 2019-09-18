@@ -1,7 +1,8 @@
-module Stern.Servant.Handler (middleware, app, swaggerDoc) where
+module Stern.Servant.Handler where
 
 import Imports hiding (head)
 
+import Brig.Types.Intra
 import Control.Exception (throwIO)
 import Control.Lens (view)
 import Control.Monad.Catch (catch)
@@ -20,6 +21,7 @@ import Servant.Server.Generic
 import Servant.Swagger
 import Servant.Swagger.UI
 import Stern.App hiding (Handler, runHandler, App)
+import Stern.Intra as Intra
 import Stern.Servant.Orphans ()
 import Stern.Servant.Types
 
@@ -94,8 +96,12 @@ apiInternalMonitoring :: (MonadIO m, MonadReader Env m) => m Value
 apiInternalMonitoring = view metrics >>= Metrics.render
 
 
-apiSuspendUser :: UserId -> Monad m => m NoContent
-apiSuspendUser _ = pure NoContent
+apiSuspendUser :: UserId -> MonadIntra m => m NoContent
+apiSuspendUser uid = do
+  Intra.putUserStatus Suspended uid
+  pure NoContent
 
-apiUnsuspendUser :: UserId -> Monad m => m NoContent
-apiUnsuspendUser _ = pure NoContent
+apiUnsuspendUser :: UserId -> MonadIntra m => m NoContent
+apiUnsuspendUser uid = do
+  Intra.putUserStatus Active uid
+  pure NoContent

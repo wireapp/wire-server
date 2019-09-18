@@ -457,12 +457,10 @@ sitemap = do
 type JSON = Media "application" "json"
 
 suspendUser :: UserId -> Handler Response
-suspendUser uid = do
-    Intra.putUserStatus Suspended uid
-    return empty
+suspendUser uid = SternServant.apiSuspendUser uid >> return empty
 
 unsuspendUser :: UserId -> Handler Response
-unsuspendUser uid = Intra.putUserStatus Active uid >> return empty
+unsuspendUser uid = SternServant.apiUnsuspendUser uid >> return empty
 
 usersByEmail :: Email -> Handler Response
 usersByEmail = liftM json . Intra.getUserProfilesByIdentity . Left

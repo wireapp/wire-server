@@ -4,16 +4,22 @@ module Stern.Servant.Orphans where
 
 import Imports
 
-import Data.Aeson (Value)
+import Control.Monad.Catch (throwM, catch)
+import Data.Aeson (Value, encode)
 import Data.Id
 import Data.Proxy
+import Data.String.Conversions (cs)
 import "swagger2" Data.Swagger
 import Data.UUID as UUID
+import Network.HTTP.Types.Status
+import Network.Wai.Utilities
 import Servant.API
 import Servant.Server
 import Servant.Swagger
 import Servant.Swagger.UI
 import Servant.Swagger.UI.Core
+import Stern.App
+import Stern.Intra
 import Stern.Servant.Types
 
 import qualified Data.Metrics.Servant as Metrics
@@ -56,3 +62,17 @@ instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) w
 
 instance Metrics.RoutesToPaths Raw where
   getRoutes = mempty
+
+
+instance MonadIntra App where
+  type StripException App = App
+  throwRpcError = throwM
+  catchRpcErrors = (`catch` throwM . translate)
+    where
+      translate :: Error -> ServantErr
+      translate err@(Error s l _) = ServantErr
+        { errHTTPCode     = statusCode s
+        , errReasonPhrase = cs l
+        , errBody         = encode err
+        , errHeaders      = [("Content-Type", "application/json")]
+        }

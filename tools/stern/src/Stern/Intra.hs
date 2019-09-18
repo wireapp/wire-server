@@ -7,7 +7,8 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 module Stern.Intra
-    ( putUser
+    ( MonadIntra(..)
+    , putUser
     , putUserStatus
     , getContacts
     , getUserConnections
