@@ -70,6 +70,9 @@ start o = do
     serve    e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
 
 
+-- TODO: what's with the error in the lower right corner of http://localhost:8091/servant/api-docs/#/ ?!
+-- TODO: the 'try it out' button is a little annoying.  can we flip the default or hide the button altogether?
+
 serveServant :: Env -> Middleware
 serveServant env
       -- the handlers
