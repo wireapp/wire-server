@@ -61,7 +61,7 @@ start o = do
   where
     server   e     = Server.defaultServer (unpack $ (stern o)^.epHost) ((stern o)^.epPort) (e^.applog) (e^.metrics)
     pipeline e     = GZip.gzip GZip.def
-                   . SternServant.middleware SternServant.rootPrefix
+                   . SternServant.middleware e SternServant.rootPrefix
                    $ serve e
     serve    e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
 
