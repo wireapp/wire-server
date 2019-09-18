@@ -159,7 +159,7 @@ removeStalePresence = do
     w <- wsRun ca uid con (wsCloser m)
     wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
-    threadDelay 200000  -- sometimes the last line fails with @1 =/= 0@.  does this line help?
+    threadDelay 10000000  -- sometimes the last line fails with @0 =/= 1@.  does this line help?
     sendPush (push uid [uid])
     ensurePresent uid 0
   where
