@@ -69,8 +69,7 @@ sitemap = do
     head "/i/status" (continue (const $ return empty)) true
 
 monitoring :: Media "application" "json" -> Cannon Response
-monitoring _ = do
-    json <$> (Metrics.render =<< monitor)
+monitoring _ = json <$> (Metrics.render =<< monitor)
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do
