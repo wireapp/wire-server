@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE OverloadedStrings    #-}
@@ -50,6 +51,8 @@ import Stern.App
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
+import Control.Monad.Except
+import Control.Monad.Catch (MonadThrow)
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
@@ -77,9 +80,37 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict   as M
 import qualified System.Logger.Class   as Log
 
--------------------------------------------------------------------------------
 
-putUser :: UserId -> UserUpdate -> Handler ()
+-------------------------------------------------------------------------------
+-- abstraction over what a handler is...
+
+class ( MonadReader Env m
+      , MonadLogger m
+      , MonadUnliftIO (StripException m)
+      , MonadHttp (StripException m)
+      , HasRequestId (StripException m)
+      , MonadThrow m  -- TODO: remove this and find the stray exceptions that are not caught by 'catchRpcErrors'.
+      , MonadThrow (StripException m)
+      ) => MonadIntra m where
+  type family StripException (m :: * -> *) :: * -> *
+  throwRpcError :: forall a. Error -> m a
+  catchRpcErrors :: forall a. StripException m a -> m a
+
+instance MonadIntra (ExceptT Error App) where
+  type StripException (ExceptT Error App) = App
+  throwRpcError = throwError
+  catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
+    where
+      catchRPCException :: RPCException -> App (Either Error a)
+      catchRPCException rpcE = do
+        Log.err $ rpcExceptionMsg rpcE
+        pure . Left $ Error status500 "io-error" (pack $ show rpcE)
+
+
+----------------------------------------------------------------------
+-- calls
+
+putUser :: MonadIntra m => UserId -> UserUpdate -> m ()
 putUser uid upd = do
     info $ userMsg uid . msg "Changing user state"
     b <- view brig
@@ -93,7 +124,7 @@ putUser uid upd = do
         . expect2xx
         )
 
-putUserStatus :: AccountStatus -> UserId -> Handler ()
+putUserStatus :: AccountStatus -> UserId -> MonadIntra m => m ()
 putUserStatus status uid = do
     info $ userMsg uid . msg "Changing user status"
     b <- view brig
@@ -107,7 +138,7 @@ putUserStatus status uid = do
   where
     payload = AccountStatusUpdate status
 
-getUserConnections :: UserId -> Handler [UserConnection]
+getUserConnections :: forall m. UserId -> MonadIntra m => m [UserConnection]
 getUserConnections uid = do
     info $ msg "Getting user connections"
     fetchAll [] Nothing
@@ -119,7 +150,7 @@ getUserConnections uid = do
             then fetchAll (batch ++ xs) (Just . ucTo $ last batch)
             else return   (batch ++ xs)
 
-    fetchBatch :: Maybe UserId -> Handler UserConnectionList
+    fetchBatch :: Maybe UserId -> m UserConnectionList
     fetchBatch start = do
         b <- view brig
         r <- catchRpcErrors $ rpc' "brig" b
@@ -134,7 +165,7 @@ getUserConnections uid = do
 
     batchSize = 100 :: Int
 
-getUsersConnections :: List UserId -> Handler [ConnectionStatus]
+getUsersConnections :: List UserId -> MonadIntra m => m [ConnectionStatus]
 getUsersConnections uids = do
     info $ msg "Getting user connections"
     b <- view brig
@@ -149,13 +180,13 @@ getUsersConnections uids = do
   where
     users = BS.intercalate "," $ map toByteString' (fromList uids)
 
-getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
+getUserProfiles :: Either [UserId] [Handle] -> MonadIntra m => m [UserAccount]
 getUserProfiles uidsOrHandles = do
     info $ msg "Getting user accounts"
     b <- view brig
     return . concat =<< mapM (doRequest b) (prepareQS uidsOrHandles)
   where
-    doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
+    doRequest :: Request -> (Request -> Request) -> MonadIntra m => m [UserAccount]
     doRequest b qry = do
         r <- catchRpcErrors $ rpc' "brig" b
              ( method GET
@@ -173,7 +204,7 @@ getUserProfiles uidsOrHandles = do
     toQS = fmap (BS.intercalate "," . map toByteString')
          . chunksOf 50
 
-getUserProfilesByIdentity :: Either Email Phone -> Handler [UserAccount]
+getUserProfilesByIdentity :: Either Email Phone -> MonadIntra m => m [UserAccount]
 getUserProfilesByIdentity emailOrPhone = do
     info $ msg "Getting user accounts by identity"
     b <- view brig
@@ -185,7 +216,7 @@ getUserProfilesByIdentity emailOrPhone = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-getContacts :: UserId -> Text -> Int32 -> Handler (SearchResult Contact)
+getContacts :: UserId -> Text -> Int32 -> MonadIntra m => m (SearchResult Contact)
 getContacts u q s = do
     info $ msg "Getting user contacts"
     b <- view brig
@@ -199,7 +230,7 @@ getContacts u q s = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-revokeIdentity :: Either Email Phone -> Handler ()
+revokeIdentity :: Either Email Phone -> MonadIntra m => m ()
 revokeIdentity emailOrPhone = do
     info $ msg "Revoking user identity"
     b <- view brig
@@ -210,7 +241,7 @@ revokeIdentity emailOrPhone = do
          . expect2xx
          )
 
-deleteAccount :: UserId -> Handler ()
+deleteAccount :: UserId -> MonadIntra m => m ()
 deleteAccount uid = do
     info $ msg "Deleting account"
     b <- view brig
@@ -220,7 +251,7 @@ deleteAccount uid = do
          . expect2xx
          )
 
-changeEmail :: UserId -> EmailUpdate -> Handler ()
+changeEmail :: UserId -> EmailUpdate -> MonadIntra m => m ()
 changeEmail u upd = do
     info $ msg "Updating email address"
     b <- view brig
@@ -234,7 +265,7 @@ changeEmail u upd = do
          . expect2xx
          )
 
-changePhone :: UserId -> PhoneUpdate -> Handler ()
+changePhone :: UserId -> PhoneUpdate -> MonadIntra m => m ()
 changePhone u upd = do
     info $ msg "Updating phone number"
     b <- view brig
@@ -248,13 +279,13 @@ changePhone u upd = do
          . expect2xx
          )
 
-getTeamInfo :: TeamId -> Handler TeamInfo
+getTeamInfo :: TeamId -> MonadIntra m => m TeamInfo
 getTeamInfo tid = do
     d <- getTeamData tid
     m <- getTeamMembers tid
     return $ TeamInfo d (map TeamMemberInfo (m^.teamMembers))
 
-getUserBindingTeam :: UserId -> Handler (Maybe TeamId)
+getUserBindingTeam :: UserId -> MonadIntra m => m (Maybe TeamId)
 getUserBindingTeam u = do
     info $ msg "Getting user binding team"
     g <- view galley
@@ -271,7 +302,7 @@ getUserBindingTeam u = do
            $ filter ((== Binding) . view teamBinding)
            $ teams^.teamListTeams
 
-getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
+getInvoiceUrl :: TeamId -> InvoiceId -> MonadIntra m => m ByteString
 getInvoiceUrl tid iid = do
     info $ msg "Getting invoice"
     i <- view ibis
@@ -283,7 +314,7 @@ getInvoiceUrl tid iid = do
           )
     return $ getHeader' "Location" r
 
-getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
+getTeamBillingInfo :: TeamId -> MonadIntra m => m (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
     info $ msg "Getting team billing info"
     i <- view ibis
@@ -294,9 +325,9 @@ getTeamBillingInfo tid = do
     case Bilge.statusCode r of
         200 -> Just <$> parseResponse (Error status502 "bad-upstream") r
         404 -> return Nothing
-        _   -> throwE (Error status502 "bad-upstream" "bad response")
+        _   -> throwRpcError (Error status502 "bad-upstream" "bad response")
 
-setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
+setTeamBillingInfo :: TeamId -> TeamBillingInfo -> MonadIntra m => m ()
 setTeamBillingInfo tid tbu = do
     info $ msg "Setting team billing info"
     i <- view ibis
@@ -308,7 +339,7 @@ setTeamBillingInfo tid tbu = do
           . expect2xx
           )
 
-canBeDeleted :: UserId -> TeamId -> Handler Bool
+canBeDeleted :: UserId -> TeamId -> MonadIntra m => m Bool
 canBeDeleted uid tid = do
     info $ msg "Checking if a member can be deleted"
     b <- view brig
@@ -319,9 +350,9 @@ canBeDeleted uid tid = do
     case Bilge.statusCode r of
         200 -> return True
         403 -> return False
-        _   -> throwE (Error status502 "bad-upstream" "bad response")
+        _   -> throwRpcError (Error status502 "bad-upstream" "bad response")
 
-isBlacklisted :: Either Email Phone -> Handler Bool
+isBlacklisted :: Either Email Phone -> MonadIntra m => m Bool
 isBlacklisted emailOrPhone = do
     info $ msg "Checking blacklist"
     b <- view brig
@@ -333,9 +364,9 @@ isBlacklisted emailOrPhone = do
     case Bilge.statusCode r of
         200 -> return True
         404 -> return False
-        _   -> throwE (Error status502 "bad-upstream" "bad response")
+        _   -> throwRpcError (Error status502 "bad-upstream" "bad response")
 
-setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
+setBlacklistStatus :: Bool -> Either Email Phone -> MonadIntra m => m ()
 setBlacklistStatus status emailOrPhone = do
     info $ msg "Changing blacklist status"
     b <- view brig
@@ -349,7 +380,7 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True  = POST
 
-getLegalholdStatus :: TeamId -> Handler SetLegalHoldStatus
+getLegalholdStatus :: TeamId -> MonadIntra m => m SetLegalHoldStatus
 getLegalholdStatus tid = do
     info $ msg "Getting legalhold status"
     gly <- view galley
@@ -359,13 +390,13 @@ getLegalholdStatus tid = do
          . expect2xx
          )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetLegalHoldStatus
+    fromResponseBody :: Response (Maybe LByteString) -> MonadIntra m => m SetLegalHoldStatus
     fromResponseBody resp = case responseJsonEither resp of
       Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure SetLegalHoldDisabled
       Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure SetLegalHoldEnabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+      Left errmsg -> throwRpcError (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> Handler ()
+setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> MonadIntra m => m ()
 setLegalholdStatus tid status = do
     info $ msg "Setting legalhold status"
     gly <- view galley
@@ -377,12 +408,12 @@ setLegalholdStatus tid status = do
          )
     case statusCode resp of
       204 -> pure ()
-      _   -> throwE $ responseJsonUnsafe resp
+      _   -> throwRpcError $ responseJsonUnsafe resp
   where
     toRequestBody SetLegalHoldDisabled = LegalHoldTeamConfig LegalHoldDisabled
     toRequestBody SetLegalHoldEnabled  = LegalHoldTeamConfig LegalHoldEnabled
 
-getSSOStatus :: TeamId -> Handler SetSSOStatus
+getSSOStatus :: TeamId -> MonadIntra m => m SetSSOStatus
 getSSOStatus tid = do
     info $ msg "Getting SSO status"
     gly <- view galley
@@ -392,13 +423,13 @@ getSSOStatus tid = do
          . expect2xx
          )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetSSOStatus
+    fromResponseBody :: Response (Maybe LByteString) -> MonadIntra m => m SetSSOStatus
     fromResponseBody resp = case responseJsonEither resp of
       Right (SSOTeamConfig SSOEnabled) -> pure SetSSOEnabled
       Right (SSOTeamConfig SSODisabled) -> pure SetSSODisabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+      Left errmsg -> throwRpcError (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setSSOStatus :: TeamId -> SetSSOStatus -> Handler ()
+setSSOStatus :: TeamId -> SetSSOStatus -> MonadIntra m => m ()
 setSSOStatus tid status = do
     info $ msg "Setting SSO status"
     gly <- view galley
@@ -410,13 +441,15 @@ setSSOStatus tid status = do
          )
     case statusCode resp of
       204 -> pure ()
-      _   -> throwE $ responseJsonUnsafe resp
+      _   -> throwRpcError $ responseJsonUnsafe resp
   where
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
     toRequestBody SetSSOEnabled  = SSOTeamConfig SSOEnabled
 
+
 --------------------------------------------------------------------------------
 -- Helper functions
+
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
@@ -424,18 +457,7 @@ userKeyToParam :: Either Email Phone -> Request -> Request
 userKeyToParam (Left e)  = queryItem "email" (stripBS $ toByteString' e)
 userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
 
--- | Run an App and catch any RPCException's which may occur, lifting them to ExceptT
--- This isn't an ideal set-up; but is required in certain cases because 'ExceptT' isn't
--- an instance of 'MonadUnliftIO'
-catchRpcErrors :: forall a. App a -> ExceptT Error App a
-catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
-  where
-    catchRPCException :: RPCException -> App (Either Error a)
-    catchRPCException rpcE = do
-      Log.err $ rpcExceptionMsg rpcE
-      pure . Left $ Error status500 "io-error" (pack $ show rpcE)
-
-getTeamData :: TeamId -> Handler TeamData
+getTeamData :: TeamId -> MonadIntra m => m TeamData
 getTeamData tid = do
     info $ msg "Getting team information"
     g <- view galley
@@ -446,9 +468,9 @@ getTeamData tid = do
          )
     case Bilge.statusCode r of
         200 -> parseResponse (Error status502 "bad-upstream") r
-        _   -> throwE (Error status404 "no-team" "no such team")
+        _   -> throwRpcError (Error status404 "no-team" "no such team")
 
-getTeamMembers :: TeamId -> Handler TeamMemberList
+getTeamMembers :: TeamId -> MonadIntra m => m TeamMemberList
 getTeamMembers tid = do
     info $ msg "Getting team members"
     g <- view galley
@@ -459,7 +481,7 @@ getTeamMembers tid = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-getEmailConsentLog :: Email -> Handler ConsentLog
+getEmailConsentLog :: Email -> MonadIntra m => m ConsentLog
 getEmailConsentLog email = do
     info $ msg "Getting email consent log"
     g <- view galeb
@@ -473,7 +495,7 @@ getEmailConsentLog email = do
 -- TODO: Temporary in stern -- All functions below this
 --       will eventually be moved to a separate service
 --       that will be accessible directly over our public facing API
-getUserConsentValue :: UserId -> Handler ConsentValue
+getUserConsentValue :: UserId -> MonadIntra m => m ConsentValue
 getUserConsentValue uid = do
     info $ msg "Getting user consent value"
     g <- view galeb
@@ -485,7 +507,7 @@ getUserConsentValue uid = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-getMarketoResult :: Email -> Handler MarketoResult
+getMarketoResult :: Email -> MonadIntra m => m MarketoResult
 getMarketoResult email = do
     info $ msg "Getting marketo results"
     g <- view galeb
@@ -498,11 +520,11 @@ getMarketoResult email = do
     case statusCode r of
          200 -> parseResponse (Error status502 "bad-upstream") r
          404 -> return noEmail
-         _   -> throwE (Error status502 "bad-upstream" "")
+         _   -> throwRpcError (Error status502 "bad-upstream" "")
   where
     noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
-getUserConsentLog :: UserId -> Handler ConsentLog
+getUserConsentLog :: UserId -> MonadIntra m => m ConsentLog
 getUserConsentLog uid = do
     info $ msg "Getting user consent log"
     g <- view galeb
@@ -513,7 +535,7 @@ getUserConsentLog uid = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-getUserCookies :: UserId -> Handler CookieList
+getUserCookies :: UserId -> MonadIntra m => m CookieList
 getUserCookies uid = do
     info $ msg "Getting user cookies"
     g <- view brig
@@ -525,7 +547,7 @@ getUserCookies uid = do
          )
     parseResponse (Error status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Handler [Conversation]
+getUserConversations :: UserId -> MonadIntra m => m [Conversation]
 getUserConversations uid = do
     info $ msg "Getting user conversations"
     fetchAll [] Nothing
@@ -537,7 +559,7 @@ getUserConversations uid = do
             then fetchAll (batch ++ xs) (Just . cnvId $ last batch)
             else return   (batch ++ xs)
 
-    fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
+    fetchBatch :: Maybe ConvId -> MonadIntra m => m (ConversationList Conversation)
     fetchBatch start = do
         b <- view galley
         r <- catchRpcErrors $ rpc' "galley" b
@@ -552,7 +574,7 @@ getUserConversations uid = do
 
     batchSize = 100 :: Int
 
-getUserClients :: UserId -> Handler [Client]
+getUserClients :: UserId -> MonadIntra m => m [Client]
 getUserClients uid = do
     info $ msg "Getting user clients"
     b <- view brig
@@ -565,7 +587,7 @@ getUserClients uid = do
     info $ msg ("Response" ++ show r)
     parseResponse (Error status502 "bad-upstream") r
 
-getUserProperties :: UserId -> Handler UserProperties
+getUserProperties :: UserId -> MonadIntra m => m UserProperties
 getUserProperties uid = do
     info $ msg "Getting user properties"
     b <- view brig
@@ -576,7 +598,7 @@ getUserProperties uid = do
          . expect2xx
          )
     info $ msg ("Response" ++ show r)
-    keys <- parseResponse (Error status502 "bad-upstream") r :: Handler [PropertyKey]
+    keys <- parseResponse (Error status502 "bad-upstream") r :: MonadIntra m => m [PropertyKey]
     UserProperties <$> fetchProperty b keys M.empty
   where
     fetchProperty _ []     acc = return acc
@@ -591,7 +613,7 @@ getUserProperties uid = do
         value <- parseResponse (Error status502 "bad-upstream") r
         fetchProperty b xs (M.insert x value acc)
 
-getUserNotifications :: UserId -> Handler [QueuedNotification]
+getUserNotifications :: UserId -> MonadIntra m => m [QueuedNotification]
 getUserNotifications uid = do
     info $ msg "Getting user notifications"
     fetchAll [] Nothing
@@ -603,7 +625,7 @@ getUserNotifications uid = do
             then fetchAll (batch ++ xs) (Just . (view queuedNotificationId) $ last batch)
             else return   (batch ++ xs)
 
-    fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
+    fetchBatch :: Maybe NotificationId -> MonadIntra m => m QueuedNotificationList
     fetchBatch start = do
         b <- view gundeck
         r <- catchRpcErrors $ rpc' "galley" b
@@ -619,6 +641,6 @@ getUserNotifications uid = do
         case statusCode r of
             200 -> parseResponse (Error status502 "bad-upstream") r
             404 -> parseResponse (Error status502 "bad-upstream") r
-            _   -> throwE (Error status502 "bad-upstream" "")
+            _   -> throwRpcError (Error status502 "bad-upstream" "")
 
     batchSize = 100 :: Int
