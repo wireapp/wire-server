@@ -16,6 +16,8 @@ import Servant.Swagger.UI
 import Servant.Swagger.UI.Core
 import Stern.Servant.Types
 
+import qualified Data.Metrics.Servant as Metrics
+
 
 instance FromHttpApiData (Id U) where
   parseUrlPiece = maybe (Left "UUID.fromText failed") (pure . Id) . UUID.fromText
@@ -48,3 +50,9 @@ instance HasServer api ctx => HasServer (NoSwagger :> api) ctx where
 
 instance HasSwagger (NoSwagger :> api) where
   toSwagger _ = mempty
+
+instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) where
+  getRoutes = mempty
+
+instance Metrics.RoutesToPaths Raw where
+  getRoutes = mempty

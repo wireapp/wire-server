@@ -22,7 +22,9 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Id
+import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Predicate
+import Data.Proxy (Proxy(Proxy))
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
 import Data.Text.Encoding (decodeLatin1)
@@ -40,6 +42,7 @@ import Stern.Options
 import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
+import Servant.API.Generic (ToServant, AsApi)
 
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified "types-common" Data.Swagger as Doc
@@ -50,6 +53,7 @@ import qualified Network.Wai.Utilities.Server as Server
 import qualified Stern.Intra                  as Intra
 import qualified Stern.Swagger                as Doc
 import qualified Stern.Servant.Handler        as SternServant
+import qualified Stern.Servant.Types          as SternServant
 
 default (ByteString)
 
@@ -61,9 +65,17 @@ start o = do
   where
     server   e     = Server.defaultServer (unpack $ (stern o)^.epHost) ((stern o)^.epPort) (e^.applog) (e^.metrics)
     pipeline e     = GZip.gzip GZip.def
-                   . SternServant.middleware e
+                   . serveServant e
                    $ serve e
     serve    e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
+
+
+serveServant :: Env -> Middleware
+serveServant env
+      -- the handlers
+    = SternServant.middleware env
+      -- "/i/metrics"; only measures the paths under 'SternServant.rootPrefix'.
+    . servantPrometheusMiddleware (Proxy @(ToServant SternServant.API AsApi))
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
