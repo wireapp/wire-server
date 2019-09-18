@@ -17,6 +17,26 @@ import Data.Tree
 import GHC.TypeLits
 import Servant.API
 
+import qualified Data.Metrics.Types as Metrics
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Middleware.Prometheus as Promth
+
+
+-- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
+servantPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
+servantPrometheusMiddleware _ = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
+  where
+    conf = Promth.def
+      { Promth.prometheusEndPoint = ["i", "metrics"]
+      , Promth.prometheusInstrumentApp = False
+      }
+
+    promthNormalize :: Wai.Request -> Text
+    promthNormalize req = pathInfo
+      where
+        mPathInfo  = Metrics.treeLookup (routesToPaths @api) $ cs <$> Wai.pathInfo req
+        pathInfo   = cs $ fromMaybe "N/A" mPathInfo
+
 
 routesToPaths :: forall routes. RoutesToPaths routes => Paths
 routesToPaths = Paths (meltTree (getRoutes @routes))
