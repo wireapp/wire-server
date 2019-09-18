@@ -159,9 +159,10 @@ removeStalePresence = do
     w <- wsRun ca uid con (wsCloser m)
     wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
-    threadDelay 10000000  -- sometimes the last line fails with @0 =/= 1@.  does this line help?
-    sendPush (push uid [uid])
-    ensurePresent uid 0
+    -- The websocket might take a few time units to drop so better to try a few pushes
+    recoverAll (constantDelay 1000000 <> limitRetries 10) $ \_ -> do
+        sendPush (push uid [uid])
+        ensurePresent uid 0
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
