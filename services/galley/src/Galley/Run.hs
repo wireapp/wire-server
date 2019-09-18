@@ -37,7 +37,8 @@ run o = do
                                      m
     runClient (e^.cstate) $
         versionCheck Data.schemaVersion
-    d <- Async.async $ evalGalley e Internal.deleteLoop
+    deleteQueueThread    <- Async.async $ evalGalley e Internal.deleteLoop
+    refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
     let rtree    = compile sitemap
         app r k  = runGalley e r (route rtree r k)
         measured :: Middleware
@@ -49,7 +50,8 @@ run o = do
                     . GZip.gunzip
                     . GZip.gzip GZip.def
     runSettingsWithShutdown s (middlewares app) 5 `finally` do
-        Async.cancel d
+        Async.cancel deleteQueueThread
+        Async.cancel refreshMetricsThread
         shutdown (e^.cstate)
         Log.flush l
         Log.close l

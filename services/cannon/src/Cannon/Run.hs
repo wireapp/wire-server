@@ -4,11 +4,14 @@ import Imports hiding (head)
 import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App (maxPingInterval)
 import Cannon.API (sitemap)
-import Cannon.Types (mkEnv, applog, runCannon)
+import Cannon.Types (Cannon, mkEnv, applog, runCannon, runCannon', monitor, clients)
 import Cannon.Options
 import Cannon.WS hiding (env)
+import Control.Exception.Safe (catchAny)
+import Control.Monad.Catch (MonadCatch)
 import Control.Lens ((^.))
 import Control.Monad.Catch (finally)
+import Data.Metrics.Middleware (gaugeSet, path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (strip, pack)
@@ -18,10 +21,12 @@ import Network.Wai.Handler.Warp hiding (run)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
+import qualified Control.Concurrent.Async    as Async
 import qualified Data.Metrics.Middleware     as Middleware
 import qualified Network.Wai                 as Wai
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified System.IO.Strict            as Strict
+import qualified System.Logger.Class         as LC
 import qualified System.Logger.Extended      as L
 
 run :: Opts -> IO ()
@@ -37,6 +42,7 @@ run o = do
                <*> newManager defaultManagerSettings { managerConnCount = 128 }
                <*> createSystemRandom
                <*> mkClock
+    refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
     s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout)
     let rtree    = compile sitemap
         measured = measureRequests m (treeToPaths rtree)
@@ -47,7 +53,9 @@ run o = do
                    . catchErrors g [Right m]
                    . Gzip.gzip Gzip.def
         start    =  middleware app
-    runSettings s start `finally` L.close (applog e)
+    runSettings s start `finally` do
+        Async.cancel refreshMetricsThread
+        L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
 
@@ -60,3 +68,17 @@ run o = do
 
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
+
+refreshMetrics :: Cannon ()
+refreshMetrics = do
+    m <- monitor
+    c <- clients
+    safeForever $ do
+        s <- D.size c
+        gaugeSet (fromIntegral s) (path "net.websocket.clients") m
+  where
+    safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
+    safeForever action = forever $ action `catchAny` \exc -> do
+        LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
+        threadDelay 60000000  -- pause to keep worst-case noise in logs manageable

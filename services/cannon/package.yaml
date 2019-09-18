@@ -36,6 +36,7 @@ library:
   - mwc-random >=0.13
   - prometheus-client
   - retry >=0.7
+  - safe-exceptions
   - singletons >=2.0
   - strict >=0.3.2
   - swagger >=0.2
