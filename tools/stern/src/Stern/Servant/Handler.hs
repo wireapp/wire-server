@@ -26,6 +26,9 @@ import Stern.Servant.Types
 import qualified Data.Metrics.Middleware as Metrics
 
 
+----------------------------------------------------------------------
+-- middleware
+
 middleware :: Env -> Middleware
 middleware env innerapp req cont = if rootPrefix `isPrefixOf` pathInfo req
   then app env req cont
@@ -36,7 +39,7 @@ middleware env innerapp req cont = if rootPrefix `isPrefixOf` pathInfo req
 
 
 ----------------------------------------------------------------------
--- constructing the Application
+-- custom handler type, natural transformation
 
 -- | Like Stern.App.AppT, but with a servant handler inside.
 type App = AppT IO

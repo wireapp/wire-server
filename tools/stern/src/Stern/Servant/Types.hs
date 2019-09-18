@@ -52,6 +52,8 @@ data API route = API
   deriving (Generic)
 
 
+-- | FUTUREWORK: This type will go away as soon as we move to `/` on stern and replace the old
+-- implementation.
 type RootPrefix = "servant"
 
 data NoSwagger
