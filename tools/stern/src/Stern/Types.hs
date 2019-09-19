@@ -27,6 +27,7 @@ import Gundeck.Types.Notification
 import qualified Data.HashMap.Strict as M
 
 newtype TeamMemberInfo = TeamMemberInfo { tm :: TeamMember }
+  deriving (Generic)
 
 instance ToJSON TeamMemberInfo where
     toJSON (TeamMemberInfo m) =
@@ -39,6 +40,7 @@ data TeamInfo = TeamInfo
     { tiData    :: TeamData
     , tiMembers :: [TeamMemberInfo]
     }
+    deriving (Generic)
 
 instance ToJSON TeamInfo where
     toJSON (TeamInfo d m) = object
@@ -48,7 +50,7 @@ instance ToJSON TeamInfo where
 
 newtype UserProperties = UserProperties
     { unUserProperties :: M.HashMap PropertyKey PropertyValue
-    } deriving (Eq, Show, ToJSON)
+    } deriving (Eq, Show, ToJSON, Generic)
 
 -- | NOTE: The following datatypes are defined by services used only internally at Wire
 -- related to billing services and others and are not relevant for generic wire-server
@@ -63,16 +65,16 @@ newtype UserProperties = UserProperties
 -- simply use whatever galeb's JSON object looks like
 newtype ConsentLog = ConsentLog
     { unConsentLog :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
 newtype ConsentValue = ConsentValue
     { unConsentValue :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
 newtype MarketoResult = MarketoResult
     { unMarketoResult :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
 
 newtype InvoiceId = InvoiceId { unInvoiceId :: Text }
-    deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON)
+    deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON, Generic)
 
 data TeamBillingInfo = TeamBillingInfo
     { tbiFirstname :: Text
@@ -83,7 +85,7 @@ data TeamBillingInfo = TeamBillingInfo
     , tbiCountry   :: Text
     , tbiCompany   :: Maybe Text
     , tbiState     :: Maybe Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamBillingInfo
 
@@ -96,7 +98,7 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
     , tbiuCountry   :: Maybe (Range 1 256 Text)
     , tbiuCompany   :: Maybe (Range 1 256 Text)
     , tbiuState     :: Maybe (Range 1 256 Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
 
@@ -123,6 +125,7 @@ data UserMetaInfo = UserMetaInfo
     , _umiProperties    :: UserProperties
     , _umiMarketo       :: MarketoResult
     }
+  deriving (Generic)
 
 instance ToJSON UserMetaInfo where
   toJSON umi = object
@@ -149,6 +152,7 @@ data UserConnectionsByStatus = UserConnectionsByStatus
     , _ucbsIgnored  :: Int
     , _ucbsTotal    :: Int
     }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON UserConnectionsByStatus where
   toJSON ucbs = object
