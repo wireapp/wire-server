@@ -14,7 +14,6 @@ import Brig.Types.Intra
 import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (throwM)
 import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
 import Data.Aeson.Types (emptyArray)
@@ -43,6 +42,7 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 import Servant.API.Generic (ToServant, AsApi)
+import Stern.Servant.Handler (groupByStatus, ifNothing, noSuchUser)
 
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified "types-common" Data.Swagger as Doc
@@ -609,7 +609,7 @@ getTeamInfoByMemberEmail e = do
 getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
 getTeamInvoice (tid ::: iid ::: _) = do
     url <- Intra.getInvoiceUrl tid iid
-    return $ plain (fromStrict url)
+    return $ plain (fromStrict url)  -- BUG: the swagger docs claim this response is status 307 redirect.
 
 getConsentLog :: Email -> Handler Response
 getConsentLog e = do
@@ -639,24 +639,3 @@ getUserData uid = do
     return $ json UserMetaInfo {..}
   where
     noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
-
--- Utilities
-
-groupByStatus :: [UserConnection] -> UserConnectionsByStatus
-groupByStatus conns = UserConnectionsByStatus
-    { _ucbsAccepted = byStatus Accepted conns
-    , _ucbsSent     = byStatus Sent conns
-    , _ucbsPending  = byStatus Pending conns
-    , _ucbsBlocked  = byStatus Blocked conns
-    , _ucbsIgnored  = byStatus Ignored conns
-    , _ucbsTotal    = length conns
-    }
-  where
-    byStatus :: Relation -> [UserConnection] -> Int
-    byStatus s = length . filter ((==) s . ucStatus)
-
-ifNothing :: Error -> Maybe a -> Handler a
-ifNothing e = maybe (throwM e) return
-
-noSuchUser :: Maybe a -> Handler a
-noSuchUser = ifNothing (Error status404 "no-user" "No such user")

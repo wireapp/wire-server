@@ -14,6 +14,7 @@ import Imports
 
 import Brig.Types.Common
 import Brig.Types.Intra
+import Brig.Types.Search
 import Brig.Types.User
 import Data.Aeson
 import Data.Id
@@ -60,22 +61,22 @@ data API route = API
   , _apiUsersByEmail
     :: route :- RootPrefix :>
        Summary "Displays user's info given an email address" :>
-       "users" :> QueryParam "email" Email :> Get '[JSON] [UserAccount]
+       "users" :> QueryParam' '[Required, Strict] "email" Email :> Get '[JSON] [UserAccount]
 
   , _apiUsersByPhone
     :: route :- RootPrefix :>
        Summary "Displays user's info given a phone number" :>
-       "users" :> QueryParam "email" Phone :> Get '[JSON] [UserAccount]
+       "users" :> QueryParam' '[Required, Strict] "email" Phone :> Get '[JSON] [UserAccount]
 
   , _apiUsersByIds
     :: route :- RootPrefix :>
        Summary "Displays active users info given a list of ids" :>
-       "users" :> QueryParam "ids" UserIdsQuery :> Get '[JSON] [UserAccount]
+       "users" :> QueryParam' '[Required, Strict] "ids" UserIdsQuery :> Get '[JSON] [UserAccount]
 
   , _apiUsersByHandles
     :: route :- RootPrefix :>
        Summary "Displays active users info given a list of handles" :>
-       "users" :> QueryParam "handles" HandlesQuery :> Get '[JSON] [UserAccount]
+       "users" :> QueryParam' '[Required, Strict] "handles" HandlesQuery :> Get '[JSON] [UserAccount]
 
   , _apiUserConnections
     :: route :- RootPrefix :>
@@ -85,15 +86,15 @@ data API route = API
   , _apiUsersConnections
     :: route :- RootPrefix :>
        Summary "Displays a list of user connection statusses given a list of ids" :>
-       "users" :> QueryParam  "ids" UserIdsQuery :> Get '[JSON] [ConnectionStatus]
+       "users" :> QueryParam' '[Required, Strict]  "ids" UserIdsQuery :> Get '[JSON] [ConnectionStatus]
 
   , _apiUserSearchOnBehalf
     :: route :- RootPrefix :>
        Summary "Search for users on behalf of" :>
        "users" :> Capture  "uid" UserId :> "search" :>
-       SwaggerDesc "Search query" (QueryParam "q" Text) :>
+       SwaggerDesc "Search query" (QueryParam' '[Required, Strict] "q" Text) :>
        SwaggerDesc "Number of results to return" (QueryParam "size" (Range 1 100 Int32)) :>
-       Get '[JSON] [ConnectionStatus]
+       Get '[JSON] (SearchResult Contact)
 
   , _apiRevokeIdentity
     :: route :- RootPrefix :>
@@ -163,7 +164,7 @@ data API route = API
        "users" :> "blacklist" :>
        SwaggerDesc "An email address to check" (QueryParam "email" Email) :>
        SwaggerDesc "A phone to check" (QueryParam "phone" Phone) :>
-       Verb 'HEAD 200 '[JSON] NoContent
+       Verb 'HEAD 200 '[JSON] BlackListStatus
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "The email/phone IS blacklisted" Doc.end
@@ -204,7 +205,7 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Fetch a team information given a member's email" :>
        "teams" :>
-       SwaggerDesc "A verified email address" (QueryParam "email" Email) :>
+       SwaggerDesc "A verified email address" (QueryParam' '[Required, Strict] "email" Email) :>
        Get '[JSON] TeamInfo
 
   , _apiTeamInfo
@@ -290,7 +291,7 @@ data API route = API
        Summary "Fetch the consent log given an email address of a non-user" :>
        Notes "Relevant only internally at Wire" :>
        "i" :> "consent" :>
-       SwaggerDesc "An email address" (QueryParam "email" Email) :>
+       SwaggerDesc "An email address" (QueryParam' '[Required, Strict] "email" Email) :>
        Put '[JSON] ConsentLog
 
   , _apiGetMetaInfo
@@ -298,7 +299,7 @@ data API route = API
        Summary "Fetch a user's meta info given a user id: TEMPORARY!" :>
        Notes "Relevant only internally at Wire" :>
        "i" :> "user" :> "meta-info" :>
-       QueryParam' '[Strict] "id" UserId :>
+       QueryParam' '[Required, Strict] "id" UserId :>
        Put '[JSON] UserMetaInfo
 
   }
@@ -326,5 +327,12 @@ data Notes (notes :: Symbol)
 type role Notes phantom
 
 -- TODO: import Servant verb aliases qualified and make ones here that fit our purposes
--- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, something about default
--- status codes?  ...)
+-- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, queryparamrequired,
+-- something about default status codes?  ...)
+
+data BlackListStatus = BlackListed | NotBlackListed
+  deriving (Eq, Ord, Bounded, Enum, Generic)
+
+instance ToJSON BlackListStatus where
+  toJSON BlackListed = object [ "status" .= String "The given user key IS blacklisted" ]
+  toJSON NotBlackListed = object [ "status" .= String "The given user key is NOT blacklisted" ]
