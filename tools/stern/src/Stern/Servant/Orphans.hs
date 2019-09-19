@@ -9,9 +9,12 @@ import Brig.Types.User
 import Control.Monad.Catch (throwM, catch)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion as BSC
+import Data.LegalHold
 import Data.Proxy
 import Data.String.Conversions (cs)
 import "swagger2" Data.Swagger
+import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 import GHC.TypeLits
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
@@ -47,23 +50,21 @@ instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
 
-instance ToSchema TeamInfo where
-  declareNamedSchema = undefined
-
-instance ToSchema SetLegalHoldStatus where
-  declareNamedSchema = undefined
-
-instance ToSchema SetSSOStatus where
-  declareNamedSchema = undefined
-
-instance ToSchema PhoneUpdate where
-  declareNamedSchema = undefined
-
-instance ToSchema TeamBillingInfo where
-  declareNamedSchema = undefined
-
-instance ToSchema TeamBillingInfoUpdate where
-  declareNamedSchema = undefined
+instance ToSchema TeamBinding
+instance ToSchema TeamStatus
+instance ToSchema TeamMemberInfo
+instance ToSchema TeamMember
+instance ToSchema UserLegalHoldStatus
+instance ToSchema Perm
+instance ToSchema Permissions
+instance ToSchema Team
+instance ToSchema TeamData
+instance ToSchema TeamInfo
+instance ToSchema SetLegalHoldStatus
+instance ToSchema SetSSOStatus
+instance ToSchema PhoneUpdate
+instance ToSchema TeamBillingInfo
+instance ToSchema TeamBillingInfoUpdate
 
 
 instance HasSwagger (NoSwagger :> api) where
