@@ -4,8 +4,11 @@ module Stern.Servant.Orphans where
 
 import Imports
 
+import Brig.Types.Client
+import Brig.Types.Properties
 import Brig.Types.Servant.Orphans ()
 import Brig.Types.User
+import Brig.Types.User.Auth
 import Control.Monad.Catch (throwM, catch)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion as BSC
@@ -13,9 +16,12 @@ import Data.LegalHold
 import Data.Proxy
 import Data.String.Conversions (cs)
 import "swagger2" Data.Swagger
+import Data.Text.Ascii
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import GHC.TypeLits
+import Gundeck.Types.Notification
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
 import Servant.API
@@ -40,6 +46,16 @@ instance FromHttpApiData UserIdsQuery where
     where translate (List handles) = UserIdsQuery handles
 
 
+instance ToParamSchema HandlesQuery  where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToParamSchema UserIdsQuery where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToParamSchema InvoiceId where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+
 instance ToSchema (SwaggerSchemaUI' dir api) where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
@@ -50,21 +66,42 @@ instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
 
-instance ToSchema TeamBinding
-instance ToSchema TeamStatus
-instance ToSchema TeamMemberInfo
-instance ToSchema TeamMember
-instance ToSchema UserLegalHoldStatus
+instance ToSchema ConsentLog
+instance ToSchema ConsentValue
 instance ToSchema Perm
 instance ToSchema Permissions
-instance ToSchema Team
-instance ToSchema TeamData
-instance ToSchema TeamInfo
+instance ToSchema PhoneUpdate
 instance ToSchema SetLegalHoldStatus
 instance ToSchema SetSSOStatus
-instance ToSchema PhoneUpdate
+instance ToSchema Team
 instance ToSchema TeamBillingInfo
 instance ToSchema TeamBillingInfoUpdate
+instance ToSchema TeamBinding
+instance ToSchema TeamData
+instance ToSchema TeamInfo
+instance ToSchema TeamMember
+instance ToSchema TeamMemberInfo
+instance ToSchema TeamStatus
+instance ToSchema UserConnectionsByStatus
+instance ToSchema UserLegalHoldStatus
+instance ToSchema PropertyValue
+instance ToSchema MarketoResult
+instance ToSchema (AsciiText Printable)
+instance ToSchema UserMetaInfo
+instance ToSchema UserProperties
+instance ToSchema PropertyKey
+
+instance ToSchema QueuedNotification where
+  declareNamedSchema = undefined
+
+instance ToSchema Conversation where
+  declareNamedSchema = undefined
+
+instance ToSchema Client where
+  declareNamedSchema = undefined
+
+instance ToSchema CookieList where
+  declareNamedSchema = undefined
 
 
 instance HasSwagger (NoSwagger :> api) where

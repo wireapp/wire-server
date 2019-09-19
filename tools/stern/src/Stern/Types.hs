@@ -16,7 +16,6 @@ import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
-import "swagger2" Data.Swagger
 import Data.Text
 import Imports
 import Galley.Types
@@ -141,9 +140,6 @@ instance ToJSON UserMetaInfo where
       , "marketo"       .= _umiMarketo umi
       ]
 
-instance ToSchema UserMetaInfo where
-  declareNamedSchema = undefined
-
 data UserConnectionsByStatus = UserConnectionsByStatus
     { _ucbsAccepted :: Int
     , _ucbsSent     :: Int
@@ -163,6 +159,3 @@ instance ToJSON UserConnectionsByStatus where
       , "ignored"     .= _ucbsIgnored ucbs
       , "total"       .= _ucbsTotal ucbs
       ]
-
-instance ToSchema UserConnectionsByStatus where
-  declareNamedSchema = undefined
