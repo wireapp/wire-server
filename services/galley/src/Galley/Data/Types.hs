@@ -43,7 +43,7 @@ data Conversation = Conversation
     , convDeleted :: Maybe Bool
     , convMessageTimer :: Maybe Milliseconds      -- ^ Global message timer
     , convReceiptMode  :: Maybe ReceiptMode
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 isSelfConv :: Conversation -> Bool
 isSelfConv = (SelfConv ==) . convType
@@ -69,11 +69,11 @@ data Code = Code
     , codeTTL           :: !Timeout
     , codeConversation  :: !ConvId
     , codeScope         :: !Scope
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 
 data Scope = ReusableCode
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance Cql Scope where
     ctype = Tagged IntColumn
