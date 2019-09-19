@@ -322,7 +322,6 @@ sitemap = do
             description "Team ID"
         Doc.returns Doc.docSetLegalHoldStatus
         Doc.response 200 "Legalhold status" Doc.end
-        Doc.returns Doc.bool'
 
     put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
         contentType "application" "json"
