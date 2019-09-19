@@ -159,8 +159,9 @@ removeStalePresence = do
     w <- wsRun ca uid con (wsCloser m)
     wsAssertPresences uid 1
     liftIO $ void $ putMVar m () >> wait w
-    sendPush (push uid [uid])
+    -- The websocket might take a few time units to drop so better to try a few pushes
     recoverAll (constantDelay 1000000 <> limitRetries 10) $ \_ -> do
+        sendPush (push uid [uid])
         ensurePresent uid 0
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
