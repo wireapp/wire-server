@@ -157,7 +157,7 @@ instance ToSchema (Id a) where
     declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
 instance ToSchema Metrics.Metrics where
-    declareNamedSchema = undefined
+    declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO
 
 instance ToSchema UserSet
 instance ToSchema UserConnection
@@ -169,7 +169,7 @@ instance ToSchema NewUser
 instance ToSchema NewUserOrigin
 
 instance ToSchema (Range from to typ) where
-    declareNamedSchema = undefined
+    declareNamedSchema _ = declareNamedSchema (Proxy @Int)  -- TODO
 
 instance ToSchema User
 instance ToSchema UserIdentity

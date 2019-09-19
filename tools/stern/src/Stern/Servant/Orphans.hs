@@ -10,7 +10,7 @@ import Brig.Types.Servant.Orphans ()
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Monad.Catch (throwM, catch)
-import Data.Aeson (encode)
+import Data.Aeson (Value, encode)
 import Data.ByteString.Conversion as BSC
 import Data.LegalHold
 import Data.Proxy
@@ -91,27 +91,28 @@ instance ToSchema UserMetaInfo
 instance ToSchema UserProperties
 instance ToSchema PropertyKey
 
+
 instance ToSchema QueuedNotification where
-  declareNamedSchema = undefined
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema Conversation where
-  declareNamedSchema = undefined
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema Client where
-  declareNamedSchema = undefined
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema CookieList where
-  declareNamedSchema = undefined
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 
 instance HasSwagger (NoSwagger :> api) where
   toSwagger _ = mempty
 
 instance HasSwagger ((SwaggerDesc (sym :: Symbol) thing) :> api) where
-  toSwagger = undefined
+  toSwagger _ = mempty  -- TODO
 
 instance HasSwagger api => HasSwagger (Notes (sym :: Symbol) :> api) where
-  toSwagger = undefined
+  toSwagger _ = mempty  -- TODO
 
 
 instance HasServer api ctx => HasServer (NoSwagger :> api) ctx where
