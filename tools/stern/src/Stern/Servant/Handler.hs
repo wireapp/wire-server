@@ -150,7 +150,7 @@ apiUsersByIds = undefined
 apiUsersByHandles :: Maybe HandlesQuery -> MonadIntra m => m [UserAccount]
 apiUsersByHandles = undefined
 
-apiUserConnections :: UserId -> MonadIntra m => m Value
+apiUserConnections :: UserId -> MonadIntra m => m UserConnectionsByStatus
 apiUserConnections = undefined
 
 apiUsersConnections :: Maybe UserIdsQuery -> MonadIntra m => m [ConnectionStatus]

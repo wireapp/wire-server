@@ -622,46 +622,35 @@ getConsentLog e = do
                            , "marketo"     .= marketo
                            ]
 
--- TODO: This will be removed as soon as this is ported to another tool
+-- FUTUREWORK: This will be removed as soon as this is ported to another tool
 getUserData :: UserId -> Handler Response
 getUserData uid = do
-    account <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
-    conns      <- Intra.getUserConnections uid
-    convs      <- Intra.getUserConversations uid
-    clts       <- Intra.getUserClients uid
-    notfs      <- Intra.getUserNotifications uid
-    consent    <- Intra.getUserConsentValue uid
-    consentLog <- Intra.getUserConsentLog uid
-    cookies    <- Intra.getUserCookies uid
-    properties <- Intra.getUserProperties uid
-    -- Get all info from Marketo too
-    let em = userEmail $ accountUser account
-    marketo    <- maybe (return noEmail) Intra.getMarketoResult em
-    return . json $ object [ "account"       .= account
-                           , "cookies"       .= cookies
-                           , "connections"   .= conns
-                           , "conversations" .= convs
-                           , "clients"       .= clts
-                           , "notifications" .= notfs
-                           , "consent"       .= consent
-                           , "consent_log"   .= consentLog
-                           , "marketo"       .= marketo
-                           , "properties"    .= properties
-                           ]
+    _umiAccount       <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
+    _umiConnections   <- Intra.getUserConnections uid
+    _umiConversations <- Intra.getUserConversations uid
+    _umiNotifications <- Intra.getUserNotifications uid
+    _umiClients       <- Intra.getUserClients uid
+    _umiConsent       <- Intra.getUserConsentValue uid
+    _umiConsentLog    <- Intra.getUserConsentLog uid
+    _umiCookies       <- Intra.getUserCookies uid
+    _umiProperties    <- Intra.getUserProperties uid
+    _umiMarketo       <- let em = userEmail $ accountUser _umiAccount
+                         in maybe (return noEmail) Intra.getMarketoResult em
+    return $ json UserMetaInfo {..}
   where
     noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
 -- Utilities
 
-groupByStatus :: [UserConnection] -> Value
-groupByStatus conns = object
-    [ "accepted"    .= byStatus Accepted conns
-    , "sent"        .= byStatus Sent conns
-    , "pending"     .= byStatus Pending conns
-    , "blocked"     .= byStatus Blocked conns
-    , "ignored"     .= byStatus Ignored conns
-    , "total"       .= length conns
-    ]
+groupByStatus :: [UserConnection] -> UserConnectionsByStatus
+groupByStatus conns = UserConnectionsByStatus
+    { _ucbsAccepted = byStatus Accepted conns
+    , _ucbsSent     = byStatus Sent conns
+    , _ucbsPending  = byStatus Pending conns
+    , _ucbsBlocked  = byStatus Blocked conns
+    , _ucbsIgnored  = byStatus Ignored conns
+    , _ucbsTotal    = length conns
+    }
   where
     byStatus :: Relation -> [UserConnection] -> Int
     byStatus s = length . filter ((==) s . ucStatus)

@@ -80,7 +80,7 @@ data API route = API
   , _apiUserConnections
     :: route :- RootPrefix :>
        Summary "Displays user's connections" :>
-       "users" :> Capture "uid" UserId :> Get '[JSON] UserConnectionByStatus
+       "users" :> Capture "uid" UserId :> Get '[JSON] UserConnectionsByStatus
 
   , _apiUsersConnections
     :: route :- RootPrefix :>
@@ -316,9 +316,6 @@ newtype UserIdsQuery = UserIdsQuery [UserId]
 
 newtype HandlesQuery = HandlesQuery [Handle]
   deriving (Eq, Show, Generic)
-
-type UserConnectionByStatus = Value  -- TODO: see groupByStatus
-type UserMetaInfo = Value  -- TODO: see getUserData
 
 -- TODO: move to a module for stuff to be pushed to swagger2.
 data SwaggerDesc (notes :: Symbol) (val :: k)

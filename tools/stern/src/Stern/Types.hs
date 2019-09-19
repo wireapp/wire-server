@@ -9,15 +9,20 @@
 module Stern.Types where
 
 import Brig.Types
+import Brig.Types.Intra
+import Brig.Types.User.Auth
 import Data.Aeson
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
+import "swagger2" Data.Swagger
 import Data.Text
 import Imports
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Gundeck.Types.Notification
 
 import qualified Data.HashMap.Strict as M
 
@@ -104,3 +109,56 @@ data SetSSOStatus = SetSSODisabled | SetSSOEnabled
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
 
 deriveJSON toJSONFieldName ''SetSSOStatus
+
+-- FUTUREWORK: This will be removed as soon as this is ported to another tool
+data UserMetaInfo = UserMetaInfo
+    { _umiAccount       :: UserAccount
+    , _umiConnections   :: [UserConnection]
+    , _umiConversations :: [Conversation]
+    , _umiNotifications :: [QueuedNotification]
+    , _umiClients       :: [Client]
+    , _umiConsent       :: ConsentValue
+    , _umiConsentLog    :: ConsentLog
+    , _umiCookies       :: CookieList
+    , _umiProperties    :: UserProperties
+    , _umiMarketo       :: MarketoResult
+    }
+
+instance ToJSON UserMetaInfo where
+  toJSON umi = object
+      [ "account"       .= _umiAccount umi
+      , "connections"   .= _umiConnections umi
+      , "conversations" .= _umiConversations umi
+      , "notifications" .= _umiNotifications umi
+      , "clients"       .= _umiClients umi
+      , "consent"       .= _umiConsent umi
+      , "consent_log"   .= _umiConsentLog umi
+      , "cookies"       .= _umiCookies umi
+      , "properties"    .= _umiProperties umi
+      , "marketo"       .= _umiMarketo umi
+      ]
+
+instance ToSchema UserMetaInfo where
+  declareNamedSchema = undefined
+
+data UserConnectionsByStatus = UserConnectionsByStatus
+    { _ucbsAccepted :: Int
+    , _ucbsSent     :: Int
+    , _ucbsPending  :: Int
+    , _ucbsBlocked  :: Int
+    , _ucbsIgnored  :: Int
+    , _ucbsTotal    :: Int
+    }
+
+instance ToJSON UserConnectionsByStatus where
+  toJSON ucbs = object
+      [ "accepted"    .= _ucbsAccepted ucbs
+      , "sent"        .= _ucbsSent ucbs
+      , "pending"     .= _ucbsPending ucbs
+      , "blocked"     .= _ucbsBlocked ucbs
+      , "ignored"     .= _ucbsIgnored ucbs
+      , "total"       .= _ucbsTotal ucbs
+      ]
+
+instance ToSchema UserConnectionsByStatus where
+  declareNamedSchema = undefined
