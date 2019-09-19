@@ -4,16 +4,14 @@ module Stern.Servant.Orphans where
 
 import Imports
 
+import Brig.Types.Servant.Orphans ()
 import Brig.Types.User
-import Brig.Types.Intra
 import Control.Monad.Catch (throwM, catch)
-import Data.Aeson (Value, encode)
-import Data.Id
+import Data.Aeson (encode)
+import Data.ByteString.Conversion as BSC
 import Data.Proxy
-import Data.Range
 import Data.String.Conversions (cs)
 import "swagger2" Data.Swagger
-import Data.UUID as UUID
 import GHC.TypeLits
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
@@ -30,49 +28,13 @@ import Stern.Types
 import qualified Data.Metrics.Servant as Metrics
 
 
-instance FromHttpApiData (Id any) where
-  parseUrlPiece = maybe (Left "UUID.fromText failed") (pure . Id) . UUID.fromText
-
 instance FromHttpApiData HandlesQuery where
-  parseUrlPiece = undefined
+  parseUrlPiece = fmap translate . parseUrlPiece
+    where translate (List handles) = HandlesQuery handles
 
 instance FromHttpApiData UserIdsQuery where
-  parseUrlPiece = undefined
-
-instance FromHttpApiData Email where
-  parseUrlPiece = undefined
-
-instance FromHttpApiData Phone where
-  parseUrlPiece = undefined
-
-instance FromHttpApiData (Range (lower :: Nat) (upper :: Nat) Int32) where
-  parseUrlPiece = undefined
-
-instance FromHttpApiData InvoiceId where
-  parseUrlPiece = undefined
-
-
-instance ToParamSchema (Id any) where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-    -- FUTUREWORK: @& description .~ Just (... :: Text)@ would be nice here, but will require
-    -- a patch to swagger2, I think.  and we need to think of a clever way to get from "any"
-    -- in the instance head back to "AnyId".  (the dumb way would also work, just writing 5
-    -- instances.)
-
-instance ToParamSchema HandlesQuery where
-  toParamSchema = undefined
-
-instance ToParamSchema UserIdsQuery where
-  toParamSchema = undefined
-
-instance ToParamSchema Email where
-  toParamSchema = undefined
-
-instance ToParamSchema Phone where
-  toParamSchema = undefined
-
-instance ToParamSchema InvoiceId where
-  toParamSchema = undefined
+  parseUrlPiece = fmap translate . parseUrlPiece
+    where translate (List handles) = UserIdsQuery handles
 
 
 instance ToSchema (SwaggerSchemaUI' dir api) where
@@ -84,17 +46,6 @@ instance ToSchema (SwaggerUiHtml dir any) where
 instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
-instance ToSchema NoContent where
-  declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO: is there a more accurate way to do this?
-
-instance ToSchema Value where
-  declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO: is there a more accurate way to do this?
-
-instance ToSchema UserAccount where
-  declareNamedSchema = undefined
-
-instance ToSchema ConnectionStatus where
-  declareNamedSchema = undefined
 
 instance ToSchema TeamInfo where
   declareNamedSchema = undefined
@@ -103,9 +54,6 @@ instance ToSchema SetLegalHoldStatus where
   declareNamedSchema = undefined
 
 instance ToSchema SetSSOStatus where
-  declareNamedSchema = undefined
-
-instance ToSchema EmailUpdate where
   declareNamedSchema = undefined
 
 instance ToSchema PhoneUpdate where

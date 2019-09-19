@@ -10,8 +10,15 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - hostname-validate
-- lens
 - imports
+- insert-ordered-containers
+- lens
+- metrics-core
+- servant
+- servant-server
+- servant-swagger
+- swagger2
+- uri-bytestring
 library:
   source-dirs: src
   ghc-options:
@@ -37,6 +44,7 @@ library:
   - safe >=0.3
   - scientific >=0.3.4
   - singletons >=2.0
+  - string-conversions
   - swagger >=0.1
   - text >=0.11
   - time >=1.1
@@ -75,7 +83,6 @@ tests:
     - galley-types
     - iproute
     - iso639
-    - pem
     - QuickCheck
     - quickcheck-instances
     - random
@@ -85,7 +92,6 @@ tests:
     - text
     - time
     - types-common
-    - unordered-containers
     - uuid
     - uri-bytestring
     - vector
