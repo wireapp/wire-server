@@ -61,22 +61,22 @@ data API route = API
   , _apiUsersByEmail
     :: route :- RootPrefix :>
        Summary "Display user's info given an email address" :>
-       "users" :> QueryParamStrict "email" Email :> Get [UserAccount]
+       "users" :> "by-email" :> QueryParamStrict "email" Email :> Get [UserAccount]
 
   , _apiUsersByPhone
     :: route :- RootPrefix :>
        Summary "Display user's info given a phone number" :>
-       "users" :> QueryParamStrict "phone" Phone :> Get [UserAccount]
+       "users" :> "by-phone" :> QueryParamStrict "phone" Phone :> Get [UserAccount]
 
   , _apiUsersByIds
     :: route :- RootPrefix :>
        Summary "Display active users' info given a list of ids" :>
-       "users" :> QueryParamStrict "ids" UserIdsQuery :> Get [UserAccount]
+       "users" :> "by-ids" :> QueryParamStrict "ids" UserIdsQuery :> Get [UserAccount]
 
   , _apiUsersByHandles
     :: route :- RootPrefix :>
        Summary "Display active users' info given a list of handles" :>
-       "users" :> QueryParamStrict "handles" HandlesQuery :> Get [UserAccount]
+       "users" :> "by-handles" :> QueryParamStrict "handles" HandlesQuery :> Get [UserAccount]
 
   , _apiUserConnections
     :: route :- RootPrefix :>
