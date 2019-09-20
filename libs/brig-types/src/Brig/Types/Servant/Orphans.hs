@@ -1,3 +1,4 @@
+{-# LANGUAGE RoleAnnotations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
 -- live), and turn warning about orphans back on.
@@ -12,34 +13,54 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- clash other than -XPackageImports.
 
 import Brig.Types.Activation
+import Brig.Types.Client
 import Brig.Types.Connection
 import Brig.Types.Intra
+import Brig.Types.Properties
+import Brig.Types.Search as Search
 import Brig.Types.User
+import Brig.Types.User.Auth
 import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens
 import Data.Aeson as Aeson
-import Data.ByteString.Conversion (List(..))
+import Data.Aeson                 (Value)
 import Data.ByteString.Conversion as BSC
+import Data.ByteString.Conversion (List(..))
 import Data.Currency (Alpha)
 import Data.Id
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
+import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Range
+import Data.Singletons.Bool (reflectBool)
 import Data.String.Conversions (cs)
 import Data.Text.Ascii
+import Data.Text (Text)
 import Data.Typeable (typeOf)
 import Data.UUID (UUID)
 import Galley.Types
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
-import qualified Data.Json.Util
-import qualified Data.Metrics as Metrics
-import qualified Servant
+import Galley.Types.Teams.Intra
+import GHC.TypeLits
+import Gundeck.Types.Notification
+import Servant.API
+import Servant.API.Description (FoldDescription, reflectDescription)
+import Servant.API.Modifiers (FoldRequired)
 import Servant hiding (Get, Put, Post, Delete, ReqBody, QueryParam, QueryParam', URI)
 import Servant.Swagger
+import Servant.Swagger.Internal (addDefaultResponse400, addParam)
+import Servant.Swagger.UI
+import Servant.Swagger.UI.Core
 import URI.ByteString (URI)
+
+import qualified Data.Json.Util
+import qualified Data.Metrics         as Metrics
+import qualified Data.Metrics.Servant as Metrics
+import qualified Data.Text            as Text
+import qualified Servant
 
 
 ----------------------------------------------------------------------
@@ -69,18 +90,16 @@ instance ToJSON ActivationCodeObject where
 ----------------------------------------------------------------------
 -- * generic servant helpers
 
-type Head = Verb 'HEAD 204 '[JSON]  -- TODO: which status code is this?
+type Head = Verb 'HEAD 204 '[JSON]
 type Get = Verb 'GET 200 '[JSON]
 type Post = Verb 'POST 201 '[JSON]
-type Put204 = Verb 'PUT 204 '[JSON]
-type Put200 = Verb 'PUT 200 '[JSON]
-type Delete200 = Verb 'DELETE 200 '[JSON]
-type Delete202 = Verb 'DELETE 202 '[JSON]
+type Put = Verb 'PUT 200 '[JSON]
+type Delete = Verb 'DELETE 200 '[JSON]
 
 type ReqBody = Servant.ReqBody '[JSON]
 
-type QueryParamStrict = Servant.QueryParam  -- TODO: which one?
-type QueryParamOptional = Servant.QueryParam  -- TODO: which one?
+type QueryParamStrict = Servant.QueryParam' '[Required, Servant.Strict]
+type QueryParamOptional = Servant.QueryParam' '[Optional, Servant.Strict]
 
 
 ----------------------------------------------------------------------
@@ -227,7 +246,10 @@ instance ToParamSchema Handle
 instance ToParamSchema AccountStatus
 instance ToParamSchema PhonePrefix
 
-instance ToParamSchema URI where
+instance ToParamSchema URI.ByteString.URI where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToParamSchema Servant.API.URI where
     toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToSchema AccountStatusUpdate
@@ -253,3 +275,109 @@ instance ToParamSchema ConnId where
 
 instance ToSchema Swagger1.ApiDecl where
     declareNamedSchema _ = declareNamedSchema (Proxy @Value)
+
+
+instance ToSchema (SwaggerSchemaUI' dir api) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+instance ToSchema (SwaggerUiHtml dir any) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+instance ToSchema Swagger where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+
+instance ToSchema Perm
+instance ToSchema Permissions
+instance ToSchema PhoneUpdate
+instance ToSchema Team
+instance ToSchema TeamBinding
+instance ToSchema TeamData
+instance ToSchema TeamMember
+instance ToSchema TeamStatus
+instance ToSchema UserLegalHoldStatus
+instance ToSchema PropertyValue
+instance ToSchema (AsciiText Printable)
+instance ToSchema PropertyKey
+
+
+instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
+
+deriving instance Generic Search.Contact
+instance ToSchema Search.Contact
+
+deriving instance Generic (SearchResult Search.Contact)
+instance ToSchema (SearchResult Search.Contact)
+
+
+instance ToSchema QueuedNotification where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+
+instance ToSchema Conversation where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+
+instance ToSchema Client where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+
+instance ToSchema CookieList where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+
+
+data NoSwagger
+  deriving (Generic)
+
+instance HasSwagger (NoSwagger :> api) where
+  toSwagger _ = mempty
+
+
+data SwaggerDesc (notes :: Symbol) (val :: k)
+type role SwaggerDesc phantom phantom
+
+-- Copied and mutated from "Servant.Swagger.Internal".  To make this more composable, we'd
+-- have to touch the package, I think.  (We should probably do that now, no?  write a function
+-- that does what the instance does, plus takes an extra descr string, then writing the two
+-- instances is trivial.  then also find a better name for SwaggerDesc.  WithDescription?)
+instance ( KnownSymbol desc
+         , KnownSymbol sym
+         , ToParamSchema a
+         , HasSwagger sub
+         , SBoolI (FoldRequired mods)
+         , KnownSymbol (FoldDescription mods)
+         ) => HasSwagger (SwaggerDesc desc (QueryParam' mods sym a) :> sub) where
+  toSwagger _ = toSwagger (Proxy :: Proxy sub)
+    & addParam param
+    & addDefaultResponse400 tname
+    where
+      tname = Text.pack (symbolVal (Proxy :: Proxy sym))
+      descText :: [Text]
+        = [ cs $ symbolVal (Proxy :: Proxy desc)
+          , cs $ reflectDescription (Proxy :: Proxy mods)
+          ]
+      transDesc ""   = Nothing
+      transDesc desc = Just desc
+      param = mempty
+        & name .~ tname
+        & description .~ (transDesc . Text.strip . Text.unlines $ descText)
+        & required ?~ reflectBool (Proxy :: Proxy (FoldRequired mods))
+        & schema .~ ParamOther sch
+      sch = mempty
+        & in_ .~ ParamQuery
+        & paramSchema .~ toParamSchema (Proxy :: Proxy a)
+
+
+instance HasServer api ctx => HasServer (NoSwagger :> api) ctx where
+  type ServerT (NoSwagger :> api) m = ServerT api m
+  route _ = route (Proxy @api)
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance HasServer (something :> api) ctx => HasServer (SwaggerDesc (sym :: Symbol) something :> api) ctx where
+  type ServerT (SwaggerDesc sym something :> api) m = ServerT (something :> api) m
+  route _ = route (Proxy @(something :> api))
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @(something :> api))
+
+
+instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) where
+  getRoutes = mempty
+
+instance Metrics.RoutesToPaths Raw where
+  getRoutes = mempty

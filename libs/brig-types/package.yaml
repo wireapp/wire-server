@@ -51,6 +51,11 @@ library:
   - types-common >=0.16
   - unordered-containers >=0.2
   - uuid >=1.3
+  - gundeck-types
+  - metrics-wai
+  - singleton-bool
+  - servant-swagger-ui
+  - servant-swagger-ui-core
   when:
   - condition: flag(cql)
     cpp-options: -DWITH_CQL

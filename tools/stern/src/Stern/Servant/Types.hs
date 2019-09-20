@@ -16,11 +16,11 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.Search
 import Brig.Types.User
+import Brig.Types.Servant.Orphans
 import Data.Aeson
 import Data.Id
 import Data.Range
-import GHC.TypeLits (Symbol)
-import Servant.API
+import Servant.API hiding (Get, Put, Post, Delete, ReqBody, QueryParam, QueryParam')
 import Servant.API.Generic
 import Servant.Swagger.UI
 import Stern.Types
@@ -44,57 +44,57 @@ data API route = API
 
   , _apiInternalMonitoring
     :: route :- RootPrefix :> NoSwagger :>
-       "i" :> "monitoring" :> Get '[JSON] Value
+       "i" :> "monitoring" :> Get Value
     -- This is deprecated in favour of /i/metrics via prometheus middleware.
 
 
   , _apiSuspendUser
     :: route :- RootPrefix :>
        Summary "Suspend user with this ID" :>
-       "users" :> Capture "uid" UserId :> "suspend" :> Post '[JSON] NoContent
+       "users" :> Capture "uid" UserId :> "suspend" :> Post NoContent
 
   , _apiUnsuspendUser
     :: route :- RootPrefix :>
        Summary "Unsuspend user with this ID" :>
-       "users" :> Capture "uid" UserId :> "unsuspend" :> Post '[JSON] NoContent
+       "users" :> Capture "uid" UserId :> "unsuspend" :> Post NoContent
 
   , _apiUsersByEmail
     :: route :- RootPrefix :>
        Summary "Display user's info given an email address" :>
-       "users" :> QueryParam' '[Required, Strict] "email" Email :> Get '[JSON] [UserAccount]
+       "users" :> QueryParamStrict "email" Email :> Get [UserAccount]
 
   , _apiUsersByPhone
     :: route :- RootPrefix :>
        Summary "Display user's info given a phone number" :>
-       "users" :> QueryParam' '[Required, Strict] "phone" Phone :> Get '[JSON] [UserAccount]
+       "users" :> QueryParamStrict "phone" Phone :> Get [UserAccount]
 
   , _apiUsersByIds
     :: route :- RootPrefix :>
        Summary "Display active users' info given a list of ids" :>
-       "users" :> QueryParam' '[Required, Strict] "ids" UserIdsQuery :> Get '[JSON] [UserAccount]
+       "users" :> QueryParamStrict "ids" UserIdsQuery :> Get [UserAccount]
 
   , _apiUsersByHandles
     :: route :- RootPrefix :>
        Summary "Display active users' info given a list of handles" :>
-       "users" :> QueryParam' '[Required, Strict] "handles" HandlesQuery :> Get '[JSON] [UserAccount]
+       "users" :> QueryParamStrict "handles" HandlesQuery :> Get [UserAccount]
 
   , _apiUserConnections
     :: route :- RootPrefix :>
        Summary "Display user's connections" :>
-       "users" :> Capture "uid" UserId :> Get '[JSON] UserConnectionsByStatus
+       "users" :> Capture "uid" UserId :> Get UserConnectionsByStatus
 
   , _apiUsersConnections
     :: route :- RootPrefix :>
        Summary "Display a list of user connection statusses given a list of ids" :>
-       "users" :> QueryParam' '[Required, Strict]  "ids" UserIdsQuery :> Get '[JSON] [ConnectionStatus]
+       "users" :> QueryParamStrict  "ids" UserIdsQuery :> Get [ConnectionStatus]
 
   , _apiUserSearchOnBehalf
     :: route :- RootPrefix :>
        Summary "Search for users on behalf of" :>
        "users" :> Capture  "uid" UserId :> "search" :>
-       SwaggerDesc "Search query" (QueryParam' '[Required, Strict] "q" Text) :>
-       SwaggerDesc "Number of results to return" (QueryParam "size" (Range 1 100 Int32)) :>
-       Get '[JSON] (SearchResult Contact)
+       SwaggerDesc "Search query" (QueryParamStrict "q" Text) :>
+       SwaggerDesc "Number of results to return" (QueryParamOptional "size" (Range 1 100 Int32)) :>
+       Get (SearchResult Contact)
 
   , _apiRevokeIdentity
     :: route :- RootPrefix :>
@@ -105,9 +105,9 @@ data API route = API
              \deactivated (\"wireless\") and might thus become inaccessible. \
              \If the given identity is not taken / verified, this is a no-op." :>
        "users" :> "revoke-identity" :>
-       SwaggerDesc "A verified email address" (QueryParam "email" Email) :>
-       SwaggerDesc "A verified phone number (E.164 format)." (QueryParam "phone" Phone) :>
-       Post '[JSON] NoContent
+       SwaggerDesc "A verified email address" (QueryParamOptional "email" Email) :>
+       SwaggerDesc "A verified phone number (E.164 format)." (QueryParamOptional "phone" Phone) :>
+       Post NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Identity revoked or not verified / taken." Doc.end
@@ -119,8 +119,8 @@ data API route = API
        Summary "Change a user's email address." :>
        Description "The new e-mail address must be verified before the change takes effect." :>
        "users" :> Capture "uid" UserId :> "email" :>
-       ReqBody '[JSON] EmailUpdate :>
-       Put '[JSON] NoContent
+       ReqBody EmailUpdate :>
+       Put NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Change of email address initiated." Doc.end
@@ -132,8 +132,8 @@ data API route = API
        Summary "Change a user's phone number." :>
        Description "The new phone number must be verified before the change takes effect." :>
        "users" :> Capture "uid" UserId :> "phone" :>
-       ReqBody '[JSON] PhoneUpdate :>
-       Put '[JSON] NoContent
+       ReqBody PhoneUpdate :>
+       Put NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Change of phone number initiated." Doc.end
@@ -146,10 +146,10 @@ data API route = API
        Description "Email or Phone must match UserId's (to prevent copy/paste mistakes)" :>
        "users" :> Capture "uid" UserId :>
        SwaggerDesc "Matching verified email address"
-         (QueryParam "email" Email) :>
+         (QueryParamOptional "email" Email) :>
        SwaggerDesc "Matching verified phone number (E.164 format)."
-         (QueryParam "phone" Phone) :>
-       Delete '[JSON] NoContent
+         (QueryParamOptional "phone" Phone) :>
+       Delete NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Account deleted" Doc.end
@@ -162,8 +162,8 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Fetch blacklist information on a email/phone" :>
        "users" :> "blacklist" :>
-       SwaggerDesc "An email address to check" (QueryParam "email" Email) :>
-       SwaggerDesc "A phone to check" (QueryParam "phone" Phone) :>
+       SwaggerDesc "An email address to check" (QueryParamOptional "email" Email) :>
+       SwaggerDesc "A phone to check" (QueryParamOptional "phone" Phone) :>
        Verb 'HEAD 200 '[JSON] BlackListStatus
        -- FUTUREWORK: describe response:
        -- @
@@ -177,9 +177,9 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Add the email/phone to our blacklist" :>
        "users" :> "blacklist" :>
-       SwaggerDesc "An email address to add" (QueryParam "email" Email) :>
-       SwaggerDesc "A phone to add" (QueryParam "phone" Phone) :>
-       Post '[JSON] NoContent
+       SwaggerDesc "An email address to add" (QueryParamOptional "email" Email) :>
+       SwaggerDesc "A phone to add" (QueryParamOptional "phone" Phone) :>
+       Post NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Operation succeeded" Doc.end
@@ -191,9 +191,9 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Remove the email/phone from our blacklist" :>
        "users" :> "blacklist" :>
-       SwaggerDesc "An email address to remove" (QueryParam "email" Email) :>
-       SwaggerDesc "A phone to remove" (QueryParam "phone" Phone) :>
-       Delete '[JSON] NoContent
+       SwaggerDesc "An email address to remove" (QueryParamOptional "email" Email) :>
+       SwaggerDesc "A phone to remove" (QueryParamOptional "phone" Phone) :>
+       Delete NoContent
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Operation succeeded" Doc.end
@@ -205,14 +205,14 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Fetch a team information given a member's email" :>
        "teams" :>
-       SwaggerDesc "A verified email address" (QueryParam' '[Required, Strict] "email" Email) :>
-       Get '[JSON] TeamInfo
+       SwaggerDesc "A verified email address" (QueryParamStrict "email" Email) :>
+       Get TeamInfo
 
   , _apiTeamInfo
     :: route :- RootPrefix :>
        Summary "Get information about a team" :>
        "teams" :> Capture "tid" TeamId :>
-       Get '[JSON] TeamInfo
+       Get TeamInfo
 
 
     -- feature flags
@@ -221,27 +221,27 @@ data API route = API
     :: route :- RootPrefix :>
        Summary "Show whether legalhold feature is enabled for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "legalhold" :>
-       Get '[JSON] SetLegalHoldStatus
+       Get SetLegalHoldStatus
 
   , _apiPutFeatureStatusLegalHold
     :: route :- RootPrefix :>
        Summary "Disable / enable legalhold feature for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "legalhold" :>
-       ReqBody '[JSON] SetLegalHoldStatus :>
-       Put '[JSON] NoContent
+       ReqBody SetLegalHoldStatus :>
+       Put NoContent
 
   , _apiGetFeatureStatusSSO
     :: route :- RootPrefix :>
        Summary "Show whether SSO feature is enabled for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "sso" :>
-       Get '[JSON] SetSSOStatus
+       Get SetSSOStatus
 
   , _apiPutFeatureStatusSSO
     :: route :- RootPrefix :>
        Summary "Disable / enable SSO feature for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "sso" :>
-       ReqBody '[JSON] SetSSOStatus :>
-       Put '[JSON] NoContent
+       ReqBody SetSSOStatus :>
+       Put NoContent
 
 
     -- Billing & GDPR (may only be relevant internally at Wire)
@@ -259,7 +259,7 @@ data API route = API
        Summary "Get billing information about a team" :>
        Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
-       Get '[JSON] TeamBillingInfo
+       Get TeamBillingInfo
        -- FUTUREWORK: describe response:
        -- @
        -- Doc.response 200 "Team Billing Information" Doc.end
@@ -272,8 +272,8 @@ data API route = API
                \specified fields will NOT be updated" :>
        Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
-       ReqBody '[JSON] TeamBillingInfoUpdate :>
-       Put '[JSON] TeamBillingInfo
+       ReqBody TeamBillingInfoUpdate :>
+       Put TeamBillingInfo
 
   , _apiPostTeamBilling
     :: route :- RootPrefix :>
@@ -283,24 +283,24 @@ data API route = API
                \info, use the update endpoint" :>
        Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
-       ReqBody '[JSON] TeamBillingInfo :>
-       Post '[JSON] TeamBillingInfo
+       ReqBody TeamBillingInfo :>
+       Post TeamBillingInfo
 
   , _apiGetConsentLog
     :: route :- RootPrefix :>
        Summary "Fetch the consent log given an email address of a non-user" :>
        Description "Relevant only internally at Wire" :>
        "i" :> "consent" :>
-       SwaggerDesc "An email address" (QueryParam' '[Required, Strict] "email" Email) :>
-       Put '[JSON] ConsentLog
+       SwaggerDesc "An email address" (QueryParamStrict "email" Email) :>
+       Put ConsentLog
 
   , _apiGetMetaInfo
     :: route :- RootPrefix :>
        Summary "Fetch a user's meta info given a user id: TEMPORARY!" :>
        Description "Relevant only internally at Wire" :>
        "i" :> "user" :> "meta-info" :>
-       QueryParam' '[Required, Strict] "id" UserId :>
-       Put '[JSON] UserMetaInfo
+       QueryParamStrict "id" UserId :>
+       Put UserMetaInfo
 
   }
   deriving (Generic)
@@ -310,21 +310,11 @@ data API route = API
 -- implementation.
 type RootPrefix = "servant"
 
-data NoSwagger
-
 newtype UserIdsQuery = UserIdsQuery [UserId]
   deriving (Eq, Ord, Show, Generic)
 
 newtype HandlesQuery = HandlesQuery [Handle]
   deriving (Eq, Show, Generic)
-
--- TODO: move to a module for stuff to be pushed to swagger2.
-data SwaggerDesc (notes :: Symbol) (val :: k)
-type role SwaggerDesc phantom phantom
-
--- TODO: import Servant verb aliases qualified and make ones here that fit our purposes
--- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, queryparamrequired,
--- something about default status codes?  ...)
 
 data BlackListStatus = BlackListed | NotBlackListed
   deriving (Eq, Ord, Bounded, Enum, Generic)
@@ -332,3 +322,8 @@ data BlackListStatus = BlackListed | NotBlackListed
 instance ToJSON BlackListStatus where
   toJSON BlackListed = object [ "status" .= String "The given user key IS blacklisted" ]
   toJSON NotBlackListed = object [ "status" .= String "The given user key is NOT blacklisted" ]
+
+
+-- TODO: import Servant verb aliases qualified and make ones here that fit our purposes
+-- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, queryparamrequired,
+-- something about default status codes?  ...)
