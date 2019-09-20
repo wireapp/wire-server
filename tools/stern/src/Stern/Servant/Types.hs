@@ -50,42 +50,42 @@ data API route = API
 
   , _apiSuspendUser
     :: route :- RootPrefix :>
-       Summary "Suspends user with this ID" :>
+       Summary "Suspend user with this ID" :>
        "users" :> Capture "uid" UserId :> "suspend" :> Post '[JSON] NoContent
 
   , _apiUnsuspendUser
     :: route :- RootPrefix :>
-       Summary "Unsuspends user with this ID" :>
+       Summary "Unsuspend user with this ID" :>
        "users" :> Capture "uid" UserId :> "unsuspend" :> Post '[JSON] NoContent
 
   , _apiUsersByEmail
     :: route :- RootPrefix :>
-       Summary "Displays user's info given an email address" :>
+       Summary "Display user's info given an email address" :>
        "users" :> QueryParam' '[Required, Strict] "email" Email :> Get '[JSON] [UserAccount]
 
   , _apiUsersByPhone
     :: route :- RootPrefix :>
-       Summary "Displays user's info given a phone number" :>
+       Summary "Display user's info given a phone number" :>
        "users" :> QueryParam' '[Required, Strict] "phone" Phone :> Get '[JSON] [UserAccount]
 
   , _apiUsersByIds
     :: route :- RootPrefix :>
-       Summary "Displays active users info given a list of ids" :>
+       Summary "Display active users' info given a list of ids" :>
        "users" :> QueryParam' '[Required, Strict] "ids" UserIdsQuery :> Get '[JSON] [UserAccount]
 
   , _apiUsersByHandles
     :: route :- RootPrefix :>
-       Summary "Displays active users info given a list of handles" :>
+       Summary "Display active users' info given a list of handles" :>
        "users" :> QueryParam' '[Required, Strict] "handles" HandlesQuery :> Get '[JSON] [UserAccount]
 
   , _apiUserConnections
     :: route :- RootPrefix :>
-       Summary "Displays user's connections" :>
+       Summary "Display user's connections" :>
        "users" :> Capture "uid" UserId :> Get '[JSON] UserConnectionsByStatus
 
   , _apiUsersConnections
     :: route :- RootPrefix :>
-       Summary "Displays a list of user connection statusses given a list of ids" :>
+       Summary "Display a list of user connection statusses given a list of ids" :>
        "users" :> QueryParam' '[Required, Strict]  "ids" UserIdsQuery :> Get '[JSON] [ConnectionStatus]
 
   , _apiUserSearchOnBehalf
@@ -99,7 +99,7 @@ data API route = API
   , _apiRevokeIdentity
     :: route :- RootPrefix :>
        Summary "Revoke a verified user identity." :>
-       Notes "Forcefully revokes a verified user identity. \
+       Description "Forcefully revokes a verified user identity. \
              \WARNING: If the given identity is the only verified \
              \user identity of an account, the account will be \
              \deactivated (\"wireless\") and might thus become inaccessible. \
@@ -117,7 +117,7 @@ data API route = API
   , _apiChangeEmail
     :: route :- RootPrefix :>
        Summary "Change a user's email address." :>
-       Notes "The new e-mail address must be verified before the change takes effect." :>
+       Description "The new e-mail address must be verified before the change takes effect." :>
        "users" :> Capture "uid" UserId :> "email" :>
        ReqBody '[JSON] EmailUpdate :>
        Put '[JSON] NoContent
@@ -130,7 +130,7 @@ data API route = API
   , _apiChangePhone
     :: route :- RootPrefix :>
        Summary "Change a user's phone number." :>
-       Notes "The new phone number must be verified before the change takes effect." :>
+       Description "The new phone number must be verified before the change takes effect." :>
        "users" :> Capture "uid" UserId :> "phone" :>
        ReqBody '[JSON] PhoneUpdate :>
        Put '[JSON] NoContent
@@ -143,7 +143,7 @@ data API route = API
   , _apiDeleteUser
     :: route :- RootPrefix :>
        Summary "Delete a user (irrevocable!)" :>
-       Notes "Email or Phone must match UserId's (to prevent copy/paste mistakes)" :>
+       Description "Email or Phone must match UserId's (to prevent copy/paste mistakes)" :>
        "users" :> Capture "uid" UserId :>
        SwaggerDesc "Matching verified email address"
          (QueryParam "email" Email) :>
@@ -210,7 +210,7 @@ data API route = API
 
   , _apiTeamInfo
     :: route :- RootPrefix :>
-       Summary "Gets information about a team" :>
+       Summary "Get information about a team" :>
        "teams" :> Capture "tid" TeamId :>
        Get '[JSON] TeamInfo
 
@@ -219,7 +219,7 @@ data API route = API
 
   , _apiGetFeatureStatusLegalHold
     :: route :- RootPrefix :>
-       Summary "Shows whether legalhold feature is enabled for team" :>
+       Summary "Show whether legalhold feature is enabled for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "legalhold" :>
        Get '[JSON] SetLegalHoldStatus
 
@@ -232,7 +232,7 @@ data API route = API
 
   , _apiGetFeatureStatusSSO
     :: route :- RootPrefix :>
-       Summary "Shows whether SSO feature is enabled for team" :>
+       Summary "Show whether SSO feature is enabled for team" :>
        "teams" :> Capture "tid" TeamId :> "features" :> "sso" :>
        Get '[JSON] SetSSOStatus
 
@@ -249,15 +249,15 @@ data API route = API
   , _apiGetTeamInvoice
     :: route :- RootPrefix :>
        Summary "Get a specific invoice by Number" :>
-       Notes "Relevant only internally at Wire" :>
+       Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "invoices" :> Capture "inr" InvoiceId :>
        Verb 'GET 307 '[JSON] NoContent
        -- FUTUREWORK: add "Redirect to PDF download" as description to swagger.
 
   , _apiGetTeamBilling
     :: route :- RootPrefix :>
-       Summary "Gets billing information about a team" :>
-       Notes "Relevant only internally at Wire" :>
+       Summary "Get billing information about a team" :>
+       Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
        Get '[JSON] TeamBillingInfo
        -- FUTUREWORK: describe response:
@@ -268,20 +268,20 @@ data API route = API
 
   , _apiPutTeamBilling
     :: route :- RootPrefix :>
-       Summary "Updates billing information about a team. Non \
+       Summary "Update billing information about a team. Non \
                \specified fields will NOT be updated" :>
-       Notes "Relevant only internally at Wire" :>
+       Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
        ReqBody '[JSON] TeamBillingInfoUpdate :>
        Put '[JSON] TeamBillingInfo
 
   , _apiPostTeamBilling
     :: route :- RootPrefix :>
-       Summary "Sets billing information about a team. Can \
+       Summary "Set billing information about a team. Can \
                \only be used on teams that do NOT have any \
                \billing information set. To update team billing \
                \info, use the update endpoint" :>
-       Notes "Relevant only internally at Wire" :>
+       Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "billing" :>
        ReqBody '[JSON] TeamBillingInfo :>
        Post '[JSON] TeamBillingInfo
@@ -289,7 +289,7 @@ data API route = API
   , _apiGetConsentLog
     :: route :- RootPrefix :>
        Summary "Fetch the consent log given an email address of a non-user" :>
-       Notes "Relevant only internally at Wire" :>
+       Description "Relevant only internally at Wire" :>
        "i" :> "consent" :>
        SwaggerDesc "An email address" (QueryParam' '[Required, Strict] "email" Email) :>
        Put '[JSON] ConsentLog
@@ -297,7 +297,7 @@ data API route = API
   , _apiGetMetaInfo
     :: route :- RootPrefix :>
        Summary "Fetch a user's meta info given a user id: TEMPORARY!" :>
-       Notes "Relevant only internally at Wire" :>
+       Description "Relevant only internally at Wire" :>
        "i" :> "user" :> "meta-info" :>
        QueryParam' '[Required, Strict] "id" UserId :>
        Put '[JSON] UserMetaInfo
@@ -321,10 +321,6 @@ newtype HandlesQuery = HandlesQuery [Handle]
 -- TODO: move to a module for stuff to be pushed to swagger2.
 data SwaggerDesc (notes :: Symbol) (val :: k)
 type role SwaggerDesc phantom phantom
-
--- TODO: move to a module for stuff to be pushed to swagger2.
-data Notes (notes :: Symbol)
-type role Notes phantom
 
 -- TODO: import Servant verb aliases qualified and make ones here that fit our purposes
 -- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, queryparamrequired,
