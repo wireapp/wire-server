@@ -21,7 +21,7 @@ import "swagger2" Data.Swagger
 import GHC.TypeLits (symbolVal)
 import Network.HTTP.Types.Status
 import Network.Wai
-import Network.Wai.Utilities
+import Network.Wai.Utilities (Error(..))
 import Servant.API.ContentTypes
 import Servant.API.Generic
 import Servant.Server
@@ -179,7 +179,7 @@ apiChangeEmail uid upd = do
   pure NoContent
 
 apiChangePhone :: UserId -> PhoneUpdate -> MonadIntra m => m NoContent
-apiChangePhone uid upd = void' $ Intra.changePhone uid upd
+apiChangePhone uid upd = noContent $ Intra.changePhone uid upd
 
 apiDeleteUser :: UserId -> Either Email Phone -> MonadIntra m => m NoContent
 apiDeleteUser uid emailOrPhone = do
@@ -208,10 +208,10 @@ apiCheckBlacklistStatus emailOrPhone = Intra.isBlacklisted emailOrPhone >>= \cas
   False -> throwRpcError $ Error status404 "not-blacklisted" (cs $ encode NotBlackListed)
 
 apiBlacklistUser :: Either Email Phone -> MonadIntra m => m NoContent
-apiBlacklistUser = void' . Intra.setBlacklistStatus True
+apiBlacklistUser = noContent . Intra.setBlacklistStatus True
 
 apiWhitelistUser :: Either Email Phone -> MonadIntra m => m NoContent
-apiWhitelistUser = void' . Intra.setBlacklistStatus False
+apiWhitelistUser = noContent . Intra.setBlacklistStatus False
 
 apiTeamInfoByEmail :: Email -> MonadIntra m => m TeamInfo
 apiTeamInfoByEmail em = do
@@ -229,13 +229,13 @@ apiGetFeatureStatusLegalHold :: TeamId -> MonadIntra m => m SetLegalHoldStatus
 apiGetFeatureStatusLegalHold = Intra.getLegalholdStatus
 
 apiPutFeatureStatusLegalHold :: TeamId -> SetLegalHoldStatus -> MonadIntra m => m NoContent
-apiPutFeatureStatusLegalHold tid = void' . Intra.setLegalholdStatus tid
+apiPutFeatureStatusLegalHold tid = noContent . Intra.setLegalholdStatus tid
 
 apiGetFeatureStatusSSO :: TeamId -> MonadIntra m => m SetSSOStatus
 apiGetFeatureStatusSSO = Intra.getSSOStatus
 
 apiPutFeatureStatusSSO :: TeamId -> SetSSOStatus -> MonadIntra m => m NoContent
-apiPutFeatureStatusSSO tid = void' . Intra.setSSOStatus tid
+apiPutFeatureStatusSSO tid = noContent . Intra.setSSOStatus tid
 
 apiGetTeamInvoice :: TeamId -> InvoiceId -> MonadIntra m => m NoContent
 apiGetTeamInvoice = undefined
@@ -289,5 +289,5 @@ mutuallyExclusive f (Just l) Nothing
 mutuallyExclusive f Nothing  (Just r)
   = f (Right r)
 
-void' :: Monad m => m a -> m NoContent
-void' action = action >> pure NoContent
+noContent :: Monad m => m a -> m NoContent
+noContent action = action >> pure NoContent
