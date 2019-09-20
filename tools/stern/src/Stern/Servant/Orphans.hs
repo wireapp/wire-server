@@ -10,7 +10,7 @@ import Brig.Types.Servant.Orphans ()
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Monad.Catch (throwM, catch)
-import Data.Aeson (Value, encode)
+import Data.Aeson (Value)
 import Data.ByteString.Conversion as BSC
 import Data.LegalHold
 import Data.Proxy
@@ -33,6 +33,7 @@ import Stern.App
 import Stern.Intra
 import Stern.Servant.Types
 import Stern.Types
+import Text.Show.Pretty (ppShow)
 
 import qualified Data.Metrics.Servant as Metrics
 
@@ -141,12 +142,19 @@ instance Metrics.RoutesToPaths Raw where
 instance MonadIntra App where
   type StripException App = App
   throwRpcError = throwM
-  catchRpcErrors = (`catch` throwM . translate)
+  catchRpcErrors = (`catch` throwM . translateAny)
+                 . (`catch` throwM . translateError)
     where
-      translate :: Error -> ServantErr
-      translate err@(Error s l _) = ServantErr
-        { errHTTPCode     = statusCode s
-        , errReasonPhrase = cs l
-        , errBody         = encode err
-        , errHeaders      = [("Content-Type", "application/json")]
+      translateError :: Error -> ServantErr
+      translateError e@(Error s l _) = err (statusCode s) (cs l) e
+
+      translateAny :: SomeException -> ServantErr
+      translateAny e = err 500 "error" e
+
+      err :: (Show err) => Int -> String -> err -> ServantErr
+      err s l e = ServantErr
+        { errHTTPCode     = s
+        , errReasonPhrase = l
+        , errBody         = cs $ ppShow e
+        , errHeaders      = [("Content-Type", "text/ascii")]
         }

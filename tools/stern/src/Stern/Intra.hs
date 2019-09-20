@@ -90,13 +90,16 @@ class ( MonadReader Env m
       , MonadUnliftIO (StripException m)
       , MonadHttp (StripException m)
       , HasRequestId (StripException m)
-      , MonadThrow m  -- TODO: remove this and find the stray exceptions that are not caught by 'catchRpcErrors'.
+      , MonadThrow m  -- (remove this if you want to find the stray exceptions that are not
+                      -- caught by 'catchRpcErrors'.  but it gets a little confusing.)
       , MonadThrow (StripException m)
       ) => MonadIntra m where
   type family StripException (m :: * -> *) :: * -> *
   throwRpcError :: forall a. Error -> m a
   catchRpcErrors :: forall a. StripException m a -> m a
 
+-- instance for the legacy stern interface.  error handling here is a little convoluted, but
+-- we don't want to fix it, but rather eliminate it sooner together with the old interface.
 instance MonadIntra (ExceptT Error App) where
   type StripException (ExceptT Error App) = App
   throwRpcError = throwError

@@ -64,6 +64,7 @@ library:
   - servant-swagger-ui-core
   - swagger2
   - string-conversions
+  - pretty-show
   # TODO: once this is running on servant, remove unused deps.
 executables:
   stern:
