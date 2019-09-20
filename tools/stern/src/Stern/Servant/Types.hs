@@ -66,7 +66,7 @@ data API route = API
   , _apiUsersByPhone
     :: route :- RootPrefix :>
        Summary "Displays user's info given a phone number" :>
-       "users" :> QueryParam' '[Required, Strict] "email" Phone :> Get '[JSON] [UserAccount]
+       "users" :> QueryParam' '[Required, Strict] "phone" Phone :> Get '[JSON] [UserAccount]
 
   , _apiUsersByIds
     :: route :- RootPrefix :>
