@@ -65,6 +65,9 @@ library:
   - swagger2
   - string-conversions
   - pretty-show
+  - unordered-containers
+  - http-types
+  - singleton-bool
   # TODO: once this is running on servant, remove unused deps.
 executables:
   stern:

@@ -4,38 +4,47 @@ module Stern.Servant.Orphans where
 
 import Imports
 
-import Brig.Types.Client
-import Brig.Types.Properties
-import Brig.Types.Servant.Orphans ()
-import Brig.Types.User
-import Brig.Types.User.Auth
-import Control.Monad.Catch (throwM, catch)
-import Data.Aeson (Value)
-import Data.ByteString.Conversion as BSC
-import Data.LegalHold
-import Data.Proxy
-import Data.String.Conversions (cs)
-import "swagger2" Data.Swagger
-import Data.Text.Ascii
-import Galley.Types
-import Galley.Types.Teams
-import Galley.Types.Teams.Intra
-import GHC.TypeLits
-import Gundeck.Types.Notification
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities
-import Servant.API
-import Servant.Server
-import Servant.Swagger
-import Servant.Swagger.UI
-import Servant.Swagger.UI.Core
-import Stern.App
-import Stern.Intra
-import Stern.Servant.Types
-import Stern.Types
-import Text.Show.Pretty (ppShow)
+import           Brig.Types.Client
+import           Brig.Types.Search as Search
+import           Brig.Types.Properties
+import           Brig.Types.Servant.Orphans ()
+import           Brig.Types.User
+import           Brig.Types.User.Auth
+import           Control.Lens               ((&), (.~), (?~))  -- (%~)
+import           Control.Monad.Catch        (catch, throwM)
+import           Data.Aeson                 (Value)
+import           Data.ByteString.Conversion as BSC
+import           Data.LegalHold
+import           Data.Proxy
+import           Data.Range
+import           Data.Singletons.Bool       (reflectBool)
+import           Data.String.Conversions    (cs)
+import           Data.Text.Ascii
+import           Data.Text                  (Text)
+import           Galley.Types
+import           Galley.Types.Teams
+import           Galley.Types.Teams.Intra
+import           GHC.TypeLits
+import           Gundeck.Types.Notification
+import           Network.HTTP.Types.Status
+import           Network.Wai.Utilities
+import qualified Data.Text                  as Text
+import           Servant.API
+import           Servant.API.Description    (FoldDescription, reflectDescription)
+import           Servant.API.Modifiers      (FoldRequired)
+import           Servant.Server
+import           Servant.Swagger
+import           Servant.Swagger.Internal   (addDefaultResponse400, addParam)
+import           Servant.Swagger.UI
+import           Servant.Swagger.UI.Core
+import           Stern.App
+import           Stern.Intra
+import           Stern.Servant.Types
+import           Stern.Types
+import           Text.Show.Pretty           (ppShow)
+import qualified Data.Metrics.Servant       as Metrics
 
-import qualified Data.Metrics.Servant as Metrics
+import "swagger2" Data.Swagger hiding (Header)
 
 
 instance FromHttpApiData HandlesQuery where
@@ -92,6 +101,16 @@ instance ToSchema UserMetaInfo
 instance ToSchema UserProperties
 instance ToSchema PropertyKey
 
+instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
+
+instance ToSchema BlackListStatus
+
+deriving instance Generic Search.Contact
+instance ToSchema Search.Contact
+
+deriving instance Generic (SearchResult Search.Contact)
+instance ToSchema (SearchResult Search.Contact)
+
 
 instance ToSchema QueuedNotification where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
@@ -109,11 +128,39 @@ instance ToSchema CookieList where
 instance HasSwagger (NoSwagger :> api) where
   toSwagger _ = mempty
 
-instance HasSwagger ((SwaggerDesc (sym :: Symbol) thing) :> api) where
-  toSwagger _ = mempty  -- TODO
+-- Copied and mutated from "Servant.Swagger.Internal".  To make this more composable, we'd
+-- have to touch the package, I think.  (We should probably do that now, no?  write a function
+-- that does what the instance does, plus takes an extra descr string, then writing the two
+-- instances is trivial.  then also find a better name for SwaggerDesc.  WithDescription?)
+instance ( KnownSymbol desc
+         , KnownSymbol sym
+         , ToParamSchema a
+         , HasSwagger sub
+         , SBoolI (FoldRequired mods)
+         , KnownSymbol (FoldDescription mods)
+         ) => HasSwagger (SwaggerDesc desc (QueryParam' mods sym a) :> sub) where
+  toSwagger _ = toSwagger (Proxy :: Proxy sub)
+    & addParam param
+    & addDefaultResponse400 tname
+    where
+      tname = Text.pack (symbolVal (Proxy :: Proxy sym))
+      descText :: [Text]
+        = [ cs $ symbolVal (Proxy :: Proxy desc)
+          , cs $ reflectDescription (Proxy :: Proxy mods)
+          ]
+      transDesc ""   = Nothing
+      transDesc desc = Just desc
+      param = mempty
+        & name .~ tname
+        & description .~ (transDesc . Text.strip . Text.unlines $ descText)
+        & required ?~ reflectBool (Proxy :: Proxy (FoldRequired mods))
+        & schema .~ ParamOther sch
+      sch = mempty
+        & in_ .~ ParamQuery
+        & paramSchema .~ toParamSchema (Proxy :: Proxy a)
 
-instance HasSwagger api => HasSwagger (Notes (sym :: Symbol) :> api) where
-  toSwagger _ = mempty  -- TODO
+
+
 
 
 instance HasServer api ctx => HasServer (NoSwagger :> api) ctx where
@@ -125,11 +172,6 @@ instance HasServer (something :> api) ctx => HasServer (SwaggerDesc (sym :: Symb
   type ServerT (SwaggerDesc sym something :> api) m = ServerT (something :> api) m
   route _ = route (Proxy @(something :> api))
   hoistServerWithContext _ = hoistServerWithContext (Proxy @(something :> api))
-
-instance HasServer api ctx => HasServer (Notes (sym :: Symbol) :> api) ctx where
-  type ServerT (Notes sym :> api) m = ServerT api m
-  route _ = route (Proxy @api)
-  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
 
 instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) where
