@@ -16,7 +16,7 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.Search
 import Brig.Types.User
-import Brig.Types.Servant.Orphans
+import Brig.Types.Servant
 import Data.Aeson
 import Data.Id
 import Data.Range

@@ -3,7 +3,7 @@
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
 -- live), and turn warning about orphans back on.
 
-module Brig.Types.Servant.Orphans where
+module Brig.Types.Servant where
 
 import Imports
 

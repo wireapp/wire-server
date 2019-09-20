@@ -4,7 +4,7 @@ module Stern.Servant.Orphans where
 
 import Imports
 
-import           Brig.Types.Servant.Orphans ()
+import           Brig.Types.Servant         ()
 import           Control.Monad.Catch        (catch, throwM)
 import           Data.Proxy
 import           Data.String.Conversions    (cs)
