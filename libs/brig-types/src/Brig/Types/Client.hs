@@ -79,22 +79,22 @@ data Client = Client
     , clientCookie   :: !(Maybe CookieLabel)
     , clientLocation :: !(Maybe Location)
     , clientModel    :: !(Maybe Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data PubClient = PubClient
     { pubClientId     :: !ClientId
     , pubClientClass  :: !(Maybe ClientClass)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 newtype RmClient = RmClient
     { rmPassword :: Maybe PlainTextPassword
-    }
+    } deriving (Generic)
 
 data UpdateClient = UpdateClient
     { updateClientPrekeys :: ![Prekey]
     , updateClientLastKey :: !(Maybe LastPrekey)
     , updateClientLabel   :: !(Maybe Text)
-    }
+    } deriving (Generic)
 
 -- * JSON instances:
 

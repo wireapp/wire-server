@@ -18,7 +18,7 @@ data TeamStatus
     | Deleted
     | Suspended
     | PendingActive
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance ToJSON TeamStatus where
     toJSON Active        = String "active"
@@ -40,6 +40,7 @@ data TeamData = TeamData
     , tdStatus     :: !TeamStatus
     , tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
     }
+    deriving (Eq, Show, Generic)
 
 instance ToJSON TeamData where
     toJSON (TeamData t s st) = object
@@ -59,6 +60,7 @@ data TeamStatusUpdate = TeamStatusUpdate
     , tuCurrency :: !(Maybe Currency.Alpha)
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
+    deriving (Eq, Show, Generic)
 
 instance FromJSON TeamStatusUpdate where
     parseJSON = withObject "team-status-update" $ \o ->
@@ -72,5 +74,6 @@ instance ToJSON TeamStatusUpdate where
 
 newtype TeamName = TeamName
     { tnName :: Text }
+    deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamName

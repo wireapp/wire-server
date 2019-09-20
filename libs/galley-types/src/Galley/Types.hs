@@ -281,7 +281,7 @@ data NewOtrMessage = NewOtrMessage
 
 newtype UserClients = UserClients
     { userClients :: Map UserId (Set ClientId)
-    } deriving (Eq, Show, Semigroup, Monoid)
+    } deriving (Eq, Show, Semigroup, Monoid, Generic)
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
@@ -293,19 +293,19 @@ data ClientMismatch = ClientMismatch
     -- | Clients that the message /should not/ have been encrypted for, but was.
     , redundantClients :: !UserClients
     , deletedClients   :: !UserClients
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Request payload for accepting a 1-1 conversation.
 newtype Accept = Accept
     { aUser :: UserId
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- Members ------------------------------------------------------------------
 
 -- The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus { fromMutedStatus :: Int32 }
-    deriving (Eq, Num, Ord, Show, FromJSON, ToJSON)
+    deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
 data Member = Member
     { memId             :: !UserId
@@ -317,12 +317,12 @@ data Member = Member
     , memOtrArchivedRef :: !(Maybe Text)
     , memHidden         :: !Bool
     , memHiddenRef      :: !(Maybe Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data OtherMember = OtherMember
     { omId      :: !UserId
     , omService :: !(Maybe ServiceRef)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance Ord OtherMember where
     compare a b = compare (omId a) (omId b)
@@ -357,7 +357,7 @@ data Event = Event
     , evtFrom :: !UserId
     , evtTime :: !UTCTime
     , evtData :: !(Maybe EventData)
-    } deriving Eq
+    } deriving (Eq, Generic)
 
 data EventType
     = MemberJoin
@@ -374,7 +374,7 @@ data EventType
     | ConvReceiptModeUpdate
     | OtrMessageAdd
     | Typing
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data EventData
     = EdMembers             !Members
@@ -388,25 +388,25 @@ data EventData
     | EdConversation        !Conversation
     | EdTyping              !TypingData
     | EdOtrMessage          !OtrMessage
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data OtrMessage = OtrMessage
     { otrSender     :: !ClientId
     , otrRecipient  :: !ClientId
     , otrCiphertext :: !Text
     , otrData       :: !(Maybe Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 newtype Members = Members
     { mUsers :: [UserId]
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data Connect = Connect
     { cRecipient :: !UserId
     , cMessage   :: !(Maybe Text)
     , cName      :: !(Maybe Text)
     , cEmail     :: !(Maybe Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate'.
@@ -418,22 +418,22 @@ data MemberUpdateData = MemberUpdateData
     , misOtrArchivedRef :: !(Maybe Text)
     , misHidden         :: !(Maybe Bool)
     , misHiddenRef      :: !(Maybe Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 newtype TypingData = TypingData
     { tdStatus :: TypingStatus
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data TypingStatus
     = StartedTyping
     | StoppedTyping
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 data ConversationCode = ConversationCode
     { conversationKey   :: !Code.Key
     , conversationCode  :: !Code.Value
     , conversationUri   :: !(Maybe HttpsUrl)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
 mkConversationCode k v (HttpsUrl prefix) = ConversationCode
