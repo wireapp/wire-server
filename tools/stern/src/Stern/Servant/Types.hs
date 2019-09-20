@@ -34,12 +34,12 @@ data API route = API
 
   , _apiInternalGetStatus
     :: route :- RootPrefix :> NoSwagger :>
-       "i" :> "status" :> Verb 'GET 200 '[JSON] NoContent
+       "i" :> "status" :> Get NoContent
     -- FUTUREWORK: status204 would be more correct
 
   , _apiInternalHeadStatus
     :: route :- RootPrefix :> NoSwagger :>
-       "i" :> "status" :> Verb 'HEAD 200 '[JSON] NoContent
+       "i" :> "status" :> Head
     -- FUTUREWORK: would status204 be more correct here, too?  not sure how 'HEAD works...
 
   , _apiInternalMonitoring
@@ -322,8 +322,3 @@ data BlackListStatus = BlackListed | NotBlackListed
 instance ToJSON BlackListStatus where
   toJSON BlackListed = object [ "status" .= String "The given user key IS blacklisted" ]
   toJSON NotBlackListed = object [ "status" .= String "The given user key is NOT blacklisted" ]
-
-
--- TODO: import Servant verb aliases qualified and make ones here that fit our purposes
--- better.  (@'[JSON]@ implicit, @Head@ with 'NoContent' implicit, queryparamrequired,
--- something about default status codes?  ...)

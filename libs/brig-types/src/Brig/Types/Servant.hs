@@ -90,7 +90,7 @@ instance ToJSON ActivationCodeObject where
 ----------------------------------------------------------------------
 -- * generic servant helpers
 
-type Head = Verb 'HEAD 204 '[JSON]
+type Head = Verb 'HEAD 204 '[JSON] NoContent
 type Get = Verb 'GET 200 '[JSON]
 type Post = Verb 'POST 201 '[JSON]
 type Put = Verb 'PUT 200 '[JSON]
