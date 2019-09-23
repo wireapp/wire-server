@@ -54,13 +54,13 @@ import Servant.Swagger
 import Servant.Swagger.Internal (addDefaultResponse400, addParam)
 import Servant.Swagger.UI
 import Servant.Swagger.UI.Core
-import URI.ByteString (URI)
 
 import qualified Data.Json.Util
 import qualified Data.Metrics         as Metrics
 import qualified Data.Metrics.Servant as Metrics
 import qualified Data.Text            as Text
 import qualified Servant
+import qualified URI.ByteString
 
 
 ----------------------------------------------------------------------
@@ -248,6 +248,12 @@ instance ToParamSchema PhonePrefix
 
 instance ToParamSchema URI.ByteString.URI where
     toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToSchema URI.ByteString.URI where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToJSON URI.ByteString.URI where
+    toJSON = String . cs . URI.ByteString.serializeURIRef'
 
 instance ToParamSchema Servant.API.URI where
     toParamSchema _ = toParamSchema (Proxy @Text)
