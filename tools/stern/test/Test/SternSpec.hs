@@ -50,20 +50,20 @@ runLegacyThrowingApp env req cont = runHandler env req handler cont
   where
     handler = case pathInfo req of
       ["fail400"] -> throwRpcError $ Error status400 "bad request" "well, what can i say?  it'd just bad."
-      ["fail502"] -> throwM $ ErrorCall "this is an internal error in stern, but it should still be handled."
+      ["fail500"] -> throwM $ ErrorCall "this is an internal error in stern, but it should still be handled."
       bad         -> error $ show bad
 
 
 data ServantThrowingApi routes = ServantThrowingApi
   { fail400 :: routes :- "fail400" :> Get '[JSON] ()
-  , fail502 :: routes :- "fail502" :> Get '[JSON] ()
+  , fail500 :: routes :- "fail500" :> Get '[JSON] ()
   }
   deriving (Generic)
 
 servantThrowingApi :: ServantThrowingApi (AsServerT App)
 servantThrowingApi = ServantThrowingApi
   { fail400 = throwRpcError (Error status400 "bad request" "well, what can i say?  it'd just bad.")
-  , fail502 = throwM (ErrorCall "this is an internal error in stern, but it should still be handled.")
+  , fail500 = throwM (ErrorCall "this is an internal error in stern, but it should still be handled.")
   }
 
 runServantThrowingApp :: Env -> Application
@@ -79,7 +79,7 @@ spec = beforeAll testEnv $ do
 
       it "crashes on throwM" $ \env -> HW.withApplication (runLegacyThrowingApp env) $ do
         liftIO $ pendingWith "I think this just needs some fiddling with the unliftio package to get to work."
-        -- HW.get "/fail502" `shouldThrow` \(ErrorCall _) -> True
+        -- HW.get "/fail500" `shouldThrow` \(ErrorCall _) -> True
         -- (5xx errors in legacy code are handled by a middleware, not inside the
         -- application, so this should be fine.)
 
@@ -88,4 +88,4 @@ spec = beforeAll testEnv $ do
         HW.get "/fail400" `HW.shouldRespondWith` 400
 
       it "handles throwM" $ \env -> HW.withApplication (runServantThrowingApp env) $ do
-        HW.get "/fail502" `HW.shouldRespondWith` 502
+        HW.get "/fail500" `HW.shouldRespondWith` 500
