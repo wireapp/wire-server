@@ -22,6 +22,7 @@ import GHC.TypeLits (symbolVal)
 import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Utilities (Error(..))
+import Network.Wai.Utilities.Server (runHandlers)
 import Servant.API.ContentTypes
 import Servant.API.Generic
 import Servant.Server
@@ -33,7 +34,9 @@ import Stern.Intra as Intra
 import Stern.Servant.Orphans ()
 import Stern.Servant.Types
 import Stern.Types
+import Text.Show.Pretty (ppShow)
 
+import qualified Control.Monad.Catch as Catch
 import qualified Data.Metrics.Middleware as Metrics
 import qualified System.Logger.Class as Log
 
@@ -75,11 +78,32 @@ mkApp
   => Env -> ServerT api App -> Application
 mkApp env = serve (Proxy @api) . hoistServer (Proxy @api) (appToServantHandler env)
 
+
 appToServantHandler :: Env -> App a -> Handler a
 appToServantHandler env (AppT m) = Handler . ioToExceptT $ m `runReaderT` env
   where
     ioToExceptT :: IO a -> ExceptT ServantErr IO a
-    ioToExceptT action = ExceptT $ (Right <$> action) `catch` \(e :: ServantErr) -> pure (Left e)
+    ioToExceptT action = ExceptT $ (Right <$> action) `catch` (`runHandlers`
+      [ mkHandler translateError
+      , mkHandler translateAny
+      ])
+
+    mkHandler :: Exception e => (e -> ServantErr) -> Catch.Handler IO (Either ServantErr a)
+    mkHandler trans = Catch.Handler $ pure . Left . trans
+
+    translateError :: Error -> ServantErr
+    translateError e@(Error s l _) = servantErr (statusCode s) (cs l) e
+
+    translateAny :: SomeException -> ServantErr
+    translateAny e = servantErr 500 "error" e
+
+    servantErr :: Show e => Int -> String -> e -> ServantErr
+    servantErr s l e = ServantErr
+      { errHTTPCode     = s
+      , errReasonPhrase = l
+      , errBody         = cs $ ppShow e
+      , errHeaders      = [("Content-Type", "text/ascii")]
+      }
 
 servantHandlerToApp :: Handler a -> App a
 servantHandlerToApp (Handler exc) = AppT . ReaderT . const . ioToExceptT $ exc
