@@ -56,19 +56,21 @@ instance ToSchema UserProperties
 instance ToSchema BlackListStatus
 
 instance MonadIntra App where
-  type StripException App = App
+  type StripException App = App  -- (nothing to strip.)
+
   throwRpcError = throwM
+
   catchRpcErrors = (`catch` throwM . translateAny)
                  . (`catch` throwM . translateError)
     where
       translateError :: Error -> ServantErr
-      translateError e@(Error s l _) = err (statusCode s) (cs l) e
+      translateError e@(Error s l _) = servantErr (statusCode s) (cs l) e
 
       translateAny :: SomeException -> ServantErr
-      translateAny e = err 500 "error" e
+      translateAny e = servantErr 500 "error" e
 
-      err :: (Show err) => Int -> String -> err -> ServantErr
-      err s l e = ServantErr
+      servantErr :: (Show e) => Int -> String -> e -> ServantErr
+      servantErr s l e = ServantErr
         { errHTTPCode     = s
         , errReasonPhrase = l
         , errBody         = cs $ ppShow e

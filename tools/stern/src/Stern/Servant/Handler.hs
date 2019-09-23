@@ -252,23 +252,23 @@ apiPutFeatureStatusSSO :: TeamId -> SetSSOStatus -> MonadIntra m => m NoContent
 apiPutFeatureStatusSSO tid = noContent . Intra.setSSOStatus tid
 
 apiGetTeamInvoice :: TeamId -> InvoiceId -> MonadIntra m => m NoContent
-apiGetTeamInvoice = undefined
+apiGetTeamInvoice _ _ = throwM $ ErrorCall "apiGetTeamInvoice"
   -- 307 redirect or only status200 with url in body?  check out how stern behaves in production.
 
 apiGetTeamBilling :: TeamId -> MonadIntra m => m TeamBillingInfo
-apiGetTeamBilling = undefined
+apiGetTeamBilling _ = throwM $ ErrorCall "apiGetTeamBilling"
 
 apiPutTeamBilling :: TeamId -> TeamBillingInfoUpdate -> MonadIntra m => m TeamBillingInfo
-apiPutTeamBilling = undefined
+apiPutTeamBilling _ _ = throwM $ ErrorCall "apiPutTeamBilling"
 
 apiPostTeamBilling :: TeamId -> TeamBillingInfo -> MonadIntra m => m TeamBillingInfo
-apiPostTeamBilling = undefined
+apiPostTeamBilling _ _ = throwM $ ErrorCall "apiPostTeamBilling"
 
 apiGetConsentLog :: Email -> MonadIntra m => m ConsentLog
-apiGetConsentLog = undefined
+apiGetConsentLog _ = throwM $ ErrorCall "apiGetConsentLog"
 
 apiGetMetaInfo :: UserId -> MonadIntra m => m UserMetaInfo
-apiGetMetaInfo = undefined
+apiGetMetaInfo _ = throwM $ ErrorCall "apiGetMetaInfo"
 
 
 ----------------------------------------------------------------------
