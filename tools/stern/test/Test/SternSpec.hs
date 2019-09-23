@@ -1,17 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Test.SternSpec (spec) where
 
 import Imports
 
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.IO.Unlift
-import Data.String.Conversions (cs)
 import Network.HTTP.Types.Status
-import Network.HTTP.Types.Status (statusCode)
 import Network.Wai
 import Network.Wai.Utilities.Error
 import Servant.API
@@ -19,12 +14,9 @@ import Servant.API.Generic
 import Servant.Server.Generic
 import Stern.App
 import Stern.Intra
-import Stern.Types
-import System.IO.Silently (capture)
 import Test.Hspec
 
 import qualified Stern.Servant.Handler as ServantStern
-import qualified Network.Wai.Test as HW
 import qualified System.Logger as Log
 import qualified Test.Hspec.Wai as HW
 import qualified Test.Hspec.Wai.Internal as HW
