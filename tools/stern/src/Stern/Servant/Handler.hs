@@ -7,9 +7,9 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Search as Search
 import Brig.Types.User
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, ErrorCall(..))
 import Control.Lens (view)
-import Control.Monad.Catch (catch)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Trans.Except
 import Data.Aeson (Value, encode)
 import Data.ByteString.Conversion (List(List))
@@ -57,9 +57,23 @@ middleware env innerapp req cont = if rootPrefix `isPrefixOf` pathInfo req
 type App = AppT IO
 
 app :: Env -> Application
-app env = serve
-    (Proxy @(ToServant API AsApi))
-    (hoistServer (Proxy @(ToServant API AsApi)) (appToServantHandler env) (genericServerT server))
+app = (`mkAppGeneric` server)
+
+mkAppGeneric
+  :: forall routes (api :: *)
+   . ( GenericServant routes (AsServerT App)
+     , api ~ ToServant routes AsApi
+     , ServerT api App ~ ToServant routes (AsServerT App)
+     , HasServer api '[]
+     )
+  => Env -> routes (AsServerT App) -> Application
+mkAppGeneric env srv = mkApp @api env (genericServerT srv)
+
+mkApp
+  :: forall (api :: *)
+   . HasServer api '[]
+  => Env -> ServerT api App -> Application
+mkApp env = serve (Proxy @api) . hoistServer (Proxy @api) (appToServantHandler env)
 
 appToServantHandler :: Env -> App a -> Handler a
 appToServantHandler env (AppT m) = Handler . ioToExceptT $ m `runReaderT` env
