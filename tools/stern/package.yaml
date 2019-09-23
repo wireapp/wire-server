@@ -69,6 +69,7 @@ library:
   - http-types
   - singleton-bool
   # TODO: once this is running on servant, remove unused deps.
+
 executables:
   stern:
     main: src/Main.hs
@@ -83,6 +84,37 @@ executables:
     when:
     - condition: flag(static)
       ld-options: -static
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - base
+      - exceptions
+      - hspec
+      - hspec-discover
+      - hspec-wai
+      - http-types
+      - lens
+      - metrics-wai
+      - mtl
+      - QuickCheck
+      - servant
+      - servant-server
+      - silently
+      - stern
+      - string-conversions
+      - tinylog
+      - transformers
+      - unliftio
+      - unliftio-core
+      - wai
+      - wai-extra
+      - wai-utilities
+
 flags:
   static:
     description: Enable static linking
