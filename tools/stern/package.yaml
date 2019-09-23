@@ -68,6 +68,7 @@ library:
   - unordered-containers
   - http-types
   - singleton-bool
+  - uri-bytestring
   # TODO: once this is running on servant, remove unused deps.
 
 executables:

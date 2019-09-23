@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards      #-}
+
 module Stern.Servant.Handler where
 
 import Imports hiding (head)
@@ -35,6 +37,7 @@ import Stern.Servant.Orphans ()
 import Stern.Servant.Types
 import Stern.Types
 import Text.Show.Pretty (ppShow)
+import URI.ByteString as URI
 
 import qualified Control.Monad.Catch as Catch
 import qualified Data.Metrics.Middleware as Metrics
@@ -275,18 +278,48 @@ apiGetFeatureStatusSSO = Intra.getSSOStatus
 apiPutFeatureStatusSSO :: TeamId -> SetSSOStatus -> MonadIntra m => m NoContent
 apiPutFeatureStatusSSO tid = noContent . Intra.setSSOStatus tid
 
-apiGetTeamInvoice :: TeamId -> InvoiceId -> MonadIntra m => m NoContent
-apiGetTeamInvoice _ _ = throwM $ ErrorCall "apiGetTeamInvoice"
-  -- 307 redirect or only status200 with url in body?  check out how stern behaves in production.
+apiGetTeamInvoice :: TeamId -> InvoiceId -> MonadIntra m => m URI.URI
+apiGetTeamInvoice teamid invid = do
+  uri <- Intra.getInvoiceUrl teamid invid
+  case URI.parseURI URI.strictURIParserOptions uri of
+    Left err
+      -> let msg = "the uri from the wire backend is invalid: " <> cs (show (uri, err))
+         in throwM $ Error status500 "got-bad-uri" msg
+    Right val
+      -> pure val
+  -- of course, it would be nice if 'Intra.getInvoiceUrl' would parse the 'URI.URI' for us...
 
 apiGetTeamBilling :: TeamId -> MonadIntra m => m TeamBillingInfo
-apiGetTeamBilling _ = throwM $ ErrorCall "apiGetTeamBilling"
+apiGetTeamBilling teamid = Intra.getTeamBillingInfo teamid >>=
+  maybe (throwM (Error status404 "no-team" "No team or no billing info for team")) pure
 
-apiPutTeamBilling :: TeamId -> TeamBillingInfoUpdate -> MonadIntra m => m TeamBillingInfo
-apiPutTeamBilling _ _ = throwM $ ErrorCall "apiPutTeamBilling"
+apiPutTeamBilling :: HasCallStack => TeamId -> TeamBillingInfoUpdate -> MonadIntra m => m TeamBillingInfo
+apiPutTeamBilling tid update = do
+  current <- getTeamBillingInfo tid >>= handleNoTeam
+  setTeamBillingInfo tid (runUpdate update current)
+  fromJust <$> getTeamBillingInfo tid
+  where
+    handleNoTeam = ifNothing (Error status404 "no-team" "No team or no billing info for team")
+
+    runUpdate :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
+    runUpdate TeamBillingInfoUpdate{..} tbi = tbi {
+          tbiFirstname = fromMaybe (tbiFirstname tbi) (fromRange <$> tbiuFirstname)
+        , tbiLastname  = fromMaybe (tbiLastname tbi)  (fromRange <$> tbiuLastname)
+        , tbiStreet    = fromMaybe (tbiStreet tbi)    (fromRange <$> tbiuStreet)
+        , tbiZip       = fromMaybe (tbiZip tbi)       (fromRange <$> tbiuZip)
+        , tbiCity      = fromMaybe (tbiCity tbi)      (fromRange <$> tbiuCity)
+        , tbiCountry   = fromMaybe (tbiCountry tbi)   (fromRange <$> tbiuCountry)
+        , tbiCompany   = (fromRange <$> tbiuCompany) <|> tbiCompany tbi
+        , tbiState     = (fromRange <$> tbiuState)   <|> tbiState tbi
+        }
 
 apiPostTeamBilling :: TeamId -> TeamBillingInfo -> MonadIntra m => m TeamBillingInfo
-apiPostTeamBilling _ _ = throwM $ ErrorCall "apiPostTeamBilling"
+apiPostTeamBilling teamid billingInfo = do
+  current <- Intra.getTeamBillingInfo teamid
+  when (isJust current) $
+      throwM (Error status403 "existing-team" "Cannot set info on existing team, use update instead")
+  Intra.setTeamBillingInfo teamid billingInfo
+  apiGetTeamBilling teamid
 
 apiGetConsentLog :: Email -> MonadIntra m => m ConsentLog
 apiGetConsentLog _ = throwM $ ErrorCall "apiGetConsentLog"

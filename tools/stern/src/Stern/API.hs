@@ -11,7 +11,6 @@ import Imports hiding (head)
 
 import Brig.Types
 import Brig.Types.Intra
-import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad (liftM, void, when, unless)
@@ -45,7 +44,7 @@ import Servant.API.Generic (ToServant, AsApi)
 import Stern.Servant.Handler (groupByStatus, ifNothing, noSuchUser)
 
 import qualified Data.Metrics.Middleware      as Metrics
-import qualified "types-common" Data.Swagger as Doc
+import qualified "types-common" Data.Swagger  as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
 import qualified Network.Wai.Middleware.Gzip  as GZip
@@ -569,24 +568,7 @@ getTeamBillingInfo tid = do
 updateTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfoUpdate -> Handler Response
 updateTeamBillingInfo (_ ::: tid ::: req) = do
     update <- parseBody req !>> Error status400 "client-error"
-    current <- Intra.getTeamBillingInfo tid >>= handleNoTeam
-    let changes = parse update current
-    Intra.setTeamBillingInfo tid changes
-    liftM json $ Intra.getTeamBillingInfo tid
-  where
-    handleNoTeam = ifNothing (Error status404 "no-team" "No team or no billing info for team")
-
-    parse :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
-    parse TeamBillingInfoUpdate{..} tbi = tbi {
-          tbiFirstname = fromMaybe (tbiFirstname tbi) (fromRange <$> tbiuFirstname)
-        , tbiLastname  = fromMaybe (tbiLastname tbi)  (fromRange <$> tbiuLastname)
-        , tbiStreet    = fromMaybe (tbiStreet tbi)    (fromRange <$> tbiuStreet)
-        , tbiZip       = fromMaybe (tbiZip tbi)       (fromRange <$> tbiuZip)
-        , tbiCity      = fromMaybe (tbiCity tbi)      (fromRange <$> tbiuCity)
-        , tbiCountry   = fromMaybe (tbiCountry tbi)   (fromRange <$> tbiuCountry)
-        , tbiCompany   = (fromRange <$> tbiuCompany) <|> tbiCompany tbi
-        , tbiState     = (fromRange <$> tbiuState)   <|> tbiState tbi
-        }
+    liftM json $ SternServant.apiPutTeamBilling tid update
 
 setTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfo -> Handler Response
 setTeamBillingInfo (_ ::: tid ::: req) = do

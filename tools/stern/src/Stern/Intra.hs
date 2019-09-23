@@ -1,8 +1,9 @@
 {-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TypeApplications     #-}
 
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
@@ -42,29 +43,27 @@ module Stern.Intra
     , getUserNotifications
     ) where
 
+import Imports
+
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Brig.Types.Team.LegalHold hiding (teamId)
-import Stern.App
+import Brig.Types.User.Auth
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Reader
-import Control.Monad.Except
 import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Except
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Int
 import Data.List.Split (chunksOf)
-import Data.Text (Text, strip)
-import Data.Text.Lazy (pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Imports
+import Data.Text.Lazy (pack)
+import Data.Text (Text, strip)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -73,6 +72,7 @@ import Gundeck.Types
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..))
+import Stern.App
 import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error)
 import UnliftIO.Exception hiding (Handler)

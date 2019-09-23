@@ -24,6 +24,7 @@ import Servant.API hiding (Get, Put, Post, Delete, ReqBody, QueryParam, QueryPar
 import Servant.API.Generic
 import Servant.Swagger.UI
 import Stern.Types
+import URI.ByteString as URI
 
 
 data API route = API
@@ -251,8 +252,7 @@ data API route = API
        Summary "Get a specific invoice by Number" :>
        Description "Relevant only internally at Wire" :>
        "teams" :> Capture "tid" TeamId :> "invoices" :> Capture "inr" InvoiceId :>
-       Verb 'GET 307 '[JSON] NoContent
-       -- FUTUREWORK: add "Redirect to PDF download" as description to swagger.
+       Get URI.URI
 
   , _apiGetTeamBilling
     :: route :- RootPrefix :>
