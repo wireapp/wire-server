@@ -65,12 +65,25 @@ newtype UserProperties = UserProperties
 newtype ConsentLog = ConsentLog
     { unConsentLog :: Object
     } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
 newtype ConsentValue = ConsentValue
     { unConsentValue :: Object
     } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
 newtype MarketoResult = MarketoResult
     { unMarketoResult :: Object
     } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
+data ConsentLogPlusMarketo = ConsentLogPlusMarketo
+    { clConsentLog :: ConsentLog
+    , clMarketoResult :: MarketoResult
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON ConsentLogPlusMarketo where
+    toJSON (ConsentLogPlusMarketo cl mr) = object
+        [ "consent_log" .= cl
+        , "marketo"     .= mr
+        ]
 
 newtype InvoiceId = InvoiceId { unInvoiceId :: Text }
     deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON, Generic)

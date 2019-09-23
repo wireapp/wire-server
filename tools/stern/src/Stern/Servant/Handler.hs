@@ -9,11 +9,12 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Search as Search
 import Brig.Types.User
-import Control.Exception (throwIO, ErrorCall(..))
+import Control.Exception (throwIO)
 import Control.Lens (view)
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Trans.Except
-import Data.Aeson (Value, encode)
+import Data.Aeson (Value(Object), encode, object, (.=))
+import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Conversion (List(List))
 import Data.Id
 import Data.Proxy
@@ -321,11 +322,31 @@ apiPostTeamBilling teamid billingInfo = do
   Intra.setTeamBillingInfo teamid billingInfo
   apiGetTeamBilling teamid
 
-apiGetConsentLog :: Email -> MonadIntra m => m ConsentLog
-apiGetConsentLog _ = throwM $ ErrorCall "apiGetConsentLog"
+apiGetConsentLog :: Email -> MonadIntra m => m ConsentLogPlusMarketo
+apiGetConsentLog eml = do
+    acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left eml))
+    when (isJust acc) $
+        throwM $ Error status403 "user-exists" "Trying to access consent log of existing user!"
+    consentLog :: ConsentLog    <- Intra.getEmailConsentLog eml
+    marketo    :: MarketoResult <- Intra.getMarketoResult eml
+    return $ ConsentLogPlusMarketo consentLog marketo
 
 apiGetMetaInfo :: UserId -> MonadIntra m => m UserMetaInfo
-apiGetMetaInfo _ = throwM $ ErrorCall "apiGetMetaInfo"
+apiGetMetaInfo uid = do
+    _umiAccount       <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
+    _umiConnections   <- Intra.getUserConnections uid
+    _umiConversations <- Intra.getUserConversations uid
+    _umiNotifications <- Intra.getUserNotifications uid
+    _umiClients       <- Intra.getUserClients uid
+    _umiConsent       <- Intra.getUserConsentValue uid
+    _umiConsentLog    <- Intra.getUserConsentLog uid
+    _umiCookies       <- Intra.getUserCookies uid
+    _umiProperties    <- Intra.getUserProperties uid
+    _umiMarketo       <- let em = userEmail $ accountUser _umiAccount
+                         in maybe (return noEmail) Intra.getMarketoResult em
+    pure UserMetaInfo {..}
+  where
+    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
 
 
 ----------------------------------------------------------------------

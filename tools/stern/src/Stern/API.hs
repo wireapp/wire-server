@@ -15,7 +15,6 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
-import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
@@ -41,7 +40,7 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 import Servant.API.Generic (ToServant, AsApi)
-import Stern.Servant.Handler (groupByStatus, ifNothing, noSuchUser)
+import Stern.Servant.Handler (groupByStatus, ifNothing)
 
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified "types-common" Data.Swagger  as Doc
@@ -606,18 +605,4 @@ getConsentLog e = do
 
 -- FUTUREWORK: This will be removed as soon as this is ported to another tool
 getUserData :: UserId -> Handler Response
-getUserData uid = do
-    _umiAccount       <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
-    _umiConnections   <- Intra.getUserConnections uid
-    _umiConversations <- Intra.getUserConversations uid
-    _umiNotifications <- Intra.getUserNotifications uid
-    _umiClients       <- Intra.getUserClients uid
-    _umiConsent       <- Intra.getUserConsentValue uid
-    _umiConsentLog    <- Intra.getUserConsentLog uid
-    _umiCookies       <- Intra.getUserCookies uid
-    _umiProperties    <- Intra.getUserProperties uid
-    _umiMarketo       <- let em = userEmail $ accountUser _umiAccount
-                         in maybe (return noEmail) Intra.getMarketoResult em
-    return $ json UserMetaInfo {..}
-  where
-    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
+getUserData = fmap json . SternServant.apiGetMetaInfo

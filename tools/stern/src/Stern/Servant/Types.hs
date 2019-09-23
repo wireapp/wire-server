@@ -292,7 +292,7 @@ data API route = API
        Description "Relevant only internally at Wire" :>
        "i" :> "consent" :>
        SwaggerDesc "An email address" (QueryParamStrict "email" Email) :>
-       Put ConsentLog
+       Put ConsentLogPlusMarketo
 
   , _apiGetMetaInfo
     :: route :- RootPrefix :>

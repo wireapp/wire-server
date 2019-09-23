@@ -56,3 +56,6 @@ instance MonadIntra App where
   type StripException App = App
   throwRpcError = throwM
   catchRpcErrors = id
+
+
+instance ToSchema ConsentLogPlusMarketo
