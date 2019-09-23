@@ -84,7 +84,7 @@ refreshMetrics = do
     safeForever "refreshMetrics" $ do
         n <- Q.len q
         gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
-        threadDelay 100000
+        threadDelay 1000000
 
 safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
 safeForever funName action = forever $ action `catchAny` \exc -> do

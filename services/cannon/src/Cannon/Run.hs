@@ -77,6 +77,7 @@ refreshMetrics = do
     safeForever $ do
         s <- D.size c
         gaugeSet (fromIntegral s) (path "net.websocket.clients") m
+        threadDelay 1000000
   where
     safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
     safeForever action = forever $ action `catchAny` \exc -> do
