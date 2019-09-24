@@ -270,7 +270,6 @@ instance FromJSON PlainTextPassword where
 
 #ifdef WITH_ARBITRARY
 instance Arbitrary PlainTextPassword where
-    -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 #endif
 
