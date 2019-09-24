@@ -669,7 +669,7 @@ instance Arbitrary PropertyValue where
 instance Arbitrary QueuedNotification where
   arbitrary = queuedNotification
     <$> arbitrary
-    <*> (List1.list1 <$> arbitrary <*> arbitrary)
+    <*> (List1.list1 <$> scale (`div` 3) arbitrary <*> scale (`div` 3) arbitrary)
 
 instance Arbitrary Team where
   arbitrary = Team
@@ -749,8 +749,8 @@ instance Arbitrary URI.ByteString.URI where
       $ schema <> domain <> path
 
 instance Arbitrary Aeson.Value where
-  arbitrary = oneof [ Aeson.Object <$> arbitrary
-                    , Aeson.Array  <$> arbitrary
+  arbitrary = oneof [ Aeson.Object <$> scale (`div` 3) arbitrary
+                    , Aeson.Array  <$> scale (`div` 3) arbitrary
                     , Aeson.String <$> arbitrary
                     , Aeson.Number <$> arbitrary
                     , Aeson.Bool   <$> arbitrary
