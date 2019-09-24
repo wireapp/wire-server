@@ -67,7 +67,7 @@ sendLoginCode phone call force = do
     case user of
         Nothing -> throwE $ SendLoginInvalidPhone phone
         Just  u -> do
-            Log.debug $ field "user" (toByteString u) . msg (val "User.sendLoginCode")
+            Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
             pw <- lift $ Data.lookupPassword u
             unless (isNothing pw || force) $
                 throwE SendLoginPasswordExists
@@ -83,13 +83,13 @@ lookupLoginCode :: Phone -> AppIO (Maybe PendingLoginCode)
 lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
     Nothing -> return Nothing
     Just  u -> do
-      Log.debug $ field "user" (toByteString u) . msg (val "User.lookupLoginCode")
+      Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
       Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
-    Log.debug $ field "user" (toByteString uid) . msg (val "User.login")
+    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
     checkRetryLimit uid
     Data.authenticate uid pw `catchE` \case
         AuthSuspended          -> throwE LoginSuspended
@@ -99,7 +99,7 @@ login (PasswordLogin li pw label) typ = do
     newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
     uid <- resolveLoginId (LoginByPhone phone)
-    Log.debug $ field "user" (toByteString uid) . msg (val "User.login")
+    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
     checkRetryLimit uid
     ok <- lift $ Data.verifyLoginCode uid code
     unless ok $
@@ -143,7 +143,7 @@ renewAccess
     -> ExceptT ZAuth.Failure AppIO (Access u)
 renewAccess ut at = do
     (uid, ck) <- validateTokens ut at
-    Log.debug $ field "user" (toByteString uid) . msg (val "User.renewAccess")
+    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
     catchSuspendInactiveUser uid ZAuth.Expired
     ck' <- lift $ nextCookie ck
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
@@ -156,7 +156,7 @@ revokeAccess
     -> [CookieLabel]
     -> ExceptT AuthError AppIO ()
 revokeAccess u pw cc ll = do
-    Log.debug $ field "user" (toByteString u) . msg (val "User.revokeAccess")
+    Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
     Data.authenticate u pw
     lift $ revokeCookies u cc ll
 
