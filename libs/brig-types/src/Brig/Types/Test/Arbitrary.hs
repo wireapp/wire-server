@@ -46,6 +46,7 @@ import Data.Misc
 import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
@@ -183,7 +184,11 @@ instance Arbitrary Alpha where
     arbitrary = genEnumBounded
 
 instance Arbitrary (NewTeam ()) where
-    arbitrary = NewTeam <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    -- TODO: the aeson instances of 'BindingNewTeam', 'NonBindingNewTeam' do not render
+    -- '_newTeamMembers'.  we need to either remove that field, or replace '()' with 'Void' in
+    -- the definition of 'BindingNewTeam', 'NonBindingNewTeam' to make sure bad values cannot
+    -- be constructed.
+    arbitrary = NewTeam <$> arbitrary <*> arbitrary <*> arbitrary <*> pure Nothing
     shrink (NewTeam x0 x1 x2 x3) = NewTeam <$> shrink x0 <*> shrink x1 <*> shrink x2 <*> shrink x3
 
 instance Arbitrary CheckHandles where
@@ -627,6 +632,11 @@ instance Arbitrary Conversation where
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary
+  shrink conv = filter (/= conv)
+                [ conv { cnvAccess = [] }
+                , conv { cnvName = Nothing }
+                , conv { cnvMembers = (cnvMembers conv) { cmOthers = [] } }
+                ]
 
 instance Arbitrary ConvMembers where
   arbitrary = ConvMembers <$> arbitrary <*> arbitrary
@@ -654,11 +664,11 @@ instance Arbitrary OtherMember where
 instance Arbitrary ReceiptMode where
   arbitrary = ReceiptMode <$> arbitrary
 
-instance Arbitrary Milliseconds where
-  arbitrary = Ms <$> arbitrary
-
 instance Arbitrary Message where
-  arbitrary = Message <$> arbitrary
+  arbitrary = Message . cs <$> (vector @Char =<< choose (1, 256))  -- TODO: hide 'Message' and
+                                                                   -- expose a smart
+                                                                   -- constructor that ensures
+                                                                   -- this.
 
 instance Arbitrary PropertyKey where
   arbitrary = PropertyKey <$> arbitrary
@@ -684,7 +694,9 @@ instance Arbitrary TeamData where
   arbitrary = TeamData
     <$> arbitrary
     <*> arbitrary
-    <*> arbitrary
+    <*> (fromUTCTimeMillis . toUTCTimeMillis <$$> arbitrary)
+    -- TODO: aeson serialization chops off everything after milliseconds.  this should happen
+    -- in a smart constructor and TeamData should be opaque.
 
 instance Arbitrary UserAccount where
   arbitrary = UserAccount
@@ -746,7 +758,7 @@ instance Arbitrary URI.ByteString.URI where
     path   <- elements ["/", "/some/path", "other/path"]
     either (error . show) pure
       . URI.ByteString.parseURI URI.ByteString.laxURIParserOptions
-      $ schema <> domain <> path
+      $ schema <> "://" <> domain <> path
 
 instance Arbitrary Aeson.Value where
   arbitrary = oneof [ Aeson.Object <$> scale (`div` 3) arbitrary
@@ -756,6 +768,9 @@ instance Arbitrary Aeson.Value where
                     , Aeson.Bool   <$> arbitrary
                     , pure Aeson.Null
                     ]
+  shrink (Aeson.Object obj) = Aeson.Object <$> shrink obj
+  shrink (Aeson.Array arr)  = Aeson.Array  <$> shrink arr
+  shrink _                  = []
 
 instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Int32) where
   arbitrary = unsafeRange <$> choose @Int32 ( fromIntegral $ natVal (Proxy @n)

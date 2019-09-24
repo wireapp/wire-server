@@ -177,6 +177,11 @@ instance ToJSON Milliseconds where
 instance FromJSON Milliseconds where
     parseJSON = fmap int64ToMs . parseJSON
 
+#ifdef WITH_ARBITRARY
+instance Arbitrary Milliseconds where
+  arbitrary = int64ToMs <$> arbitrary
+#endif
+
 #ifdef WITH_CQL
 instance Cql Milliseconds where
     ctype = Tagged BigIntColumn

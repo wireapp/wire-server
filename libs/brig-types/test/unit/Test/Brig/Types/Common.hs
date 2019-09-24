@@ -106,6 +106,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ManagedBy
     , run @ManagedByUpdate
     , run @Message
+    , run @Milliseconds
     , run @Name
     , run @NewLegalHoldClient
     , run @NewLegalHoldService
