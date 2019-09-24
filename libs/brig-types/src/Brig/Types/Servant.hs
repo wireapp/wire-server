@@ -171,7 +171,9 @@ camelToUnderscore = concatMap go . (ix 0 %~ toLower)
 
 -- | errors should be caught by the test suite, so we don't need to be subtle.
 unsafeStripPrefix :: HasCallStack => String -> String -> String
-unsafeStripPrefix pref = fromMaybe (error "internal error") . stripPrefix pref
+unsafeStripPrefix pref txt
+  = fromMaybe (error $ "internal error: " <> show (pref, txt))
+  $ stripPrefix pref txt
 
 
 ----------------------------------------------------------------------
@@ -238,7 +240,15 @@ instance ToSchema (AsciiText Base64Url)
 instance ToSchema CountryCode
 
 instance ToSchema Value where
-    declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+    declareNamedSchema _ = pure $ NamedSchema (Just "Value") mempty  -- TODO: the test suite
+                                                                     -- error is almost
+                                                                     -- helpful, but not
+                                                                     -- quite.  generate the
+                                                                     -- swagger json and
+                                                                     -- figure out what it
+                                                                     -- should look like.
+                                                                     -- then make it look like
+                                                                     -- that.
 
 instance ToSchema Handle
 
@@ -445,14 +455,14 @@ instance ToSchema InvitationList where
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
-        { fieldLabelModifier = unsafeStripPrefix "il" . camelToUnderscore
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "il"
         }
 
 instance ToSchema InvitationRequest where
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
-        { fieldLabelModifier = unsafeStripPrefix "ir" . camelToUnderscore
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "ir"
         }
 
 instance ToSchema LegalHoldClientRequest
@@ -476,7 +486,7 @@ instance ToSchema LegalHoldService where
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
-        { fieldLabelModifier = unsafeStripPrefix "legalHoldService" . camelToUnderscore
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "legalHoldService"
         }
 
 instance ToSchema LegalHoldServiceConfirm
@@ -532,7 +542,7 @@ instance ToSchema VerifyDeleteUser where
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
-        { fieldLabelModifier = unsafeStripPrefix "verifyDeleteUser" . camelToUnderscore
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "verifyDeleteUser"
         }
 
 instance ToSchema ServiceKeyPEM where
