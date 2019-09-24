@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
@@ -17,13 +18,15 @@ import Brig.Types.Client
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Properties
+import Brig.Types.Provider (UpdateServiceWhitelist)
 import Brig.Types.Search as Search
+import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens
 import Data.Aeson as Aeson
-import Data.Aeson                 (Value)
 import Data.ByteString.Conversion as BSC
 import Data.ByteString.Conversion (List(..))
 import Data.Currency (Alpha)
@@ -43,7 +46,9 @@ import Data.UUID (UUID)
 import Galley.Types
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
+import Galley.Types.Teams.Internal ()
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import GHC.TypeLits
 import Gundeck.Types.Notification
 import Servant.API
@@ -55,6 +60,7 @@ import Servant.Swagger.Internal (addDefaultResponse400, addParam)
 import Servant.Swagger.UI
 import Servant.Swagger.UI.Core
 
+import qualified Data.Code
 import qualified Data.Json.Util
 import qualified Data.Metrics         as Metrics
 import qualified Data.Metrics.Servant as Metrics
@@ -391,3 +397,83 @@ instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) w
 
 instance Metrics.RoutesToPaths Raw where
   getRoutes = mempty
+
+
+----------------------------------------------------------------------
+-- more orphans
+
+instance ToSchema Milliseconds where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Word64)
+
+deriving instance ToSchema ApproveLegalHoldForUserRequest
+deriving instance ToSchema CheckHandles
+deriving instance ToSchema PasswordResetIdentity
+deriving instance ToSchema CompletePasswordReset
+deriving instance ToSchema PasswordResetKey
+deriving instance ToSchema PasswordResetCode
+deriving instance ToSchema DeleteUser
+
+instance ToSchema Data.Code.Timeout where
+  declareNamedSchema _ = undefined
+
+deriving instance ToSchema DeletionCodeTimeout
+deriving instance ToSchema DisableLegalHoldForUserRequest
+deriving instance ToSchema EmailRemove
+deriving instance ToSchema FeatureFlags
+deriving instance ToSchema FeatureSSO
+deriving instance ToSchema FeatureLegalHold
+deriving instance ToSchema HandleUpdate
+
+instance ToSchema Invitation where
+  declareNamedSchema _ = undefined
+
+instance ToSchema InvitationList where
+  declareNamedSchema _ = undefined
+
+instance ToSchema InvitationRequest where
+  declareNamedSchema _ = undefined
+
+deriving instance ToSchema LegalHoldClientRequest
+deriving instance ToSchema LastPrekey
+deriving instance ToSchema Prekey
+deriving instance ToSchema PrekeyId
+
+instance ToSchema LegalHoldService where
+  declareNamedSchema _ = undefined
+
+deriving instance ToSchema HttpsUrl
+
+deriving instance ToSchema LegalHoldServiceConfirm
+deriving instance ToSchema LegalHoldStatus
+deriving instance ToSchema LegalHoldTeamConfig
+deriving instance ToSchema LocaleUpdate
+deriving instance ToSchema NewLegalHoldClient
+
+instance ToSchema NewLegalHoldService where
+  declareNamedSchema _ = undefined
+
+deriving instance ToSchema NewPasswordReset
+deriving instance ToSchema PasswordChange
+deriving instance ToSchema PhoneRemove
+deriving instance ToSchema ReAuthUser
+deriving instance ToSchema RemoveLegalHoldSettingsRequest
+deriving instance ToSchema RequestNewLegalHoldClient
+deriving instance ToSchema SSOStatus
+deriving instance ToSchema SSOTeamConfig
+
+instance ToSchema TeamMemberDeleteData where
+  declareNamedSchema _ = undefined
+
+instance ToSchema UpdateServiceWhitelist where
+  declareNamedSchema _ = undefined
+
+deriving instance ToSchema UserHandleInfo
+deriving instance ToSchema UserLegalHoldStatusResponse
+deriving instance ToSchema UserProfile
+deriving instance ToSchema UserUpdate
+
+instance ToSchema VerifyDeleteUser where
+  declareNamedSchema _ = undefined
+
+instance ToSchema ViewLegalHoldService where
+  declareNamedSchema _ = undefined

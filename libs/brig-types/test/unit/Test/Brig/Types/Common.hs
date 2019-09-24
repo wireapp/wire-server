@@ -10,6 +10,8 @@ module Test.Brig.Types.Common where
 
 import Imports
 
+import "swagger2" Data.Swagger
+
 import Brig.Types.Activation
 import Brig.Types.Client
 import Brig.Types.Connection
@@ -169,10 +171,11 @@ tests = testGroup "Common (types vs. aeson)"
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
   where
-    run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)
+    run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a)
          => TestTree
     run = testProperty msg trip
       where
         msg = show $ typeOf (undefined :: a)
-        trip (v :: a) = counterexample (show $ toJSON v)
-                      $ Right v === (parseEither parseJSON . toJSON) v
+        trip (v :: a) = counterexample (show $ toJSON v) $
+          (Right v === (parseEither parseJSON . toJSON) v) .&&.
+          ([] === validateToJSON v)
