@@ -32,7 +32,6 @@ import qualified Data.X509 as X509
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.TH as SAML
 import qualified Servant.Multipart as SM
-import qualified URI.ByteString as URI
 
 
 -- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
@@ -82,14 +81,8 @@ samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 instance ToSchema SAML.XmlText where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToParamSchema (Id a) where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToSchema (Id a) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
@@ -142,12 +135,6 @@ instance ToSchema X509.SignedCertificate where
 
 instance ToSchema SAML.SPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToSchema URI.URI where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToParamSchema URI.URI where
-  toParamSchema _ = toParamSchema (Proxy @String)
 
 instance ToParamSchema SetBindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)

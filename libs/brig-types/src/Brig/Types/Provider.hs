@@ -326,7 +326,7 @@ instance ToJSON ServiceKeyPEM where
 data ServiceKeyType
     = RsaServiceKey
     -- Other types may be supported in the future.
-    deriving (Eq, Enum, Bounded, Show)
+    deriving (Eq, Enum, Bounded, Show, Generic)
 
 instance FromJSON ServiceKeyType where
     parseJSON (String "rsa") = pure RsaServiceKey
@@ -343,7 +343,7 @@ data ServiceKey = ServiceKey
     { serviceKeyType :: !ServiceKeyType
     , serviceKeySize :: !Int32
     , serviceKeyPEM  :: !ServiceKeyPEM
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON ServiceKey where
     parseJSON = withObject "ServiceKey" $ \o ->
@@ -602,7 +602,7 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
     { updateServiceWhitelistProvider :: !ProviderId
     , updateServiceWhitelistService  :: !ServiceId
     , updateServiceWhitelistStatus   :: !Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON UpdateServiceWhitelist where
     parseJSON = withObject "UpdateServiceWhitelist" $ \o ->

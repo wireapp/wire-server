@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RoleAnnotations #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-patterns #-}
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
 -- live), and turn warning about orphans back on.
 
@@ -15,10 +15,11 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 import Brig.Types.Activation
 import Brig.Types.Client
+import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Properties
-import Brig.Types.Provider (UpdateServiceWhitelist)
+import Brig.Types.Provider hiding (PasswordChange, CompletePasswordReset)
 import Brig.Types.Search as Search
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
@@ -26,8 +27,11 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens
-import Data.Aeson as Aeson
+import Data.Aeson as Aeson hiding (fieldLabelModifier, constructorTagModifier)
+import Data.Aeson (toJSON)
+import Data.Aeson (Value(..))
 import Data.ByteString.Conversion as BSC
+import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Conversion (List(..))
 import Data.Currency (Alpha)
 import Data.Id
@@ -40,8 +44,11 @@ import Data.Range
 import Data.Singletons.Bool (reflectBool)
 import Data.String.Conversions (cs)
 import Data.Text.Ascii
+import Data.Text as Text (unlines)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text (Text)
 import Data.Typeable (typeOf)
+import Data.UUID (fromText)
 import Data.UUID (UUID)
 import Galley.Types
 import Galley.Types.Bot.Service
@@ -59,8 +66,10 @@ import Servant.Swagger
 import Servant.Swagger.Internal (addDefaultResponse400, addParam)
 import Servant.Swagger.UI
 import Servant.Swagger.UI.Core
+import URI.ByteString.QQ (uri)
 
 import qualified Data.Code
+import qualified Data.HashMap.Strict.InsOrd as HashMap
 import qualified Data.Json.Util
 import qualified Data.Metrics         as Metrics
 import qualified Data.Metrics.Servant as Metrics
@@ -159,6 +168,10 @@ instance HasServer api ctx => HasServer (AuthZConn :> api) ctx where
 camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
   where go x = if isUpper x then "_" <> [toLower x] else [x]
+
+-- | errors should be caught by the test suite, so we don't need to be subtle.
+unsafeStripPrefix :: HasCallStack => String -> String -> String
+unsafeStripPrefix pref = fromMaybe (error "internal error") . stripPrefix pref
 
 
 ----------------------------------------------------------------------
@@ -270,6 +283,10 @@ instance FromJSON URI.ByteString.URI where
 instance ToParamSchema Servant.API.URI where
     toParamSchema _ = toParamSchema (Proxy @Text)
 
+instance ToSchema HttpsUrl where
+    declareNamedSchema _ = declareNamedSchema (Proxy @URI.ByteString.URI)
+
+
 instance ToSchema AccountStatusUpdate
 instance ToSchema AccountStatusObject
 instance ToSchema ActivationCodeObject
@@ -278,7 +295,6 @@ instance ToSchema ActivationKey
 instance ToSchema ExcludedPrefix
 instance ToSchema PhonePrefix
 instance ToSchema UserClients
-instance ToSchema ClientId
 instance ToSchema ManagedByUpdate
 instance ToSchema RichInfoUpdate
 instance ToSchema RichInfo
@@ -314,7 +330,6 @@ instance ToSchema TeamBinding
 instance ToSchema TeamData
 instance ToSchema TeamMember
 instance ToSchema TeamStatus
-instance ToSchema UserLegalHoldStatus
 instance ToSchema PropertyValue
 instance ToSchema (AsciiText Printable)
 instance ToSchema PropertyKey
@@ -405,75 +420,363 @@ instance Metrics.RoutesToPaths Raw where
 instance ToSchema Milliseconds where
   declareNamedSchema _ = declareNamedSchema (Proxy @Word64)
 
-deriving instance ToSchema ApproveLegalHoldForUserRequest
-deriving instance ToSchema CheckHandles
-deriving instance ToSchema PasswordResetIdentity
-deriving instance ToSchema CompletePasswordReset
-deriving instance ToSchema PasswordResetKey
-deriving instance ToSchema PasswordResetCode
-deriving instance ToSchema DeleteUser
+instance ToSchema ApproveLegalHoldForUserRequest
+instance ToSchema CheckHandles
+instance ToSchema PasswordResetIdentity
+instance ToSchema CompletePasswordReset
+instance ToSchema PasswordResetKey
+instance ToSchema PasswordResetCode
+instance ToSchema DeleteUser
 
 instance ToSchema Data.Code.Timeout where
-  declareNamedSchema _ = undefined
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- ('NominalDiffTime', really)
 
-deriving instance ToSchema DeletionCodeTimeout
-deriving instance ToSchema DisableLegalHoldForUserRequest
-deriving instance ToSchema EmailRemove
-deriving instance ToSchema FeatureFlags
-deriving instance ToSchema FeatureSSO
-deriving instance ToSchema FeatureLegalHold
-deriving instance ToSchema HandleUpdate
-
-instance ToSchema Invitation where
-  declareNamedSchema _ = undefined
+instance ToSchema DeletionCodeTimeout
+instance ToSchema DisableLegalHoldForUserRequest
+instance ToSchema EmailRemove
+instance ToSchema FeatureFlags
+instance ToSchema FeatureLegalHold
+instance ToSchema FeatureSSO
+instance ToSchema HandleUpdate
+instance ToSchema Invitation
+instance ToSchema Role
 
 instance ToSchema InvitationList where
-  declareNamedSchema _ = undefined
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = unsafeStripPrefix "il" . camelToUnderscore
+        }
 
 instance ToSchema InvitationRequest where
-  declareNamedSchema _ = undefined
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = unsafeStripPrefix "ir" . camelToUnderscore
+        }
 
-deriving instance ToSchema LegalHoldClientRequest
-deriving instance ToSchema LastPrekey
-deriving instance ToSchema Prekey
-deriving instance ToSchema PrekeyId
+instance ToSchema LegalHoldClientRequest
+
+instance ToSchema ServiceKeyType where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions { constructorTagModifier = \case "RsaServiceKey" -> "rsa" }
+
+instance ToSchema ServiceKey where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = \case
+            "serviceKeyType" -> "type"
+            "serviceKeySize" -> "size"
+            "serviceKeyPEM"  -> "pem"
+        }
 
 instance ToSchema LegalHoldService where
-  declareNamedSchema _ = undefined
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = unsafeStripPrefix "legalHoldService" . camelToUnderscore
+        }
 
-deriving instance ToSchema HttpsUrl
+instance ToSchema LegalHoldServiceConfirm
+instance ToSchema LocaleUpdate
 
-deriving instance ToSchema LegalHoldServiceConfirm
-deriving instance ToSchema LegalHoldStatus
-deriving instance ToSchema LegalHoldTeamConfig
-deriving instance ToSchema LocaleUpdate
-deriving instance ToSchema NewLegalHoldClient
+instance ToSchema NewPasswordReset
+instance ToSchema PasswordChange
+instance ToSchema PhoneRemove
+instance ToSchema ReAuthUser
+instance ToSchema RemoveLegalHoldSettingsRequest
+instance ToSchema SSOStatus
+instance ToSchema SSOTeamConfig
 
-instance ToSchema NewLegalHoldService where
-  declareNamedSchema _ = undefined
-
-deriving instance ToSchema NewPasswordReset
-deriving instance ToSchema PasswordChange
-deriving instance ToSchema PhoneRemove
-deriving instance ToSchema ReAuthUser
-deriving instance ToSchema RemoveLegalHoldSettingsRequest
-deriving instance ToSchema RequestNewLegalHoldClient
-deriving instance ToSchema SSOStatus
-deriving instance ToSchema SSOTeamConfig
-
+-- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
+-- password, which will break roundtrip tests as well as client functions.
 instance ToSchema TeamMemberDeleteData where
-  declareNamedSchema _ = undefined
+  declareNamedSchema _ = pure $ NamedSchema (Just "TeamMemberDeleteData") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["password"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("password", Inline (toSchema (Proxy @(Maybe Text))))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just "{\"password\":null}"  -- or "{\"password\":\"wef\"}"
+                                               -- FUTUREWORK: can there be more than one example?
 
 instance ToSchema UpdateServiceWhitelist where
-  declareNamedSchema _ = undefined
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = \case
+            "updateServiceWhitelistProvider" -> "provider"
+            "updateServiceWhitelistService" -> "id"
+            "updateServiceWhitelistStatus" -> "whitelisted"
+        }
 
-deriving instance ToSchema UserHandleInfo
-deriving instance ToSchema UserLegalHoldStatusResponse
-deriving instance ToSchema UserProfile
-deriving instance ToSchema UserUpdate
+instance ToSchema UserHandleInfo
+instance ToSchema UserProfile
+instance ToSchema UserUpdate
+
+instance ToSchema Data.Code.Key where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema Data.Code.Value where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema VerifyDeleteUser where
-  declareNamedSchema _ = undefined
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = unsafeStripPrefix "verifyDeleteUser" . camelToUnderscore
+        }
+
+instance ToSchema ServiceKeyPEM where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ pem
+        pem = String . Text.unlines $
+            [ "-----BEGIN PUBLIC KEY-----"
+            , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+            , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+            , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+            , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+            , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+            , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+            , "nQIDAQAB"
+            , "-----END PUBLIC KEY-----"
+            ]
+
+instance ToSchema (Fingerprint Rsa) where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ fpr
+        fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
+
+instance ToSchema ServiceToken where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ tok
+        tok = "sometoken"
+
+instance ToSchema NewLegalHoldService where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldServiceKey"   -> "public_key"
+              "newLegalHoldServiceUrl"   -> "base_url"
+              "newLegalHoldServiceToken" -> "auth_token"
+          }
 
 instance ToSchema ViewLegalHoldService where
-  declareNamedSchema _ = undefined
+    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 2
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus)))
+          , ("settings", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
+          where
+            tok = ServiceToken "sometoken"
+            Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                [ "-----BEGIN PUBLIC KEY-----"
+                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                , "nQIDAQAB"
+                , "-----END PUBLIC KEY-----"
+                ]
+            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+-- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
+data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
+  deriving (Eq, Show, Generic)
+
+instance ToSchema MockViewLegalHoldServiceStatus where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions { constructorTagModifier = camelToUnderscore }
+
+instance ToSchema ViewLegalHoldServiceInfo where
+    {-
+
+    -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
+    -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
+    -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
+    -- 'ToSchema' instance manually.
+    -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
+
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "viewLegalHoldServiceFingerprint" -> "fingerprint"
+              "viewLegalHoldServiceUrl"         -> "base_url"
+              "viewLegalHoldServiceTeam"        -> "team_id"
+              "viewLegalHoldServiceAuthToken"   -> "auth_token"
+              "viewLegalHoldServiceKey"         -> "public_key"
+
+          }
+    -}
+    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("team_id", Inline (toSchema (Proxy @UUID)))
+          , ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
+          , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
+          , ("auth_token", Inline (toSchema (Proxy @(ServiceToken))))
+          , ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON
+                 $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
+          where
+            tok = ServiceToken "sometoken"
+            Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                [ "-----BEGIN PUBLIC KEY-----"
+                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                , "nQIDAQAB"
+                , "-----END PUBLIC KEY-----"
+                ]
+            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+instance ToSchema LegalHoldTeamConfig where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "legalHoldTeamConfigStatus" -> "status"
+          }
+
+instance ToSchema LegalHoldStatus where
+    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { constructorTagModifier = \case
+              "LegalHoldDisabled" -> "disabled"
+              "LegalHoldEnabled"  -> "enabled"
+          }
+
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "determines whether admins of a team " <>
+                    "are allowed to enable LH for their users."
+
+instance ToSchema RequestNewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "userId" -> "user_id"
+              "teamId" -> "team_id"
+          }
+
+instance ToSchema NewLegalHoldClient where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldClientPrekeys"     -> "prekeys"
+              "newLegalHoldClientLastKey"     -> "last_prekey"
+          }
+
+instance ToSchema UserLegalHoldStatusResponse where
+    declareNamedSchema _ = pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $ mempty
+        & properties .~ properties_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus)))
+          , ("last_prekey", Inline (toSchema (Proxy @LastPrekey)))
+          , ("client", Inline (toSchema (Proxy @(IdObject ClientId))))
+          ]
+
+instance ToSchema a => ToSchema (IdObject a) where
+    declareNamedSchema _ = pure $ NamedSchema (Just "IdObject a") $ mempty
+        & properties .~ properties_
+        & required .~ ["id"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("id", Inline (toSchema (Proxy @a)))
+          ]
+
+instance ToSchema UserLegalHoldStatus where
+    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { constructorTagModifier = \case
+              "UserLegalHoldEnabled"  -> "enabled"
+              "UserLegalHoldPending"  -> "pending"
+              "UserLegalHoldDisabled" -> "disabled"
+          }
+
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "states whether a user is under legal hold, " <>
+                    "or whether legal hold is pending approval."
+
+instance ToSchema ClientId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "A Client Id"
+
+instance ToSchema PrekeyId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
+      where
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "in the range [0..65535]."
+              -- FUTUREWORK: can this be also expressed in swagger, not just in the description?
+
+instance ToSchema Prekey where
+    declareNamedSchema = genericDeclareNamedSchema opts
+      where
+        opts = defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "prekeyId" -> "id"
+              "prekeyKey" -> "key"
+          }
+
+instance ToSchema LastPrekey where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
