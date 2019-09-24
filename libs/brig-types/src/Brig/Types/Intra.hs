@@ -42,7 +42,7 @@ instance ToJSON AccountStatus where
 
 newtype AccountStatusUpdate = AccountStatusUpdate
     { suStatus :: AccountStatus }
-    deriving (Generic)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatusUpdate where
     parseJSON = withObject "account-status-update" $ \o ->

@@ -255,6 +255,12 @@ instance ToSchema URI.ByteString.URI where
 instance ToJSON URI.ByteString.URI where
     toJSON = String . cs . URI.ByteString.serializeURIRef'
 
+instance FromJSON URI.ByteString.URI where
+    parseJSON = withText "URI.ByteString.URI"
+        $ either (fail . show) pure
+        . URI.ByteString.parseURI URI.ByteString.laxURIParserOptions
+        . cs
+
 instance ToParamSchema Servant.API.URI where
     toParamSchema _ = toParamSchema (Proxy @Text)
 
@@ -279,6 +285,7 @@ instance ToSchema NoContent
 instance ToParamSchema ConnId where
     toParamSchema _ = toParamSchema (Proxy @Text)
 
+-- deprecated (where is this used?)
 instance ToSchema Swagger1.ApiDecl where
     declareNamedSchema _ = declareNamedSchema (Proxy @Value)
 
@@ -309,10 +316,7 @@ instance ToSchema PropertyKey
 
 instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
 
-deriving instance Generic Search.Contact
 instance ToSchema Search.Contact
-
-deriving instance Generic (SearchResult Search.Contact)
 instance ToSchema (SearchResult Search.Contact)
 
 

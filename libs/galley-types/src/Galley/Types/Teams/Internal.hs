@@ -66,6 +66,10 @@ instance FromJSON Team where
              <*> o .:? "icon_key"
              <*> o .:? "binding" .!= NonBinding
 
+instance (ToJSON a) => ToJSON (NewTeam a) where
+    toJSON (NewTeam n i ik m) =
+        object [ "name" .= n, "icon" .= i, "icon_key" .= ik, "members" .= m ]
+
 instance (FromJSON a) => FromJSON (NewTeam a) where
     parseJSON = withObject "new-team" $ \o -> do
         name <- o .:  "name"

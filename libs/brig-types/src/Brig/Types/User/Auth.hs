@@ -201,6 +201,7 @@ data Cookie a = Cookie
 data CookieList = CookieList
     { cookieList :: [Cookie ()]
     }
+    deriving (Eq, Show, Generic)
 
 data CookieType
     = SessionCookie

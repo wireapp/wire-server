@@ -85,7 +85,10 @@ tests:
     - containers
     - currency-codes
     - extra
-    - galley-types
+    - galley-types  # we're testing some types from other services here
+                    # because it's easier.  (those tests should probably
+                    # go into a dedicated test package?)
+    - gundeck-types
     - iproute
     - iso639
     - QuickCheck

@@ -10,7 +10,6 @@ module Test.Brig.Types.Common where
 
 import Imports
 
-import qualified "swagger" Data.Swagger.Build.Api as Swagger1
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
@@ -33,8 +32,6 @@ import Data.Aeson.Types
 import Data.Aeson                 (Value)
 import Data.Currency (Alpha)
 import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.LanguageCodes
 import Data.LegalHold
 import Data.Misc
 import Data.Range
@@ -46,19 +43,19 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
-import Servant.API
-import Servant.Swagger.UI
-import Servant.Swagger.UI.Core
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+import Galley.Types.Teams.Internal ()
+
 import qualified Data.Json.Util
-import qualified Data.Metrics as Metrics
 import qualified URI.ByteString
 
 
--- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
+-- FUTUREWORK: validateEveryToJSON from servant-swagger doesn't render these tests
+-- unnecessary, as it only tests ToJSON against ToSchema, and only of the types that the
+-- server side requires a ToJSON for.  it's very feasible to extend this, though.
 
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
@@ -85,8 +82,6 @@ tests = testGroup "Common (types vs. aeson)"
     , run @Conversation
     , run @CookieLabel
     , run @CookieList
-    , run @Country
-    , run @CountryCode
     , run @Data.Json.Util.UTCTimeMillis
     , run @DisableLegalHoldForUserRequest
     , run @Email
@@ -95,8 +90,6 @@ tests = testGroup "Common (types vs. aeson)"
     , run @Handle
     , run @(Id U)
     , run @InvitationCode
-    , run @ISO639_1
-    , run @Language
     , run @LegalHoldClientRequest
     , run @LegalHoldService
     , run @LegalHoldServiceConfirm
@@ -106,17 +99,11 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ManagedBy
     , run @ManagedByUpdate
     , run @Message
-    , run @Metrics.Metrics
     , run @Name
     , run @NewLegalHoldClient
     , run @NewLegalHoldService
     , run @(NewTeam ())
-    , run @NewTeamUser
     , run @NewUser
-    , run @NewUserOrigin
-    , run @NoContent
-    , run @Perm
-    , run @Permissions
     , run @Phone
     , run @PhonePrefix
     , run @PhoneUpdate
@@ -139,9 +126,6 @@ tests = testGroup "Common (types vs. aeson)"
     , run @SSOStatus
     , run @SSOTeamConfig
     , run @Swagger
-    , run @Swagger1.ApiDecl
-    , run @(SwaggerSchemaUI' "dir" (Verb 'GET 200 '[JSON] ()))
-    , run @(SwaggerUiHtml "dir" Int)
     , run @Team
     , run @TeamBinding
     , run @TeamData
@@ -178,6 +162,8 @@ tests = testGroup "Common (types vs. aeson)"
                       $ Right v === (parseEither parseJSON . toJSON) v
 
 
+-- TODO: move all these instances to /libs/brig-types/src/Brig/Types/Test/Arbitrary.hs
+
 instance Arbitrary TeamMemberDeleteData where
   arbitrary = newTeamMemberDeleteData <$> arbitrary
 
@@ -202,6 +188,9 @@ instance Arbitrary AccountStatus where
   arbitrary = undefined
 
 instance Arbitrary AccountStatusObject where
+  arbitrary = undefined
+
+instance Arbitrary AccountStatusUpdate where
   arbitrary = undefined
 
 instance Arbitrary ActivationCodeObject where
@@ -277,4 +266,16 @@ instance Arbitrary UserSet where
   arbitrary = undefined
 
 instance Arbitrary Value where
+  arbitrary = undefined
+
+instance Arbitrary CookieList where
+  arbitrary = undefined
+
+instance Arbitrary Search.Contact where
+  arbitrary = undefined
+
+instance Arbitrary (SearchResult Search.Contact) where
+  arbitrary = undefined
+
+instance Arbitrary URI.ByteString.URI where
   arbitrary = undefined

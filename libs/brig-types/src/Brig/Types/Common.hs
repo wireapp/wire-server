@@ -336,7 +336,8 @@ parseLanguage = hush . parseOnly languageParser
 -----------------------------------------------------------------------------
 -- Country
 
-newtype Country = Country { fromCountry :: CountryCode } deriving (Ord, Eq, Show, Generic)
+newtype Country = Country { fromCountry :: CountryCode }
+  deriving (Ord, Eq, Show, Generic)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
