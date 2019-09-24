@@ -62,6 +62,7 @@ import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
 
+import qualified Data.List1 as List1
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set as Set
@@ -666,13 +667,9 @@ instance Arbitrary PropertyValue where
   arbitrary = PropertyValue <$> arbitrary
 
 instance Arbitrary QueuedNotification where
-  arbitrary = queuedNotification <$> arbitrary <*> arbobjlist
-    where
-      arbobjlist = undefined
-      _arbobj = undefined
-
-instance Arbitrary (Range (n :: Nat) (m :: Nat) Int32) where
-  arbitrary = undefined
+  arbitrary = queuedNotification
+    <$> arbitrary
+    <*> (List1.list1 <$> arbitrary <*> arbitrary)
 
 instance Arbitrary Team where
   arbitrary = Team
@@ -695,25 +692,52 @@ instance Arbitrary UserAccount where
     <*> arbitrary
 
 instance Arbitrary UserClients where
-  arbitrary = undefined
+  arbitrary = UserClients <$> arbitrary
 
 instance Arbitrary UserConnection where
-  arbitrary = undefined
+  arbitrary = UserConnection
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
 
 instance Arbitrary UserIds where
-  arbitrary = undefined
+  arbitrary = UserIds <$> arbitrary
 
 instance Arbitrary UserSet where
-  arbitrary = undefined
+  arbitrary = UserSet <$> arbitrary
 
 instance Arbitrary CookieList where
-  arbitrary = undefined
+  arbitrary = CookieList <$> arbitrary
 
-instance Arbitrary Search.Contact where
-  arbitrary = undefined
+instance Arbitrary (Cookie ()) where
+  arbitrary = Cookie
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
 
-instance Arbitrary (SearchResult Search.Contact) where
-  arbitrary = undefined
+instance Arbitrary CookieId where
+  arbitrary = CookieId <$> arbitrary
+
+instance Arbitrary Contact where
+  arbitrary = Contact
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary (SearchResult Contact) where
+  arbitrary = SearchResult
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
 
 instance Arbitrary URI.ByteString.URI where
   arbitrary = do
@@ -725,6 +749,17 @@ instance Arbitrary URI.ByteString.URI where
       $ schema <> domain <> path
 
 instance Arbitrary Aeson.Value where
-  arbitrary = undefined
+  arbitrary = oneof [ Aeson.Object <$> arbitrary
+                    , Aeson.Array  <$> arbitrary
+                    , Aeson.String <$> arbitrary
+                    , Aeson.Number <$> arbitrary
+                    , Aeson.Bool   <$> arbitrary
+                    , pure Aeson.Null
+                    ]
+
+instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Int32) where
+  arbitrary = unsafeRange <$> choose @Int32 ( fromIntegral $ natVal (Proxy @n)
+                                            , fromIntegral $ natVal (Proxy @m)
+                                            )
 
 #endif

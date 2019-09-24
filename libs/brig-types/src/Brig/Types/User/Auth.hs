@@ -214,7 +214,7 @@ data CookieType
         -- ^ A regular persistent cookie that expires at a specific date.
         -- These cookies are regularly renewed as part of an access token
         -- refresh.
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Enum, Bounded, Generic)
 
 instance ToJSON AccessToken where
     toJSON (AccessToken u t tt e) =
