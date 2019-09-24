@@ -85,7 +85,7 @@ import qualified URI.ByteString
 ----------------------------------------------------------------------
 -- * more stuff we need to move to other places
 
-newtype AccountStatusObject = AccountStatusObject AccountStatus
+newtype AccountStatusObject = AccountStatusObject { _fromAccountStatusObject :: AccountStatus }
     deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatusObject where
@@ -95,7 +95,10 @@ instance FromJSON AccountStatusObject where
 instance ToJSON AccountStatusObject where
     toJSON (AccountStatusObject status) = object [ "status" Aeson..= status ]
 
-data ActivationCodeObject = ActivationCodeObject ActivationKey ActivationCode
+data ActivationCodeObject = ActivationCodeObject
+    { _acoKey  :: ActivationKey
+    , _acoCode :: ActivationCode
+    }
     deriving (Eq, Show, Generic)
 
 instance FromJSON ActivationCodeObject where
@@ -104,6 +107,15 @@ instance FromJSON ActivationCodeObject where
 
 instance ToJSON ActivationCodeObject where
     toJSON (ActivationCodeObject key code) = object [ "key" Aeson..= key, "code" Aeson..= code ]
+
+instance ToSchema ActivationCodeObject where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_aco"
+
+instance ToSchema ActivationCode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema ActivationKey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 
 ----------------------------------------------------------------------
@@ -228,11 +240,7 @@ instance ToSchema Metrics.Metrics where
     declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO
 
 instance ToSchema UserSet where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = \case "usUsrs" -> "users"
-        }
+  declareNamedSchema = withFieldLabelMod $ \"usUsrs" -> "users"
 
 instance ToSchema UserConnection
 instance ToSchema Relation
@@ -252,11 +260,7 @@ instance ToSchema Phone
 instance ToSchema Name
 
 instance ToSchema UserSSOId where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "userSSOId"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userSSOId"
 
 instance ToSchema Pict
 instance ToSchema Asset
@@ -269,7 +273,7 @@ instance ToSchema Locale
 instance ToSchema Language
 instance ToSchema Country
 instance ToSchema SelfProfile
-instance ToSchema ActivationCode
+
 instance ToSchema CookieLabel
 instance ToSchema PlainTextPassword
 instance ToSchema ManagedBy
@@ -278,11 +282,7 @@ instance ToSchema (NewTeam ())
 instance ToSchema NewTeamUser
 
 instance ToSchema ServiceRef where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "_serviceRef"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
 
 instance ToSchema BindingNewTeamUser
 instance ToSchema BindingNewTeam
@@ -310,7 +310,9 @@ instance ToSchema Brig.Types.User.EmailUpdate
 instance ToSchema ConnectionsStatusRequest
 instance ToSchema ConnectionStatus
 instance ToSchema UserAccount
-instance ToSchema AccountStatus
+
+instance ToSchema AccountStatus where
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToParamSchema (List a) where
     toParamSchema _ = toParamSchema (Proxy @Text)
@@ -348,18 +350,22 @@ instance ToSchema HttpsUrl where
     declareNamedSchema _ = declareNamedSchema (Proxy @URI.ByteString.URI)
 
 
-instance ToSchema AccountStatusUpdate
-instance ToSchema AccountStatusObject
-instance ToSchema ActivationCodeObject
-instance ToSchema UserIds
-instance ToSchema ActivationKey
+instance ToSchema AccountStatusUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"suStatus" -> "status"
+
+instance ToSchema AccountStatusObject where
+  declareNamedSchema = withFieldLabelMod $ \"_fromAccountStatusObject" -> "status"
+
+instance ToSchema UserIds where
+  declareNamedSchema = withFieldLabelMod $ \"cUsers" -> "ids"
+
 instance ToSchema ExcludedPrefix
 instance ToSchema PhonePrefix
 instance ToSchema UserClients
 instance ToSchema ManagedByUpdate
 
 instance ToSchema RichInfoUpdate where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rui"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "riu"
 
 instance ToSchema RichInfoVersion where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
@@ -404,11 +410,7 @@ instance ToSchema TeamData
 instance ToSchema TeamMember
 
 instance ToSchema TeamStatus where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { constructorTagModifier = camelToUnderscore
-        }
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToSchema PropertyValue
 instance ToSchema (AsciiText Printable)
