@@ -40,7 +40,7 @@ data Relation
     | Ignored
     | Sent
     | Cancelled
-    deriving (Eq, Ord, Show, Generic)
+    deriving (Eq, Ord, Show, Bounded, Enum, Generic)
 
 -- | Exact state of the connection between two users, stored in Brig database (see
 -- 'Brig.Data.Connection.lookupConnections').

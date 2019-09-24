@@ -100,7 +100,7 @@ data ConvType
     | SelfConv
     | One2OneConv
     | ConnectConv
-    deriving (Eq, Show)
+    deriving (Eq, Bounded, Enum, Show)
 
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
@@ -118,7 +118,7 @@ data Access
     | InviteAccess   -- ^ User A can add User B
     | LinkAccess     -- ^ User can join knowing conversation id
     | CodeAccess     -- ^ User can join knowing [changeable/revokable] code
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Bounded, Enum, Show, Generic)
 
 -- | AccessRoles define who can join conversations. The roles are
 -- "supersets", i.e. Activated includes Team and NonActivated includes
@@ -130,12 +130,12 @@ data AccessRole
     | ActivatedAccessRole    -- ^ Conversation for users who have activated
                              --   email or phone
     | NonActivatedAccessRole -- ^ No checks
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Bounded, Enum, Generic)
 
 data ConvMembers = ConvMembers
     { cmSelf   :: !Member
     , cmOthers :: ![OtherMember]
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ConversationMeta = ConversationMeta
     { cmId          :: !ConvId
@@ -147,12 +147,12 @@ data ConversationMeta = ConversationMeta
     , cmTeam        :: !(Maybe TeamId)
     , cmMessageTimer :: !(Maybe Milliseconds)
     , cmReceiptMode  :: !(Maybe ReceiptMode)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ConversationList a = ConversationList
     { convList    :: [a]
     , convHasMore :: !Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 newtype ConversationRename = ConversationRename
     { cupName :: Text

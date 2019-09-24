@@ -24,7 +24,7 @@ data AccountStatus
     | Suspended
     | Deleted
     | Ephemeral
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Enum, Bounded, Generic)
 
 instance FromJSON AccountStatus where
     parseJSON = withText "account-status" $ \s -> case Text.toLower s of

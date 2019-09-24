@@ -68,6 +68,7 @@ library:
     - QuickCheck >=2.9
     - quickcheck-instances >=0.3.16
     - random
+    - tasty-quickcheck
     - uri-bytestring
 tests:
   brig-types-tests:

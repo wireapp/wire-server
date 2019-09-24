@@ -18,7 +18,7 @@ import Data.Range
 data TeamBinding =
       Binding
     | NonBinding
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Bounded, Enum, Generic)
 
 data Team = Team
     { _teamId      :: TeamId

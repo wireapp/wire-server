@@ -19,19 +19,25 @@ module Brig.Types.Test.Arbitrary where
 #ifdef WITH_ARBITRARY
 
 import Imports
+
 import Brig.Types.Activation
-import Brig.Types.Client.Prekey
+import Brig.Types.Client
 import Brig.Types.Code
+import Brig.Types.Connection
 import Brig.Types.Intra
+import Brig.Types.Properties
 import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
+import Brig.Types.Search as Search
+import Brig.Types.Servant
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
+import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens hiding (elements)
-import Data.Currency
+import Data.Currency (Alpha)
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
@@ -43,19 +49,28 @@ import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
+import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import GHC.TypeLits
+import Gundeck.Types.Notification
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
 
-import qualified Data.Set as Set
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Set as Set
 import qualified Data.Text as ST
+import qualified Data.Text            as Text
+import qualified GHC.Unicode as Unicode
 import qualified System.Random
+import qualified Test.Tasty.QuickCheck
+import qualified URI.ByteString
 
 
 newtype Octet = Octet { octet :: Word16 }
@@ -188,6 +203,11 @@ instance Arbitrary PasswordResetIdentity where
 
 instance Arbitrary AsciiBase64Url where
     arbitrary = encodeBase64Url <$> arbitrary
+
+instance Arbitrary (AsciiText Printable) where
+    arbitrary = do
+        txt <- Text.filter (\c -> Unicode.isAscii c && Unicode.isPrint c) <$> arbitrary
+        either (error . show) pure $ validate txt
 
 instance Arbitrary ReAuthUser where
     arbitrary = ReAuthUser <$> arbitrary
@@ -511,7 +531,7 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldServiceConfirm where
     arbitrary =
-        LegalHoldServiceConfirm 
+        LegalHoldServiceConfirm
           <$> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -534,5 +554,177 @@ instance Arbitrary Prekey where
 
 instance Arbitrary PrekeyId where
     arbitrary = PrekeyId <$> arbitrary
+
+
+instance {-# OVERLAPPABLE #-} (Enum a, Bounded a) => Arbitrary a where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary TeamMemberDeleteData where
+  arbitrary = newTeamMemberDeleteData <$> arbitrary
+
+instance Eq TeamMemberDeleteData where
+  a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
+
+instance Show TeamMemberDeleteData where
+  show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
+
+instance Arbitrary SSOStatus where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary SSOTeamConfig where
+  arbitrary = SSOTeamConfig <$> arbitrary
+
+instance Arbitrary FeatureFlags where
+  arbitrary = FeatureFlags <$> arbitrary <*> arbitrary
+
+instance Arbitrary AccountStatusObject where
+  arbitrary = AccountStatusObject <$> arbitrary
+
+instance Arbitrary AccountStatusUpdate where
+  arbitrary = AccountStatusUpdate <$> arbitrary
+
+instance Arbitrary ActivationCodeObject where
+  arbitrary = ActivationCodeObject <$> arbitrary <*> arbitrary
+
+instance Arbitrary ActivationKey where
+  arbitrary = ActivationKey <$> arbitrary
+
+instance Arbitrary BindingNewTeam where
+  arbitrary = BindingNewTeam <$> arbitrary
+
+instance Arbitrary Client where
+  arbitrary = Client
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary Location where
+  arbitrary = location
+    <$> (Latitude <$> arbitrary)
+    <*> (Longitude <$> arbitrary)
+
+instance Arbitrary ConnectionsStatusRequest where
+  arbitrary = ConnectionsStatusRequest <$> arbitrary <*> arbitrary
+
+instance Arbitrary ConnectionStatus where
+  arbitrary = ConnectionStatus <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Conversation where
+  arbitrary = Conversation
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary ConvMembers where
+  arbitrary = ConvMembers <$> arbitrary <*> arbitrary
+
+instance Arbitrary Member where
+  arbitrary = Member
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary MutedStatus where
+  arbitrary = MutedStatus <$> arbitrary
+
+instance Arbitrary OtherMember where
+  arbitrary = OtherMember
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary ReceiptMode where
+  arbitrary = ReceiptMode <$> arbitrary
+
+instance Arbitrary Milliseconds where
+  arbitrary = Ms <$> arbitrary
+
+instance Arbitrary Message where
+  arbitrary = Message <$> arbitrary
+
+instance Arbitrary PropertyKey where
+  arbitrary = PropertyKey <$> arbitrary
+
+instance Arbitrary PropertyValue where
+  arbitrary = PropertyValue <$> arbitrary
+
+instance Arbitrary QueuedNotification where
+  arbitrary = queuedNotification <$> arbitrary <*> arbobjlist
+    where
+      arbobjlist = undefined
+      _arbobj = undefined
+
+instance Arbitrary (Range (n :: Nat) (m :: Nat) Int32) where
+  arbitrary = undefined
+
+instance Arbitrary Team where
+  arbitrary = Team
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TeamData where
+  arbitrary = TeamData
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary UserAccount where
+  arbitrary = UserAccount
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary UserClients where
+  arbitrary = undefined
+
+instance Arbitrary UserConnection where
+  arbitrary = undefined
+
+instance Arbitrary UserIds where
+  arbitrary = undefined
+
+instance Arbitrary UserSet where
+  arbitrary = undefined
+
+instance Arbitrary CookieList where
+  arbitrary = undefined
+
+instance Arbitrary Search.Contact where
+  arbitrary = undefined
+
+instance Arbitrary (SearchResult Search.Contact) where
+  arbitrary = undefined
+
+instance Arbitrary URI.ByteString.URI where
+  arbitrary = do
+    schema <- elements ["http", "https"]
+    domain <- elements ["example.com", "some.where", "no.when"]
+    path   <- elements ["/", "/some/path", "other/path"]
+    either (error . show) pure
+      . URI.ByteString.parseURI URI.ByteString.laxURIParserOptions
+      $ schema <> domain <> path
+
+instance Arbitrary Aeson.Value where
+  arbitrary = undefined
 
 #endif
