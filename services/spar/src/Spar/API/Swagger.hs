@@ -11,9 +11,9 @@ module Spar.API.Swagger () where
 
 import Imports
 
+import Brig.Types.Servant ()
 import Control.Lens
 import Data.HashMap.Strict.InsOrd
-import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ

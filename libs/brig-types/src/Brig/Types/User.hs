@@ -280,6 +280,9 @@ data RichInfo = RichInfo
     }
     deriving (Eq, Show, Generic)
 
+mkRichInfo :: [RichField] -> RichInfo
+mkRichInfo = (`RichInfo` RichInfoVersion0)
+
 data RichInfoVersion = RichInfoVersion0
     deriving (Eq, Show, Generic)
 

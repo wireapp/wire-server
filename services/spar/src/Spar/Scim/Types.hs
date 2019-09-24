@@ -150,7 +150,7 @@ parseRichInfo v =
     -- Canonical format
       parseJSON @RichInfo v
     -- A list of {type, value} 'RichField's
-    , parseJSON @[RichField] v <&> \xs -> RichInfo { richInfoFields = xs }
+    , parseJSON @[RichField] v <&> mkRichInfo
     -- Otherwise we fail
     , fail "couldn't parse RichInfo"
     ]

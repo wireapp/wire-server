@@ -6,30 +6,16 @@
 -- all of the servant code as well.
 module Galley.API.Swagger (GalleyRoutes, swagger) where
 
-import Imports
-
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 
-import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
-import Brig.Types.Provider
+import Brig.Types.Servant ()
 import Brig.Types.Team.LegalHold
-import Control.Lens
-import Data.Aeson (toJSON)
-import Data.Aeson (Value(..))
-import Data.ByteString.Conversion (fromByteString)
-import Data.HashMap.Strict.InsOrd
 import Data.Id
-import Data.LegalHold
-import Data.Misc
 import Data.Proxy
-import Data.Text as Text (unlines)
-import Data.Text.Encoding (encodeUtf8)
-import Data.UUID (UUID, fromText)
 import Servant.API hiding (Header)
 import Servant.Swagger
-import URI.ByteString.QQ (uri)
 
 {-
 import Data.String.Conversions
