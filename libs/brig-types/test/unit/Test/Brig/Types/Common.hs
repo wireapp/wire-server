@@ -15,8 +15,10 @@ import Brig.Types.Client
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Properties
+import Brig.Types.Provider (UpdateServiceWhitelist)
 import Brig.Types.Search as Search
 import Brig.Types.Servant
+import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User
@@ -24,7 +26,6 @@ import Brig.Types.User.Auth
 import Brig.Types.User.Auth (CookieLabel)
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Aeson                 (Value)
 import Data.Currency (Alpha)
 import Data.Id
 import Data.LegalHold
@@ -39,6 +40,7 @@ import Galley.Types.Teams.Internal ()
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
+import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -68,38 +70,52 @@ tests = testGroup "Common (types vs. aeson)"
     , run @BindingNewTeam
     , run @BindingNewTeamUser
     , run @Brig.Types.User.EmailUpdate
+    , run @CheckHandles
     , run @Client
     , run @ClientId
     , run @ColourId
+    , run @CompletePasswordReset
     , run @ConnectionsStatusRequest
     , run @ConnectionStatus
     , run @Conversation
     , run @CookieLabel
     , run @CookieList
     , run @Data.Json.Util.UTCTimeMillis
+    , run @DeleteUser
+    , run @DeletionCodeTimeout
     , run @DisableLegalHoldForUserRequest
     , run @Email
+    , run @EmailRemove
+    , run @EmailUpdate
     , run @ExcludedPrefix
     , run @FeatureFlags
     , run @Handle
+    , run @HandleUpdate
     , run @(Id U)
+    , run @Invitation
     , run @InvitationCode
+    , run @InvitationList
+    , run @InvitationRequest
     , run @LegalHoldClientRequest
     , run @LegalHoldService
     , run @LegalHoldServiceConfirm
     , run @LegalHoldStatus
     , run @LegalHoldTeamConfig
     , run @Locale
+    , run @LocaleUpdate
     , run @ManagedBy
     , run @ManagedByUpdate
     , run @Message
     , run @Name
     , run @NewLegalHoldClient
     , run @NewLegalHoldService
+    , run @NewPasswordReset
     , run @(NewTeam ())
     , run @NewUser
+    , run @PasswordChange
     , run @Phone
     , run @PhonePrefix
+    , run @PhoneRemove
     , run @PhoneUpdate
     , run @Pict
     , run @PlainTextPassword
@@ -107,6 +123,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @PropertyValue
     , run @QueuedNotification
     , run @(Range 3 10 Int32)
+    , run @ReAuthUser
     , run @Relation
     , run @RemoveLegalHoldSettingsRequest
     , run @RequestNewLegalHoldClient
@@ -125,18 +142,23 @@ tests = testGroup "Common (types vs. aeson)"
     , run @TeamMember
     , run @TeamMemberDeleteData
     , run @TeamStatus
+    , run @UpdateServiceWhitelist
     , run @URI.ByteString.URI
     , run @User
     , run @UserAccount
     , run @UserClients
     , run @UserConnection
+    , run @UserHandleInfo
     , run @UserIdentity
     , run @UserIds
     , run @UserLegalHoldStatus
     , run @UserLegalHoldStatusResponse
+    , run @UserProfile
     , run @UserSet
     , run @UserSSOId
+    , run @UserUpdate
     , run @Value
+    , run @VerifyDeleteUser
     , run @ViewLegalHoldService
 
     -- FUTUREWORK: collect all types with something like this:
