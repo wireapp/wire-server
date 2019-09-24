@@ -276,30 +276,38 @@ instance ToJSON SelfProfile where
 
 data RichInfo = RichInfo
     { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
+    , richInfoVersion :: RichInfoVersion
     }
+    deriving (Eq, Show, Generic)
+
+data RichInfoVersion = RichInfoVersion0
     deriving (Eq, Show, Generic)
 
 instance ToJSON RichInfo where
     toJSON u = object
         [ "fields" .= richInfoFields u
-        , "version" .= (0 :: Int)
+        , "version" .= richInfoVersion u
         ]
+
+instance ToJSON RichInfoVersion where
+    toJSON RichInfoVersion0 = Number 0
 
 instance FromJSON RichInfo where
     parseJSON = withObject "RichInfo" $ \o -> do
-        version :: Int <- o .: "version"
-        case version of
-            0 -> do
-                fields <- o .: "fields"
-                checkDuplicates (map richFieldType fields)
-                pure (RichInfo fields)
-            _ -> fail ("unknown version: " <> show version)
+        version <- o .: "version"
+        fields <- o .: "fields"
+        checkDuplicates (map richFieldType fields)
+        pure (RichInfo fields version)
       where
         checkDuplicates :: [Text] -> Aeson.Parser ()
         checkDuplicates xs =
             case filter ((> 1) . length) . group . sort $ xs of
                 [] -> pure ()
                 ds -> fail ("duplicate fields: " <> show (map head ds))
+
+instance FromJSON RichInfoVersion where
+    parseJSON (Number 0) = pure RichInfoVersion0
+    parseJSON version = fail ("unknown version: " <> show version)
 
 data RichField = RichField
     { richFieldType  :: !Text
@@ -327,6 +335,7 @@ instance FromJSON RichField where
 emptyRichInfo :: RichInfo
 emptyRichInfo = RichInfo
     { richInfoFields = []
+    , richInfoVersion = RichInfoVersion0
     }
 
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
@@ -335,13 +344,14 @@ emptyRichInfo = RichInfo
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
 richInfoSize :: RichInfo -> Int
-richInfoSize (RichInfo fields) =
+richInfoSize (RichInfo fields RichInfoVersion0) =
     sum [Text.length t + Text.length v | RichField t v <- fields]
 
 -- | Remove fields with @""@ values.
 normalizeRichInfo :: RichInfo -> RichInfo
 normalizeRichInfo RichInfo{..} = RichInfo
     { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+    , richInfoVersion = richInfoVersion
     }
 
 -----------------------------------------------------------------------------

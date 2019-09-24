@@ -10,9 +10,13 @@ import Imports
 
 import qualified "swagger" Data.Swagger.Build.Api as Swagger1
 import "swagger2" Data.Swagger hiding (Header(..))
+import "swagger2" Data.Swagger.Declare
+import "swagger2" Data.Swagger.Internal.Schema
+import "swagger2" Data.Swagger.Internal.TypeShape
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 
+import GHC.Generics (Rep)
 import Brig.Types.Activation
 import Brig.Types.Client
 import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
@@ -175,6 +179,30 @@ unsafeStripPrefix pref txt
   = fromMaybe (error $ "internal error: " <> show (pref, txt))
   $ stripPrefix pref txt
 
+withFieldLabelMod
+  :: forall a (proxy :: * -> *).
+     ( Generic a
+     , GToSchema (Rep a)
+     , TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
+     )
+  => (String -> String)
+  -> proxy a
+  -> Declare (Definitions Schema) NamedSchema
+withFieldLabelMod fun = genericDeclareNamedSchema opts
+  where opts = defaultSchemaOptions { fieldLabelModifier = fun }
+
+withConstructorTagMod
+  :: forall a (proxy :: * -> *).
+     ( Generic a
+     , GToSchema (Rep a)
+     , TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
+     )
+  => (String -> String)
+  -> proxy a
+  -> Declare (Definitions Schema) NamedSchema
+withConstructorTagMod fun = genericDeclareNamedSchema opts
+  where opts = defaultSchemaOptions { constructorTagModifier = fun }
+
 
 ----------------------------------------------------------------------
 -- * orphans
@@ -199,7 +227,13 @@ instance ToSchema (Id a) where
 instance ToSchema Metrics.Metrics where
     declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO
 
-instance ToSchema UserSet
+instance ToSchema UserSet where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = \case "usUsrs" -> "users"
+        }
+
 instance ToSchema UserConnection
 instance ToSchema Relation
 instance ToParamSchema Relation where
@@ -216,11 +250,21 @@ instance ToSchema UserIdentity
 instance ToSchema Email
 instance ToSchema Phone
 instance ToSchema Name
-instance ToSchema UserSSOId
+
+instance ToSchema UserSSOId where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "userSSOId"
+        }
+
 instance ToSchema Pict
 instance ToSchema Asset
 instance ToSchema AssetSize
-instance ToSchema ColourId
+
+instance ToSchema ColourId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
 instance ToSchema Locale
 instance ToSchema Language
 instance ToSchema Country
@@ -232,7 +276,14 @@ instance ToSchema ManagedBy
 instance ToSchema InvitationCode
 instance ToSchema (NewTeam ())
 instance ToSchema NewTeamUser
-instance ToSchema ServiceRef
+
+instance ToSchema ServiceRef where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "_serviceRef"
+        }
+
 instance ToSchema BindingNewTeamUser
 instance ToSchema BindingNewTeam
 instance ToSchema Alpha
@@ -306,9 +357,18 @@ instance ToSchema ExcludedPrefix
 instance ToSchema PhonePrefix
 instance ToSchema UserClients
 instance ToSchema ManagedByUpdate
-instance ToSchema RichInfoUpdate
-instance ToSchema RichInfo
-instance ToSchema RichField
+
+instance ToSchema RichInfoUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rui"
+
+instance ToSchema RichInfoVersion where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema RichInfo where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "richInfo"
+
+instance ToSchema RichField where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "richField"
 
 -- FUTUREWORK: once we have https://github.com/haskell-servant/servant-swagger/pull/107 pulled
 -- in, we can send empty bodies again and this would still work.
@@ -336,10 +396,20 @@ instance ToSchema Perm
 instance ToSchema Permissions
 instance ToSchema PhoneUpdate
 instance ToSchema Team
-instance ToSchema TeamBinding
+
+instance ToSchema TeamBinding where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Bool)
+
 instance ToSchema TeamData
 instance ToSchema TeamMember
-instance ToSchema TeamStatus
+
+instance ToSchema TeamStatus where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts = defaultSchemaOptions
+        { constructorTagModifier = camelToUnderscore
+        }
+
 instance ToSchema PropertyValue
 instance ToSchema (AsciiText Printable)
 instance ToSchema PropertyKey
@@ -347,9 +417,19 @@ instance ToSchema PropertyKey
 
 instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
 
-instance ToSchema Search.Contact
-instance ToSchema (SearchResult Search.Contact)
+instance ToSchema Search.Contact where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "concatUserId"   -> "id"
+    "contactName"    -> "name"
+    "contactColorId" -> "accent_id"
+    "contactHandle"  -> "handle"
 
+instance ToSchema (SearchResult Search.Contact) where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "searchFound"    -> "found"
+    "searchReturned" -> "returned"
+    "searchTook"     -> "took"
+    "searchResults"  -> "documents"
 
 instance ToSchema QueuedNotification where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
@@ -452,42 +532,24 @@ instance ToSchema Invitation
 instance ToSchema Role
 
 instance ToSchema InvitationList where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "il"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "il"
 
 instance ToSchema InvitationRequest where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "ir"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "ir"
 
 instance ToSchema LegalHoldClientRequest
 
 instance ToSchema ServiceKeyType where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions { constructorTagModifier = \case "RsaServiceKey" -> "rsa" }
+  declareNamedSchema = withConstructorTagMod $ \case "RsaServiceKey" -> "rsa"
 
 instance ToSchema ServiceKey where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = \case
-            "serviceKeyType" -> "type"
-            "serviceKeySize" -> "size"
-            "serviceKeyPEM"  -> "pem"
-        }
+  declareNamedSchema = withFieldLabelMod $ \case
+    "serviceKeyType" -> "type"
+    "serviceKeySize" -> "size"
+    "serviceKeyPEM"  -> "pem"
 
 instance ToSchema LegalHoldService where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "legalHoldService"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "legalHoldService"
 
 instance ToSchema LegalHoldServiceConfirm
 instance ToSchema LocaleUpdate
@@ -497,7 +559,10 @@ instance ToSchema PasswordChange
 instance ToSchema PhoneRemove
 instance ToSchema ReAuthUser
 instance ToSchema RemoveLegalHoldSettingsRequest
-instance ToSchema SSOStatus
+
+instance ToSchema SSOStatus where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
+
 instance ToSchema SSOTeamConfig
 
 -- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
@@ -519,18 +584,16 @@ instance ToSchema TeamMemberDeleteData where
                                                -- FUTUREWORK: can there be more than one example?
 
 instance ToSchema UpdateServiceWhitelist where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = \case
-            "updateServiceWhitelistProvider" -> "provider"
-            "updateServiceWhitelistService" -> "id"
-            "updateServiceWhitelistStatus" -> "whitelisted"
-        }
+  declareNamedSchema = withFieldLabelMod $ \case
+    "updateServiceWhitelistProvider" -> "provider"
+    "updateServiceWhitelistService" -> "id"
+    "updateServiceWhitelistStatus" -> "whitelisted"
 
 instance ToSchema UserHandleInfo
 instance ToSchema UserProfile
-instance ToSchema UserUpdate
+
+instance ToSchema UserUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "uup"
 
 instance ToSchema Data.Code.Key where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -539,11 +602,7 @@ instance ToSchema Data.Code.Value where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema VerifyDeleteUser where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = camelToUnderscore . unsafeStripPrefix "verifyDeleteUser"
-        }
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "verifyDeleteUser"
 
 instance ToSchema ServiceKeyPEM where
     declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
@@ -574,14 +633,10 @@ instance ToSchema ServiceToken where
         tok = "sometoken"
 
 instance ToSchema NewLegalHoldService where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "newLegalHoldServiceKey"   -> "public_key"
-              "newLegalHoldServiceUrl"   -> "base_url"
-              "newLegalHoldServiceToken" -> "auth_token"
-          }
+  declareNamedSchema = withFieldLabelMod $ \case
+    "newLegalHoldServiceKey"   -> "public_key"
+    "newLegalHoldServiceUrl"   -> "base_url"
+    "newLegalHoldServiceToken" -> "auth_token"
 
 instance ToSchema ViewLegalHoldService where
     declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
@@ -623,9 +678,7 @@ data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
   deriving (Eq, Show, Generic)
 
 instance ToSchema MockViewLegalHoldServiceStatus where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions { constructorTagModifier = camelToUnderscore }
+    declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToSchema ViewLegalHoldServiceInfo where
     {-
@@ -636,17 +689,13 @@ instance ToSchema ViewLegalHoldServiceInfo where
     -- 'ToSchema' instance manually.
     -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
 
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "viewLegalHoldServiceFingerprint" -> "fingerprint"
-              "viewLegalHoldServiceUrl"         -> "base_url"
-              "viewLegalHoldServiceTeam"        -> "team_id"
-              "viewLegalHoldServiceAuthToken"   -> "auth_token"
-              "viewLegalHoldServiceKey"         -> "public_key"
+    declareNamedSchema = withFieldLabelMod $ \case
+        "viewLegalHoldServiceFingerprint" -> "fingerprint"
+        "viewLegalHoldServiceUrl"         -> "base_url"
+        "viewLegalHoldServiceTeam"        -> "team_id"
+        "viewLegalHoldServiceAuthToken"   -> "auth_token"
+        "viewLegalHoldServiceKey"         -> "public_key"
 
-          }
     -}
     declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $ mempty
         & properties .~ properties_
@@ -684,21 +733,14 @@ instance ToSchema ViewLegalHoldServiceInfo where
             fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 instance ToSchema LegalHoldTeamConfig where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "legalHoldTeamConfigStatus" -> "status"
-          }
+    declareNamedSchema = withFieldLabelMod $ \case "legalHoldTeamConfigStatus" -> "status"
 
 instance ToSchema LegalHoldStatus where
-    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+    declareNamedSchema = tweak . withConstructorTagMod ctmod
       where
-        opts = defaultSchemaOptions
-          { constructorTagModifier = \case
-              "LegalHoldDisabled" -> "disabled"
-              "LegalHoldEnabled"  -> "enabled"
-          }
+        ctmod = \case
+          "LegalHoldDisabled" -> "disabled"
+          "LegalHoldEnabled"  -> "enabled"
 
         tweak = fmap $ schema . description ?~ descr
           where
@@ -706,22 +748,12 @@ instance ToSchema LegalHoldStatus where
                     "are allowed to enable LH for their users."
 
 instance ToSchema RequestNewLegalHoldClient where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "userId" -> "user_id"
-              "teamId" -> "team_id"
-          }
+    declareNamedSchema = withFieldLabelMod camelToUnderscore
 
 instance ToSchema NewLegalHoldClient where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "newLegalHoldClientPrekeys"     -> "prekeys"
-              "newLegalHoldClientLastKey"     -> "last_prekey"
-          }
+  declareNamedSchema = withFieldLabelMod $ \case
+    "newLegalHoldClientPrekeys"     -> "prekeys"
+    "newLegalHoldClientLastKey"     -> "last_prekey"
 
 instance ToSchema UserLegalHoldStatusResponse where
     declareNamedSchema _ = pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $ mempty
@@ -750,14 +782,12 @@ instance ToSchema a => ToSchema (IdObject a) where
           ]
 
 instance ToSchema UserLegalHoldStatus where
-    declareNamedSchema = tweak . genericDeclareNamedSchema opts
+    declareNamedSchema = tweak . withConstructorTagMod ctmod
       where
-        opts = defaultSchemaOptions
-          { constructorTagModifier = \case
-              "UserLegalHoldEnabled"  -> "enabled"
-              "UserLegalHoldPending"  -> "pending"
-              "UserLegalHoldDisabled" -> "disabled"
-          }
+        ctmod = \case
+          "UserLegalHoldEnabled"  -> "enabled"
+          "UserLegalHoldPending"  -> "pending"
+          "UserLegalHoldDisabled" -> "disabled"
 
         tweak = fmap $ schema . description ?~ descr
           where
@@ -780,13 +810,7 @@ instance ToSchema PrekeyId where
               -- FUTUREWORK: can this be also expressed in swagger, not just in the description?
 
 instance ToSchema Prekey where
-    declareNamedSchema = genericDeclareNamedSchema opts
-      where
-        opts = defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "prekeyId" -> "id"
-              "prekeyKey" -> "key"
-          }
+    declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "prekey"
 
 instance ToSchema LastPrekey where
     declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)

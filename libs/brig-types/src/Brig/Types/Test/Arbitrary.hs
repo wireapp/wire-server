@@ -343,6 +343,7 @@ instance Arbitrary RichField where
 instance Arbitrary RichInfo where
     arbitrary = do
         richInfoFields <- nubOn richFieldType <$> arbitrary
+        richInfoVersion <- pure RichInfoVersion0
         pure RichInfo{..}
 
 instance Arbitrary RichInfoUpdate where
