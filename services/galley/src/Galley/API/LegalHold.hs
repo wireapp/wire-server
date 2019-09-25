@@ -82,7 +82,7 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
 
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
     RemoveLegalHoldSettingsRequest mPassword
-      :: RemoveLegalHoldSettingsRequest "protected"
+      :: RemoveLegalHoldSettingsRequest "visible"
       <- fromJsonBody req
     ensureReAuthorised zusr mPassword
     removeSettings' tid (Just membs)
