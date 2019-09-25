@@ -18,7 +18,7 @@ import Data.Proxy
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Test.Tasty
@@ -250,7 +250,7 @@ testLoginFailure brig = do
     Just email <- userEmail <$> randomUser brig
 
     -- login with wrong password
-    let badpw = PlainTextPassword "wrongpassword"
+    let badpw = mkPlainTextPassword "wrongpassword"
     login brig (PasswordLogin (LoginByEmail email) badpw Nothing) PersistentCookie
         !!! const 403 === statusCode
 
@@ -416,7 +416,7 @@ testWrongPasswordLegalHoldLogin :: Brig -> Galley -> Http ()
 testWrongPasswordLegalHoldLogin brig galley = do
     alice <- prepareLegalHoldUser brig galley
     -- attempt a legalhold login with a wrong password
-    legalHoldLogin brig (LegalHoldLogin alice (Just (PlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
+    legalHoldLogin brig (LegalHoldLogin alice (Just (mkPlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
     -- attempt a legalhold login with a no password
@@ -804,7 +804,7 @@ testReauthentication b = do
         -- it's ok to not give a password in the request body, but if the user has a password set,
         -- response will be `forbidden`.
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ mkPlainTextPassword "123456")) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
@@ -889,7 +889,7 @@ assertSaneAccessToken now uid tk = do
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
 errorLabel = fmap Error.label . responseJsonMaybe
 
-remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
+remJson :: PlainTextPassword "visible" -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object
     [ "password" .= p
     , "labels"   .= l

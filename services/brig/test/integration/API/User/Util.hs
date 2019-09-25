@@ -15,7 +15,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword)
 import Data.Range (unsafeRange)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Test.Tasty.HUnit
@@ -104,7 +104,7 @@ initiateEmailUpdateNoSend brig email uid =
     let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email in
     put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
 
-preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword -> Http CompletePasswordReset
+preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword "visible" -> Http (CompletePasswordReset "visible")
 preparePasswordReset brig email uid newpw = do
     let qry = queryItem "email" (toByteString' email)
     r <- get $ brig . path "/i/users/password-reset-code" . qry
@@ -131,7 +131,7 @@ getClient brig u c = get $ brig
     . paths ["clients", toByteString' c]
     . zUser u
 
-deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> Http ResponseLBS
+deleteClient :: Brig -> UserId -> ClientId -> Maybe (PlainTextPassword "visible") -> Http ResponseLBS
 deleteClient brig u c pw = delete $ brig
     . paths ["clients", toByteString' c]
     . zUser u

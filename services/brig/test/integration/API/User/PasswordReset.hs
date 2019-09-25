@@ -6,7 +6,7 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (mkPlainTextPassword)
 import Test.Tasty hiding (Timeout)
 import Util
 
@@ -24,7 +24,7 @@ testPasswordReset brig = do
     let Just email = userEmail u
     let uid = userId u
     -- initiate reset
-    let newpw = PlainTextPassword "newsecret"
+    let newpw = mkPlainTextPassword "newsecret"
     do  initiatePasswordReset brig email !!! const 201 === statusCode
         passwordResetData <- preparePasswordReset brig email uid newpw
         completePasswordReset brig passwordResetData !!! const 200 === statusCode
@@ -46,7 +46,7 @@ testPasswordResetAfterEmailUpdate brig = do
     eml <- randomEmail
     initiateEmailUpdate brig eml uid !!! const 202 === statusCode
     initiatePasswordReset brig email !!! const 201 === statusCode
-    passwordResetData <- preparePasswordReset brig email uid (PlainTextPassword "newsecret")
+    passwordResetData <- preparePasswordReset brig email uid (mkPlainTextPassword "newsecret")
     -- activate new email
     activateEmail brig eml
     checkEmail brig uid eml

@@ -20,7 +20,7 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 (List1)
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Galley.Types (Member (..))
 import Gundeck.Types.Notification
 import System.Random (randomRIO, randomIO)
@@ -183,7 +183,7 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
             ] <>
             [ "password"        .= defPassword | hasPassword ]
         p = case Aeson.parse parseJSON o of
-              Aeson.Success (p_ :: NewUser) -> p_
+              Aeson.Success (p_ :: NewUser "visible") -> p_
               bad -> error $ show (bad, o)
         bdy = if validateBody then Bilge.json p else Bilge.json o
     post (brig . path "/i/users" . bdy)
@@ -198,7 +198,7 @@ postUserRegister payload brig = do
     rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
     maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
-deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
+deleteUser :: UserId -> Maybe (PlainTextPassword "visible") -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
     . path "/self"
     . contentJson
@@ -224,7 +224,7 @@ getUser brig zusr usr = get $ brig
     . paths ["users", toByteString' usr]
     . zUser zusr
 
-login :: Brig -> Login -> CookieType -> Http ResponseLBS
+login :: Brig -> Login "visible" -> CookieType -> Http ResponseLBS
 login b l t = let js = RequestBodyLBS (encode l) in post $ b
     . path "/login"
     . contentJson
@@ -238,7 +238,7 @@ ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
 
-legalHoldLogin :: Brig -> LegalHoldLogin -> CookieType -> Http ResponseLBS
+legalHoldLogin :: Brig -> LegalHoldLogin "visible" -> CookieType -> Http ResponseLBS
 legalHoldLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
     . path "/i/legalhold-login"
     . contentJson
@@ -298,16 +298,16 @@ putHandle brig usr h = put $ brig
   where
     payload = RequestBodyLBS . encode $ object [ "handle" .= h ]
 
-addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClient :: Brig -> UserId -> NewClient "visible" -> Http ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
-addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClientInternal :: Brig -> UserId -> NewClient "visible" -> Http ResponseLBS
 addClientInternal brig uid new = post $ brig
     . paths ["i", "clients", toByteString' uid]
     . contentJson
     . body (RequestBodyLBS $ encode new)
 
-addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
+addClientReq :: Brig -> UserId -> NewClient "visible" -> (Request -> Request)
 addClientReq brig uid new = brig
     . path "/clients"
     . zUser uid
@@ -315,7 +315,7 @@ addClientReq brig uid new = brig
     . contentJson
     . body (RequestBodyLBS $ encode new)
 
-defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
+defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient "visible"
 defNewClient ty pks lpk =
     (newClient ty lpk)
         { newClientPassword = Just defPassword
@@ -436,10 +436,10 @@ updatePhone brig uid phn = do
             const 200 === statusCode
             const (Just False) === fmap activatedFirst . responseJsonMaybe
 
-defEmailLogin :: Email -> Login
+defEmailLogin :: Email -> Login "visible"
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
-emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
+emailLogin :: Email -> PlainTextPassword "visible" -> Maybe CookieLabel -> Login "visible"
 emailLogin e = PasswordLogin (LoginByEmail e)
 
 somePrekeys :: [Prekey]
@@ -506,11 +506,11 @@ someLastPrekeys =
     , lastPrekey "pQABARn//wKhAFggQeUPM119c+6zRsEupA8zshTfrZiLpXx1Ji0UMMumq9IDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
     ]
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword "visible"
+defPassword = mkPlainTextPassword "secret"
 
-defWrongPassword :: PlainTextPassword
-defWrongPassword = PlainTextPassword "not secret"
+defWrongPassword :: PlainTextPassword "visible"
+defWrongPassword = mkPlainTextPassword "not secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

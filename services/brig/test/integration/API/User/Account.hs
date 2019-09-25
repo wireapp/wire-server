@@ -20,7 +20,7 @@ import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (mkPlainTextPassword)
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Vector (Vector)
@@ -679,7 +679,7 @@ testPasswordChange brig = do
     put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet) !!!
         (const 403 === statusCode)
   where
-    newPass = PlainTextPassword "topsecret"
+    newPass = mkPlainTextPassword @"visible" "topsecret"
 
     pwChange = RequestBodyLBS . encode $ object
         [ "old_password" .= defPassword

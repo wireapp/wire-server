@@ -83,7 +83,7 @@ sitemap o = do
 
     post "/i/users" (continue createUserNoVerify) $
         accept "application" "json"
-        .&. jsonRequest @NewUser
+        .&. jsonRequest @(NewUser "protected")
 
     put "/i/self/email" (continue changeSelfEmailNoSend) $
         header "Z-User"
@@ -184,7 +184,7 @@ sitemap o = do
 
     post "/i/clients/:uid" (continue addClientInternal) $
       capture "uid"
-      .&. jsonRequest @NewClient
+      .&. jsonRequest @(NewClient "protected")
       .&. opt (header "Z-Connection")
       .&. accept "application" "json"
 
@@ -465,7 +465,7 @@ sitemap o = do
 
     put "/self/password" (continue changePassword) $
         header "Z-User"
-        .&. jsonRequest @PasswordChange
+        .&. jsonRequest @(PasswordChange "protected")
 
     document "PUT" "changePassword" $ do
         Doc.summary "Change your password"
@@ -536,7 +536,7 @@ sitemap o = do
 
     delete "/self" (continue deleteUser) $
         header "Z-User"
-        .&. jsonRequest @DeleteUser
+        .&. jsonRequest @(DeleteUser "protected")
         .&. accept "application" "json"
 
     document "DELETE" "deleteUser" $ do
@@ -648,7 +648,7 @@ sitemap o = do
     --- Clients
 
     post "/clients" (continue addClient) $
-        jsonRequest @NewClient
+        jsonRequest @(NewClient "protected")
         .&. header "Z-User"
         .&. header "Z-Connection"
         .&. opt (header "X-Forwarded-For")
@@ -684,7 +684,7 @@ sitemap o = do
     ---
 
     delete "/clients/:client" (continue rmClient) $
-        jsonRequest @RmClient
+        jsonRequest @(RmClient "protected")
         .&. header "Z-User"
         .&. header "Z-Connection"
         .&. capture "client"
@@ -817,7 +817,7 @@ sitemap o = do
     -- docs/reference/user/registration.md {#RefRegistration}
     post "/register" (continue createUser) $
         accept "application" "json"
-        .&. jsonRequest @NewUserPublic
+        .&. jsonRequest @(NewUserPublic "protected")
 
     document "POST" "register" $ do
         Doc.summary "Register a new user."
@@ -907,7 +907,7 @@ sitemap o = do
 
     post "/password-reset/complete" (continue completePasswordReset) $
         accept "application" "json"
-        .&. jsonRequest @CompletePasswordReset
+        .&. jsonRequest @(CompletePasswordReset "protected")
 
     document "POST" "completePasswordReset" $ do
         Doc.summary "Complete a password reset."
@@ -921,7 +921,7 @@ sitemap o = do
     post "/password-reset/:key" (continue deprecatedCompletePasswordReset) $
         accept "application" "json"
         .&. capture "key"
-        .&. jsonRequest @PasswordReset
+        .&. jsonRequest @(PasswordReset "protected")
 
     document "POST" "deprecatedCompletePasswordReset" $ do
         Doc.deprecated
@@ -1002,7 +1002,7 @@ getMultiPrekeyBundles (req ::: _) = do
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
-addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
+addClient :: JsonRequest (NewClient "protected") ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClient (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
     -- Users can't add legal hold clients
@@ -1014,13 +1014,13 @@ addClient (req ::: usr ::: con ::: ip ::: _) = do
            $ json clt
 
 -- | Add a client without authentication checks
-addClientInternal :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternal :: UserId ::: JsonRequest (NewClient "protected") ::: Maybe ConnId ::: JSON -> Handler Response
 addClientInternal (usr ::: req ::: connId ::: _) = do
     new <- parseJsonBody req
     clt <- API.addClient usr connId Nothing new !>> clientError
     return . setStatus status201 $ json clt
 
-rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
+rmClient :: JsonRequest (RmClient "protected") ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClient (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
@@ -1097,7 +1097,7 @@ autoConnect (_ ::: uid ::: conn ::: req) = do
     return $ json conns
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: JSON ::: JsonRequest NewUserPublic -> Handler Response
+createUser :: JSON ::: JsonRequest (NewUserPublic "protected") -> Handler Response
 createUser (_ ::: req) = do
     NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
@@ -1136,9 +1136,9 @@ createUser (_ ::: req) = do
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMemberSSO _) l = Team.sendMemberWelcomeMail e t n l
 
-createUserNoVerify :: JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerify :: JSON ::: JsonRequest (NewUser "protected") -> Handler Response
 createUserNoVerify (_ ::: req) = do
-    (uData :: NewUser)  <- parseJsonBody req
+    (uData :: NewUser "protected")  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
     let usr = accountUser acc
@@ -1269,7 +1269,7 @@ checkPasswordExists self = do
     exists <- lift $ isJust <$> API.lookupPassword self
     return $ if exists then empty else setStatus status404 empty
 
-changePassword :: UserId ::: JsonRequest PasswordChange -> Handler Response
+changePassword :: UserId ::: JsonRequest (PasswordChange "protected") -> Handler Response
 changePassword (u ::: req) = do
     cp <- parseJsonBody req
     API.changePassword u cp !>> changePwError
@@ -1481,7 +1481,7 @@ updateRichInfo (uid ::: _ ::: req) = do
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
-deleteUser :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
+deleteUser :: UserId ::: JsonRequest (DeleteUser "protected") ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _) = do
     body <- parseJsonBody r
     res <- API.deleteUser u (deleteUserPassword body) !>> deleteUserError
@@ -1507,7 +1507,7 @@ getContactList (_ ::: uid) = do
 
 -- Deprecated
 
-deprecatedCompletePasswordReset :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
+deprecatedCompletePasswordReset :: JSON ::: PasswordResetKey ::: JsonRequest (PasswordReset "protected") -> Handler Response
 deprecatedCompletePasswordReset (_ ::: k ::: req) = do
     pwr <- parseJsonBody req
     API.completePasswordReset (PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
