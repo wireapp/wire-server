@@ -83,7 +83,7 @@ routes = do
 
     post "/provider/register" (continue newAccount) $
         accept "application" "json"
-        .&> jsonRequest @NewProvider
+        .&> jsonRequest @(NewProvider "protected")
 
     get "/provider/activate" (continue activateAccountKey) $
         accept "application" "json"
@@ -96,7 +96,7 @@ routes = do
         .&. query "code"
 
     post "/provider/login" (continue login) $
-        jsonRequest @ProviderLogin
+        jsonRequest @(ProviderLogin "protected")
 
     post "/provider/password-reset" (continue beginPasswordReset) $
         accept "application" "json"
@@ -104,14 +104,14 @@ routes = do
 
     post "/provider/password-reset/complete" (continue completePasswordReset) $
         accept "application" "json"
-        .&> jsonRequest @CompletePasswordReset
+        .&> jsonRequest @(CompletePasswordReset "protected")
 
     -- Provider API ------------------------------------------------------------
 
     delete "/provider" (continue deleteAccount) $
         zauth ZAuthProvider
         .&> zauthProviderId
-        .&. jsonRequest @DeleteProvider
+        .&. jsonRequest @(DeleteProvider "protected")
 
     put "/provider" (continue updateAccountProfile) $
         accept "application" "json"
@@ -127,7 +127,7 @@ routes = do
     put "/provider/password" (continue updateAccountPassword) $
         zauth ZAuthProvider
         .&> zauthProviderId
-        .&. jsonRequest @PasswordChange
+        .&. jsonRequest @(PasswordChange "protected")
 
     get "/provider" (continue getAccount) $
         accept "application" "json"
@@ -161,7 +161,7 @@ routes = do
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
-        .&. jsonRequest @UpdateServiceConn
+        .&. jsonRequest @(UpdateServiceConn "protected")
 
 -- TODO
 --     post "/provider/services/:sid/token" (continue genServiceToken) $
@@ -172,7 +172,7 @@ routes = do
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
-        .&. jsonRequest @DeleteService
+        .&. jsonRequest @(DeleteService "protected")
 
     -- User API ----------------------------------------------------------------
 
@@ -285,7 +285,7 @@ routes = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: JsonRequest NewProvider -> Handler Response
+newAccount :: JsonRequest (NewProvider "protected") -> Handler Response
 newAccount req = do
     new <- parseJsonBody req
 
@@ -368,7 +368,7 @@ approveAccountKey (key ::: val) = do
             return empty
         _ -> throwStd invalidCode
 
-login :: JsonRequest ProviderLogin -> Handler Response
+login :: JsonRequest (ProviderLogin "protected") -> Handler Response
 login req = do
     l    <- parseJsonBody req
     pid  <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
@@ -396,7 +396,7 @@ beginPasswordReset req = do
     lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
     return $ setStatus status201 empty
 
-completePasswordReset :: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordReset :: JsonRequest (CompletePasswordReset "protected") -> Handler Response
 completePasswordReset req = do
     CompletePasswordReset key val newpwd <- parseJsonBody req
     code <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
@@ -450,7 +450,7 @@ updateAccountEmail (pid ::: req) = do
     lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
     return $ setStatus status202 empty
 
-updateAccountPassword :: ProviderId ::: JsonRequest PasswordChange -> Handler Response
+updateAccountPassword :: ProviderId ::: JsonRequest (PasswordChange "protected") -> Handler Response
 updateAccountPassword (pid ::: req) = do
     upd  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -511,7 +511,7 @@ updateService (pid ::: sid ::: req) = do
 
     return empty
 
-updateServiceConn :: ProviderId ::: ServiceId ::: JsonRequest UpdateServiceConn -> Handler Response
+updateServiceConn :: ProviderId ::: ServiceId ::: JsonRequest (UpdateServiceConn "protected") -> Handler Response
 updateServiceConn (pid ::: sid ::: req) = do
     upd <- parseJsonBody req
 
@@ -559,7 +559,7 @@ updateServiceConn (pid ::: sid ::: req) = do
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteService :: ProviderId ::: ServiceId ::: JsonRequest DeleteService -> Handler Response
+deleteService :: ProviderId ::: ServiceId ::: JsonRequest (DeleteService "protected") -> Handler Response
 deleteService (pid ::: sid ::: req) = do
     del  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -586,7 +586,7 @@ finishDeleteService pid sid = do
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccount :: ProviderId ::: JsonRequest DeleteProvider -> Handler Response
+deleteAccount :: ProviderId ::: JsonRequest (DeleteProvider "protected") -> Handler Response
 deleteAccount (pid ::: req) = do
     del  <- parseJsonBody req
     prov <- DB.lookupAccount pid >>= maybeInvalidProvider

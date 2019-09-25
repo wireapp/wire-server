@@ -1331,7 +1331,7 @@ beginPasswordReset (_ ::: req) = do
         Right phone -> sendPasswordResetSms  phone pair loc
     return $ setStatus status201 empty
 
-completePasswordReset :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordReset :: JSON ::: JsonRequest (CompletePasswordReset "protected") -> Handler Response
 completePasswordReset (_ ::: req) = do
     CompletePasswordReset{..} <- parseJsonBody req
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError

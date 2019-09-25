@@ -43,4 +43,4 @@ mkSafePassword = fmap Password . encryptPlainTextPassword
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
 verifyPassword :: PlainTextPassword protected -> Password -> Bool
-verifyPassword = verifyPlainTextPassword . fromPassword
+verifyPassword plain (Password expected) = verifyPlainTextPassword plain expected

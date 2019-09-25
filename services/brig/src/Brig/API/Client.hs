@@ -33,7 +33,7 @@ import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId, ConnId)
 import Data.IP (IP)
 import Data.List.Split (chunksOf)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Galley.Types (UserClients (..), UserClientMap (..))
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, field, (~~))
@@ -48,7 +48,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
+addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient "protected" -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
@@ -77,7 +77,7 @@ updateClient u c r = do
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError AppIO ()
+rmClient :: UserId -> ConnId -> ClientId -> Maybe (PlainTextPassword "protected") -> ExceptT ClientError AppIO ()
 rmClient u con clt pw =
     maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
@@ -172,4 +172,3 @@ removeLegalHoldClient uid = do
     -- maybe log if this isn't the case
     forM_ legalHoldClients  (execDelete uid Nothing)
     Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
-

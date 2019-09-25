@@ -7,7 +7,7 @@ import Control.Lens (view, (.~))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Time
 import Galley.App
 import Galley.API.Error
@@ -55,7 +55,7 @@ ensureConnected u uids = do
     unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
 
-ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
+ensureReAuthorised :: UserId -> Maybe (PlainTextPassword "protected") -> Galley ()
 ensureReAuthorised u secret = do
     reAuthed <- reAuthUser u (ReAuthUser secret)
     unless reAuthed $

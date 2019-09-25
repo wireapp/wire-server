@@ -53,7 +53,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
                 . json (LegalHoldClientRequest requesterUid lastPrekey')
                 . expect2xx
 
-getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley OpaqueAuthToken
+getLegalHoldAuthToken :: UserId -> Maybe (PlainTextPassword "protected") -> Galley OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
     (brigHost, brigPort) <- brigReq
     r <- call "brig" $
@@ -95,7 +95,7 @@ removeLegalHoldClientFromUser targetUid = do
         . contentJson
         . expect2xx
 
-brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
+brigAddClient :: UserId -> ConnId -> NewClient "protected" -> Galley Client
 brigAddClient uid connId client = do
     (brigHost, brigPort) <- brigReq
     r <- call "brig"

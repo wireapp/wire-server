@@ -38,7 +38,7 @@ import Control.Error hiding (bool)
 import Data.Id
 import Data.ByteString.Conversion (toByteString)
 import Data.List1 (singleton)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (msg, field, (~~), val)
 
@@ -86,7 +86,7 @@ lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
       Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
       Data.lookupLoginCode u
 
-login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
+login :: Login "protected" -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
     Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
@@ -151,7 +151,7 @@ renewAccess ut at = do
 
 revokeAccess
     :: UserId
-    -> PlainTextPassword
+    -> PlainTextPassword "protected"
     -> [CookieId]
     -> [CookieLabel]
     -> ExceptT AuthError AppIO ()
@@ -257,7 +257,7 @@ ssoLogin (SsoLogin uid label) typ = do
     newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
-legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError AppIO (Access ZAuth.LegalHoldUser)
+legalHoldLogin :: LegalHoldLogin "protected" -> CookieType -> ExceptT LegalHoldLoginError AppIO (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
     -- legalhold login is only possible if

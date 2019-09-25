@@ -66,7 +66,7 @@ data ClientDataError
 
 addClient :: UserId
           -> ClientId
-          -> NewClient
+          -> NewClient "protected"
           -> Maybe Location
           -> ExceptT ClientDataError AppIO (Client, [Client], Word)
 addClient u newId c loc = do
