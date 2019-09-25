@@ -217,7 +217,7 @@ deriveJSON toJSONFieldName ''PasswordReset
 data CompletePasswordReset protected = CompletePasswordReset
     { cpwrKey      :: !Code.Key
     , cpwrCode     :: !Code.Value
-    , cpwrPassword :: !(PlainTextPassword "protected")
+    , cpwrPassword :: !(PlainTextPassword protected)
     }
 
 instance ToJSON (PlainTextPassword protected) => ToJSON (CompletePasswordReset protected) where

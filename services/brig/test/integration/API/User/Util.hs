@@ -114,7 +114,7 @@ preparePasswordReset brig email uid newpw = do
     let complete = CompletePasswordReset ident pwcode newpw
     return complete
 
-completePasswordReset :: Brig -> CompletePasswordReset -> Http ResponseLBS
+completePasswordReset :: Brig -> CompletePasswordReset "visible" -> Http ResponseLBS
 completePasswordReset brig passwordResetData =
     post ( brig
          . path "/password-reset/complete"

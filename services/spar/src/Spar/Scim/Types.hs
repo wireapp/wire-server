@@ -185,8 +185,9 @@ makeLenses ''ValidScimUser
 data CreateScimToken = CreateScimToken
   { -- | Token description (as memory aid for whoever is creating the token)
     createScimTokenDescr :: !Text
-    -- | User password, which we ask for because creating a token is a "powerful" operation
-  , createScimTokenPassword :: !(Maybe PlainTextPassword)
+    -- | User password, which we ask for because creating a token is a "powerful" operation.
+    -- Needs to be flagged as "visible" so it can be transferred to brig.
+  , createScimTokenPassword :: !(Maybe (PlainTextPassword "visible"))
   } deriving (Eq, Show)
 
 instance FromJSON CreateScimToken where

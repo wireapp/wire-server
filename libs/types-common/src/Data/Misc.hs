@@ -275,7 +275,7 @@ instance Cql (Fingerprint a) where
 -- 'FlipPlainTextPasswordProtection'.
 newtype PlainTextPassword protected = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (Eq, ToJSON, Generic)
+    deriving (Eq, Generic)
 
 -- | On the client side, if you want to construct a 'PlainTextPassword' value to send it over
 -- the network, use this function.
@@ -283,12 +283,12 @@ mkPlainTextPassword :: Text -> PlainTextPassword protected
 mkPlainTextPassword = PlainTextPassword
 
 deriving instance Show (PlainTextPassword "visible")
-deriving instance FromJSON (PlainTextPassword "visible")
-
 instance Show (PlainTextPassword "protected") where
     show _ = "PlainTextPassword <hidden>"
 
-instance FromJSON (PlainTextPassword "protected") where
+deriving instance ToJSON (PlainTextPassword "visible")
+
+instance FromJSON (PlainTextPassword protected) where
     parseJSON x = PlainTextPassword . fromRange
                <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
 

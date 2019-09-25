@@ -270,7 +270,7 @@ data RemoveLegalHoldSettingsRequest protected =
 
 deriving instance Show (PlainTextPassword protected) => Show (RemoveLegalHoldSettingsRequest protected)
 
-instance ToJSON (RemoveLegalHoldSettingsRequest protected) where
+instance ToJSON (PlainTextPassword protected) => ToJSON (RemoveLegalHoldSettingsRequest protected) where
   toJSON (RemoveLegalHoldSettingsRequest password) = object
         $  "password" .= password
         # []
