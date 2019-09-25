@@ -33,7 +33,7 @@ module Data.Misc
       -- * PlainTextPassword
     , PlainTextPassword
     , mkPlainTextPassword
-    , protectPlainTextPassword
+    , FlipPlainTextPasswordProtection
 
       -- * Functor infix ops
     , (<$$>), (<$$$>)
@@ -260,11 +260,15 @@ instance Cql (Fingerprint a) where
 -- Password
 
 -- | The phantom type is used for protecting the password from leaking into logs by means of
--- 'Show', 'ToJSON' etc.  If @protected ~ "protected"@, the password can only be used in
--- computations, not in output.
+-- 'Show', 'ToJSON' etc.  It can only be @"visible"@ or @"protected"@.  If @"protected"@, the
+-- password can only be used in computations, not in output.
 --
--- When receiving a @Plaintext "visible"@ from the network, the first thing the handler must
--- do is call 'protectPlainTextPassword' on it in the view pattern.
+-- There is no way to go from protected to visible without the unexposed constructor in this
+-- module.  The only way to go from visible to protected is to serialize and de-serialize.
+--
+-- The server handlers have @"protected"@ in their type signatures.  To flip a routing table
+-- type from @"visible"@ (client-side) to @"protected"@ (server-side), use
+-- 'FlipPlainTextPasswordProtection'.
 newtype PlainTextPassword protected = PlainTextPassword
     { fromPlainTextPassword :: Text }
     deriving (Eq, ToJSON, Generic)
@@ -273,9 +277,6 @@ newtype PlainTextPassword protected = PlainTextPassword
 -- the network, use this function.
 mkPlainTextPassword :: Text -> PlainTextPassword "visible"
 mkPlainTextPassword = PlainTextPassword
-
-protectPlainTextPassword :: PlainTextPassword "visible" -> PlainTextPassword "protected"
-protectPlainTextPassword (PlainTextPassword txt) = PlainTextPassword txt
 
 deriving instance Show (PlainTextPassword "visible")
 deriving instance FromJSON (PlainTextPassword "visible")
@@ -291,6 +292,12 @@ instance FromJSON (PlainTextPassword "protected") where
 instance Arbitrary (PlainTextPassword any) where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 #endif
+
+type family FlipPlainTextPasswordProtection (a :: k) :: k where
+    FlipPlainTextPasswordProtection x = x
+    -- TODO: traverse routing types down to the 'PlainTextPassword' types.  (this probably
+    -- needs to be an open type family instead.)
+
 
 ----------------------------------------------------------------------
 -- Functor
