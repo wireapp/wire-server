@@ -722,7 +722,7 @@ getClients u = do
       . zConn "conn"
 
 -- TODO: Refactor, as used also in brig
-deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
+deleteClient :: UserId -> ClientId -> Maybe (PlainTextPassword "visible") -> TestM ResponseLBS
 deleteClient u c pw = do
     b <- view tsBrig
     delete $ b
@@ -811,8 +811,8 @@ memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Noth
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword "visible"
+defPassword = mkPlainTextPassword "secret"
 
 randomEmail :: MonadIO m => m Email
 randomEmail = do

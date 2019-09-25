@@ -415,7 +415,7 @@ newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 newTeamMemberDeleteData :: Maybe (PlainTextPassword protected) -> TeamMemberDeleteData protected
 newTeamMemberDeleteData = TeamMemberDeleteData
 
-newTeamDeleteData :: Maybe (PlainTextPassword "protected") -> TeamDeleteData "protected"
+newTeamDeleteData :: Maybe (PlainTextPassword protected) -> TeamDeleteData protected
 newTeamDeleteData = TeamDeleteData
 
 makeLenses ''Team

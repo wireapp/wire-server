@@ -9,7 +9,7 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Control.Lens
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (mkPlainTextPassword)
 import Spar.Scim
 import Spar.Types (ScimTokenInfo(..))
 import Util
@@ -138,7 +138,7 @@ testCreateTokenRequiresPassword = do
       owner
       CreateScimToken
         { createScimTokenDescr = "testCreateTokenRequiresPassword"
-        , createScimTokenPassword = Just (PlainTextPassword "wrong password") }
+        , createScimTokenPassword = Just (mkPlainTextPassword "wrong password") }
       (env ^. teSpar)
       !!! checkErr 403 (Just "access-denied")
 

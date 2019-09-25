@@ -13,7 +13,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (mkPlainTextPassword)
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
@@ -385,7 +385,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
            . zUser owner
            . zConn "conn"
-           . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
+           . json (newTeamMemberDeleteData (Just $ mkPlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
@@ -647,7 +647,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . paths ["teams", toByteString' tid]
            . zUser owner
            . zConn "conn"
-           . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
+           . json (newTeamDeleteData (Just $ mkPlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")

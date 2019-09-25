@@ -86,7 +86,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Data.Proxy
 import Data.Range
 import Data.String.Conversions
@@ -429,8 +429,8 @@ postUser name haveEmail ssoid teamid brig_ = do
             ]
     post (brig_ . path "/i/users" . contentJson . body p)
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword "visible"
+defPassword = mkPlainTextPassword "secret"
 
 defCookieLabel :: Brig.CookieLabel
 defCookieLabel = Brig.CookieLabel "auth"
