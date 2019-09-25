@@ -25,7 +25,7 @@ import qualified Data.Vector as V
 
 newtype Cache = Cache { cache :: IORef [CachedUser] }
 
-data CachedUser = CachedUser !PlainTextPassword !User
+data CachedUser = CachedUser !(PlainTextPassword "protected") !User
 
 -- | Load users out of a file in the following format:
 --
@@ -56,7 +56,7 @@ put c a = liftIO $ atomicModifyIORef (cache c) $ \u -> (a:u, ())
 
 toUser :: HasCallStack => Logger -> [CachedUser] -> [LText] -> IO [CachedUser]
 toUser _ acc [i, e, p] = do
-    let pw = PlainTextPassword . Text.toStrict $ Text.strip p
+    let pw = mkPlainTextPassword . Text.toStrict $ Text.strip p
     let iu = error "Cache.toUser: invalid user"
     let ie = error "Cache.toUser: invalid email"
     let ui = fromMaybe iu . fromByteString . encodeUtf8 . Text.toStrict . Text.strip $ i

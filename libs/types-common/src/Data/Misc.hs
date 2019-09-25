@@ -33,6 +33,8 @@ module Data.Misc
       -- * PlainTextPassword
     , PlainTextPassword
     , mkPlainTextPassword
+    , encryptPlainTextPassword
+    , verifyPlainTextPassword
     , FlipPlainTextPasswordProtection
 
       -- * Functor infix ops
@@ -41,6 +43,7 @@ module Data.Misc
 
 import Imports
 import Control.Lens ((^.), makeLenses)
+import Crypto.Scrypt
 import Data.Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
@@ -63,6 +66,7 @@ import qualified Data.Aeson.Types                 as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port
@@ -275,7 +279,7 @@ newtype PlainTextPassword protected = PlainTextPassword
 
 -- | On the client side, if you want to construct a 'PlainTextPassword' value to send it over
 -- the network, use this function.
-mkPlainTextPassword :: Text -> PlainTextPassword "visible"
+mkPlainTextPassword :: Text -> PlainTextPassword protected
 mkPlainTextPassword = PlainTextPassword
 
 deriving instance Show (PlainTextPassword "visible")
@@ -297,6 +301,14 @@ type family FlipPlainTextPasswordProtection (a :: k) :: k where
     FlipPlainTextPasswordProtection x = x
     -- TODO: traverse routing types down to the 'PlainTextPassword' types.  (this probably
     -- needs to be an open type family instead.)
+
+encryptPlainTextPassword :: MonadIO m => PlainTextPassword protected -> m EncryptedPass
+encryptPlainTextPassword
+  = liftIO . encryptPassIO' . Pass . Text.encodeUtf8 . fromPlainTextPassword
+
+verifyPlainTextPassword :: PlainTextPassword protected -> EncryptedPass -> Bool
+verifyPlainTextPassword (Pass . Text.encodeUtf8 . fromPlainTextPassword -> actual) expected
+  = verifyPass' actual expected
 
 
 ----------------------------------------------------------------------

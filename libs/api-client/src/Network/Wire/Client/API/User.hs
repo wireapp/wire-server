@@ -30,7 +30,7 @@ import qualified Data.ByteString.Char8 as C
 -------------------------------------------------------------------------------
 -- Unauthenticated
 
-registerUser :: (MonadClient m, MonadUnliftIO m, MonadMask m) => NewUser -> m User
+registerUser :: (MonadClient m, MonadUnliftIO m, MonadMask m) => NewUser protected -> m User
 registerUser u = clientRequest req rsc readBody
   where
     req = method POST

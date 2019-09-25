@@ -79,7 +79,7 @@ import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
 import Control.Monad.Trans.Control
 import Data.Id
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Data.Metrics (Metrics)
 import Data.Text (pack, unpack)
 import Data.Time.Clock
@@ -294,7 +294,7 @@ data Bot = Bot
     , botMetrics      :: BotMetrics
       -- END TODO
     , botClients      :: TVar [BotClient] -- TODO: IORef?
-    , botPassphrase   :: PlainTextPassword
+    , botPassphrase   :: PlainTextPassword "protected"
     }
 
 instance Show Bot where
@@ -600,7 +600,7 @@ try ma = do
 -------------------------------------------------------------------------------
 -- Internal Bot Lifecycle
 
-mkBot :: BotTag -> User -> PlainTextPassword -> BotNet Bot
+mkBot :: BotTag -> User -> PlainTextPassword "protected" -> BotNet Bot
 mkBot tag user pw = do
     log Info $ botLogFields (userId user) tag . msg (val "Login")
     let ident = fromMaybe (error "No email") (userEmail user)
@@ -872,12 +872,12 @@ botLogFields u t = field "Bot" (show u) . field "Tag" (unTag t)
 -------------------------------------------------------------------------------
 -- Randomness
 
-randUser :: Email -> BotTag -> IO (NewUser, PlainTextPassword)
+randUser :: Email -> BotTag -> IO (NewUser "protected", PlainTextPassword "protected")
 randUser (Email loc dom) (BotTag tag) = do
     uuid    <- nextRandom
     pwdUuid <- nextRandom
     let email = Email (loc <> "+" <> tag <> "-" <> pack (toString uuid)) dom
-    let passw = PlainTextPassword (pack (toString pwdUuid))
+    let passw = mkPlainTextPassword (pack (toString pwdUuid))
     return (NewUser
         { newUserName           = Name (tag <> "-Wirebot-" <> pack (toString uuid))
         , newUserUUID           = Nothing

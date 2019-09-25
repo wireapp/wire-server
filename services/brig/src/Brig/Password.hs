@@ -9,7 +9,7 @@ import Imports
 import Cassandra
 import Crypto.Scrypt
 import Data.ByteString.Lazy (toStrict, fromStrict)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword, encryptPlainTextPassword, verifyPlainTextPassword)
 import OpenSSL.Random (randBytes)
 
 import qualified Data.ByteString.Base64 as B64
@@ -32,20 +32,15 @@ instance Cql Password where
 
 -- | Generate a strong, random plaintext password of length 16
 -- containing only alphanumeric characters, '+' and '/'.
-genPassword :: MonadIO m => m PlainTextPassword
-genPassword = liftIO . fmap (PlainTextPassword . Text.decodeUtf8 . B64.encode)
+genPassword :: MonadIO m => m (PlainTextPassword "protected")
+genPassword = liftIO . fmap (mkPlainTextPassword . Text.decodeUtf8 . B64.encode)
             $ randBytes 12
 
 -- | Stretch a plaintext password so that it can be safely stored.
-mkSafePassword :: MonadIO m => PlainTextPassword -> m Password
-mkSafePassword = liftIO . fmap Password . encryptPassIO' . pass
-  where
-    pass = Pass . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword :: MonadIO m => PlainTextPassword protected -> m Password
+mkSafePassword = fmap Password . encryptPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
-verifyPassword :: PlainTextPassword -> Password -> Bool
-verifyPassword plain opaque =
-    let actual   = Pass . Text.encodeUtf8 $ fromPlainTextPassword plain
-        expected = fromPassword opaque
-    in verifyPass' actual expected
+verifyPassword :: PlainTextPassword protected -> Password -> Bool
+verifyPassword = verifyPlainTextPassword . fromPassword
