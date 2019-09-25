@@ -294,7 +294,7 @@ data Bot = Bot
     , botMetrics      :: BotMetrics
       -- END TODO
     , botClients      :: TVar [BotClient] -- TODO: IORef?
-    , botPassphrase   :: PlainTextPassword "protected"
+    , botPassphrase   :: PlainTextPassword "visible"
     }
 
 instance Show Bot where
@@ -331,7 +331,8 @@ addBotClient self cty label = do
     box <- liftIO $ openBox (userId $ botUser self) label
     pks <- liftIO $ genPrekeys box 100
     lk  <- liftIO $ genLastKey box
-    let nc = NewClient
+    let nc :: NewClient "visible"
+        nc = NewClient
            { newClientPassword = Just (botPassphrase self)
            , newClientPrekeys  = pks
            , newClientLastKey  = lk
@@ -600,7 +601,7 @@ try ma = do
 -------------------------------------------------------------------------------
 -- Internal Bot Lifecycle
 
-mkBot :: BotTag -> User -> PlainTextPassword "protected" -> BotNet Bot
+mkBot :: BotTag -> User -> PlainTextPassword "visible" -> BotNet Bot
 mkBot tag user pw = do
     log Info $ botLogFields (userId user) tag . msg (val "Login")
     let ident = fromMaybe (error "No email") (userEmail user)
@@ -872,7 +873,7 @@ botLogFields u t = field "Bot" (show u) . field "Tag" (unTag t)
 -------------------------------------------------------------------------------
 -- Randomness
 
-randUser :: Email -> BotTag -> IO (NewUser "protected", PlainTextPassword "protected")
+randUser :: Email -> BotTag -> IO (NewUser "visible", PlainTextPassword "visible")
 randUser (Email loc dom) (BotTag tag) = do
     uuid    <- nextRandom
     pwdUuid <- nextRandom

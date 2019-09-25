@@ -739,6 +739,18 @@ data PasswordChange protected = PasswordChange
 
 deriving instance Show (PlainTextPassword protected) => Show (PasswordChange protected)
 
+instance ToJSON (PlainTextPassword protected) => ToJSON (PasswordChange protected) where
+    toJSON (PasswordChange old new) = object
+        [ "old_password" .= old
+        , "new_password" .= new
+        ]
+
+instance FromJSON (PlainTextPassword protected) => FromJSON (PasswordChange protected) where
+    parseJSON = withObject "PasswordChange" $ \o ->
+        PasswordChange <$> o .:? "old_password"
+                       <*> o .:  "new_password"
+
+
 instance FromJSON NewPasswordReset where
     parseJSON = withObject "NewPasswordReset" $ \o ->
         NewPasswordReset <$> (  (Left  <$> o .: "email")
@@ -764,17 +776,6 @@ instance ToJSON (PlainTextPassword protected) => ToJSON (CompletePasswordReset p
         ident (PasswordResetIdentityKey   k) = "key"   .= k
         ident (PasswordResetEmailIdentity e) = "email" .= e
         ident (PasswordResetPhoneIdentity p) = "phone" .= p
-
-instance ToJSON (PlainTextPassword protected) => ToJSON (PasswordChange protected) where
-    toJSON (PasswordChange old new) = object
-        [ "old_password" .= old
-        , "new_password" .= new
-        ]
-
-instance FromJSON (PlainTextPassword protected) => FromJSON (PasswordChange protected) where
-    parseJSON = withObject "PasswordChange" $ \o ->
-        PasswordChange <$> o .:? "old_password"
-                       <*> o .:  "new_password"
 
 -- DEPRECATED
 

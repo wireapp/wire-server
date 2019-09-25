@@ -83,7 +83,7 @@ routes = do
 
     post "/provider/register" (continue newAccount) $
         accept "application" "json"
-        .&> jsonRequest @(NewProvider "protected")
+        .&> jsonRequest @(NewProvider "visible")
 
     get "/provider/activate" (continue activateAccountKey) $
         accept "application" "json"
@@ -285,7 +285,7 @@ routes = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: JsonRequest (NewProvider "protected") -> Handler Response
+newAccount :: JsonRequest (NewProvider "visible") -> Handler Response
 newAccount req = do
     new <- parseJsonBody req
 
@@ -304,7 +304,7 @@ newAccount req = do
     (safePass, newPass) <- case pass of
         Just newPass -> (, Nothing) <$> mkSafePassword newPass
         Nothing -> do
-            newPass  <- genPassword
+            newPass  <- genPassword @_ @"visible"
             safePass <- mkSafePassword newPass
             return (safePass, Just newPass)
 

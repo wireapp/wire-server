@@ -21,7 +21,7 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
 
-registerClient :: MonadSession m => NewClient protected -> m M.Client
+registerClient :: MonadSession m => NewClient "visible" -> m M.Client
 registerClient a = sessionRequest req rsc readBody
   where
     req = method POST
@@ -31,7 +31,7 @@ registerClient a = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| []
 
-removeClient :: MonadSession m => ClientId -> RmClient protected -> m ()
+removeClient :: MonadSession m => ClientId -> RmClient "visible" -> m ()
 removeClient cid r = sessionRequest req rsc (const $ return ())
   where
     req = method DELETE

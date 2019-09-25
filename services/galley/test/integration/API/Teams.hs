@@ -13,7 +13,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc (mkPlainTextPassword)
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
@@ -377,7 +377,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
                . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
                . zUser owner
                . zConn "conn"
-               . json (newTeamMemberDeleteData Nothing)
+               . json (newTeamMemberDeleteData (Nothing @(PlainTextPassword "visible")))
                ) !!! const 403 === statusCode
 
     -- Deleting from a binding team with wrong password
@@ -385,7 +385,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
            . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
            . zUser owner
            . zConn "conn"
-           . json (newTeamMemberDeleteData (Just $ mkPlainTextPassword "wrong passwd"))
+           . json (newTeamMemberDeleteData (Just $ mkPlainTextPassword @"visible" "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
@@ -410,7 +410,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
                    . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
                    . zUser owner
                    . zConn "conn"
-                   . json (newTeamMemberDeleteData Nothing)
+                   . json (newTeamMemberDeleteData (Nothing @(PlainTextPassword "visible")))
                    ) !!! const 202 === statusCode
 
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
@@ -647,7 +647,7 @@ testDeleteBindingTeam ownerHasPassword = do
            . paths ["teams", toByteString' tid]
            . zUser owner
            . zConn "conn"
-           . json (newTeamDeleteData (Just $ mkPlainTextPassword "wrong passwd"))
+           . json (newTeamDeleteData (Just $ mkPlainTextPassword @"visible" "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")

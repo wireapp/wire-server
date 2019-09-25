@@ -32,7 +32,7 @@ instance Cql Password where
 
 -- | Generate a strong, random plaintext password of length 16
 -- containing only alphanumeric characters, '+' and '/'.
-genPassword :: MonadIO m => m (PlainTextPassword "protected")
+genPassword :: MonadIO m => m (PlainTextPassword protected)
 genPassword = liftIO . fmap (mkPlainTextPassword . Text.decodeUtf8 . B64.encode)
             $ randBytes 12
 

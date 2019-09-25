@@ -220,6 +220,13 @@ data CompletePasswordReset protected = CompletePasswordReset
     , cpwrPassword :: !(PlainTextPassword protected)
     }
 
+instance FromJSON (PlainTextPassword protected) => FromJSON (CompletePasswordReset protected) where
+    parseJSON = withObject "CompletePasswordReset" $ \obj -> do
+        CompletePasswordReset
+            <$> obj .: "key"
+            <*> obj .: "code"
+            <*> obj .: "password"
+
 instance ToJSON (PlainTextPassword protected) => ToJSON (CompletePasswordReset protected) where
     toJSON (CompletePasswordReset key code password) = object
         [ "key"      .= key
@@ -238,6 +245,10 @@ instance ToJSON (PlainTextPassword protected) => ToJSON (PasswordChange protecte
         [ "old_password" .= old
         , "new_password" .= new
         ]
+
+instance FromJSON (PlainTextPassword protected) => FromJSON (PasswordChange protected) where
+    parseJSON = withObject "PlainTextPassword" $ \obj -> do
+        PasswordChange <$> obj .: "old_password" <*> obj .: "new_password"
 
 -- | The payload for updating an email address
 newtype EmailUpdate = EmailUpdate { euEmail :: Email }

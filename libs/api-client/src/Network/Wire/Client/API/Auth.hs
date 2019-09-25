@@ -38,7 +38,7 @@ data Auth = Auth
 -------------------------------------------------------------------------------
 -- Unauthenticated
 
-login :: (MonadClient m, MonadUnliftIO m, MonadMask m) => Login "protected" -> m (Maybe Auth)
+login :: (MonadClient m, MonadUnliftIO m, MonadMask m) => Login "visible" -> m (Maybe Auth)
 login l = do
     rs <- clientRequest req rsc consumeBody
     sv <- getServer

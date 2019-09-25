@@ -60,7 +60,7 @@ deleteBot cid bot = do
         . header "Z-Conversation" (toByteString' cid)
         . expect2xx
 
-reAuthUser :: UserId -> ReAuthUser "protected" -> Galley Bool
+reAuthUser :: UserId -> ReAuthUser "visible" -> Galley Bool
 reAuthUser uid auth = do
     (h, p) <- brigReq
     let req = method GET . host h . port p

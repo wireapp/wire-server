@@ -72,7 +72,7 @@ getSettings (zusr ::: tid ::: _) = do
         (True, Nothing)     -> ViewLegalHoldServiceNotConfigured
         (True, Just result) -> viewLegalHoldService result
 
-removeSettings :: UserId ::: TeamId ::: JsonRequest (RemoveLegalHoldSettingsRequest "protected") ::: JSON -> Galley Response
+removeSettings :: UserId ::: TeamId ::: JsonRequest (RemoveLegalHoldSettingsRequest "visible") ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: req ::: _) = do
     assertLegalHoldEnabled tid
     membs <- Data.teamMembers tid
@@ -175,7 +175,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDevice
-    :: UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest (ApproveLegalHoldForUserRequest "protected") ::: JSON
+    :: UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest (ApproveLegalHoldForUserRequest "visible") ::: JSON
     -> Galley Response
 approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     assertLegalHoldEnabled tid
@@ -185,7 +185,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
     unless (zusr == uid) (throwM accessDenied)
     assertOnTeam uid tid
     ApproveLegalHoldForUserRequest mPassword
-      :: ApproveLegalHoldForUserRequest "protected"
+      :: ApproveLegalHoldForUserRequest "visible"
       <- fromJsonBody req
     ensureReAuthorised zusr mPassword
     assertUserLHPending
@@ -220,7 +220,7 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
             _ -> throwM userLegalHoldNotPending
 
 disableForUser
-  :: UserId ::: TeamId ::: UserId ::: JsonRequest (DisableLegalHoldForUserRequest "protected") ::: JSON
+  :: UserId ::: TeamId ::: UserId ::: JsonRequest (DisableLegalHoldForUserRequest "visible") ::: JSON
   -> Galley Response
 disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
     Log.debug $ Log.field "targets" (toByteString uid)
@@ -242,7 +242,7 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
 
     disableLH = do
         DisableLegalHoldForUserRequest mPassword
-          :: DisableLegalHoldForUserRequest "protected"
+          :: DisableLegalHoldForUserRequest "visible"
           <- fromJsonBody req
         ensureReAuthorised zusr mPassword
         Client.removeLegalHoldClientFromUser uid

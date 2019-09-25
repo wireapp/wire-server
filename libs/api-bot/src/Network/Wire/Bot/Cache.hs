@@ -25,7 +25,7 @@ import qualified Data.Vector as V
 
 newtype Cache = Cache { cache :: IORef [CachedUser] }
 
-data CachedUser = CachedUser !(PlainTextPassword "protected") !User
+data CachedUser = CachedUser !(PlainTextPassword "visible") !User
 
 -- | Load users out of a file in the following format:
 --
