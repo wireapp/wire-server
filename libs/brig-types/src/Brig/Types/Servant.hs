@@ -300,7 +300,10 @@ instance ToSchema Country
 instance ToSchema SelfProfile
 
 instance ToSchema CookieLabel
-instance ToSchema (PlainTextPassword "visible")
+
+instance ToSchema (PlainTextPassword "visible") where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
 instance ToSchema ManagedBy
 instance ToSchema InvitationCode
 instance ToSchema (NewTeam ())
