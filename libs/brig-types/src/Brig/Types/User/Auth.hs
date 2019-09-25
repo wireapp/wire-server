@@ -11,7 +11,7 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id (UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 
@@ -43,8 +43,8 @@ newtype LoginCodeTimeout = LoginCodeTimeout
     deriving (Eq, Show)
 
 -- | Different kinds of logins.
-data Login
-    = PasswordLogin !LoginId !PlainTextPassword !(Maybe CookieLabel)
+data Login protected
+    = PasswordLogin !LoginId !(PlainTextPassword protected) !(Maybe CookieLabel)
     | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
 
 -- | A special kind of login that is only used for an internal endpoint.
@@ -54,10 +54,12 @@ data SsoLogin
 -- | A special kind of login that is only used for an internal endpoint.
 -- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
 -- tokens.
-data LegalHoldLogin
-    = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+data LegalHoldLogin protected
+    = LegalHoldLogin !UserId !(Maybe (PlainTextPassword protected)) !(Maybe CookieLabel)
 
-loginLabel :: Login -> Maybe CookieLabel
+-- | This is only needed on the server side, so we should have @protected ~ "protected"@.  It
+-- is safe to lift this constraint if there is a good reason for it, though.
+loginLabel :: Login "protected" -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
 loginLabel (SmsLogin      _ _ l) = l
 
@@ -90,7 +92,7 @@ loginIdPair = \case
 instance ToJSON LoginId where
     toJSON loginId = object [loginIdPair loginId]
 
-instance FromJSON Login where
+instance FromJSON (PlainTextPassword protected) => FromJSON (Login protected) where
     parseJSON = withObject "Login" $ \o -> do
         passw <- o .:? "password"
         case passw of
@@ -100,7 +102,7 @@ instance FromJSON Login where
                 loginId <- parseJSON (Object o)
                 PasswordLogin loginId pw <$> o .:? "label"
 
-instance ToJSON Login where
+instance ToJSON (PlainTextPassword protected) => ToJSON (Login protected) where
     toJSON (SmsLogin p c l) = object [ "phone" .= p, "code" .= c, "label" .= l ]
     toJSON (PasswordLogin login password label) =
         object [ "password" .= password, "label" .= label, loginIdPair login ]
@@ -113,13 +115,13 @@ instance ToJSON SsoLogin where
     toJSON (SsoLogin uid label) =
         object [ "user" .= uid, "label" .= label ]
 
-instance FromJSON LegalHoldLogin where
+instance FromJSON (PlainTextPassword protected) => FromJSON (LegalHoldLogin protected) where
     parseJSON = withObject "LegalHoldLogin" $ \o ->
         LegalHoldLogin  <$> o .: "user"
                         <*> o .:? "password"
                         <*> o .:? "label"
 
-instance ToJSON LegalHoldLogin where
+instance ToJSON (PlainTextPassword protected) => ToJSON (LegalHoldLogin protected) where
     toJSON (LegalHoldLogin uid password label) =
         object [ "user"     .= uid
                , "password" .= password
@@ -170,8 +172,8 @@ data TokenType = Bearer deriving Show
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
 
-data RemoveCookies = RemoveCookies
-    { rmCookiesPassword :: !PlainTextPassword
+data RemoveCookies protected = RemoveCookies
+    { rmCookiesPassword :: !(PlainTextPassword protected)
     , rmCookiesLabels   :: [CookieLabel]
     , rmCookiesIdents   :: [CookieId]
     }
@@ -238,7 +240,7 @@ instance FromJSON TokenType where
     parseJSON (String "Bearer") = return Bearer
     parseJSON _                 = fail "Invalid token type"
 
-instance FromJSON RemoveCookies where
+instance FromJSON (PlainTextPassword protected) => FromJSON (RemoveCookies protected) where
     parseJSON = withObject "remove" $ \o ->
         RemoveCookies <$> o .:  "password"
                       <*> o .:? "labels" .!= []

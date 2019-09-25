@@ -263,47 +263,53 @@ instance ToJSON LegalHoldServiceRemove where
         #  "team_id" .= teamId
         # []
 
-data RemoveLegalHoldSettingsRequest =
+data RemoveLegalHoldSettingsRequest protected =
     RemoveLegalHoldSettingsRequest
-    { rmlhsrPassword       :: !(Maybe PlainTextPassword)
-    } deriving stock (Eq, Show, Generic)
+    { rmlhsrPassword :: !(Maybe (PlainTextPassword protected))
+    } deriving stock (Eq, Generic)
 
-instance ToJSON RemoveLegalHoldSettingsRequest where
+deriving instance Show (PlainTextPassword protected) => Show (RemoveLegalHoldSettingsRequest protected)
+
+instance ToJSON (RemoveLegalHoldSettingsRequest protected) where
   toJSON (RemoveLegalHoldSettingsRequest password) = object
         $  "password" .= password
         # []
 
-instance FromJSON RemoveLegalHoldSettingsRequest where
+instance FromJSON (PlainTextPassword protected) => FromJSON (RemoveLegalHoldSettingsRequest protected) where
   parseJSON = withObject "RemoveLegalHoldSettingsRequest" $ \o ->
     RemoveLegalHoldSettingsRequest
         <$> o .:? "password"
 
-data DisableLegalHoldForUserRequest =
+data DisableLegalHoldForUserRequest protected =
     DisableLegalHoldForUserRequest
-    { dlhfuPassword       :: !(Maybe PlainTextPassword)
-    } deriving stock (Eq, Show, Generic)
+    { dlhfuPassword       :: !(Maybe (PlainTextPassword protected))
+    } deriving stock (Eq, Generic)
 
-instance ToJSON DisableLegalHoldForUserRequest where
+deriving instance Show (PlainTextPassword protected) => Show (DisableLegalHoldForUserRequest protected)
+
+instance ToJSON (PlainTextPassword protected) => ToJSON (DisableLegalHoldForUserRequest protected) where
   toJSON (DisableLegalHoldForUserRequest password) = object
         $  "password" .= password
         # []
 
-instance FromJSON DisableLegalHoldForUserRequest where
+instance FromJSON (PlainTextPassword protected) => FromJSON (DisableLegalHoldForUserRequest protected) where
   parseJSON = withObject "DisableLegalHoldForUserRequest" $ \o ->
     DisableLegalHoldForUserRequest
         <$> o .:? "password"
 
-data ApproveLegalHoldForUserRequest =
+data ApproveLegalHoldForUserRequest protected =
     ApproveLegalHoldForUserRequest
-    { alhfuPassword       :: !(Maybe PlainTextPassword)
-    } deriving stock (Eq, Show, Generic)
+    { alhfuPassword       :: !(Maybe (PlainTextPassword protected))
+    } deriving stock (Eq, Generic)
 
-instance ToJSON ApproveLegalHoldForUserRequest where
+deriving instance Show (PlainTextPassword protected) => Show (ApproveLegalHoldForUserRequest protected)
+
+instance ToJSON (PlainTextPassword protected) => ToJSON (ApproveLegalHoldForUserRequest protected) where
   toJSON (ApproveLegalHoldForUserRequest password) = object
         $  "password" .= password
         # []
 
-instance FromJSON ApproveLegalHoldForUserRequest where
+instance FromJSON (PlainTextPassword protected) => FromJSON (ApproveLegalHoldForUserRequest protected) where
   parseJSON = withObject "ApproveLegalHoldForUserRequest" $ \o ->
     ApproveLegalHoldForUserRequest
         <$> o .:? "password"

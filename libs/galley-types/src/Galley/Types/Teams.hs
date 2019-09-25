@@ -127,7 +127,7 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Range
 import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
@@ -305,12 +305,12 @@ newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
-newtype TeamMemberDeleteData = TeamMemberDeleteData
-    { _tmdAuthPassword :: Maybe PlainTextPassword
+newtype TeamMemberDeleteData protected = TeamMemberDeleteData
+    { _tmdAuthPassword :: Maybe (PlainTextPassword protected)
     }
 
-newtype TeamDeleteData = TeamDeleteData
-    { _tdAuthPassword :: Maybe PlainTextPassword
+newtype TeamDeleteData protected = TeamDeleteData
+    { _tdAuthPassword :: Maybe (PlainTextPassword protected)
     }
 
 -- This is the cassandra timestamp of writetime(binding)
@@ -412,10 +412,10 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
+newTeamMemberDeleteData :: Maybe (PlainTextPassword "protected") -> TeamMemberDeleteData "protected"
 newTeamMemberDeleteData = TeamMemberDeleteData
 
-newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
+newTeamDeleteData :: Maybe (PlainTextPassword "protected") -> TeamDeleteData "protected"
 newTeamDeleteData = TeamDeleteData
 
 makeLenses ''Team
@@ -864,20 +864,20 @@ instance FromJSON TeamUpdateData where
                                           <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon")     icon
                                           <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
 
-instance FromJSON TeamMemberDeleteData where
+instance FromJSON (PlainTextPassword protected) => FromJSON (TeamMemberDeleteData protected) where
     parseJSON = withObject "team-member-delete-data" $ \o ->
         TeamMemberDeleteData <$> (o .:? "password")
 
-instance ToJSON TeamMemberDeleteData where
+instance ToJSON (PlainTextPassword protected) => ToJSON (TeamMemberDeleteData protected) where
     toJSON tmd = object
         [ "password" .= _tmdAuthPassword tmd
         ]
 
-instance FromJSON TeamDeleteData where
+instance FromJSON (PlainTextPassword protected) => FromJSON (TeamDeleteData protected) where
     parseJSON = withObject "team-delete-data" $ \o ->
         TeamDeleteData <$> o .: "password"
 
-instance ToJSON TeamDeleteData where
+instance ToJSON (PlainTextPassword protected) => ToJSON (TeamDeleteData protected) where
     toJSON tdd = object
         [ "password" .= _tdAuthPassword tdd
         ]

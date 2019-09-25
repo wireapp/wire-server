@@ -2,11 +2,10 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RoleAnnotations            #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE LambdaCase                 #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -266,7 +265,6 @@ instance Cql (Fingerprint a) where
 --
 -- When receiving a @Plaintext "visible"@ from the network, the first thing the handler must
 -- do is call 'protectPlainTextPassword' on it in the view pattern.
-type role PlainTextPassword phantom
 newtype PlainTextPassword protected = PlainTextPassword
     { fromPlainTextPassword :: Text }
     deriving (Eq, ToJSON, Generic)

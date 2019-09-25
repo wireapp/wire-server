@@ -28,7 +28,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.List1 (List1)
-import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword)
 import Data.PEM
 import Data.Range
 import Data.Singletons.TypeLits
@@ -46,16 +46,16 @@ import qualified Data.Text.Encoding      as Text
 -- NewProvider
 
 -- | Input data for registering a new provider.
-data NewProvider = NewProvider
+data NewProvider protected = NewProvider
     { newProviderName     :: !Name
     , newProviderEmail    :: !Email
     , newProviderUrl      :: !HttpsUrl
     , newProviderDescr    :: !(Range 1 1024 Text)
-    , newProviderPassword :: !(Maybe PlainTextPassword)
+    , newProviderPassword :: !(Maybe (PlainTextPassword protected))
         -- ^ If none provided, a password is generated.
     }
 
-instance FromJSON NewProvider where
+instance FromJSON (PlainTextPassword protected) => FromJSON (NewProvider protected) where
     parseJSON = withObject "NewProvider" $ \o ->
         NewProvider <$> o .:  "name"
                     <*> o .:  "email"
@@ -63,7 +63,7 @@ instance FromJSON NewProvider where
                     <*> o .:  "description"
                     <*> o .:? "password"
 
-instance ToJSON NewProvider where
+instance ToJSON (PlainTextPassword protected) => ToJSON (NewProvider protected) where
     toJSON p = object
         $ "name"        .= newProviderName p
         # "email"       .= newProviderEmail p
@@ -73,19 +73,19 @@ instance ToJSON NewProvider where
         # []
 
 -- | Response data upon registering a new provider.
-data NewProviderResponse = NewProviderResponse
+data NewProviderResponse protected = NewProviderResponse
     { rsNewProviderId       :: !ProviderId
-    , rsNewProviderPassword :: !(Maybe PlainTextPassword)
+    , rsNewProviderPassword :: !(Maybe (PlainTextPassword protected))
         -- ^ The generated password, if none was provided
         -- in the 'NewProvider' request.
     }
 
-instance FromJSON NewProviderResponse where
+instance FromJSON (PlainTextPassword protected) => FromJSON (NewProviderResponse protected) where
     parseJSON = withObject "NewProviderResponse" $ \o ->
         NewProviderResponse <$> o .:  "id"
                             <*> o .:? "password"
 
-instance ToJSON NewProviderResponse where
+instance ToJSON (PlainTextPassword protected) => ToJSON (NewProviderResponse protected) where
     toJSON r = object
         $ "id"       .= rsNewProviderId r
         # "password" .= rsNewProviderPassword r
@@ -173,17 +173,17 @@ instance ToJSON ProviderActivationResponse where
 -- ProviderLogin
 
 -- | Input data for a provider login request.
-data ProviderLogin = ProviderLogin
+data ProviderLogin protected = ProviderLogin
     { providerLoginEmail    :: !Email
-    , providerLoginPassword :: !PlainTextPassword
+    , providerLoginPassword :: !(PlainTextPassword protected)
     }
 
-instance FromJSON ProviderLogin where
+instance FromJSON (PlainTextPassword protected) => FromJSON (ProviderLogin protected) where
     parseJSON = withObject "ProviderLogin" $ \o ->
         ProviderLogin <$> o .: "email"
                       <*> o .: "password"
 
-instance ToJSON ProviderLogin where
+instance ToJSON (PlainTextPassword protected) => ToJSON (ProviderLogin protected) where
     toJSON l = object
         [ "email"    .= providerLoginEmail l
         , "password" .= providerLoginPassword l
@@ -193,14 +193,14 @@ instance ToJSON ProviderLogin where
 -- DeleteProvider
 
 -- | Input data for a provider deletion request.
-newtype DeleteProvider = DeleteProvider
-    { deleteProviderPassword :: PlainTextPassword }
+newtype DeleteProvider protected = DeleteProvider
+    { deleteProviderPassword :: PlainTextPassword protected }
 
-instance FromJSON DeleteProvider where
+instance FromJSON (PlainTextPassword protected) => FromJSON (DeleteProvider protected) where
     parseJSON = withObject "DeleteProvider" $ \o ->
         DeleteProvider <$> o .: "password"
 
-instance ToJSON DeleteProvider where
+instance ToJSON (PlainTextPassword protected) => ToJSON (DeleteProvider protected) where
     toJSON d = object
         [ "password" .= deleteProviderPassword d
         ]
@@ -214,21 +214,30 @@ newtype PasswordReset = PasswordReset { nprEmail :: Email }
 deriveJSON toJSONFieldName ''PasswordReset
 
 -- | The payload for completing a password reset.
-data CompletePasswordReset = CompletePasswordReset
+data CompletePasswordReset protected = CompletePasswordReset
     { cpwrKey      :: !Code.Key
     , cpwrCode     :: !Code.Value
-    , cpwrPassword :: !PlainTextPassword
+    , cpwrPassword :: !(PlainTextPassword "protected")
     }
 
-deriveJSON toJSONFieldName ''CompletePasswordReset
+instance ToJSON (PlainTextPassword protected) => ToJSON (CompletePasswordReset protected) where
+    toJSON (CompletePasswordReset key code password) = object
+        [ "key"      .= key
+        , "code"     .= code
+        , "password" .= password
+        ]
 
 -- | The payload for changing a password.
-data PasswordChange = PasswordChange
-    { cpOldPassword :: !PlainTextPassword
-    , cpNewPassword :: !PlainTextPassword
+data PasswordChange protected = PasswordChange
+    { cpOldPassword :: !(PlainTextPassword protected)
+    , cpNewPassword :: !(PlainTextPassword protected)
     }
 
-deriveJSON toJSONFieldName ''PasswordChange
+instance ToJSON (PlainTextPassword protected) => ToJSON (PasswordChange protected) where
+    toJSON (PasswordChange old new) = object
+        [ "old_password" .= old
+        , "new_password" .= new
+        ]
 
 -- | The payload for updating an email address
 newtype EmailUpdate = EmailUpdate { euEmail :: Email }
@@ -551,18 +560,18 @@ instance ToJSON UpdateService where
 
 -- | Update service connection information.
 -- This operation requires re-authentication via password.
-data UpdateServiceConn = UpdateServiceConn
-    { updateServiceConnPassword :: !PlainTextPassword
+data UpdateServiceConn protected = UpdateServiceConn
+    { updateServiceConnPassword :: !(PlainTextPassword protected)
     , updateServiceConnUrl      :: !(Maybe HttpsUrl)
     , updateServiceConnKeys     :: !(Maybe (Range 1 2 [ServiceKeyPEM]))
     , updateServiceConnTokens   :: !(Maybe (Range 1 2 [ServiceToken]))
     , updateServiceConnEnabled  :: !(Maybe Bool)
     }
 
-mkUpdateServiceConn :: PlainTextPassword -> UpdateServiceConn
+mkUpdateServiceConn :: PlainTextPassword protected -> UpdateServiceConn protected
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
 
-instance FromJSON UpdateServiceConn where
+instance FromJSON (PlainTextPassword protected) => FromJSON (UpdateServiceConn protected) where
     parseJSON = withObject "UpdateServiceConn" $ \o ->
         UpdateServiceConn <$> o .:  "password"
                           <*> o .:? "base_url"
@@ -570,7 +579,7 @@ instance FromJSON UpdateServiceConn where
                           <*> o .:? "auth_tokens"
                           <*> o .:? "enabled"
 
-instance ToJSON UpdateServiceConn where
+instance ToJSON (PlainTextPassword protected) => ToJSON (UpdateServiceConn protected) where
     toJSON u = object
         $ "password"       .= updateServiceConnPassword u
         # "base_url"       .= updateServiceConnUrl u
@@ -583,14 +592,14 @@ instance ToJSON UpdateServiceConn where
 -- DeleteService
 
 -- | Input data for a service deletion request.
-newtype DeleteService = DeleteService
-    { deleteServicePassword :: PlainTextPassword }
+newtype DeleteService protected = DeleteService
+    { deleteServicePassword :: PlainTextPassword protected }
 
-instance FromJSON DeleteService where
+instance FromJSON (PlainTextPassword protected) => FromJSON (DeleteService protected) where
     parseJSON = withObject "DeleteService" $ \o ->
         DeleteService <$> o .: "password"
 
-instance ToJSON DeleteService where
+instance ToJSON (PlainTextPassword protected) => ToJSON (DeleteService protected) where
     toJSON d = object
         [ "password" .= deleteServicePassword d
         ]
