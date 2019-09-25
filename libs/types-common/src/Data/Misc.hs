@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RoleAnnotations            #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -31,7 +32,9 @@ module Data.Misc
     , Rsa
 
       -- * PlainTextPassword
-    , PlainTextPassword (..)
+    , PlainTextPassword
+    , mkPlainTextPassword
+    , protectPlainTextPassword
 
       -- * Functor infix ops
     , (<$$>), (<$$$>)
@@ -257,19 +260,37 @@ instance Cql (Fingerprint a) where
 --------------------------------------------------------------------------------
 -- Password
 
-newtype PlainTextPassword = PlainTextPassword
+-- | The phantom type is used for protecting the password from leaking into logs by means of
+-- 'Show', 'ToJSON' etc.  If @protected ~ "protected"@, the password can only be used in
+-- computations, not in output.
+--
+-- When receiving a @Plaintext "visible"@ from the network, the first thing the handler must
+-- do is call 'protectPlainTextPassword' on it in the view pattern.
+type role PlainTextPassword phantom
+newtype PlainTextPassword protected = PlainTextPassword
     { fromPlainTextPassword :: Text }
     deriving (Eq, ToJSON, Generic)
 
-instance Show PlainTextPassword where
+-- | On the client side, if you want to construct a 'PlainTextPassword' value to send it over
+-- the network, use this function.
+mkPlainTextPassword :: Text -> PlainTextPassword "visible"
+mkPlainTextPassword = PlainTextPassword
+
+protectPlainTextPassword :: PlainTextPassword "visible" -> PlainTextPassword "protected"
+protectPlainTextPassword (PlainTextPassword txt) = PlainTextPassword txt
+
+deriving instance Show (PlainTextPassword "visible")
+deriving instance FromJSON (PlainTextPassword "visible")
+
+instance Show (PlainTextPassword "protected") where
     show _ = "PlainTextPassword <hidden>"
 
-instance FromJSON PlainTextPassword where
+instance FromJSON (PlainTextPassword "protected") where
     parseJSON x = PlainTextPassword . fromRange
                <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
 
 #ifdef WITH_ARBITRARY
-instance Arbitrary PlainTextPassword where
+instance Arbitrary (PlainTextPassword any) where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 #endif
 
