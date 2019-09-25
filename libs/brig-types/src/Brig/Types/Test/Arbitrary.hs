@@ -194,7 +194,7 @@ instance Arbitrary (NewTeam ()) where
 instance Arbitrary CheckHandles where
     arbitrary = CheckHandles <$> arbitrary <*> arbitrary
 
-instance Arbitrary CompletePasswordReset where
+instance Arbitrary (CompletePasswordReset protected) where
     arbitrary = CompletePasswordReset <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary PasswordResetCode where
@@ -215,10 +215,10 @@ instance Arbitrary (AsciiText Printable) where
         txt <- Text.filter (\c -> Unicode.isAscii c && Unicode.isPrint c) <$> arbitrary
         either (error . show) pure $ validate txt
 
-instance Arbitrary ReAuthUser where
+instance Arbitrary (ReAuthUser protected) where
     arbitrary = ReAuthUser <$> arbitrary
 
-instance Arbitrary DeleteUser where
+instance Arbitrary (DeleteUser protected) where
     arbitrary = DeleteUser <$> arbitrary
 
 instance Arbitrary DeletionCodeTimeout where
@@ -245,7 +245,7 @@ instance Arbitrary ManagedByUpdate where
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
-instance Arbitrary NewUser where
+instance Arbitrary (NewUser protected) where
     arbitrary = do
         newUserIdentity <- arbitrary
         teamid <- arbitrary
@@ -307,7 +307,7 @@ instance Arbitrary NewTeamUser where
 instance Arbitrary TeamMember where
     arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary PasswordChange where
+instance Arbitrary (PasswordChange protected) where
     arbitrary = PasswordChange <$> arbitrary <*> arbitrary
 
 instance Arbitrary PhoneRemove where
@@ -544,13 +544,13 @@ instance Arbitrary LegalHoldServiceConfirm where
           <*> arbitrary
           <*> arbitrary
 
-instance Arbitrary RemoveLegalHoldSettingsRequest where
+instance Arbitrary (RemoveLegalHoldSettingsRequest protected) where
     arbitrary = RemoveLegalHoldSettingsRequest <$> arbitrary
 
-instance Arbitrary DisableLegalHoldForUserRequest where
+instance Arbitrary (DisableLegalHoldForUserRequest protected) where
     arbitrary = DisableLegalHoldForUserRequest <$> arbitrary
 
-instance Arbitrary ApproveLegalHoldForUserRequest where
+instance Arbitrary (ApproveLegalHoldForUserRequest protected) where
     arbitrary = ApproveLegalHoldForUserRequest <$> arbitrary
 
 instance Arbitrary LastPrekey where
@@ -566,13 +566,13 @@ instance Arbitrary PrekeyId where
 instance {-# OVERLAPPABLE #-} (Enum a, Bounded a) => Arbitrary a where
   arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
 
-instance Arbitrary TeamMemberDeleteData where
+instance Arbitrary (TeamMemberDeleteData (protected :: Symbol)) where
   arbitrary = newTeamMemberDeleteData <$> arbitrary
 
-instance Eq TeamMemberDeleteData where
+instance Eq (TeamMemberDeleteData protected) where
   a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
 
-instance Show TeamMemberDeleteData where
+instance Show (PlainTextPassword protected) =>  Show (TeamMemberDeleteData protected) where
   show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
 
 instance Arbitrary SSOStatus where

@@ -64,7 +64,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ActivationCodeObject
     , run @ActivationKey
     , run @Alpha
-    , run @ApproveLegalHoldForUserRequest
+    , run @(ApproveLegalHoldForUserRequest "visible")
     , run @(AsciiText Base64Url)
     , run @(AsciiText Printable)
     , run @Asset
@@ -76,16 +76,16 @@ tests = testGroup "Common (types vs. aeson)"
     , run @Client
     , run @ClientId
     , run @ColourId
-    , run @CompletePasswordReset
+    , run @(CompletePasswordReset "visible")
     , run @ConnectionsStatusRequest
     , run @ConnectionStatus
     , run @Conversation
     , run @CookieLabel
     , run @CookieList
     , run @Data.Json.Util.UTCTimeMillis
-    , run @DeleteUser
+    , run @(DeleteUser "visible")
     , run @DeletionCodeTimeout
-    , run @DisableLegalHoldForUserRequest
+    , run @(DisableLegalHoldForUserRequest "visible")
     , run @Email
     , run @EmailRemove
     , run @EmailUpdate
@@ -114,21 +114,21 @@ tests = testGroup "Common (types vs. aeson)"
     , run @NewLegalHoldService
     , run @NewPasswordReset
     , run @(NewTeam ())
-    , run @NewUser
-    , run @PasswordChange
+    , run @(NewUser "visible")
+    , run @(PasswordChange "visible")
     , run @Phone
     , run @PhonePrefix
     , run @PhoneRemove
     , run @PhoneUpdate
     , run @Pict
-    , run @PlainTextPassword
+    , run @(PlainTextPassword "visible")
     , run @PropertyKey
     , run @PropertyValue
     , run @QueuedNotification
     , run @(Range 3 10 Int32)
-    , run @ReAuthUser
+    , run @(ReAuthUser "visible")
     , run @Relation
-    , run @RemoveLegalHoldSettingsRequest
+    , run @(RemoveLegalHoldSettingsRequest "visible")
     , run @RequestNewLegalHoldClient
     , run @RichField
     , run @RichInfo
@@ -143,7 +143,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @TeamBinding
     , run @TeamData
     , run @TeamMember
-    , run @TeamMemberDeleteData
+    , run @(TeamMemberDeleteData "visible")
     , run @TeamStatus
     , run @UpdateServiceWhitelist
     , run @URI.ByteString.URI
@@ -168,7 +168,7 @@ tests = testGroup "Common (types vs. aeson)"
     -- find ~/src/wire-server/libs/ -type f -name "*.hs" | sort -u | xargs perl -ne "/^(data|newtype|type)\s+(\S.*)=/ && print \"\$2\n\""
 
     , testCase "{} is a valid TeamMemberDeleteData" $ do
-        assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
+        assertEqual "{}" (Right $ newTeamMemberDeleteData @"visible" Nothing) (eitherDecode "{}")
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a)

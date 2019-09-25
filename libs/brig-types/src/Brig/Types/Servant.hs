@@ -254,7 +254,7 @@ instance ToSchema Relation
 instance ToParamSchema Relation where
 instance ToSchema Message
 instance ToSchema Data.Json.Util.UTCTimeMillis
-instance ToSchema NewUser
+instance ToSchema (NewUser "visible")
 instance ToSchema NewUserOrigin
 
 instance ToSchema (Range from to typ) where
@@ -300,7 +300,7 @@ instance ToSchema Country
 instance ToSchema SelfProfile
 
 instance ToSchema CookieLabel
-instance ToSchema PlainTextPassword
+instance ToSchema (PlainTextPassword "visible")
 instance ToSchema ManagedBy
 instance ToSchema InvitationCode
 instance ToSchema (NewTeam ())
@@ -537,15 +537,15 @@ instance Metrics.RoutesToPaths Raw where
 instance ToSchema Milliseconds where
   declareNamedSchema _ = declareNamedSchema (Proxy @Word64)
 
-instance ToSchema ApproveLegalHoldForUserRequest where
+instance ToSchema (ApproveLegalHoldForUserRequest "visible") where
   declareNamedSchema = withFieldLabelMod $ \"alhfuPassword" -> "password"
 
 instance ToSchema CheckHandles
 instance ToSchema PasswordResetIdentity
-instance ToSchema CompletePasswordReset
+instance ToSchema (CompletePasswordReset "visible")
 instance ToSchema PasswordResetKey
 instance ToSchema PasswordResetCode
-instance ToSchema DeleteUser
+instance ToSchema (DeleteUser "visible")
 
 instance ToSchema Data.Code.Timeout where
   declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
@@ -555,7 +555,7 @@ instance ToSchema Data.Code.Timeout where
 
 
 instance ToSchema DeletionCodeTimeout
-instance ToSchema DisableLegalHoldForUserRequest
+instance ToSchema (DisableLegalHoldForUserRequest "visible")
 instance ToSchema EmailRemove
 instance ToSchema FeatureFlags
 instance ToSchema FeatureLegalHold
@@ -588,10 +588,10 @@ instance ToSchema LegalHoldServiceConfirm
 instance ToSchema LocaleUpdate
 
 instance ToSchema NewPasswordReset
-instance ToSchema PasswordChange
+instance ToSchema (PasswordChange "visible")
 instance ToSchema PhoneRemove
-instance ToSchema ReAuthUser
-instance ToSchema RemoveLegalHoldSettingsRequest
+instance ToSchema (ReAuthUser "visible")
+instance ToSchema (RemoveLegalHoldSettingsRequest "visible")
 
 instance ToSchema SSOStatus where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
@@ -600,7 +600,7 @@ instance ToSchema SSOTeamConfig
 
 -- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
 -- password, which will break roundtrip tests as well as client functions.
-instance ToSchema TeamMemberDeleteData where
+instance ToSchema (TeamMemberDeleteData "visible") where
   declareNamedSchema _ = pure $ NamedSchema (Just "TeamMemberDeleteData") $ mempty
         & properties .~ properties_
         & example .~ example_

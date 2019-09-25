@@ -15,7 +15,7 @@ import Brig.Types.Client.Prekey as P
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Data.Misc (Location, PlainTextPassword (..))
+import Data.Misc (Location, PlainTextPassword)
 
 
 -- * Data Types:
@@ -47,18 +47,18 @@ data ClientClass
     | LegalHoldClient -- see Note [LegalHold]
     deriving (Eq, Ord, Bounded, Enum, Show)
 
-data NewClient = NewClient
+data NewClient protected = NewClient
     { newClientPrekeys  :: [Prekey]
     , newClientLastKey  :: !LastPrekey
     , newClientType     :: !ClientType
     , newClientLabel    :: !(Maybe Text)
     , newClientClass    :: !(Maybe ClientClass)
     , newClientCookie   :: !(Maybe CookieLabel)
-    , newClientPassword :: !(Maybe PlainTextPassword)
+    , newClientPassword :: !(Maybe (PlainTextPassword protected))
     , newClientModel    :: !(Maybe Text)
     }
 
-newClient :: ClientType -> LastPrekey -> NewClient
+newClient :: ClientType -> LastPrekey -> NewClient protected
 newClient t k = NewClient
     { newClientPrekeys  = []
     , newClientLastKey  = k
@@ -86,8 +86,8 @@ data PubClient = PubClient
     , pubClientClass  :: !(Maybe ClientClass)
     } deriving (Eq, Show, Generic)
 
-newtype RmClient = RmClient
-    { rmPassword :: Maybe PlainTextPassword
+newtype RmClient protected = RmClient
+    { rmPassword :: Maybe (PlainTextPassword protected)
     } deriving (Generic)
 
 data UpdateClient = UpdateClient
@@ -158,7 +158,7 @@ instance FromJSON ClientClass where
         "legalhold" -> return LegalHoldClient
         _           -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
-instance ToJSON NewClient where
+instance ToJSON (PlainTextPassword protected) => ToJSON (NewClient protected) where
     toJSON c = object
         $ "type"     .= newClientType c
         # "prekeys"  .= newClientPrekeys c
@@ -170,7 +170,7 @@ instance ToJSON NewClient where
         # "model"    .= newClientModel c
         # []
 
-instance FromJSON NewClient where
+instance FromJSON (PlainTextPassword protected) => FromJSON (NewClient protected) where
     parseJSON = withObject "NewClient" $ \o ->
         NewClient <$> o .:  "prekeys"
                   <*> o .:  "lastkey"
@@ -181,10 +181,10 @@ instance FromJSON NewClient where
                   <*> o .:? "password"
                   <*> o .:? "model"
 
-instance ToJSON RmClient where
+instance ToJSON (PlainTextPassword protected) => ToJSON (RmClient protected) where
     toJSON (RmClient pw) = object [ "password" .= pw ]
 
-instance FromJSON RmClient where
+instance FromJSON (PlainTextPassword protected) => FromJSON (RmClient protected) where
     parseJSON = withObject "RmClient" $ \o ->
         RmClient <$> o .:? "password"
 
