@@ -4,6 +4,10 @@
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
 -- live), and turn warning about orphans back on.
 
+-- TODO: change some 'Inline' properites into 'Ref'.  (not sure i remember why i didn't do
+-- that to begin with.  it may cause problems with the test function that crawles the API, but
+-- then we just need to fix those problems.)
+
 module Brig.Types.Servant where
 
 import Imports
@@ -215,6 +219,9 @@ withConstructorTagMod
 withConstructorTagMod fun = genericDeclareNamedSchema opts
   where opts = defaultSchemaOptions { constructorTagModifier = fun }
 
+mkEnumSchema :: [Text] -> Schema
+mkEnumSchema vals = mempty & enum_ .~ Just (String <$> vals)
+
 
 ----------------------------------------------------------------------
 -- * orphans
@@ -263,8 +270,26 @@ instance ToSchema UserSSOId where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userSSOId"
 
 instance ToSchema Pict
-instance ToSchema Asset
-instance ToSchema AssetSize
+
+instance ToSchema Asset where
+  declareNamedSchema _ = pure $ NamedSchema (Just "Asset") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["type", "key", "size"]
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("type", Inline (mkEnumSchema ["image"]))
+          , ("key", Inline (mkEnumSchema ["configured", "not_configured", "disabled"]))
+          , ("size", Inline (toSchema (Proxy @AssetSize)))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
+
+instance ToSchema AssetSize where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "asset"
 
 instance ToSchema ColourId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
@@ -287,7 +312,6 @@ instance ToSchema ServiceRef where
 instance ToSchema BindingNewTeamUser
 instance ToSchema BindingNewTeam
 instance ToSchema Alpha
-instance ToSchema (AsciiText Base64Url)
 instance ToSchema CountryCode
 
 instance ToSchema Value where
@@ -413,9 +437,10 @@ instance ToSchema TeamStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToSchema PropertyValue
-instance ToSchema (AsciiText Printable)
 instance ToSchema PropertyKey
 
+instance ToSchema (AsciiText r) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
 
@@ -512,7 +537,9 @@ instance Metrics.RoutesToPaths Raw where
 instance ToSchema Milliseconds where
   declareNamedSchema _ = declareNamedSchema (Proxy @Word64)
 
-instance ToSchema ApproveLegalHoldForUserRequest
+instance ToSchema ApproveLegalHoldForUserRequest where
+  declareNamedSchema = withFieldLabelMod $ \"alhfuPassword" -> "password"
+
 instance ToSchema CheckHandles
 instance ToSchema PasswordResetIdentity
 instance ToSchema CompletePasswordReset
@@ -521,7 +548,11 @@ instance ToSchema PasswordResetCode
 instance ToSchema DeleteUser
 
 instance ToSchema Data.Code.Timeout where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)  -- ('NominalDiffTime', really)
+  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+    where
+      tweak = fmap $ schema . description ?~ descr
+      descr = "A string containing a 'NominalDiffTime' value (in integer seconds)."
+
 
 instance ToSchema DeletionCodeTimeout
 instance ToSchema DisableLegalHoldForUserRequest
