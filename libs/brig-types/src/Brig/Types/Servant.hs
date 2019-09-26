@@ -249,7 +249,7 @@ instance ToSchema UserSet where
 instance ToSchema UserConnection
 
 instance ToSchema Relation where
-  declareNamedSchema = withFieldLabelMod camelToUnderscore
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToParamSchema Relation where
 instance ToSchema Message
@@ -553,12 +553,12 @@ instance ToSchema CookieList where
 
 instance ToSchema (Cookie ()) where
   declareNamedSchema = withFieldLabelMod $ \case
-    "cookieId" -> "id"
-    "cookieCreated" -> "created"
-    "cookieExpires" -> "expires"
-    "cookieLabel" -> "label"
-    "cookieType" -> "type"
-    "cookieSucc" -> "successor"
+    "cookieId"        -> "id"
+    "cookieCreated"   -> "created"
+    "cookieExpires"   -> "expires"
+    "cookieLabel"     -> "label"
+    "cookieType"      -> "type"
+    "cookieSuccessor" -> "successor"
 
 instance ToSchema CookieId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
