@@ -247,7 +247,10 @@ instance ToSchema UserSet where
   declareNamedSchema = withFieldLabelMod $ \"usUsrs" -> "users"
 
 instance ToSchema UserConnection
-instance ToSchema Relation
+
+instance ToSchema Relation where
+  declareNamedSchema = withFieldLabelMod camelToUnderscore
+
 instance ToParamSchema Relation where
 instance ToSchema Message
 
@@ -647,7 +650,30 @@ instance ToSchema CheckHandles where
 instance ToSchema PasswordResetIdentity
 
 instance ToSchema (CompletePasswordReset "visible") where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cpwr"
+  declareNamedSchema _ = pure $ NamedSchema (Just "CompletePasswordReset") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["code", "password"]
+        & minProperties .~ Just 3
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("key",      Inline (toSchema (Proxy @(Maybe Text))))
+          , ("email",    Inline (toSchema (Proxy @(Maybe Email))))
+          , ("phone",    Inline (toSchema (Proxy @(Maybe Phone))))
+          , ("code",     Inline (toSchema (Proxy @(Maybe Text))))
+          , ("password", Inline (toSchema (Proxy @(Maybe Text))))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just . toJSON $ CompletePasswordReset @"visible"
+          (PasswordResetPhoneIdentity (Phone "+4916212345678"))
+          (PasswordResetCode exampleUrl)
+          (mkPlainTextPassword "******")
+          where
+            Right exampleUrl = validateBase64Url "http://example.com"
 
 instance ToSchema ClientType where
   declareNamedSchema = withConstructorTagMod $ \case
