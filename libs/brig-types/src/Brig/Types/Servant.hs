@@ -546,7 +546,24 @@ instance ToSchema Client where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "client"
 
 instance ToSchema CookieList where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+  declareNamedSchema = withFieldLabelMod $ \"cookieList" -> "cookies"
+
+instance ToSchema (Cookie ()) where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "cookieId" -> "id"
+    "cookieCreated" -> "created"
+    "cookieExpires" -> "expires"
+    "cookieLabel" -> "label"
+    "cookieType" -> "type"
+    "cookieSucc" -> "successor"
+
+instance ToSchema CookieId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema CookieType where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "SessionCookie" -> "session"
+    "PersistentCookie" -> "persistent"
 
 instance ToSchema Location where
   declareNamedSchema = withFieldLabelMod $ \case
