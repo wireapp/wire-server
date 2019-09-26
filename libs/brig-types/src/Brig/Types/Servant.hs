@@ -284,7 +284,7 @@ instance ToSchema Asset where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
           [ ("type", Inline (mkEnumSchema ["image"]))
-          , ("key", Inline (mkEnumSchema ["configured", "not_configured", "disabled"]))
+          , ("key", Inline (toSchema (Proxy @Text)))
           , ("size", Inline (toSchema (Proxy @AssetSize)))
           ]
 
@@ -337,6 +337,12 @@ instance ToSchema BindingNewTeam where
 
 instance ToSchema BindingNewTeamUser where
   declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ = HashMap.fromList
+        [ ("currency", Inline (toSchema (Proxy @Alpha)))
+        ]
 
 instance ToSchema Alpha where
   declareNamedSchema _ = pure $ NamedSchema (Just "Alpha") $
