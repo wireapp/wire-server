@@ -38,14 +38,14 @@ data ClientType
     = TemporaryClientType
     | PermanentClientType
     | LegalHoldClientType -- see Note [LegalHold]
-    deriving (Eq, Ord, Bounded, Enum, Show)
+    deriving (Eq, Ord, Bounded, Enum, Show, Generic)
 
 data ClientClass
     = PhoneClient
     | TabletClient
     | DesktopClient
     | LegalHoldClient -- see Note [LegalHold]
-    deriving (Eq, Ord, Bounded, Enum, Show)
+    deriving (Eq, Ord, Bounded, Enum, Show, Generic)
 
 data NewClient protected = NewClient
     { newClientPrekeys  :: [Prekey]

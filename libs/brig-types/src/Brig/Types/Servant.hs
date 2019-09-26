@@ -268,7 +268,10 @@ instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to t
 
 instance ToSchema User
 instance ToSchema UserIdentity
-instance ToSchema Email
+
+instance ToSchema Email where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
 instance ToSchema Phone
 instance ToSchema Name
 
@@ -366,9 +369,15 @@ instance ToSchema Handle
 deriving instance Generic ISO639_1
 instance ToSchema ISO639_1
 
-instance ToSchema Brig.Types.User.EmailUpdate
-instance ToSchema ConnectionsStatusRequest
-instance ToSchema ConnectionStatus
+instance ToSchema Brig.Types.User.EmailUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"euEmail" -> "email"
+
+instance ToSchema ConnectionsStatusRequest where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "csr"
+
+instance ToSchema ConnectionStatus where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "csr"
+
 instance ToSchema UserAccount
 
 instance ToSchema AccountStatus where
@@ -501,11 +510,15 @@ instance ToSchema Conversation where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema Client where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "client"
 
 instance ToSchema CookieList where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
+instance ToSchema Location where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "_latitude"  -> "lat"
+    "_longitude" -> "lon"
 
 data NoSwagger
   deriving (Generic)
@@ -576,9 +589,29 @@ instance ToSchema Milliseconds where
 instance ToSchema (ApproveLegalHoldForUserRequest "visible") where
   declareNamedSchema = withFieldLabelMod $ \"alhfuPassword" -> "password"
 
-instance ToSchema CheckHandles
+instance ToSchema CheckHandles where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "checkHandlesList" -> "handles"
+    "checkHandlesNum"  -> "return"
+
 instance ToSchema PasswordResetIdentity
-instance ToSchema (CompletePasswordReset "visible")
+
+instance ToSchema (CompletePasswordReset "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cpwr"
+
+instance ToSchema ClientType where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "TemporaryClientType" -> "temporary"
+    "PermanentClientType" -> "permanent"
+    "LegalHoldClientType" -> "legalhold"
+
+instance ToSchema ClientClass where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PhoneClient"     -> "phone"
+    "TabletClient"    -> "tablet"
+    "DesktopClient"   -> "desktop"
+    "LegalHoldClient" -> "legalHold"
+
 instance ToSchema PasswordResetKey
 instance ToSchema PasswordResetCode
 instance ToSchema (DeleteUser "visible")
