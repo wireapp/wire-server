@@ -68,15 +68,12 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set as Set
 import qualified Data.Text as ST
-import qualified Data.Text as Text
+import qualified Data.Text            as Text
 import qualified GHC.Unicode as Unicode
 import qualified System.Random
 import qualified Test.Tasty.QuickCheck
 import qualified URI.ByteString
 
-
-instance Arbitrary SchematicText where
-  arbitrary = SchematicText <$> elements ["", "a", "woigh", "**", "+++"]
 
 newtype Octet = Octet { octet :: Word16 }
     deriving (Eq, Show)
