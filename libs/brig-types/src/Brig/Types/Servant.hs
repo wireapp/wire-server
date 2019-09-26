@@ -258,7 +258,10 @@ instance ToSchema (NewUser "visible")
 instance ToSchema NewUserOrigin
 
 instance ToSchema (Range from to typ) where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Int)  -- TODO
+    declareNamedSchema _ = declareNamedSchema (Proxy @Int)  -- TODO: at least add a
+                                                            -- description showing the range.
+                                                            -- or perhaps swagger2 can do
+                                                            -- this?
 
 instance ToSchema User
 instance ToSchema UserIdentity
@@ -275,7 +278,7 @@ instance ToSchema Asset where
   declareNamedSchema _ = pure $ NamedSchema (Just "Asset") $ mempty
         & properties .~ properties_
         & example .~ example_
-        & required .~ ["type", "key", "size"]
+        & required .~ ["type", "key"]
         & type_ .~ SwaggerObject
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
@@ -289,7 +292,7 @@ instance ToSchema Asset where
         example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
 
 instance ToSchema AssetSize where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "asset"
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema ColourId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
@@ -306,16 +309,42 @@ instance ToSchema (PlainTextPassword "visible") where
 
 instance ToSchema ManagedBy
 instance ToSchema InvitationCode
-instance ToSchema (NewTeam ())
-instance ToSchema NewTeamUser
 
 instance ToSchema ServiceRef where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
 
-instance ToSchema BindingNewTeamUser
-instance ToSchema BindingNewTeam
-instance ToSchema Alpha
-instance ToSchema CountryCode
+instance ToSchema (NewTeam ()) where
+  declareNamedSchema _ = pure $ NamedSchema (Just "NewTeam ()") $ mempty
+    & properties .~ properties_
+    & example .~ example_
+    & required .~ ["name", "icon"]
+    & type_ .~ SwaggerObject
+    where
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ = HashMap.fromList
+        [ ( "name",     Inline (toSchema (Proxy @(Range 1 256 Text))))
+        , ( "icon",     Inline (toSchema (Proxy @(Range 1 256 Text))))
+        , ( "icon_key", Inline (toSchema (Proxy @(Maybe (Range 1 256 Text)))))
+        ]
+
+      example_ :: Maybe Value
+      example_ = toJSON <$> (newNewTeam @() <$> checked "name" <*> checked "icon")
+
+instance ToSchema NewTeamUser
+
+instance ToSchema BindingNewTeam where
+  declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
+
+instance ToSchema BindingNewTeamUser where
+  declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
+
+instance ToSchema Alpha where
+  declareNamedSchema _ = pure $ NamedSchema (Just "Alpha") $
+    mkEnumSchema $ cs . show <$> [(minBound :: Alpha)..]
+
+instance ToSchema CountryCode where
+  declareNamedSchema _ = pure $ NamedSchema (Just "CountryCode") $
+    mkEnumSchema $ cs . show <$> [(minBound :: CountryCode)..]
 
 instance ToSchema Value where
     declareNamedSchema _ = pure $ NamedSchema (Just "Value") mempty  -- TODO: the test suite
