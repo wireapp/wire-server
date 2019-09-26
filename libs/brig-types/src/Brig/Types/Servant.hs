@@ -302,7 +302,7 @@ instance ToSchema Asset where
         example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
 
 instance ToSchema AssetSize where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "Asset"
 
 instance ToSchema ColourId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
@@ -354,13 +354,8 @@ instance ToSchema BindingNewTeamUser where
         [ ("currency", Inline (toSchema (Proxy @Alpha)))
         ]
 
-instance ToSchema Alpha where
-  declareNamedSchema _ = pure $ NamedSchema (Just "Alpha") $
-    mkEnumSchema $ cs . show <$> [(minBound :: Alpha)..]
-
-instance ToSchema CountryCode where
-  declareNamedSchema _ = pure $ NamedSchema (Just "CountryCode") $
-    mkEnumSchema $ cs . show <$> [(minBound :: CountryCode)..]
+instance ToSchema Alpha
+instance ToSchema CountryCode
 
 instance ToSchema Value where
     declareNamedSchema _ = pure $ NamedSchema (Just "Value") mempty  -- TODO: the test suite
