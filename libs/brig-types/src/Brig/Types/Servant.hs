@@ -257,11 +257,14 @@ instance ToSchema Data.Json.Util.UTCTimeMillis
 instance ToSchema (NewUser "visible")
 instance ToSchema NewUserOrigin
 
-instance ToSchema (Range from to typ) where
-    declareNamedSchema _ = declareNamedSchema (Proxy @typ)  -- TODO: at least add a
-                                                            -- description showing the range.
-                                                            -- or perhaps swagger2 can do
-                                                            -- this?
+instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to typ) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @typ)
+    <&> schema . description .~ Just desc
+    where
+      desc :: Text
+      desc = cs $ "Range; "
+          <> "min=" <> show (natVal (Proxy @from)) <> "; "
+          <> "max=" <> show (natVal (Proxy @to))
 
 instance ToSchema User
 instance ToSchema UserIdentity
