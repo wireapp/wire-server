@@ -14,6 +14,11 @@ BUILDDIR      = build
 docs:
 	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
 
+# Only build part of the documentation
+# See 'exclude_patterns' in source/conf.py
+docs-administrate:
+	docker run --rm -e SPHINXOPTS='-t administrate' -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
+
 exec:
 	docker run -it -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)
 
