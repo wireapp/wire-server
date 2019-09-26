@@ -268,7 +268,7 @@ instance ToSchema (NewUser "visible")
 instance ToSchema NewUserOrigin
 
 instance ToSchema (Range from to typ) where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Int)  -- TODO: at least add a
+    declareNamedSchema _ = declareNamedSchema (Proxy @typ)  -- TODO: at least add a
                                                             -- description showing the range.
                                                             -- or perhaps swagger2 can do
                                                             -- this?
