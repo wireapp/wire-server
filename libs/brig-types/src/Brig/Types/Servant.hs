@@ -522,13 +522,55 @@ instance ToSchema QueuedNotification where
 instance ToSchema Conversation where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cnv"
 
-instance ToSchema Access
-instance ToSchema AccessRole
-instance ToSchema ConvMembers
-instance ToSchema Member
-instance ToSchema MutedStatus
-instance ToSchema OtherMember
-instance ToSchema ReceiptMode
+instance ToSchema Access where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PrivateAccess" -> "private"
+    "InviteAccess" -> "invite"
+    "LinkAccess" -> "link"
+    "CodeAccess" -> "code"
+
+instance ToSchema AccessRole where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PrivateAccessRole" -> "private"
+    "TeamAccessRole" -> "team"
+    "ActivatedAccessRole" -> "activated"
+    "NonActivatedAccessRole" -> "non_activated"
+
+instance ToSchema ConvMembers where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cm"
+
+instance ToSchema Member where
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "mem") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ = HashMap.fromList
+        [ ( "status"
+          , Inline (toSchema (Proxy @Int) &
+                    description .~ Just "This is always 0. DEPRECATED."))
+        , ( "status_ref"
+          , Inline (toSchema (Proxy @Text) &
+                    description .~ Just "This is always \"0.0\". DEPRECATED."))
+        , ( "status_time"
+          , Inline (toSchema (Proxy @Int) &
+                    description .~ Just "This is always \"1970-01-01T00:00:00.000Z\". DEPRECATED."))
+        ]
+
+instance ToSchema OtherMember where
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "om") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ = HashMap.fromList
+        [ ("status", Inline (toSchema (Proxy @Int) &
+                             description .~ Just "This is always 0. DEPRECATED."))
+        ]
+
+instance ToSchema MutedStatus where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema ReceiptMode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
 
 instance ToSchema ConvType where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
