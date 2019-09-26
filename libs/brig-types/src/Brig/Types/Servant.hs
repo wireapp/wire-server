@@ -89,6 +89,16 @@ import qualified URI.ByteString
 ----------------------------------------------------------------------
 -- * more stuff we need to move to other places
 
+-- | newtype for 'Text' that has a prettier 'Arbitrary' instance (just for testing).
+newtype SchematicText = SchematicText Text
+  deriving (Eq, Show, Generic)
+
+instance ToSchema SchematicText where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToParamSchema SchematicText where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
 newtype AccountStatusObject = AccountStatusObject { _fromAccountStatusObject :: AccountStatus }
     deriving (Eq, Show, Generic)
 
@@ -116,10 +126,10 @@ instance ToSchema ActivationCodeObject where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_aco"
 
 instance ToSchema ActivationCode where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToSchema ActivationKey where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 
 ----------------------------------------------------------------------
@@ -284,7 +294,7 @@ instance ToSchema Asset where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
           [ ("type", Inline (mkEnumSchema ["image"]))
-          , ("key", Inline (toSchema (Proxy @Text)))
+          , ("key", Inline (toSchema (Proxy @SchematicText)))
           , ("size", Inline (toSchema (Proxy @AssetSize)))
           ]
 
@@ -305,7 +315,7 @@ instance ToSchema SelfProfile
 instance ToSchema CookieLabel
 
 instance ToSchema (PlainTextPassword "visible") where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToSchema ManagedBy
 instance ToSchema InvitationCode
@@ -377,13 +387,13 @@ instance ToSchema AccountStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToParamSchema (List a) where
-    toParamSchema _ = toParamSchema (Proxy @Text)
+    toParamSchema _ = toParamSchema (Proxy @SchematicText)
 -- alternative:
 -- instance (Generic a, ToParamSchema a, ToParamSchema a) => ToParamSchema (List a)
 -- deriving instance Generic a => Generic (List a)
 
 instance ToParamSchema Email where
-    toParamSchema _ = toParamSchema (Proxy @Text)
+    toParamSchema _ = toParamSchema (Proxy @SchematicText)
 
 instance ToParamSchema Phone
 instance ToParamSchema Handle
@@ -391,10 +401,10 @@ instance ToParamSchema AccountStatus
 instance ToParamSchema PhonePrefix
 
 instance ToParamSchema URI.ByteString.URI where
-    toParamSchema _ = toParamSchema (Proxy @Text)
+    toParamSchema _ = toParamSchema (Proxy @SchematicText)
 
 instance ToSchema URI.ByteString.URI where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToJSON URI.ByteString.URI where
     toJSON = String . cs . URI.ByteString.serializeURIRef'
@@ -406,7 +416,7 @@ instance FromJSON URI.ByteString.URI where
         . cs
 
 instance ToParamSchema Servant.API.URI where
-    toParamSchema _ = toParamSchema (Proxy @Text)
+    toParamSchema _ = toParamSchema (Proxy @SchematicText)
 
 instance ToSchema HttpsUrl where
     declareNamedSchema _ = declareNamedSchema (Proxy @URI.ByteString.URI)
@@ -443,7 +453,7 @@ instance ToSchema RichField where
 instance ToSchema NoContent
 
 instance ToParamSchema ConnId where
-    toParamSchema _ = toParamSchema (Proxy @Text)
+    toParamSchema _ = toParamSchema (Proxy @SchematicText)
 
 -- deprecated (where is this used?)
 instance ToSchema Swagger1.ApiDecl where
@@ -478,7 +488,7 @@ instance ToSchema PropertyValue
 instance ToSchema PropertyKey
 
 instance ToSchema (AsciiText r) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
 
@@ -586,7 +596,7 @@ instance ToSchema PasswordResetCode
 instance ToSchema (DeleteUser "visible")
 
 instance ToSchema Data.Code.Timeout where
-  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @SchematicText)
     where
       tweak = fmap $ schema . description ?~ descr
       descr = "A string containing a 'NominalDiffTime' value (in integer seconds)."
@@ -667,16 +677,16 @@ instance ToSchema UserUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "uup"
 
 instance ToSchema Data.Code.Key where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToSchema Data.Code.Value where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @SchematicText)
 
 instance ToSchema VerifyDeleteUser where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "verifyDeleteUser"
 
 instance ToSchema ServiceKeyPEM where
-    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @SchematicText)
       where
         tweak = fmap $ schema . example ?~ pem
         pem = String . Text.unlines $
@@ -692,13 +702,13 @@ instance ToSchema ServiceKeyPEM where
             ]
 
 instance ToSchema (Fingerprint Rsa) where
-    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @SchematicText)
       where
         tweak = fmap $ schema . example ?~ fpr
         fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
 
 instance ToSchema ServiceToken where
-    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @SchematicText)
       where
         tweak = fmap $ schema . example ?~ tok
         tok = "sometoken"
@@ -866,7 +876,7 @@ instance ToSchema UserLegalHoldStatus where
                     "or whether legal hold is pending approval."
 
 instance ToSchema ClientId where
-    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @SchematicText)
       where
         tweak = fmap $ schema . description ?~ descr
           where
