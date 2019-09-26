@@ -93,14 +93,14 @@ data Conversation = Conversation
     , cnvTeam       :: !(Maybe TeamId)
     , cnvMessageTimer :: !(Maybe Milliseconds)
     , cnvReceiptMode  :: !(Maybe ReceiptMode)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ConvType
     = RegularConv
     | SelfConv
     | One2OneConv
     | ConnectConv
-    deriving (Eq, Bounded, Enum, Show)
+    deriving (Eq, Ord, Show, Bounded, Enum, Generic)
 
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
@@ -110,7 +110,8 @@ data ConvType
 --                              1 - send read ReceiptModes
 --                              2 - send delivery ReceiptModes
 --                              ...
-newtype ReceiptMode = ReceiptMode { unReceiptMode :: Int32 } deriving (Eq, Ord, Show)
+newtype ReceiptMode = ReceiptMode { unReceiptMode :: Int32 }
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Access define how users can join conversations
 data Access

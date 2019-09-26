@@ -36,11 +36,8 @@ import Brig.Types.User.Auth
 import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens
 import Data.Aeson as Aeson hiding (fieldLabelModifier, constructorTagModifier)
-import Data.Aeson (toJSON)
-import Data.Aeson (Value(..))
 import Data.ByteString.Conversion as BSC
-import Data.ByteString.Conversion (fromByteString)
-import Data.ByteString.Conversion (List(..))
+import Data.ByteString.Conversion (List(..), fromByteString)
 import Data.Currency (Alpha)
 import Data.Id
 import Data.ISO3166_CountryCodes
@@ -253,7 +250,11 @@ instance ToSchema UserConnection
 instance ToSchema Relation
 instance ToParamSchema Relation where
 instance ToSchema Message
-instance ToSchema Data.Json.Util.UTCTimeMillis
+
+instance ToSchema Data.Json.Util.UTCTimeMillis where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+    <&> schema . example .~ (Just . toJSON $ String "1864-05-09T11:01:10.369Z")
+
 instance ToSchema (NewUser "visible")
 instance ToSchema NewUserOrigin
 
@@ -271,9 +272,15 @@ instance ToSchema UserIdentity
 
 instance ToSchema Email where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A valid email address."
 
-instance ToSchema Phone
-instance ToSchema Name
+instance ToSchema Phone where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A valid phone number."
+
+instance ToSchema Name where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A user name."
 
 instance ToSchema UserSSOId where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userSSOId"
@@ -308,7 +315,8 @@ instance ToSchema Language
 instance ToSchema Country
 instance ToSchema SelfProfile
 
-instance ToSchema CookieLabel
+instance ToSchema CookieLabel where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema (PlainTextPassword "visible") where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -376,7 +384,7 @@ instance ToSchema ConnectionsStatusRequest where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "csr"
 
 instance ToSchema ConnectionStatus where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "csr"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cs"
 
 instance ToSchema UserAccount
 
@@ -428,7 +436,9 @@ instance ToSchema AccountStatusObject where
 instance ToSchema UserIds where
   declareNamedSchema = withFieldLabelMod $ \"cUsers" -> "ids"
 
-instance ToSchema ExcludedPrefix
+instance ToSchema ExcludedPrefix where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore
+
 instance ToSchema PhonePrefix
 instance ToSchema UserClients
 instance ToSchema ManagedByUpdate
@@ -507,7 +517,30 @@ instance ToSchema QueuedNotification where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema Conversation where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cnv"
+
+instance ToSchema Access
+instance ToSchema AccessRole
+instance ToSchema ConvMembers
+instance ToSchema Member
+instance ToSchema MutedStatus
+instance ToSchema OtherMember
+instance ToSchema ReceiptMode
+
+instance ToSchema ConvType where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+    <&> schema . description .~ Just descr
+    where
+      descr = Text.unlines $ "Allowed values:" : (render <$> sort rows)
+
+      rows :: [(Int, ConvType)]
+      rows = do
+        meaning <- [minBound..]
+        let Number (round -> code) = toJSON meaning
+        pure (code, meaning)
+
+      render :: (Int, ConvType) -> Text
+      render (code, meaning) = cs (encode code) <> ": " <> cs (show meaning)
 
 instance ToSchema Client where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "client"
@@ -610,11 +643,13 @@ instance ToSchema ClientClass where
     "PhoneClient"     -> "phone"
     "TabletClient"    -> "tablet"
     "DesktopClient"   -> "desktop"
-    "LegalHoldClient" -> "legalHold"
+    "LegalHoldClient" -> "legalhold"
 
 instance ToSchema PasswordResetKey
 instance ToSchema PasswordResetCode
-instance ToSchema (DeleteUser "visible")
+
+instance ToSchema (DeleteUser "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "deleteUser"
 
 instance ToSchema Data.Code.Timeout where
   declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
@@ -622,11 +657,18 @@ instance ToSchema Data.Code.Timeout where
       tweak = fmap $ schema . description ?~ descr
       descr = "A string containing a 'NominalDiffTime' value (in integer seconds)."
 
+instance ToSchema DeletionCodeTimeout where
+  declareNamedSchema = withFieldLabelMod $ \"fromDeletionCodeTimeout" -> "expires_in"
 
-instance ToSchema DeletionCodeTimeout
-instance ToSchema (DisableLegalHoldForUserRequest "visible")
-instance ToSchema EmailRemove
-instance ToSchema FeatureFlags
+instance ToSchema (DisableLegalHoldForUserRequest "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "dlhfu"
+
+instance ToSchema EmailRemove where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "er"
+
+instance ToSchema FeatureFlags where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_flag"
+
 instance ToSchema FeatureLegalHold
 instance ToSchema FeatureSSO
 instance ToSchema HandleUpdate
