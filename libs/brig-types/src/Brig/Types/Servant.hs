@@ -271,7 +271,26 @@ instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to t
           <> "max=" <> show (natVal (Proxy @to))
 
 instance ToSchema User
-instance ToSchema UserIdentity
+
+instance ToSchema UserIdentity where
+  declareNamedSchema _ = pure $ NamedSchema (Just "Useridentity") $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties .~ Just 1
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ = HashMap.fromList
+          [ ("email",  Inline (toSchema (Proxy @Email)))
+          , ("phone",  Inline (toSchema (Proxy @Phone)))
+          , ("sso_id", Inline (toSchema (Proxy @UserSSOId)))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just $ toJSON (SSOIdentity
+                                   (UserSSOId "tenant" "subject")
+                                   (Just (Email "me" "example.com"))
+                                   (Just (Phone "+155512345678")))
 
 instance ToSchema Email where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -830,7 +849,12 @@ instance ToSchema UpdateServiceWhitelist where
     "updateServiceWhitelistStatus" -> "whitelisted"
 
 instance ToSchema UserHandleInfo
-instance ToSchema UserProfile
+
+instance ToSchema UserProfile where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "profile"
+    where
+      tweak "pict"   = "picture"
+      tweak "expire" = "expires_at"
 
 instance ToSchema UserUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "uup"
