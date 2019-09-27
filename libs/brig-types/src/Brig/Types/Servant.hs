@@ -848,13 +848,15 @@ instance ToSchema UpdateServiceWhitelist where
     "updateServiceWhitelistService" -> "id"
     "updateServiceWhitelistStatus" -> "whitelisted"
 
-instance ToSchema UserHandleInfo
+instance ToSchema UserHandleInfo where
+  declareNamedSchema = withFieldLabelMod $ \"userHandleId" -> "user"
 
 instance ToSchema UserProfile where
   declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "profile"
     where
       tweak "pict"   = "picture"
       tweak "expire" = "expires_at"
+      tweak good     = good
 
 instance ToSchema UserUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "uup"
