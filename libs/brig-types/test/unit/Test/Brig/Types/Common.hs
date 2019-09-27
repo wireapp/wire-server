@@ -58,6 +58,8 @@ import qualified URI.ByteString
 tests :: TestTree
 tests = testGroup "Common (types vs. aeson)"
     [ run @AccountStatus
+    , run @Access
+    , run @AccessRole
     , run @AccountStatusObject
     , run @AccountStatusUpdate
     , run @ActivationCode
@@ -80,6 +82,9 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ConnectionsStatusRequest
     , run @ConnectionStatus
     , run @Conversation
+    , run @ConvId
+    , run @ConvMembers
+    , run @ConvType
     , run @CookieLabel
     , run @CookieList
     , run @Data.Json.Util.UTCTimeMillis
@@ -107,14 +112,17 @@ tests = testGroup "Common (types vs. aeson)"
     , run @LocaleUpdate
     , run @ManagedBy
     , run @ManagedByUpdate
+    , run @Member
     , run @Message
     , run @Milliseconds
+    , run @MutedStatus
     , run @Name
     , run @NewLegalHoldClient
     , run @NewLegalHoldService
     , run @NewPasswordReset
     , run @(NewTeam ())
     , run @(NewUser "visible")
+    , run @OtherMember
     , run @(PasswordChange "visible")
     , run @Phone
     , run @PhonePrefix
@@ -127,6 +135,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @QueuedNotification
     , run @(Range 3 10 Int32)
     , run @(ReAuthUser "visible")
+    , run @ReceiptMode
     , run @Relation
     , run @(RemoveLegalHoldSettingsRequest "visible")
     , run @RequestNewLegalHoldClient
@@ -142,6 +151,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @Team
     , run @TeamBinding
     , run @TeamData
+    , run @TeamId
     , run @TeamMember
     , run @(TeamMemberDeleteData "visible")
     , run @TeamStatus
@@ -152,6 +162,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @UserClients
     , run @UserConnection
     , run @UserHandleInfo
+    , run @UserId
     , run @UserIdentity
     , run @UserIds
     , run @UserLegalHoldStatus

@@ -520,7 +520,18 @@ instance ToSchema QueuedNotification where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
 
 instance ToSchema Conversation where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cnv"
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ = HashMap.fromList
+        [ ( "last_event"
+          , Inline (toSchema (Proxy @Text) &
+                              description .~ Just "Always \"0.0\".  DEPRECATED."))
+        , ( "last_event_time"
+          , Inline (toSchema (Proxy @Text) &
+                              description .~ Just "Always \"1970-01-01T00:00:00.000Z\".  DEPRECATED."))
+        ]
 
 instance ToSchema Access where
   declareNamedSchema = withConstructorTagMod $ \case
@@ -552,7 +563,7 @@ instance ToSchema Member where
           , Inline (toSchema (Proxy @Text) &
                     description .~ Just "This is always \"0.0\". DEPRECATED."))
         , ( "status_time"
-          , Inline (toSchema (Proxy @Int) &
+          , Inline (toSchema (Proxy @Text) &
                     description .~ Just "This is always \"1970-01-01T00:00:00.000Z\". DEPRECATED."))
         ]
 
