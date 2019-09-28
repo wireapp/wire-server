@@ -180,8 +180,14 @@ instance HasServer api ctx => HasServer (AuthZConn :> api) ctx where
 
 -- | 'mkRef' and 'mkNamedSchema' work well together, and they should *really* be part of the
 -- swagger2 library...
-mkRef :: forall proxy a. (Typeable a, ToSchema a) => proxy a -> Referenced Schema
-mkRef _ = Ref . Reference . cs . show . typeOf $ (undefined :: a)
+mkRef
+  :: forall proxy a m. (Typeable a, ToSchema a, MonadDeclare (Definitions Schema) m)
+  => proxy a -> m (Referenced Schema)
+mkRef proxy = do
+  let key = cs . show . typeOf $ (undefined :: a)
+      val = toSchema proxy
+  declare (HashMap.singleton key val)
+  pure . Ref $ Reference key
 
 mkNamedSchema :: forall proxy a. (Typeable a, ToSchema a) => proxy a -> Schema -> NamedSchema
 mkNamedSchema _ = NamedSchema . Just . cs . show . typeOf $ (undefined :: a)
@@ -287,24 +293,25 @@ instance ToSchema User where
       tweak other      = other
 
 instance ToSchema UserIdentity where
-  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
-        & properties .~ properties_
-        & example .~ example_
-        & minProperties .~ Just 1
-        & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("email",  mkRef (Proxy @Email))
-          , ("phone",  mkRef (Proxy @Phone))
-          , ("sso_id", mkRef (Proxy @UserSSOId))
-          ]
+  declareNamedSchema proxy = do
+    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema) <- do
+      HashMap.fromList <$> sequence
+        [ ("email",)  <$> mkRef (Proxy @Email)
+        , ("phone",)  <$> mkRef (Proxy @Phone)
+        , ("sso_id",) <$> mkRef (Proxy @UserSSOId)
+        ]
 
-        example_ :: Maybe Value
+    let example_ :: Maybe Value
         example_ = Just $ toJSON (SSOIdentity
                                    (UserSSOId "tenant" "subject")
                                    (Just (Email "me" "example.com"))
                                    (Just (Phone "+155512345678")))
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties .~ Just 1
+        & type_ .~ SwaggerObject
 
 instance ToSchema Email where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -324,21 +331,22 @@ instance ToSchema UserSSOId where
 instance ToSchema Pict
 
 instance ToSchema Asset where
-  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+  declareNamedSchema proxy = do
+    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      <- HashMap.fromList <$> sequence
+          [ pure ("type", Inline (mkEnumSchema ["image"]))
+          , pure ("key",  Inline (toSchema (Proxy @Text)))
+          , ("size",) <$> mkRef (Proxy @AssetSize)
+          ]
+
+    let example_ :: Maybe Value
+        example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
+
+    pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["type", "key"]
         & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("type", Inline (mkEnumSchema ["image"]))
-          , ("key",  Inline (toSchema (Proxy @Text)))
-          , ("size", mkRef (Proxy @AssetSize))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
 
 instance ToSchema AssetSize where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "Asset"
@@ -368,21 +376,22 @@ instance ToSchema ServiceRef where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
 
 instance ToSchema (NewTeam ()) where
-  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
-    & properties .~ properties_
-    & example .~ example_
-    & required .~ ["name", "icon"]
-    & type_ .~ SwaggerObject
-    where
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-      properties_ = HashMap.fromList
-        [ ( "name",     mkRef (Proxy @(Range 1 256 Text)))
-        , ( "icon",     mkRef (Proxy @(Range 1 256 Text)))
-        , ( "icon_key", mkRef (Proxy @(Maybe (Range 1 256 Text))))
+  declareNamedSchema proxy = do
+    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      <- HashMap.fromList <$> sequence
+        [ ( "name",)     <$> mkRef (Proxy @(Range 1 256 Text))
+        , ( "icon",)     <$> mkRef (Proxy @(Range 1 256 Text))
+        , ( "icon_key",) <$> mkRef (Proxy @(Maybe (Range 1 256 Text)))
         ]
 
-      example_ :: Maybe Value
-      example_ = toJSON <$> (newNewTeam @() <$> checked "name" <*> checked "icon")
+    let example_ :: Maybe Value
+        example_ = toJSON <$> (newNewTeam @() <$> checked "name" <*> checked "icon")
+
+    pure $ mkNamedSchema proxy $ mempty
+      & properties .~ properties_
+      & example .~ example_
+      & required .~ ["name", "icon"]
+      & type_ .~ SwaggerObject
 
 instance ToSchema NewTeamUser
 
@@ -390,13 +399,10 @@ instance ToSchema BindingNewTeam where
   declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
 
 instance ToSchema BindingNewTeamUser where
-  declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
-    <&> schema . properties %~ (<> properties_)
-    where
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-      properties_ = HashMap.fromList
-        [ ("currency", mkRef (Proxy @Alpha))
-        ]
+  declareNamedSchema _ = do
+    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      <- HashMap.singleton "currency" <$> mkRef (Proxy @Alpha)
+    declareNamedSchema (Proxy @(NewTeam ())) <&> schema . properties %~ (<> properties_)
 
 instance ToSchema Alpha
 instance ToSchema CountryCode
@@ -428,13 +434,10 @@ instance ToSchema ConnectionStatus where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cs"
 
 instance ToSchema UserAccount where
-  declareNamedSchema _ = tweak <$> declareNamedSchema (Proxy @User)
-    where
-      tweak :: NamedSchema -> NamedSchema
-      tweak = schema . properties %~ (<> extra_)
-
-      extra_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-      extra_ = HashMap.fromList [("status" , mkRef (Proxy @AccountStatus))]
+  declareNamedSchema _ = do
+    extra_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      <- HashMap.singleton "status" <$> mkRef (Proxy @AccountStatus)
+    (schema . properties %~ (<> extra_)) <$> declareNamedSchema (Proxy @User)
 
 instance ToSchema AccountStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
@@ -544,23 +547,23 @@ instance ToSchema TeamData where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "td"
 
 instance ToSchema TeamMember where
-  declareNamedSchema proxy = tweakProps <$> withFieldLabelMod tweakFields proxy
-    where
-      tweakFields :: String -> String
-      tweakFields = \case
-        "_userId"          -> "user"
-        "_permissions"     -> "permissions"
-        "_legalHoldStatus" -> "legalhold_status"
-        "_invitation"      -> "invitation"
+  declareNamedSchema proxy = do
+    let tweakFields :: String -> String
+        tweakFields = \case
+          "_userId"          -> "user"
+          "_permissions"     -> "permissions"
+          "_legalHoldStatus" -> "legalhold_status"
+          "_invitation"      -> "invitation"
 
-      tweakProps :: NamedSchema -> NamedSchema
-      tweakProps = schema . properties %~ ((<> adds) . deletes)
-        where
-          deletes = HashMap.delete "invitation"
-          adds = HashMap.fromList
-            [ ("created_by", mkRef (Proxy @UserId))
-            , ("created_at", mkRef (Proxy @Data.Json.Util.UTCTimeMillis))
-            ]
+    extra_ <- HashMap.fromList <$> sequence
+      [ ("created_by",) <$> mkRef (Proxy @UserId)
+      , ("created_at",) <$> mkRef (Proxy @Data.Json.Util.UTCTimeMillis)
+      ]
+
+    let tweakProps :: NamedSchema -> NamedSchema
+        tweakProps = schema . properties %~ ((<> extra_) . HashMap.delete "invitation")
+
+    tweakProps <$> withFieldLabelMod tweakFields proxy
 
 instance ToSchema TeamStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
@@ -776,30 +779,31 @@ instance ToSchema CheckHandles where
 instance ToSchema PasswordResetIdentity
 
 instance ToSchema (CompletePasswordReset "visible") where
-  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
-        & properties .~ properties_
-        & example .~ example_
-        & required .~ ["code", "password"]
-        & minProperties .~ Just 3
-        & maxProperties .~ Just 3
-        & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("key",      Inline (toSchema (Proxy @(Maybe Text))))
-          , ("email",    mkRef (Proxy @(Maybe Email)))
-          , ("phone",    mkRef (Proxy @(Maybe Phone)))
-          , ("code",     Inline (toSchema (Proxy @(Maybe Text))))
-          , ("password", Inline (toSchema (Proxy @(Maybe Text))))
+  declareNamedSchema proxy = do
+    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      <- HashMap.fromList <$> sequence
+          [ pure ("key",      Inline (toSchema (Proxy @(Maybe Text))))
+          , ("email",)    <$> mkRef (Proxy @(Maybe Email))
+          , ("phone",)    <$> mkRef (Proxy @(Maybe Phone))
+          , pure ("code",     Inline (toSchema (Proxy @(Maybe Text))))
+          , pure ("password", Inline (toSchema (Proxy @(Maybe Text))))
           ]
 
-        example_ :: Maybe Value
+    let example_ :: Maybe Value
         example_ = Just . toJSON $ CompletePasswordReset @"visible"
           (PasswordResetPhoneIdentity (Phone "+4916212345678"))
           (PasswordResetCode exampleUrl)
           (mkPlainTextPassword "******")
           where
             Right exampleUrl = validateBase64Url "http://example.com"
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["code", "password"]
+        & minProperties .~ Just 3
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
 
 instance ToSchema ClientType where
   declareNamedSchema = withConstructorTagMod $ \case
@@ -960,39 +964,40 @@ instance ToSchema NewLegalHoldService where
     "newLegalHoldServiceToken" -> "auth_token"
 
 instance ToSchema ViewLegalHoldService where
-    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+    declareNamedSchema proxy = do
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        <- HashMap.fromList <$> sequence
+          [ ("status",)   <$> mkRef (Proxy @MockViewLegalHoldServiceStatus)
+          , ("settings",) <$> mkRef (Proxy @ViewLegalHoldServiceInfo)
+          ]
+
+      let example_ :: Maybe Value
+          example_ = Just . toJSON
+                   $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
+            where
+              tok = ServiceToken "sometoken"
+              Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                  [ "-----BEGIN PUBLIC KEY-----"
+                  , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                  , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                  , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                  , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                  , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                  , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                  , "nQIDAQAB"
+                  , "-----END PUBLIC KEY-----"
+                  ]
+              Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+              Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+              fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+      pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["status"]
         & minProperties .~ Just 1
         & maxProperties .~ Just 2
         & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("status", mkRef (Proxy @MockViewLegalHoldServiceStatus))
-          , ("settings", mkRef (Proxy @ViewLegalHoldServiceInfo))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just . toJSON
-                 $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
-          where
-            tok = ServiceToken "sometoken"
-            Just key = fromByteString . encodeUtf8 $ Text.unlines $
-                [ "-----BEGIN PUBLIC KEY-----"
-                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
-                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
-                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
-                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
-                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
-                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
-                , "nQIDAQAB"
-                , "-----END PUBLIC KEY-----"
-                ]
-            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
-            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 -- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
 data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
@@ -1018,40 +1023,41 @@ instance ToSchema ViewLegalHoldServiceInfo where
         "viewLegalHoldServiceKey"         -> "public_key"
 
     -}
-    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+    declareNamedSchema proxy = do
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        <- HashMap.fromList <$> sequence
+          [ ("team_id",)     <$> mkRef (Proxy @UUID)
+          , ("base_url",)    <$> mkRef (Proxy @HttpsUrl)
+          , ("fingerprint",) <$> mkRef (Proxy @(Fingerprint Rsa))
+          , ("auth_token",)  <$> mkRef (Proxy @(ServiceToken))
+          , ("public_key",)  <$> mkRef (Proxy @(ServiceKeyPEM))
+          ]
+
+      let example_ :: Maybe Value
+          example_ = Just . toJSON
+                   $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
+            where
+              tok = ServiceToken "sometoken"
+              Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                  [ "-----BEGIN PUBLIC KEY-----"
+                  , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                  , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                  , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                  , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                  , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                  , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                  , "nQIDAQAB"
+                  , "-----END PUBLIC KEY-----"
+                  ]
+              Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+              Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+              fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+      pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
         & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("team_id", mkRef (Proxy @UUID))
-          , ("base_url", mkRef (Proxy @HttpsUrl))
-          , ("fingerprint", mkRef (Proxy @(Fingerprint Rsa)))
-          , ("auth_token", mkRef (Proxy @(ServiceToken)))
-          , ("public_key", mkRef (Proxy @(ServiceKeyPEM)))
-          ]
-
-        example_ :: Maybe Value
-        example_ = Just . toJSON
-                 $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
-          where
-            tok = ServiceToken "sometoken"
-            Just key = fromByteString . encodeUtf8 $ Text.unlines $
-                [ "-----BEGIN PUBLIC KEY-----"
-                , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
-                , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
-                , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
-                , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
-                , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
-                , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
-                , "nQIDAQAB"
-                , "-----END PUBLIC KEY-----"
-                ]
-            Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
-            Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-            fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 instance ToSchema LegalHoldTeamConfig where
     declareNamedSchema = withFieldLabelMod $ \case "legalHoldTeamConfigStatus" -> "status"
@@ -1077,30 +1083,30 @@ instance ToSchema NewLegalHoldClient where
     "newLegalHoldClientLastKey"     -> "last_prekey"
 
 instance ToSchema UserLegalHoldStatusResponse where
-    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+    declareNamedSchema proxy = do
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        <- HashMap.fromList <$> sequence
+          [ ("status",)      <$> mkRef (Proxy @UserLegalHoldStatus)
+          , ("last_prekey",) <$> mkRef (Proxy @LastPrekey)
+          , ("client",)      <$> mkRef (Proxy @(IdObject ClientId))
+          ]
+
+      pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & required .~ ["status"]
         & minProperties .~ Just 1
         & maxProperties .~ Just 3
         & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("status", mkRef (Proxy @UserLegalHoldStatus))
-          , ("last_prekey", mkRef (Proxy @LastPrekey))
-          , ("client", mkRef (Proxy @(IdObject ClientId)))
-          ]
 
 instance (Typeable a, ToSchema a) => ToSchema (IdObject a) where
-    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+    declareNamedSchema proxy = do
+      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        <- HashMap.singleton "id" <$> mkRef (Proxy @a)
+
+      pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & required .~ ["id"]
         & type_ .~ SwaggerObject
-      where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-        properties_ = HashMap.fromList
-          [ ("id", mkRef (Proxy @a))
-          ]
 
 instance ToSchema UserLegalHoldStatus where
     declareNamedSchema = tweak . withConstructorTagMod ctmod
