@@ -4,10 +4,6 @@
 -- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
 -- live), and turn warning about orphans back on.
 
--- TODO: change some 'Inline' properites into 'Ref'.  (not sure i remember why i didn't do
--- that to begin with.  it may cause problems with the test function that crawles the API, but
--- then we just need to fix those problems.)
-
 module Brig.Types.Servant where
 
 import Imports
@@ -182,6 +178,14 @@ instance HasServer api ctx => HasServer (AuthZConn :> api) ctx where
 ----------------------------------------------------------------------
 -- * swagger helpers
 
+-- | 'mkRef' and 'mkNamedSchema' work well together, and they should *really* be part of the
+-- swagger2 library...
+mkRef :: forall proxy a. (Typeable a, ToSchema a) => proxy a -> Referenced Schema
+mkRef _ = Ref . Reference . cs . show . typeOf $ (undefined :: a)
+
+mkNamedSchema :: forall proxy a. (Typeable a, ToSchema a) => proxy a -> Schema -> NamedSchema
+mkNamedSchema _ = NamedSchema . Just . cs . show . typeOf $ (undefined :: a)
+
 camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
   where go x = if isUpper x then "_" <> [toLower x] else [x]
@@ -283,7 +287,7 @@ instance ToSchema User where
       tweak other      = other
 
 instance ToSchema UserIdentity where
-  declareNamedSchema _ = pure $ NamedSchema (Just "Useridentity") $ mempty
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & minProperties .~ Just 1
@@ -291,9 +295,9 @@ instance ToSchema UserIdentity where
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
-          [ ("email",  Inline (toSchema (Proxy @Email)))
-          , ("phone",  Inline (toSchema (Proxy @Phone)))
-          , ("sso_id", Inline (toSchema (Proxy @UserSSOId)))
+          [ ("email",  mkRef (Proxy @Email))
+          , ("phone",  mkRef (Proxy @Phone))
+          , ("sso_id", mkRef (Proxy @UserSSOId))
           ]
 
         example_ :: Maybe Value
@@ -320,7 +324,7 @@ instance ToSchema UserSSOId where
 instance ToSchema Pict
 
 instance ToSchema Asset where
-  declareNamedSchema _ = pure $ NamedSchema (Just "Asset") $ mempty
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["type", "key"]
@@ -329,8 +333,8 @@ instance ToSchema Asset where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
           [ ("type", Inline (mkEnumSchema ["image"]))
-          , ("key", Inline (toSchema (Proxy @Text)))
-          , ("size", Inline (toSchema (Proxy @AssetSize)))
+          , ("key",  Inline (toSchema (Proxy @Text)))
+          , ("size", mkRef (Proxy @AssetSize))
           ]
 
         example_ :: Maybe Value
@@ -360,7 +364,7 @@ instance ToSchema ServiceRef where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
 
 instance ToSchema (NewTeam ()) where
-  declareNamedSchema _ = pure $ NamedSchema (Just "NewTeam ()") $ mempty
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
     & properties .~ properties_
     & example .~ example_
     & required .~ ["name", "icon"]
@@ -368,9 +372,9 @@ instance ToSchema (NewTeam ()) where
     where
       properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
       properties_ = HashMap.fromList
-        [ ( "name",     Inline (toSchema (Proxy @(Range 1 256 Text))))
-        , ( "icon",     Inline (toSchema (Proxy @(Range 1 256 Text))))
-        , ( "icon_key", Inline (toSchema (Proxy @(Maybe (Range 1 256 Text)))))
+        [ ( "name",     mkRef (Proxy @(Range 1 256 Text)))
+        , ( "icon",     mkRef (Proxy @(Range 1 256 Text)))
+        , ( "icon_key", mkRef (Proxy @(Maybe (Range 1 256 Text))))
         ]
 
       example_ :: Maybe Value
@@ -387,14 +391,14 @@ instance ToSchema BindingNewTeamUser where
     where
       properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
       properties_ = HashMap.fromList
-        [ ("currency", Inline (toSchema (Proxy @Alpha)))
+        [ ("currency", mkRef (Proxy @Alpha))
         ]
 
 instance ToSchema Alpha
 instance ToSchema CountryCode
 
 instance ToSchema Value where
-    declareNamedSchema _ = pure $ NamedSchema (Just "Value") mempty  -- TODO: the test suite
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy mempty  -- TODO: the test suite
                                                                      -- error is almost
                                                                      -- helpful, but not
                                                                      -- quite.  generate the
@@ -404,7 +408,8 @@ instance ToSchema Value where
                                                                      -- then make it look like
                                                                      -- that.
 
-instance ToSchema Handle
+instance ToSchema Handle where
+    declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 deriving instance Generic ISO639_1
 instance ToSchema ISO639_1
@@ -425,7 +430,7 @@ instance ToSchema UserAccount where
       tweak = schema . properties %~ (<> extra_)
 
       extra_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
-      extra_ = HashMap.fromList [("status" , Inline (toSchema (Proxy @AccountStatus)))]
+      extra_ = HashMap.fromList [("status" , mkRef (Proxy @AccountStatus))]
 
 instance ToSchema AccountStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
@@ -544,6 +549,7 @@ instance ToSchema Search.Contact where
     "contactName"    -> "name"
     "contactColorId" -> "accent_id"
     "contactHandle"  -> "handle"
+    bad -> error $ "Search.Contact: " <> show bad
 
 instance ToSchema (SearchResult Search.Contact) where
   declareNamedSchema = withFieldLabelMod $ \case
@@ -551,6 +557,7 @@ instance ToSchema (SearchResult Search.Contact) where
     "searchReturned" -> "returned"
     "searchTook"     -> "took"
     "searchResults"  -> "documents"
+    bad -> error $ "SearchResult Search.Contact: " <> show bad
 
 instance ToSchema QueuedNotification where
   declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
@@ -739,7 +746,7 @@ instance ToSchema CheckHandles where
 instance ToSchema PasswordResetIdentity
 
 instance ToSchema (CompletePasswordReset "visible") where
-  declareNamedSchema _ = pure $ NamedSchema (Just "CompletePasswordReset") $ mempty
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["code", "password"]
@@ -750,8 +757,8 @@ instance ToSchema (CompletePasswordReset "visible") where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
           [ ("key",      Inline (toSchema (Proxy @(Maybe Text))))
-          , ("email",    Inline (toSchema (Proxy @(Maybe Email))))
-          , ("phone",    Inline (toSchema (Proxy @(Maybe Phone))))
+          , ("email",    mkRef (Proxy @(Maybe Email)))
+          , ("phone",    mkRef (Proxy @(Maybe Phone)))
           , ("code",     Inline (toSchema (Proxy @(Maybe Text))))
           , ("password", Inline (toSchema (Proxy @(Maybe Text))))
           ]
@@ -844,7 +851,7 @@ instance ToSchema SSOTeamConfig
 -- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
 -- password, which will break roundtrip tests as well as client functions.
 instance ToSchema (TeamMemberDeleteData "visible") where
-  declareNamedSchema _ = pure $ NamedSchema (Just "TeamMemberDeleteData") $ mempty
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["password"]
@@ -922,7 +929,7 @@ instance ToSchema NewLegalHoldService where
     "newLegalHoldServiceToken" -> "auth_token"
 
 instance ToSchema ViewLegalHoldService where
-    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldService") $ mempty
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["status"]
@@ -932,8 +939,8 @@ instance ToSchema ViewLegalHoldService where
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
-          [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus)))
-          , ("settings", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
+          [ ("status", mkRef (Proxy @MockViewLegalHoldServiceStatus))
+          , ("settings", mkRef (Proxy @ViewLegalHoldServiceInfo))
           ]
 
         example_ :: Maybe Value
@@ -980,7 +987,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
         "viewLegalHoldServiceKey"         -> "public_key"
 
     -}
-    declareNamedSchema _ = pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $ mempty
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
         & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
@@ -988,11 +995,11 @@ instance ToSchema ViewLegalHoldServiceInfo where
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
-          [ ("team_id", Inline (toSchema (Proxy @UUID)))
-          , ("base_url", Inline (toSchema (Proxy @HttpsUrl)))
-          , ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa))))
-          , ("auth_token", Inline (toSchema (Proxy @(ServiceToken))))
-          , ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
+          [ ("team_id", mkRef (Proxy @UUID))
+          , ("base_url", mkRef (Proxy @HttpsUrl))
+          , ("fingerprint", mkRef (Proxy @(Fingerprint Rsa)))
+          , ("auth_token", mkRef (Proxy @(ServiceToken)))
+          , ("public_key", mkRef (Proxy @(ServiceKeyPEM)))
           ]
 
         example_ :: Maybe Value
@@ -1039,7 +1046,7 @@ instance ToSchema NewLegalHoldClient where
     "newLegalHoldClientLastKey"     -> "last_prekey"
 
 instance ToSchema UserLegalHoldStatusResponse where
-    declareNamedSchema _ = pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $ mempty
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & required .~ ["status"]
         & minProperties .~ Just 1
@@ -1048,20 +1055,20 @@ instance ToSchema UserLegalHoldStatusResponse where
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
-          [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus)))
-          , ("last_prekey", Inline (toSchema (Proxy @LastPrekey)))
-          , ("client", Inline (toSchema (Proxy @(IdObject ClientId))))
+          [ ("status", mkRef (Proxy @UserLegalHoldStatus))
+          , ("last_prekey", mkRef (Proxy @LastPrekey))
+          , ("client", mkRef (Proxy @(IdObject ClientId)))
           ]
 
-instance ToSchema a => ToSchema (IdObject a) where
-    declareNamedSchema _ = pure $ NamedSchema (Just "IdObject a") $ mempty
+instance (Typeable a, ToSchema a) => ToSchema (IdObject a) where
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & required .~ ["id"]
         & type_ .~ SwaggerObject
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
         properties_ = HashMap.fromList
-          [ ("id", Inline (toSchema (Proxy @a)))
+          [ ("id", mkRef (Proxy @a))
           ]
 
 instance ToSchema UserLegalHoldStatus where
