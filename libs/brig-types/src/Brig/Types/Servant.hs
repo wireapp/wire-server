@@ -349,7 +349,9 @@ instance ToSchema ColourId where
 instance ToSchema Locale
 instance ToSchema Language
 instance ToSchema Country
-instance ToSchema SelfProfile
+
+instance ToSchema SelfProfile where
+  declareNamedSchema _ = declareNamedSchema (Proxy @User)
 
 instance ToSchema CookieLabel where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -524,13 +526,34 @@ instance ToSchema Swagger where
 instance ToSchema Perm
 instance ToSchema Permissions
 instance ToSchema PhoneUpdate
-instance ToSchema Team
+
+instance ToSchema Team where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_team"
 
 instance ToSchema TeamBinding where
   declareNamedSchema _ = declareNamedSchema (Proxy @Bool)
 
-instance ToSchema TeamData
-instance ToSchema TeamMember
+instance ToSchema TeamData where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "td"
+
+instance ToSchema TeamMember where
+  declareNamedSchema proxy = tweakProps <$> withFieldLabelMod tweakFields proxy
+    where
+      tweakFields :: String -> String
+      tweakFields = \case
+        "_userId"          -> "user"
+        "_permissions"     -> "permissions"
+        "_legalHoldStatus" -> "legalhold_status"
+        "_invitation"      -> "invitation"
+
+      tweakProps :: NamedSchema -> NamedSchema
+      tweakProps = schema . properties %~ ((<> adds) . deletes)
+        where
+          deletes = HashMap.delete "invitation"
+          adds = HashMap.fromList
+            [ ("created_by", mkRef (Proxy @UserId))
+            , ("created_at", mkRef (Proxy @Data.Json.Util.UTCTimeMillis))
+            ]
 
 instance ToSchema TeamStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
@@ -545,7 +568,7 @@ instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
 
 instance ToSchema Search.Contact where
   declareNamedSchema = withFieldLabelMod $ \case
-    "concatUserId"   -> "id"
+    "contactUserId"  -> "id"
     "contactName"    -> "name"
     "contactColorId" -> "accent_id"
     "contactHandle"  -> "handle"
@@ -846,7 +869,8 @@ instance ToSchema (RemoveLegalHoldSettingsRequest "visible")
 instance ToSchema SSOStatus where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
 
-instance ToSchema SSOTeamConfig
+instance ToSchema SSOTeamConfig where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "ssoTeamConfig"
 
 -- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
 -- password, which will break roundtrip tests as well as client functions.
