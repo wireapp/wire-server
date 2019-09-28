@@ -246,7 +246,11 @@ instance ToSchema Metrics.Metrics where
 instance ToSchema UserSet where
   declareNamedSchema = withFieldLabelMod $ \"usUsrs" -> "users"
 
-instance ToSchema UserConnection
+instance ToSchema UserConnection where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "uc"
+    where
+      tweak "conv_id" = "conversation"
+      tweak other     = other
 
 instance ToSchema Relation where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
@@ -270,7 +274,13 @@ instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to t
           <> "min=" <> show (natVal (Proxy @from)) <> "; "
           <> "max=" <> show (natVal (Proxy @to))
 
-instance ToSchema User
+instance ToSchema User where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "user"
+    where
+      tweak "pict"     = "picture"
+      tweak "expire"   = "expires_at"
+      tweak "s_s_o_id" = "sso_id"
+      tweak other      = other
 
 instance ToSchema UserIdentity where
   declareNamedSchema _ = pure $ NamedSchema (Just "Useridentity") $ mempty
@@ -408,7 +418,14 @@ instance ToSchema ConnectionsStatusRequest where
 instance ToSchema ConnectionStatus where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cs"
 
-instance ToSchema UserAccount
+instance ToSchema UserAccount where
+  declareNamedSchema _ = tweak <$> declareNamedSchema (Proxy @User)
+    where
+      tweak :: NamedSchema -> NamedSchema
+      tweak = schema . properties %~ (<> extra_)
+
+      extra_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      extra_ = HashMap.fromList [("status" , Inline (toSchema (Proxy @AccountStatus)))]
 
 instance ToSchema AccountStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
