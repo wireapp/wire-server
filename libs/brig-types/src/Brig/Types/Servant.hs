@@ -490,7 +490,8 @@ instance ToSchema UserIds where
 instance ToSchema ExcludedPrefix where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore
 
-instance ToSchema PhonePrefix
+instance ToSchema PhonePrefix where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema UserClients
 
@@ -681,13 +682,14 @@ instance ToSchema CookieList where
   declareNamedSchema = withFieldLabelMod $ \"cookieList" -> "cookies"
 
 instance ToSchema (Cookie ()) where
-  declareNamedSchema = withFieldLabelMod $ \case
-    "cookieId"        -> "id"
-    "cookieCreated"   -> "created"
-    "cookieExpires"   -> "expires"
-    "cookieLabel"     -> "label"
-    "cookieType"      -> "type"
-    "cookieSuccessor" -> "successor"
+  declareNamedSchema proxy = tweakProps <$> withFieldLabelMod (tweakFields . camelToUnderscore . unsafeStripPrefix "cookie") proxy
+    where
+      tweakFields :: String -> String
+      tweakFields "succ" = "successor"
+      tweakFields other  = other
+
+      tweakProps :: NamedSchema -> NamedSchema
+      tweakProps = schema . properties %~ HashMap.delete "value"
 
 instance ToSchema CookieId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -825,10 +827,10 @@ instance ToSchema (DeleteUser "visible") where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "deleteUser"
 
 instance ToSchema Data.Code.Timeout where
-  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
     where
       tweak = fmap $ schema . description ?~ descr
-      descr = "A string containing a 'NominalDiffTime' value (in integer seconds)."
+      descr = "Number of seconds (integer)."
 
 instance ToSchema DeletionCodeTimeout where
   declareNamedSchema = withFieldLabelMod $ \"fromDeletionCodeTimeout" -> "expires_in"
@@ -840,7 +842,9 @@ instance ToSchema EmailRemove where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "er"
 
 instance ToSchema FeatureFlags where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_flag"
+  declareNamedSchema = withFieldLabelMod $ \case
+    "_flagLegalHold" -> "legalhold"
+    "_flagSSO"       -> "sso"
 
 instance ToSchema FeatureLegalHold
 instance ToSchema FeatureSSO
