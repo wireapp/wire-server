@@ -359,7 +359,9 @@ instance ToSchema CookieLabel where
 instance ToSchema (PlainTextPassword "visible") where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-instance ToSchema ManagedBy
+instance ToSchema ManagedBy where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "ManagedBy"
+
 instance ToSchema InvitationCode
 
 instance ToSchema ServiceRef where
@@ -486,7 +488,9 @@ instance ToSchema ExcludedPrefix where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore
 
 instance ToSchema PhonePrefix
+
 instance ToSchema UserClients
+
 instance ToSchema ManagedByUpdate
 
 instance ToSchema RichInfoUpdate where
@@ -522,9 +526,12 @@ instance ToSchema (SwaggerUiHtml dir any) where
 instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
+instance ToSchema Perm where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int32)
 
-instance ToSchema Perm
-instance ToSchema Permissions
+instance ToSchema Permissions where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_"
+
 instance ToSchema PhoneUpdate
 
 instance ToSchema Team where
@@ -870,15 +877,13 @@ instance ToSchema SSOStatus where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
 
 instance ToSchema SSOTeamConfig where
-  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "ssoTeamConfig"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "ssoTeamConfig"
 
--- this is reasonably correct, but the ToJSON instance of PlainTextPassword hides the
--- password, which will break roundtrip tests as well as client functions.
 instance ToSchema (TeamMemberDeleteData "visible") where
   declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
         & properties .~ properties_
         & example .~ example_
-        & required .~ ["password"]
+        & required .~ []
         & type_ .~ SwaggerObject
       where
         properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
@@ -889,6 +894,8 @@ instance ToSchema (TeamMemberDeleteData "visible") where
         example_ :: Maybe Value
         example_ = Just "{\"password\":null}"  -- or "{\"password\":\"wef\"}"
                                                -- FUTUREWORK: can there be more than one example?
+
+  -- FUTUREWORK: why not @declareNamedSchema = withFieldLabelMod $ \"_tmdAuthPassword" -> "password"@?
 
 instance ToSchema UpdateServiceWhitelist where
   declareNamedSchema = withFieldLabelMod $ \case
