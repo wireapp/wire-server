@@ -16,7 +16,6 @@ import "swagger2" Data.Swagger.Internal.TypeShape
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 
-import GHC.Generics (Rep)
 import Brig.Types.Activation
 import Brig.Types.Client
 import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
@@ -48,9 +47,10 @@ import Data.Text.Ascii
 import Data.Text as Text (unlines)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text (Text)
+import Data.Time
 import Data.Typeable (typeOf)
-import Data.UUID (fromText)
-import Data.UUID (UUID)
+import Data.UUID (fromText, UUID)
+import GHC.Generics (Rep)
 import Galley.Types
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
@@ -729,18 +729,25 @@ instance ToSchema Client where
 instance ToSchema CookieList where
   declareNamedSchema = withFieldLabelMod $ \"cookieList" -> "cookies"
 
-instance ToSchema (Cookie ()) where
-  declareNamedSchema proxy = tweakProps <$> withFieldLabelMod (tweakFields . camelToUnderscore . unsafeStripPrefix "cookie") proxy
-    where
-      tweakFields :: String -> String
-      tweakFields "succ" = "successor"
-      tweakFields other  = other
+-- | type-level representation of the warped 'ToJSON' instance of 'Cookie'.
+-- FUTUREWORK: this should be used instead of @Cookie ()@ whenever it goes on the wire.
+data CookieView = CookieView
+    { cookieViewId        :: CookieId
+    , cookieViewType      :: CookieType
+    , cookieViewCreated   :: UTCTime
+    , cookieViewExpires   :: UTCTime
+    , cookieViewLabel     :: (Maybe CookieLabel)
+    , cookieViewSuccessor :: (Maybe CookieId)
+    } deriving (Generic)
 
-      tweakProps :: NamedSchema -> NamedSchema
-      tweakProps = schema %~ replaceProps ["value"] mempty
+instance ToSchema CookieView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cookieView"
+
+instance ToSchema (Cookie ()) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @CookieView)
 
 instance ToSchema CookieId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
 
 instance ToSchema CookieType where
   declareNamedSchema = withConstructorTagMod $ \case
