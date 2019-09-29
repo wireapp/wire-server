@@ -231,11 +231,16 @@ mkEnumSchema vals = mempty & enum_ .~ Just (String <$> vals)
 
 type SchemaProps = HashMap.InsOrdHashMap Text (Referenced Schema)
 
-replaceProps :: [Text] -> SchemaProps -> (SchemaProps -> SchemaProps)
-replaceProps toDelete toAdd sp0 = sp2
-  where
-    sp1 = foldl' (flip HashMap.delete) sp0 toDelete
-    sp2 = sp1 <> toAdd
+-- | Remove existing properties (and make them non-required), and add new properties in their
+-- place.
+--
+-- FUTUREWORK: some of the new properties will be required, but it's not clear which, so we
+-- leave the specifcation vague.  we also do not account for required changes in the
+-- @{min,max}Properties@ fields, which may make the specification incorrect.
+replaceProps :: [Text] -> SchemaProps -> (Schema -> Schema)
+replaceProps toDelete toAdd
+  = (properties %~ (\props -> foldl' (flip HashMap.delete) props toDelete) . (<> toAdd))
+  . (required %~ (\\ toDelete))
 
 
 ----------------------------------------------------------------------
@@ -299,7 +304,7 @@ instance ToSchema (NewUser "visible") where
       ]
 
     let tweakProps :: NamedSchema -> NamedSchema
-        tweakProps = schema . properties %~
+        tweakProps = schema %~
           ( replaceProps ["identity"] insteadOfIdentity
           . replaceProps ["origin"] insteadOfOrigin
           )
@@ -605,7 +610,7 @@ instance ToSchema TeamMember where
       ]
 
     let tweakProps :: NamedSchema -> NamedSchema
-        tweakProps = schema . properties %~ replaceProps ["invitation"] extra_
+        tweakProps = schema %~ replaceProps ["invitation"] extra_
 
     tweakProps <$> withFieldLabelMod tweakFields proxy
 
@@ -732,7 +737,7 @@ instance ToSchema (Cookie ()) where
       tweakFields other  = other
 
       tweakProps :: NamedSchema -> NamedSchema
-      tweakProps = schema . properties %~ replaceProps ["value"] mempty
+      tweakProps = schema %~ replaceProps ["value"] mempty
 
 instance ToSchema CookieId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
