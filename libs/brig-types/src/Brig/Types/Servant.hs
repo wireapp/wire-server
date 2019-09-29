@@ -229,6 +229,14 @@ withConstructorTagMod fun = genericDeclareNamedSchema opts
 mkEnumSchema :: [Text] -> Schema
 mkEnumSchema vals = mempty & enum_ .~ Just (String <$> vals)
 
+type SchemaProps = HashMap.InsOrdHashMap Text (Referenced Schema)
+
+replaceProps :: [Text] -> SchemaProps -> (SchemaProps -> SchemaProps)
+replaceProps toDelete toAdd sp0 = sp2
+  where
+    sp1 = foldl' (flip HashMap.delete) sp0 toDelete
+    sp2 = sp1 <> toAdd
+
 
 ----------------------------------------------------------------------
 -- * orphans
@@ -266,13 +274,44 @@ instance ToSchema Relation where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
 
 instance ToParamSchema Relation where
-instance ToSchema Message
+
+instance ToSchema Message where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema Data.Json.Util.UTCTimeMillis where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
     <&> schema . example .~ (Just . toJSON $ String "1864-05-09T11:01:10.369Z")
 
-instance ToSchema (NewUser "visible")
+
+instance ToSchema (NewUser "visible") where
+  declareNamedSchema proxy = do
+    insteadOfIdentity <- HashMap.fromList <$> sequence
+      [ ("email",)  <$> mkRef (Proxy @Email)
+      , ("phone",)  <$> mkRef (Proxy @Phone)
+      , ("sso_id",) <$> mkRef (Proxy @UserSSOId)
+      ]
+
+    insteadOfOrigin <- HashMap.fromList <$> sequence
+      [ ("invitation_code",) <$> mkRef (Proxy @InvitationCode)
+      , ("team_code",)       <$> mkRef (Proxy @InvitationCode)
+      , ("team",)            <$> mkRef (Proxy @BindingNewTeamUser)
+      , ("team_id",)         <$> mkRef (Proxy @TeamId)
+      ]
+
+    let tweakProps :: NamedSchema -> NamedSchema
+        tweakProps = schema . properties %~
+          ( replaceProps ["identity"] insteadOfIdentity
+          . replaceProps ["origin"] insteadOfOrigin
+          )
+
+        tweakFields :: String -> String
+        tweakFields "u_u_i_d" = "uuid"
+        tweakFields "pict"    = "picture"
+        tweakFields other     = other
+
+    tweakProps <$> withFieldLabelMod (tweakFields . camelToUnderscore . unsafeStripPrefix "uc") proxy
+
+-- only needed for generically deriving @instance ToSchema (NewUser "visible")@
 instance ToSchema NewUserOrigin
 
 instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to typ) where
@@ -294,7 +333,7 @@ instance ToSchema User where
 
 instance ToSchema UserIdentity where
   declareNamedSchema proxy = do
-    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema) <- do
+    properties_ :: SchemaProps <- do
       HashMap.fromList <$> sequence
         [ ("email",)  <$> mkRef (Proxy @Email)
         , ("phone",)  <$> mkRef (Proxy @Phone)
@@ -332,7 +371,7 @@ instance ToSchema Pict
 
 instance ToSchema Asset where
   declareNamedSchema proxy = do
-    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+    properties_ :: SchemaProps
       <- HashMap.fromList <$> sequence
           [ pure ("type", Inline (mkEnumSchema ["image"]))
           , pure ("key",  Inline (toSchema (Proxy @Text)))
@@ -354,9 +393,11 @@ instance ToSchema AssetSize where
 instance ToSchema ColourId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int)
 
-instance ToSchema Locale
-instance ToSchema Language
-instance ToSchema Country
+instance ToSchema Locale where
+  declareNamedSchema _ = tweak <$> declareNamedSchema (Proxy @Text)
+    where
+      tweak :: NamedSchema -> NamedSchema
+      tweak = schema . description .~ Just "<ISO 639-1>(-<ISO 3166-1-alpha2>)?"
 
 instance ToSchema SelfProfile where
   declareNamedSchema _ = declareNamedSchema (Proxy @User)
@@ -378,7 +419,7 @@ instance ToSchema ServiceRef where
 
 instance ToSchema (NewTeam ()) where
   declareNamedSchema proxy = do
-    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+    properties_ :: SchemaProps
       <- HashMap.fromList <$> sequence
         [ ( "name",)     <$> mkRef (Proxy @(Range 1 256 Text))
         , ( "icon",)     <$> mkRef (Proxy @(Range 1 256 Text))
@@ -401,7 +442,7 @@ instance ToSchema BindingNewTeam where
 
 instance ToSchema BindingNewTeamUser where
   declareNamedSchema _ = do
-    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+    properties_ :: SchemaProps
       <- HashMap.singleton "currency" <$> mkRef (Proxy @Alpha)
     declareNamedSchema (Proxy @(NewTeam ())) <&> schema . properties %~ (<> properties_)
 
@@ -436,7 +477,7 @@ instance ToSchema ConnectionStatus where
 
 instance ToSchema UserAccount where
   declareNamedSchema _ = do
-    extra_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+    extra_ :: SchemaProps
       <- HashMap.singleton "status" <$> mkRef (Proxy @AccountStatus)
     (schema . properties %~ (<> extra_)) <$> declareNamedSchema (Proxy @User)
 
@@ -496,7 +537,8 @@ instance ToSchema PhonePrefix where
 
 instance ToSchema UserClients
 
-instance ToSchema ManagedByUpdate
+instance ToSchema ManagedByUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "mbu"
 
 instance ToSchema RichInfoUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "riu"
@@ -563,7 +605,7 @@ instance ToSchema TeamMember where
       ]
 
     let tweakProps :: NamedSchema -> NamedSchema
-        tweakProps = schema . properties %~ ((<> extra_) . HashMap.delete "invitation")
+        tweakProps = schema . properties %~ replaceProps ["invitation"] extra_
 
     tweakProps <$> withFieldLabelMod tweakFields proxy
 
@@ -601,7 +643,7 @@ instance ToSchema Conversation where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
     <&> schema . properties %~ (<> properties_)
     where
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
       properties_ = HashMap.fromList
         [ ( "last_event"
           , Inline (toSchema (Proxy @Text) &
@@ -632,7 +674,7 @@ instance ToSchema Member where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "mem") proxy
     <&> schema . properties %~ (<> properties_)
     where
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
       properties_ = HashMap.fromList
         [ ( "status"
           , Inline (toSchema (Proxy @Int) &
@@ -649,7 +691,7 @@ instance ToSchema OtherMember where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "om") proxy
     <&> schema . properties %~ (<> properties_)
     where
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
       properties_ = HashMap.fromList
         [ ("status", Inline (toSchema (Proxy @Int) &
                              description .~ Just "This is always 0. DEPRECATED."))
@@ -690,7 +732,7 @@ instance ToSchema (Cookie ()) where
       tweakFields other  = other
 
       tweakProps :: NamedSchema -> NamedSchema
-      tweakProps = schema . properties %~ HashMap.delete "value"
+      tweakProps = schema . properties %~ replaceProps ["value"] mempty
 
 instance ToSchema CookieId where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -783,7 +825,7 @@ instance ToSchema PasswordResetIdentity
 
 instance ToSchema (CompletePasswordReset "visible") where
   declareNamedSchema proxy = do
-    properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+    properties_ :: SchemaProps
       <- HashMap.fromList <$> sequence
           [ pure ("key",      Inline (toSchema (Proxy @(Maybe Text))))
           , ("email",)    <$> mkRef (Proxy @(Maybe Email))
@@ -875,9 +917,13 @@ instance ToSchema InvitationList where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "il"
 
 instance ToSchema InvitationRequest where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "ir"
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "ir"
+    where
+      tweak "name" = "inviter_name"
+      tweak other  = other
 
-instance ToSchema LegalHoldClientRequest
+instance ToSchema LegalHoldClientRequest where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "lhcr"
 
 instance ToSchema ServiceKeyType where
   declareNamedSchema = withConstructorTagMod $ \case "RsaServiceKey" -> "rsa"
@@ -889,12 +935,37 @@ instance ToSchema ServiceKey where
     "serviceKeyPEM"  -> "pem"
 
 instance ToSchema LegalHoldService where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "legalHoldService"
+  declareNamedSchema = withFieldLabelMod $ \case
+    "legalHoldServiceTeam"        -> "team_id"
+    "legalHoldServiceUrl"         -> "base_url"
+    "legalHoldServiceFingerprint" -> "fingerprint"
+    "legalHoldServiceToken"       -> "auth_token"
+    "legalHoldServiceKey"         -> "public_key"
 
-instance ToSchema LegalHoldServiceConfirm
-instance ToSchema LocaleUpdate
+instance ToSchema LegalHoldServiceConfirm where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "lhc"
 
-instance ToSchema NewPasswordReset
+instance ToSchema LocaleUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"luLocale" -> "locale"
+
+instance ToSchema NewPasswordReset where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps
+      <- HashMap.fromList <$> sequence
+           [ ("email",) <$>  mkRef (Proxy @(Maybe Email))
+           , ("phone",) <$>  mkRef (Proxy @(Maybe Phone))
+           ]
+
+    let example_ :: Maybe Value
+        example_ = Just . toJSON . NewPasswordReset . Left $ Email "you" "example.com"
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 1
+        & type_ .~ SwaggerObject
+
 instance ToSchema (PasswordChange "visible")
 instance ToSchema PhoneRemove
 instance ToSchema (ReAuthUser "visible")
@@ -913,7 +984,7 @@ instance ToSchema (TeamMemberDeleteData "visible") where
         & required .~ []
         & type_ .~ SwaggerObject
       where
-        properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+        properties_ :: SchemaProps
         properties_ = HashMap.fromList
           [ ("password", Inline (toSchema (Proxy @(Maybe Text))))
           ]
@@ -988,7 +1059,7 @@ instance ToSchema NewLegalHoldService where
 
 instance ToSchema ViewLegalHoldService where
     declareNamedSchema proxy = do
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
         <- HashMap.fromList <$> sequence
           [ ("status",)   <$> mkRef (Proxy @MockViewLegalHoldServiceStatus)
           , ("settings",) <$> mkRef (Proxy @ViewLegalHoldServiceInfo)
@@ -1047,7 +1118,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
 
     -}
     declareNamedSchema proxy = do
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
         <- HashMap.fromList <$> sequence
           [ ("team_id",)     <$> mkRef (Proxy @UUID)
           , ("base_url",)    <$> mkRef (Proxy @HttpsUrl)
@@ -1107,7 +1178,7 @@ instance ToSchema NewLegalHoldClient where
 
 instance ToSchema UserLegalHoldStatusResponse where
     declareNamedSchema proxy = do
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
         <- HashMap.fromList <$> sequence
           [ ("status",)      <$> mkRef (Proxy @UserLegalHoldStatus)
           , ("last_prekey",) <$> mkRef (Proxy @LastPrekey)
@@ -1123,7 +1194,7 @@ instance ToSchema UserLegalHoldStatusResponse where
 
 instance (Typeable a, ToSchema a) => ToSchema (IdObject a) where
     declareNamedSchema proxy = do
-      properties_ :: HashMap.InsOrdHashMap Text (Referenced Schema)
+      properties_ :: SchemaProps
         <- HashMap.singleton "id" <$> mkRef (Proxy @a)
 
       pure $ mkNamedSchema proxy $ mempty
