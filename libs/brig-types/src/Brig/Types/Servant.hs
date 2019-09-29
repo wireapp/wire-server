@@ -231,17 +231,6 @@ mkEnumSchema vals = mempty & enum_ .~ Just (String <$> vals)
 
 type SchemaProps = HashMap.InsOrdHashMap Text (Referenced Schema)
 
--- | Remove existing properties (and make them non-required), and add new properties in their
--- place.
---
--- FUTUREWORK: some of the new properties will be required, but it's not clear which, so we
--- leave the specifcation vague.  we also do not account for required changes in the
--- @{min,max}Properties@ fields, which may make the specification incorrect.
-replaceProps :: [Text] -> SchemaProps -> (Schema -> Schema)
-replaceProps toDelete toAdd
-  = (properties %~ (\props -> foldl' (flip HashMap.delete) props toDelete) . (<> toAdd))
-  . (required %~ (\\ toDelete))
-
 
 ----------------------------------------------------------------------
 -- * orphans
@@ -288,33 +277,47 @@ instance ToSchema Data.Json.Util.UTCTimeMillis where
     <&> schema . example .~ (Just . toJSON $ String "1864-05-09T11:01:10.369Z")
 
 
+-- | type-level representation of the warped 'ToJSON' instance of @'NewUser' "visible"@.
+--
+-- FUTUREWORK: this should be used instead of @Cookie ()@ whenever it goes on the wire.
+--
+-- FUTUREWORK: there are is also a lot of information about what values are legal that should
+-- go to the type level, but isn't yet (like, if you can only ever have exactly one of two
+-- fields set, don't use two Maybes, but one Either).  fixing this probably requires changes
+-- to the API.
+data NewUserView = NewUserView
+    { newUserViewName           :: Name
+    , newUserViewUuid           :: Maybe UUID
+
+    -- instead of newUserViewIdentity:
+    , newUserViewEmail          :: Maybe Email
+    , newUserViewPhone          :: Maybe Phone
+    , newUserViewSsoId          :: Maybe UserSSOId
+
+    , newUserViewPicture        :: Maybe Pict
+    , newUserViewAssets         :: [Asset]
+    , newUserViewAccentId       :: Maybe ColourId
+    , newUserViewEmailCode      :: Maybe ActivationCode
+    , newUserViewPhoneCode      :: Maybe ActivationCode
+
+    -- instead of newUserViewOrigin:
+    , newUserViewInvitationCode :: Maybe InvitationCode
+    , newUserViewTeamCode       :: Maybe InvitationCode
+    , newUserViewTeam           :: Maybe BindingNewTeamUser
+    , newUserViewTeamId         :: Maybe TeamId
+
+    , newUserViewLabel          :: Maybe CookieLabel
+    , newUserViewLocale         :: Maybe Locale
+    , newUserViewPassword       :: Maybe (PlainTextPassword "visible")
+    , newUserViewExpiresIn      :: Maybe ExpiresIn
+    , newUserViewManagedBy      :: Maybe ManagedBy
+    } deriving (Generic)
+
+instance ToSchema NewUserView where
+  declareNamedSchema = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "newUserView")
+
 instance ToSchema (NewUser "visible") where
-  declareNamedSchema proxy = do
-    insteadOfIdentity <- HashMap.fromList <$> sequence
-      [ ("email",)  <$> mkRef (Proxy @Email)
-      , ("phone",)  <$> mkRef (Proxy @Phone)
-      , ("sso_id",) <$> mkRef (Proxy @UserSSOId)
-      ]
-
-    insteadOfOrigin <- HashMap.fromList <$> sequence
-      [ ("invitation_code",) <$> mkRef (Proxy @InvitationCode)
-      , ("team_code",)       <$> mkRef (Proxy @InvitationCode)
-      , ("team",)            <$> mkRef (Proxy @BindingNewTeamUser)
-      , ("team_id",)         <$> mkRef (Proxy @TeamId)
-      ]
-
-    let tweakProps :: NamedSchema -> NamedSchema
-        tweakProps = schema %~
-          ( replaceProps ["identity"] insteadOfIdentity
-          . replaceProps ["origin"] insteadOfOrigin
-          )
-
-        tweakFields :: String -> String
-        tweakFields "u_u_i_d" = "uuid"
-        tweakFields "pict"    = "picture"
-        tweakFields other     = other
-
-    tweakProps <$> withFieldLabelMod (tweakFields . camelToUnderscore . unsafeStripPrefix "uc") proxy
+  declareNamedSchema _ = declareNamedSchema (Proxy @NewUserView)
 
 -- only needed for generically deriving @instance ToSchema (NewUser "visible")@
 instance ToSchema NewUserOrigin
@@ -595,24 +598,27 @@ instance ToSchema TeamBinding where
 instance ToSchema TeamData where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "td"
 
+-- | type-level representation of the warped 'ToJSON' instance of 'TeamMember'.
+--
+-- FUTUREWORK: this should be used instead of @TeamMember@ whenever it goes on the wire.
+--
+-- FUTUREWORK: there are is also some information about what values are legal that should go
+-- to the type level, but isn't yet (like, if you can only ever have exactly one of two fields
+-- set, don't use two Maybes, but one Either).  fixing this probably requires changes to the
+-- API.
+data TeamMemberView = TeamMemberView
+    { teamMemberViewUser            :: UserId
+    , teamMemberViewPermissions     :: Permissions
+    , teamMemberViewCreatedBy       :: Maybe UserId
+    , teamMemberViewCreatedAt       :: Maybe Data.Json.Util.UTCTimeMillis
+    , teamMemberViewLegalholdStatus :: UserLegalHoldStatus
+    } deriving (Generic)
+
+instance ToSchema TeamMemberView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "teamMemberView"
+
 instance ToSchema TeamMember where
-  declareNamedSchema proxy = do
-    let tweakFields :: String -> String
-        tweakFields = \case
-          "_userId"          -> "user"
-          "_permissions"     -> "permissions"
-          "_legalHoldStatus" -> "legalhold_status"
-          "_invitation"      -> "invitation"
-
-    extra_ <- HashMap.fromList <$> sequence
-      [ ("created_by",) <$> mkRef (Proxy @UserId)
-      , ("created_at",) <$> mkRef (Proxy @Data.Json.Util.UTCTimeMillis)
-      ]
-
-    let tweakProps :: NamedSchema -> NamedSchema
-        tweakProps = schema %~ replaceProps ["invitation"] extra_
-
-    tweakProps <$> withFieldLabelMod tweakFields proxy
+  declareNamedSchema _ = declareNamedSchema (Proxy @TeamMemberView)
 
 instance ToSchema TeamStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
