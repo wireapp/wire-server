@@ -375,7 +375,9 @@ instance ToSchema Name where
 instance ToSchema UserSSOId where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userSSOId"
 
-instance ToSchema Pict
+instance ToSchema Pict where
+  declareNamedSchema _ = declareNamedSchema (Proxy @[Text])
+    -- 'Pict' is deprecated anyway, so we might as well lie a little...
 
 instance ToSchema Asset where
   declareNamedSchema proxy = do
@@ -587,7 +589,11 @@ instance ToSchema Perm where
 instance ToSchema Permissions where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_"
 
-instance ToSchema PhoneUpdate
+instance ToSchema PhoneUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"prPhone" -> "phone"
+
+instance ToSchema PhoneRemove where
+  declareNamedSchema = withFieldLabelMod $ \"puPhone" -> "phone"
 
 instance ToSchema Team where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_team"
@@ -623,8 +629,11 @@ instance ToSchema TeamMember where
 instance ToSchema TeamStatus where
   declareNamedSchema = withConstructorTagMod camelToUnderscore
 
-instance ToSchema PropertyValue
-instance ToSchema PropertyKey
+instance ToSchema PropertyKey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema PropertyValue where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
 
 instance ToSchema (AsciiText r) where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -648,7 +657,7 @@ instance ToSchema (SearchResult Search.Contact) where
     bad -> error $ "SearchResult Search.Contact: " <> show bad
 
 instance ToSchema QueuedNotification where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Value)  -- TODO
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
 
 instance ToSchema Conversation where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
@@ -929,7 +938,12 @@ instance ToSchema Invitation where
     "inCreatedAt"  -> "created_at"
     "inCreatedBy"  -> "created_by"
 
-instance ToSchema Role
+instance ToSchema Role where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "RoleOwner" -> "owner"
+    "RoleAdmin" -> "admin"
+    "RoleMember" -> "member"
+    "RoleExternalPartner" -> "partner"
 
 instance ToSchema InvitationList where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "il"
@@ -985,8 +999,9 @@ instance ToSchema NewPasswordReset where
         & type_ .~ SwaggerObject
 
 instance ToSchema (PasswordChange "visible")
-instance ToSchema PhoneRemove
+
 instance ToSchema (ReAuthUser "visible")
+
 instance ToSchema (RemoveLegalHoldSettingsRequest "visible")
 
 instance ToSchema SSOStatus where
