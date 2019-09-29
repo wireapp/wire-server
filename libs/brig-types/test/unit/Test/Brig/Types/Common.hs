@@ -86,6 +86,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @ConvMembers
     , run @ConvType
     , run @CookieLabel
+    , run @(Cookie ())
     , run @CookieList
     , run @Data.Json.Util.UTCTimeMillis
     , run @(DeleteUser "visible")

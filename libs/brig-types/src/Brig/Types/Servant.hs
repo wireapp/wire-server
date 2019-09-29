@@ -370,7 +370,8 @@ instance ToSchema (PlainTextPassword "visible") where
 instance ToSchema ManagedBy where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "ManagedBy"
 
-instance ToSchema InvitationCode
+instance ToSchema InvitationCode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToSchema ServiceRef where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
@@ -846,10 +847,28 @@ instance ToSchema FeatureFlags where
     "_flagLegalHold" -> "legalhold"
     "_flagSSO"       -> "sso"
 
-instance ToSchema FeatureLegalHold
-instance ToSchema FeatureSSO
-instance ToSchema HandleUpdate
-instance ToSchema Invitation
+instance ToSchema FeatureLegalHold where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "FeatureLegalHoldDisabledPermanently" -> "disabled-permanently"
+    "FeatureLegalHoldDisabledByDefault"   -> "disabled-by-default"
+
+instance ToSchema FeatureSSO where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "FeatureSSOEnabledByDefault"  -> "enabled-by-default"
+    "FeatureSSODisabledByDefault" -> "disabled-by-default"
+
+instance ToSchema HandleUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"huHandle" -> "handle"
+
+instance ToSchema Invitation where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "inTeam"       -> "team"
+    "inRole"       -> "role"
+    "inInvitation" -> "id"
+    "inIdentity"   -> "email"
+    "inCreatedAt"  -> "created_at"
+    "inCreatedBy"  -> "created_by"
+
 instance ToSchema Role
 
 instance ToSchema InvitationList where
