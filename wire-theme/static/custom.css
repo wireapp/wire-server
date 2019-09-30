@@ -1,0 +1,117 @@
+/* This file intentionally left blank. */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 300;
+}
+
+
+div.body h1, div.body h2, div.body h3, div.body h4, div.body h5, div.body h6 {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+  font-size: 24px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+div.sphinxsidebar h3, div.sphinxsidebar h4 {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.nav-wrapper {
+  border-bottom: 1px solid rgba(186, 200, 209, 0.24);
+}
+
+.nav {
+  margin: 0 auto;
+  max-width: 1199px;
+  padding: 24px 24px 0 24px;
+  height: 48px;
+  align-items: center;
+}
+
+div.document {
+  width: auto;
+  max-width: 1199px;
+  padding: 24px 24px;
+}
+
+div.sphinxsidebarwrapper {
+  padding: 10px 60px 0 0 ;
+}
+
+
+div.sphinxsidebar {
+  width: 300px;
+}
+
+div.sphinxsidebar li {
+  padding: 8px 0;
+}
+
+div.sphinxsidebar li a {
+
+}
+
+#searchbox {
+  padding-top: 24px;
+}
+
+div.sphinxsidebar input {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 300;
+  color: gray;
+}
+
+div.sphinxsidebar ul ul,
+div.sphinxsidebar ul.want-points {
+    margin-left: 8px;
+    list-style: none;
+}
+
+div.sphinxsidebar {
+    font-size: 16px;
+}
+div.sphinxsidebar a {
+  border-bottom: none;
+}
+
+div.sphinxsidebar ul li.toctree-l1 > a{
+  font-size: 16px;
+  border-bottom: none;
+}
+
+div.bodywrapper {
+  margin: 0 0 0 300px;
+}
+
+.bodywrapper li a {
+  color: #2391d3;
+  border-bottom: none;
+}
+
+.footer {
+  position: relative;
+  bottom: 20px;
+  padding-top: 60px;
+  text-align: center;
+}
+@media screen and (max-width: 875px) {
+  div.bodywrapper {
+    margin: 0;
+  }
+  div.sphinxsidebar {
+    width: auto;
+    background: white;
+  }
+  div.sphinxsidebar a {
+    color: black;
+  }
+}
+
