@@ -954,7 +954,9 @@ sitemap o = do
 
 setProperty :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
 setProperty (u ::: c ::: k ::: req) = do
-    unless (Text.compareLength (Ascii.toText (propertyKeyName k)) maxKeyLen <= EQ) $
+    maxKeyLen <- view propertyMaxKeyLen
+    maxValueLen <- view propertyMaxValueLen
+    unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
         throwStd propertyKeyTooLarge
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody (fromJsonRequest req))
     unless (Lazy.length lbs <= maxValueLen) $
@@ -962,9 +964,6 @@ setProperty (u ::: c ::: k ::: req) = do
     val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
     API.setProperty u c k val !>> propDataError
     return empty
-  where
-    maxKeyLen   = 256
-    maxValueLen = 512
 
 deleteProperty :: UserId ::: ConnId ::: PropertyKey -> Handler Response
 deleteProperty (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
