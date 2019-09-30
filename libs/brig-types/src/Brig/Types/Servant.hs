@@ -38,6 +38,7 @@ import Data.Id
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.LegalHold
+import Data.List1 (List1)
 import Data.Misc
 import Data.Proxy
 import Data.Range
@@ -314,7 +315,7 @@ data NewUserView = NewUserView
     } deriving (Generic)
 
 instance ToSchema NewUserView where
-  declareNamedSchema = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "newUserView")
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "newUserView"
 
 instance ToSchema (NewUser "visible") where
   declareNamedSchema _ = declareNamedSchema (Proxy @NewUserView)
@@ -331,14 +332,38 @@ instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to t
           <> "min=" <> show (natVal (Proxy @from)) <> "; "
           <> "max=" <> show (natVal (Proxy @to))
 
-instance ToSchema User where
-  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "user"
-    where
-      tweak "pict"     = "picture"
-      tweak "expire"   = "expires_at"
-      tweak "s_s_o_id" = "sso_id"
-      tweak other      = other
+-- | type-level representation of the warped 'ToJSON' instance of 'User'.
+--
+-- FUTUREWORK: this should be used instead of 'User' whenever it goes on the wire.
+data UserView = UserView
+    { userViewId        :: UserId
 
+    -- instead of userViewIdentity:
+    , userViewEmail     :: Maybe Email
+    , userViewPhone     :: Maybe Phone
+    , userViewSsoId     :: Maybe UserSSOId
+
+    , userViewName      :: Name
+    , userViewPicture   :: Pict
+    , userViewAssets    :: [Asset]
+    , userViewAccentId  :: ColourId
+    , userViewDeleted   :: Maybe Bool
+    , userViewLocale    :: Locale
+    , userViewService   :: Maybe ServiceRef
+    , userViewHandle    :: Maybe Handle
+    , userViewExpiresAt :: Maybe Data.Json.Util.UTCTimeMillis
+    , userViewTeam      :: Maybe TeamId
+    , userViewManagedBy :: ManagedBy
+    } deriving (Generic)
+
+instance ToSchema UserView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userView"
+
+instance ToSchema User where
+  declareNamedSchema _ = declareNamedSchema (Proxy @UserView)
+
+-- | FUTUREWORK: This is inlined into 'User' and possibly other types.  Not sure we need a
+-- separate 'ToSchema' instance?
 instance ToSchema UserIdentity where
   declareNamedSchema proxy = do
     properties_ :: SchemaProps <- do
@@ -547,7 +572,18 @@ instance ToSchema ExcludedPrefix where
 instance ToSchema PhonePrefix where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-instance ToSchema UserClients where
+instance ToSchema UserClients
+{- example:
+ { "00007c34-0000-0dd7-0000-574b000029e4" : [
+      "156432",
+   ],
+   "0000581b-0000-18ad-0000-0015000053f7" : [
+      "3f74fc",
+      "728384",
+      "e086b6"
+   ]
+ }
+-}
 
 instance ToSchema ManagedByUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "mbu"
@@ -659,7 +695,10 @@ instance ToSchema (SearchResult Search.Contact) where
     bad -> error $ "SearchResult Search.Contact: " <> show bad
 
 instance ToSchema QueuedNotification where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cnv"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_queuedNotification"
+
+instance ToSchema (List1 Object) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
 
 instance ToSchema Conversation where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
@@ -678,9 +717,9 @@ instance ToSchema Conversation where
 instance ToSchema Access where
   declareNamedSchema = withConstructorTagMod $ \case
     "PrivateAccess" -> "private"
-    "InviteAccess" -> "invite"
-    "LinkAccess" -> "link"
-    "CodeAccess" -> "code"
+    "InviteAccess"  -> "invite"
+    "LinkAccess"    -> "link"
+    "CodeAccess"    -> "code"
 
 instance ToSchema AccessRole where
   declareNamedSchema = withConstructorTagMod $ \case
@@ -1001,13 +1040,13 @@ instance ToSchema NewPasswordReset where
         & type_ .~ SwaggerObject
 
 instance ToSchema (PasswordChange "visible") where
-  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "cp"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cp"
 
 instance ToSchema (ReAuthUser "visible") where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "reAuth"
 
 instance ToSchema (RemoveLegalHoldSettingsRequest "visible") where
-  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rmlhsrPassword"
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rmlhsr"
 
 instance ToSchema SSOStatus where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
