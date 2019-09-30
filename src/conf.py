@@ -48,7 +48,7 @@ if tags.has('administrate'):
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme_path = ['..'] 
+html_theme_path = ['_themes']
 html_theme = 'wire-theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
