@@ -87,7 +87,7 @@ instance ToJSON NotificationTarget where
 data QueuedNotification = QueuedNotification
     { _queuedNotificationId      :: !NotificationId
     , _queuedNotificationPayload :: !(List1 Object)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 queuedNotification :: NotificationId -> List1 Object -> QueuedNotification
 queuedNotification = QueuedNotification

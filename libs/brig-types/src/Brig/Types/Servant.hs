@@ -503,7 +503,9 @@ instance ToParamSchema (List a) where
 instance ToParamSchema Email where
     toParamSchema _ = toParamSchema (Proxy @Text)
 
-instance ToParamSchema Phone
+instance ToParamSchema Phone where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
 instance ToParamSchema Handle
 instance ToParamSchema AccountStatus
 instance ToParamSchema PhonePrefix
@@ -543,9 +545,9 @@ instance ToSchema ExcludedPrefix where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore
 
 instance ToSchema PhonePrefix where
-    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-instance ToSchema UserClients
+instance ToSchema UserClients where
 
 instance ToSchema ManagedByUpdate where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "mbu"
@@ -583,17 +585,17 @@ instance ToSchema (SwaggerUiHtml dir any) where
 instance ToSchema Swagger where
   declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
 
-instance ToSchema Perm where
+instance {-# OVERLAPPING #-} ToSchema (Set Perm) where
   declareNamedSchema _ = declareNamedSchema (Proxy @Int32)
 
 instance ToSchema Permissions where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_"
 
 instance ToSchema PhoneUpdate where
-  declareNamedSchema = withFieldLabelMod $ \"fromPhone" -> "phone"
+  declareNamedSchema = withFieldLabelMod $ \"puPhone" -> "phone"
 
 instance ToSchema PhoneRemove where
-  declareNamedSchema = withFieldLabelMod $ \"fromPhone" -> "phone"
+  declareNamedSchema = withFieldLabelMod $ \"prPhone" -> "phone"
 
 instance ToSchema Team where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_team"
@@ -657,7 +659,7 @@ instance ToSchema (SearchResult Search.Contact) where
     bad -> error $ "SearchResult Search.Contact: " <> show bad
 
 instance ToSchema QueuedNotification where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cnv"
 
 instance ToSchema Conversation where
   declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
@@ -1001,9 +1003,11 @@ instance ToSchema NewPasswordReset where
 instance ToSchema (PasswordChange "visible") where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "cp"
 
-instance ToSchema (ReAuthUser "visible")
+instance ToSchema (ReAuthUser "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "reAuth"
 
-instance ToSchema (RemoveLegalHoldSettingsRequest "visible")
+instance ToSchema (RemoveLegalHoldSettingsRequest "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rmlhsrPassword"
 
 instance ToSchema SSOStatus where
   declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
@@ -1095,7 +1099,7 @@ instance ToSchema ViewLegalHoldService where
     declareNamedSchema proxy = do
       properties_ :: SchemaProps
         <- HashMap.fromList <$> sequence
-          [ ("status",)   <$> mkRef (Proxy @MockViewLegalHoldServiceStatus)
+          [ ("status",)   <$> mkRef (Proxy @MockViewLegalHoldServiceStatus)  -- TODO: this isn't transitive, that's why the test fails.
           , ("settings",) <$> mkRef (Proxy @ViewLegalHoldServiceInfo)
           ]
 
