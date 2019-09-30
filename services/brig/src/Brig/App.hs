@@ -34,9 +34,6 @@ module Brig.App
     , turnEnv
     , turnEnvV2
     , internalEvents
-    , propertyMaxKeyLen
-    , propertyMaxValueLen
-
       -- * App Monad
     , AppT
     , AppIO
@@ -147,8 +144,6 @@ data Env = Env
     , _digestSHA256  :: Digest
     , _digestMD5     :: Digest
     , _indexEnv      :: IndexEnv
-    , _propertyMaxKeyLen :: Int64
-    , _propertyMaxValueLen :: Int64
     }
 
 makeLenses ''Env
@@ -218,8 +213,6 @@ newEnv o = do
         , _digestMD5         = md5
         , _digestSHA256      = sha256
         , _indexEnv          = mkIndexEnv o lgr mgr mtr
-        , _propertyMaxKeyLen = 256 -- TODO configure
-        , _propertyMaxValueLen = 512 -- TODO configure
         }
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)

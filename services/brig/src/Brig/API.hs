@@ -954,8 +954,8 @@ sitemap o = do
 
 setProperty :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
 setProperty (u ::: c ::: k ::: req) = do
-    maxKeyLen <- view propertyMaxKeyLen
-    maxValueLen <- view propertyMaxValueLen
+    maxKeyLen <- view (settings . propertyMaxKeyLen)
+    maxValueLen <- view (settings . propertyMaxValueLen)
     unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
         throwStd propertyKeyTooLarge
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody (fromJsonRequest req))
