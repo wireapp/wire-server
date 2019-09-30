@@ -114,7 +114,7 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     ensureUnboundUsers (zusr : zothers)
     ensureConnected zusr zothers
     Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-              . Log.msg (Log.val "Teams.createNonBindingTeam")
+              . Log.field "action" (Log.val "Teams.createNonBindingTeam")
     team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
     finishCreateTeam team owner others (Just zcon)
 
@@ -154,7 +154,7 @@ updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     let zothers = map (view userId) membs
     Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-              . Log.msg (Log.val "Teams.updateTeam")
+              . Log.field "action" (Log.val "Teams.updateTeam")
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body
     now <- liftIO getCurrentTime
@@ -256,7 +256,7 @@ addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     nmem <- fromJsonBody req
     let uid = nmem^.ntmNewTeamMember.userId
     Log.debug $ Log.field "targets" (toByteString uid)
-              . Log.msg (Log.val "Teams.addTeamMember")
+              . Log.field "action" (Log.val "Teams.addTeamMember")
     mems <- Data.teamMembers tid
     -- verify permissions
     tmem <- permissionCheck zusr AddTeamMember mems
@@ -285,7 +285,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
         targetPermissions = targetMember^.permissions
 
     Log.debug $ Log.field "targets" (toByteString targetId)
-              . Log.msg (Log.val "Teams.updateTeamMember")
+              . Log.field "action" (Log.val "Teams.updateTeamMember")
 
     -- get the team and verify permissions
     team    <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -332,7 +332,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     Log.debug $ Log.field "targets" (toByteString remove)
-              . Log.msg (Log.val "Teams.deleteTeamMember")
+              . Log.field "action" (Log.val "Teams.deleteTeamMember")
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
     okToDelete <- canBeDeleted [] remove tid
@@ -468,7 +468,7 @@ addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember
 addTeamMemberInternal tid origin originConn newMem mems = do
     let new = newMem^.ntmNewTeamMember
     Log.debug $ Log.field "targets" (toByteString (new^.userId))
-              . Log.msg (Log.val "Teams.addTeamMemberInternal")
+              . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
     o <- view options
     unless (length mems < fromIntegral (o^.optSettings.setMaxTeamSize)) $
         throwM tooManyTeamMembers
