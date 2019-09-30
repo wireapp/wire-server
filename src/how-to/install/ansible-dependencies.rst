@@ -3,6 +3,8 @@ Dependencies on operator's machine
 
 You need python2, some python dependencies, a specific version of ansible, and gnu make. Then, you need to download specific ansible roles using ansible-galaxy, and binaries `kubectl` and `helm`. You have two options to achieve this:
 
+.. _ansible-deps-option-1:
+
 (Option 1) How to install the necessary components locally when using Debian or Ubuntu as your operating system
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -35,6 +37,8 @@ Download the ansible roles necessary to install databases and kubernetes
    make download
 
 
+.. _ansible-deps-option-2:
+
 (Option 2) How to use docker on the local host with a docker image that contains all the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -45,32 +49,38 @@ On your machine you need to have the `docker` binary available. See `how to inst
    docker pull quay.io/wire/networkless-admin
 
    # cd to a fresh, empty directory and create some sub directories
-   mkdir -p wire-installation && cd wire-installation
-   mkdir -p ../admin_work_dir && cd ../admin_work_dir
-   mkdir -p ../dot_ssh
-   mkdir -p ../dot_kube
-   # copy ssh key
+   cd ...  # you pick a good location!
+   mkdir ./admin_work_dir ./dot_kube ./dot_ssh && cd ./admin_work_dir
+   # copy ssh key (the easy way, if you want to use your main ssh key pair)
    cp ~/.ssh/id_rsa ../dot_ssh/
+   # alternatively: create a key pair exclusively for this installation
+   ssh-keygen -t ed25519 -a 100 -f ../dot_ssh/id_ed25519
+   ssh-add ../dot_ssh/id_ed25519
+   # make sure the server accepts your ssh key for user root
+   ssh-copy-id -i ../dot_ssh/id_ed25519.pub root@<server>
 
    docker run -it --network=host -v $(pwd):/mnt -v $(pwd)/../dot_ssh:/root/.ssh -v $(pwd)/../dot_kube:/root/.kube quay.io/wire/networkless-admin
-   # inside the container:
+   # inside the container, copy everything to the mounted host file system:
    cp -a /src/* /mnt
-   # run ansible from here. If you make any changes, they will be written to your host file system
-   # (those files will be owned by root as docker runs as root)
-   cd /mnt/wire-server-deploy/ansible
+   # and make sure the git repos are up to date:
+   cd /mnt/wire-server && git pull
+   cd /mnt/wire-server-deploy && git pull
+   cd /mnt/wire-server-deploy-networkless && git pull
 
-Any changes inside the container under ``/mnt`` (host system:
-``admin_work_dir``) and ``/root/.ssh`` (host system:
-``~/.ssh/ssh-for-docker``) will persist (albeit as user ``root``),
-everything else will not, so be careful when creating other files.
+(The name of the docker image contains ``networkless`` because it was originally constructed for high-security installations without connection to the public internet.  Since then it has grown to be our recommended general-purpose installation platform.)
 
-On subsequent times:
+Now exit the docker container.  On subsequent times:
 
 ::
 
    cd admin_work_dir
    docker run -it --network=host -v $(pwd):/mnt -v $(pwd)/../dot_ssh:/root/.ssh -v $(pwd)/../dot_kube:/root/.kube quay.io/wire/networkless-admin
+   cd wire-server-deploy/ansible
    # do work.
+
+Any changes inside the container under the mount-points listed in the
+above command will persist (albeit as user ``root``), everything else
+will not, so be careful when creating other files.
 
 To connect to a running container for a second shell:
 

@@ -71,24 +71,29 @@ In your second terminal, first install databases:
 
    helm upgrade --install databases-ephemeral wire/databases-ephemeral --wait
 
-You should see some pods being created in your first terminal as the above command completes. When you're done, ins
+You should see some pods being created in your first terminal as the above command completes.
 
-Next, install aws service mocks:
+You can do the following two steps (mock aws services and demo smtp
+server) in parallel with the above in two more terminals, or
+sequentially after database-ephemeral installation has succeeded.
 
 .. code:: shell
 
    helm upgrade --install fake-aws wire/fake-aws --wait
-
-Next, install an smtp server:
-
-.. code:: shell
-
    helm upgrade --install smtp wire/demo-smtp --wait
 
 How to install wire-server itself
 ---------------------------------------
 
-Download example demo values and secrets:
+Change back to the wire-server-deploy directory.  Copy example demo values and secrets:
+
+.. code:: shell
+
+   mkdir -p wire-server && cd wire-server
+   cp ../values/wire-server/demo-secrets.example.yaml secrets.yaml
+   cp ../values/wire-server/demo-values.example.yaml values.yaml
+
+Or, if you are not in wire-server-deploy any more:
 
 .. code:: shell
 
@@ -98,7 +103,7 @@ Download example demo values and secrets:
 
 Open ``values.yaml`` and replace ``example.com`` and other domains and subdomains with domains of your choosing. Look for the ``# change this`` comments. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
 
-Generate some secrets:
+Generate some secrets (if you are using the docker image from :ref:`ansible-deps-option-2`, you should do open a shell on the host system for this):
 
 .. code:: shell
 
@@ -125,31 +130,46 @@ There are a few options available. The easiest option is to use an ingress with 
 
    # (assuming you're in the wire-server directory from the subsection above)
    cd ..
-   mkdir -p nginx-lb-ingress && cd nginx-lb-ingress
-   curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-lb-ingress/demo-secrets.example.yaml > secrets.yaml
-   curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-lb-ingress/demo-values.example.yaml > values.yaml
+   mkdir -p nginx-ingress-services && cd nginx-ingress-services
+   cp ../values/nginx-ingress-services/demo-secrets.example.yaml secrets.yaml
+   cp ../values/nginx-ingress-services/demo-values.example.yaml values.yaml
+
+Or, the online version again, as above:
+
+.. code:: shell
+
+   ...
+   curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-ingress-services/demo-secrets.example.yaml > secrets.yaml
+   curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-ingress-services/demo-values.example.yaml > values.yaml
 
 You should now have the following directory structure:
 
 ::
 
   .
-  ├── nginx-lb-ingress
+  ├── nginx-ingress-services
   │   ├── secrets.yaml
   │   └── values.yaml
   └── wire-server
       ├── secrets.yaml
       └── values.yaml
 
-Inside the ``nginx-lb-ingress`` directory, open ``values.yaml`` and replace ``example.com`` with a domain of your choosing. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
+Inside the ``nginx-ingress-services`` directory, open ``values.yaml`` and replace ``example.com`` with a domain of your choosing. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
 
-Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certficate for ``*.example.com``. The easiest and cheapest option is to use `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
+Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certficate for ``*.example.com``. The easiest and cheapest options are:
+
+1. use `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
+2. create a self-signed certificate, eg.:
+   ``openssl req -x509 -newkey rsa:2048 -keyout key.pem -nodes -out cert.pem -days 365 -subj '/CN=*.example.com'``.
+   Note that this certificate is deliberately
+   weak.  Do not use these settings in production!
 
 Install the nodeport nginx ingress:
 
 .. code:: shell
 
-   helm upgrade --install nginx-lb-ingress wire/nginx-lb-ingress -f values.yaml -f secrets.yaml --wait
+   helm upgrade --install nginx-ingress-controller wire/nginx-ingress-controller --wait
+   helm upgrade --install nginx-ingress-services wire/nginx-ingress-services -f values.yaml -f secrets.yaml --wait
 
 Next, we want to redirect port 443 for https to the port the nginx https ingress nodeport is listening on (31773), and port 80 to the nginz http port (31772). To do that, you have two options:
 
@@ -159,16 +179,33 @@ Next, we want to redirect port 443 for https to the port the nginx https ingress
 How to set up DNS records
 ----------------------------
 
-You need to set up DNS records (A records) such that the following domain names are pointing to the IP address of your kubernetes node (assuming you only have one):
+An installation needs 5 or 6 domain names (5 without audio/video support, 6 with audio/video support):
+
+You need
+
+* two dns names for the so-called "nginz" component of wire-server (the main REST API entry point), these are usually called `nginz-https.<domain>` (or `wire-https.<domain>`) and `nginz-ssl.<domain>` (or `wire-https.<domain>`).
+* one dns name for the asset store (images, audio files etc. that your users are sharing); usually `assets.<domain>` or `s3.<domain>`.
+* one dns name for the webapp (equivalent of https://app.wire.com, i.e. the javascript app running in the browser), usually called `webapp.<domain>`.
+* one dns name for the account pages (hosts some html/javascript pages for e.g. password reset), usually called `account.<domain>`.
+* (optional) one dns name for team settings (to manage team membership if using PRO accounts), usually called `teams.<domain>`
+* (optional) one dns name for a audio/video calling server, usually called `restund01.<domain>`.
+
+If you are on the most recent charts from wire-server-deploy, these are your names:
 
 * nginz-https.<domain>
 * nginz-ssl.<domain>
 * webapp.<domain>
-* s3.<domain>
-* team.<domain>
+* assets.<domain>
 * account.<domain>
+* teams.<domain>
 
-(Yes, they all need to point to the same IP address - this is necessary for the nginx ingress to know how to do internal routing based on virtual hosting)
+(Yes, they all need to point to the same IP address - this is necessary for the nginx ingress to know how to do internal routing based on virtual hosting.)
+
+You may be happy with skipping the DNS setup and just make sure that the ``/etc/hosts`` on your client machine points all the above names to the right IP address:
+
+::
+
+   1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain>
 
 
 Trying things out
@@ -211,4 +248,4 @@ As long as nobody is using your cluster yet, you can safely delete and re-create
 It doesn't work, but my problem isn't listed here. Help!
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Feel free to open a github issue or pull request `here <https://github.com/wireapp/wire-docs>` and we'll try to improve the documentation.
+Feel free to open a github issue or pull request `here <https://github.com/wireapp/wire-docs>`_ and we'll try to improve the documentation.
