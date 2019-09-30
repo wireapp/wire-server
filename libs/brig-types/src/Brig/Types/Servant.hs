@@ -590,10 +590,10 @@ instance ToSchema Permissions where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_"
 
 instance ToSchema PhoneUpdate where
-  declareNamedSchema = withFieldLabelMod $ \"prPhone" -> "phone"
+  declareNamedSchema = withFieldLabelMod $ \"fromPhone" -> "phone"
 
 instance ToSchema PhoneRemove where
-  declareNamedSchema = withFieldLabelMod $ \"puPhone" -> "phone"
+  declareNamedSchema = withFieldLabelMod $ \"fromPhone" -> "phone"
 
 instance ToSchema Team where
   declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_team"
@@ -998,7 +998,8 @@ instance ToSchema NewPasswordReset where
         & maxProperties .~ Just 1
         & type_ .~ SwaggerObject
 
-instance ToSchema (PasswordChange "visible")
+instance ToSchema (PasswordChange "visible") where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "cp"
 
 instance ToSchema (ReAuthUser "visible")
 
