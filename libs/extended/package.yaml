@@ -24,6 +24,7 @@ dependencies:
 - unliftio
 - cql-io
 - exceptions
+- stm-containers
 
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors
