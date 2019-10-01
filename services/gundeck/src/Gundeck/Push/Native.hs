@@ -37,9 +37,9 @@ push m   [a] = pure <$> push1 m a
 push m addrs = mapConcurrently (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
-push1 m a = do
-    budget <- view $ options . optSettings . setNativePushBudget
-    withBudget pushBudgetKey budget (push1' m a) >>= \case
+push1 m a = view (options . optSettings . setNativePushBudget) >>= \case
+    Nothing -> push1' m a
+    Just budget -> withBudget pushBudgetKey budget (push1' m a) >>= \case
         BudgetExhausted _ -> onBudgetExhausted
         BudgetedValue _ _ -> pure ()
   where
