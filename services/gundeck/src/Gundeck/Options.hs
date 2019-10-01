@@ -37,7 +37,7 @@ data Settings = Settings
     -- | Use this option to group push notifications and send them in bulk to Cannon, instead
     -- of in individual requests
     , _setBulkPush        :: !Bool
-    , _setNativePushBudget :: !Budget
+    , _setNativePushBudget :: !(Maybe Budget)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
