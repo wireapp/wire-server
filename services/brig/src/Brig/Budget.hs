@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Control.Budget
+module Brig.Budget
     ( Budget (..)
     , BudgetKey (..)
     , Budgeted (..)
@@ -11,6 +11,7 @@ module Control.Budget
     ) where
 
 import Imports
+import Brig.Data.Instances ()
 import Cassandra
 import Data.Time.Clock
 

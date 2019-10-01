@@ -22,6 +22,7 @@ import Control.Lens (view, to)
 import Brig.App
 import Brig.API.Types
 import Brig.API.User (suspendAccount)
+import Brig.Budget
 import Brig.Email
 import Brig.Data.UserKey
 import Brig.Phone
@@ -33,7 +34,6 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.Team.LegalHold (LegalHoldTeamConfig (..), LegalHoldStatus (..))
 import Brig.Types.User.Auth hiding (user)
-import Control.Budget
 import Control.Error hiding (bool)
 import Data.Id
 import Data.ByteString.Conversion (toByteString)
