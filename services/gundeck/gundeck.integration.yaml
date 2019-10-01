@@ -24,6 +24,9 @@ settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
   bulkPush: true
+  nativePushBudget:  # 20 push notifications every 20 seconds.
+    budgetTimeout: 20
+    budgetValue: 20
 
 logLevel: Info
 logNetStrings: false
