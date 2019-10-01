@@ -123,7 +123,6 @@ instance MonadHttp Galley where
         httpManager <- view manager
         liftIO $ withResponse req httpManager handler
 
-
 instance HasRequestId Galley where
     getRequestId = view reqId
 

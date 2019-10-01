@@ -34,6 +34,7 @@ module Brig.App
     , turnEnv
     , turnEnvV2
     , internalEvents
+
       -- * App Monad
     , AppT
     , AppIO
