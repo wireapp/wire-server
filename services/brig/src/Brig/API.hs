@@ -964,9 +964,6 @@ setProperty (u ::: c ::: k ::: req) = do
     val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
     API.setProperty u c k val !>> propDataError
     return empty
-  where
-    defMaxKeyLen   = 256
-    defMaxValueLen = 512
 
 deleteProperty :: UserId ::: ConnId ::: PropertyKey -> Handler Response
 deleteProperty (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty

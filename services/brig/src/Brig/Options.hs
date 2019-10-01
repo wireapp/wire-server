@@ -315,6 +315,12 @@ data Settings = Settings
 
     } deriving (Show, Generic)
 
+defMaxKeyLen :: Int64
+defMaxKeyLen = 256
+
+defMaxValueLen :: Int64
+defMaxValueLen = 512
+
 instance FromJSON Timeout where
     parseJSON (Y.Number n) =
         let defaultV = 3600
