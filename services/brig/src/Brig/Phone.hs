@@ -23,8 +23,8 @@ module Brig.Phone
 import Imports
 import Bilge.Retry (httpHandlers)
 import Brig.App
+import Brig.Budget
 import Brig.Types
-import Control.Budget
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
