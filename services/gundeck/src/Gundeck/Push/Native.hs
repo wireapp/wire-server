@@ -30,12 +30,12 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: NativePush -> [Address] -> Gundeck [()]
+push :: NativePush -> [Address] -> Gundeck [Result]
 push _    [] = return []
 push m   [a] = pure <$> push1 m a
 push m addrs = mapConcurrently (push1 m) addrs
 
-push1 :: NativePush -> Address -> Gundeck ()
+push1 :: NativePush -> Address -> Gundeck Result
 push1 m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
@@ -51,8 +51,8 @@ push1 m a = do
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
+    return r
   where
-    onDisabled :: Gundeck ()
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do
             Log.info $ field "user"  (toByteString (a^.addrUser))
@@ -65,14 +65,12 @@ push1 m a = do
             e <- view awsEnv
             Aws.execute e (Aws.deleteEndpoint (a^.addrEndpoint))
 
-    onPayloadTooLarge :: Gundeck ()
     onPayloadTooLarge = do
         view monitor >>= counterIncr (path "push.native.too_large")
         Log.warn $ field "user" (toByteString (a^.addrUser))
                  ~~ field "arn" (toText (a^.addrEndpoint))
                  ~~ msg (val "Payload too large")
 
-    onInvalidEndpoint :: Gundeck ()
     onInvalidEndpoint =
         handleAny (logError a "Failed to cleanup orphaned push token") $ do
             Log.warn $ field "user"  (toByteString (a^.addrUser))
@@ -83,7 +81,6 @@ push1 m a = do
             Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
             onTokenRemoved
 
-    onTokenRemoved :: Gundeck ()
     onTokenRemoved = do
         i <- mkNotificationId
         let c = a^.addrClient
