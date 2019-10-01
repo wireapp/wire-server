@@ -5,7 +5,6 @@ module Gundeck.Push.Native
     ) where
 
 import Imports
-import Control.Budget
 import Control.Lens ((^.), view, (.~))
 import Control.Monad.Catch
 import Data.ByteString.Conversion.To
@@ -38,23 +37,6 @@ push m addrs = mapConcurrently (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
 push1 m a = do
-    budget <- undefined
-    withBudget pushBudgetKey budget (push1' m a) >>= \case
-        BudgetExhausted _ -> onBudgetExhausted
-        BudgetedValue _ _ -> pure ()
-  where
-    pushBudgetKey = BudgetKey "push1-send  /9c49c026-e44a-11e9-b20e-0f7fab72621a"
-    logBudgetKey  = BudgetKey "push1-error /9c49c026-e44a-11e9-b20e-0f7fab72621a"
-
-    -- log one "budget exhausted" error every minute one is thrown.
-    logBudget = Budget 1 60
-
-    onBudgetExhausted :: Gundeck ()
-    onBudgetExhausted = void . withBudget logBudgetKey logBudget $ do
-        Log.warn $ msg (val "PushBudgetExhausted")
-
-push1' :: NativePush -> Address -> Gundeck ()
-push1' m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
     case r of
