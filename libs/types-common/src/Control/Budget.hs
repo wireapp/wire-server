@@ -11,20 +11,14 @@ module Control.Budget
     ) where
 
 import Imports
-
 import Cassandra
-import Data.Aeson
 import Data.Time.Clock
-
 
 data Budget = Budget
     { budgetTimeout :: !NominalDiffTime
     , budgetValue   :: !Int32
     }
   deriving (Eq, Show, Generic)
-
-instance FromJSON Budget
-instance ToJSON Budget
 
 data Budgeted a
     = BudgetExhausted NominalDiffTime
