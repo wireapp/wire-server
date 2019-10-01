@@ -3,7 +3,6 @@
 module Gundeck.Options where
 
 import Imports
-import Control.Budget
 import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
@@ -37,7 +36,6 @@ data Settings = Settings
     -- | Use this option to group push notifications and send them in bulk to Cannon, instead
     -- of in individual requests
     , _setBulkPush        :: !Bool
-    , _setNativePushBudget :: !Budget
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
