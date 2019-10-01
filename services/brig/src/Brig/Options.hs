@@ -310,8 +310,8 @@ data Settings = Settings
                                                       --   the given provider id
     , setEmailVisibility       :: !EmailVisibility -- ^ Whether to expose user emails and to whom
 
-    , setPropertyMaxKeyLen     :: !Int64
-    , setPropertyMaxValueLen   :: !Int64
+    , setPropertyMaxKeyLen     :: !(Maybe Int64)
+    , setPropertyMaxValueLen   :: !(Maybe Int64)
 
     } deriving (Show, Generic)
 
