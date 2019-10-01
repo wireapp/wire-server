@@ -28,10 +28,9 @@ data Budgeted a
 newtype BudgetKey = BudgetKey Text
     deriving (Eq, Show, Cql)
 
--- | @withBudget (BudgetKey "k") (Budget 30 5) action@ allows you to limit the number of calls
--- to @action@ to 5 times every 30 seconds.  @"k"@ is used for keeping different actions you
--- want to budget apart; use something there that's unique to your context, like @"login#" <>
--- uid@; or just a string literal containing a random, but static UUIDv4.
+-- | @withBudget (BudgetKey "k") (Budget 30 5) action@ runs @action@ at most 5 times every 30
+-- seconds.  @"k"@ is used for keeping different calls to 'withBudget' apart; use something
+-- there that's unique to your context, like @"login#" <> uid@.
 --
 -- FUTUREWORK: encourage caller to define their own type for budget keys (rather than using an
 -- untyped text), and represent the types in a way that guarantees that if i'm using a local
