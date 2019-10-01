@@ -1,4 +1,4 @@
-# 2019-09-30
+# 2019-09-30 #868
 
 ## Relevant for self-hosters
 - More information is logged about user actions (#856)
