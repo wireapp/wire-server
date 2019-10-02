@@ -7,7 +7,6 @@ import Cannon.WS hiding (env)
 import Control.Monad.Catch
 import Data.Aeson (encode)
 import Data.Id (ClientId, UserId, ConnId)
-import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
 import Network.HTTP.Types
 import Gundeck.Types
@@ -70,11 +69,7 @@ sitemap = do
     head "/i/status" (continue (const $ return empty)) true
 
 monitoring :: Media "application" "json" -> Cannon Response
-monitoring = const $ do
-    m <- monitor
-    s <- D.size =<< clients
-    gaugeSet (fromIntegral s) (path "net.websocket.clients") m
-    json <$> Metrics.render m
+monitoring _ = json <$> (Metrics.render =<< monitor)
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do

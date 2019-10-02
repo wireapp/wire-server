@@ -1,3 +1,23 @@
+# 2019-09-30 #868
+
+## Relevant for self-hosters
+- More information is logged about user actions (#856)
+
+## Relevant for client developers
+- Make team member property size configurable (#867)
+
+## Bug fixes
+- Fix bugs related to metrics (#853, #866)
+- Sneak up on flaky test. (#863)
+
+## Internal Changes
+- Derive Generic everywhere (#864)
+- Add issue templates (#862)
+- Cleanup stern (#845)
+- Log warnings only when users are suspended (#854)
+- Documentation update for restund and smoketester (#855)
+
+
 # 2019-09-16 #858
 
 ## Relevant for self-hosters

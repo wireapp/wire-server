@@ -5,8 +5,6 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE LambdaCase        #-}
 
-{-# OPTIONS_GHC -Wno-unused-binds #-}
-
 module Stern.API (start) where
 
 import Imports hiding (head)
@@ -297,26 +295,50 @@ sitemap = do
 
     -- feature flags
 
-    get "/teams/:tid/features/sso" (continue getSSOStatus) $
+    get "/teams/:tid/features/legalhold" (continue (liftM json . Intra.getLegalholdStatus)) $
+        capture "tid"
+
+    document "GET" "getLegalholdStatus" $ do
+        summary "Shows whether legalhold feature is enabled for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.returns Doc.docSetLegalHoldStatus
+        Doc.response 200 "Legalhold status" Doc.end
+        Doc.returns Doc.bool'
+
+    put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
+        contentType "application" "json"
+        .&. capture "tid"
+        .&. jsonRequest @SetLegalHoldStatus
+
+    document "PUT" "setLegalholdStatus" $ do
+        summary "Disable / enable legalhold feature for team"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.body Doc.docSetLegalHoldStatus $
+            Doc.description "JSON body"
+        Doc.response 200 "Legalhold status" Doc.end
+
+    get "/teams/:tid/features/sso" (continue (liftM json . Intra.getSSOStatus)) $
         capture "tid"
 
     document "GET" "getSSOStatus" $ do
         summary "Shows whether SSO feature is enabled for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
-        Doc.returns Doc.bool'
+        Doc.returns Doc.docSetSSOStatus
         Doc.response 200 "SSO status" Doc.end
 
     put "/teams/:tid/features/sso" (continue setSSOStatus) $
         contentType "application" "json"
         .&. capture "tid"
-        .&. jsonRequest @Bool
+        .&. jsonRequest @SetSSOStatus
 
     document "PUT" "setSSOStatus" $ do
         summary "Disable / enable SSO feature for team"
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             description "Team ID"
-        Doc.body Doc.bool' $
+        Doc.body Doc.docSetSSOStatus $
             Doc.description "JSON body"
         Doc.response 200 "SSO status" Doc.end
 
@@ -512,21 +534,15 @@ getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
 
 
-getLegalholdStatus :: TeamId -> Handler Response
-getLegalholdStatus = liftM json . Intra.getLegalholdStatus
-
-setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest SetLegalHoldStatus -> Handler Response
 setLegalholdStatus (_ ::: tid ::: req) = do
     status <- parseBody req !>> Error status400 "client-error"
     liftM json $ Intra.setLegalholdStatus tid status
 
-getSSOStatus :: TeamId -> Handler Response
-getSSOStatus = liftM json . Intra.getSSOStatus
-
-setSSOStatus :: JSON ::: TeamId ::: JsonRequest Bool -> Handler Response
+setSSOStatus :: JSON ::: TeamId ::: JsonRequest SetSSOStatus -> Handler Response
 setSSOStatus (_ ::: tid ::: req) = do
-  status <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setSSOStatus tid status
+    status :: SetSSOStatus <- parseBody req !>> Error status400 "client-error"
+    liftM json $ Intra.setSSOStatus tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do

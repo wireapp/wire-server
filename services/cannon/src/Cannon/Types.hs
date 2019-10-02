@@ -12,6 +12,7 @@ module Cannon.Types
     , mapConcurrentlyCannon
     , mkEnv
     , runCannon
+    , runCannon'
     , options
     , clients
     , monitor
@@ -87,7 +88,10 @@ mkEnv m external o l d p g t = Env m o l d def $
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = let e' = e { reqId = lookupReqId r } in
-    runReaderT (unCannon c) e'
+    runCannon' e' c
+
+runCannon' :: Env -> Cannon a -> IO a
+runCannon' e c = runReaderT (unCannon c) e
 
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders

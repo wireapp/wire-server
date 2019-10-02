@@ -155,7 +155,7 @@ createUser new@NewUser{..} = do
     -- Create account
     (account, pw) <- lift $ newAccount new { newUserIdentity = ident } (Team.inInvitation . fst <$> teamInvitation) tid
     let uid = userId (accountUser account)
-
+    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
     activatedTeam <- lift $ do
         Data.insertAccount account Nothing pw False searchable
@@ -514,6 +514,7 @@ preverify tgt code = do
 onActivated :: ActivationEvent -> AppIO (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
     let uid = userId (accountUser account)
+    Log.debug $ field "user" (toByteString uid) . field  "action" (Log.val "User.onActivated")
     Log.info $ field "user" (toByteString uid) . msg (val "User activated")
     Intra.onUserEvent uid Nothing $ UserActivated account
     return (uid, userIdentity (accountUser account), True)
@@ -638,6 +639,7 @@ beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError AppIO (Us
 beginPasswordReset target = do
     let key = either userEmailKey userPhoneKey target
     user <- lift (Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
+    Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
     status <- lift $ Data.lookupStatus user
     unless (status == Just Active) $
         throwE InvalidPasswordResetKey
@@ -653,6 +655,7 @@ completePasswordReset ident code pw = do
     case muid of
         Nothing  -> throwE InvalidPasswordResetCode
         Just uid -> do
+            Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
             checkNewIsDifferent uid pw
             lift $ do
                 Data.updatePassword uid pw

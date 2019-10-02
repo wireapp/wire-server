@@ -309,7 +309,17 @@ data Settings = Settings
     , setProviderSearchFilter  :: !(Maybe ProviderId) -- ^ Filter ONLY services with
                                                       --   the given provider id
     , setEmailVisibility       :: !EmailVisibility -- ^ Whether to expose user emails and to whom
+
+    , setPropertyMaxKeyLen     :: !(Maybe Int64)
+    , setPropertyMaxValueLen   :: !(Maybe Int64)
+
     } deriving (Show, Generic)
+
+defMaxKeyLen :: Int64
+defMaxKeyLen = 256
+
+defMaxValueLen :: Int64
+defMaxValueLen = 512
 
 instance FromJSON Timeout where
     parseJSON (Y.Number n) =
@@ -326,3 +336,5 @@ instance FromJSON Opts
 
 Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
 Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
+Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
+Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings

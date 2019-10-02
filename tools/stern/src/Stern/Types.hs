@@ -94,3 +94,13 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
     } deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
+
+data SetLegalHoldStatus = SetLegalHoldDisabled | SetLegalHoldEnabled
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
+
+deriveJSON toJSONFieldName ''SetLegalHoldStatus
+
+data SetSSOStatus = SetSSODisabled | SetSSOEnabled
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
+
+deriveJSON toJSONFieldName ''SetSSOStatus

@@ -16,9 +16,10 @@ import Cassandra as Cas
 import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
-import Data.Metrics.Servant (routesToPaths)
+import Data.Metrics.Servant (servantPrometheusMiddleware)
+import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
-import Network.Wai (Application, Middleware)
+import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app, API)
 import Spar.API.Swagger ()
@@ -31,10 +32,8 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
-import qualified Data.Metrics.Types as Metrics
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -96,7 +95,7 @@ mkApp sparCtxOpts = do
         $ Bilge.empty
   let wrappedApp
         = WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
-        . promthRun
+        . servantPrometheusMiddleware (Proxy @API)
         . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
@@ -117,18 +116,3 @@ lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
-
--- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
-promthRun :: Middleware
-promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
-  where
-    conf = Promth.def
-      { Promth.prometheusEndPoint = ["i", "metrics"]
-      , Promth.prometheusInstrumentApp = False
-      }
-
-promthNormalize :: Wai.Request -> Text
-promthNormalize req = pathInfo
-  where
-    mPathInfo  = Metrics.treeLookup (routesToPaths @API) $ cs <$> Wai.pathInfo req
-    pathInfo   = cs $ fromMaybe "N/A" mPathInfo
