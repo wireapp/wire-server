@@ -148,6 +148,8 @@ optSettings:
   setMaxTeamSize: 32
   setMaxConvSize: 16
   setEmailVisibility: visible_to_self
+  setPropertyMaxKeyLen: 1024
+  setPropertyMaxValueLen: 4096
 
 logLevel: Warn
 logNetStrings: false
