@@ -31,10 +31,10 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: NativePush -> [Address] -> Gundeck [()]
-push _    [] = return []
-push m   [a] = pure <$> push1 m a
-push m addrs = mapConcurrently (push1 m) addrs
+push :: NativePush -> [Address] -> Gundeck ()
+push _    [] = pure ()
+push m   [a] = push1 m a
+push m addrs = void $ mapConcurrently (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
 push1 m a = view threadBudgetState >>= \case
