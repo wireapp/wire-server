@@ -5,7 +5,7 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
-import Data.Metrics.Middleware
+import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (unpack)
