@@ -16,6 +16,7 @@ import Gundeck.Monad
 import Gundeck.Options
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
+import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Util
 import Network.AWS.Data (toText)
@@ -30,13 +31,18 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: NativePush -> [Address] -> Gundeck [Result]
+push :: NativePush -> [Address] -> Gundeck [()]
 push _    [] = return []
 push m   [a] = pure <$> push1 m a
 push m addrs = mapConcurrently (push1 m) addrs
 
-push1 :: NativePush -> Address -> Gundeck Result
-push1 m a = do
+push1 :: NativePush -> Address -> Gundeck ()
+push1 m a = view threadBudgetState >>= \case
+    Nothing -> push1' m a
+    Just bs -> runWithBudget bs $ push1' m a
+
+push1' :: NativePush -> Address -> Gundeck ()
+push1' m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
     case r of
@@ -51,7 +57,6 @@ push1 m a = do
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
-    return r
   where
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do

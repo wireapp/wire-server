@@ -14,11 +14,12 @@ import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Options
 import Gundeck.React
+import Gundeck.ThreadBudget
 import Network.Wai as Wai
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Util.Options
 
-import qualified Control.Concurrent.Async as Async
+import qualified UnliftIO.Async as Async
 import qualified Gundeck.Aws as Aws
 import qualified Network.Wai.Middleware.Gzip as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
@@ -33,10 +34,12 @@ run o = do
     let l = e^.applog
     s <- newSettings $ defaultServer (unpack $ o^.optGundeck.epHost) (o^.optGundeck.epPort) l m
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
+    wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 63
     runSettingsWithShutdown s (middleware e $ app e) 5 `finally` do
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
+        forM_ wtbs Async.cancel
         Log.close (e^.applog)
   where
     middleware :: Env -> Wai.Middleware

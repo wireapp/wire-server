@@ -5,12 +5,14 @@ module Data.SizedHashMap
     , empty
     , insert
     , keys
+    , elems
+    , toList
     , lookup
     , delete
     )
 where
 
-import Imports hiding (lookup)
+import Imports hiding (lookup, toList)
 import Data.Hashable (Hashable)
 
 import qualified Data.HashMap.Strict as M
@@ -35,6 +37,12 @@ insert k v (SizedHashMap n hm) = SizedHashMap n' hm'
 
 keys :: forall k v. SizedHashMap k v -> [k]
 keys (SizedHashMap _ hm) = M.keys hm
+
+elems :: forall k v. SizedHashMap k v -> [v]
+elems (SizedHashMap _ hm) = M.elems hm
+
+toList :: forall k v. SizedHashMap k v -> [(k, v)]
+toList (SizedHashMap _ hm) = M.toList hm
 
 lookup :: forall k v. (Eq k, Hashable k) => k -> SizedHashMap k v -> Maybe v
 lookup k (SizedHashMap _ hm) = M.lookup k hm

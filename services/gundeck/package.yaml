@@ -57,6 +57,7 @@ library:
   - redis-io >=0.4
   - resourcet >=1.1
   - retry >=0.5
+  - safe-exceptions
   - semigroups >=0.12
   - singletons >=1.0
   - split >=0.2
