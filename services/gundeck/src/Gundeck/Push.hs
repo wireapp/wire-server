@@ -246,7 +246,7 @@ pushNative :: Notification -> Push -> [Address] -> Gundeck ()
 pushNative _ _ [] = return ()
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
-    void $ Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
+    Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
 nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address]
 nativeTargets p pres =
