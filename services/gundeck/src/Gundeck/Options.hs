@@ -36,6 +36,8 @@ data Settings = Settings
     -- | Use this option to group push notifications and send them in bulk to Cannon, instead
     -- of in individual requests
     , _setBulkPush        :: !Bool
+    -- | Maximum number of concurrent threads to 'Gundeck.Push.Native.push1'.
+    , _setMaxNativePushPerMinute :: !(Maybe Int)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
