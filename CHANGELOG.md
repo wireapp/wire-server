@@ -4,6 +4,7 @@
 - More information is logged about user actions (#856)
 
 ## Relevant for client developers
+- Make team member property size configurable (#867)
 
 ## Bug fixes
 - Fix bugs related to metrics (#853, #866)
