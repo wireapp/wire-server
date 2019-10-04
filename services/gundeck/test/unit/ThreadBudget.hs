@@ -5,6 +5,7 @@ module ThreadBudget where
 import Imports
 
 import Control.Concurrent.Async
+import Control.Lens
 import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions (cs)
 import Gundeck.ThreadBudget
@@ -15,14 +16,13 @@ import Test.Tasty.HUnit
 import qualified System.Logger.Class as LC
 
 
-tests :: TestTree
-tests = testGroup "thread budgets" $
-  [ testCase "works with mock actions" testThreadBudgets
-  ]
+----------------------------------------------------------------------
+-- helpers
 
-
-data LogEntry = NoBudget | Unknown String
+data LogEntry = NoBudget | Debug String | Unknown String
   deriving (Eq, Show)
+
+makePrisms ''LogEntry
 
 logHistory :: MVar [LogEntry]
 logHistory = unsafePerformIO $ newMVar []
@@ -30,19 +30,32 @@ logHistory = unsafePerformIO $ newMVar []
 expectLogHistory :: HasCallStack => ([LogEntry] -> Bool) -> IO ()
 expectLogHistory expected = do
   found <- modifyMVar logHistory (\found -> pure ([], found))
-  expected found @? ("unexpected log data: " <> show found)
+  expected (filter (isn't _Debug) found) @? ("unexpected log data: " <> show found)
 
 enterLogHistory :: LogEntry -> IO ()
 enterLogHistory entry = modifyMVar_ logHistory (\found -> pure (entry : found))
 
 instance LC.MonadLogger IO where
-  log _level msg = do
+  log level msg = do
     let raw :: String = cs $ LC.render LC.renderNetstr msg
         parsed
+          | level == LC.Debug                               = Debug raw
           | "runWithBudget: out of budget." `isInfixOf` raw = NoBudget
           | otherwise                                       = Unknown raw
     enterLogHistory parsed
 
+
+----------------------------------------------------------------------
+-- TOC
+
+tests :: TestTree
+tests = testGroup "thread budgets" $
+  [ testCase "works with mock actions" testThreadBudgets
+  ]
+
+
+----------------------------------------------------------------------
+-- deterministic unit test
 
 testThreadBudgets :: Assertion
 testThreadBudgets = do
