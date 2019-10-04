@@ -234,24 +234,22 @@ precondition _ _ = Top
 postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logic
 postcondition _ _ _ = Top
 
+-- | FUTUREWORK: the error messages generated from this function don't look very nice.
+-- (they're helpful enough, though, if you squint at the screen a little.)
 syncConcreteSymbolic :: State Concrete -> ModelState -> Int -> IO ()
 syncConcreteSymbolic (opaque -> (tbs, _, logs)) modelstate newlystarted = do
   let modelrunning  :: Int  = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
   running           :: Int <- length <$> runningThreads tbs
   numNoBudgetErrors :: Int <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
 
-  let go :: [Logic]
-      go = [ -- state and model state are in sync
-             modelrunning .== running
-             -- number of running threads <= limit
-           , running .<= threadLimit tbs
-           , -- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
-             numNoBudgetErrors .== (running + newlystarted - threadLimit tbs)
-           ]
+  modelrunning == running
+    @? ("out of sync: " <> show (modelrunning, running))
 
-  case logic $ foldl' (.&&) Top go of
-    VTrue -> pure ()
-    false -> error $ show false
+  running <= threadLimit tbs
+    @? ("thread limit exceeded: " <> show (running, threadLimit tbs))
+
+  numNoBudgetErrors == (running + newlystarted - threadLimit tbs)
+    @? ("wrong number of over-budget calls: " <> show (numNoBudgetErrors, running, newlystarted, threadLimit tbs))
 
 
 mock :: Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
