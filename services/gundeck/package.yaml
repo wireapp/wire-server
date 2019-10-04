@@ -194,6 +194,7 @@ tests:
     - network-uri
     - QuickCheck
     - quickcheck-instances
+    - quickcheck-state-machine
     - random
     - scientific
     - string-conversions
@@ -203,6 +204,7 @@ tests:
     - text
     - tinylog
     - transformers
+    - tree-diff
     - types-common
     - unordered-containers
     - uuid
