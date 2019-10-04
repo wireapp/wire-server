@@ -393,6 +393,7 @@ instance MonadPushAll MockGundeck where
   mpaPushNative = mockPushNative
   mpaForkIO = id  -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
                   -- doesn't, this is good enough for testing).
+  mpaThrottleSNS = id  -- no throttling needed as long as we don't overdo it in the tests...
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
