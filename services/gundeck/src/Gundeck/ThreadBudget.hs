@@ -16,6 +16,8 @@ module Gundeck.ThreadBudget
 
   -- * for testing
   , gcThreadBudgetState
+  , threadLimit
+  , runningThreads
   ) where
 
 import Imports
@@ -46,8 +48,18 @@ data ThreadBudgetState = ThreadBudgetState
 -- are running on the same budget token because they have been allocated concurrently).
 type BudgetMap = SizedHashMap UUID (Int, Maybe (Async ()))
 
+threadLimit :: ThreadBudgetState -> Int
+threadLimit (ThreadBudgetState limit _) = limit
+
+runningThreads :: ThreadBudgetState -> IO [(UUID, Int)]
+runningThreads (ThreadBudgetState _ running) = showDebugHandles' <$> readIORef running
+
 showDebugHandles :: BudgetMap -> String
-showDebugHandles = show . fmap (_2 %~ fst) . SHM.toList
+showDebugHandles = show . showDebugHandles'
+
+showDebugHandles' :: BudgetMap -> [(UUID, Int)]
+showDebugHandles' = fmap (_2 %~ fst) . SHM.toList
+
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
 mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
