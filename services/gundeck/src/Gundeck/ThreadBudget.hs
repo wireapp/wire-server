@@ -18,6 +18,7 @@ module Gundeck.ThreadBudget
 import Imports
 
 import Control.Exception.Safe (catchAny)
+import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
@@ -34,21 +35,27 @@ import qualified System.Logger.Class as LC
 
 data ThreadBudgetState = ThreadBudgetState
   { _threadBudgetLimit   :: Int
-  , _threadBudgetRunning :: IORef (SizedHashMap UUID (Maybe (Async ())))
+  , _threadBudgetRunning :: IORef BudgetMap
   }
+
+-- | We store not only the handle (for cleanup in 'watchThreadBudgetState'), but also the
+-- number of spent resources at the time of allocating this one (so we can see if two actions
+-- are running on the same budget token because they have been allocated concurrently).
+type BudgetMap = SizedHashMap UUID (Int, Maybe (Async ()))
+
+showDebugHandles :: BudgetMap -> String
+showDebugHandles = show . fmap (_2 %~ fst) . SHM.toList
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
 mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
 
 register
-  :: IORef (SizedHashMap UUID (Maybe (Async ())))
-  -> UUID -> Maybe (Async ()) -> MonadIO m => m ()
-register ref key mhandle
-  = atomicModifyIORef' ref (\hm -> (SHM.insert key mhandle hm, ()))
+  :: IORef BudgetMap -> UUID -> Int -> Maybe (Async ()) -> MonadIO m => m ()
+register ref key spent mhandle
+  = atomicModifyIORef' ref (\hm -> (SHM.insert key (spent, mhandle) hm, ()))
 
 unregister
-  :: IORef (SizedHashMap UUID (Maybe (Async ())))
-  -> UUID -> MonadIO m => m ()
+  :: IORef BudgetMap -> UUID -> MonadIO m => m ()
 unregister ref key
   = atomicModifyIORef' ref (\hm -> (SHM.delete key hm, ()))
 
@@ -66,14 +73,14 @@ runWithBudget
 runWithBudget (ThreadBudgetState limit ref) action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
-    register ref key Nothing
     spent <- SHM.size <$> readIORef ref
-    if spent > limit then nobudget else go key
+    register ref key spent Nothing
+    if spent >= limit then nobudget else go key spent
   where
-    go :: UUID -> m ()
-    go key = do
+    go :: UUID -> Int -> m ()
+    go key spent = do
       handle <- async action
-      register ref key (Just handle)
+      register ref key spent (Just handle)
       wait handle
 
     nobudget :: m ()
@@ -97,7 +104,7 @@ watchThreadBudgetState metrics (ThreadBudgetState _limit ref) freq = safeForever
 
 recordMetrics
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => Metrics -> IORef (SizedHashMap UUID (Maybe (Async ()))) -> m ()
+  => Metrics -> IORef BudgetMap -> m ()
 recordMetrics metrics ref = do
   spent <- SHM.size <$> readIORef ref
   gaugeSet (fromIntegral spent) (path "net.sns.num_open_connections") metrics
@@ -112,7 +119,7 @@ staleToleranceMs = 30  -- 1 is enough for normal hardware
 -- them, and then remove them from the hashmap.
 removeStaleHandles
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => IORef (SizedHashMap UUID (Maybe (Async ()))) -> m ()
+  => IORef BudgetMap -> m ()
 removeStaleHandles ref = do
   round1 <- getStaleHandles
   threadDelay (staleToleranceMs * 1000)
@@ -121,9 +128,9 @@ removeStaleHandles ref = do
   let staleHandles = Set.intersection round1 round2
 
   unless (null staleHandles) $ do
-    warnStaleHandles (Set.size staleHandles)
+    warnStaleHandles (Set.size staleHandles) =<< readIORef ref
     forM_ staleHandles $ \key -> do
-      mapM_ waitCatch . join =<< SHM.lookup key <$> readIORef ref
+      mapM_ waitCatch . join . fmap snd =<< SHM.lookup key <$> readIORef ref
       unregister ref key
 
   where
@@ -131,14 +138,16 @@ removeStaleHandles ref = do
     getStaleHandles = Set.fromList . mconcat <$> do
       handles <- SHM.toList <$> readIORef ref
       forM handles $ \case
-        (_, Nothing) -> do
+        (_, (_, Nothing)) -> do
           pure []
-        (tid, Just handle) -> do
+        (tid, (_, Just handle)) -> do
           status <- poll handle
           pure [tid | isJust status]
 
-    warnStaleHandles :: Int -> m ()
-    warnStaleHandles num = LC.warn $ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
+    warnStaleHandles :: Int -> BudgetMap -> m ()
+    warnStaleHandles num handles = LC.warn $
+      "BudgetMap" LC..= showDebugHandles handles
+      LC.~~ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
 
 safeForever
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
