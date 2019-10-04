@@ -257,6 +257,9 @@ pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
+-- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
+-- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
+-- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
 nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address]
 nativeTargets p pres =
     let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
