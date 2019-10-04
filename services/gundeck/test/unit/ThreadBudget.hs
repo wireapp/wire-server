@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module ThreadBudget where
 
@@ -33,20 +33,22 @@ data LogEntry = NoBudget | Debug String | Unknown String
 
 makePrisms ''LogEntry
 
-expectLogHistory :: (HasCallStack, MonadReader (MVar [LogEntry]) m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
+type LogHistory = MVar [LogEntry]
+
+expectLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
 expectLogHistory expected = do
   logHistory <- ask
   liftIO $ do
     found <- modifyMVar logHistory (\found -> pure ([], found))
     expected (filter (isn't _Debug) found) @? ("unexpected log data: " <> show found)
 
-enterLogHistory :: (HasCallStack, MonadReader (MVar [LogEntry]) m, MonadIO m) => LogEntry -> m ()
+enterLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => LogEntry -> m ()
 enterLogHistory entry = do
   logHistory <- ask
   liftIO $ do
     modifyMVar_ logHistory (\found -> pure (entry : found))
 
-instance LC.MonadLogger (ReaderT (MVar [LogEntry]) IO) where
+instance LC.MonadLogger (ReaderT LogHistory IO) where
   log level msg = do
     let raw :: String = cs $ LC.render LC.renderNetstr msg
         parsed
@@ -60,7 +62,7 @@ delayms = threadDelay . (* 1000)
 
 burstActions
   :: ThreadBudgetState
-  -> MVar [LogEntry]
+  -> LogHistory
   -> Int{- duration of eac thread (milliseconds) -}
   -> Int{- number of threads -}
   -> (MonadIO m) => m ()
@@ -72,6 +74,13 @@ burstActions tbs logHistory howlong howmany
                                           -- to be safe.)
                           runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
                       [1..howmany]
+
+-- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
+-- likely to find weird race conditions.
+mkWatcher :: ThreadBudgetState -> LogHistory -> IO (Async ())
+mkWatcher tbs logHistory = do
+  mtr <- metrics
+  async $ runReaderT (watchThreadBudgetState mtr tbs 10) logHistory
 
 
 ----------------------------------------------------------------------
@@ -90,11 +99,9 @@ tests = testGroup "thread budgets" $
 
 testThreadBudgets :: Assertion
 testThreadBudgets = do
-  mtr <- metrics
   tbs <- mkThreadBudgetState 5
-  logHistory :: MVar [LogEntry] <- newMVar []
-
-  watcher <- async $ runReaderT (watchThreadBudgetState mtr tbs 1) logHistory
+  logHistory :: LogHistory <- newMVar []
+  watcher <- mkWatcher tbs logHistory
 
   flip runReaderT logHistory $ do
     burstActions tbs logHistory 1000 5
@@ -125,16 +132,12 @@ testThreadBudgets = do
 ----------------------------------------------------------------------
 -- property-based state machine tests
 
-type State = Reference (Opaque (ThreadBudgetState, MVar [LogEntry]))
+type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
 
 data Command r
   = Init NumberOfThreads
   | Run (State r) NumberOfThreads MilliSeconds
   | Wait (State r) MilliSeconds
--- TODO:
---  | InitWatcher
---  | ShutdownWatcher  -- perhaps this can't be done here, but we need to use the return value
---                     -- of 'runCommands', 'runParallelCommands'.
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 newtype NumberOfThreads = NumberOfThreads Int
@@ -164,6 +167,7 @@ generator (Model Nothing) = Init <$> arbitrary
 generator (Model (Just (st, _))) = oneof [Run st <$> arbitrary <*> arbitrary, Wait st <$> arbitrary]
 
 shrinker :: Command Symbolic -> [Command Symbolic]
+shrinker (Init _)    = []
 shrinker (Run s n m) = Wait s (MilliSeconds 0) : (Run s <$> shrink n <*> shrink m)
 shrinker (Wait s n)  = Wait s <$> shrink n
 
@@ -182,12 +186,13 @@ initModel = Model Nothing
 
 semantics :: Command Concrete -> IO (Response Concrete)
 semantics (Init (NumberOfThreads limit)) = do
-  mp <- newMVar []
-  st <- mkThreadBudgetState limit
-  pure . InitResponse . reference . Opaque $ (st, mp)
+  tbs <- mkThreadBudgetState limit
+  logHistory <- newMVar []
+  watcher <- mkWatcher tbs logHistory
+  pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
 
 semantics (Run
-            (opaque -> (tbs :: ThreadBudgetState, mp :: MVar [LogEntry]))
+            (opaque -> (tbs :: ThreadBudgetState, _, mp :: LogHistory))
             (NumberOfThreads howmany)
             (MilliSeconds howlong))
   = burstActions tbs mp howmany howlong $> VoidResponse
@@ -246,26 +251,20 @@ sm = StateMachine
   }
 
 
+-- | Remove resources created by the concrete 'STM.Commands', namely watcher and budgeted
+-- async threads.
+shutdown :: Model Concrete -> MonadIO m => m ()
+shutdown (Model Nothing) = pure ()  -- unlikely though this seems...
+shutdown (Model (Just (opaque -> (tbs, watcher, _), _))) = liftIO $ do
+  gcThreadBudgetState tbs
+  cancel watcher
+
 propSequential :: Property
 propSequential = forAllCommands sm Nothing $ \cmds -> monadicIO $ do
-  (hist, _model, res) <- runCommands sm cmds
+  (hist, model, res) <- runCommands sm cmds
+  shutdown model
   prettyCommands sm hist (checkCommandNames cmds (res === Ok))
 
 propParallel :: Property
 propParallel = forAllParallelCommands sm $ \cmds -> monadicIO $ do
   prettyParallelCommands cmds =<< runParallelCommands sm cmds
-
-
-
-
-
--- TODO: test watcher: we can kill runWithBudget with async exceptions, that should keep the
--- finalizer from running, no?  interesting to find out if that's true in its own right.  if
--- it's true, we can run a watcher every 1s (that's the highest frequency there is), run
--- long-running actions with runWithBudget, and kill them in a way that keeps the finalizer
--- from running.  then we can check we get the watcher to clean things up.  can we also check
--- that that's the *only* time the watcher gets something to do?
-
--- TODO: measure watchThreadBudgetState frequence in milliseconds, so we can run it more
--- frequently during tests.  better yet, use the time measure types we already have around
--- here somewhere.

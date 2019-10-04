@@ -13,6 +13,9 @@ module Gundeck.ThreadBudget
   , mkThreadBudgetState
   , runWithBudget
   , watchThreadBudgetState
+
+  -- * for testing
+  , gcThreadBudgetState
   ) where
 
 import Imports
@@ -48,6 +51,10 @@ showDebugHandles = show . fmap (_2 %~ fst) . SHM.toList
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
 mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
+
+gcThreadBudgetState :: ThreadBudgetState -> IO ()
+gcThreadBudgetState (ThreadBudgetState _ running) = readIORef running >>=
+  mapM_ (maybe (pure ()) cancel . snd) . SHM.elems
 
 register
   :: IORef BudgetMap -> UUID -> Int -> Maybe (Async ()) -> MonadIO m => m ()
@@ -98,16 +105,18 @@ runWithBudget (ThreadBudgetState limit ref) action = do
       LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
 
 
--- | Fork a thread that checks every 'watcherFreq' seconds if any async handles stored in the
--- state are stale (ie., have terminated with or without exception, but not been removed).  If
--- they persist in the state for more 1sec, call an error action (usually for logging a
+-- | Fork a thread that checks every 'watcherFreq' milliseconds if any async handles stored in
+-- the state are stale (ie., have terminated with or without exception, but not been removed).
+-- If they persist in the state for more 1sec, call an error action (usually for logging a
 -- warning).
+--
+-- Frequency is in milliseconds so we can run this aggressively often for stress testing.
 --
 -- 'runWithBudget' should keep track of the state itself; this function is just a safety
 -- precaution to see if there aren't any corner cases we missed.
 watchThreadBudgetState
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => Metrics -> ThreadBudgetState -> Int -> m ()
+  => Metrics -> ThreadBudgetState -> Int{- milliseconds -} -> m ()
 watchThreadBudgetState metrics (ThreadBudgetState _limit ref) freq = safeForever $ do
   recordMetrics metrics ref
   removeStaleHandles ref
