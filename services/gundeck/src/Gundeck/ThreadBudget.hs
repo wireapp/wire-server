@@ -23,7 +23,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.SizedHashMap (SizedHashMap)
-import Data.UUID (UUID)
+import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
@@ -79,12 +79,23 @@ runWithBudget (ThreadBudgetState limit ref) action = do
   where
     go :: UUID -> Int -> m ()
     go key spent = do
+      readIORef ref >>= \debugHandles -> LC.debug $
+        "key"   LC..= (toText key) LC.~~
+        "spent" LC..= spent LC.~~
+        "map"   LC..= showDebugHandles debugHandles LC.~~
+        LC.msg (LC.val "runWithBudget: go")
+
       handle <- async action
       register ref key spent (Just handle)
       wait handle
 
     nobudget :: m ()
-    nobudget = LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
+    nobudget = do
+      readIORef ref >>= \debugHandles -> LC.debug $
+        "map" LC..= showDebugHandles debugHandles LC.~~
+        LC.msg (LC.val "runWithBudget: nobudget")
+
+      LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
 
 
 -- | Fork a thread that checks every 'watcherFreq' seconds if any async handles stored in the
