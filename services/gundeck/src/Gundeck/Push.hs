@@ -8,6 +8,7 @@ module Gundeck.Push
     , pushAll, pushAny
     , MonadPushAll(..)
     , MonadNativeTargets(..)
+    , MonadMapAsync(..)
     , MonadPushAny(..)
     ) where
 
@@ -152,7 +153,7 @@ pushAny' p = do
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: (MonadPushAll m, MonadNativeTargets m) => [Push] -> m ()
+pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAll pushes = do
     targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
@@ -260,7 +261,7 @@ pushNative notif p rcps = do
 -- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
 -- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
-nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address]
+nativeTargets :: forall m. (MonadNativeTargets m, MonadMapAsync m) => Push -> [Presence] -> m [Address]
 nativeTargets p pres =
     let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
     in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check

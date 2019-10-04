@@ -398,6 +398,8 @@ instance MonadPushAll MockGundeck where
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
   mntgtLookupAddresses = mockLookupAddresses
+
+instance MonadMapAsync MockGundeck where
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
 instance MonadPushAny MockGundeck where
