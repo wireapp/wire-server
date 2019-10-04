@@ -77,7 +77,7 @@ testThreadBudgets = do
   delayms 800
 
   burstActions 1000 3
-  delayms 100
+  delayms 200
   expectLogHistory null
 
   burstActions 1000 3
