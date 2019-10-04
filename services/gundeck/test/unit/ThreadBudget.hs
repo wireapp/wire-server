@@ -56,7 +56,9 @@ testThreadBudgets = do
       burstActions howlong howmany
         = void . forkIO . void $
           mapConcurrently (\jitter -> do
-                              threadDelay (jitter * 20)  -- @* 2@ is enough on normal hardware.
+                              delayms jitter  -- (2 microseconds *should* enough on normal
+                                              -- hardware, but we're doing 1 milisecond just
+                                              -- to be safe.)
                               runWithBudget tbs $ delayms howlong)
                           [1..howmany]
 
@@ -77,7 +79,7 @@ testThreadBudgets = do
   delayms 800
 
   burstActions 1000 3
-  delayms 200
+  delayms 100
   expectLogHistory null
 
   burstActions 1000 3
