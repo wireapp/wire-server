@@ -58,6 +58,7 @@ extra-deps:
   commit: c0bcbe8ae5bb6fdc0b5b94f640f63a615c068cbf    # master (Apr 25, 2019)
 - git: https://github.com/wireapp/hscim
   commit: 6b98b894c127eed4a5bde646ebf20febcfa656fa    # master (Apr 2, 2019)
+- quickcheck-state-machine-0.4.2
 
 flags:
   types-common:
