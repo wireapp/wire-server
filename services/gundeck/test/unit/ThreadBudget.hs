@@ -198,12 +198,11 @@ semantics (Run
             (NumberOfThreads howmany)
             (MilliSeconds howlong))
   = do
-    syncConcreteSymbolic state modelstate
+    syncConcreteSymbolic state modelstate howmany
     burstActions tbs mp howmany howlong $> VoidResponse
 
 semantics (Wait _ _ (MilliSeconds howlong))
   = do
-    syncConcreteSymbolic state modelstate
     delayms howlong $> VoidResponse
 
 
@@ -235,11 +234,24 @@ precondition _ _ = Top
 postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logic
 postcondition _ _ _ = Top
 
--- number of running threads <= limit  (possibly needs to be softened up...)
--- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
-syncConcreteSymbolic :: State Concrete -> ModelState -> IO ()
-syncConcreteSymbolic (Just (opaque -> (tbs, _, logs))) modelstate = do
-  _
+syncConcreteSymbolic :: State Concrete -> ModelState -> Int -> IO ()
+syncConcreteSymbolic (opaque -> (tbs, _, logs)) modelstate newlystarted = do
+  let modelrunning  :: Int  = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
+  running           :: Int <- length <$> runningThreads tbs
+  numNoBudgetErrors :: Int <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
+
+  let go :: [Logic]
+      go = [ -- state and model state are in sync
+             modelrunning .== running
+             -- number of running threads <= limit
+           , running .<= threadLimit tbs
+           , -- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
+             numNoBudgetErrors .== (running + newlystarted - threadLimit tbs)
+           ]
+
+  case logic $ foldl' (.&&) Top go of
+    VTrue -> pure ()
+    false -> error $ show false
 
 
 mock :: Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
