@@ -26,8 +26,9 @@ import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Push.Native.Types
 import Gundeck.Options
+import Gundeck.Push.Native.Types
+import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
@@ -74,6 +75,7 @@ class MonadThrow m =>  MonadPushAll m where
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative       :: Notification -> Push -> [Address] -> m ()
   mpaForkIO           :: m () -> m ()
+  mpaThrottleSNS      :: m () -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL  = view (options . optSettings . setNotificationTTL)
@@ -83,6 +85,7 @@ instance MonadPushAll Gundeck where
   mpaStreamAdd        = Stream.add
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
+  mpaThrottleSNS      = \action -> maybe action (`runWithBudget` action) =<< view threadBudgetState
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
@@ -172,8 +175,10 @@ pushAll pushes = do
         resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
-        forM_ resp $ \((notif, psh), alreadySent) -> unless (psh ^. pushTransient) $
-            mpaPushNative notif psh =<< nativeTargets psh alreadySent
+        forM_ resp $ \((notif, psh), alreadySent) ->
+            unless (psh ^. pushTransient)
+                $ mpaThrottleSNS
+                    $ mpaPushNative notif psh =<< nativeTargets psh alreadySent
 
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@

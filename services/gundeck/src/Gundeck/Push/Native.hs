@@ -16,7 +16,6 @@ import Gundeck.Monad
 import Gundeck.Options
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
-import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Util
 import Network.AWS.Data (toText)
@@ -37,12 +36,7 @@ push m   [a] = push1 m a
 push m addrs = void $ mapConcurrently (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
-push1 m a = view threadBudgetState >>= \case
-    Nothing -> push1' m a
-    Just bs -> runWithBudget bs $ push1' m a
-
-push1' :: NativePush -> Address -> Gundeck ()
-push1' m a = do
+push1 m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
     case r of
