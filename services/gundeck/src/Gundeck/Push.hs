@@ -91,15 +91,19 @@ instance MonadPushAll Gundeck where
 class Monad m => MonadNativeTargets m where
   mntgtLogErr          :: SomeException -> m ()
   mntgtLookupAddresses :: UserId -> m [Address]
-  mntgtMapAsync        :: (a -> m b) -> [a] -> m [Either SomeException b]
 
 instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
   mntgtLookupAddresses rcp = Data.lookup rcp Data.One
+
+class Monad m => MonadMapAsync m where
+  mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
+
+instance MonadMapAsync Gundeck where
   mntgtMapAsync = mapAsync
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
-class (MonadPushAll m, MonadNativeTargets m) => MonadPushAny m where
+class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m where
   mpyPush :: Notification
           -> List1 NotificationTarget
           -> UserId
