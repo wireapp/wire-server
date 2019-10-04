@@ -1,6 +1,7 @@
 -- | Like "Brig.Budget", but in-memory, per host (not per service), and on the upside more
 -- exact.  Like https://hackage.haskell.org/package/token-bucket, but takes the entire
 -- run-time of the actions into account, not just the number of executions.
+-- http://hackage.haskell.org/package/rate-limit also looks related.
 --
 -- USE CASE: keep a lid of stalled native push notification threadsh.  if SNS is up, there
 -- will be many, short-running executions of the action.  when SNS is down, the threads will
