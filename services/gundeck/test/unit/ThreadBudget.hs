@@ -224,11 +224,14 @@ transition _ _ _ = error "bad transition."
 
 
 precondition :: Model Symbolic -> Command Symbolic -> Logic
-precondition = undefined
-
+precondition _ _ = Top
 
 postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logic
-postcondition = undefined
+postcondition (Model Nothing) _ _ = Top
+postcondition (Model (Just (opaque -> (_tbs, _, _logs), _))) _cmd _ = Top
+  -- TODO:
+  -- number of running threads <= limit  (possibly needs to be softened up...)
+  -- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
 
 
 mock :: Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
@@ -259,12 +262,15 @@ shutdown (Model (Just (opaque -> (tbs, watcher, _), _))) = liftIO $ do
   gcThreadBudgetState tbs
   cancel watcher
 
+-- | FUTUREWORK: in this use case of quickcheck-state-machine it may be more interesting to
+-- look at fewer, but longer command sequences.
 propSequential :: Property
 propSequential = forAllCommands sm Nothing $ \cmds -> monadicIO $ do
   (hist, model, res) <- runCommands sm cmds
   shutdown model
   prettyCommands sm hist (checkCommandNames cmds (res === Ok))
 
+-- | TODO: fails!  why?
 propParallel :: Property
 propParallel = forAllParallelCommands sm $ \cmds -> monadicIO $ do
   prettyParallelCommands cmds =<< runParallelCommands sm cmds
