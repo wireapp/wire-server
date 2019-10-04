@@ -133,11 +133,12 @@ testThreadBudgets = do
 -- property-based state machine tests
 
 type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
+type ModelState = [(NumberOfThreads, MilliSeconds)]
 
 data Command r
   = Init NumberOfThreads
-  | Run (State r) NumberOfThreads MilliSeconds
-  | Wait (State r) MilliSeconds
+  | Run (State r) ModelState NumberOfThreads MilliSeconds
+  | Wait (State r) ModelState MilliSeconds
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 newtype NumberOfThreads = NumberOfThreads Int
@@ -155,7 +156,7 @@ data Response r
 
 -- TODO: once this works: do we really need to keep the 'State' around in here even if it's
 -- symbolic?  why?  (not sure this question makes sense, i'll just keep going.)
-newtype Model r = Model (Maybe (State r, [(NumberOfThreads, MilliSeconds)]))
+newtype Model r = Model (Maybe (State r, ModelState))
   deriving (Show, Generic)
 
 instance ToExpr (Model Symbolic)
@@ -164,12 +165,12 @@ instance ToExpr (Model Concrete)
 
 generator :: Model Symbolic -> Gen (Command Symbolic)
 generator (Model Nothing) = Init <$> arbitrary
-generator (Model (Just (st, _))) = oneof [Run st <$> arbitrary <*> arbitrary, Wait st <$> arbitrary]
+generator (Model (Just (st, st'))) = oneof [Run st st' <$> arbitrary <*> arbitrary, Wait st st' <$> arbitrary]
 
 shrinker :: Command Symbolic -> [Command Symbolic]
 shrinker (Init _)    = []
-shrinker (Run s n m) = Wait s (MilliSeconds 0) : (Run s <$> shrink n <*> shrink m)
-shrinker (Wait s n)  = Wait s <$> shrink n
+shrinker (Run s s' n m) = Wait s s' (MilliSeconds 0) : (Run s s' <$> shrink n <*> shrink m)
+shrinker (Wait s s' n)  = Wait s s' <$> shrink n
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -192,13 +193,18 @@ semantics (Init (NumberOfThreads limit)) = do
   pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
 
 semantics (Run
-            (opaque -> (tbs :: ThreadBudgetState, _, mp :: LogHistory))
+            state@(opaque -> (tbs :: ThreadBudgetState, _, mp :: LogHistory))
+            modelstate
             (NumberOfThreads howmany)
             (MilliSeconds howlong))
-  = burstActions tbs mp howmany howlong $> VoidResponse
+  = do
+    syncConcreteSymbolic state modelstate
+    burstActions tbs mp howmany howlong $> VoidResponse
 
-semantics (Wait _ (MilliSeconds howlong))
-  = delayms howlong $> VoidResponse
+semantics (Wait _ _ (MilliSeconds howlong))
+  = do
+    syncConcreteSymbolic state modelstate
+    delayms howlong $> VoidResponse
 
 
 transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
@@ -206,12 +212,12 @@ transition (Model Nothing) (Init _) (InitResponse st)
   = Model (Just (st, mempty))
 
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
-transition (Model (Just (st, spent))) (Run _ howmany howlong) VoidResponse
+transition (Model (Just (st, spent))) (Run _ _ howmany howlong) VoidResponse
   = Model (Just (st, (howmany, howlong) : spent))
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
-transition (Model (Just (st, spent))) (Wait _ (MilliSeconds howlong)) VoidResponse
+transition (Model (Just (st, spent))) (Wait _ _ (MilliSeconds howlong)) VoidResponse
   = Model (Just (st, filter filterSpent $ mapSpent <$> spent))
   where
     mapSpent :: (NumberOfThreads, MilliSeconds) -> (NumberOfThreads, MilliSeconds)
@@ -227,11 +233,13 @@ precondition :: Model Symbolic -> Command Symbolic -> Logic
 precondition _ _ = Top
 
 postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logic
-postcondition (Model Nothing) _ _ = Top
-postcondition (Model (Just (opaque -> (_tbs, _, _logs), _))) _cmd _ = Top
-  -- TODO:
-  -- number of running threads <= limit  (possibly needs to be softened up...)
-  -- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
+postcondition _ _ _ = Top
+
+-- number of running threads <= limit  (possibly needs to be softened up...)
+-- number of no-budget log entries == number of previously running threads plus newly started threads minus limit
+syncConcreteSymbolic :: State Concrete -> ModelState -> IO ()
+syncConcreteSymbolic (Just (opaque -> (tbs, _, logs))) modelstate = do
+  _
 
 
 mock :: Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
