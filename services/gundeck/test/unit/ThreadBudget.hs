@@ -174,11 +174,11 @@ shrinker (Wait s s' n)  = Wait s s' <$> shrink n
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
-  shrink (NumberOfThreads n) = NumberOfThreads <$> shrink n
+  shrink (NumberOfThreads n) = NumberOfThreads <$> filter (> 0) (shrink n)
 
 instance Arbitrary MilliSeconds where
   arbitrary = MilliSeconds <$> choose (1, 30)
-  shrink (MilliSeconds n) = MilliSeconds <$> shrink n
+  shrink (MilliSeconds n) = MilliSeconds <$> filter (> 0) (shrink n)
 
 
 initModel :: Model r
@@ -236,6 +236,11 @@ postcondition _ _ _ = Top
 
 -- | FUTUREWORK: the error messages generated from this function don't look very nice.
 -- (they're helpful enough, though, if you squint at the screen a little.)
+--
+-- FUTUREWORK: In hind-sight with better understanding of quickcheck-state-machine, the more
+-- idiomatic way to do this would have been to return all the concrete information that is
+-- needed here in 'semantics' via the 'Response' data type, and then use that information in
+-- the 'postcondition' to that that concrete and model state are still aligned.
 syncConcreteSymbolic :: State Concrete -> ModelState -> Int -> IO ()
 syncConcreteSymbolic (opaque -> (tbs, _, logs)) modelstate newlystarted = do
   let modelrunning  :: Int  = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
