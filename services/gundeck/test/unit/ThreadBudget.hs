@@ -66,16 +66,12 @@ delayms ms = threadDelay (ms * 1000) `catch` \AsyncCancelled -> pure ()
 burstActions
   :: ThreadBudgetState
   -> LogHistory
-  -> Int{- duration of eac thread (milliseconds) -}
-  -> Int{- number of threads -}
+  -> Int  -- ^ duration of each thread (milliseconds)
+  -> Int  -- ^ number of threads
   -> (MonadIO m) => m ()
 burstActions tbs logHistory howlong howmany
     = liftIO . void . forkIO . void $
-      mapConcurrently (\jitter -> do
-                          delayms jitter  -- (2 microseconds *should* enough on normal
-                                          -- hardware, but we're doing 1 milisecond just
-                                          -- to be safe.)
-                          runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
+      mapConcurrently (\_ -> runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
                       [1..howmany]
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
@@ -287,9 +283,9 @@ postcondition' (state, (NumberOfThreads modellimit, spent)) rspConcreteRunning m
 
     runAndWait :: [Logic]
     runAndWait
-      = [ Annotate "out of sync"           $ rspModelRunning    .== rspConcreteRunning
+      = [ Annotate "wrong thread limit"    $ rspThreadLimit     .== modellimit
         , Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit
-        , Annotate "wrong thread limit"    $ rspThreadLimit     .== modellimit
+        , Annotate "out of sync"           $ rspConcreteRunning .<= rspModelRunning
         ]
 
     runOnly :: [Logic]
