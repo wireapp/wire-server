@@ -229,7 +229,7 @@ semantics (Run
             howmany howlong)
   = do
     burstActions tbs logs howlong howmany
-    rspConcreteRunning   <- delayndt errorMargin >> runningThreads tbs
+    rspConcreteRunning   <- runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
     rspNow               <- getCurrentTime
     let rspNewlyStarted   = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
@@ -250,16 +250,21 @@ transition (Model Nothing) (Init limit) (InitResponse st)
   = Model (Just (st, (limit, [])))
 
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
-transition (Model (Just (st, (limit, spent)))) (Run _ _ _) (RunResponse now _ _ rspNewlyStarted)
-  = Model (Just (st, (limit, updateModelState now $ rspNewlyStarted : spent)))
+transition (Model (Just (st, (limit, spent)))) Run{} RunResponse{..}
+  = Model (Just (st, (limit, updateModelState rspNow spent')))
+  where
+    spent' = removeBlockedThreads rspNumNoBudgetErrors rspNewlyStarted : spent
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
-transition (Model (Just (st, (limit, spent)))) (Wait _ _) (WaitResponse now _)
-  = Model (Just (st, (limit, updateModelState now spent)))
+transition (Model (Just (st, (limit, spent)))) Wait{} WaitResponse{..}
+  = Model (Just (st, (limit, updateModelState rspNow spent)))
 
 transition _ _ _ = error "bad transition."
 
+
+removeBlockedThreads :: Int -> (NumberOfThreads, UTCTime) -> (NumberOfThreads, UTCTime)
+removeBlockedThreads remove = _1 %~ \(NumberOfThreads i) -> NumberOfThreads (max 0 (i - remove))
 
 updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads, UTCTime)]
 updateModelState now = filter filterSpent
