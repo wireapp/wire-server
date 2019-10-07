@@ -97,7 +97,7 @@ burstActions
   -> (MonadIO m) => m ()
 burstActions tbs logHistory howlong (NumberOfThreads howmany)
     = liftIO $
-      mapConcurrently_ (\_ -> runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
+      mapConcurrently_ (\_ -> forkIO $ runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
                        [1..howmany]
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
