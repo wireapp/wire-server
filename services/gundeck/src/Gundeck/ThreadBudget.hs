@@ -15,9 +15,9 @@ module Gundeck.ThreadBudget
   , watchThreadBudgetState
 
   -- * for testing
-  , gcThreadBudgetState
   , threadLimit
   , runningThreads
+  , cancelAllThreads
   ) where
 
 import Imports
@@ -55,16 +55,16 @@ runningThreads :: ThreadBudgetState -> IO Int
 runningThreads (ThreadBudgetState _ running)
   = length . filter (isJust . snd) . SHM.elems <$> readIORef running
 
+cancelAllThreads :: ThreadBudgetState -> IO ()
+cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
+  >>= mapM_ cancel . catMaybes . fmap snd . SHM.elems
+
 showDebugHandles :: BudgetMap -> String
 showDebugHandles = show . fmap (_2 . _2 %~ isJust) . SHM.toList
 
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
 mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
-
-gcThreadBudgetState :: ThreadBudgetState -> IO ()
-gcThreadBudgetState (ThreadBudgetState _ running) = readIORef running >>=
-  mapM_ (maybe (pure ()) cancel . snd) . SHM.elems
 
 register
   :: IORef BudgetMap -> UUID -> Int -> Maybe (Async ()) -> MonadIO m => m ()
