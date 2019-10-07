@@ -136,7 +136,7 @@ testThreadBudgets = do
 -- property-based state machine tests
 
 type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
-type ModelState = ([(NumberOfThreads, MilliSeconds)], NumberOfThreads)
+type ModelState = (NumberOfThreads{- limit -}, [(NumberOfThreads, UTCTime)]{- expiry -})
 
 -- TODO: once this works: do we really need to keep the 'State' around in here even if it's
 -- symbolic?  why?  (not sure this question makes sense, i'll just keep going.)
@@ -153,12 +153,12 @@ data Command r
   | Wait (State r) MilliSeconds
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
-newtype NumberOfThreads = NumberOfThreads Int
+newtype NumberOfThreads = NumberOfThreads { fromNumberOfThreads :: Int }
   deriving (Eq, Ord, Show, Generic, ToExpr)
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
-newtype MilliSeconds = MilliSeconds Int
+newtype MilliSeconds = MilliSeconds { fromMilliSeconds :: Int }
   deriving (Eq, Ord, Show, Generic, ToExpr)
 
 -- toMillisecondsCeiling 0.03      == MilliSeconds 30
@@ -168,15 +168,21 @@ newtype MilliSeconds = MilliSeconds Int
 toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
 toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
 
+millliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
+millliSecondsToNominalDiffTime = fromRational . toRational . fromMilliSeconds
+
+
 data Response r
   = InitResponse (State r)
   | RunResponse
-      { rspConcreteRunning   :: Int
+      { rspNow               :: UTCTime
+      , rspConcreteRunning   :: Int
       , rspNumNoBudgetErrors :: Int
-      , rspNewlyStarted      :: Int
+      , rspNewlyStarted      :: (NumberOfThreads, UTCTime)
       }
   | WaitResponse
-      { rspConcreteRunning   :: Int
+      { rspNow               :: UTCTime
+      , rspConcreteRunning   :: Int
       }
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
@@ -213,13 +219,13 @@ semantics (Init (NumberOfThreads limit))
 
 semantics (Run
             (opaque -> (tbs :: ThreadBudgetState, _, logs :: LogHistory))
-            (NumberOfThreads howmany)
-            (MilliSeconds howlong))
+            howmany howlong)
   = do
-    burstActions tbs logs howmany howlong
+    burstActions tbs logs (fromNumberOfThreads howmany) (fromMilliSeconds howlong)
     rspConcreteRunning   <- runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
-    let rspNewlyStarted  = howmany
+    rspNow               <- getCurrentTime
+    let rspNewlyStarted   = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
     pure RunResponse{..}
 
 semantics (Wait
@@ -228,29 +234,34 @@ semantics (Wait
   = do
     delayms howlong
     rspConcreteRunning <- runningThreads tbs
+    rspNow             <- getCurrentTime
     pure WaitResponse{..}
 
 
 transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
 transition (Model Nothing) (Init limit) (InitResponse st)
-  = Model (Just (st, (mempty, limit)))
+  = Model (Just (st, (limit, [])))
 
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
-transition (Model (Just (st, (spent, limit)))) (Run _ howmany howlong) _
-  = Model (Just (st, ((howmany, howlong) : spent, limit)))
+transition (Model (Just (st, (limit, spent)))) (Run _ _ _) (RunResponse now _ _ rspNewlyStarted)
+  = Model (Just (st, (limit, updateModelState now $ rspNewlyStarted : spent)))
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
-transition (Model (Just (st, (spent, limit)))) (Wait _ (MilliSeconds howlong)) _
-  = Model (Just (st, (filter filterSpent $ mapSpent <$> spent, limit)))
-  where
-    mapSpent :: (NumberOfThreads, MilliSeconds) -> (NumberOfThreads, MilliSeconds)
-    mapSpent (nthreads, MilliSeconds ms) = (nthreads, MilliSeconds $ ms - howlong)
-
-    filterSpent :: (NumberOfThreads, MilliSeconds) -> Bool
-    filterSpent (_, MilliSeconds ms) = ms > 0
+transition (Model (Just (st, (limit, spent)))) (Wait _ _) (WaitResponse now _)
+  = Model (Just (st, (limit, updateModelState now spent)))
 
 transition _ _ _ = error "bad transition."
+
+
+updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads, UTCTime)]
+updateModelState now = filter filterSpent
+  where
+    filterSpent :: (NumberOfThreads, UTCTime) -> Bool
+    filterSpent (_, timeOfDeath) = timeOfDeath < addUTCTime errorMargin now
+
+    errorMargin :: NominalDiffTime
+    errorMargin = 0.020
 
 
 precondition :: Model Symbolic -> Command Symbolic -> Logic
@@ -268,8 +279,8 @@ postcondition (Model (Just model)) (Wait _ _) WaitResponse{..}
 
 postcondition m c r = error $ "postcondition: " <> show (m, c, r)
 
-postcondition' :: (State Concrete, ModelState) -> Int -> Maybe (Int, Int) -> Logic
-postcondition' (state, (spent, NumberOfThreads modellimit)) rspConcreteRunning mrun = result
+postcondition' :: (State Concrete, ModelState) -> Int -> Maybe (Int, (NumberOfThreads, UTCTime)) -> Logic
+postcondition' (state, (NumberOfThreads modellimit, spent)) rspConcreteRunning mrun = result
   where
     result :: Logic
     result = foldl' (.&&) Top (runAndWait <> runOnly)
@@ -285,7 +296,7 @@ postcondition' (state, (spent, NumberOfThreads modellimit)) rspConcreteRunning m
     runOnly = case mrun of
       Nothing
         -> []
-      Just (rspNumNoBudgetErrors, rspNewlyStarted)
+      Just (rspNumNoBudgetErrors, (NumberOfThreads rspNewlyStarted, _))
         -> [ Annotate ("wrong number of over-budget calls: " <>
                        show (rspConcreteRunning, rspNewlyStarted, rspThreadLimit)) $
              max 0 rspNumNoBudgetErrors .== max 0 (rspConcreteRunning + rspNewlyStarted - rspThreadLimit)
@@ -301,14 +312,17 @@ postcondition' (state, (spent, NumberOfThreads modellimit)) rspConcreteRunning m
 mock :: HasCallStack => Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
 mock (Model Nothing) (Init _)
   = InitResponse <$> genSym
-mock (Model (Just (_, (spent, NumberOfThreads limit)))) (Run _ (NumberOfThreads rspNewlyStarted) _)
+mock (Model (Just (_, (NumberOfThreads limit, spent)))) (Run _ howmany howlong)
   = do
-    let rspConcreteRunning   = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
-        rspNumNoBudgetErrors = rspConcreteRunning + rspNewlyStarted - limit
+    let rspNow               = undefined  -- doesn't appear to be needed...
+        rspConcreteRunning   = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
+        rspNumNoBudgetErrors = rspConcreteRunning + (fromNumberOfThreads howmany) - limit
+        rspNewlyStarted      = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
     pure RunResponse{..}
-mock (Model (Just (_, (spent, _)))) (Wait _ (MilliSeconds _))
+mock (Model (Just (_, (_, spent)))) (Wait _ (MilliSeconds _))
   = do
-    let rspConcreteRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
+    let rspNow             = undefined  -- doesn't appear to be needed...
+        rspConcreteRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
     pure WaitResponse{..}
 mock badmodel badcmd = error $ "impossible: " <> show (badmodel, badcmd)
 
