@@ -323,7 +323,7 @@ sm = StateMachine
 shutdown :: Model Concrete -> MonadIO m => m ()
 shutdown (Model Nothing) = pure ()  -- unlikely though this seems...
 shutdown (Model (Just (opaque -> (tbs, watcher, _), _))) = liftIO $ do
-  gcThreadBudgetState tbs
+  cancelAllThreads tbs
   cancel watcher
 
 -- | FUTUREWORK: in this use case of quickcheck-state-machine it may be more interesting to
