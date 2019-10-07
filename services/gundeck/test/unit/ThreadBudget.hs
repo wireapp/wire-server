@@ -12,6 +12,7 @@ import Control.Lens
 import Control.Monad.Catch (MonadCatch, catch)
 import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions (cs)
+import Data.Time
 import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.ThreadBudget
@@ -160,6 +161,13 @@ newtype NumberOfThreads = NumberOfThreads Int
 newtype MilliSeconds = MilliSeconds Int
   deriving (Eq, Ord, Show, Generic, ToExpr)
 
+-- toMillisecondsCeiling 0.03      == MilliSeconds 30
+-- toMillisecondsCeiling 0.003     == MilliSeconds 3
+-- toMillisecondsCeiling 0.0003    == MilliSeconds 1
+-- toMillisecondsCeiling 0.0000003 == MilliSeconds 1
+toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
+toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
+
 data Response r
   = InitResponse (State r)
   | RunResponse
@@ -179,7 +187,7 @@ generator (Model (Just (st, _))) = oneof [Run st <$> arbitrary <*> arbitrary, Wa
 
 shrinker :: Command Symbolic -> [Command Symbolic]
 shrinker (Init _)     = []
-shrinker (Run st n m) = Wait st (MilliSeconds 0) : (Run st <$> shrink n <*> shrink m)
+shrinker (Run st n m) = Wait st (MilliSeconds 1) : (Run st <$> shrink n <*> shrink m)
 shrinker (Wait st n)  = Wait st <$> shrink n
 
 instance Arbitrary NumberOfThreads where
