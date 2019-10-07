@@ -96,9 +96,16 @@ burstActions
   -> NumberOfThreads
   -> (MonadIO m) => m ()
 burstActions tbs logHistory howlong (NumberOfThreads howmany)
-    = liftIO $
-      mapConcurrently_ (\_ -> forkIO $ runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
-                       [1..howmany]
+    = liftIO $ do
+        before <- runningThreads tbs
+
+        let budgeted = runWithBudget tbs (delayms howlong)
+        replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
+
+        let waitForReady = do  -- TODO: i've seen this loop forever, but only once?
+              after <- runningThreads tbs
+              when (after < min (before + howmany) (threadLimit tbs)) waitForReady
+        waitForReady
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
@@ -212,8 +219,10 @@ initModel :: Model r
 initModel = Model Nothing
 
 
+-- TODO: understand all calls to 'errorMargin' in the code here; this may be related to the
+-- test case failures.
 errorMargin :: NominalDiffTime
-errorMargin = 0.001
+errorMargin = 0.00005
 
 
 semantics :: Command Concrete -> IO (Response Concrete)
@@ -270,7 +279,7 @@ updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads
 updateModelState now = filter filterSpent
   where
     filterSpent :: (NumberOfThreads, UTCTime) -> Bool
-    filterSpent (_, timeOfDeath) = timeOfDeath > addUTCTime errorMargin now
+    filterSpent (_, timeOfDeath) = timeOfDeath > (errorMargin `addUTCTime` now)
 
 
 precondition :: Model Symbolic -> Command Symbolic -> Logic
