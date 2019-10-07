@@ -228,19 +228,19 @@ transition (Model Nothing) (Init limit) (InitResponse st)
   = Model (Just (st, (mempty, limit)))
 
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
-transition (Model (Just (st, (modelstate, limit)))) (Run _ howmany howlong) _
-  = Model (Just (st, ((howmany, howlong) : modelstate, limit)))
+transition (Model (Just (st, (spent, limit)))) (Run _ howmany howlong) _
+  = Model (Just (st, ((howmany, howlong) : spent, limit)))
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
-transition (Model (Just (st, (modelstate, limit)))) (Wait _ (MilliSeconds howlong)) _
-  = Model (Just (st, (filter filterModelstate $ mapModelstate <$> modelstate, limit)))
+transition (Model (Just (st, (spent, limit)))) (Wait _ (MilliSeconds howlong)) _
+  = Model (Just (st, (filter filterSpent $ mapSpent <$> spent, limit)))
   where
-    mapModelstate :: (NumberOfThreads, MilliSeconds) -> (NumberOfThreads, MilliSeconds)
-    mapModelstate (nthreads, MilliSeconds ms) = (nthreads, MilliSeconds $ ms - howlong)
+    mapSpent :: (NumberOfThreads, MilliSeconds) -> (NumberOfThreads, MilliSeconds)
+    mapSpent (nthreads, MilliSeconds ms) = (nthreads, MilliSeconds $ ms - howlong)
 
-    filterModelstate :: (NumberOfThreads, MilliSeconds) -> Bool
-    filterModelstate (_, MilliSeconds ms) = ms > 0
+    filterSpent :: (NumberOfThreads, MilliSeconds) -> Bool
+    filterSpent (_, MilliSeconds ms) = ms > 0
 
 transition _ _ _ = error "bad transition."
 
@@ -261,7 +261,7 @@ postcondition (Model (Just model)) (Wait _ _) WaitResponse{..}
 postcondition m c r = error $ "postcondition: " <> show (m, c, r)
 
 postcondition' :: (State Concrete, ModelState) -> Int -> Maybe (Int, Int) -> Logic
-postcondition' (state, (modelstate, NumberOfThreads modellimit)) rspConcreteRunning mrun = result
+postcondition' (state, (spent, NumberOfThreads modellimit)) rspConcreteRunning mrun = result
   where
     result :: Logic
     result = foldl' (.&&) Top (runAndWait <> runOnly)
@@ -284,7 +284,7 @@ postcondition' (state, (modelstate, NumberOfThreads modellimit)) rspConcreteRunn
            ]
 
     rspModelRunning :: Int
-    rspModelRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
+    rspModelRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
 
     rspThreadLimit :: Int
     rspThreadLimit = case opaque state of (tbs, _, _) -> threadLimit tbs
@@ -293,14 +293,14 @@ postcondition' (state, (modelstate, NumberOfThreads modellimit)) rspConcreteRunn
 mock :: HasCallStack => Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
 mock (Model Nothing) (Init _)
   = InitResponse <$> genSym
-mock (Model (Just (_, (modelstate, NumberOfThreads limit)))) (Run _ (NumberOfThreads rspNewlyStarted) _)
+mock (Model (Just (_, (spent, NumberOfThreads limit)))) (Run _ (NumberOfThreads rspNewlyStarted) _)
   = do
-    let rspConcreteRunning   = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
+    let rspConcreteRunning   = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
         rspNumNoBudgetErrors = rspConcreteRunning + rspNewlyStarted - limit
     pure RunResponse{..}
-mock (Model (Just (_, (modelstate, _)))) (Wait _ (MilliSeconds _))
+mock (Model (Just (_, (spent, _)))) (Wait _ (MilliSeconds _))
   = do
-    let rspConcreteRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
+    let rspConcreteRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
     pure WaitResponse{..}
 mock badmodel badcmd = error $ "impossible: " <> show (badmodel, badcmd)
 
