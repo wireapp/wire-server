@@ -194,11 +194,12 @@ initModel = Model Nothing
 
 
 semantics :: Command Concrete -> IO (Response Concrete)
-semantics (Init (NumberOfThreads limit)) = do
-  tbs <- mkThreadBudgetState limit
-  logHistory <- newMVar []
-  watcher <- mkWatcher tbs logHistory
-  pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
+semantics (Init (NumberOfThreads limit))
+  = do
+    tbs <- mkThreadBudgetState limit
+    logHistory <- newMVar []
+    watcher <- mkWatcher tbs logHistory
+    pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
 
 semantics (Run
             (opaque -> (tbs :: ThreadBudgetState, _, logs :: LogHistory))
@@ -206,7 +207,7 @@ semantics (Run
             (MilliSeconds howlong))
   = do
     burstActions tbs logs howmany howlong
-    rspConcreteRunning   <- length <$> runningThreads tbs
+    rspConcreteRunning   <- runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
     let rspNewlyStarted  = howmany
     pure RunResponse{..}
@@ -216,7 +217,7 @@ semantics (Wait
             (MilliSeconds howlong))
   = do
     delayms howlong
-    rspConcreteRunning <- length <$> runningThreads tbs
+    rspConcreteRunning <- runningThreads tbs
     pure WaitResponse{..}
 
 
@@ -237,7 +238,7 @@ transition (Model (Just (st, (modelstate, limit)))) (Wait _ (MilliSeconds howlon
     mapModelstate (nthreads, MilliSeconds ms) = (nthreads, MilliSeconds $ ms - howlong)
 
     filterModelstate :: (NumberOfThreads, MilliSeconds) -> Bool
-    filterModelstate (_, MilliSeconds ms) = ms <= 0
+    filterModelstate (_, MilliSeconds ms) = ms > 0
 
 transition _ _ _ = error "bad transition."
 

@@ -51,14 +51,12 @@ type BudgetMap = SizedHashMap UUID (Int, Maybe (Async ()))
 threadLimit :: ThreadBudgetState -> Int
 threadLimit (ThreadBudgetState limit _) = limit
 
-runningThreads :: ThreadBudgetState -> IO [(UUID, Int)]
-runningThreads (ThreadBudgetState _ running) = showDebugHandles' <$> readIORef running
+runningThreads :: ThreadBudgetState -> IO Int
+runningThreads (ThreadBudgetState _ running)
+  = length . filter (isJust . snd) . SHM.elems <$> readIORef running
 
 showDebugHandles :: BudgetMap -> String
-showDebugHandles = show . showDebugHandles'
-
-showDebugHandles' :: BudgetMap -> [(UUID, Int)]
-showDebugHandles' = fmap (_2 %~ fst) . SHM.toList
+showDebugHandles = show . fmap (_2 . _2 %~ isJust) . SHM.toList
 
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
