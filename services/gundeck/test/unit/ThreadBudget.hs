@@ -96,9 +96,9 @@ burstActions
   -> NumberOfThreads
   -> (MonadIO m) => m ()
 burstActions tbs logHistory howlong (NumberOfThreads howmany)
-    = liftIO . void . forkIO . void $
-      mapConcurrently (\_ -> runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
-                      [1..howmany]
+    = liftIO $
+      mapConcurrently_ (\_ -> runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
+                       [1..howmany]
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
