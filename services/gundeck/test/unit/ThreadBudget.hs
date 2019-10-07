@@ -31,12 +31,32 @@ import qualified Test.StateMachine.Types.Rank2 as Rank2
 ----------------------------------------------------------------------
 -- helpers
 
+newtype NumberOfThreads = NumberOfThreads { fromNumberOfThreads :: Int }
+  deriving (Eq, Ord, Show, Generic, ToExpr)
+
+-- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
+-- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
+newtype MilliSeconds = MilliSeconds { fromMilliSeconds :: Int }
+  deriving (Eq, Ord, Show, Generic, ToExpr)
+
+-- toMillisecondsCeiling 0.03      == MilliSeconds 30
+-- toMillisecondsCeiling 0.003     == MilliSeconds 3
+-- toMillisecondsCeiling 0.0003    == MilliSeconds 1
+-- toMillisecondsCeiling 0.0000003 == MilliSeconds 1
+toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
+toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
+
+millliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
+millliSecondsToNominalDiffTime = fromRational . toRational . fromMilliSeconds
+
+
 data LogEntry = NoBudget | Debug String | Unknown String
   deriving (Eq, Show)
 
 makePrisms ''LogEntry
 
 type LogHistory = MVar [LogEntry]
+
 
 expectLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
 expectLogHistory expected = do
@@ -60,16 +80,22 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
           | otherwise                                       = Unknown raw
     enterLogHistory parsed
 
-delayms :: Int -> (MonadCatch m, MonadIO m) => m ()
-delayms ms = threadDelay (ms * 1000) `catch` \AsyncCancelled -> pure ()
+delayms :: MilliSeconds -> (MonadCatch m, MonadIO m) => m ()
+delayms = delay' . (* 1000) . fromMilliSeconds
+
+delayndt :: NominalDiffTime -> (MonadCatch m, MonadIO m) => m ()
+delayndt = delay' . round . (* 1000) . (* 1000) . toRational
+
+delay' :: Int -> (MonadCatch m, MonadIO m) => m ()
+delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
 
 burstActions
   :: ThreadBudgetState
   -> LogHistory
-  -> Int  -- ^ duration of each thread (milliseconds)
-  -> Int  -- ^ number of threads
+  -> MilliSeconds
+  -> NumberOfThreads
   -> (MonadIO m) => m ()
-burstActions tbs logHistory howlong howmany
+burstActions tbs logHistory howlong (NumberOfThreads howmany)
     = liftIO . void . forkIO . void $
       mapConcurrently (\_ -> runReaderT (runWithBudget tbs (delayms howlong)) logHistory)
                       [1..howmany]
@@ -103,26 +129,26 @@ testThreadBudgets = do
   watcher <- mkWatcher tbs logHistory
 
   flip runReaderT logHistory $ do
-    burstActions tbs logHistory 1000 5
-    delayms 100
+    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 5)
+    delayms (MilliSeconds 100)
     expectLogHistory null
 
-    burstActions tbs logHistory 1000 3
-    delayms 100
+    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
+    delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
 
-    burstActions tbs logHistory 1000 3
-    delayms 100
+    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
+    delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
 
-    delayms 800
+    delayms (MilliSeconds 800)
 
-    burstActions tbs logHistory 1000 3
-    delayms 100
+    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
+    delayms (MilliSeconds 100)
     expectLogHistory null
 
-    burstActions tbs logHistory 1000 3
-    delayms 100
+    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
+    delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget])
 
   cancel watcher
@@ -148,25 +174,6 @@ data Command r
   | Run (State r) NumberOfThreads MilliSeconds
   | Wait (State r) MilliSeconds
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
-
-newtype NumberOfThreads = NumberOfThreads { fromNumberOfThreads :: Int }
-  deriving (Eq, Ord, Show, Generic, ToExpr)
-
--- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
--- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
-newtype MilliSeconds = MilliSeconds { fromMilliSeconds :: Int }
-  deriving (Eq, Ord, Show, Generic, ToExpr)
-
--- toMillisecondsCeiling 0.03      == MilliSeconds 30
--- toMillisecondsCeiling 0.003     == MilliSeconds 3
--- toMillisecondsCeiling 0.0003    == MilliSeconds 1
--- toMillisecondsCeiling 0.0000003 == MilliSeconds 1
-toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
-toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
-
-millliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
-millliSecondsToNominalDiffTime = fromRational . toRational . fromMilliSeconds
-
 
 data Response r
   = InitResponse (State r)
@@ -205,6 +212,10 @@ initModel :: Model r
 initModel = Model Nothing
 
 
+errorMargin :: NominalDiffTime
+errorMargin = 0.001
+
+
 semantics :: Command Concrete -> IO (Response Concrete)
 semantics (Init (NumberOfThreads limit))
   = do
@@ -217,7 +228,7 @@ semantics (Run
             (opaque -> (tbs :: ThreadBudgetState, _, logs :: LogHistory))
             howmany howlong)
   = do
-    burstActions tbs logs (fromNumberOfThreads howmany) (fromMilliSeconds howlong)
+    burstActions tbs logs howlong howmany
     rspConcreteRunning   <- runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
     rspNow               <- getCurrentTime
@@ -226,9 +237,10 @@ semantics (Run
 
 semantics (Wait
             (opaque -> (tbs :: ThreadBudgetState, _, _))
-            (MilliSeconds howlong))
+            howlong)
   = do
     delayms howlong
+    delayndt errorMargin
     rspConcreteRunning <- runningThreads tbs
     rspNow             <- getCurrentTime
     pure WaitResponse{..}
@@ -254,10 +266,7 @@ updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads
 updateModelState now = filter filterSpent
   where
     filterSpent :: (NumberOfThreads, UTCTime) -> Bool
-    filterSpent (_, timeOfDeath) = timeOfDeath < addUTCTime errorMargin now
-
-    errorMargin :: NominalDiffTime
-    errorMargin = 0.020
+    filterSpent (_, timeOfDeath) = timeOfDeath > addUTCTime errorMargin now
 
 
 precondition :: Model Symbolic -> Command Symbolic -> Logic
@@ -285,7 +294,7 @@ postcondition' (state, (NumberOfThreads modellimit, spent)) rspConcreteRunning m
     runAndWait
       = [ Annotate "wrong thread limit"    $ rspThreadLimit     .== modellimit
         , Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit
-        , Annotate "out of sync"           $ rspConcreteRunning .<= rspModelRunning
+        , Annotate "out of sync"           $ rspConcreteRunning .== rspModelRunning
         ]
 
     runOnly :: [Logic]
