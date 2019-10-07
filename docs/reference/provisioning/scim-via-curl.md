@@ -8,6 +8,11 @@ This page shows you how to communicate with the wire backend through
 the [SCIM API](http://www.simplecloud.info/) by example.  All examples
 are [curl](https://curl.haxx.se/) (in bash syntax).
 
+We support setting the handle and user name in wire (the thing with
+`@` and the longer thing without `@`).  There is also support for
+setting rich-info.  Group provisioning is planned, but the release
+date hasn't been fixed yet.
+
 If you want to dive into the backend code, start [reading here in our
 backend](https://github.com/wireapp/wire-server/blob/develop/services/spar/src/Spar/Scim.hs)
 and [our hscim library](https://github.com/wireapp/hscim).
