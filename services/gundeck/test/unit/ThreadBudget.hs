@@ -308,7 +308,8 @@ postcondition' (state, (NumberOfThreads modellimit, spent)) rspConcreteRunning m
       Nothing
         -> []
       Just (rspNumNoBudgetErrors, (NumberOfThreads rspNewlyStarted, _))
-        -> [ Annotate ("wrong number of over-budget calls: " <>
+        -> [ (Top .||) $  -- TODO!
+             Annotate ("wrong number of over-budget calls: " <>
                        show (rspConcreteRunning, rspNewlyStarted, rspThreadLimit)) $
              max 0 rspNumNoBudgetErrors .== max 0 (rspConcreteRunning + rspNewlyStarted - rspThreadLimit)
            ]
