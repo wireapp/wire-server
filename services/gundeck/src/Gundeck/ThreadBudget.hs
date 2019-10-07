@@ -43,33 +43,31 @@ data ThreadBudgetState = ThreadBudgetState
   , _threadBudgetRunning :: IORef BudgetMap
   }
 
--- | We store not only the handle (for cleanup in 'watchThreadBudgetState'), but also the
--- number of spent resources at the time of allocating this one (so we can see if two actions
--- are running on the same budget token because they have been allocated concurrently).
-type BudgetMap = SizedHashMap UUID (Int, Maybe (Async ()))
+-- | Store all handles for cleanup in 'watchThreadBudgetState'.
+type BudgetMap = SizedHashMap UUID (Maybe (Async ()))
 
 threadLimit :: ThreadBudgetState -> Int
 threadLimit (ThreadBudgetState limit _) = limit
 
 runningThreads :: ThreadBudgetState -> IO Int
 runningThreads (ThreadBudgetState _ running)
-  = length . filter (isJust . snd) . SHM.elems <$> readIORef running
+  = length . filter isJust . SHM.elems <$> readIORef running
 
 cancelAllThreads :: ThreadBudgetState -> IO ()
 cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
-  >>= mapM_ cancel . catMaybes . fmap snd . SHM.elems
+  >>= mapM_ cancel . catMaybes . SHM.elems
 
 showDebugHandles :: BudgetMap -> String
-showDebugHandles = show . fmap (_2 . _2 %~ isJust) . SHM.toList
+showDebugHandles = show . fmap (_2 %~ isJust) . SHM.toList
 
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
 mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
 
 register
-  :: IORef BudgetMap -> UUID -> Int -> Maybe (Async ()) -> MonadIO m => m ()
-register ref key spent mhandle
-  = atomicModifyIORef' ref (\hm -> (SHM.insert key (spent, mhandle) hm, ()))
+  :: IORef BudgetMap -> UUID -> Maybe (Async ()) -> MonadIO m => m Int
+register ref key mhandle
+  = atomicModifyIORef' ref (\hm -> (SHM.insert key mhandle hm, SHM.size hm))
 
 unregister
   :: IORef BudgetMap -> UUID -> MonadIO m => m ()
@@ -90,20 +88,19 @@ runWithBudget
 runWithBudget (ThreadBudgetState limit ref) action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
-    spent <- SHM.size <$> readIORef ref
-    register ref key spent Nothing
-    if spent >= limit then nobudget else go key spent
+    oldsize <- register ref key Nothing
+    if oldsize >= limit then nobudget else go key oldsize
   where
     go :: UUID -> Int -> m ()
-    go key spent = do
+    go key oldsize = do
       readIORef ref >>= \debugHandles -> LC.debug $
         "key"   LC..= (toText key) LC.~~
-        "spent" LC..= spent LC.~~
+        "spent" LC..= oldsize LC.~~
         "map"   LC..= showDebugHandles debugHandles LC.~~
         LC.msg (LC.val "runWithBudget: go")
 
       handle <- async action
-      register ref key spent (Just handle)
+      _ <- register ref key (Just handle)
       wait handle
 
     nobudget :: m ()
@@ -160,7 +157,7 @@ removeStaleHandles ref = do
   unless (null staleHandles) $ do
     warnStaleHandles (Set.size staleHandles) =<< readIORef ref
     forM_ staleHandles $ \key -> do
-      mapM_ waitCatch . join . fmap snd =<< SHM.lookup key <$> readIORef ref
+      mapM_ waitCatch . join =<< SHM.lookup key <$> readIORef ref
       unregister ref key
 
   where
@@ -168,9 +165,9 @@ removeStaleHandles ref = do
     getStaleHandles = Set.fromList . mconcat <$> do
       handles <- SHM.toList <$> readIORef ref
       forM handles $ \case
-        (_, (_, Nothing)) -> do
+        (_, Nothing) -> do
           pure []
-        (tid, (_, Just handle)) -> do
+        (tid, Just handle) -> do
           status <- poll handle
           pure [tid | isJust status]
 
