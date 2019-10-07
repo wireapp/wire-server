@@ -275,11 +275,13 @@ postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logi
 postcondition (Model Nothing) (Init _) _
   = Top
 
-postcondition (Model (Just model))  (Run _ _ _) RunResponse{..}
-  = postcondition' model rspConcreteRunning (Just (rspNumNoBudgetErrors, rspNewlyStarted))
+postcondition model cmd@Run{} resp@RunResponse{..}
+  = let Model (Just model') = transition model cmd resp
+    in postcondition' model' rspConcreteRunning (Just (rspNumNoBudgetErrors, rspNewlyStarted))
 
-postcondition (Model (Just model)) (Wait _ _) WaitResponse{..}
-  = postcondition' model rspConcreteRunning Nothing
+postcondition model cmd@Wait{} resp@WaitResponse{..}
+  = let Model (Just model') = transition model cmd resp
+    in postcondition' model' rspConcreteRunning Nothing
 
 postcondition m c r = error $ "postcondition: " <> show (m, c, r)
 
