@@ -9,6 +9,7 @@ import Imports
 
 import Control.Concurrent.Async
 import Control.Lens
+import Control.Monad.Catch (MonadCatch, catch)
 import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions (cs)
 import Data.TreeDiff.Class (ToExpr)
@@ -58,8 +59,8 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
           | otherwise                                       = Unknown raw
     enterLogHistory parsed
 
-delayms :: Int -> MonadIO m => m ()
-delayms = threadDelay . (* 1000)
+delayms :: Int -> (MonadCatch m, MonadIO m) => m ()
+delayms ms = threadDelay (ms * 1000) `catch` \AsyncCancelled -> pure ()
 
 burstActions
   :: ThreadBudgetState
@@ -82,6 +83,7 @@ mkWatcher :: ThreadBudgetState -> LogHistory -> IO (Async ())
 mkWatcher tbs logHistory = do
   mtr <- metrics
   async $ runReaderT (watchThreadBudgetState mtr tbs 10) logHistory
+    `catch` \AsyncCancelled -> pure ()
 
 
 ----------------------------------------------------------------------
@@ -321,7 +323,7 @@ sm = StateMachine
 -- | Remove resources created by the concrete 'STM.Commands', namely watcher and budgeted
 -- async threads.
 shutdown :: Model Concrete -> MonadIO m => m ()
-shutdown (Model Nothing) = pure ()  -- unlikely though this seems...
+shutdown (Model Nothing) = pure ()
 shutdown (Model (Just (opaque -> (tbs, watcher, _), _))) = liftIO $ do
   cancelAllThreads tbs
   cancel watcher
