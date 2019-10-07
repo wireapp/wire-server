@@ -229,7 +229,7 @@ semantics (Run
             howmany howlong)
   = do
     burstActions tbs logs howlong howmany
-    rspConcreteRunning   <- runningThreads tbs
+    rspConcreteRunning   <- delayndt errorMargin >> runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
     rspNow               <- getCurrentTime
     let rspNewlyStarted   = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
@@ -240,8 +240,7 @@ semantics (Wait
             howlong)
   = do
     delayms howlong
-    delayndt errorMargin
-    rspConcreteRunning <- runningThreads tbs
+    rspConcreteRunning <- delayndt errorMargin >> runningThreads tbs
     rspNow             <- getCurrentTime
     pure WaitResponse{..}
 
