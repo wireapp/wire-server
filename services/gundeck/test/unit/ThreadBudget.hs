@@ -16,6 +16,7 @@ import Data.Time
 import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.ThreadBudget
+import System.Timeout (timeout)
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
@@ -90,7 +91,8 @@ delay' :: Int -> (MonadCatch m, MonadIO m) => m ()
 delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
 
 burstActions
-  :: ThreadBudgetState
+  :: HasCallStack
+  => ThreadBudgetState
   -> LogHistory
   -> MilliSeconds
   -> NumberOfThreads
@@ -102,10 +104,14 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
         let budgeted = runWithBudget tbs (delayms howlong)
         replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
 
-        let waitForReady = do  -- TODO: i've seen this loop forever, but only once?
+        -- before we return, wait until all async threads have been added to the budget map.
+        let waitForReady = do
               after <- runningThreads tbs
               when (after < min (before + howmany) (threadLimit tbs)) waitForReady
-        waitForReady
+        timeout 1000 waitForReady >>= maybe (error "burstActions: timeout") (pure)
+            -- TODO: with the timeout, this triggers "impossible."-errors in
+            -- quickcheck-state-machine without the timeout, it sometimes enters an infinite
+            -- loop.
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
