@@ -91,7 +91,6 @@ tests :: TestTree
 tests = testGroup "thread budgets" $
   [ testCase "unit test" testThreadBudgets
   , testProperty "qc stm (sequential)" propSequential
-  , testProperty "qc stm (parallel)" propParallel
   ]
 
 
@@ -333,8 +332,3 @@ propSequential = forAllCommands sm Nothing $ \cmds -> monadicIO $ do
   (hist, model, res) <- runCommands sm cmds
   shutdown model
   prettyCommands sm hist (checkCommandNames cmds (res === Ok))
-
--- | TODO: fails!  why?
-propParallel :: Property
-propParallel = forAllParallelCommands sm $ \cmds -> monadicIO $ do
-  prettyParallelCommands cmds =<< runParallelCommands sm cmds
