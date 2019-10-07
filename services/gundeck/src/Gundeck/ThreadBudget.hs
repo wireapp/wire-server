@@ -100,8 +100,7 @@ runWithBudget (ThreadBudgetState limit ref) action = do
         LC.msg (LC.val "runWithBudget: go")
 
       handle <- async action
-      _ <- register ref key (Just handle)
-      wait handle
+      void $ register ref key (Just handle)
 
     nobudget :: m ()
     nobudget = do
