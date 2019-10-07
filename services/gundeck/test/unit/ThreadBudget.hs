@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -137,8 +138,8 @@ type ModelState = [(NumberOfThreads, MilliSeconds)]
 
 data Command r
   = Init NumberOfThreads
-  | Run (State r) ModelState NumberOfThreads MilliSeconds
-  | Wait (State r) ModelState MilliSeconds
+  | Run (State r) NumberOfThreads MilliSeconds
+  | Wait (State r) MilliSeconds
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 newtype NumberOfThreads = NumberOfThreads Int
@@ -151,7 +152,14 @@ newtype MilliSeconds = MilliSeconds Int
 
 data Response r
   = InitResponse (State r)
-  | VoidResponse
+  | RunResponse
+      { rspConcreteRunning   :: Int
+      , rspNumNoBudgetErrors :: Int
+      , rspNewlyStarted      :: Int
+      }
+  | WaitResponse
+      { rspConcreteRunning   :: Int
+      }
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 -- TODO: once this works: do we really need to keep the 'State' around in here even if it's
@@ -165,12 +173,12 @@ instance ToExpr (Model Concrete)
 
 generator :: Model Symbolic -> Gen (Command Symbolic)
 generator (Model Nothing) = Init <$> arbitrary
-generator (Model (Just (st, st'))) = oneof [Run st st' <$> arbitrary <*> arbitrary, Wait st st' <$> arbitrary]
+generator (Model (Just (st, _))) = oneof [Run st <$> arbitrary <*> arbitrary, Wait st <$> arbitrary]
 
 shrinker :: Command Symbolic -> [Command Symbolic]
 shrinker (Init _)    = []
-shrinker (Run s s' n m) = Wait s s' (MilliSeconds 0) : (Run s s' <$> shrink n <*> shrink m)
-shrinker (Wait s s' n)  = Wait s s' <$> shrink n
+shrinker (Run s n m) = Wait s (MilliSeconds 0) : (Run s <$> shrink n <*> shrink m)
+shrinker (Wait s n)  = Wait s <$> shrink n
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -193,17 +201,23 @@ semantics (Init (NumberOfThreads limit)) = do
   pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
 
 semantics (Run
-            state@(opaque -> (tbs :: ThreadBudgetState, _, mp :: LogHistory))
-            modelstate
+            (opaque -> (tbs :: ThreadBudgetState, _, logs :: LogHistory))
             (NumberOfThreads howmany)
             (MilliSeconds howlong))
   = do
-    syncConcreteSymbolic state modelstate howmany
-    burstActions tbs mp howmany howlong $> VoidResponse
+    burstActions tbs logs howmany howlong
+    rspConcreteRunning   <- length <$> runningThreads tbs
+    rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
+    let rspNewlyStarted  = howmany
+    pure RunResponse{..}
 
-semantics (Wait _ _ (MilliSeconds howlong))
+semantics (Wait
+            (opaque -> (tbs :: ThreadBudgetState, _, _))
+            (MilliSeconds howlong))
   = do
-    delayms howlong $> VoidResponse
+    delayms howlong
+    rspConcreteRunning <- length <$> runningThreads tbs
+    pure WaitResponse{..}
 
 
 transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
@@ -211,12 +225,12 @@ transition (Model Nothing) (Init _) (InitResponse st)
   = Model (Just (st, mempty))
 
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
-transition (Model (Just (st, spent))) (Run _ _ howmany howlong) VoidResponse
+transition (Model (Just (st, spent))) (Run _ howmany howlong) _
   = Model (Just (st, (howmany, howlong) : spent))
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
-transition (Model (Just (st, spent))) (Wait _ _ (MilliSeconds howlong)) VoidResponse
+transition (Model (Just (st, spent))) (Wait _ (MilliSeconds howlong)) _
   = Model (Just (st, filter filterSpent $ mapSpent <$> spent))
   where
     mapSpent :: (NumberOfThreads, MilliSeconds) -> (NumberOfThreads, MilliSeconds)
@@ -232,29 +246,47 @@ precondition :: Model Symbolic -> Command Symbolic -> Logic
 precondition _ _ = Top
 
 postcondition :: Model Concrete -> Command Concrete -> Response Concrete -> Logic
-postcondition _ _ _ = Top
+postcondition (Model Nothing) (Init _) _
+  = Top
 
--- | FUTUREWORK: the error messages generated from this function don't look very nice.
--- (they're helpful enough, though, if you squint at the screen a little.)
---
--- FUTUREWORK: In hind-sight with better understanding of quickcheck-state-machine, the more
--- idiomatic way to do this would have been to return all the concrete information that is
--- needed here in 'semantics' via the 'Response' data type, and then use that information in
--- the 'postcondition' to that that concrete and model state are still aligned.
-syncConcreteSymbolic :: State Concrete -> ModelState -> Int -> IO ()
-syncConcreteSymbolic (opaque -> (tbs, _, logs)) modelstate newlystarted = do
-  let modelrunning  :: Int  = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
-  running           :: Int <- length <$> runningThreads tbs
-  numNoBudgetErrors :: Int <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
+postcondition (Model (Just model))  (Run _ _ _) RunResponse{..}
+  = postcondition' model rspConcreteRunning (Just (rspNumNoBudgetErrors, rspNewlyStarted))
 
-  modelrunning == running
-    @? ("out of sync: " <> show (modelrunning, running))
+postcondition (Model (Just model)) (Wait _ _) WaitResponse{..}
+  = postcondition' model rspConcreteRunning Nothing
 
-  running <= threadLimit tbs
-    @? ("thread limit exceeded: " <> show (running, threadLimit tbs))
+postcondition m c r = error $ "postcondition: " <> show (m, c, r)
 
-  numNoBudgetErrors == (running + newlystarted - threadLimit tbs)
-    @? ("wrong number of over-budget calls: " <> show (numNoBudgetErrors, running, newlystarted, threadLimit tbs))
+postcondition' :: (State Concrete, ModelState) -> Int -> Maybe (Int, Int) -> Logic
+postcondition' (state, modelstate) rspConcreteRunning mrun = result
+  where
+    result :: Logic
+    result = foldl' (.&&) Top (runAndWait <> runOnly)
+
+    runAndWait :: [Logic]
+    runAndWait
+      = [ Annotate "out of sync" $
+          rspModelRunning .== rspConcreteRunning
+
+        , Annotate "thread limit exceeded" $
+          rspConcreteRunning .<= rspThreadLimit
+        ]
+
+    runOnly :: [Logic]
+    runOnly = case mrun of
+      Nothing
+        -> []
+      Just (rspNumNoBudgetErrors, rspNewlyStarted)
+        -> [ Annotate ("wrong number of over-budget calls: " <>
+                       show (rspConcreteRunning, rspNewlyStarted, rspThreadLimit)) $
+             max 0 rspNumNoBudgetErrors .== max 0 (rspConcreteRunning + rspNewlyStarted - rspThreadLimit)
+           ]
+
+    rspModelRunning :: Int
+    rspModelRunning = sum $ (\(NumberOfThreads n, _) -> n) <$> modelstate
+
+    rspThreadLimit :: Int
+    rspThreadLimit = case opaque state of (tbs, _, _) -> threadLimit tbs
 
 
 mock :: Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
