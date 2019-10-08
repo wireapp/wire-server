@@ -28,6 +28,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.SizedHashMap (SizedHashMap)
+import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
 import UnliftIO.Async
@@ -126,33 +127,37 @@ runWithBudget (ThreadBudgetState limit ref) action = do
 -- precaution to see if there aren't any corner cases we missed.
 watchThreadBudgetState
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => Metrics -> ThreadBudgetState -> Int{- milliseconds -} -> m ()
-watchThreadBudgetState metrics (ThreadBudgetState _limit ref) freq = safeForever $ do
-  recordMetrics metrics ref
+  => Metrics -> ThreadBudgetState -> NominalDiffTime -> m ()
+watchThreadBudgetState metrics (ThreadBudgetState limit ref) freq = safeForever $ do
+  recordMetrics metrics limit ref
   removeStaleHandles ref
-  threadDelay $ freq * 1000000
+  threadDelayNominalDiffTime freq
 
 recordMetrics
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => Metrics -> IORef BudgetMap -> m ()
-recordMetrics metrics ref = do
+  => Metrics -> Int -> IORef BudgetMap -> m ()
+recordMetrics metrics limit ref = do
   spent <- SHM.size <$> readIORef ref
-  gaugeSet (fromIntegral spent) (path "net.sns.num_open_connections") metrics
+  gaugeSet (fromIntegral spent) (path "net.sns.thread_budget_allocated") metrics
+  gaugeSet (fromIntegral limit) (path "net.sns.thread_budget_limit")     metrics
 
-staleToleranceMs :: Int
-staleToleranceMs = 30  -- 1 is enough for normal hardware
+staleTolerance :: NominalDiffTime
+staleTolerance = 3
+
+threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
+threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
 
 -- | Get all handles for asyncs that have terminated, but not been removed from the state.  Do
--- that again after 'staleToleranceMs' millisecs to make sure that we don't catch any handles
--- that would have been removed during the 'runWithBudget' cleanup, but we were faster.  The
--- intersection between the two rounds constitutes the legitimately stale handles: warn about
--- them, and then remove them from the hashmap.
+-- that again after 'staleTolerance' to make sure that we don't catch any handles that would
+-- have been removed during the 'runWithBudget' cleanup, but we were faster.  The intersection
+-- between the two rounds constitutes the legitimately stale handles: warn about them, and
+-- then remove them from the hashmap.
 removeStaleHandles
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
   => IORef BudgetMap -> m ()
 removeStaleHandles ref = do
   round1 <- getStaleHandles
-  threadDelay (staleToleranceMs * 1000)
+  threadDelayNominalDiffTime staleTolerance
   round2 <- getStaleHandles
 
   let staleHandles = Set.intersection round1 round2
@@ -170,9 +175,9 @@ removeStaleHandles ref = do
       forM handles $ \case
         (_, Nothing) -> do
           pure []
-        (tid, Just handle) -> do
+        (key, Just handle) -> do
           status <- poll handle
-          pure [tid | isJust status]
+          pure [key | isJust status]
 
     warnStaleHandles :: Int -> BudgetMap -> m ()
     warnStaleHandles num handles = LC.warn $
