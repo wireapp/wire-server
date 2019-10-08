@@ -17,6 +17,7 @@ import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.ThreadBudget
 import System.Timeout (timeout)
+import System.IO (hPutStrLn)
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
@@ -67,6 +68,11 @@ makePrisms ''LogEntry
 type LogHistory = MVar [LogEntry]
 
 
+extractLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => m [LogEntry]
+extractLogHistory = do
+  logHistory <- ask
+  liftIO $ modifyMVar logHistory (pure . ([],))
+
 expectLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
 expectLogHistory expected = do
   logHistory <- ask
@@ -112,7 +118,6 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
         let budgeted = runWithBudget tbs (delayms howlong)
         replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
 
-        -- before we return, wait until all async threads have been added to the budget map.
         let waitForReady = do
               threadsAfter <- runningThreads tbs
               outOfBudgetsAfter <- length . filter (isn't _Debug) <$> readMVar logHistory
@@ -122,10 +127,14 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
                      outOfBudgetsAfter /= max 0 (before + howmany - threadLimit tbs)
                    )
                 waitForReady
-        timeout 1000 waitForReady >>= maybe (trace "\n\n\n\n*************** burstActions: timeout\n\n\n\n" $ pure ()) (pure)
-            -- TODO: if we error out in case of timeout, this triggers "impossible."-errors in
-            -- quickcheck-state-machine without the timeout, it sometimes enters an infinite
-            -- loop.
+
+            -- FUTUREWORK: [upstream] using error here, this triggers an "impossible."-errors
+            -- in quickcheck-state-machine, and it sometimes enters an infinite loop.
+            error' msg = hPutStrLn stderr msg >> error "died"
+
+        -- wait a while, but don't hang.
+        timeout 1000000 waitForReady >>=
+          maybe (error' "\n\n\n\n*************** burstActions: timeout\n\n\n\n") pure
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
@@ -233,8 +242,12 @@ initModel = Model Nothing
 
 -- TODO: understand all calls to 'errorMargin' in the code here; this may be related to the
 -- test case failures.
+-- TODO: rename.  'waitForStuff'?  anyway it's not about errors.
+--
+-- cannot be a full millisecond, or there will be obvious failures: if a thread is running
+-- only for a millisecond, it'll be gone by the time we measure
 errorMargin :: NominalDiffTime
-errorMargin = 0.00005
+errorMargin = 100 / (1000 * 1000)  -- 100 microseconds
 
 
 semantics :: Command Concrete -> IO (Response Concrete)
@@ -250,8 +263,9 @@ semantics (Run
             howmany howlong)
   = do
     burstActions tbs logs howlong howmany
+    delayndt errorMargin  -- get rid of some fuzziness before measuring
     rspConcreteRunning   <- runningThreads tbs
-    rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
+    rspNumNoBudgetErrors <- length . filter (isn't _Debug) <$> (extractLogHistory `runReaderT` logs)
     rspNow               <- getCurrentTime
     let rspNewlyStarted   = (howmany, milliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
     pure RunResponse{..}
@@ -260,9 +274,10 @@ semantics (Wait
             (opaque -> (tbs :: ThreadBudgetState, _, _))
             howlong)
   = do
-    delayms howlong
-    rspConcreteRunning <- delayndt errorMargin >> runningThreads tbs
-    rspNow             <- getCurrentTime
+    delayms howlong  -- let the required time pass
+    delayndt errorMargin  -- get rid of some fuzziness before measuring
+    rspConcreteRunning <- runningThreads tbs  -- measure
+    rspNow             <- getCurrentTime  -- time of measurement
     pure WaitResponse{..}
 
 
@@ -291,7 +306,7 @@ updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads
 updateModelState now = filter filterSpent
   where
     filterSpent :: (NumberOfThreads, UTCTime) -> Bool
-    filterSpent (_, timeOfDeath) = timeOfDeath > (errorMargin `addUTCTime` now)
+    filterSpent (_, timeOfDeath) = timeOfDeath > now
 
 
 precondition :: Model Symbolic -> Command Symbolic -> Logic
