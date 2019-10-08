@@ -177,26 +177,11 @@ testThreadBudgets = do
 
 type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
 
-data ModelState = ModelState
-  { msLimit  :: NumberOfThreads
-  , msNow    :: Maybe UTCTime
-  , msEvents :: [ModelEvent]
-  }
-  deriving (Eq, Show, Generic)
-
-data ModelEvent
-  = RunEvent (NumberOfThreads, UTCTime)
-  | FlushLogEvent [LogEntry]
-  deriving (Eq, Show, Generic)
-
-newtype Model r = Model (Maybe (State r, ModelState))
+newtype Model r = Model (Maybe (State r))
   deriving (Show, Generic)
 
 instance ToExpr (Model Symbolic)
 instance ToExpr (Model Concrete)
-instance ToExpr ModelState
-instance ToExpr ModelEvent
-instance ToExpr LogEntry
 
 
 data Command r
@@ -209,26 +194,18 @@ data Command r
 data Response r
   = InitResponse (State r)
   | RunResponse
-      { rspEndAt             :: UTCTime
-      , rspNewlyStarted      :: (NumberOfThreads, UTCTime)
-      }
   | WaitResponse
-      { rspEndAt             :: UTCTime
-      }
-  | MeasureResponse
-      { rspEndAt             :: UTCTime
-      , rspConcreteRunning   :: Int
-      , rspNumNoBudgetErrors :: Int
-      }
+  | MeasureResponse { rspConcreteRunning :: Int }
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 
 generator :: HasCallStack => Model Symbolic -> Gen (Command Symbolic)
 generator (Model Nothing) = Init <$> arbitrary
-generator (Model (Just (st, _))) = oneof [ Run st <$> arbitrary <*> arbitrary
-                                         , Wait st <$> arbitrary
-                                         , pure $ Measure st
-                                         ]
+generator (Model (Just st)) =
+  oneof [ Run st <$> arbitrary <*> arbitrary
+        , Wait st <$> arbitrary
+        , pure $ Measure st
+        ]
 
 shrinker :: HasCallStack => Command Symbolic -> [Command Symbolic]
 shrinker (Init _)     = []
@@ -252,61 +229,29 @@ semantics (Init (NumberOfThreads limit))
 -- 'Run' works asynchronously: start new threads, but return without any time passing.
 semantics (Run (opaque -> (tbs, _, logHistory)) howmany howlong)
   = do
-    rspStartAt <- getCurrentTime
     burstActions tbs logHistory howlong howmany
-    let !rspNewlyStarted = (howmany, milliSecondsToNominalDiffTime howlong `addUTCTime` rspStartAt)
-    rspEndAt <- getCurrentTime
-    pure RunResponse{..}
+    pure RunResponse
 
 -- 'Wait' makes time pass, ie. reduces the run time of running threads, and removes the ones
 -- that drop below 0.
 semantics (Wait _ howlong)
   = do
     delayms howlong
-    rspEndAt <- getCurrentTime
-    pure WaitResponse{..}
+    pure WaitResponse
 
 -- 'Measure' looks at the concrete state and records it into the model.
-semantics (Measure (opaque -> (tbs, _, logHistory)))
+semantics (Measure (opaque -> (tbs, _, _)))
   = do
-    rspConcreteRunning   <- runningThreads tbs
-    rspNumNoBudgetErrors <- length . filter (isn't _Debug) <$> (extractLogHistory `runReaderT` logHistory)
-    rspEndAt             <- getCurrentTime
+    rspConcreteRunning <- runningThreads tbs
     pure MeasureResponse{..}
 
 
 transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
-transition (Model Nothing) (Init limit) (InitResponse st)
-  = Model (Just (st, ModelState limit Nothing []))
-
-transition (Model (Just (st, ModelState limit _ events))) Run{} RunResponse{..}
-  = Model (Just (st, ModelState limit (Just rspEndAt) (RunEvent rspNewlyStarted : events)))
-
-transition (Model (Just (st, ModelState limit _ events))) Wait{} WaitResponse{..}
-  = Model (Just (st, ModelState limit (Just rspEndAt) events))
-
-transition (Model (Just (st, ModelState limit _ events))) Measure{} MeasureResponse{..}
-  = Model (Just (st, ModelState limit (Just rspEndAt) (updateModelState rspEndAt rspNumNoBudgetErrors events)))
-
+transition (Model Nothing) (Init _) (InitResponse st) = Model (Just st)
+transition (Model (Just st)) Run{} RunResponse = Model (Just st)
+transition (Model (Just st)) Wait{} WaitResponse = Model (Just st)
+transition (Model (Just st)) Measure{} MeasureResponse{..} = Model (Just st)
 transition _ _ _ = error "impossible."
-
-
-updateModelState :: HasCallStack => UTCTime -> Int -> [ModelEvent] -> [ModelEvent]
-updateModelState _now _numNoBudgetErrors = id
-
-{-  [noise]
-  filter filterEvents . traceShow now . traceShowId
-  where
-    filterEvents :: ModelEvent -> Bool
-    filterEvents (RunEvent (_, timeOfDeath)) = timeOfDeath > now
-    filterEvents (FlushLogEvent _) = _
-
--- | fold through the event history and for each encountered 'NoBudget' log entry, remove
-removeBlockedThreads :: Int -> [ModelEvent] -> [ModelEvent]
-removeBlockedThreads
-
---  remove = (_1 %~ \(NumberOfThreads i) -> NumberOfThreads (max 0 (i - remove))) . traceShow remove . traceShowId
--}
 
 
 precondition :: HasCallStack => Model Symbolic -> Command Symbolic -> Logic
@@ -317,21 +262,19 @@ postcondition (Model Nothing) Init{} InitResponse{} = Top
 postcondition (Model (Just _)) Run{} RunResponse{} = Top
 postcondition (Model (Just _)) Wait{} WaitResponse{} = Top
 postcondition model@(Model (Just _)) cmd@Measure{} resp@MeasureResponse{..}
-  = syncModelThreadLimit .&& threadLimitExceeded
+  = threadLimitExceeded
   where
-    Model (Just (state, ModelState (NumberOfThreads modellimit) _ _)) = transition model cmd resp
+    Model (Just state) = transition model cmd resp
 
     rspThreadLimit :: Int
     rspThreadLimit = case opaque state of (tbs, _, _) -> threadLimit tbs
 
-    -- trivial test matching limit in concrete and model state.
-    syncModelThreadLimit = Annotate "wrong thread limit" $ rspThreadLimit .== modellimit
-
     -- number of running threads is never above the limit.
     threadLimitExceeded = Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit
 
-    -- number of running threads is exactly what's in the model.
-    -- looks plausible, but doesn't pass.
+    -- FUTUREWORK: check that the number of running threads matches the model exactly.  looks
+    -- plausible, but when i tried to make the model rich enough to express this test i didn't
+    -- manage to sort out the timing.
     -- syncNumRunning = Annotate "out of sync" $ rspConcreteRunning .== rspModelRunning
 
 postcondition m c r = error $ "impossible: " <> show (m, c, r)
@@ -341,18 +284,17 @@ mock :: HasCallStack => Model Symbolic -> Command Symbolic -> GenSym (Response S
 mock (Model Nothing) (Init _)
   = InitResponse <$> genSym
 
-mock (Model (Just (_, ModelState _ (Just rspEndAt) _))) (Run _ howmany howlong)
-  = pure RunResponse{..}
-  where rspNewlyStarted = (howmany, milliSecondsToNominalDiffTime howlong `addUTCTime` rspEndAt)
-
-mock (Model (Just (_, ModelState _ (Just rspEndAt) _))) (Wait _ _)
-  = pure WaitResponse{..}
-
-mock (Model (Just (_, ModelState _ (Just rspEndAt) _))) (Measure _)
-  = pure MeasureResponse{..}
+mock (Model (Just _)) Run{} = pure RunResponse
+mock (Model (Just _)) Wait{} = pure WaitResponse
+mock (Model (Just _)) Measure{} = pure MeasureResponse{..}
   where
     rspConcreteRunning = undefined
-    rspNumNoBudgetErrors = undefined
+    -- FUTUREWORK: mock is cool because if we do this right, it gives us a quickcheck-
+    -- validated mock component that we can use in other tests.  it appears it's not needed in
+    -- the tests in this module, though, and we will need to keep track of more of the
+    -- concrete state in the model if we want to fill in this 'undefined'.
+    --
+    -- See also: https://www.well-typed.com/blog/2019/01/qsm-in-depth/
 
 mock badmodel badcmd = error $ "impossible: " <> show (badmodel, badcmd)
 
@@ -376,7 +318,7 @@ sm = StateMachine
 -- async threads.
 shutdown :: Model Concrete -> MonadIO m => m ()
 shutdown (Model Nothing) = pure ()
-shutdown (Model (Just (opaque -> (tbs, watcher, _), _))) = liftIO $ do
+shutdown (Model (Just (opaque -> (tbs, watcher, _)))) = liftIO $ do
   cancelAllThreads tbs
   cancel watcher
 
