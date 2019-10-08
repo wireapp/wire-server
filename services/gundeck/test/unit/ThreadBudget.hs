@@ -130,11 +130,12 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
 
             -- FUTUREWORK: [upstream] using error here, this triggers an "impossible."-errors
             -- in quickcheck-state-machine, and it sometimes enters an infinite loop.
-            error' msg = hPutStrLn stderr msg >> error "died"
+            error' = hPutStrLn stderr msg >> error "died"
+              where
+                msg = "\n\n\n\n*************** burstActions: timeout\n\n\n\n"
 
         -- wait a while, but don't hang.
-        timeout 1000000 waitForReady >>=
-          maybe (error' "\n\n\n\n*************** burstActions: timeout\n\n\n\n") pure
+        timeout 1000000 waitForReady >>= maybe error' pure
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.

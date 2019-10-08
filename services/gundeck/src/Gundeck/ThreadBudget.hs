@@ -49,6 +49,9 @@ type BudgetMap = SizedHashMap UUID (Maybe (Async ()))
 threadLimit :: ThreadBudgetState -> Int
 threadLimit (ThreadBudgetState limit _) = limit
 
+-- | Instead of taking the size of the SizedHashMap (O(1)), this counts all the threads that
+-- are successfully running (dropping the ones that are just about to try to grab a token,
+-- taking O(n)).
 runningThreads :: ThreadBudgetState -> IO Int
 runningThreads (ThreadBudgetState _ running)
   = length . filter isJust . SHM.elems <$> readIORef running
