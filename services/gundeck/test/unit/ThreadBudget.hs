@@ -130,9 +130,12 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
 
             -- FUTUREWORK: [upstream] using error here, this triggers an "impossible."-errors
             -- in quickcheck-state-machine, and it sometimes enters an infinite loop.
-            error' = hPutStrLn stderr msg >> error "died"
-              where
-                msg = "\n\n\n\n*************** burstActions: timeout\n\n\n\n"
+            error' = do
+              threadsAfter <- runningThreads tbs
+              outOfBudgetsAfter <- readMVar logHistory
+              let msg = "\n\n\n\n*************** burstActions: timeout\n\n\n\n"
+                        <> show (threadsAfter, outOfBudgetsAfter)
+              hPutStrLn stderr msg >> error "died"
 
         -- wait a while, but don't hang.
         timeout 1000000 waitForReady >>= maybe error' pure
