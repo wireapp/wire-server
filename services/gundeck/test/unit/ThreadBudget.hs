@@ -47,8 +47,8 @@ newtype MilliSeconds = MilliSeconds { fromMilliSeconds :: Int }
 toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
 toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
 
-millliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
-millliSecondsToNominalDiffTime = fromRational . toRational . fromMilliSeconds
+milliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
+milliSecondsToNominalDiffTime = fromRational . (/ 1000) . toRational . fromMilliSeconds
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -247,7 +247,7 @@ semantics (Run
     rspConcreteRunning   <- runningThreads tbs
     rspNumNoBudgetErrors <- modifyMVar logs (\found -> pure ([], length $ filter (isn't _Debug) found))
     rspNow               <- getCurrentTime
-    let rspNewlyStarted   = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
+    let rspNewlyStarted   = (howmany, milliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
     pure RunResponse{..}
 
 semantics (Wait
@@ -344,7 +344,7 @@ mock (Model (Just (_, (NumberOfThreads limit, spent)))) (Run _ howmany howlong)
     let rspNow               = undefined  -- doesn't appear to be needed...
         rspConcreteRunning   = sum $ (\(NumberOfThreads n, _) -> n) <$> spent
         rspNumNoBudgetErrors = rspConcreteRunning + (fromNumberOfThreads howmany) - limit
-        rspNewlyStarted      = (howmany, millliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
+        rspNewlyStarted      = (howmany, milliSecondsToNominalDiffTime howlong `addUTCTime` rspNow)
     pure RunResponse{..}
 mock (Model (Just (_, (_, spent)))) (Wait _ (MilliSeconds _))
   = do
