@@ -118,7 +118,7 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
 mkWatcher :: ThreadBudgetState -> LogHistory -> IO (Async ())
 mkWatcher tbs logHistory = do
   mtr <- metrics
-  async $ runReaderT (watchThreadBudgetState mtr tbs 10) logHistory
+  async $ runReaderT (watchThreadBudgetState mtr tbs 0.01) logHistory
     `catch` \AsyncCancelled -> pure ()
 
 

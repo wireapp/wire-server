@@ -1,13 +1,17 @@
--- | Like "Brig.Budget", but in-memory, per host (not per service), and on the upside more
--- exact.  Like https://hackage.haskell.org/package/token-bucket, but takes the entire
+-- | Like "Brig.Budget", but in-memory, per host (not per service), and with an strict/exact
+-- upper bound.  Like https://hackage.haskell.org/package/token-bucket, but takes the entire
 -- run-time of the actions into account, not just the number of executions.
 -- http://hackage.haskell.org/package/rate-limit also looks related.
 --
--- USE CASE: keep a lid of stalled native push notification threadsh.  if SNS is up, there
--- will be many, short-running executions of the action.  when SNS is down, the threads will
+-- USE CASE: keep a lid of stalled native push notification threads.  if SNS is up, there
+-- will be many short-running executions of the action.  when SNS is down, the threads will
 -- accumulate in memory and choke the gundeck instances.  so we want to stop spawning more
 -- threads (and discard or queue native push notifications) before we run out of memory (which
 -- could cause system outages).
+--
+-- http-client connection pools should handle this naturally and without doing anything, but
+-- instead connection pools grow infinitely until system resources (file handles, memory) are
+-- exhausted.  See https://github.com/snoyberg/http-client/issues/307#issuecomment-343829351
 module Gundeck.ThreadBudget
   ( ThreadBudgetState
   , mkThreadBudgetState
@@ -78,13 +82,15 @@ unregister ref key
   = atomicModifyIORef' ref (\hm -> (SHM.delete key hm, ()))
 
 
--- | If there is budget available, make a synchronously to the action; otherwise, log a
--- warning and return immediately.  Make sure the budget state is updated accordingly both
--- when starting and ending the execution.
+-- | If there is budget available, execute the action synchronously; otherwise, log a warning
+-- and return immediately.  Make sure the budget state is updated accordingly both when
+-- starting and ending the execution.
 --
--- The limit in the 'ThreadBudgetState' argument is guaranteed to hold in the following sense:
--- if there are never more than N parallel calls to 'runWithBudget' within a few microseconds,
--- the limit will not be exceeded by more than N.
+-- The limit in the 'ThreadBudgetState' argument is guaranteed to be an upper bound for the
+-- number of concurrently running actions.
+--
+-- The action is called in an 'Async', but 'runWithBudget' waits for it to finish so it can
+-- update the budget.
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
   => ThreadBudgetState -> m () -> m ()
@@ -115,15 +121,14 @@ runWithBudget (ThreadBudgetState limit ref) action = do
       LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
 
 
--- | Fork a thread that checks every 'watcherFreq' milliseconds if any async handles stored in
--- the state are stale (ie., have terminated with or without exception, but not been removed).
--- If they persist in the state for more 1sec, call an error action (usually for logging a
--- warning).
+-- | Fork a thread that checks with the given frequency if any async handles stored in the
+-- state are stale (ie., have terminated with or without exception, but not been removed).  If
+-- that happens, log a warning.
 --
--- Frequency is in milliseconds so we can run this aggressively often for stress testing.
+-- 'runWithBudget' should keep track of the state itself; 'watchThreadBudgetState' is solely a
+-- safety precaution to see if there aren't any corner cases we missed.
 --
--- 'runWithBudget' should keep track of the state itself; this function is just a safety
--- precaution to see if there aren't any corner cases we missed.
+-- Also, issue some metrics.
 watchThreadBudgetState
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
   => Metrics -> ThreadBudgetState -> NominalDiffTime -> m ()
@@ -140,17 +145,17 @@ recordMetrics metrics limit ref = do
   gaugeSet (fromIntegral spent) (path "net.sns.thread_budget_allocated") metrics
   gaugeSet (fromIntegral limit) (path "net.sns.thread_budget_limit")     metrics
 
-staleTolerance :: NominalDiffTime
-staleTolerance = 3
-
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
+
+staleTolerance :: NominalDiffTime
+staleTolerance = 3
 
 -- | Get all handles for asyncs that have terminated, but not been removed from the state.  Do
 -- that again after 'staleTolerance' to make sure that we don't catch any handles that would
 -- have been removed during the 'runWithBudget' cleanup, but we were faster.  The intersection
 -- between the two rounds constitutes the legitimately stale handles: warn about them, and
--- then remove them from the hashmap.
+-- then remove them from the budgetmap.
 removeStaleHandles
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
   => IORef BudgetMap -> m ()
