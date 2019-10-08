@@ -23,7 +23,6 @@ module Gundeck.ThreadBudget
 import Imports
 
 import Control.Exception.Safe (catchAny)
-import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
@@ -62,7 +61,7 @@ cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
   >>= mapM_ cancel . catMaybes . SHM.elems
 
 showDebugHandles :: BudgetMap -> String
-showDebugHandles = show . fmap (_2 %~ isJust) . SHM.toList
+showDebugHandles = show . SHM.size
 
 
 mkThreadBudgetState :: Int -> IO ThreadBudgetState
