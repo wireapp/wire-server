@@ -5,6 +5,9 @@
 
 module ThreadBudget where
 
+import Debug.Trace  -- TODO: remove
+
+
 import Imports
 
 import Control.Concurrent.Async
@@ -304,10 +307,10 @@ transition _ _ _ = error "bad transition."
 
 
 removeBlockedThreads :: Int -> (NumberOfThreads, UTCTime) -> (NumberOfThreads, UTCTime)
-removeBlockedThreads remove = _1 %~ \(NumberOfThreads i) -> NumberOfThreads (max 0 (i - remove))
+removeBlockedThreads remove = (_1 %~ \(NumberOfThreads i) -> NumberOfThreads (max 0 (i - remove))) . traceShow remove . traceShowId
 
 updateModelState :: UTCTime -> [(NumberOfThreads, UTCTime)] -> [(NumberOfThreads, UTCTime)]
-updateModelState now = filter filterSpent
+updateModelState now = filter filterSpent . traceShow now . traceShowId
   where
     filterSpent :: (NumberOfThreads, UTCTime) -> Bool
     filterSpent (_, timeOfDeath) = timeOfDeath > now
