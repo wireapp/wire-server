@@ -175,24 +175,29 @@ testThreadBudgets = do
     burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 5)
     delayms (MilliSeconds 100)
     expectLogHistory null
+    liftIO $ runningThreads tbs >>= (@=? 5)
 
     burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
     delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
+    liftIO $ runningThreads tbs >>= (@=? 5)
 
     burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
     delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
+    liftIO $ runningThreads tbs >>= (@=? 5)
 
     delayms (MilliSeconds 800)
 
     burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
     delayms (MilliSeconds 100)
     expectLogHistory null
+    liftIO $ runningThreads tbs >>= (@=? 3)
 
     burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
     delayms (MilliSeconds 100)
     expectLogHistory (== [NoBudget])
+    liftIO $ runningThreads tbs >>= (@=? 5)
 
   cancel watcher
 
