@@ -114,9 +114,15 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
 
         -- before we return, wait until all async threads have been added to the budget map.
         let waitForReady = do
-              after <- runningThreads tbs
-              when (after < min (before + howmany) (threadLimit tbs)) waitForReady
-        timeout 1000 waitForReady >>= maybe (trace "burstActions: timeout" $ pure ()) (pure)
+              threadsAfter <- runningThreads tbs
+              outOfBudgetsAfter <- length . filter (isn't _Debug) <$> readMVar logHistory
+              when ( -- wait for all threads that will be created.
+                     threadsAfter < min (before + howmany) (threadLimit tbs) ||
+                     -- wait for all out-of-budget log entries for threads we can't afford.
+                     outOfBudgetsAfter /= max 0 (before + howmany - threadLimit tbs)
+                   )
+                waitForReady
+        timeout 1000 waitForReady >>= maybe (trace "\n\n\n\n*************** burstActions: timeout\n\n\n\n" $ pure ()) (pure)
             -- TODO: if we error out in case of timeout, this triggers "impossible."-errors in
             -- quickcheck-state-machine without the timeout, it sometimes enters an infinite
             -- loop.
