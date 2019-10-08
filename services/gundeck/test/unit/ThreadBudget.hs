@@ -172,30 +172,30 @@ testThreadBudgets = do
   watcher <- mkWatcher tbs logHistory
 
   flip runReaderT logHistory $ do
-    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 5)
-    delayms (MilliSeconds 100)
+    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 5)
+    delayms (MilliSeconds 10)
     expectLogHistory null
     liftIO $ runningThreads tbs >>= (@=? 5)
 
-    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
-    delayms (MilliSeconds 100)
+    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
+    delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
     liftIO $ runningThreads tbs >>= (@=? 5)
 
-    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
-    delayms (MilliSeconds 100)
+    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
+    delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
     liftIO $ runningThreads tbs >>= (@=? 5)
 
-    delayms (MilliSeconds 800)
+    delayms (MilliSeconds 80)
 
-    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
-    delayms (MilliSeconds 100)
+    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
+    delayms (MilliSeconds 10)
     expectLogHistory null
     liftIO $ runningThreads tbs >>= (@=? 3)
 
-    burstActions tbs logHistory (MilliSeconds 1000) (NumberOfThreads 3)
-    delayms (MilliSeconds 100)
+    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
+    delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget])
     liftIO $ runningThreads tbs >>= (@=? 5)
 
