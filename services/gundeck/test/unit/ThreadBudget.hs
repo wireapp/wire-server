@@ -50,6 +50,14 @@ toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
 millliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
 millliSecondsToNominalDiffTime = fromRational . toRational . fromMilliSeconds
 
+instance Arbitrary NumberOfThreads where
+  arbitrary = NumberOfThreads <$> choose (1, 30)
+  shrink (NumberOfThreads n) = NumberOfThreads <$> filter (> 0) (shrink n)
+
+instance Arbitrary MilliSeconds where
+  arbitrary = MilliSeconds <$> choose (1, 30)
+  shrink (MilliSeconds n) = MilliSeconds <$> filter (> 0) (shrink n)
+
 
 data LogEntry = NoBudget | Debug String | Unknown String
   deriving (Eq, Show)
@@ -108,8 +116,8 @@ burstActions tbs logHistory howlong (NumberOfThreads howmany)
         let waitForReady = do
               after <- runningThreads tbs
               when (after < min (before + howmany) (threadLimit tbs)) waitForReady
-        timeout 1000 waitForReady >>= maybe (error "burstActions: timeout") (pure)
-            -- TODO: with the timeout, this triggers "impossible."-errors in
+        timeout 1000 waitForReady >>= maybe (trace "burstActions: timeout" $ pure ()) (pure)
+            -- TODO: if we error out in case of timeout, this triggers "impossible."-errors in
             -- quickcheck-state-machine without the timeout, it sometimes enters an infinite
             -- loop.
 
@@ -211,14 +219,6 @@ shrinker :: Command Symbolic -> [Command Symbolic]
 shrinker (Init _)     = []
 shrinker (Run st n m) = Wait st (MilliSeconds 1) : (Run st <$> shrink n <*> shrink m)
 shrinker (Wait st n)  = Wait st <$> shrink n
-
-instance Arbitrary NumberOfThreads where
-  arbitrary = NumberOfThreads <$> choose (1, 30)
-  shrink (NumberOfThreads n) = NumberOfThreads <$> filter (> 0) (shrink n)
-
-instance Arbitrary MilliSeconds where
-  arbitrary = MilliSeconds <$> choose (1, 30)
-  shrink (MilliSeconds n) = MilliSeconds <$> filter (> 0) (shrink n)
 
 
 initModel :: Model r
