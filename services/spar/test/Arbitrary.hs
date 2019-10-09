@@ -46,7 +46,7 @@ instance Arbitrary NoContent where
   arbitrary = pure NoContent
 
 instance Arbitrary IdPMetadataInfo where
-  arbitrary = IdPMetadataValue <$> arbitrary
+  arbitrary = IdPMetadataValue mempty <$> arbitrary
 
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58

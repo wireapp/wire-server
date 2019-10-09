@@ -31,6 +31,8 @@ module Spar.Data
   , getIdPConfigsByTeam
   , deleteIdPConfig
   , deleteTeam
+  , storeIdPRawMetadata
+  , getIdPRawMetadata
 
   -- * SCIM auth
   , insertScimToken
@@ -70,7 +72,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 5
+schemaVersion = 6
 
 
 ----------------------------------------------------------------------
@@ -381,6 +383,23 @@ deleteTeam team = do
           issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       deleteSAMLUsersByIssuer issuer
       deleteIdPConfig idpid issuer team
+
+storeIdPRawMetadata
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> ST -> m ()
+storeIdPRawMetadata idp raw = retry x5 . write ins $ params Quorum (idp, raw)
+  where
+    ins :: PrepQuery W (SAML.IdPId, ST) ()
+    ins = "INSERT INTO idp_raw_metadata (id, metadata) VALUES (?, ?)"
+
+getIdPRawMetadata
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> m (Maybe ST)
+getIdPRawMetadata idp = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum (Identity idp))
+  where
+    sel :: PrepQuery R (Identity SAML.IdPId) (Identity ST)
+    sel = "SELECT metadata FROM idp_raw_metadata WHERE id = ?"
 
 ----------------------------------------------------------------------
 -- SCIM auth

@@ -187,18 +187,19 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
-idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
+idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
   idp <- validateNewIdP idpmeta teamid
+  wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   pure idp
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue xml) = idpCreateXML zusr xml
+idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a

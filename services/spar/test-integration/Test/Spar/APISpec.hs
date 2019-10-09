@@ -23,8 +23,10 @@ import Util.Core
 import Util.Types
 
 import qualified Data.ByteString.Builder as LB
+import qualified Data.Text as ST
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
+import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
@@ -712,7 +714,11 @@ specCRUDIdentityProvider = do
           metadata <- makeTestIdPMetadata
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          liftIO $ idp `shouldBe` idp'
+          rawmeta <- runSparCass $ Data.getIdPRawMetadata (idp ^. idpId)
+          liftIO $ do
+            idp `shouldBe` idp'
+            let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+            (ST.take (ST.length prefix) <$> rawmeta) `shouldBe` (Just prefix)
 
       context "client is owner without email" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
@@ -729,10 +735,14 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            metadata <- Data.Aeson.encode . (IdPMetadataValue mempty) <$> makeTestIdPMetadata
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-            liftIO $ idp `shouldBe` idp'
+            rawmeta <- runSparCass $ Data.getIdPRawMetadata (idp ^. idpId)
+            liftIO $ do
+              idp `shouldBe` idp'
+              let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+              (ST.take (ST.length prefix) <$> rawmeta) `shouldBe` (Just prefix)
 
 
 specScimAndSAML :: SpecWith TestEnv

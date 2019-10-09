@@ -137,7 +137,7 @@ type APIIDP
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
-type IdpCreate  = ReqBodyCustomError '[SAML.XML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
+type IdpCreate  = ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where
