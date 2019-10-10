@@ -11,7 +11,7 @@ import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Proxy (Proxy(Proxy))
 import Servant.Swagger (validateEveryToJSON)
 import Spar.API as API
-import Spar.Types (IdPMetadataInfo)
+import Spar.Types (IdPMetadataInfo(IdPMetadataValue))
 import Test.Hspec (Spec, it, shouldBe)
 import Test.QuickCheck (property)
 
@@ -25,4 +25,5 @@ spec = do
     pathsConsistencyCheck (routesToPaths @API.API) `shouldBe` mempty
 
   it "roundtrip: IdPMetadataInfo" . property $ \(val :: IdPMetadataInfo) -> do
-    (eitherDecode . encode) val `shouldBe` Right val
+    let withoutRaw (IdPMetadataValue _ x) = x
+    (withoutRaw <$> (eitherDecode . encode) val) `shouldBe` Right (withoutRaw val)
