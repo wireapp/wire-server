@@ -16,6 +16,7 @@ import Data.Time
 import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
 import Gundeck.ThreadBudget
+import Gundeck.Options
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
@@ -137,7 +138,7 @@ tests = testGroup "thread budgets" $
 
 testThreadBudgets :: Assertion
 testThreadBudgets = do
-  tbs <- mkThreadBudgetState 5
+  tbs <- mkThreadBudgetState (MaxConcurrentNativePushes 5 5)
   logHistory :: LogHistory <- newMVar []
   watcher <- mkWatcher tbs logHistory
 
@@ -221,7 +222,7 @@ initModel = Model Nothing
 semantics :: HasCallStack => Command Concrete -> IO (Response Concrete)
 semantics (Init (NumberOfThreads limit))
   = do
-    tbs <- mkThreadBudgetState limit
+    tbs <- mkThreadBudgetState (MaxConcurrentNativePushes limit limit)
     logHistory <- newMVar []
     watcher <- mkWatcher tbs logHistory
     pure . InitResponse . reference . Opaque $ (tbs, watcher, logHistory)
@@ -267,7 +268,7 @@ postcondition model@(Model (Just _)) cmd@Measure{} resp@MeasureResponse{..}
     Model (Just state) = transition model cmd resp
 
     rspThreadLimit :: Int
-    rspThreadLimit = case opaque state of (tbs, _, _) -> threadLimit tbs
+    rspThreadLimit = case opaque state of (tbs, _, _) -> tbs ^. threadBudgetLimits . mcnpHard
 
     -- number of running threads is never above the limit.
     threadLimitExceeded = Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit

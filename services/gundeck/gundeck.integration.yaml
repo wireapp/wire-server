@@ -24,6 +24,9 @@ settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
   bulkPush: true
+  maxConcurrentNativePushes:
+    hard: 30
+    soft: 10
 
 logLevel: Info
 logNetStrings: false

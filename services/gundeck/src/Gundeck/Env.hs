@@ -76,7 +76,7 @@ createEnv m o = do
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxNativePushPerMinute)
+    mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
     return $! Env def m o l n p r a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg

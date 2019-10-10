@@ -19,21 +19,24 @@ module Gundeck.ThreadBudget
   , watchThreadBudgetState
 
   -- * for testing
-  , threadLimit
+  , threadBudgetLimits
   , runningThreads
   , cancelAllThreads
   ) where
 
 import Imports
 
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Exception.Safe (catchAny)
-import Control.Monad.Catch (MonadCatch)
+import Control.Lens
+import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.SizedHashMap (SizedHashMap)
 import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
+import Gundeck.Options
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
 
@@ -43,15 +46,20 @@ import qualified System.Logger.Class as LC
 
 
 data ThreadBudgetState = ThreadBudgetState
-  { _threadBudgetLimit   :: Int
+  { _threadBudgetLimits  :: MaxConcurrentNativePushes
   , _threadBudgetRunning :: IORef BudgetMap
-  }
+  } deriving (Generic)
 
 -- | Store all handles for cleanup in 'watchThreadBudgetState'.
 type BudgetMap = SizedHashMap UUID (Maybe (Async ()))
 
-threadLimit :: ThreadBudgetState -> Int
-threadLimit (ThreadBudgetState limit _) = limit
+-- generated with @makeLenses@, but we only want one of the two lenses that generates.
+threadBudgetLimits ::
+  Lens' ThreadBudgetState MaxConcurrentNativePushes
+threadBudgetLimits f_a1A3A (ThreadBudgetState x1_a1A3B x2_a1A3C)
+  = (fmap (\ y1_a1A3D -> (ThreadBudgetState y1_a1A3D) x2_a1A3C))
+      (f_a1A3A x1_a1A3B)
+{-# INLINE threadBudgetLimits #-}
 
 -- | Instead of taking the size of the SizedHashMap (O(1)), this counts all the threads that
 -- are successfully running (dropping the ones that are just about to try to grab a token,
@@ -68,8 +76,11 @@ showDebugHandles :: BudgetMap -> String
 showDebugHandles = show . SHM.size
 
 
-mkThreadBudgetState :: Int -> IO ThreadBudgetState
-mkThreadBudgetState limit = ThreadBudgetState limit <$> newIORef SHM.empty
+mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
+mkThreadBudgetState limits = if limits ^. mcnpHard < limits ^. mcnpSoft
+  then throwM . ErrorCall $
+         "setMaxConcurrentNativePushes: hard limit < soft limit: " <> show limits
+  else ThreadBudgetState limits <$> newIORef SHM.empty
 
 register
   :: IORef BudgetMap -> UUID -> Maybe (Async ()) -> MonadIO m => m Int
@@ -86,19 +97,23 @@ unregister ref key
 -- and return immediately.  Make sure the budget state is updated accordingly both when
 -- starting and ending the execution.
 --
--- The limit in the 'ThreadBudgetState' argument is guaranteed to be an upper bound for the
--- number of concurrently running actions.
+-- The hard limit in the 'ThreadBudgetState' argument is guaranteed to be an upper bound for
+-- the number of concurrently running actions; surpiassing the soft limit will trigger a
+-- warning, but still execute the action.
 --
 -- The action is called in an 'Async', but 'runWithBudget' waits for it to finish so it can
 -- update the budget.
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
   => ThreadBudgetState -> m () -> m ()
-runWithBudget (ThreadBudgetState limit ref) action = do
+runWithBudget (ThreadBudgetState limits ref) action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- register ref key Nothing
-    if oldsize >= limit then nobudget else go key oldsize
+    if | oldsize >= limits ^. mcnpHard -> nobudget
+       | oldsize >= limits ^. mcnpSoft &&
+         oldsize <  limits ^. mcnpHard -> nobudget >> go key oldsize
+       | otherwise                     -> go key oldsize
   where
     go :: UUID -> Int -> m ()
     go key oldsize = do
@@ -132,18 +147,19 @@ runWithBudget (ThreadBudgetState limit ref) action = do
 watchThreadBudgetState
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
   => Metrics -> ThreadBudgetState -> NominalDiffTime -> m ()
-watchThreadBudgetState metrics (ThreadBudgetState limit ref) freq = safeForever $ do
-  recordMetrics metrics limit ref
+watchThreadBudgetState metrics (ThreadBudgetState limits ref) freq = safeForever $ do
+  recordMetrics metrics limits ref
   removeStaleHandles ref
   threadDelayNominalDiffTime freq
 
 recordMetrics
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadCatch m)
-  => Metrics -> Int -> IORef BudgetMap -> m ()
-recordMetrics metrics limit ref = do
+  => Metrics -> MaxConcurrentNativePushes -> IORef BudgetMap -> m ()
+recordMetrics metrics limits ref = do
   spent <- SHM.size <$> readIORef ref
   gaugeSet (fromIntegral spent) (path "net.sns.thread_budget_allocated") metrics
-  gaugeSet (fromIntegral limit) (path "net.sns.thread_budget_limit")     metrics
+  gaugeSet (fromIntegral (limits ^. mcnpHard)) (path "net.sns.thread_budget_hard_limit") metrics
+  gaugeSet (fromIntegral (limits ^. mcnpSoft)) (path "net.sns.thread_budget_soft_limit") metrics
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
