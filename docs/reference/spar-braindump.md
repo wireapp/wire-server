@@ -106,3 +106,60 @@ saml, but the part of the standards that are needed for that are even
 in worse shape than the ones for the authentication bits, and it would
 not lead to a good user experience.  so instead we require users to
 adopt the more robust and contemporary scim standard.
+
+
+
+## application logic
+
+### deleting users that exist on spar
+
+For scim- or saml-created users, there are three locations for user data:
+
+- `brig.user` (and a few things associated with that on brig and galley)
+- `spar.user`
+- `spar.scim_user`
+
+The single source of truth is `brig.user`.  Dangling entries in the
+other places are allowed, and must be checked by the application code
+for danglingness.  ([test case for
+scim](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/test-integration/Test/Spar/Scim/UserSpec.hs#L239-L308);
+[test case for
+saml](https://github.com/wireapp/wire-server/blob/293518655d7bae60fbcb0c4aaa06034785bfb6fc/services/spar/test-integration/Test/Spar/APISpec.hs#L742-L795))
+
+For the semantics of interesting corner cases, consult [the test
+suite](https://github.com/wireapp/wire-server/blob/develop/services/spar/test-integration/Test/Spar/APISpec.hs).
+If you can't find what you're looking for there, please add at least a
+pending test case explaining what's missing.
+
+Side note: Users in brig carry an enum type
+[`ManagedBy`](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/libs/brig-types/src/Brig/Types/Common.hs#L393-L413);
+see also {#DevScimOneWaySync}.  This is a half-implemented feature for
+managing conflicts between changes via scim vs. changes from wire
+clients; and does currently not affect deletability of users.  (grep
+`wire-server` for up-to-date information.)
+
+
+#### delete via deleting idp
+
+[Currently](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/API.hs#L172-L187),
+deleting an IdP does not delete any user data.  In particular:
+
+- cookies of users that have authenticated via an IdP will remain valid if the IdP gets deleted.
+- if a user authenticates via an IdP that has been deleted to obtain a new cookie, the login code will not work, and the user will never be able to login again.
+- the user will still show in the team settings, and can be manually deleted from there.
+- if a new idp is registered, and a user authenticates via that idp, the old user is unreachable.  (spar will look up the wire `UserId` under the saml user id that consists partly of the id of the new IdP, come up empty, and [create a fresh user on brig](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/App.hs#L306).)
+
+
+#### user deletes herself
+
+TODO
+
+
+#### delete in team settings
+
+TODO (probably little difference between this and "user deletes herself"?)
+
+
+#### delete via scim
+
+TODO
