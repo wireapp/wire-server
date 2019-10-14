@@ -98,7 +98,7 @@ unregister ref key
 -- starting and ending the execution.
 --
 -- The hard limit in the 'ThreadBudgetState' argument is guaranteed to be an upper bound for
--- the number of concurrently running actions; surpiassing the soft limit will trigger a
+-- the number of concurrently running actions; surpassing the soft limit will trigger a
 -- warning, but still execute the action.
 --
 -- The action is called in an 'Async', but 'runWithBudget' waits for it to finish so it can
