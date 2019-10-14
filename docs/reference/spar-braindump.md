@@ -39,7 +39,7 @@ export TEAM_OWNER_ID=...
 ./register.sh metadata.xml $TEAM_OWNER_ID
 ```
 
-the output contains the a json object representing the idp.  safe the `id` field of that object.
+the output contains the a json object representing the idp.  Save the `id` field of that object.
 
 the sso login code needed by the users to authenticate via saml is
 
