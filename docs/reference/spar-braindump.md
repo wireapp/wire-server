@@ -5,6 +5,11 @@ and operation.  it should probably be sorted into different places in
 the future, but if you can't find any more well-structured
 documentation answering your questions, look here!
 
+if you want to work on our saml/scim implementation and do not have
+access to
+https://github.com/wireapp/design-specs/tree/master/Single%20Sign%20On,
+please get in touch.
+
 
 ## operations
 
