@@ -108,6 +108,11 @@ not lead to a good user experience.  so instead we require users to
 adopt the more robust and contemporary scim standard.
 
 
+#### we don't support binding password/phone-auth'ed users to saml yet
+
+to keep track of whether we have, see https://github.com/zinfra/backend-issues/issues/731
+
+
 
 ## application logic
 
