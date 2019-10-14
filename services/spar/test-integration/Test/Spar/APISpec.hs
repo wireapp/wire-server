@@ -739,6 +739,18 @@ specCRUDIdentityProvider = do
 
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
+  it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via scim (in same team)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via password (outside team)" $ do
+    pending
+
+  it "delete idp; create idp with same issuer id" $ do
+    pending
+
   -- clone of 'testScimCreateVsUserRef', without the scim part: Create a user implicitly via
   -- saml login; remove it via brig leaving a dangling entry in @spar.user@; create it via saml
   -- login once more.  This should work despite the dangling database entry.
