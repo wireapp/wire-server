@@ -48,7 +48,7 @@ wire-<that-id>
 ```
 
 
-### trouble shooting
+### troubleshooting
 
 #### gathering information
 
