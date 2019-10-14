@@ -8,7 +8,7 @@ documentation answering your questions, look here!
 
 ## operations
 
-### enabeling / disabeling the sso feature for a team
+### enabling / disabling the sso feature for a team
 
 if you have sso disabled by default, you need to turn on the feature
 for every team that wants to use it.  you can do this in the stern
