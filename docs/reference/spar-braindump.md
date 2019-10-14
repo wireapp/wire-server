@@ -39,13 +39,18 @@ export TEAM_OWNER_ID=...
 ./register.sh metadata.xml $TEAM_OWNER_ID
 ```
 
-the output contains the a json object representing the idp.  Save the `id` field of that object.
-
-the sso login code needed by the users to authenticate via saml is
+the output contains the a json object representing the idp.  construct
+the login code from the `id` field of that object by adding `wire-` in
+front, eg.:
 
 ```
-wire-<that-id>
+wire-e97fbe2e-eeb1-11e9-acf3-9ba77d8a04bf
 ```
+
+give this login code to the users that you want to connect to wire
+using this idp.  see
+[here](https://support.wire.com/hc/en-us/articles/360000954617-Login-with-SSO)
+on how to use the login code.
 
 
 ### troubleshooting
