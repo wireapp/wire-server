@@ -41,8 +41,8 @@ data Settings = Settings
     } deriving (Show, Generic)
 
 data MaxConcurrentNativePushes = MaxConcurrentNativePushes
-    { _limitHard :: Int  -- ^ more than this number of threads will not be allowed
-    , _limitSoft :: Int  -- ^ more than this number of threads will be warned about
+    { _limitHard :: !(Maybe Int)  -- ^ more than this number of threads will not be allowed
+    , _limitSoft :: !(Maybe Int)  -- ^ more than this number of threads will be warned about
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings

@@ -102,10 +102,10 @@ runWithBudget (ThreadBudgetState limits ref) action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- register ref key Nothing
-    if | oldsize >= limits ^. limitHard -> nobudget
-       | oldsize >= limits ^. limitSoft &&
-         oldsize <  limits ^. limitHard -> nobudget >> go key oldsize
-       | otherwise                      -> go key oldsize
+
+    warnNoBudget (maybe False (oldsize >=) (limits ^. limitSoft))
+                 (maybe False (oldsize >=) (limits ^. limitHard))
+    when (maybe True (oldsize <) (limits ^. limitHard)) $ go key oldsize
   where
     go :: UUID -> Int -> m ()
     go key oldsize = do
@@ -119,10 +119,14 @@ runWithBudget (ThreadBudgetState limits ref) action = do
       _ <- register ref key (Just handle)
       wait handle
 
-    nobudget :: m ()
-    nobudget = do
+    -- iff soft and/or hard limit are breached, log a warning-level message.
+    warnNoBudget :: Bool -> Bool -> m ()
+    warnNoBudget False False = pure ()
+    warnNoBudget soft hard = do
       readIORef ref >>= \debugHandles -> LC.debug $
         "map" LC..= showDebugHandles debugHandles LC.~~
+        "soft-breach" LC..= soft LC.~~
+        "hard-breach" LC..= hard LC.~~
         LC.msg (LC.val "runWithBudget: nobudget")
 
       LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
@@ -150,8 +154,10 @@ recordMetrics
 recordMetrics metrics limits ref = do
   spent <- SHM.size <$> readIORef ref
   gaugeSet (fromIntegral spent) (path "net.nativepush.thread_budget_allocated") metrics
-  gaugeSet (fromIntegral (limits ^. limitHard)) (path "net.nativepush.thread_budget_hard_limit") metrics
-  gaugeSet (fromIntegral (limits ^. limitSoft)) (path "net.nativepush.thread_budget_soft_limit") metrics
+  forM_ (limits ^. limitHard) $ \lim ->
+    gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_hard_limit") metrics
+  forM_ (limits ^. limitSoft) $ \lim ->
+    gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_soft_limit") metrics
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
