@@ -41,8 +41,8 @@ data Settings = Settings
     } deriving (Show, Generic)
 
 data MaxConcurrentNativePushes = MaxConcurrentNativePushes
-    { _mcnpHard :: Int
-    , _mcnpSoft :: Int
+    { _limitHard :: Int
+    , _limitSoft :: Int
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings

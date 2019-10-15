@@ -77,7 +77,7 @@ showDebugHandles = show . SHM.size
 
 
 mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
-mkThreadBudgetState limits = if limits ^. mcnpHard < limits ^. mcnpSoft
+mkThreadBudgetState limits = if limits ^. limitHard < limits ^. limitSoft
   then throwM . ErrorCall $
          "setMaxConcurrentNativePushes: hard limit < soft limit: " <> show limits
   else ThreadBudgetState limits <$> newIORef SHM.empty
@@ -110,10 +110,10 @@ runWithBudget (ThreadBudgetState limits ref) action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- register ref key Nothing
-    if | oldsize >= limits ^. mcnpHard -> nobudget
-       | oldsize >= limits ^. mcnpSoft &&
-         oldsize <  limits ^. mcnpHard -> nobudget >> go key oldsize
-       | otherwise                     -> go key oldsize
+    if | oldsize >= limits ^. limitHard -> nobudget
+       | oldsize >= limits ^. limitSoft &&
+         oldsize <  limits ^. limitHard -> nobudget >> go key oldsize
+       | otherwise                      -> go key oldsize
   where
     go :: UUID -> Int -> m ()
     go key oldsize = do
@@ -158,8 +158,8 @@ recordMetrics
 recordMetrics metrics limits ref = do
   spent <- SHM.size <$> readIORef ref
   gaugeSet (fromIntegral spent) (path "net.sns.thread_budget_allocated") metrics
-  gaugeSet (fromIntegral (limits ^. mcnpHard)) (path "net.sns.thread_budget_hard_limit") metrics
-  gaugeSet (fromIntegral (limits ^. mcnpSoft)) (path "net.sns.thread_budget_soft_limit") metrics
+  gaugeSet (fromIntegral (limits ^. limitHard)) (path "net.sns.thread_budget_hard_limit") metrics
+  gaugeSet (fromIntegral (limits ^. limitSoft)) (path "net.sns.thread_budget_soft_limit") metrics
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
