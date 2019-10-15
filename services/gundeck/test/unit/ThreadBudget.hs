@@ -268,7 +268,7 @@ postcondition model@(Model (Just _)) cmd@Measure{} resp@MeasureResponse{..}
     Model (Just state) = transition model cmd resp
 
     rspThreadLimit :: Int
-    rspThreadLimit = case opaque state of (tbs, _, _) -> tbs ^. threadBudgetLimits . limitHard
+    rspThreadLimit = case opaque state of (tbs, _, _) -> tbs ^. Control.Lens.to threadBudgetLimits . limitHard
 
     -- number of running threads is never above the limit.
     threadLimitExceeded = Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit

@@ -46,20 +46,12 @@ import qualified System.Logger.Class as LC
 
 
 data ThreadBudgetState = ThreadBudgetState
-  { _threadBudgetLimits  :: MaxConcurrentNativePushes
+  { threadBudgetLimits  :: MaxConcurrentNativePushes
   , _threadBudgetRunning :: IORef BudgetMap
   } deriving (Generic)
 
 -- | Store all handles for cleanup in 'watchThreadBudgetState'.
 type BudgetMap = SizedHashMap UUID (Maybe (Async ()))
-
--- generated with @makeLenses@, but we only want one of the two lenses that generates.
-threadBudgetLimits ::
-  Lens' ThreadBudgetState MaxConcurrentNativePushes
-threadBudgetLimits f_a1A3A (ThreadBudgetState x1_a1A3B x2_a1A3C)
-  = (fmap (\ y1_a1A3D -> (ThreadBudgetState y1_a1A3D) x2_a1A3C))
-      (f_a1A3A x1_a1A3B)
-{-# INLINE threadBudgetLimits #-}
 
 -- | Instead of taking the size of the SizedHashMap (O(1)), this counts all the threads that
 -- are successfully running (dropping the ones that are just about to try to grab a token,
