@@ -1,9 +1,9 @@
 Dependencies on operator's machine
 --------------------------------------------------------------------
 
-You need python2, some python dependencies, a specific version of ansible, and gnu make. Then, you need to download specific ansible roles using ansible-galaxy, and binaries `kubectl` and `helm`. You have two options to achieve this:
+.. TODO: simplify this setup, make it work with python 3
 
-.. _ansible-deps-option-1:
+You need python2, some python dependencies, a specific version of ansible, and gnu make. Then, you need to download specific ansible roles using ansible-galaxy, and binaries `kubectl` and `helm`. You have two options to achieve this:
 
 (Option 1) How to install the necessary components locally when using Debian or Ubuntu as your operating system
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -30,14 +30,19 @@ Install the python dependencies to run ansible.
    # export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
    poetry install
 
-Download the ansible roles necessary to install databases and kubernetes
+.. note::
+
+    The 'make download-cli-binaries' part of 'make download' requires
+    either that you have run this all as root, or that the user you are
+    running these scripts can 'sudo' without being prompted for a password.
+    I run 'sudo ls', get prompted for a password, THEN run 'make download'.
+
+Download the ansible roles necessary to install databases and kubernetes:
 
 ::
 
    make download
 
-
-.. _ansible-deps-option-2:
 
 (Option 2) How to use docker on the local host with a docker image that contains all the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

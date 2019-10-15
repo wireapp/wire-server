@@ -13,6 +13,24 @@ Demo version means
 * easy setup - only one single machine with kubernetes is needed (make sure you have at least 4 CPU cores and 8 GB of memory available)
 * no data persistence (everything stored in memory, will be lost)
 
+What will be installed?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-  wire-server (API)
+   -  user accounts, authentication, conversations
+   -  assets handling (images, files, ...)
+   -  notifications over websocket
+
+-  wire-webapp, a fully functioning web client (like ``https://app.wire.com``)
+-  wire-account-pages, user account management (a few pages relating to e.g. password reset)
+
+What will not be installed?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-  notifications over native push notifications via `FCM <https://firebase.google.com/docs/cloud-messaging/>`__/`APNS <https://developer.apple.com/notifications/>`__
+-  audio/video calling servers using :ref:`understand-restund`)
+-  team-settings page
+
 Prerequisites
 --------------------------------
 
@@ -49,7 +67,9 @@ new versions as time passes, you may need to run ``helm repo update``)
 
 Great! Now you can start installing.
 
-Note: all commands below can also take an extra ``--namespace <your-namespace>`` if you don't want to install into the default kubernetes namespace.
+.. note::
+
+    all commands below can also take an extra ``--namespace <your-namespace>`` if you don't want to install into the default kubernetes namespace.
 
 Watching changes as they happen
 --------------------------------------------------
@@ -85,6 +105,11 @@ sequentially after database-ephemeral installation has succeeded.
 How to install wire-server itself
 ---------------------------------------
 
+.. note::
+
+    the following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
+
+
 Change back to the wire-server-deploy directory.  Copy example demo values and secrets:
 
 .. code:: shell
@@ -93,7 +118,7 @@ Change back to the wire-server-deploy directory.  Copy example demo values and s
    cp ../values/wire-server/demo-secrets.example.yaml secrets.yaml
    cp ../values/wire-server/demo-values.example.yaml values.yaml
 
-Or, if you are not in wire-server-deploy any more:
+Or, if you are not in wire-server-deploy, download example demo values and secrets:
 
 .. code:: shell
 
@@ -103,7 +128,7 @@ Or, if you are not in wire-server-deploy any more:
 
 Open ``values.yaml`` and replace ``example.com`` and other domains and subdomains with domains of your choosing. Look for the ``# change this`` comments. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
 
-Generate some secrets (if you are using the docker image from :ref:`ansible-deps-option-2`, you should do open a shell on the host system for this):
+Generate some secrets (if you are using the docker image from :ref:`ansible-kubernetes`, you should open a shell on the host system for this):
 
 .. code:: shell
 
@@ -138,7 +163,7 @@ Or, the online version again, as above:
 
 .. code:: shell
 
-   ...
+   mkdir -p nginx-ingress-services && cd nginx-ingress-services
    curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-ingress-services/demo-secrets.example.yaml > secrets.yaml
    curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/nginx-ingress-services/demo-values.example.yaml > values.yaml
 
@@ -236,8 +261,55 @@ Can you access the webapp? Open https://webapp.<your-domain> in your browser (Fi
 Troubleshooting
 --------------------
 
+Which version am I on?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are multiple artifacts which combine to form a running wire-server
+deployment; these include:
+
+-  docker images for each service
+-  kubernetes configs for each deployment (from helm charts)
+-  configuration maps for each deployment (from helm charts)
+
+If you wish to get some information regarding the code currently running
+on your cluster you can run the following from ``wire-server-deploy`` (if you don't have wire-server-deploy, ``git clone https://github.com/wireapp/wire-server-deploy && cd wire-server-deploy`` first)::
+
+   ./bin/deployment-info.sh <namespace> <deployment-name (e.g. brig)>
+
+Example run:
+
+::
+
+   ./deployment-info.sh demo brig
+   docker_image:               quay.io/wire/brig:2.50.319
+   chart_version:              wire-server-0.24.9
+   wire_server_commit:         8ec8b7ce2e5a184233aa9361efa86351c109c134
+   wire_server_link:           https://github.com/wireapp/wire-server/releases/tag/image/2.50.319
+   wire_server_deploy_commit:  01e0f261ca8163e63860f8b2af6d4ae329a32c14
+   wire_server_deploy_link:    https://github.com/wireapp/wire-server-deploy/releases/tag/chart/wire-server-0.24.9
+
+Note you'll need ``kubectl``, ``git`` and ``helm`` installed
+
+It will output the running docker image; the corresponding wire-server
+commit hash (and link) and the wire-server helm chart version which is
+running. This will be helpful for any support requests.
+
 Helm install / upgrade failed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Usually, you want to run::
+
+    kubectl get pods --all-namespaces
+
+And look for any pods that are not ``Running``. Then you can::
+
+    kubectl --namespace <namespace> logs <name-of-pod>
+
+and/or::
+
+    kubectl --namespace <namespace> describe <name-of-pod>
+
+to know more.
 
 As long as nobody is using your cluster yet, you can safely delete and re-create a specific helm release (list releases with ``helm list --all``). Example delete the ``wire-server`` helm release:
 

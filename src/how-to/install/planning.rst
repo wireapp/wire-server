@@ -35,6 +35,8 @@ Next steps for demo installation
 
 If you already have a kubernetes cluster, your next step will be :ref:`helm`, otherwise, your next step will be :ref:`ansible-kubernetes`
 
+.. _planning_prod:
+
 Production installation (persistent data, high-availability)
 --------------------------------------------------------------
 
@@ -49,21 +51,7 @@ A recommended installation of Wire-server in any regular data centre,
 configured with high-availability will require the following virtual
 servers:
 
-+---------------+--------+-----+--------+--------+
-| Name          | Amount | CPU | memory | disk   |
-+===============+========+=====+========+========+
-| cassandra     | 3      | 2   | 4 GB   | 80 GB  |
-+---------------+--------+-----+--------+--------+
-| minio         | 3      | 1   | 2 GB   | 100 GB |
-+---------------+--------+-----+--------+--------+
-| elasticsearch | 3      | 1   | 2 GB   | 10 GB  |
-+---------------+--------+-----+--------+--------+
-| redis         | 3      | 1   | 2 GB   | 10 GB  |
-+---------------+--------+-----+--------+--------+
-| kubernetes    | 3      | 4   | 8 GB   | 20 GB  |
-+---------------+--------+-----+--------+--------+
-| restund       | 2      | 1   | 2 GB   | 10 GB  |
-+---------------+--------+-----+--------+--------+
+.. include:: includes/vm-table.rst
 
 A production installation will look a bit like this:
 
@@ -84,4 +72,4 @@ Ensure that your VMs have IP addresses that do not change.
 Next steps for high-available production installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Your next step will be :ref:`ansible-kubernetes-prod`
+Your next step will be :ref:`ansible_vms`

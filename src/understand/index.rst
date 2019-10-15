@@ -13,3 +13,4 @@ This section is almost empty, more documentation will come soon...
    Audio/video calling, restund servers (TURN/STUN) </understand/restund.rst>
 
    Minio </understand/minio.rst>
+   Helm </understand/helm.rst>
