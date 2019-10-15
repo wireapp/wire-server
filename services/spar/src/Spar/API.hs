@@ -73,6 +73,7 @@ apiSSO opts
 apiIDP :: ServerT APIIDP Spar
 apiIDP
      = idpGet
+  :<|> idpGetRaw
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
@@ -162,6 +163,14 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   authorizeIdP zusr idp
   pure idp
+
+idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar Text
+idpGetRaw zusr idpid = do
+  idp <- SAML.getIdPConfig idpid
+  authorizeIdP zusr idp
+  wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
+    Just txt -> pure txt
+    Nothing -> throwSpar SparNotFound
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do

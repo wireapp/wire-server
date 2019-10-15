@@ -131,9 +131,16 @@ type APIAuthResp
 
 type APIIDP
      = Header "Z-User" UserId :> IdpGet
+  :<|> Header "Z-User" UserId :> IdpGetRaw
   :<|> Header "Z-User" UserId :> IdpGetAll
   :<|> Header "Z-User" UserId :> IdpCreate
   :<|> Header "Z-User" UserId :> IdpDelete
+
+-- | This is a bit of a weird special case: we record the xml we get from the team admin as
+-- verbatim as possible for trouble shooting, so we can't return it here with content type
+-- 'XML' (that would trigger an attempt to encode an XML document, but we have a 'Text').
+-- we'll just send it as 'PlainText', indicating that it's not parsed.
+type IdpGetRaw  = Capture "id" SAML.IdPId :> "raw" :> Get '[PlainText] Text
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
