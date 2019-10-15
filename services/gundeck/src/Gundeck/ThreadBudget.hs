@@ -20,6 +20,7 @@ module Gundeck.ThreadBudget
   ( ThreadBudgetState
   , mkThreadBudgetState
   , runWithBudget
+  , runWithBudget'
   , watchThreadBudgetState
 
   -- * for testing
@@ -102,16 +103,25 @@ unregister ref key
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
   => ThreadBudgetState -> m () -> m ()
-runWithBudget (ThreadBudgetState limits ref) action = do
+runWithBudget tbs action = runWithBudget' tbs () action
+
+-- | More flexible variant of 'runWithBudget' that allows the action to return a value.  With
+-- a default in case of budget exhaustion.
+runWithBudget'
+  :: forall m a. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
+  => ThreadBudgetState -> a -> m a -> m a
+runWithBudget' (ThreadBudgetState limits ref) fallback action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- register ref key Nothing
 
     warnNoBudget (maybe False (oldsize >=) (limits ^. limitSoft))
                  (maybe False (oldsize >=) (limits ^. limitHard))
-    when (maybe True (oldsize <) (limits ^. limitHard)) $ go key oldsize
+    if (maybe True (oldsize <) (limits ^. limitHard))
+        then go key oldsize
+        else pure fallback
   where
-    go :: UUID -> Int -> m ()
+    go :: UUID -> Int -> m a
     go key oldsize = do
       readIORef ref >>= \debugHandles -> LC.debug $
         "key"   LC..= (toText key) LC.~~
@@ -120,7 +130,7 @@ runWithBudget (ThreadBudgetState limits ref) action = do
         LC.msg (LC.val "runWithBudget: go")
 
       handle <- async action
-      _ <- register ref key (Just handle)
+      _ <- register ref key (Just (const () <$> handle))
       wait handle
 
     -- iff soft and/or hard limit are breached, log a warning-level message.

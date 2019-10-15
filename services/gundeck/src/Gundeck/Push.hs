@@ -324,8 +324,16 @@ nativeTargets p pres =
     check (Left  e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
+
+-- | Thin wrapper around 'runWithBudget''.
+respondWithBudget :: Gundeck Response -> Gundeck Response
+respondWithBudget action = do
+  view threadBudgetState >>= \case
+    Nothing  -> action
+    Just tbs -> runWithBudget' tbs snsTimeout action
+
 addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = do
+addToken (uid ::: cid ::: req ::: _) = respondWithBudget $ do
     new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
@@ -437,6 +445,10 @@ success t =
 invalidToken :: Response
 invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
+
+snsTimeout :: Response
+snsTimeout = json (Error status400 "sns-timoeut" "Too many concurrent calls to SNS; is SNS down?")
+           & setStatus status413
 
 tokenTooLong :: Response
 tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
