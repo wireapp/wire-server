@@ -298,8 +298,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
-        checkInitiateLogin hasZUser createUser = do
+    let checkInitiateBind :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
+        checkInitiateBind hasZUser createUser = do
           let testmsg = if hasZUser
                         then "responds with 200 and a bind cookie"
                         else "responds with 403 and 'bind-without-auth'"
@@ -333,13 +333,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
     describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session without authentication" $ do
-        checkInitiateLogin False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with non-sso user" $ do
-        checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
+        checkInitiateBind True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
