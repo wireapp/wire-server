@@ -16,6 +16,7 @@ module Spar.Data
   -- * SAML Users
   , insertSAMLUser
   , getSAMLUser
+  , getSAMLAnyUserByIssuer
   , deleteSAMLUsersByIssuer
   , deleteSAMLUser
 
@@ -211,6 +212,14 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
   where
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
+
+-- | We only need to know if it's none or more, so this function returns the first one.
+getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
+getSAMLAnyUserByIssuer issuer = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum (Identity issuer))
+  where
+    sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
+    sel = "SELECT uid FROM user WHERE issuer = ?"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser (SAML.UserRef tenant subject) = runIdentity <$$>
