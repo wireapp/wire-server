@@ -86,7 +86,7 @@ instance MonadPushAll Gundeck where
   mpaStreamAdd        = Stream.add
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
-  mpaRunWithBudget      = \action -> maybe action (`runWithBudget` action) =<< view threadBudgetState
+  mpaRunWithBudget    = \action -> maybe action (`runWithBudget` action) =<< view threadBudgetState
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
