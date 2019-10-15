@@ -619,6 +619,8 @@ specCRUDIdentityProvider = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
+          rawmeta <- runSparCass $ Data.getIdPRawMetadata idpid
+          liftIO $ rawmeta `shouldBe` Nothing
 
         context "with email" $ it "responds with 2xx and removes IdP" $ do
           env <- ask

@@ -184,6 +184,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
             when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
         -- Delete IdP config
         Data.deleteIdPConfig idpid issuer team
+        Data.deleteIdPRawMetadata idpid
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.

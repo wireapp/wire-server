@@ -33,6 +33,7 @@ module Spar.Data
   , deleteTeam
   , storeIdPRawMetadata
   , getIdPRawMetadata
+  , deleteIdPRawMetadata
 
   -- * SCIM auth
   , insertScimToken
@@ -400,6 +401,14 @@ getIdPRawMetadata idp = runIdentity <$$>
   where
     sel :: PrepQuery R (Identity SAML.IdPId) (Identity ST)
     sel = "SELECT metadata FROM idp_raw_metadata WHERE id = ?"
+
+deleteIdPRawMetadata
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> m ()
+deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
+  where
+    del :: PrepQuery W (Identity SAML.IdPId) ()
+    del = "DELETE FROM idp_raw_metadata WHERE id = ?"
 
 ----------------------------------------------------------------------
 -- SCIM auth
