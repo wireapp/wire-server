@@ -149,9 +149,9 @@ recordMetrics
   => Metrics -> MaxConcurrentNativePushes -> IORef BudgetMap -> m ()
 recordMetrics metrics limits ref = do
   spent <- SHM.size <$> readIORef ref
-  gaugeSet (fromIntegral spent) (path "net.sns.thread_budget_allocated") metrics
-  gaugeSet (fromIntegral (limits ^. limitHard)) (path "net.sns.thread_budget_hard_limit") metrics
-  gaugeSet (fromIntegral (limits ^. limitSoft)) (path "net.sns.thread_budget_soft_limit") metrics
+  gaugeSet (fromIntegral spent) (path "net.nativepush.thread_budget_allocated") metrics
+  gaugeSet (fromIntegral (limits ^. limitHard)) (path "net.nativepush.thread_budget_hard_limit") metrics
+  gaugeSet (fromIntegral (limits ^. limitSoft)) (path "net.nativepush.thread_budget_soft_limit") metrics
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
