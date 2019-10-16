@@ -57,6 +57,7 @@ app ctx = SAML.setHttpCachePolicy
 api :: Opts -> ServerT API Spar
 api opts
      = apiSSO opts
+  :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> apiIDP
   :<|> apiScim

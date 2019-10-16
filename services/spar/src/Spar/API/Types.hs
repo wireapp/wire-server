@@ -33,7 +33,8 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 type API
      = "sso" :> APISSO
-  :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
+  :<|> "sso-initiate-bind"  :> APIAuthReqPrecheck  -- (see comment on 'APIAuthReq')
+  :<|> "sso-initiate-bind"  :> APIAuthReq          -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
   :<|> "scim" :> APIScim
   :<|> OmitDocs :> "i" :> APIINTERNAL
