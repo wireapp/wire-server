@@ -73,7 +73,7 @@ function check_prerequisites() {
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
-        || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
+        || { echo "Databases not up. Maybe run 'deploy/dockerephemeral/run.sh' in a separate terminal first?";  exit 1; }
     if [ "$docker_deployment" = "false" ]; then
         test -f ${DIR}/../dist/brig \
             && test -f ${DIR}/../dist/galley \
@@ -127,7 +127,7 @@ function copy_nginz_configs() {
 }
 
 # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
-# even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml)
+# even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/dockerephemeral/docker-compose.yaml)
 export AWS_REGION=${AWS_REGION:-eu-west-1}
 export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
