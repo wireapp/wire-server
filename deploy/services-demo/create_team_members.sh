@@ -19,6 +19,17 @@ USAGE: $0
     -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
     -h <host>: Base URI of brig. default: ${BRIG_HOST}
     -c <input file>: file containing info on the invitees in format 'Email,UserName'.  default: ${CSV_FILE}
+
+If you tee(1) stdout, stderr of this script into a log file, you can
+grep that log file for errors like this:
+
+$ grep code out.log | grep email-exists  # the most common case
+$ grep code out.log | grep -v email-exists
+
+If you are in a hurry, you may want to change the sleep(1) at the end
+of the invite loop to less than a second.  If you want to give up on
+the first error, add an exit(1) where we check the $INVIDATION_ID.
+
 "
 
 # Option parsing:
