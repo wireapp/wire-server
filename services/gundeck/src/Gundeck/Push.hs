@@ -76,7 +76,7 @@ class MonadThrow m =>  MonadPushAll m where
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative       :: Notification -> Push -> [Address] -> m ()
   mpaForkIO           :: m () -> m ()
-  mpaRunWithBudget    :: m () -> m ()
+  mpaRunWithBudget    :: a -> m a -> m a
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL  = view (options . optSettings . setNotificationTTL)
@@ -86,7 +86,15 @@ instance MonadPushAll Gundeck where
   mpaStreamAdd        = Stream.add
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
-  mpaRunWithBudget    = \action -> maybe action (`runWithBudget` action) =<< view threadBudgetState
+  mpaRunWithBudget    = runWithBudget''
+
+-- | Another layer of wrap around 'runWithBudget'.
+runWithBudget'' :: a -> Gundeck a -> Gundeck a
+runWithBudget'' fallback action = do
+  view threadBudgetState >>= \case
+    Nothing  -> action
+    Just tbs -> runWithBudget' tbs fallback action
+
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
@@ -182,7 +190,7 @@ pushAll pushes = do
         -- native push
         forM_ resp $ \((notif, psh), alreadySent) ->
             unless (psh ^. pushTransient)
-                $ mpaRunWithBudget
+                $ mpaRunWithBudget ()
                     $ mpaPushNative notif psh =<< nativeTargets psh alreadySent
 
 
@@ -325,15 +333,8 @@ nativeTargets p pres =
     check (Right r) = return r
 
 
--- | Thin wrapper around 'runWithBudget''.
-respondWithBudget :: Gundeck Response -> Gundeck Response
-respondWithBudget action = do
-  view threadBudgetState >>= \case
-    Nothing  -> action
-    Just tbs -> runWithBudget' tbs snsTimeout action
-
 addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = respondWithBudget $ do
+addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget snsTimeout $ do
     new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
