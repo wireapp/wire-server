@@ -609,7 +609,7 @@ specCRUDIdentityProvider = do
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
 
-      context "known IdP, client is team owner" $ do
+      context "known IdP, IdP empty, client is team owner" $ do
         context "without email" $ it "responds with 2xx and removes IdP" $ do
           env <- ask
           (userid, _, (^. idpId) -> idpid) <- registerTestIdP
@@ -618,14 +618,14 @@ specCRUDIdentityProvider = do
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
 
-        context "with email" $ it "responds with 2xx and removes IdP" $ do
+        context "with email, idp non-empty" $ it "responds with 412 and does not remove IdP" $ do
           env <- ask
           (firstOwner, tid, idp) <- registerTestIdP
           ssoOwner <- mkSsoOwner firstOwner tid idp
           callIdpDelete' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
-            `shouldRespondWith` \resp -> statusCode resp < 300
+            `shouldRespondWith` checkErr (== 412) "idp-has-bound-users"
           callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` \resp -> statusCode resp < 300
 
 
     -- there are no routes for PUT yet.
