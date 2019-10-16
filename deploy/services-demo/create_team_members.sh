@@ -2,10 +2,10 @@
 
 set -e
 
-ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
-TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
-BRIG_HOST="http://localhost:8082"
-CSV_FILE="myfile.csv"
+ADMIN_UUID="n/a"
+TEAM_UUID="n/a"
+BRIG_HOST="http://localhost:8080"
+CSV_FILE="n/a"
 
 USAGE="
 This bash script can be used to invite members to a given team.  Input
