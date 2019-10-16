@@ -73,8 +73,7 @@ do
 
     if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
          ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
-      echo "Got an error, aborting: $INVITATION_ID"
-      exit 1
+      echo "failed inviting $USER_NAME <$EMAIL>: $INVITATION_ID"
     fi
 
     echo "Sleeping 1 second..." 1>&2
