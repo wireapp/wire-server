@@ -173,14 +173,15 @@ idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
+
+    let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+        team = idp ^. SAML.idpExtraInfo
+
+    -- fail if idp is not empty
+    idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
+    unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
+
     wrapMonadClient $ do
-        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-            team = idp ^. SAML.idpExtraInfo
-
-        -- fail if idp is not empty
-        idpIsEmpty <- isNothing <$> getSAMLAnyUserByIssuer issuer
-        unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
-
         -- Delete tokens associated with given IdP (we rely on the fact that
         -- each IdP has exactly one team so we can look up all tokens
         -- associated with the team and then filter them)
