@@ -334,7 +334,7 @@ nativeTargets p pres =
 
 
 addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget snsTimeout $ do
+addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget snsThreadBudgetReached $ do
     new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
@@ -447,8 +447,8 @@ invalidToken :: Response
 invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
 
-snsTimeout :: Response
-snsTimeout = json (Error status400 "sns-timoeut" "Too many concurrent calls to SNS; is SNS down?")
+snsThreadBudgetReached :: Response
+snsThreadBudgetReached = json (Error status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
            & setStatus status413
 
 tokenTooLong :: Response
