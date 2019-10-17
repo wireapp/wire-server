@@ -24,7 +24,7 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
-# You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
+# You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
   userJournalQueue: integration-user-events.fifo
   # ^ Comment this out if you don't want to journal user events
