@@ -89,9 +89,10 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
   log level msg = do
     let raw :: String = cs $ LC.render LC.renderNetstr msg
         parsed
-          | level == LC.Debug                               = Debug raw
-          | "runWithBudget: out of budget." `isInfixOf` raw = NoBudget
-          | otherwise                                       = Unknown raw
+          | level == LC.Debug                                   = Debug raw
+          | "runWithBudget: hard limit reached" `isInfixOf` raw = NoBudget
+          | "runWithBudget: soft limit reached" `isInfixOf` raw = NoBudget
+          | otherwise                                           = Unknown raw
     enterLogHistory parsed
 
 delayms :: MilliSeconds -> (MonadCatch m, MonadIO m) => m ()
