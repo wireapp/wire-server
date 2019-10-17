@@ -11,6 +11,7 @@ import Data.Proxy
 import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson
 import Data.Id ()
+import Data.String.Conversions (cs)
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
 import Spar.Types
@@ -46,7 +47,9 @@ instance Arbitrary NoContent where
   arbitrary = pure NoContent
 
 instance Arbitrary IdPMetadataInfo where
-  arbitrary = IdPMetadataValue <$> arbitrary
+  arbitrary = do
+    mdata <- arbitrary
+    pure $ IdPMetadataValue (cs $ encode mdata) mdata
 
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58

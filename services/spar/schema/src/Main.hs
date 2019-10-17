@@ -13,6 +13,7 @@ import qualified V2
 import qualified V3
 import qualified V4
 import qualified V5
+import qualified V6
 
 main :: IO ()
 main = do
@@ -27,6 +28,7 @@ main = do
         , V3.migration
         , V4.migration
         , V5.migration
+        , V6.migration
         -- When adding migrations here, don't forget to update
         -- 'schemaVersion' in Spar.Data
 

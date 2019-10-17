@@ -74,6 +74,7 @@ apiSSO opts
 apiIDP :: ServerT APIIDP Spar
 apiIDP
      = idpGet
+  :<|> idpGetRaw
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
@@ -164,6 +165,14 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   authorizeIdP zusr idp
   pure idp
 
+idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar RawIdPMetadata
+idpGetRaw zusr idpid = do
+  idp <- SAML.getIdPConfig idpid
+  authorizeIdP zusr idp
+  wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
+    Just txt -> pure $ RawIdPMetadata txt
+    Nothing -> throwSpar SparNotFound
+
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
@@ -185,21 +194,23 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
             when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
         -- Delete IdP config
         Data.deleteIdPConfig idpid issuer team
+        Data.deleteIdPRawMetadata idpid
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
-idpCreateXML zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
+idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Intra.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
   idp <- validateNewIdP idpmeta teamid
+  wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   pure idp
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue xml) = idpCreateXML zusr xml
+idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a

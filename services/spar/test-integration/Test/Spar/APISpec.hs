@@ -24,6 +24,7 @@ import Util.Core
 import Util.Types
 
 import qualified Data.ByteString.Builder as LB
+import qualified Data.Text as ST
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
@@ -298,8 +299,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
-        checkInitiateLogin hasZUser createUser = do
+    let checkInitiateBind :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
+        checkInitiateBind hasZUser createUser = do
           let testmsg = if hasZUser
                         then "responds with 200 and a bind cookie"
                         else "responds with 403 and 'bind-without-auth'"
@@ -333,13 +334,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
     describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session without authentication" $ do
-        checkInitiateLogin False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with non-sso user" $ do
-        checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
+        checkInitiateBind True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -619,6 +620,8 @@ specCRUDIdentityProvider = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
+          callIdpGetRaw' (env ^. teSpar) (Just userid) idpid
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
         context "with email" $ it "responds with 2xx and removes IdP" $ do
           env <- ask
@@ -714,7 +717,11 @@ specCRUDIdentityProvider = do
           metadata <- makeTestIdPMetadata
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          liftIO $ idp `shouldBe` idp'
+          rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
+          liftIO $ do
+            idp `shouldBe` idp'
+            let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+            ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
       context "client is owner without email" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
@@ -731,10 +738,14 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            metadata <- Data.Aeson.encode . (IdPMetadataValue mempty) <$> makeTestIdPMetadata
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-            liftIO $ idp `shouldBe` idp'
+            rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ do
+              idp `shouldBe` idp'
+              let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+              ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
 
 specDeleteCornerCases :: SpecWith TestEnv
