@@ -84,6 +84,9 @@ instance Accept RawXML where
 instance MimeUnrender RawXML IdPMetadataInfo where
   mimeUnrender Proxy raw = IdPMetadataValue (cs raw) <$> mimeUnrender (Proxy @SAML.XML) raw
 
+instance MimeRender RawXML Text where
+  mimeRender Proxy = cs
+
 instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
     raw <- obj .: "value"
