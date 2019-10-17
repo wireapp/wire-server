@@ -143,7 +143,8 @@ runWithBudget' (ThreadBudgetState limits ref) fallback action = do
         "hard-breach" LC..= hard LC.~~
         LC.msg (LC.val "runWithBudget: nobudget")
 
-      LC.warn $ LC.msg (LC.val "runWithBudget: out of budget.")
+      let limit = if hard then "hard" else "soft"
+      LC.warn $ LC.msg (LC.val "runWithBudget: " <> limit <> " limit reached")
 
 
 -- | Fork a thread that checks with the given frequency if any async handles stored in the
