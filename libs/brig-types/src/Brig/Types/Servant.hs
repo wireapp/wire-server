@@ -485,7 +485,10 @@ instance ToSchema Alpha
 instance ToSchema CountryCode
 
 instance ToSchema Value where
-    declareNamedSchema proxy = pure $ mkNamedSchema proxy mempty  -- TODO: the test suite
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy mempty
+      & type_ .~ SwaggerNull
+
+       -- TODO: the test suite
                                                                      -- error is almost
                                                                      -- helpful, but not
                                                                      -- quite.  generate the
@@ -494,6 +497,32 @@ instance ToSchema Value where
                                                                      -- should look like.
                                                                      -- then make it look like
                                                                      -- that.
+
+{-
+    Value:                                           FAIL
+      *** Failed! (after 1 test):
+      Exception:
+        Validation against the schema fails:
+          * expected JSON value of type SwaggerString
+
+        JSON value:
+        {}
+
+        Swagger Schema:
+        {
+            "type": "string"
+        }
+
+        Swagger Description Context:
+        {}
+
+        CallStack (from HasCallStack):
+          error, called at test/unit/Test/Brig/Types/Common.hs:193:29 in main:Test.Brig.Types.Common
+      Object (fromList [])
+      Object (fromList [])
+      Use --quickcheck-replay=376097 to reproduce.
+-}
+
 
 instance ToSchema Handle where
     declareNamedSchema _ = declareNamedSchema (Proxy @String)

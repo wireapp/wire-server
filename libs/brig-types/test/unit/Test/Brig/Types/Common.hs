@@ -189,5 +189,7 @@ tests = testGroup "Common (types vs. aeson)"
       where
         msg = show $ typeOf (undefined :: a)
         trip (v :: a) = counterexample (show $ toJSON v) $
-          (Right v === (parseEither parseJSON . toJSON) v) .&&.
-          ([] === validateToJSON v)
+          (case validatePrettyToJSON v of
+             Just errmsg -> error errmsg
+               -- this gets better output formatting than the QC combinators
+             Nothing  -> Right v === (parseEither parseJSON . toJSON) v)
