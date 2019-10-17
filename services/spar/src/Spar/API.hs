@@ -164,12 +164,12 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   authorizeIdP zusr idp
   pure idp
 
-idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar Text
+idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
   authorizeIdP zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
-    Just txt -> pure txt
+    Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar SparNotFound
 
 idpGetAll :: Maybe UserId -> Spar IdPList

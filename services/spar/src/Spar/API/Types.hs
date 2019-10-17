@@ -136,7 +136,7 @@ type APIIDP
   :<|> Header "Z-User" UserId :> IdpCreate
   :<|> Header "Z-User" UserId :> IdpDelete
 
-type IdpGetRaw  = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] Text
+type IdpGetRaw  = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
