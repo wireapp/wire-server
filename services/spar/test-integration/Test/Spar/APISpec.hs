@@ -5,6 +5,7 @@ import Imports hiding (head)
 import Bilge
 import Brig.Types.User
 import Control.Lens
+import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -12,7 +13,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
@@ -38,6 +39,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
+  specDeleteCornerCases
   specScimAndSAML
   specAux
 
@@ -733,6 +735,76 @@ specCRUDIdentityProvider = do
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
             liftIO $ idp `shouldBe` idp'
+
+
+specDeleteCornerCases :: SpecWith TestEnv
+specDeleteCornerCases = describe "delete corner cases" $ do
+  it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via scim (in same team)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via password (outside team)" $ do
+    pending
+
+  it "delete idp; create idp with same issuer id" $ do
+    pending
+
+  -- clone of 'testScimCreateVsUserRef', without the scim part: Create a user implicitly via
+  -- saml login; remove it via brig leaving a dangling entry in @spar.user@; create it via saml
+  -- login once more.  This should work despite the dangling database entry.
+  it "re-create previously deleted, dangling users" $ do
+    (_ownerid, _teamid, idp) <- registerTestIdP
+    uname :: SAML.UnqualifiedNameID <- do
+      suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+      either (error . show) pure $
+        SAML.mkUNameIDEmail ("email_" <> suffix <> "@example.com")
+    let uref   = SAML.UserRef tenant subj
+        subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+        tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+
+    !(Just !uid) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
+
+    deleteViaBrig uid
+    samlUserShouldSatisfy uref isJust  -- brig doesn't talk to spar right now when users
+                                       -- are deleted there.  we need to work around this
+                                       -- fact for now.  (if the test fails here, this may
+                                       -- mean that you fixed the behavior and can
+                                       -- change this to 'isNothing'.)
+
+    (Just _) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
+  where
+    samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy uref property = do
+        muid <- getUserIdViaRef' uref
+        liftIO $ muid `shouldSatisfy` property
+
+    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp (SAML.UserRef _ subj) = do
+        (privCreds, authnReq) <- negotiateAuthnRequest idp
+        spmeta <- getTestSPMetadata
+        authnResp <- runSimpleSP $
+            mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+        createResp <- submitAuthnResponse authnResp
+        liftIO $ responseStatus createResp `shouldBe` status200
+        pure createResp
+
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:success</title>"
+        getUserIdViaRef' uref
+
+    deleteViaBrig :: UserId -> TestSpar ()
+    deleteViaBrig uid = do
+        brig <- view teBrig
+        resp <- (call . delete $ brig . paths ["i", "users", toByteString' uid])
+        liftIO $ responseStatus resp `shouldBe` status202
 
 
 specScimAndSAML :: SpecWith TestEnv
