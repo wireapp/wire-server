@@ -91,22 +91,23 @@ unregister ref key
 -- starting and ending the execution.
 --
 -- The hard limit in the 'ThreadBudgetState' argument is guaranteed to be an upper bound for
--- the number of concurrently running actions; surpassing the soft limit will trigger a
--- warning, but still execute the action.
+-- the number of concurrently spent budget tokens; surpassing the soft limit will trigger a
+-- warning, but still execute the action.  One action can use up any integer number of budget
+-- tokens, including 0 and negative.
 --
 -- The action is called in an 'Async', but 'runWithBudget' waits for it to finish so it can
 -- update the budget.
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
-  => ThreadBudgetState -> m () -> m ()
-runWithBudget tbs = runWithBudget' tbs ()
+  => ThreadBudgetState -> Int -> m () -> m ()
+runWithBudget tbs budget = runWithBudget' tbs budget ()
 
 -- | More flexible variant of 'runWithBudget' that allows the action to return a value.  With
 -- a default in case of budget exhaustion.
 runWithBudget'
   :: forall m a. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
-  => ThreadBudgetState -> a -> m a -> m a
-runWithBudget' (ThreadBudgetState limits ref) fallback action = do
+  => ThreadBudgetState -> Int -> a -> m a -> m a
+runWithBudget' (ThreadBudgetState limits ref) _budget{- TODO: honour this! -} fallback action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- register ref key Nothing

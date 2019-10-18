@@ -76,7 +76,7 @@ class MonadThrow m =>  MonadPushAll m where
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative       :: Notification -> Push -> [Address] -> m ()
   mpaForkIO           :: m () -> m ()
-  mpaRunWithBudget    :: a -> m a -> m a
+  mpaRunWithBudget    :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL  = view (options . optSettings . setNotificationTTL)
@@ -89,11 +89,11 @@ instance MonadPushAll Gundeck where
   mpaRunWithBudget    = runWithBudget''
 
 -- | Another layer of wrap around 'runWithBudget'.
-runWithBudget'' :: a -> Gundeck a -> Gundeck a
-runWithBudget'' fallback action = do
+runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
+runWithBudget'' budget fallback action = do
   view threadBudgetState >>= \case
     Nothing  -> action
-    Just tbs -> runWithBudget' tbs fallback action
+    Just tbs -> runWithBudget' tbs budget fallback action
 
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
@@ -188,10 +188,15 @@ pushAll pushes = do
         resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
-        forM_ resp $ \((notif, psh), alreadySent) ->
+        forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
+            let rcps' = nativeTargetsRecipients psh
+                budget = length rcps'
+                  -- this is a rough budget, since there may be more than one device in a
+                  -- 'Presence', so one budget token may trigger at most 8 push notifications
+                  -- to be sent out.
             unless (psh ^. pushTransient)
-                $ mpaRunWithBudget ()
-                    $ mpaPushNative notif psh =<< nativeTargets psh (nativeTargetsRecipients psh) alreadySent
+                $ mpaRunWithBudget budget ()
+                    $ mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
 
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
@@ -344,7 +349,7 @@ nativeTargets psh rcps' alreadySent =
 
 
 addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget snsThreadBudgetReached $ do
+addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached $ do
     new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)

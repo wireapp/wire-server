@@ -112,7 +112,7 @@ burstActions
   -> NumberOfThreads
   -> (MonadIO m) => m ()
 burstActions tbs logHistory howlong (NumberOfThreads howmany)
-    = let budgeted = runWithBudget tbs (delayms howlong)
+    = let budgeted = runWithBudget tbs 1 (delayms howlong)
       in liftIO . replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
