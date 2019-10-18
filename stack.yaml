@@ -74,4 +74,4 @@ flags:
 allow-newer: false
 
 nix:
-  shell-file: shell.nix
+  shell-file: stack-deps.nix
