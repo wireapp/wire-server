@@ -31,10 +31,9 @@ module Gundeck.ThreadBudget
 
 import Imports
 
-import Control.Exception (ErrorCall(ErrorCall))
 import Control.Exception.Safe (catchAny)
 import Control.Lens
-import Control.Monad.Catch (MonadCatch, throwM)
+import Control.Monad.Catch (MonadCatch)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.Time
@@ -77,10 +76,7 @@ cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
   >>= mapM_ cancel . catMaybes . fmap snd . HM.elems . bmap
 
 mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
-mkThreadBudgetState limits = if limits ^. limitHard < limits ^. limitSoft
-  then throwM . ErrorCall $
-         "setMaxConcurrentNativePushes: hard limit < soft limit: " <> show limits
-  else ThreadBudgetState limits <$> newIORef (BudgetMap 0 HM.empty)
+mkThreadBudgetState limits = ThreadBudgetState limits <$> newIORef (BudgetMap 0 HM.empty)
 
 
 -- | Allocate the resources for a new action to be called (but don't call the action yet).
