@@ -99,7 +99,7 @@ unregister ref key
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
   => ThreadBudgetState -> m () -> m ()
-runWithBudget tbs action = runWithBudget' tbs () action
+runWithBudget tbs = runWithBudget' tbs ()
 
 -- | More flexible variant of 'runWithBudget' that allows the action to return a value.  With
 -- a default in case of budget exhaustion.
