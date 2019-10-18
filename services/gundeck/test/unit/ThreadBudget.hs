@@ -147,29 +147,29 @@ testThreadBudgets = do
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 5)
     delayms (MilliSeconds 10)
     expectLogHistory null
-    liftIO $ runningThreads tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (@=? 5)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ runningThreads tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (@=? 5)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ runningThreads tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (@=? 5)
 
     delayms (MilliSeconds 80)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory null
-    liftIO $ runningThreads tbs >>= (@=? 3)
+    liftIO $ budgetSpent tbs >>= (@=? 3)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget])
-    liftIO $ runningThreads tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (@=? 5)
 
   cancel watcher
 
@@ -244,7 +244,7 @@ semantics (Wait _ howlong)
 -- 'Measure' looks at the concrete state and records it into the model.
 semantics (Measure (opaque -> (tbs, _, _)))
   = do
-    rspConcreteRunning <- runningThreads tbs
+    rspConcreteRunning <- budgetSpent tbs
     pure MeasureResponse{..}
 
 
