@@ -69,10 +69,6 @@ cancelAllThreads :: ThreadBudgetState -> IO ()
 cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
   >>= mapM_ cancel . catMaybes . SHM.elems
 
-showDebugHandles :: BudgetMap -> String
-showDebugHandles = show . SHM.size
-
-
 mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
 mkThreadBudgetState limits = if limits ^. limitHard < limits ^. limitSoft
   then throwM . ErrorCall $
@@ -126,7 +122,7 @@ runWithBudget' (ThreadBudgetState limits ref) fallback action = do
       readIORef ref >>= \debugHandles -> LC.debug $
         "key"   LC..= (toText key) LC.~~
         "spent" LC..= oldsize LC.~~
-        "map"   LC..= showDebugHandles debugHandles LC.~~
+        "map"   LC..= show (SHM.size debugHandles) LC.~~
         LC.msg (LC.val "runWithBudget: go")
 
       handle <- async action
@@ -137,14 +133,13 @@ runWithBudget' (ThreadBudgetState limits ref) fallback action = do
     warnNoBudget :: Bool -> Bool -> m ()
     warnNoBudget False False = pure ()
     warnNoBudget soft hard = do
-      readIORef ref >>= \debugHandles -> LC.debug $
-        "map" LC..= showDebugHandles debugHandles LC.~~
+      debugHandles <- readIORef ref
+      let limit = if hard then "hard" else "soft"
+      LC.warn $
+        "map" LC..= show (SHM.size debugHandles) LC.~~
         "soft-breach" LC..= soft LC.~~
         "hard-breach" LC..= hard LC.~~
-        LC.msg (LC.val "runWithBudget: nobudget")
-
-      let limit = if hard then "hard" else "soft"
-      LC.warn $ LC.msg (LC.val "runWithBudget: " <> limit <> " limit reached")
+        LC.msg (LC.val "runWithBudget: " <> limit <> " limit reached")
 
 
 -- | Fork a thread that checks with the given frequency if any async handles stored in the
@@ -214,7 +209,7 @@ removeStaleHandles ref = do
 
     warnStaleHandles :: Int -> BudgetMap -> m ()
     warnStaleHandles num handles = LC.warn $
-      "BudgetMap" LC..= showDebugHandles handles
+      "BudgetMap" LC..= show (SHM.size handles)
       LC.~~ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
 
 safeForever
