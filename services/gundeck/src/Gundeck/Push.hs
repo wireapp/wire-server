@@ -150,7 +150,7 @@ pushAny' p = do
     mpaForkIO $ do
         alreadySent <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
         unless (p^.pushTransient) $
-            mpaPushNative notif p =<< nativeTargets p alreadySent
+            mpaPushNative notif p =<< nativeTargets p (nativeTargetsRecipients p) alreadySent
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r =
@@ -191,7 +191,7 @@ pushAll pushes = do
         forM_ resp $ \((notif, psh), alreadySent) ->
             unless (psh ^. pushTransient)
                 $ mpaRunWithBudget ()
-                    $ mpaPushNative notif psh =<< nativeTargets psh alreadySent
+                    $ mpaPushNative notif psh =<< nativeTargets psh (nativeTargetsRecipients psh) alreadySent
 
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
@@ -266,20 +266,27 @@ pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
--- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
--- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
--- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
-nativeTargets :: forall m. (MonadNativeTargets m, MonadMapAsync m) => Push -> [Presence] -> m [Address]
-nativeTargets psh alreadySent =
-    mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+-- | Compute list of 'Recipient's from a 'Push' that may be interested in a native push.  More
+-- filtering in 'nativeTargets'.
+nativeTargetsRecipients :: Push -> [Recipient]
+nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. pushRecipients)))
   where
-    rcps' :: [Recipient]
-    rcps' = filter routeNative (toList (fromRange (psh ^. pushRecipients)))
-
-    -- Interested in native pushes?
     routeNative u = u ^. recipientRoute /= RouteDirect
                  && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
+-- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
+-- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
+-- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
+--
+-- FUTUREWORK: we may want to turn 'mntgtMapAsync' into an ordinary `mapM`: it's cassandra
+-- access, so it'll be fast either way given the size of the input, and synchronous calls
+-- impose a much lower risk of choking when system load peaks.
+nativeTargets
+  :: forall m. (MonadNativeTargets m, MonadMapAsync m)
+  => Push -> [Recipient] -> [Presence] -> m [Address]
+nativeTargets psh rcps' alreadySent =
+    mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+  where
     addresses :: Recipient -> m [Address]
     addresses u = do
         addrs <- mntgtLookupAddresses (u ^. recipientId)
