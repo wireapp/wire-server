@@ -148,9 +148,9 @@ pushAny' p = do
     unless (p^.pushTransient) $
         mpaStreamAdd i tgts pload =<< mpaNotificationTTL
     mpaForkIO $ do
-        prs <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        alreadySent <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
         unless (p^.pushTransient) $
-            mpaPushNative notif p =<< nativeTargets p prs
+            mpaPushNative notif p =<< nativeTargets p alreadySent
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r =
@@ -270,49 +270,52 @@ pushNative notif p rcps = do
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
 -- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
 nativeTargets :: forall m. (MonadNativeTargets m, MonadMapAsync m) => Push -> [Presence] -> m [Address]
-nativeTargets p pres =
-    let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
-    in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+nativeTargets psh alreadySent =
+    mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
   where
+    rcps' :: [Recipient]
+    rcps' = filter routeNative (toList (fromRange (psh ^. pushRecipients)))
+
     -- Interested in native pushes?
-    routeNative u = u^.recipientRoute /= RouteDirect
-                 && (u^.recipientId /= p^.pushOrigin || p^.pushNativeIncludeOrigin)
+    routeNative u = u ^. recipientRoute /= RouteDirect
+                 && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
     addresses :: Recipient -> m [Address]
     addresses u = do
-        addrs <- mntgtLookupAddresses (u^.recipientId)
+        addrs <- mntgtLookupAddresses (u ^. recipientId)
         return $ preference
                . filter (eligible u)
                $ addrs
 
+    eligible :: Recipient -> Address -> Bool
     eligible u a
         -- Never include the origin client.
-        | a^.addrUser == p^.pushOrigin && Just (a^.addrConn) == p^.pushOriginConnection = False
+        | a ^. addrUser == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
         -- Is the specific client an intended recipient?
-        | not (eligibleClient a (u^.recipientClients)) = False
+        | not (eligibleClient a (u ^. recipientClients)) = False
         -- Is the client not whitelisted?
         | not (whitelistedOrNoWhitelist a) = False
-        -- Include client if not found in presences.
-        | otherwise = isNothing (List.find (isOnline a) pres)
+        -- Include client if not found in already served presences.
+        | otherwise = isNothing (List.find (isOnline a) alreadySent)
 
-    isOnline a x =  a^.addrUser == Presence.userId x
-                && (a^.addrConn == Presence.connId x || equalClient a x)
+    isOnline a x =  a ^. addrUser == Presence.userId x
+                && (a ^. addrConn == Presence.connId x || equalClient a x)
 
-    equalClient a x = Just (a^.addrClient) == Presence.clientId x
+    equalClient a x = Just (a ^. addrClient) == Presence.clientId x
 
     eligibleClient _ RecipientClientsAll = True
-    eligibleClient a (RecipientClientsSome cs) = (a^.addrClient) `elem` cs
+    eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
 
-    whitelistedOrNoWhitelist a = null (p^.pushConnections)
-                              || a^.addrConn `elem` p^.pushConnections
+    whitelistedOrNoWhitelist a = null (psh ^. pushConnections)
+                              || a ^. addrConn `elem` psh ^. pushConnections
 
     -- Apply transport preference in case of alternative transports for the
     -- same client (currently only APNS vs APNS VoIP). If no explicit
     -- preference is given, the default preference depends on the priority.
-    preference as = let pref = p^.pushNativeAps >>= view apsPreference in
+    preference as = let pref = psh ^. pushNativeAps >>= view apsPreference in
         filter (pick (fromMaybe defPreference pref)) as
       where
-        pick pr a = case a^.addrTransport of
+        pick pr a = case a ^. addrTransport of
             GCM             -> True
             APNS            -> pr == ApsStdPreference  || notAny a APNSVoIP
             APNSSandbox     -> pr == ApsStdPreference  || notAny a APNSVoIPSandbox
@@ -321,10 +324,10 @@ nativeTargets p pres =
 
         notAny a t = not (any (\a' ->
             addrEqualClient a a'
-            && a^.addrApp == a'^.addrApp
-            && a'^.addrTransport == t) as)
+            && a ^. addrApp == a' ^. addrApp
+            && a' ^. addrTransport == t) as)
 
-        defPreference = case p^.pushNativePriority of
+        defPreference = case psh ^. pushNativePriority of
             LowPriority  -> ApsStdPreference
             HighPriority -> ApsVoIPPreference
 
