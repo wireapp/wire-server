@@ -447,7 +447,6 @@ instance ToJSON NewUser where
         # "uuid"            .= newUserUUID u
         # "email"           .= newUserEmail u
         # "email_code"      .= newUserEmailCode u
-        # "password"        .= newUserPassword u
         # "picture"         .= newUserPict u
         # "assets"          .= newUserAssets u
         # "phone"           .= newUserPhone u
