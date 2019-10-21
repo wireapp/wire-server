@@ -28,7 +28,6 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
-import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
 import Spar.API.Swagger ()
@@ -41,13 +40,11 @@ import Spar.Scim.Swagger ()
 import Spar.Types
 
 import qualified Data.ByteString as SBS
-import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Galley
 import qualified URI.ByteString as URI
-import qualified Web.Cookie as Cky
 
 
 app :: Env -> Application
@@ -71,7 +68,7 @@ apiSSO opts
 apiSSO' :: Opts -> ServerT APISSO' Spar
 apiSSO' opts
      = authreqPrecheck
-  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
+  :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
@@ -94,39 +91,20 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
-authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> Bool -> SAML.IdPId -> Spar NoContent
-authreqPrecheck msucc merr _bind idpid = validateAuthreqParams msucc merr
+-- TODO: Should the preflight function fail early?
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> Bool -> Maybe ST -> SAML.IdPId -> Spar NoContent
+authreqPrecheck msucc merr _bind _cookie idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> Bool -> SAML.IdPId
-        -> Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin (Just _) _ _ _ _ = throwSpar SparInitLoginWithAuth
-authreq _ DoInitiateBind Nothing _ _ _ _   = throwSpar SparInitBindWithoutAuth
-authreq authreqttl _ zusr msucc merr _bind idpid = do
+authreq 
+  :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> Bool -> Maybe ST -> SAML.IdPId
+        -> Spar (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl msucc merr _bind _cookie idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  cky <- initializeBindCookie zusr authreqttl
-  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
-  pure $ addHeader cky form
-
--- | If the user is already authenticated, create bind cookie with a given life expectancy and our
--- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
--- value that deletes any bind cookies on the client.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
-initializeBindCookie zusr authreqttl = do
-  DerivedOpts { derivedOptsBindCookiePath, derivedOptsBindCookieDomain }
-    <- asks (derivedOpts . sparCtxOpts)
-  msecret <- if isJust zusr
-             then liftIO $ Just . cs . ES.encode <$> randBytes 32
-             else pure Nothing
-  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw
-        { Cky.setCookieDomain = Just derivedOptsBindCookieDomain }
-  cky <- updSetCkyDom <$> (SAML.toggleCookie derivedOptsBindCookiePath $
-                            (, authreqttl) <$> msecret :: Spar SetBindCookie)
-  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
-  pure cky
+  pure form
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140

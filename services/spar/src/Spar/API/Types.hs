@@ -61,6 +61,7 @@ type APIAuthReqPrecheck
      = QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
     :> QueryFlag "bind"
+    :> Header "Cookie" ST 
     :> Capture "idp" SAML.IdPId
     :> Verb 'HEAD 200 '[PlainText] NoContent
 
@@ -117,18 +118,16 @@ type APIAuthReqPrecheck
 --   * Block implicit creation for a short time window, and ask all existing users to use that time
 --     window to bind.
 type APIAuthReq
-     = Header "Z-User" UserId
-    :> QueryParam "success_redirect" URI.URI
+     = QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
-    :> QueryFlag "bind"
+    -- bind and cookie are just here to fail early for good UX.
+    -- there is no need for authentication
+    -- only if bind is present shall cookie be checked
+    :> QueryFlag "bind"   
+    :> Header "Cookie" ST 
        -- (SAML.APIAuthReq from here on, except for the cookies)
     :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-
-data DoInitiate = DoInitiateLogin | DoInitiateBind
-  deriving (Eq, Show, Bounded, Enum)
-
-type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
+    :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
 
 type APIAuthResp
      = QueryFlag "bind"
