@@ -38,7 +38,8 @@ spec = do
   specMetadata
   specInitiateLogin
   specFinalizeLogin
-  specBindingUsers
+
+  context "XXXX" $ specBindingUsers
   specCRUDIdentityProvider
   specDeleteCornerCases
   specScimAndSAML
@@ -276,15 +277,27 @@ specFinalizeLogin = do
 
 
 specBindingUsers :: SpecWith TestEnv
-specBindingUsers = describe "binding existing users to sso identities" $ do
-    describe "HEAD /sso/initiate-bind/:idp" $ do
+specBindingUsers =
+  describe "binding existing users to sso identities" $ do
+    describe "HEAD /access/sso/initiate-login/:idp?bind" $ do
+
+      context "success_redirect, error_redirect work as expected" $ do
+        -- TODO(arianvp): Ask Marco about this
+        it "stuff" $ pending
+
+      context "no cookie" $ do
+        it "If we set the bind query parameter we fail" $ do
+          pending
+
       context "known IdP, running session with non-sso user" $ do
-        it "responds with 200" $ do
+        it "responds with 2xx" $ do
           env <- ask
           (owner, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           void . call $ head ( (env ^. teSpar)
-                             . path (cs $ "/sso-initiate-bind/" -/ idp)
+                             . path (cs $ "/access/sso/initiate-login/" -/ idp)
+                             -- TODO this endpoint now requires a valid cookie instead of a token
                              . header "Z-User" (toByteString' owner)
+                             . query [("bind", Nothing)]
                              . expect2xx
                              )
 
@@ -295,14 +308,15 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           env <- ask
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso-initiate-bind/" -/ (idPIdToST $ idp ^. idpId))
+                             . path (cs $ "/access/sso/initiate-login/" -/ (idPIdToST $ idp ^. idpId))
+                             . query [("bind", Nothing)]
                              . expect2xx
                              )
 
-    let checkInitiateBind :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
-        checkInitiateBind hasZUser createUser = do
-          let testmsg = if hasZUser
-                        then "responds with 200 and a bind cookie"
+    let checkInitiateBind :: HasCallStack => Maybe (TestSpar UserId) -> SpecWith TestEnv
+        checkInitiateBind mCreateUser = do
+          let testmsg = if isJust mCreateUser
+                        then "responds with 200 and a cookie"
                         else "responds with 403 and 'bind-without-auth'"
 
               checkRespBody :: HasCallStack => ResponseLBS -> Bool
@@ -312,16 +326,16 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 , "<input name=\"SAMLRequest\" type=\"hidden\" "
                 ]
               checkRespBody bad = error $ show bad
-
           it testmsg $ do
             env <- ask
             (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
-            uid <- createUser
+            muid <- sequence mCreateUser
             resp <- call $ get ( (env ^. teSpar)
-                               . (if hasZUser then header "Z-User" (toByteString' uid) else id)
-                               . path (cs $ "/sso-initiate-bind/" -/ idp)
+                               . maybe id (header "Z-User" . toByteString') muid
+                               . path (cs $ "/access/sso/initiate-login/" -/ idp)
+                               . query [("bind", Nothing)]
                                )
-            liftIO $ if hasZUser
+            liftIO $ if isJust muid
               then do
                 statusCode resp `shouldBe` 200
                 resp `shouldSatisfy` checkRespBody
@@ -332,17 +346,18 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 hasSetBindCookieHeader resp `shouldBe` Left "no set-cookie header"
                 responseJsonEither resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
 
-    describe "GET /sso-initiate-bind/:idp" $ do
+    describe "GET /access/sso/initiate-login/:idp?bind" $ do
       context "known IdP, running session without authentication" $ do
-        checkInitiateBind False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind Nothing
+        checkInitiateBind (Just (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig)))
 
       context "known IdP, running session with non-sso user" $ do
-        checkInitiateBind True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind (Just (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig)))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateBind True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
+        checkInitiateBind (Just (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp))
 
-    describe "POST /sso/finalize-login" $ do
+    describe "POST /access/sso/finalize-login?bind" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
           checkGrantingAuthnResp uid sparrq sparresp = do
             checkGrantingAuthnResp' sparresp

@@ -33,8 +33,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 type API
      = "sso" :> APISSO
-  :<|> "sso-initiate-bind"  :> APIAuthReqPrecheck  -- (see comment on 'APIAuthReq')
-  :<|> "sso-initiate-bind"  :> APIAuthReq          -- (see comment on 'APIAuthReq')
+  :<|> "access" :> "sso" :> APISSO'
   :<|> "identity-providers" :> APIIDP
   :<|> "scim" :> APIScim
   :<|> OmitDocs :> "i" :> APIINTERNAL
@@ -44,19 +43,26 @@ type API
 type OutsideWorldAPI = OutsideWorld API
 
 type APISSO
+     -- NOTE: api-docs also document /scim
      = OmitDocs :> "api-docs" :> Get '[JSON] Swagger
   :<|> "metadata" :> SAML.APIMeta
-  :<|> "initiate-login" :> APIAuthReqPrecheck
-  :<|> "initiate-login" :> APIAuthReq
-  :<|> APIAuthResp
 
-type CheckOK = Verb 'HEAD 200
+  -- DEPRECATED:
+  -- TODO: ^ Maybe put that in the type. and use that in swagger
+  :<|> APISSO'
+
+type APISSO'
+     = "initiate-login" :> APIAuthReqPrecheck
+  :<|> "initiate-login" :> APIAuthReq
+  :<|> "finalize-login" :> APIAuthResp
+
 
 type APIAuthReqPrecheck
      = QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
+    :> QueryFlag "bind"
     :> Capture "idp" SAML.IdPId
-    :> CheckOK '[PlainText] NoContent
+    :> Verb 'HEAD 200 '[PlainText] NoContent
 
 -- | Dual-use route for initiating either login or bind.
 --
@@ -114,6 +120,7 @@ type APIAuthReq
      = Header "Z-User" UserId
     :> QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
+    :> QueryFlag "bind"
        -- (SAML.APIAuthReq from here on, except for the cookies)
     :> Capture "idp" SAML.IdPId
     :> Get '[SAML.HTML] (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
@@ -124,10 +131,14 @@ data DoInitiate = DoInitiateLogin | DoInitiateBind
 type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
 
 type APIAuthResp
-     = "finalize-login"
+     = QueryFlag "bind"
+    -- TODO: Have a look at servant-auth and make a servant-zauth module
     :> Header "Cookie" ST
-       -- (SAML.APIAuthResp from here on, except for response)
+    -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
+    -- TODO(arianvp): The Void is here because this always returns non 2xx
+    -- status codes, and multiple of themA So this will be a great place for
+    -- servant-uverb
     :> Post '[PlainText] Void
 
 type APIIDP
@@ -153,7 +164,7 @@ type APIINTERNAL
 
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
-sparSPIssuer = SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+sparSPIssuer = SAML.Issuer <$> (SAML.getSsoURI' (Proxy @APISSO) (Proxy @("finalize-login" :> APIAuthResp)) False)
 
 sparResponseURI :: SAML.HasConfig m => m URI.URI
-sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+sparResponseURI = SAML.getSsoURI' (Proxy @APISSO) (Proxy @("finalize-login" :> APIAuthResp)) False

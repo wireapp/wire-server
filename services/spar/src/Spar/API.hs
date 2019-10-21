@@ -57,8 +57,7 @@ app ctx = SAML.setHttpCachePolicy
 api :: Opts -> ServerT API Spar
 api opts
      = apiSSO opts
-  :<|> authreqPrecheck
-  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
+  :<|> apiSSO' opts
   :<|> apiIDP
   :<|> apiScim
   :<|> apiINTERNAL
@@ -67,7 +66,11 @@ apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
      = pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName sparSPIssuer sparResponseURI
-  :<|> authreqPrecheck
+  :<|> apiSSO' opts
+
+apiSSO' :: Opts -> ServerT APISSO' Spar
+apiSSO' opts
+     = authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
   :<|> authresp
 
@@ -91,16 +94,16 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
-authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
-authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> Bool -> SAML.IdPId -> Spar NoContent
+authreqPrecheck msucc merr _bind idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
+authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> Bool -> SAML.IdPId
         -> Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
-authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
-authreq authreqttl _ zusr msucc merr idpid = do
+authreq _ DoInitiateLogin (Just _) _ _ _ _ = throwSpar SparInitLoginWithAuth
+authreq _ DoInitiateBind Nothing _ _ _ _   = throwSpar SparInitBindWithoutAuth
+authreq authreqttl _ zusr msucc merr _bind idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
@@ -144,8 +147,8 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 
-authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
-authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
+authresp :: Bool -> Maybe ST -> SAML.AuthnResponseBody -> Spar Void
+authresp _bind ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader

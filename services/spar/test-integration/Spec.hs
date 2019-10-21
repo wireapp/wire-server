@@ -29,8 +29,9 @@ main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
-  withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
+  withArgs (hspecArgs <> ["-m", "XXXX"]). hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
 
+-- HACK: here be dragons because there are wire specific flags but Hspec also expects flags
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
   where
