@@ -97,10 +97,19 @@ export SCIM_USER='{
   "displayName" : "The Nick"
 }'
 ```
-The `externalId` is used to construct a 'SAML.UserRef'. If it looks like an email
-address, the constructed 'SAML.UserRef' will have `nameid-format:emailAddress`,
-otherwise the format will be `unspecified`.
-*It is important to configure your SAML provider to use `nameid-format:emailAddress` or `unspecified`. Other
+
+The `externalId` is used to construct a saml identity.  Two cases are
+currently supported:
+
+1. `externalId` contains a valid email address.  The SAML `NameID` has
+the form `<NameID
+Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">me@example.com</NameID>`.
+2. `externalId` contains anything that is *not* an email address.  The
+SAML `NameID` has the form `<NameID
+Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">...</NameID>`.
+
+*NOTE: It is important to configure your SAML provider to use
+`nameid-format:emailAddress` or `nameid-format:unspecified`.  Other
 nameid formats are not supported at this moment*.
 
 
