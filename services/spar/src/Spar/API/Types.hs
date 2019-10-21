@@ -31,6 +31,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 -- FUTUREWORK: use https://hackage.haskell.org/package/servant-0.14.1/docs/Servant-API-Generic.html?
 
+-- TODO: Very clearly document the purpose of the bind query param. it is about intent.
 type API
      = "sso" :> APISSO
   :<|> "access" :> "sso" :> APISSO'

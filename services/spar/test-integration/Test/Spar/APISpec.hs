@@ -276,6 +276,8 @@ specFinalizeLogin = do
           pending
 
 
+data CookieCases = BadCookie | GoodCookie | NoCookie deriving (Enum, Bounded, Show)
+
 specBindingUsers :: SpecWith TestEnv
 specBindingUsers =
   describe "binding existing users to sso identities" $ do
@@ -390,32 +392,27 @@ specBindingUsers =
             either error (pure . Intra.toUserSSOId) $ getUserRef parsed
 
           initialBind :: HasCallStack => UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
-          initialBind = initialBind' Just
+          initialBind = initialBind' False Nothing
 
           initialBind'
-            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            :: HasCallStack => Bool -> Maybe Cookie
             -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
-          initialBind' tweakcookies uid idp = do
+          initialBind' isBind cookie' uid idp = do
             subj <- nextSubject
-            (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
+            (authnResp, sparAuthnResp) <- reBindSame' isBind cookie' uid idp subj
             pure (subj, authnResp, sparAuthnResp)
 
           reBindSame :: HasCallStack => UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
-          reBindSame = reBindSame' Just
+          reBindSame = reBindSame' False Nothing
 
           reBindSame'
-            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            :: HasCallStack => Bool -> Maybe Cookie
             -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
-          reBindSame' tweakcookies uid idp subj = do
-            (privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
-              negotiateAuthnRequest' DoInitiateBind idp (header "Z-User" $ toByteString' uid)
+          reBindSame' isBind cookie' uid idp subj = do
+            (privCreds, authnReq) <- negotiateAuthnRequest' isBind cookie' idp
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-            let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
-                  Just val -> header "Cookie" . cs . LB.toLazyByteString . Cky.renderCookies $ val
-                  Nothing  -> id
-            sparAuthnResp :: ResponseLBS
-              <- submitAuthnResponse' cookiehdr authnResp
+            sparAuthnResp <- submitAuthnResponse' isBind cookie' authnResp
             pure (authnResp, sparAuthnResp)
 
           reBindDifferent :: HasCallStack => UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
@@ -467,43 +464,30 @@ specBindingUsers =
         -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
         -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
         -- is "detached".  if the zbind cookie is found, the binding is successful.
-        let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
-            check tweakcookies bindsucceeds = do
+        let check :: HasCallStack => Bool -> CookieCases -> Bool -> SpecWith TestEnv
+            check isBind cookieCase bindsucceeds = do
               it (if bindsucceeds then "binds existing user" else "creates new user") $ do
+                -- TODO make a cookie for uid
+                -- makeCookie :: CookieCase -> UID -> IO Cookie
+                -- TODO: RegisterTestIDP should set a password and return it for us
+                -- such that we can call login to get a Cookie
                 (uid, _, idp) <- registerTestIdP
-                (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
+                (subj :: NameID, sparrq, sparresp) <- initialBind' isBind cookie' uid idp
                 checkGrantingAuthnResp' sparresp
 
                 uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
                 checkGrantingAuthnResp uid' sparrq sparresp
                 liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
 
-            addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
-            addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)
+        -- poor man's quickcheck
+        let ctx isBind cookieCase = 
+              (if isBind "binding" else "non-binding") ++ " " ++ show cookieCase
 
-            addAtEnd :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
-            addAtEnd cky = (<> [(Cky.setCookieName cky, Cky.setCookieValue cky)])
-
-            cky1, cky2, cky3 :: Cky.SetCookie
-            cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
-            cky2 = Cky.def { Cky.setCookieName = "cky2", Cky.setCookieValue = "val2" }
-            cky3 = Cky.def { Cky.setCookieName = "cky3", Cky.setCookieValue = "val3" }
-
-        context "with no cookies header in the request" $ do
-          check (const Nothing) False
-
-        context "with empty cookies header in the request" $ do
-          check (const $ Just mempty) False
-
-        context "with no bind cookie and one other cookie in the request" $ do
-          check (\_ -> Just $ addAtBeginning cky1 mempty) False
-
-        context "with bind cookie and one other cookie in the request" $ do
-          check (\bindcky -> Just $ addAtBeginning cky1 bindcky) True
-
-        context "with bind cookie and two other cookies in the request" $ do
-          check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
-
+        sequence_ $ [ context (ctx isBind cookieCase) $ check isBind cookieCase bindsucceeds
+                    | isBind <- [True, False]
+                    , cookieCase <- [NoCookie, BadCookie, GoodCookie]
+                    , let bindsucceeds = isBind && cookie' == GoodCookie
+                    ]
 
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
@@ -863,14 +847,10 @@ specScimAndSAML = do
 
       -- user should receive a cookie
       liftIO $ statusCode sparresp `shouldBe` 200
-      setcky :: SAML.SimpleSetCookie "zuid"
-        <- either error pure $ Util.Core.getCookie (Proxy @"zuid") sparresp
+      let Just cky = getCookie "zuid" sparresp
 
       -- /access with that cookie should give us a token
-      let ckyraw = cookieRaw (Cky.setCookieName setcky') (Cky.setCookieValue setcky')
-          setcky' = fromSimpleSetCookie setcky
-
-      accessresp <- call . post $ (env ^. teBrig) . path "/access" . ckyraw
+      accessresp <- call . post $ (env ^. teBrig) . path "/access" . cookie cky
       token :: Text <- liftIO $ do
         statusCode accessresp `shouldBe` 200
         bdy :: LBS   <- maybe (error "no body") pure $ responseBody accessresp

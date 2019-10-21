@@ -47,7 +47,6 @@ module Util.Core
   , registerTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
-  , getCookie
   , hasPersistentCookieHeader
   , hasDeleteBindCookieHeader
   , hasSetBindCookieHeader
@@ -69,12 +68,13 @@ module Util.Core
   , getSsoidViaSelf, getSsoidViaSelf'
   , getUserIdViaRef, getUserIdViaRef'
   , getScimUser
+  , login
   ) where
 
 import Imports hiding (head)
 
 import Bilge.Assert ((!!!), (===), (<!!))
-import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
+import Bilge
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
 import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
@@ -88,19 +88,16 @@ import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (PlainTextPassword(..))
-import Data.Proxy
 import Data.Range
 import Data.String.Conversions
 import Data.Time
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.TypeLits
 import Network.HTTP.Client.MultipartFormData
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.App (toLevel)
-import Spar.API.Types
 import Spar.Run
 import Spar.Scim.Types
 import Spar.Types
@@ -114,7 +111,6 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
-import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
@@ -133,7 +129,6 @@ import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
-import qualified Web.Cookie as Web
 import qualified Web.Scim.Class.User as ScimC.User
 
 
@@ -408,6 +403,18 @@ randomUser brig_ = do
     n <- cs . UUID.toString <$> liftIO UUID.nextRandom
     createUser n brig_
 
+login :: BrigReq -> Brig.Login -> Brig.CookieType -> Http Cookie
+login b l t = do
+  resp <- 
+    post 
+      $ b
+      . path "/login"
+      . contentJson
+      . (if t == Brig.PersistentCookie then queryItem "persist" "true" else id)
+      . body (RequestBodyLBS (Aeson.encode l))
+  let Just c = getCookie "zuid" resp
+  pure c
+
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> BrigReq -> m Brig.User
 createUser name brig_ = do
@@ -540,94 +547,62 @@ registerTestIdPFrom metadata mgr brig galley spar = do
     (uid, tid) <- createUserWithTeam brig galley
     (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
 
-
-getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
-getCookie proxy rsp = do
-  web :: Web.SetCookie
-    <- Web.parseSetCookie <$> maybe (Left "no set-cookie header") Right
-                                    (lookup "set-cookie" (responseHeaders rsp))
-  if Web.setCookieName web == SAML.cookieName proxy
-    then Right $ SimpleSetCookie web
-    else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
-
 -- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
 -- expiration date.  Easier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
-hasPersistentCookieHeader rsp = do
-  cky <- getCookie (Proxy @"zuid") rsp
+hasPersistentCookieHeader _rsp = do
+  undefined
+  {-cky <- getCookie (Proxy @"zuid") rsp
   when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
     Left $ "expiration date should NOT empty: " <> show cky
+  -}
 
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
 hasDeleteBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getCookie (Proxy @"zbind") rsp
-
-isDeleteBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isDeleteBindCookie (SimpleSetCookie cky) =
-  if (SAML.Time <$> Web.setCookieExpires cky) == Just (SAML.unsafeReadTime "1970-01-01T00:00:00Z")
-  then Right ()
-  else Left $ "expiration should be empty: " <> show cky
+hasDeleteBindCookieHeader _ = undefined
 
 hasSetBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasSetBindCookieHeader rsp = isSetBindCookie =<< getCookie (Proxy @"zbind") rsp
-
-isSetBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isSetBindCookie (SimpleSetCookie cky) = do
-  unless (Web.setCookieName cky == "zbind") $ do
-    Left $ "expected zbind cookie: " <> show cky
-
-  unless (maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky) $ do
-    Left $ "expected path prefix /sso/finalize-login: " <> show cky
-
-  unless (Web.setCookieSecure cky) $ do
-    Left $ "cookie must be secure: " <> show cky
-
-  unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
-    Left $ "cookie must be same-site: " <> show cky
-
+hasSetBindCookieHeader _ = undefined
 
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => IdP -> m (SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest idp = negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
-  (creds, req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
-    Right () -> pure (creds, req)
-    Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
+negotiateAuthnRequest idp = negotiateAuthnRequest' False Nothing idp
 
-doInitiatePath :: DoInitiate -> [ST]
-doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
-doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
+
+doBindRequest :: Bool -> Maybe Cookie -> Request -> Request 
+doBindRequest isBind cookie'
+  = bool id (Bilge.query [("bind", Nothing)]) isBind
+  . maybe id cookie cookie'
 
 negotiateAuthnRequest'
   :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-  => DoInitiate -> IdP -> (Request -> Request) -> m (SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SetBindCookie)
-negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
+  => Bool -> Maybe Cookie -> IdP -> m (SAML.SignPrivCreds, SAML.AuthnRequest)
+negotiateAuthnRequest' isBind cookie' idp = do
   env <- ask
   resp :: ResponseLBS
     <- call $ get
-           ( modreq
-           . (env ^. teSpar)
-           . paths (cs <$> (doInit <> [idPIdToST $ idp ^. SAML.idpId]))
+           ( (env ^. teSpar)
+           . paths (cs <$> (["access", "sso", "login", idPIdToST $ idp ^. SAML.idpId]))
+           . doBindRequest isBind cookie'
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  let wireCookie = SAML.SimpleSetCookie . Web.parseSetCookie
-                     <$> lookup "Set-Cookie" (responseHeaders resp)
-  pure (sampleIdPPrivkey, authnreq, wireCookie)
+  pure (sampleIdPPrivkey, authnreq)
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                     => SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse = submitAuthnResponse' id
+submitAuthnResponse = submitAuthnResponse' False Nothing
 
 submitAuthnResponse' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => (Request -> Request) -> SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
+                    => Bool -> Maybe Cookie -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse' isBind cookie' (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
+  call $ post' req ((env ^. teSpar) . doBindRequest isBind cookie' . path "/sso/finalize-login/")
 
 
 loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => IdP -> m UserId
