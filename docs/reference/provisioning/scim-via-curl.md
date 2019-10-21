@@ -111,7 +111,7 @@ Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">...</NameID>`.
 *NOTE: It is important to configure your SAML provider to use
 `nameid-format:emailAddress` or `nameid-format:unspecified`.  Other
 nameid formats are not supported at this moment*.
-
+See also: https://github.com/wireapp/wire-server/blob/c507ed64a7d4f0af2bffe2f9c3eb4b5f89a477c0/services/spar/src/Spar/Scim/User.hs#L149-L158
 
 We also support custom fields that are used in rich profiles in this
 form [see {#RefRichInfo}](../user/rich-info.md):
