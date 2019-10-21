@@ -92,11 +92,17 @@ A minimal definition of a user looks like this:
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-  "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
+  "externalId"  : "nick@example.com",
   "userName"    : "nick",
   "displayName" : "The Nick"
 }'
 ```
+The `externalId` is used to construct a 'SAML.UserRef'. If it looks like an email
+address, the constructed 'SAML.UserRef' will have `nameid-format:emailAddress`,
+otherwise the format will be `unspecified`.
+*It is important to configure your SAML provider to use `nameid-format:emailAddress` or `unspecified`. Other
+nameid formats are not supported at this moment*.
+
 
 We also support custom fields that are used in rich profiles in this
 form [see {#RefRichInfo}](../user/rich-info.md):
@@ -104,7 +110,7 @@ form [see {#RefRichInfo}](../user/rich-info.md):
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:wire:scim:schemas:profile:1.0"],
-  "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
+  "externalId"  : "rnick@example.com",
   "userName"    : "rnick",
   "displayName" : "The Rich Nick",
   "urn:wire:scim:schemas:profile:1.0": {
@@ -160,7 +166,7 @@ up-to-date user present, just `GET` one right before the `PUT`.)
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-  "externalId"  : "updated-user-id",
+  "externalId"  : "rnick@example.com",
   "userName"    : "newnick",
   "displayName" : "The New Nick"
 }'
