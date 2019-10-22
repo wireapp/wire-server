@@ -200,6 +200,7 @@ sitemap = do
         body (ref TeamsModel.teamMemberDelete) $ do
             optional
             description "JSON body, required only for binding teams."
+        response 202 "Team member scheduled for deletion" end
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied RemoveTeamMember)
         errorResponse Error.reAuthFailed
