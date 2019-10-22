@@ -30,12 +30,12 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: NativePush -> [Address] -> Gundeck [Result]
-push _    [] = return []
-push m   [a] = pure <$> push1 m a
-push m addrs = mapConcurrently (push1 m) addrs
+push :: NativePush -> [Address] -> Gundeck ()
+push _    [] = pure ()
+push m   [a] = push1 m a
+push m addrs = void $ mapConcurrently (push1 m) addrs
 
-push1 :: NativePush -> Address -> Gundeck Result
+push1 :: NativePush -> Address -> Gundeck ()
 push1 m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
@@ -51,7 +51,6 @@ push1 m a = do
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
-    return r
   where
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do

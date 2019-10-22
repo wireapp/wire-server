@@ -8,6 +8,7 @@ module Gundeck.Push
     , pushAll, pushAny
     , MonadPushAll(..)
     , MonadNativeTargets(..)
+    , MonadMapAsync(..)
     , MonadPushAny(..)
     ) where
 
@@ -26,8 +27,9 @@ import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Push.Native.Types
 import Gundeck.Options
+import Gundeck.Push.Native.Types
+import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
@@ -74,6 +76,7 @@ class MonadThrow m =>  MonadPushAll m where
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative       :: Notification -> Push -> [Address] -> m ()
   mpaForkIO           :: m () -> m ()
+  mpaRunWithBudget    :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL  = view (options . optSettings . setNotificationTTL)
@@ -83,20 +86,33 @@ instance MonadPushAll Gundeck where
   mpaStreamAdd        = Stream.add
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
+  mpaRunWithBudget    = runWithBudget''
+
+-- | Another layer of wrap around 'runWithBudget'.
+runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
+runWithBudget'' budget fallback action = do
+  view threadBudgetState >>= \case
+    Nothing  -> action
+    Just tbs -> runWithBudget' tbs budget fallback action
+
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
   mntgtLogErr          :: SomeException -> m ()
   mntgtLookupAddresses :: UserId -> m [Address]
-  mntgtMapAsync        :: (a -> m b) -> [a] -> m [Either SomeException b]
 
 instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
   mntgtLookupAddresses rcp = Data.lookup rcp Data.One
+
+class Monad m => MonadMapAsync m where
+  mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
+
+instance MonadMapAsync Gundeck where
   mntgtMapAsync = mapAsync
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
-class (MonadPushAll m, MonadNativeTargets m) => MonadPushAny m where
+class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m where
   mpyPush :: Notification
           -> List1 NotificationTarget
           -> UserId
@@ -132,9 +148,9 @@ pushAny' p = do
     unless (p^.pushTransient) $
         mpaStreamAdd i tgts pload =<< mpaNotificationTTL
     mpaForkIO $ do
-        prs <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        alreadySent <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
         unless (p^.pushTransient) $
-            mpaPushNative notif p =<< nativeTargets p prs
+            mpaPushNative notif p =<< nativeTargets p (nativeTargetsRecipients p) alreadySent
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r =
@@ -145,7 +161,7 @@ pushAny' p = do
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: (MonadPushAll m, MonadNativeTargets m) => [Push] -> m ()
+pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAll pushes = do
     targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
@@ -172,8 +188,15 @@ pushAll pushes = do
         resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
-        forM_ resp $ \((notif, psh), alreadySent) -> unless (psh ^. pushTransient) $
-            mpaPushNative notif psh =<< nativeTargets psh alreadySent
+        forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
+            let rcps' = nativeTargetsRecipients psh
+                budget = length rcps'
+                  -- this is a rough budget, since there may be more than one device in a
+                  -- 'Presence', so one budget token may trigger at most 8 push notifications
+                  -- to be sent out.
+            unless (psh ^. pushTransient)
+                $ mpaRunWithBudget budget ()
+                    $ mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
 
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
@@ -246,52 +269,65 @@ pushNative :: Notification -> Push -> [Address] -> Gundeck ()
 pushNative _ _ [] = return ()
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
-    void $ Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
+    Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
-nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address]
-nativeTargets p pres =
-    let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
-    in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+-- | Compute list of 'Recipient's from a 'Push' that may be interested in a native push.  More
+-- filtering in 'nativeTargets'.
+nativeTargetsRecipients :: Push -> [Recipient]
+nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. pushRecipients)))
   where
-    -- Interested in native pushes?
-    routeNative u = u^.recipientRoute /= RouteDirect
-                 && (u^.recipientId /= p^.pushOrigin || p^.pushNativeIncludeOrigin)
+    routeNative u = u ^. recipientRoute /= RouteDirect
+                 && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
+-- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
+-- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
+-- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
+--
+-- FUTUREWORK: we may want to turn 'mntgtMapAsync' into an ordinary `mapM`: it's cassandra
+-- access, so it'll be fast either way given the size of the input, and synchronous calls
+-- impose a much lower risk of choking when system load peaks.
+nativeTargets
+  :: forall m. (MonadNativeTargets m, MonadMapAsync m)
+  => Push -> [Recipient] -> [Presence] -> m [Address]
+nativeTargets psh rcps' alreadySent =
+    mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+  where
     addresses :: Recipient -> m [Address]
     addresses u = do
-        addrs <- mntgtLookupAddresses (u^.recipientId)
+        addrs <- mntgtLookupAddresses (u ^. recipientId)
         return $ preference
                . filter (eligible u)
                $ addrs
 
+    eligible :: Recipient -> Address -> Bool
     eligible u a
         -- Never include the origin client.
-        | a^.addrUser == p^.pushOrigin && Just (a^.addrConn) == p^.pushOriginConnection = False
+        | a ^. addrUser == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
         -- Is the specific client an intended recipient?
-        | not (eligibleClient a (u^.recipientClients)) = False
+        | not (eligibleClient a (u ^. recipientClients)) = False
         -- Is the client not whitelisted?
         | not (whitelistedOrNoWhitelist a) = False
-        -- Include client if not found in presences.
-        | otherwise = isNothing (List.find (isOnline a) pres)
+        -- Include client if not found in already served presences.
+        | otherwise = isNothing (List.find (isOnline a) alreadySent)
 
-    isOnline a x =  a^.addrUser == Presence.userId x
-                && (a^.addrConn == Presence.connId x || equalClient a x)
+    isOnline a x =  a ^. addrUser == Presence.userId x
+                && (a ^. addrConn == Presence.connId x || equalClient a x)
 
-    equalClient a x = Just (a^.addrClient) == Presence.clientId x
+    equalClient a x = Just (a ^. addrClient) == Presence.clientId x
 
     eligibleClient _ RecipientClientsAll = True
-    eligibleClient a (RecipientClientsSome cs) = (a^.addrClient) `elem` cs
+    eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
 
-    whitelistedOrNoWhitelist a = null (p^.pushConnections)
-                              || a^.addrConn `elem` p^.pushConnections
+    whitelistedOrNoWhitelist a = null (psh ^. pushConnections)
+                              || a ^. addrConn `elem` psh ^. pushConnections
 
     -- Apply transport preference in case of alternative transports for the
     -- same client (currently only APNS vs APNS VoIP). If no explicit
     -- preference is given, the default preference depends on the priority.
-    preference as = let pref = p^.pushNativeAps >>= view apsPreference in
+    preference as = let pref = psh ^. pushNativeAps >>= view apsPreference in
         filter (pick (fromMaybe defPreference pref)) as
       where
-        pick pr a = case a^.addrTransport of
+        pick pr a = case a ^. addrTransport of
             GCM             -> True
             APNS            -> pr == ApsStdPreference  || notAny a APNSVoIP
             APNSSandbox     -> pr == ApsStdPreference  || notAny a APNSVoIPSandbox
@@ -300,10 +336,10 @@ nativeTargets p pres =
 
         notAny a t = not (any (\a' ->
             addrEqualClient a a'
-            && a^.addrApp == a'^.addrApp
-            && a'^.addrTransport == t) as)
+            && a ^. addrApp == a' ^. addrApp
+            && a' ^. addrTransport == t) as)
 
-        defPreference = case p^.pushNativePriority of
+        defPreference = case psh ^. pushNativePriority of
             LowPriority  -> ApsStdPreference
             HighPriority -> ApsVoIPPreference
 
@@ -311,8 +347,9 @@ nativeTargets p pres =
     check (Left  e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
+
 addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = do
+addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached $ do
     new <- fromJsonBody req
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
@@ -424,6 +461,10 @@ success t =
 invalidToken :: Response
 invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
+
+snsThreadBudgetReached :: Response
+snsThreadBudgetReached = json (Error status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
+           & setStatus status413
 
 tokenTooLong :: Response
 tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")

@@ -91,6 +91,7 @@ tests:
     - text-format
     - time
     - types-common
+    - unordered-containers
     - uuid
 flags:
   arbitrary:

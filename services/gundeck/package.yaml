@@ -57,6 +57,7 @@ library:
   - redis-io >=0.4
   - resourcet >=1.1
   - retry >=0.5
+  - safe-exceptions
   - semigroups >=0.12
   - singletons >=1.0
   - split >=0.2
@@ -173,6 +174,7 @@ tests:
     - -threaded
     dependencies:
     - base
+    - async
     - aeson
     - aeson-pretty
     - amazonka
@@ -192,6 +194,7 @@ tests:
     - network-uri
     - QuickCheck
     - quickcheck-instances
+    - quickcheck-state-machine
     - random
     - scientific
     - string-conversions
@@ -199,8 +202,10 @@ tests:
     - tasty-hunit
     - tasty-quickcheck
     - text
+    - time
     - tinylog
     - transformers
+    - tree-diff
     - types-common
     - unordered-containers
     - uuid

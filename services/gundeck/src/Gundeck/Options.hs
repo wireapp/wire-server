@@ -36,10 +36,20 @@ data Settings = Settings
     -- | Use this option to group push notifications and send them in bulk to Cannon, instead
     -- of in individual requests
     , _setBulkPush        :: !Bool
+    -- | Maximum number of concurrent threads calling SNS.
+    , _setMaxConcurrentNativePushes :: !(Maybe MaxConcurrentNativePushes)
+    } deriving (Show, Generic)
+
+data MaxConcurrentNativePushes = MaxConcurrentNativePushes
+    { _limitHard :: !(Maybe Int)  -- ^ more than this number of threads will not be allowed
+    , _limitSoft :: !(Maybe Int)  -- ^ more than this number of threads will be warned about
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
+
+deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
+makeLenses ''MaxConcurrentNativePushes
 
 data Opts = Opts
     { _optGundeck   :: !Endpoint       -- ^ Hostname and port to bind to

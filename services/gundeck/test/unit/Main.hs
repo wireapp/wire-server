@@ -14,6 +14,7 @@ import qualified Gundeck.API
 import qualified Json
 import qualified Native
 import qualified Push
+import qualified ThreadBudget
 
 main :: IO ()
 main = withOpenSSL . defaultMain $
@@ -25,4 +26,5 @@ main = withOpenSSL . defaultMain $
         , Json.tests
         , Native.tests
         , Push.tests
+        , ThreadBudget.tests
         ]
