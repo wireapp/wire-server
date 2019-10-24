@@ -221,8 +221,8 @@ removeStaleHandles ref = do
       mapM_ waitCatch . join . fmap snd =<< HM.lookup key . bmap <$> readIORef ref
       unregister ref key
 
-  isUnsanitary <- atomicModifyIORef' ref sanitize
-  when isUnsanitary . LC.warn . LC.msg . LC.val $
+  isSanitary <- atomicModifyIORef' ref sanitize
+  unless isSanitary . LC.warn . LC.msg . LC.val $
     "watchThreadBudgetState: total overall thread budget diverged from async weights (repaired)."
 
   where
