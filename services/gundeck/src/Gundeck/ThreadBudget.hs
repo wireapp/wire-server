@@ -40,6 +40,7 @@ import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
 import Gundeck.Options
+import System.Random (randomRIO)
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
 
@@ -64,12 +65,35 @@ data BudgetMap = BudgetMap
 -- counts all the threads that are successfully running (dropping the ones that are just about
 -- to try to grab a token).
 --
--- WARNING: takes O(n)) and should only be used in testing.
+-- WARNING: takes O(n)), use with care.  See '_bench_BudgetSpent''.
 budgetSpent :: ThreadBudgetState -> IO Int
 budgetSpent (ThreadBudgetState _ running) = budgetSpent' <$> readIORef running
 
 budgetSpent' :: BudgetMap -> Int
 budgetSpent' = sum . fmap fst . filter (isJust . snd) . HM.elems . bmap
+
+-- very ad-hoc benchmark in ghci on my laptop:
+--
+-- ThreadBudget> _bench_BudgetSpent' $ 100*1000
+-- 2019-10-24 11:34:08.696000955 UTC
+-- 0
+-- 2019-10-24 11:34:08.862147318 UTC
+-- 0
+-- 2019-10-24 11:34:08.893983895 UTC
+_bench_BudgetSpent' :: Int -> IO ()
+_bench_BudgetSpent' size = do
+  ThreadBudgetState _ ref <- mkThreadBudgetState (MaxConcurrentNativePushes Nothing Nothing)
+  forM_ [1..size] $ \_ -> do
+    key <- nextRandom
+    weight <- randomRIO (1, 1000)
+    allocate ref key weight
+  budgetmap <- readIORef ref
+
+  print =<< getCurrentTime
+  print $ budgetSpent' budgetmap
+  print =<< getCurrentTime
+  print $ budgetSpent' budgetmap
+  print =<< getCurrentTime
 
 cancelAllThreads :: ThreadBudgetState -> IO ()
 cancelAllThreads (ThreadBudgetState _ ref) = readIORef ref
