@@ -68,7 +68,7 @@ data BudgetMap = BudgetMap
 -- counts all the threads that are successfully running (dropping the ones that are just about
 -- to try to grab a token).
 --
--- WARNING: takes O(n)), use with care.  See '_bench_BudgetSpent''.
+-- WARNING: takes O(n)), use with care.  See 'bench_BudgetSpent''.
 budgetSpent :: ThreadBudgetState -> IO Int
 budgetSpent (ThreadBudgetState _ running) = budgetSpent' <$> readIORef running
 
