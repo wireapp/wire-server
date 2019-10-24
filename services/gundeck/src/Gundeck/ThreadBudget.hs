@@ -38,7 +38,7 @@ import Imports
 import Control.Exception.Safe (catchAny)
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
-import Data.Metrics (Metrics)
+import Data.Metrics (Metrics, counterIncr)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.Time
 import Data.UUID (UUID, toText)
@@ -127,22 +127,22 @@ unregister ref key
 -- update the budget.
 runWithBudget
   :: forall m. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
-  => ThreadBudgetState -> Int -> m () -> m ()
-runWithBudget tbs spent = runWithBudget' tbs spent ()
+  => Metrics -> ThreadBudgetState -> Int -> m () -> m ()
+runWithBudget metrics tbs spent = runWithBudget' metrics tbs spent ()
 
 -- | More flexible variant of 'runWithBudget' that allows the action to return a value.  With
 -- a default in case of budget exhaustion.
 runWithBudget'
   :: forall m a. (MonadIO m, LC.MonadLogger m, MonadUnliftIO m)
-  => ThreadBudgetState -> Int -> a -> m a -> m a
-runWithBudget' (ThreadBudgetState limits ref) spent fallback action = do
+  => Metrics -> ThreadBudgetState -> Int -> a -> m a -> m a
+runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- allocate ref key spent
 
-    warnNoBudget (maybe False (oldsize >=) (limits ^. limitSoft))
-                 (maybe False (oldsize >=) (limits ^. limitHard))
-                 oldsize
+    let softLimitBreached = (maybe False (oldsize >=) (limits ^. limitSoft))
+        hardLimitBreached = (maybe False (oldsize >=) (limits ^. limitHard))
+    warnNoBudget softLimitBreached hardLimitBreached oldsize
 
     if (maybe True (oldsize <) (limits ^. limitHard))
         then go key oldsize
@@ -164,11 +164,13 @@ runWithBudget' (ThreadBudgetState limits ref) spent fallback action = do
     warnNoBudget False False _ = pure ()
     warnNoBudget soft hard oldsize = do
       let limit = if hard then "hard" else "soft"
+          metric = "net.nativepush." <> limit <> "_limit_breached"
+      counterIncr (path metric) metrics
       LC.warn $
         "spent" LC..= show oldsize LC.~~
         "soft-breach" LC..= soft LC.~~
         "hard-breach" LC..= hard LC.~~
-        LC.msg (LC.val "runWithBudget: " <> limit <> " limit reached")
+        LC.msg ("runWithBudget: " <> limit <> " limit reached")
 
 
 -- | Fork a thread that checks with the given frequency if any async handles stored in the

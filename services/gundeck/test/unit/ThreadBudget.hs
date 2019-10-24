@@ -111,9 +111,10 @@ burstActions
   -> MilliSeconds
   -> NumberOfThreads
   -> (MonadIO m) => m ()
-burstActions tbs logHistory howlong (NumberOfThreads howmany)
-    = let budgeted = runWithBudget tbs 1 (delayms howlong)
-      in liftIO . replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
+burstActions tbs logHistory howlong (NumberOfThreads howmany) = do
+  mtr <- metrics
+  let budgeted = runWithBudget mtr tbs 1 (delayms howlong)
+  liftIO . replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
