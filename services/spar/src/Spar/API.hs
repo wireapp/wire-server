@@ -91,17 +91,16 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
--- TODO: Should the preflight function fail early?
 authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> Bool -> Maybe ST -> SAML.IdPId -> Spar NoContent
-authreqPrecheck msucc merr _bind _cookie idpid = validateAuthreqParams msucc merr
+authreqPrecheck msucc merr bind cookie idpid = validateAuthreqParams msucc merr bind cookie
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq 
+authreq
   :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> Bool -> Maybe ST -> SAML.IdPId
         -> Spar (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr _bind _cookie idpid = do
-  vformat <- validateAuthreqParams msucc merr
+authreq authreqttl msucc merr bind cookie idpid = do
+  vformat <- validateAuthreqParams msucc merr bind cookie
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   pure form
@@ -109,11 +108,14 @@ authreq authreqttl msucc merr _bind _cookie idpid = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar VerdictFormat
-validateAuthreqParams msucc merr = case (msucc, merr) of
+validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Bool -> Maybe ST -> Spar VerdictFormat
+validateAuthreqParams msucc merr bind cookie = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
     validateRedirectURL `mapM_` [ok, err]
+
+    _ <- undefined bind cookie  -- TODO: check bind flag and (if bind is true) cookie here!
+
     pure $ VerdictFormatMobile ok err
   _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
