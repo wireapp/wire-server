@@ -38,3 +38,7 @@ main = do
         -- see https://github.com/wireapp/wire-server/pull/476.
 
         ] `finally` Log.close l
+
+
+-- TODO: table bind_cookie from V3.hs is not needed any more once this branch is merged.
+-- deprecate properly and remove in the next release.
