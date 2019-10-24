@@ -245,7 +245,7 @@ removeStaleHandles ref = do
       mapM_ waitCatch . join . fmap snd =<< HM.lookup key . bmap <$> readIORef ref
       unregister ref key
 
-  isSanitary <- atomicModifyIORef' ref sanitize
+  isSanitary <- (\bm -> bspent bm == budgetSpent' bm) <$> readIORef ref
   unless isSanitary . LC.warn . LC.msg . LC.val $
     "watchThreadBudgetState: total overall thread budget diverged from async weights (repaired)."
 
@@ -264,11 +264,6 @@ removeStaleHandles ref = do
     warnStaleHandles num (BudgetMap spent _) = LC.warn $
       "spent" LC..= show spent
       LC.~~ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
-
-    -- check that overall budget matches the budget in the indiviual map entries.
-    sanitize :: BudgetMap -> (BudgetMap, Bool)
-    sanitize bm@(BudgetMap spent hm) = (BudgetMap spent' hm, spent == spent')
-      where spent' = budgetSpent' bm
 
 
 safeForever
