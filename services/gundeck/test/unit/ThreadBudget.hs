@@ -15,7 +15,7 @@ import Data.String.Conversions (cs)
 import Data.Time
 import Data.TreeDiff.Class (ToExpr)
 import GHC.Generics
-import Gundeck.ThreadBudget
+import Gundeck.ThreadBudget.Internal
 import Gundeck.Options
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
