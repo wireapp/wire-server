@@ -23,10 +23,14 @@ module Gundeck.ThreadBudget
   , runWithBudget'
   , watchThreadBudgetState
 
-  -- * for testing
+  -- * for testing: FUTUREWORK: factor out into a library?
   , threadBudgetLimits
   , budgetSpent
+  , budgetSpent'
+  , _threadBudgetRunning
   , cancelAllThreads
+  , allocate
+  , BudgetMap
   ) where
 
 import Imports
@@ -64,7 +68,7 @@ data BudgetMap = BudgetMap
 -- counts all the threads that are successfully running (dropping the ones that are just about
 -- to try to grab a token).
 --
--- WARNING: takes O(n)) and should only be used in testing.
+-- WARNING: takes O(n)), use with care.  See 'bench_BudgetSpent''.
 budgetSpent :: ThreadBudgetState -> IO Int
 budgetSpent (ThreadBudgetState _ running) = budgetSpent' <$> readIORef running
 
@@ -221,7 +225,7 @@ removeStaleHandles ref = do
       mapM_ waitCatch . join . fmap snd =<< HM.lookup key . bmap <$> readIORef ref
       unregister ref key
 
-  isSanitary <- atomicModifyIORef' ref sanitize
+  isSanitary <- (\bm -> bspent bm == budgetSpent' bm) <$> readIORef ref
   unless isSanitary . LC.warn . LC.msg . LC.val $
     "watchThreadBudgetState: total overall thread budget diverged from async weights (repaired)."
 
@@ -240,11 +244,6 @@ removeStaleHandles ref = do
     warnStaleHandles num (BudgetMap spent _) = LC.warn $
       "spent" LC..= show spent
       LC.~~ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
-
-    -- check that overall budget matches the budget in the indiviual map entries.
-    sanitize :: BudgetMap -> (BudgetMap, Bool)
-    sanitize bm@(BudgetMap spent hm) = (BudgetMap spent' hm, spent == spent')
-      where spent' = budgetSpent' bm
 
 
 safeForever

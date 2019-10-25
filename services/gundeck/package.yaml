@@ -224,9 +224,12 @@ benchmarks:
     - gundeck
     - gundeck-types
     - HsOpenSSL
+    - random
     - text
     - types-common
     - unordered-containers
+    - time
+    - uuid
 flags:
   static:
     description: Enable static linking
