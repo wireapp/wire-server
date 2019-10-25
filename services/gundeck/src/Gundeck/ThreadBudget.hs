@@ -3,6 +3,10 @@
 -- run-time of the actions into account, not just the number of executions.
 -- http://hackage.haskell.org/package/rate-limit also looks related.
 --
+-- FUTUREWORK: https://github.com/layer-3-communications/lockpool seems like almost exactly
+-- the same thing, but I only found this after ThreadBudget was done.  Before considering to
+-- ThreadBudget a standalone package, take a closer look at lockpool!
+--
 -- USE CASE: keep a lid of stalled native push notification threads.  if SNS is up, there
 -- will be many short-running executions of the action.  when SNS is down, the threads will
 -- accumulate in memory and choke the gundeck instances.  so we want to stop spawning more
