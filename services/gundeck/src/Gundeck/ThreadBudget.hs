@@ -140,8 +140,8 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
   (`finally` unregister ref key) $ do
     oldsize <- allocate ref key spent
 
-    let softLimitBreached = (maybe False (oldsize >=) (limits ^. limitSoft))
-        hardLimitBreached = (maybe False (oldsize >=) (limits ^. limitHard))
+    let softLimitBreached = maybe False (oldsize >=) (limits ^. limitSoft)
+        hardLimitBreached = maybe False (oldsize >=) (limits ^. limitHard)
     warnNoBudget softLimitBreached hardLimitBreached oldsize
 
     if (maybe True (oldsize <) (limits ^. limitHard))
