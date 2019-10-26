@@ -6,7 +6,7 @@ import Data.Id (randomId, ConnId (..), ClientId (..))
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types
-import Gundeck.ThreadBudget
+import Gundeck.ThreadBudget.Internal
 import Gundeck.Options
 import Network.AWS (Region (Ireland))
 import OpenSSL (withOpenSSL)
