@@ -22,7 +22,6 @@ import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
 import qualified Spar.Intra.Brig                  as Intra
 import qualified Web.Scim.Class.User              as ScimC.User
-import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
@@ -198,7 +197,7 @@ testRichInfo = do
     let -- validate response
         checkStoredUser
             :: HasCallStack
-            => Scim.UserC.StoredUser SparTag -> RichInfo -> TestSpar ()
+            => ScimC.User.StoredUser SparTag -> RichInfo -> TestSpar ()
         checkStoredUser storedUser rinf = liftIO $ do
             (Scim.User.extra . Scim.value . Scim.thing) storedUser
                 `shouldBe` (ScimUserExtra rinf)
@@ -258,7 +257,7 @@ testScimCreateVsUserRef = do
                                        -- change this to 'isNothing'.)
 
     tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-    storedusr :: Scim.UserC.StoredUser SparTag
+    storedusr :: ScimC.User.StoredUser SparTag
         <- do
           resp <- aFewTimes (createUser_ (Just tok) usr =<< view teSpar) ((== 201) . statusCode)
               <!! const 201 === statusCode
