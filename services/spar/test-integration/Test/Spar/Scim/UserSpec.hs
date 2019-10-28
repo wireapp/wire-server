@@ -62,6 +62,7 @@ specCreateUser = describe "POST /Users" $ do
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
         pendingWith "factor this out of the PUT tests we already wrote."
+    describe "idempotent" $ testCreateUserIdempotent
 
 -- | Test that a user can be created via SCIM and that it also appears on the Brig side.
 testCreateUser :: TestSpar ()
@@ -305,6 +306,45 @@ testScimCreateVsUserRef = do
         brig <- view teBrig
         (call . delete $ brig . paths ["i", "users", toByteString' uid])
             !!! const 202 === statusCode
+
+-- | Create scim user and emulate different kinds of failure; retry create same scim user;
+-- check that it does the right thing.
+--
+-- It would be better to cause failures by mocking the resp. parts of the spar production
+-- code, but that is not straight-forward.  See also:
+-- https://github.com/zinfra/backend-issues/issues/958
+testCreateUserIdempotent :: SpecWith TestEnv
+testCreateUserIdempotent = do
+    let create :: Scim.User.User SparTag -> TestSpar (ScimC.User.StoredUser SparTag)
+        create user = do
+          (tok, _) <- registerIdPAndScimToken
+          createUser tok user
+
+        script
+          :: (ScimC.User.StoredUser SparTag -> TestSpar ())
+          -> (ScimC.User.StoredUser SparTag -> ScimC.User.StoredUser SparTag -> IO ())
+          -> TestSpar ()
+        script breakStuff checkStuff = do
+          scimUser <- randomScimUser
+          ssu <- create scimUser
+          breakStuff ssu
+          ssu' <- create scimUser
+          liftIO $ checkStuff ssu ssu'
+
+    it "repairs itself when brig user is missing" $ do
+      let breakStuff = undefined
+          checkStuff = undefined
+      script breakStuff checkStuff
+
+    it "repairs itself when brig user is inactive" $ do
+      let breakStuff = undefined
+          checkStuff = undefined
+      script breakStuff checkStuff
+
+    it "repairs itself when spar saml user is missing" $ do
+      let breakStuff = undefined
+          checkStuff = shouldBe  -- ?
+      script breakStuff checkStuff
 
 ----------------------------------------------------------------------------
 -- Listing users
