@@ -110,7 +110,9 @@ class Monad m => MonadMapAsync m where
   mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
 
 instance MonadMapAsync Gundeck where
-  mntgtMapAsync = mapAsync
+  mntgtMapAsync f l = do
+      let chunks = List.chunksOf 32 l
+      concat <$> mapM (mapAsync f) chunks
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
 class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m where
@@ -280,13 +282,9 @@ nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. push
     routeNative u = u ^. recipientRoute /= RouteDirect
                  && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
--- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
+-- | FUTUREWORK: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
 -- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
---
--- FUTUREWORK: we may want to turn 'mntgtMapAsync' into an ordinary `mapM`: it's cassandra
--- access, so it'll be fast either way given the size of the input, and synchronous calls
--- impose a much lower risk of choking when system load peaks.
 nativeTargets
   :: forall m. (MonadNativeTargets m, MonadMapAsync m)
   => Push -> [Recipient] -> [Presence] -> m [Address]
