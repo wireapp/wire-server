@@ -193,10 +193,10 @@ pushAll pushes = do
         -- native push
         forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
             let rcps' = nativeTargetsRecipients psh
-                budget = length rcps'
-                  -- this is a rough budget, since there may be more than one device in a
+                budget = min 32 (length rcps')
+                  -- ^ this is a rough budget, since there may be more than one device in a
                   -- 'Presence', so one budget token may trigger at most 8 push notifications
-                  -- to be sent out.
+                  -- to be sent out. We take the min with 32, as native push requests to cassandra and SNS are limited to 32 in parallel.
             unless (psh ^. pushTransient)
                 $ mpaRunWithBudget budget ()
                     $ mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
