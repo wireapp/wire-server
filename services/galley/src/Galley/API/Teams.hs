@@ -214,9 +214,12 @@ uncheckedDeleteTeam zusr zcon tid = do
         -> Galley ([Push],[(BotMember, Conv.Event)])
     pushConvDeleteEvents now teamMembs c (pp, ee) = do
         (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
-        let mm = convMembsAndTeamMembs convMembs teamMembs
+        -- Only nonTeamMembers need to get any events, since on team deletion,
+        -- all team users are deleted immediately after these events are sent
+        -- and will thus never be able to see these events in practice.
+        let mm = nonTeamMembers convMembs teamMembs
         let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-        let p = newPush zusr (ConvEvent e) mm
+        let p = newPush zusr (ConvEvent e) (map recipient mm)
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
