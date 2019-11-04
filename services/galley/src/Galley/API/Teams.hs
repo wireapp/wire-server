@@ -61,6 +61,7 @@ import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
 import UnliftIO (mapConcurrently)
 
+import qualified Data.List.Extra as List
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
@@ -196,7 +197,14 @@ uncheckedDeleteTeam zusr zcon tid = do
         (ue, be) <- foldrM (pushConvDeleteEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-        pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
+        -- To avoid DoS on gundeck, send team deletion events in chunks
+        let chunks = List.chunksOf 128 (toList r)
+        forM_ chunks $ \chunk -> case chunk of
+            [] -> return ()
+            x:xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        -- To avoid DoS on gundeck, send conversation deletion events slowly
+        forM_ ue $ \event ->
+            push1 event
         void . forkIO $ void $ External.deliver be
         -- TODO: we don't delete bots here, but we should do that, since
         -- every bot user can only be in a single conversation. Just
