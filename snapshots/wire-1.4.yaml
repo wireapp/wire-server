@@ -1,0 +1,12 @@
+# DO NOT MODIFY THIS FILE. See README.md to learn why.
+
+resolver: https://raw.githubusercontent.com/wireapp/wire-server/develop/snapshots/wire-1.3.yaml
+name: wire-1.4
+
+packages:
+- archive: https://github.com/wireapp/http-client/archive/wire-2019-11-04.tar.gz
+  subdirs:
+  - http-client
+  - http-client-openssl
+  - http-client-tls
+  - http-conduit
