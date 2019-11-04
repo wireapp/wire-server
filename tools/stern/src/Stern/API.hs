@@ -293,6 +293,15 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Team Information" Doc.end
 
+    get "/teams/:tid" (continue getTeamAdminInfo) $
+        capture "tid"
+
+    document "GET" "getTeamAdminInfo" $ do
+        summary "Gets information about a team's owners and admins only"
+        Doc.parameter Doc.Path "tid" Doc.bytes' $
+            description "Team ID"
+        Doc.response 200 "Team Information about Owners and Admins" Doc.end
+
     -- feature flags
 
     get "/teams/:tid/features/legalhold" (continue (liftM json . Intra.getLegalholdStatus)) $
@@ -533,6 +542,8 @@ deleteFromBlacklist emailOrPhone = do
 getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = liftM json . Intra.getTeamInfo
 
+getTeamAdminInfo :: TeamId -> Handler Response
+getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 
 setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest SetLegalHoldStatus -> Handler Response
 setLegalholdStatus (_ ::: tid ::: req) = do

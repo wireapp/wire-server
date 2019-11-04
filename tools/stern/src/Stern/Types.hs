@@ -14,7 +14,6 @@ import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
-import Data.Text
 import Imports
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -35,10 +34,40 @@ data TeamInfo = TeamInfo
     , tiMembers :: [TeamMemberInfo]
     }
 
+data TeamAdminInfo = TeamAdminInfo
+    { taData    :: TeamData
+    , taOwners  :: [TeamMemberInfo]
+    , taAdmins  :: [TeamMemberInfo]
+    , taMembers :: Int
+    }
+
+toAdminInfo :: TeamInfo -> TeamAdminInfo
+toAdminInfo (TeamInfo d members) = TeamAdminInfo
+    { taData = d
+    , taMembers = length members
+    , taOwners = filter (\(TeamMemberInfo m) -> isOwner m) members
+    , taAdmins = filter (\(TeamMemberInfo m) -> isAdmin m) members
+    }
+
+-- FUTUREWORK: use the same criteria as in RoleOwner, RoleAdmin
+isOwner :: TeamMember -> Bool
+isOwner m = hasPermission m SetBilling
+
+isAdmin :: TeamMember -> Bool
+isAdmin m = (hasPermission m AddTeamMember) && not (hasPermission m SetBilling)
+
 instance ToJSON TeamInfo where
     toJSON (TeamInfo d m) = object
         [ "info"    .= d
         , "members" .= m
+        ]
+
+instance ToJSON TeamAdminInfo where
+    toJSON (TeamAdminInfo d o a m) = object
+        [ "info"          .= d
+        , "owners"        .= o
+        , "admins"        .= a
+        , "total_members" .= m
         ]
 
 newtype UserProperties = UserProperties
