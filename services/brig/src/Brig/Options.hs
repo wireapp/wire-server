@@ -325,7 +325,7 @@ defMaxValueLen :: Int64
 defMaxValueLen = 512
 
 defDeleteThrottleMillis :: Int
-defDeleteThrottleMillis = 50
+defDeleteThrottleMillis = 100
 
 instance FromJSON Timeout where
     parseJSON (Y.Number n) =
