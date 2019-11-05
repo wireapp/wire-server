@@ -191,6 +191,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     team <- Data.team tid
     when (isJust team) $ do
         Spar.deleteTeam tid
+        o        <- view $ options . optSettings
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
@@ -198,13 +199,16 @@ uncheckedDeleteTeam zusr zcon tid = do
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         -- To avoid DoS on gundeck, send team deletion events in chunks
-        let chunks = List.chunksOf 128 (toList r)
+        let chunkSize = fromMaybe defConcurrentDeletionEvents (o^.setConcurrentDeletionEvents)
+        let chunks = List.chunksOf chunkSize (toList r)
         forM_ chunks $ \chunk -> case chunk of
             [] -> return ()
             x:xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
         -- To avoid DoS on gundeck, send conversation deletion events slowly
-        forM_ ue $ \event ->
+        let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o^.setDeleteConvThrottleMillis))
+        forM_ ue $ \event -> do
             push1 event
+            threadDelay delay
         void . forkIO $ void $ External.deliver be
         -- TODO: we don't delete bots here, but we should do that, since
         -- every bot user can only be in a single conversation. Just
