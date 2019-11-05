@@ -11,7 +11,7 @@ packages:
   #  - 64ebec4fe7b48c131b7d6f0f8d7a6c6cacae70e6
   #  - 78ebeead1a2efb17c55fb72d2d0041295d1271b8
   #  - 032b6503ab0c47f8f85bf48e0beb1f895a95bb27
-  # These provide a hacky way to implement TLS ceritifcate pinning.
+  # These provide a hacky way to implement TLS certificate pinning.
 - archive: https://github.com/wireapp/http-client/archive/wire-2019-11-04.tar.gz
   subdirs:
   - http-client
