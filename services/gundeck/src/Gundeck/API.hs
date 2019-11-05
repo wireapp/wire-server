@@ -64,11 +64,6 @@ sitemap = do
         returns (ref Model.pushTokenList)
         response 200 "Object containing list of push tokens" end
 
-    post "/i/push" (continue Push.push) $
-        request .&. accept "application" "json"
-        -- TODO: REFACTOR: this end-point is probably noise, and should be dropped.  @/i/push/v2@ does exactly
-        -- the same thing.
-
     post "/i/push/v2" (continue Push.push) $
         request .&. accept "application" "json"
 
@@ -142,15 +137,6 @@ sitemap = do
         param "uid" .&. param "did" .&. param "cannon"
 
     -- User-Client API -------------------------------------------------------
-
-    -- DEPRECATED: this is deprecated as of https://github.com/wireapp/wire-server/pull/549 (can be
-    -- removed once brig is deployed everywhere and won't trip over this missing any more.)
-    put "/i/clients/:cid" (continue Client.register) $
-        header "Z-User"
-        .&. param "cid"
-        .&. request
-        .&. contentType "application" "json"
-        .&. accept "application" "json"
 
     delete "/i/clients/:cid" (continue Client.unregister) $
         header "Z-User" .&. param "cid"
