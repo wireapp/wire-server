@@ -191,24 +191,12 @@ uncheckedDeleteTeam zusr zcon tid = do
     team <- Data.team tid
     when (isJust team) $ do
         Spar.deleteTeam tid
-        o        <- view $ options . optSettings
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
-        (ue, be) <- foldrM (pushConvDeleteEvents now membs) ([],[]) convs
+        (ue, be) <- foldrM (createConvDeleteEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
-        let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-        -- To avoid DoS on gundeck, send team deletion events in chunks
-        let chunkSize = fromMaybe defConcurrentDeletionEvents (o^.setConcurrentDeletionEvents)
-        let chunks = List.chunksOf chunkSize (toList r)
-        forM_ chunks $ \chunk -> case chunk of
-            [] -> return ()
-            x:xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
-        -- To avoid DoS on gundeck, send conversation deletion events slowly
-        let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o^.setDeleteConvThrottleMillis))
-        forM_ ue $ \event -> do
-            push1 event
-            threadDelay delay
+        pushDeleteEvents membs e ue
         void . forkIO $ void $ External.deliver be
         -- TODO: we don't delete bots here, but we should do that, since
         -- every bot user can only be in a single conversation. Just
@@ -218,13 +206,32 @@ uncheckedDeleteTeam zusr zcon tid = do
             Journal.teamDelete tid
         Data.deleteTeam tid
   where
-    pushConvDeleteEvents
+    pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
+    pushDeleteEvents membs e ue = do
+        o <- view $ options . optSettings
+        let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
+        -- To avoid DoS on gundeck, send team deletion events in chunks
+        let chunkSize = fromMaybe defConcurrentDeletionEvents (o^.setConcurrentDeletionEvents)
+        let chunks = List.chunksOf chunkSize (toList r)
+        forM_ chunks $ \chunk -> case chunk of
+            [] -> return ()
+            -- push TeamDelete events
+            x:xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+
+        -- To avoid DoS on gundeck, send conversation deletion events slowly
+        let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o^.setDeleteConvThrottleMillis))
+        forM_ ue $ \event -> do
+            -- push ConversationDelete events
+            push1 event
+            threadDelay delay
+
+    createConvDeleteEvents
         :: UTCTime
         -> [TeamMember]
         -> TeamConversation
         -> ([Push],[(BotMember, Conv.Event)])
         -> Galley ([Push],[(BotMember, Conv.Event)])
-    pushConvDeleteEvents now teamMembs c (pp, ee) = do
+    createConvDeleteEvents now teamMembs c (pp, ee) = do
         (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
         -- Only nonTeamMembers need to get any events, since on team deletion,
         -- all team users are deleted immediately after these events are sent
