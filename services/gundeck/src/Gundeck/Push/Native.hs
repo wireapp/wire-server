@@ -29,11 +29,21 @@ import qualified Gundeck.Aws               as Aws
 import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
+import qualified Data.List.Extra           as List
 
 push :: NativePush -> [Address] -> Gundeck ()
 push _    [] = pure ()
 push m   [a] = push1 m a
-push m addrs = void $ mapConcurrently (push1 m) addrs
+push m addrs = do
+    perPushConcurrency <- view (options . optSettings . setPerNativePushConcurrency )
+    case perPushConcurrency of
+        -- send all at once
+        Nothing -> void $ mapConcurrently (push1 m) addrs
+        -- avoid high amounts of fresh parallel network requests by
+        -- parallelizing only chunkSize native pushes at a time
+        Just chunkSize -> do
+            let chunks = List.chunksOf chunkSize addrs
+            mapM_ (mapConcurrently (push1 m)) chunks
 
 push1 :: NativePush -> Address -> Gundeck ()
 push1 m a = do

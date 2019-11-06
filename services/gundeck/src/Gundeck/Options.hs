@@ -38,6 +38,10 @@ data Settings = Settings
     , _setBulkPush        :: !Bool
     -- | Maximum number of concurrent threads calling SNS.
     , _setMaxConcurrentNativePushes :: !(Maybe MaxConcurrentNativePushes)
+    -- | Maximum number of parallel requests to SNS and cassandra
+    -- during native push processing (per incoming push request)
+    -- defaults to unbounded, if unset.
+    , _setPerNativePushConcurrency  :: !(Maybe Int)
     } deriving (Show, Generic)
 
 data MaxConcurrentNativePushes = MaxConcurrentNativePushes

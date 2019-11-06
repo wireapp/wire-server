@@ -107,10 +107,16 @@ instance MonadNativeTargets Gundeck where
   mntgtLookupAddresses rcp = Data.lookup rcp Data.One
 
 class Monad m => MonadMapAsync m where
-  mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
+  mntgtMapAsync         :: (a -> m b) -> [a] -> m [Either SomeException b]
+  mntgtPerPushConcurrency  :: m (Maybe Int)
 
 instance MonadMapAsync Gundeck where
-  mntgtMapAsync = mapAsync
+  mntgtPerPushConcurrency = view (options . optSettings . setPerNativePushConcurrency )
+  mntgtMapAsync f l = do
+      perPushConcurrency <- mntgtPerPushConcurrency
+      case perPushConcurrency of
+          Nothing -> mapAsync f l
+          Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
 class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m where
@@ -189,14 +195,17 @@ pushAll pushes = do
         resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
+        perPushConcurrency <- mntgtPerPushConcurrency
         forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
             let rcps' = nativeTargetsRecipients psh
-                budget = length rcps'
-                  -- this is a rough budget, since there may be more than one device in a
+                cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+                  -- ^ this is a rough budget cost, since there may be more than one device in a
                   -- 'Presence', so one budget token may trigger at most 8 push notifications
                   -- to be sent out.
+                  -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
+                  -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
             unless (psh ^. pushTransient)
-                $ mpaRunWithBudget budget ()
+                $ mpaRunWithBudget cost ()
                     $ mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
 
 
@@ -280,13 +289,9 @@ nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. push
     routeNative u = u ^. recipientRoute /= RouteDirect
                  && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
--- | TODO: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
+-- | FUTUREWORK: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
 -- only call cassandra once in total, yielding all addresses of all recipients of all pushes.
---
--- FUTUREWORK: we may want to turn 'mntgtMapAsync' into an ordinary `mapM`: it's cassandra
--- access, so it'll be fast either way given the size of the input, and synchronous calls
--- impose a much lower risk of choking when system load peaks.
 nativeTargets
   :: forall m. (MonadNativeTargets m, MonadMapAsync m)
   => Push -> [Recipient] -> [Presence] -> m [Address]

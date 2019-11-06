@@ -400,6 +400,7 @@ instance MonadNativeTargets MockGundeck where
   mntgtLookupAddresses = mockLookupAddresses
 
 instance MonadMapAsync MockGundeck where
+  mntgtPerPushConcurrency = pure Nothing -- (unbounded)
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
 instance MonadPushAny MockGundeck where
