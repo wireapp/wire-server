@@ -312,6 +312,9 @@ data Settings = Settings
 
     , setPropertyMaxKeyLen     :: !(Maybe Int64)
     , setPropertyMaxValueLen   :: !(Maybe Int64)
+    , setDeleteThrottleMillis  :: !(Maybe Int) -- ^ How long, in milliseconds, to wait
+                                               -- in between processing delete events
+                                               -- from the internal delete queue
 
     } deriving (Show, Generic)
 
@@ -320,6 +323,9 @@ defMaxKeyLen = 256
 
 defMaxValueLen :: Int64
 defMaxValueLen = 512
+
+defDeleteThrottleMillis :: Int
+defDeleteThrottleMillis = 100
 
 instance FromJSON Timeout where
     parseJSON (Y.Number n) =

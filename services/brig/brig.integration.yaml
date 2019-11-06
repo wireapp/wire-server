@@ -150,6 +150,7 @@ optSettings:
   setEmailVisibility: visible_to_self
   setPropertyMaxKeyLen: 1024
   setPropertyMaxValueLen: 4096
+  setDeleteThrottleMillis: 0
 
 logLevel: Warn
 logNetStrings: false
