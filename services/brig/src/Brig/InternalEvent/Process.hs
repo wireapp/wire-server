@@ -4,7 +4,9 @@ module Brig.InternalEvent.Process
 
 import Imports
 import Brig.App
+import Brig.Options (setDeleteThrottleMillis, defDeleteThrottleMillis)
 import Brig.InternalEvent.Types
+import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import System.Logger.Class (field, msg, (~~), val)
@@ -23,6 +25,11 @@ onEvent n = handleTimeout $ case n of
         Log.info $ msg (val "Processing user delete event")
                 ~~ field "user" (toByteString uid)
         API.lookupAccount uid >>= mapM_ API.deleteAccount
+        -- As user deletions are expensive resource-wise in the context of
+        -- bulk user deletions (e.g. during team deletions),
+        -- wait 'delay' ms before processing the next event
+        delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
+        liftIO $ threadDelay (1000 * delay)
     DeleteService pid sid -> do
         Log.info $ msg (val "Processing service delete event")
                 ~~ field "provider" (toByteString pid)

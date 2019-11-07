@@ -493,7 +493,7 @@ instance ToJSON UserClients where
        where
          fn u c m =
              let k = T.decodeLatin1 (toASCIIBytes (toUUID u)) in
-             Map.insert k (toJSON c) m
+             Map.insert k c m
 
 instance FromJSON UserClients where
     parseJSON =

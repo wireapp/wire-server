@@ -391,7 +391,7 @@ codeParser err conv = do
 -- ManagedBy
 
 -- | Who controls changes to the user profile (where the profile is defined as "all
--- user-editable, user-visible attributes").
+-- user-editable, user-visible attributes").  See {#DevScimOneWaySync}.
 data ManagedBy
       -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
     = ManagedByWire

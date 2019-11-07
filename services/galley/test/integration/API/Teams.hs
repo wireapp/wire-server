@@ -598,8 +598,7 @@ testDeleteTeam = do
             const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember
-        checkConvDeleteEvent cid1 wsOwner
-        checkConvDeleteEvent cid1 wsMember
+        -- team members should not receive conversation delete events
         checkConvDeleteEvent cid1 wsExtern
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
 

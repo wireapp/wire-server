@@ -6,28 +6,31 @@
 module Spar.Types where
 
 import Imports
+
 import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id (TeamId, UserId, ScimTokenId)
 import Data.ByteString.Conversion
+import Data.Id (TeamId, UserId, ScimTokenId)
 import Data.Json.Util
-import Data.Text.Encoding (encodeUtf8)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Data.String.Conversions (ST)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
+import Network.HTTP.Media ((//))
 import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, IdPId, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
+import Servant.API as Servant hiding (MkLink, URI(..))
+import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
-import System.Logger.Extended (LogFormat)
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
@@ -67,24 +70,34 @@ deriveJSON deriveJSONOptions ''IdPList
 -- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
 -- from the server against the pinned one and the metadata url in the metadata against the one
 -- we fetched the xml from, but it's unclear what the benefit would be.)
-newtype IdPMetadataInfo = IdPMetadataValue SAML.IdPMetadata
+data IdPMetadataInfo = IdPMetadataValue Text SAML.IdPMetadata
   deriving (Eq, Show, Generic)
 
-instance SAML.HasXMLRoot IdPMetadataInfo where
-  renderRoot = error "instance SAML.HasXML IdPMetadataInfo: render not implemented"
-    -- FUTUREWORK: split up HasXML in saml-web-sso into FromXML and ToXML, then we probably
-    -- can actually not implement this (this even as an error).  should be a nice,
-    -- backwards-compatible change!
+-- | We want to store the raw xml text from the registration request in the database for
+-- trouble shooting, but @SAML.XML@ only gives us access to the xml tree, not the raw text.
+-- 'RawXML' helps with that.
+data RawXML
 
-instance SAML.HasXML IdPMetadataInfo where
-  parse = fmap IdPMetadataValue . SAML.parse
+instance Accept RawXML where
+  contentType Proxy = "application" // "xml"
+
+instance MimeUnrender RawXML IdPMetadataInfo where
+  mimeUnrender Proxy raw = IdPMetadataValue (cs raw) <$> mimeUnrender (Proxy @SAML.XML) raw
+
+instance MimeRender RawXML RawIdPMetadata where
+  mimeRender Proxy (RawIdPMetadata raw) = cs raw
+
+newtype RawIdPMetadata = RawIdPMetadata Text
+  deriving (Eq, Show, Generic)
+
 
 instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
-    either fail (pure . IdPMetadataValue) . SAML.decode =<< (obj .: "value")
+    raw <- obj .: "value"
+    either fail (pure . IdPMetadataValue raw) (SAML.decode (cs raw))
 
 instance ToJSON IdPMetadataInfo where
-  toJSON (IdPMetadataValue xml) =
+  toJSON (IdPMetadataValue _ xml) =
     object [ "value" .= SAML.encode xml ]
 
 

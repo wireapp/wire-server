@@ -393,10 +393,14 @@ instance MonadPushAll MockGundeck where
   mpaPushNative = mockPushNative
   mpaForkIO = id  -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
                   -- doesn't, this is good enough for testing).
+  mpaRunWithBudget = \_ _ -> id  -- no throttling needed as long as we don't overdo it in the tests...
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
   mntgtLookupAddresses = mockLookupAddresses
+
+instance MonadMapAsync MockGundeck where
+  mntgtPerPushConcurrency = pure Nothing -- (unbounded)
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
 instance MonadPushAny MockGundeck where

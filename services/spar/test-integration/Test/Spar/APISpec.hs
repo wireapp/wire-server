@@ -5,6 +5,7 @@ import Imports hiding (head)
 import Bilge
 import Brig.Types.User
 import Control.Lens
+import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -12,7 +13,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
@@ -23,6 +24,7 @@ import Util.Core
 import Util.Types
 
 import qualified Data.ByteString.Builder as LB
+import qualified Data.Text as ST
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
@@ -38,6 +40,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
+  specDeleteCornerCases
   specScimAndSAML
   specAux
 
@@ -296,8 +299,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
-        checkInitiateLogin hasZUser createUser = do
+    let checkInitiateBind :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
+        checkInitiateBind hasZUser createUser = do
           let testmsg = if hasZUser
                         then "responds with 200 and a bind cookie"
                         else "responds with 403 and 'bind-without-auth'"
@@ -331,13 +334,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
     describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session without authentication" $ do
-        checkInitiateLogin False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with non-sso user" $ do
-        checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateBind True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
+        checkInitiateBind True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -617,6 +620,8 @@ specCRUDIdentityProvider = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
+          callIdpGetRaw' (env ^. teSpar) (Just userid) idpid
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
         context "with email" $ it "responds with 2xx and removes IdP" $ do
           env <- ask
@@ -712,7 +717,11 @@ specCRUDIdentityProvider = do
           metadata <- makeTestIdPMetadata
           idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          liftIO $ idp `shouldBe` idp'
+          rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
+          liftIO $ do
+            idp `shouldBe` idp'
+            let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+            ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
       context "client is owner without email" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
@@ -729,10 +738,84 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata <- Data.Aeson.encode . IdPMetadataValue <$> makeTestIdPMetadata
+            metadata <- Data.Aeson.encode . (IdPMetadataValue mempty) <$> makeTestIdPMetadata
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-            liftIO $ idp `shouldBe` idp'
+            rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
+            liftIO $ do
+              idp `shouldBe` idp'
+              let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+              ST.take (ST.length prefix) rawmeta `shouldBe` prefix
+
+
+specDeleteCornerCases :: SpecWith TestEnv
+specDeleteCornerCases = describe "delete corner cases" $ do
+  it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via scim (in same team)" $ do
+    pending
+
+  it "create user1 via saml; delete user1; create via password (outside team)" $ do
+    pending
+
+  it "delete idp; create idp with same issuer id" $ do
+    pending
+
+  -- clone of 'testScimCreateVsUserRef', without the scim part: Create a user implicitly via
+  -- saml login; remove it via brig leaving a dangling entry in @spar.user@; create it via saml
+  -- login once more.  This should work despite the dangling database entry.
+  it "re-create previously deleted, dangling users" $ do
+    (_ownerid, _teamid, idp) <- registerTestIdP
+    uname :: SAML.UnqualifiedNameID <- do
+      suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+      either (error . show) pure $
+        SAML.mkUNameIDEmail ("email_" <> suffix <> "@example.com")
+    let uref   = SAML.UserRef tenant subj
+        subj   = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+        tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+
+    !(Just !uid) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
+
+    deleteViaBrig uid
+    samlUserShouldSatisfy uref isJust  -- brig doesn't talk to spar right now when users
+                                       -- are deleted there.  we need to work around this
+                                       -- fact for now.  (if the test fails here, this may
+                                       -- mean that you fixed the behavior and can
+                                       -- change this to 'isNothing'.)
+
+    (Just _) <- createViaSaml idp uref
+    samlUserShouldSatisfy uref isJust
+  where
+    samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy uref property = do
+        muid <- getUserIdViaRef' uref
+        liftIO $ muid `shouldSatisfy` property
+
+    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp (SAML.UserRef _ subj) = do
+        (privCreds, authnReq) <- negotiateAuthnRequest idp
+        spmeta <- getTestSPMetadata
+        authnResp <- runSimpleSP $
+            mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+        createResp <- submitAuthnResponse authnResp
+        liftIO $ responseStatus createResp `shouldBe` status200
+        pure createResp
+
+    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp uref = do
+        resp <- createViaSamlResp idp uref
+        liftIO $ do
+            maybe (error "no body") cs (responseBody resp)
+                `shouldContain` "<title>wire:sso:success</title>"
+        getUserIdViaRef' uref
+
+    deleteViaBrig :: UserId -> TestSpar ()
+    deleteViaBrig uid = do
+        brig <- view teBrig
+        resp <- (call . delete $ brig . paths ["i", "users", toByteString' uid])
+        liftIO $ responseStatus resp `shouldBe` status202
 
 
 specScimAndSAML :: SpecWith TestEnv

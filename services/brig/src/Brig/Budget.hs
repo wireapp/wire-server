@@ -11,7 +11,6 @@ module Brig.Budget
     ) where
 
 import Imports
-import Brig.Data.Instances ()
 import Cassandra
 import Data.Time.Clock
 

@@ -157,3 +157,6 @@ instance ToParamSchema BindCookie where
 
 instance ToSchema Void where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema RawIdPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)

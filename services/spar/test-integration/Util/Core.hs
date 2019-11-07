@@ -57,6 +57,7 @@ module Util.Core
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
+  , callIdpGetRaw, callIdpGetRaw'
   , callIdpGetAll, callIdpGetAll'
   , callIdpCreate, callIdpCreate', callIdpCreateRaw, callIdpCreateRaw'
   , callIdpDelete, callIdpDelete'
@@ -713,6 +714,15 @@ callIdpGet sparreq_ muid idpid = do
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+
+callIdpGetRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m Text
+callIdpGetRaw sparreq_ muid idpid = do
+  resp <- callIdpGetRaw' (sparreq_ . expect2xx) muid idpid
+  maybe (liftIO . throwIO $ ErrorCall "Nothing") (pure . cs) (responseBody resp)
+
+callIdpGetRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpGetRaw' sparreq_ muid idpid = do
+  get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid -/ "raw")
 
 callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
 callIdpGetAll sparreq_ muid = do

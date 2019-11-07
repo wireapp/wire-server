@@ -12,20 +12,30 @@ import Galley.Types.Teams (FeatureFlags(..))
 data Settings = Settings
     {
     -- | Number of connections for the HTTP client pool
-      _setHttpPoolSize          :: !Int
+      _setHttpPoolSize              :: !Int
     -- | Max number of members in a team. NOTE: This must be in sync with Brig
-    , _setMaxTeamSize           :: !Word16
+    , _setMaxTeamSize               :: !Word16
     -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
-    , _setMaxConvSize           :: !Word16
+    , _setMaxConvSize               :: !Word16
     -- | Whether to call Brig for device listing
-    , _setIntraListing          :: !Bool
+    , _setIntraListing              :: !Bool
     -- | URI prefix for conversations with access mode @code@
-    , _setConversationCodeURI   :: !HttpsUrl
-    , _setFeatureFlags          :: !FeatureFlags
+    , _setConversationCodeURI       :: !HttpsUrl
+    -- | Throttling: limits to concurrent deletion events
+    , _setConcurrentDeletionEvents  :: !(Maybe Int)
+    -- | Throttling: delay between sending events upon team deletion
+    , _setDeleteConvThrottleMillis  :: !(Maybe Int)
+    , _setFeatureFlags              :: !FeatureFlags
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
+
+defConcurrentDeletionEvents :: Int
+defConcurrentDeletionEvents = 128
+
+defDeleteConvThrottleMillis :: Int
+defDeleteConvThrottleMillis = 20
 
 data JournalOpts = JournalOpts
     { _awsQueueName :: !Text         -- ^ SQS queue name to send team events

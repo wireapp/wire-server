@@ -2,10 +2,10 @@
 
 set -e
 
-ADMIN_UUID="a09e9521-e14e-4285-ad71-47caa97f4a16"
-TEAM_UUID="9e57a378-0dca-468f-9661-7872f5f1c910"
-BRIG_HOST="http://localhost:8082"
-CSV_FILE="myfile.csv"
+ADMIN_UUID="n/a"
+TEAM_UUID="n/a"
+BRIG_HOST="http://localhost:8080"
+CSV_FILE="n/a"
 
 USAGE="
 This bash script can be used to invite members to a given team.  Input
@@ -19,6 +19,17 @@ USAGE: $0
     -t <team uuid>: ID of the inviting team.  default: ${TEAM_UUID}
     -h <host>: Base URI of brig. default: ${BRIG_HOST}
     -c <input file>: file containing info on the invitees in format 'Email,UserName'.  default: ${CSV_FILE}
+
+If you tee(1) stdout, stderr of this script into a log file, you can
+grep that log file for errors like this:
+
+$ grep code out.log | grep email-exists  # the most common case
+$ grep code out.log | grep -v email-exists
+
+If you are in a hurry, you may want to change the sleep(1) at the end
+of the invite loop to less than a second.  If you want to give up on
+the first error, add an exit(1) where we check the $INVIDATION_ID.
+
 "
 
 # Option parsing:
@@ -73,8 +84,7 @@ do
 
     if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
          ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
-      echo "Got an error, aborting: $INVITATION_ID"
-      exit 1
+      echo "failed inviting $USER_NAME <$EMAIL>: $INVITATION_ID"
     fi
 
     echo "Sleeping 1 second..." 1>&2

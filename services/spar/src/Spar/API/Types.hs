@@ -33,7 +33,8 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 type API
      = "sso" :> APISSO
-  :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
+  :<|> "sso-initiate-bind"  :> APIAuthReqPrecheck  -- (see comment on 'APIAuthReq')
+  :<|> "sso-initiate-bind"  :> APIAuthReq          -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
   :<|> "scim" :> APIScim
   :<|> OmitDocs :> "i" :> APIINTERNAL
@@ -131,13 +132,16 @@ type APIAuthResp
 
 type APIIDP
      = Header "Z-User" UserId :> IdpGet
+  :<|> Header "Z-User" UserId :> IdpGetRaw
   :<|> Header "Z-User" UserId :> IdpGetAll
   :<|> Header "Z-User" UserId :> IdpCreate
   :<|> Header "Z-User" UserId :> IdpDelete
 
+type IdpGetRaw  = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
+
 type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Get '[JSON] IdPList
-type IdpCreate  = ReqBodyCustomError '[SAML.XML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
+type IdpCreate  = ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where

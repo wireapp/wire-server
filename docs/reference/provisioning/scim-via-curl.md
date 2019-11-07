@@ -8,6 +8,11 @@ This page shows you how to communicate with the wire backend through
 the [SCIM API](http://www.simplecloud.info/) by example.  All examples
 are [curl](https://curl.haxx.se/) (in bash syntax).
 
+We support setting the handle and user name in wire (the thing with
+`@` and the longer thing without `@`).  There is also support for
+setting rich-info.  Group provisioning is planned, but the release
+date hasn't been fixed yet.
+
 If you want to dive into the backend code, start [reading here in our
 backend](https://github.com/wireapp/wire-server/blob/develop/services/spar/src/Spar/Scim.hs)
 and [our hscim library](https://github.com/wireapp/hscim).
@@ -87,11 +92,26 @@ A minimal definition of a user looks like this:
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-  "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
+  "externalId"  : "nick@example.com",
   "userName"    : "nick",
   "displayName" : "The Nick"
 }'
 ```
+
+The `externalId` is used to construct a saml identity.  Two cases are
+currently supported:
+
+1. `externalId` contains a valid email address.  The SAML `NameID` has
+the form `<NameID
+Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">me@example.com</NameID>`.
+2. `externalId` contains anything that is *not* an email address.  The
+SAML `NameID` has the form `<NameID
+Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">...</NameID>`.
+
+*NOTE: It is important to configure your SAML provider to use
+`nameid-format:emailAddress` or `nameid-format:unspecified`.  Other
+nameid formats are not supported at this moment*.
+See also: https://github.com/wireapp/wire-server/blob/c507ed64a7d4f0af2bffe2f9c3eb4b5f89a477c0/services/spar/src/Spar/Scim/User.hs#L149-L158
 
 We also support custom fields that are used in rich profiles in this
 form [see {#RefRichInfo}](../user/rich-info.md):
@@ -99,7 +119,7 @@ form [see {#RefRichInfo}](../user/rich-info.md):
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:wire:scim:schemas:profile:1.0"],
-  "externalId"  : "f8c4ffde-4592-11e9-8600-afe11dc7d07b",
+  "externalId"  : "rnick@example.com",
   "userName"    : "rnick",
   "displayName" : "The Rich Nick",
   "urn:wire:scim:schemas:profile:1.0": {
@@ -155,7 +175,7 @@ up-to-date user present, just `GET` one right before the `PUT`.)
 ```bash
 export SCIM_USER='{
   "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-  "externalId"  : "updated-user-id",
+  "externalId"  : "rnick@example.com",
   "userName"    : "newnick",
   "displayName" : "The New Nick"
 }'

@@ -1,3 +1,27 @@
+# 2019-11-06 #901
+
+## Relevant for self-hosters
+
+- New configuration options available (none mandatory). See #895 #900 #869
+
+## Relevant for client developers
+
+- Support HEAD requests for `/sso/initiate-bind` (#878)
+
+## Bug fixes
+
+- Do not send conversation delete events to team members upon team deletion (#897)
+- Support SNI for bot registrations (by bumping http-client version) (#899)
+
+## Internal changes
+
+- Make gundeck handle AWS outages better. (#869, #890, #892)
+- Improve performance by avoiding unbounded intra-service traffic spikes on team deletions (#900)
+- Add optional native push connection throttling (#895)
+- New backoffice/stern endpoint (#896)
+- SAML: Store raw idp metadata with typed details in c* (#872)
+- documentation/script updates
+
 # 2019-09-30 #868
 
 ## Relevant for self-hosters

@@ -45,6 +45,7 @@ dependencies:
   - http-api-data
   - http-client
   - http-client-tls
+  - http-media
   - http-types
   - imports
   - insert-ordered-containers

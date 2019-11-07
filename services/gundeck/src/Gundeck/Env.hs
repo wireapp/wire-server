@@ -12,6 +12,7 @@ import Data.Text (unpack)
 import Data.Time.Clock.POSIX
 import Util.Options
 import Gundeck.Options as Opt
+import Gundeck.ThreadBudget
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
@@ -32,6 +33,7 @@ data Env = Env
     , _rstate  :: !Redis.Pool
     , _awsEnv  :: !Aws.Env
     , _time    :: !(IO Milliseconds)
+    , _threadBudgetState :: !(Maybe ThreadBudgetState)
     }
 
 makeLenses ''Env
@@ -74,7 +76,8 @@ createEnv m o = do
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    return $! Env def m o l n p r a io
+    mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
+    return $! Env def m o l n p r a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

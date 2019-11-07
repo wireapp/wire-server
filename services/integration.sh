@@ -37,7 +37,7 @@ function check_prerequisites() {
     if ! ( nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 ); then
-        echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1;
+        echo "Databases not up. Maybe run 'deploy/dockerephemeral/run.sh' in a separate terminal first?";  exit 1;
     fi
     if   [ ! -f "${TOP_LEVEL}/dist/brig" ] \
       && [ ! -f "${TOP_LEVEL}/dist/galley" ] \
@@ -65,7 +65,7 @@ if [[ $INTEGRATION_USE_REAL_AWS -eq 1 ]]; then
 else
     # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
     # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used
-    # (see deploy/docker-ephemeral/docker-compose.yaml )
+    # (see deploy/dockerephemeral/docker-compose.yaml )
     echo 'Running tests using mocked AWS services'
     export AWS_REGION=eu-west-1
     export AWS_ACCESS_KEY_ID=dummykey

@@ -1,5 +1,5 @@
 networks:
-  docker-ephemeral_demo_wire:
+  dockerephemeral_demo_wire:
     external: true
 
 version: '2'
@@ -30,7 +30,7 @@ services:
       - demo_wire_sqs:sqs
       - demo_wire_smtp:smtp
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   galley:
     image: quay.io/wire/galley
@@ -50,7 +50,7 @@ services:
     external_links:
       - demo_wire_cassandra:cassandra
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   gundeck:
     image: quay.io/wire/gundeck
@@ -72,7 +72,7 @@ services:
       - demo_wire_sqs:sqs
       - demo_wire_localstack:sns
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   cannon:
     image: quay.io/wire/cannon
@@ -86,7 +86,7 @@ services:
       - /configs/conf/cannon.demo-docker.yaml
     working_dir: /configs
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   cargohold:
     image: quay.io/wire/cargohold
@@ -102,7 +102,7 @@ services:
     external_links:
       - demo_wire_s3:s3
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   proxy:
     image: quay.io/wire/proxy
@@ -116,7 +116,7 @@ services:
       - /configs/conf/proxy.demo.yaml
     working_dir: /configs
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   spar:
     image: quay.io/wire/spar
@@ -132,7 +132,7 @@ services:
     external_links:
       - demo_wire_cassandra:cassandra
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire
 
   nginz:
     image: quay.io/wire/nginz
@@ -157,4 +157,4 @@ services:
       - /configs/conf/nginz/nginx-docker.conf
     working_dir: /configs
     networks:
-      - docker-ephemeral_demo_wire
+      - dockerephemeral_demo_wire

@@ -7,7 +7,7 @@ Use 2 different terminals and run:
 ```
 # On terminal 1, start the dependencies. Note that you should turn up the max memory
 # limit of docker. More on https://github.com/wireapp/wire-server/issues/326
-deploy/docker-ephemeral/run.sh
+deploy/dockerephemeral/run.sh
 ```
 
 ```
