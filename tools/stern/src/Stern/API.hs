@@ -293,7 +293,7 @@ sitemap = do
             description "Team ID"
         Doc.response 200 "Team Information" Doc.end
 
-    get "/teams/:tid" (continue getTeamAdminInfo) $
+    get "/teams/:tid/admins" (continue getTeamAdminInfo) $
         capture "tid"
 
     document "GET" "getTeamAdminInfo" $ do
