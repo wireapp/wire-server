@@ -179,8 +179,10 @@ validateScimUser' idp richInfoLimit user = do
     pure $ ValidScimUser user uref handl mbName richInfo
   where
     -- Validate a handle (@userName@).
+    -- We should lowercase the wire handle here first, as SCIM says it's case insensitive.
+    -- TODO(arianvp): We should do this at the hscim level. but for now I do it here
     validateHandle :: Text -> m Handle
-    validateHandle txt = case parseHandle txt of
+    validateHandle txt = case parseHandle (Text.toLower txt) of
         Just h -> pure h
         Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
             (Just "userName must be a valid Wire handle")
