@@ -237,7 +237,14 @@ mkUserRef idp extid = case extid of
                 (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
 
--- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
+-- | Creates a SCIM User.
+--
+-- User is created in Brig first, and then in SCIM and SAML.
+--
+-- Rationale: If brig user creation fails halfway, we don't have SCIM records that
+-- point to inactive users. This stops people from logging in into inactive users.
+--
+-- We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
 -- requirement.)
 createValidScimUser
@@ -247,18 +254,33 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- ensure uniqueness constraints of all affected identifiers.
+    -- if we crash now, retry POST will just work
     assertUserRefUnused uref
     assertHandleUnused handl buid
+    -- if we crash now, retry POST will just work, or user gets told the handle
+    -- is already in use and stops POSTing
+   
     -- TODO(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
     -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
     idpConfig <-  lift $ SAML.getIdPConfigByIssuer (uref ^. SAML.uidTenant)
     let teamid = view SAML.idpExtraInfo idpConfig
-    lift . wrapMonadClient $ Data.insertSAMLUser uref buid
     buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
     assert (buid == buid') $ pure ()
+    -- If we crash now, we have an active user that cannot login. And can not
+    -- be bound this will be a zombie user that needs to be manually cleaned
+    -- up.  We should consider making setUserHandle part of createUser and
+    -- making it transactional.  If the user redoes the POST A new standalone
+    -- user will be created
     lift $ Intra.Brig.setBrigUserHandle buid handl
+    -- If we crash now,  a POST retry will fail with 409 user already exists. 
+    -- Azure at some point will retry with GET /Users?filter=userName eq handle
+    -- and then issue a PATCH containing the rich info and the externalId
+    -- TODO(arianvp): Implement PATCH (Part of Phase 1)
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
+    -- If we crash now, same as above, but the PATCH will only contain externalId
+    
+    -- TODO(arianvp): these two actions we probably want to make transactional
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     lift . wrapMonadClient $ Data.insertSAMLUser uref buid
     pure storedUser
