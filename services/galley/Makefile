@@ -31,7 +31,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: install
