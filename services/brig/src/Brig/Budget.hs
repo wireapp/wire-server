@@ -32,6 +32,8 @@ newtype BudgetKey = BudgetKey Text
 -- seconds.  @"k"@ is used for keeping different calls to 'withBudget' apart; use something
 -- there that's unique to your context, like @"login#" <> uid@.
 --
+-- See the docs in "Gundeck.ThreadBudget" for related work.
+--
 -- FUTUREWORK: encourage caller to define their own type for budget keys (rather than using an
 -- untyped text), and represent the types in a way that guarantees that if i'm using a local
 -- type that i don't export, then nobody will be able to use my namespace.
