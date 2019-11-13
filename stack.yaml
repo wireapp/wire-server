@@ -42,18 +42,12 @@ extra-deps:
 - servant-swagger-1.1.6
 - swagger2-2.3
 - git: https://github.com/wireapp/prometheus-haskell
-  commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737
+  commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
   subdirs:
   - wai-middleware-prometheus
   # wai-middleware-prometheus can be pulled from hackage once the
-  # version including
-  # https://github.com/fimad/prometheus-haskell/pull/44 has been
-  # merged (any time after Tue 21 May 2019 03:42:48 PM CEST).
-  #
-  # an even better fix is in
-  # https://github.com/fimad/prometheus-haskell/pull/45; see comment
-  # in /libs/metrics-wai/src/Data/Metrics/Middleware/Prometheus.hs at
-  # `instrumentHandlerValue`.
+  # version 0.1.2.0 or later is available on hackage
+  # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
   commit: c0bcbe8ae5bb6fdc0b5b94f640f63a615c068cbf    # master (Apr 25, 2019)
 - git: https://github.com/wireapp/hscim
