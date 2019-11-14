@@ -8,7 +8,7 @@ import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
-import Brig.Whitelist (Whitelist(..))
+import Brig.Whitelist (Whitelist(..), InternalWhitelist(..))
 import qualified Control.Lens as Lens
 import Data.Aeson.Types (typeMismatch)
 import Data.Aeson (withText)
@@ -280,7 +280,8 @@ data Settings = Settings
     , setTwilio                :: !FilePathSecrets  -- ^ Twilio credentials
     , setNexmo                 :: !FilePathSecrets  -- ^ Nexmo credentials
     , setStomp                 :: !(Maybe FilePathSecrets)  -- ^ STOMP broker credentials
-    , setWhitelist             :: !(Maybe Whitelist) -- ^ Whitelist of allowed emails/phones
+    , setWhitelist             :: !(Maybe Whitelist)         -- ^ External whitelist of allowed emails/phones
+    , setInternalWhitelist     :: !(Maybe InternalWhitelist) -- ^ Internal whitelist of allowed emails/phones
     , setUserMaxConnections    :: !Int64    -- ^ Max. number of sent/accepted
                                             --   connections per user
     , setUserMaxPermClients    :: !(Maybe Int)
