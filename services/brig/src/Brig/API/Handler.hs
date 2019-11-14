@@ -12,7 +12,7 @@ module Brig.API.Handler
 import Imports
 import Bilge (RequestId (..))
 import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
-import Brig.Options (setWhitelist)
+import Brig.Options (setWhitelist, setInternalWhitelist)
 import Brig.API.Error
 import Brig.Email (Email)
 import Brig.Phone (Phone, PhoneException (..))
@@ -85,9 +85,9 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> Handler ()
 checkWhitelist key = do
-    eb <- setWhitelist <$> view settings
-    case eb of
-        Nothing -> return ()
-        Just  b -> do
-            ok <- lift $ Whitelist.verify b key
-            unless ok (throwStd whitelistError)
+    wex <- setWhitelist <$> view settings
+    win <- setInternalWhitelist <$> view settings
+    ok <- case (wex, win) of (Just b, _) -> Whitelist.verifyService b key
+                             (_, Just b) -> Whitelist.verifyInternal b key
+                             _           -> pure True
+    unless ok (throwStd whitelistError)
