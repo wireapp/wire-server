@@ -129,7 +129,22 @@ X-Zeta-Code: 123456
 
 ## Phone/email whitelist {#RefActivationWhitelist}
 
-The backend can be configured to only allow specific phone numbers or email addresses to register. The following options have to be set in `brig.yaml`:
+The backend can be configured to only allow specific phone numbers or email addresses to register.
+
+There are two whitelisting methods:
+
+ - contact an external whitelisting service by HTTP
+ - use built-in whitelisting
+
+Both are configured by settings options in `brig.yaml`. If both are configured simultaneously, internal whitelisting is ignored.
+
+If an email address or phone number are rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
+
+### External whitelisting
+
+External whitelisting is **deprecated** and will be removed in a future version of Wire-Server.
+
+The following options have to be set in `brig.yaml`:
 
 ```yaml
 optSettings:
@@ -141,7 +156,20 @@ optSettings:
 
 When those options are present, the backend will do a GET request at `<whitelistUrl>?email=...` or `<whitelistUrl>?mobile=...` for every activation request it receives. It will expect either status code 200 ("everything good") or 404 ("provided email/phone is not on the whitelist").
 
-If an email address or phone number are rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
+### Internal whitelisting
+
+Internal whitelisting currently only supports filtering by email domain. Activations/registrations will only be allowed from emails that are directly specified in a static list of domains.
+
+The following options have to be set in `brig.yaml`:
+
+```yaml
+optSettings:
+  setWhitelist:
+    whitelistDomains:
+     - example.com
+     - contractor.com
+```
+
 
 ```json
 {
