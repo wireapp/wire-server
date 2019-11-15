@@ -18,10 +18,11 @@ import Bilge.Retry
 import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Retry
-import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 import Util.Options.Common (toOptionFieldName)
+
+import qualified Data.Text as T
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
 -- DEPRECATED: use internal whitelisting instead!
@@ -41,11 +42,11 @@ deriveJSON toOptionFieldName 'internalWhitelistDomains
 
 -- | Check internal whitelist for given email/phone number. Currently this
 -- consults a statically configured whitelist of allowed email domains..
-verifyInternal :: (MonadIO m, MonadMask m, MonadHttp m) => InternalWhitelist -> Either Email Phone -> m Bool
+verifyInternal :: InternalWhitelist -> Either Email Phone -> Bool
 verifyInternal (InternalWhitelist domains) key =
   let allowFromDomains (Left e) = (emailDomain e) `elem` domains
       allowFromDomains _        = False
-  in pure $ allowFromDomains key
+  in allowFromDomains key
 
 -- | Do a request to the whitelist service and verify that the provided email/phone address is
 -- whitelisted.

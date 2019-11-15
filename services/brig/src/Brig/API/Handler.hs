@@ -88,6 +88,6 @@ checkWhitelist key = do
     wex <- setWhitelist <$> view settings
     win <- setInternalWhitelist <$> view settings
     ok <- case (wex, win) of (Just b, _) -> Whitelist.verifyService b key
-                             (_, Just b) -> Whitelist.verifyInternal b key
+                             (_, Just b) -> pure $ Whitelist.verifyInternal b key
                              _           -> pure True
     unless ok (throwStd whitelistError)
