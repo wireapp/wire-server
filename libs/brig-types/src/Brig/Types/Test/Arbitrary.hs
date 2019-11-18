@@ -19,19 +19,25 @@ module Brig.Types.Test.Arbitrary where
 #ifdef WITH_ARBITRARY
 
 import Imports
+
 import Brig.Types.Activation
-import Brig.Types.Client.Prekey
+import Brig.Types.Client
 import Brig.Types.Code
+import Brig.Types.Connection
 import Brig.Types.Intra
+import Brig.Types.Properties
 import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
+import Brig.Types.Search as Search
+import Brig.Types.Servant
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
+import Brig.Types.User.Auth (CookieLabel)
 import Control.Lens hiding (elements)
-import Data.Currency
+import Data.Currency (Alpha)
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
@@ -40,22 +46,33 @@ import Data.Misc
 import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
+import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
 import GHC.TypeLits
+import Gundeck.Types.Notification
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
 
-import qualified Data.Set as Set
+import qualified Data.List1 as List1
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Set as Set
 import qualified Data.Text as ST
+import qualified Data.Text            as Text
+import qualified GHC.Unicode as Unicode
 import qualified System.Random
+import qualified Test.Tasty.QuickCheck
+import qualified URI.ByteString
 
 
 newtype Octet = Octet { octet :: Word16 }
@@ -167,13 +184,17 @@ instance Arbitrary Alpha where
     arbitrary = genEnumBounded
 
 instance Arbitrary (NewTeam ()) where
-    arbitrary = NewTeam <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    -- TODO: the aeson instances of 'BindingNewTeam', 'NonBindingNewTeam' do not render
+    -- '_newTeamMembers'.  we need to either remove that field, or replace '()' with 'Void' in
+    -- the definition of 'BindingNewTeam', 'NonBindingNewTeam' to make sure bad values cannot
+    -- be constructed.
+    arbitrary = NewTeam <$> arbitrary <*> arbitrary <*> arbitrary <*> pure Nothing
     shrink (NewTeam x0 x1 x2 x3) = NewTeam <$> shrink x0 <*> shrink x1 <*> shrink x2 <*> shrink x3
 
 instance Arbitrary CheckHandles where
     arbitrary = CheckHandles <$> arbitrary <*> arbitrary
 
-instance Arbitrary CompletePasswordReset where
+instance Arbitrary (CompletePasswordReset protected) where
     arbitrary = CompletePasswordReset <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary PasswordResetCode where
@@ -189,10 +210,15 @@ instance Arbitrary PasswordResetIdentity where
 instance Arbitrary AsciiBase64Url where
     arbitrary = encodeBase64Url <$> arbitrary
 
-instance Arbitrary ReAuthUser where
+instance Arbitrary (AsciiText Printable) where
+    arbitrary = do
+        txt <- Text.filter (\c -> Unicode.isAscii c && Unicode.isPrint c) <$> arbitrary
+        either (error . show) pure $ validate txt
+
+instance Arbitrary (ReAuthUser protected) where
     arbitrary = ReAuthUser <$> arbitrary
 
-instance Arbitrary DeleteUser where
+instance Arbitrary (DeleteUser protected) where
     arbitrary = DeleteUser <$> arbitrary
 
 instance Arbitrary DeletionCodeTimeout where
@@ -219,7 +245,7 @@ instance Arbitrary ManagedByUpdate where
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
-instance Arbitrary NewUser where
+instance Arbitrary (NewUser protected) where
     arbitrary = do
         newUserIdentity <- arbitrary
         teamid <- arbitrary
@@ -281,7 +307,7 @@ instance Arbitrary NewTeamUser where
 instance Arbitrary TeamMember where
     arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary PasswordChange where
+instance Arbitrary (PasswordChange protected) where
     arbitrary = PasswordChange <$> arbitrary <*> arbitrary
 
 instance Arbitrary PhoneRemove where
@@ -317,6 +343,7 @@ instance Arbitrary RichField where
 instance Arbitrary RichInfo where
     arbitrary = do
         richInfoFields <- nubOn richFieldType <$> arbitrary
+        richInfoVersion <- pure RichInfoVersion0
         pure RichInfo{..}
 
 instance Arbitrary RichInfoUpdate where
@@ -511,19 +538,19 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldServiceConfirm where
     arbitrary =
-        LegalHoldServiceConfirm 
+        LegalHoldServiceConfirm
           <$> arbitrary
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
 
-instance Arbitrary RemoveLegalHoldSettingsRequest where
+instance Arbitrary (RemoveLegalHoldSettingsRequest protected) where
     arbitrary = RemoveLegalHoldSettingsRequest <$> arbitrary
 
-instance Arbitrary DisableLegalHoldForUserRequest where
+instance Arbitrary (DisableLegalHoldForUserRequest protected) where
     arbitrary = DisableLegalHoldForUserRequest <$> arbitrary
 
-instance Arbitrary ApproveLegalHoldForUserRequest where
+instance Arbitrary (ApproveLegalHoldForUserRequest protected) where
     arbitrary = ApproveLegalHoldForUserRequest <$> arbitrary
 
 instance Arbitrary LastPrekey where
@@ -534,5 +561,221 @@ instance Arbitrary Prekey where
 
 instance Arbitrary PrekeyId where
     arbitrary = PrekeyId <$> arbitrary
+
+
+instance {-# OVERLAPPABLE #-} (Enum a, Bounded a) => Arbitrary a where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary (TeamMemberDeleteData (protected :: Symbol)) where
+  arbitrary = newTeamMemberDeleteData <$> arbitrary
+
+instance Eq (TeamMemberDeleteData protected) where
+  a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
+
+instance Show (PlainTextPassword protected) =>  Show (TeamMemberDeleteData protected) where
+  show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
+
+instance Arbitrary SSOStatus where
+  arbitrary = Test.Tasty.QuickCheck.elements [minBound..]
+
+instance Arbitrary SSOTeamConfig where
+  arbitrary = SSOTeamConfig <$> arbitrary
+
+instance Arbitrary FeatureFlags where
+  arbitrary = FeatureFlags <$> arbitrary <*> arbitrary
+
+instance Arbitrary AccountStatusObject where
+  arbitrary = AccountStatusObject <$> arbitrary
+
+instance Arbitrary AccountStatusUpdate where
+  arbitrary = AccountStatusUpdate <$> arbitrary
+
+instance Arbitrary ActivationCodeObject where
+  arbitrary = ActivationCodeObject <$> arbitrary <*> arbitrary
+
+instance Arbitrary ActivationKey where
+  arbitrary = ActivationKey <$> arbitrary
+
+instance Arbitrary BindingNewTeam where
+  arbitrary = BindingNewTeam <$> arbitrary
+
+instance Arbitrary Client where
+  arbitrary = Client
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary Location where
+  arbitrary = location
+    <$> (Latitude <$> arbitrary)
+    <*> (Longitude <$> arbitrary)
+
+instance Arbitrary ConnectionsStatusRequest where
+  arbitrary = ConnectionsStatusRequest <$> arbitrary <*> arbitrary
+
+instance Arbitrary ConnectionStatus where
+  arbitrary = ConnectionStatus <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Conversation where
+  arbitrary = Conversation
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+  shrink conv = filter (/= conv)
+                [ conv { cnvAccess = [] }
+                , conv { cnvName = Nothing }
+                , conv { cnvMembers = (cnvMembers conv) { cmOthers = [] } }
+                ]
+
+instance Arbitrary ConvMembers where
+  arbitrary = ConvMembers <$> arbitrary <*> arbitrary
+
+instance Arbitrary Member where
+  arbitrary = Member
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary MutedStatus where
+  arbitrary = MutedStatus <$> arbitrary
+
+instance Arbitrary OtherMember where
+  arbitrary = OtherMember
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary ReceiptMode where
+  arbitrary = ReceiptMode <$> arbitrary
+
+instance Arbitrary Message where
+  arbitrary = Message . cs <$> (vector @Char =<< choose (1, 256))  -- TODO: hide 'Message' and
+                                                                   -- expose a smart
+                                                                   -- constructor that ensures
+                                                                   -- this.
+
+instance Arbitrary PropertyKey where
+  arbitrary = PropertyKey <$> arbitrary
+
+instance Arbitrary PropertyValue where
+  arbitrary = PropertyValue <$> arbitrary
+
+instance Arbitrary QueuedNotification where
+  arbitrary = queuedNotification
+    <$> arbitrary
+    <*> (List1.list1 <$> scale (`div` 3) arbitrary <*> scale (`div` 3) arbitrary)
+
+instance Arbitrary Team where
+  arbitrary = Team
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TeamData where
+  arbitrary = TeamData
+    <$> arbitrary
+    <*> arbitrary
+    <*> (fromUTCTimeMillis . toUTCTimeMillis <$$> arbitrary)
+    -- TODO: aeson serialization chops off everything after milliseconds.  this should happen
+    -- in a smart constructor and TeamData should be opaque.
+
+instance Arbitrary UserAccount where
+  arbitrary = UserAccount
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary UserClients where
+  arbitrary = UserClients <$> arbitrary
+
+instance Arbitrary UserConnection where
+  arbitrary = UserConnection
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary UserIds where
+  arbitrary = UserIds <$> arbitrary
+
+instance Arbitrary UserSet where
+  arbitrary = UserSet <$> arbitrary
+
+instance Arbitrary CookieList where
+  arbitrary = CookieList <$> arbitrary
+
+instance Arbitrary (Cookie ()) where
+  arbitrary = Cookie
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary CookieId where
+  arbitrary = CookieId <$> arbitrary
+
+instance Arbitrary Contact where
+  arbitrary = Contact
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary (SearchResult Contact) where
+  arbitrary = SearchResult
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary URI.ByteString.URI where
+  arbitrary = do
+    schema <- elements ["http", "https"]
+    domain <- elements ["example.com", "some.where", "no.when"]
+    path   <- elements ["/", "/some/path", "other/path"]
+    either (error . show) pure
+      . URI.ByteString.parseURI URI.ByteString.laxURIParserOptions
+      $ schema <> "://" <> domain <> path
+
+instance Arbitrary Aeson.Value where
+  arbitrary = oneof [ Aeson.Object <$> scale (`div` 3) arbitrary
+                    , Aeson.Array  <$> scale (`div` 3) arbitrary
+                    , Aeson.String <$> arbitrary
+                    , Aeson.Number <$> arbitrary
+                    , Aeson.Bool   <$> arbitrary
+                    , pure Aeson.Null
+                    ]
+  shrink (Aeson.Object obj) = Aeson.Object <$> shrink obj
+  shrink (Aeson.Array arr)  = Aeson.Array  <$> shrink arr
+  shrink _                  = []
+
+instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Int32) where
+  arbitrary = unsafeRange <$> choose @Int32 ( fromIntegral $ natVal (Proxy @n)
+                                            , fromIntegral $ natVal (Proxy @m)
+                                            )
 
 #endif

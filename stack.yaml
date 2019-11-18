@@ -40,7 +40,9 @@ packages:
 
 extra-deps:
 - servant-swagger-1.1.6
-- swagger2-2.3
+- /home/mf/src/swagger2/
+#- git: https://github.com/wireapp/swagger2
+#  commit: 3e04817c010b2372eb00707c17373dc20c0b3844  # branch better-validation-errors-backport; same material as https://github.com/GetShopTV/swagger2/pull/195
 - git: https://github.com/wireapp/prometheus-haskell
   commit: 9bcd5423e0e33a6db8b1e69b50d74e8b47daa737
   subdirs:

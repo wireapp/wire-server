@@ -74,7 +74,7 @@ routes = do
     --
 
     post "/login" (continue login) $
-        jsonRequest @Login
+        jsonRequest @(Login "protected")
         .&. def False (query "persist")
         .&. accept "application" "json"
 
@@ -130,7 +130,7 @@ routes = do
 
     post "/cookies/remove" (continue rmCookies) $
         header "Z-User"
-        .&. jsonRequest @RemoveCookies
+        .&. jsonRequest @(RemoveCookies "protected")
 
     document "POST" "rmCookies" $ do
         Doc.summary "Revoke stored cookies."
@@ -141,7 +141,7 @@ routes = do
 
     -- galley can query this endpoint at the right moment in the LegalHold flow
     post "/i/legalhold-login" (continue legalHoldLogin) $
-        jsonRequest @LegalHoldLogin
+        jsonRequest @(LegalHoldLogin "protected")
         .&. accept "application" "json"
 
     post "/i/sso-login" (continue ssoLogin) $
@@ -155,7 +155,7 @@ routes = do
 
     get "/i/users/:uid/reauthenticate" (continue reAuthUser) $
         capture "uid"
-        .&. jsonRequest @ReAuthUser
+        .&. jsonRequest @(ReAuthUser "protected")
 
 -- Handlers
 
@@ -171,13 +171,13 @@ getLoginCode (_ ::: phone) = do
     code <- lift $ Auth.lookupLoginCode phone
     maybe (throwStd loginCodeNotFound) (return . json) code
 
-reAuthUser :: UserId ::: JsonRequest ReAuthUser -> Handler Response
+reAuthUser :: UserId ::: JsonRequest (ReAuthUser "protected") -> Handler Response
 reAuthUser (uid ::: req) = do
     body <- parseJsonBody req
     User.reauthenticate uid (reAuthPassword body) !>> reauthError
     return empty
 
-login :: JsonRequest Login ::: Bool ::: JSON -> Handler Response
+login :: JsonRequest (Login "protected") ::: Bool ::: JSON -> Handler Response
 login (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
@@ -191,7 +191,7 @@ ssoLogin (req ::: persist ::: _) = do
     a <- Auth.ssoLogin l typ !>> loginError
     tokenResponse a
 
-legalHoldLogin :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
+legalHoldLogin :: JsonRequest (LegalHoldLogin "protected") ::: JSON -> Handler Response
 legalHoldLogin (req ::: _) = do
     l <- parseJsonBody req
     let typ = PersistentCookie -- Session cookie isn't a supported use case here
@@ -217,7 +217,7 @@ listCookies (u ::: ll ::: _) = do
     cs <- lift $ Auth.listCookies u (maybe [] fromList ll)
     return . json $ CookieList cs
 
-rmCookies :: UserId ::: JsonRequest RemoveCookies -> Handler Response
+rmCookies :: UserId ::: JsonRequest (RemoveCookies "protected") -> Handler Response
 rmCookies (uid ::: req) = do
     RemoveCookies pw lls ids <- parseJsonBody req
     Auth.revokeAccess uid pw ids lls !>> authError

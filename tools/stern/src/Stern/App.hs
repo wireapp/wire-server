@@ -41,15 +41,15 @@ import qualified Network.Wai.Utilities.Server   as Server
 import qualified Data.UUID.V4                   as UUID
 
 data Env = Env
-  { _brig        :: !Bilge.Request
-  , _galley      :: !Bilge.Request
-  , _gundeck     :: !Bilge.Request
-  , _ibis        :: !Bilge.Request
-  , _galeb       :: !Bilge.Request
-  , _applog      :: !Logger
-  , _metrics     :: !Metrics.Metrics
-  , _requestId   :: !Bilge.RequestId
-  , _httpManager :: !Bilge.Manager
+  { _brig        :: Bilge.Request
+  , _galley      :: Bilge.Request
+  , _gundeck     :: Bilge.Request
+  , _ibis        :: Bilge.Request
+  , _galeb       :: Bilge.Request
+  , _applog      :: Logger
+  , _metrics     :: Metrics.Metrics
+  , _requestId   :: Bilge.RequestId
+  , _httpManager :: Bilge.Manager
   }
 makeLenses ''Env
 

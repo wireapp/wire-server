@@ -11,7 +11,7 @@ import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
 import Data.Id (UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text           as Text
@@ -24,7 +24,7 @@ data AccountStatus
     | Suspended
     | Deleted
     | Ephemeral
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Enum, Bounded, Generic)
 
 instance FromJSON AccountStatus where
     parseJSON = withText "account-status" $ \s -> case Text.toLower s of
@@ -42,7 +42,7 @@ instance ToJSON AccountStatus where
 
 newtype AccountStatusUpdate = AccountStatusUpdate
     { suStatus :: AccountStatus }
-    deriving (Generic)
+    deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatusUpdate where
     parseJSON = withObject "account-status-update" $ \o ->
@@ -120,15 +120,17 @@ instance ToJSON UserSet where
 
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
-newtype ReAuthUser = ReAuthUser
-    { reAuthPassword :: Maybe PlainTextPassword }
-  deriving (Eq, Show, Generic)
+newtype ReAuthUser protected = ReAuthUser
+    { reAuthPassword :: Maybe (PlainTextPassword protected) }
+  deriving (Eq, Generic)
 
-instance FromJSON ReAuthUser where
+deriving instance Show (PlainTextPassword protected) => Show (ReAuthUser protected)
+
+instance FromJSON (PlainTextPassword protected) => FromJSON (ReAuthUser protected) where
     parseJSON = withObject "reauth-user" $ \o ->
         ReAuthUser <$> o .:? "password"
 
-instance ToJSON ReAuthUser where
+instance ToJSON (PlainTextPassword protected) =>  ToJSON (ReAuthUser protected) where
     toJSON ru = object
         [ "password" .= reAuthPassword ru
         ]

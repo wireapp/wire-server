@@ -653,7 +653,7 @@ getSettings uid tid = do
         . zUser uid . zConn "conn"
         . zType "access"
 
-deleteSettings :: HasCallStack => Maybe PlainTextPassword -> UserId -> TeamId -> TestM ResponseLBS
+deleteSettings :: HasCallStack => Maybe (PlainTextPassword "visible") -> UserId -> TeamId -> TestM ResponseLBS
 deleteSettings mPassword uid tid = do
     g <- view tsGalley
     delete $ g
@@ -675,7 +675,7 @@ getUserStatus uid tid = do
            . zUser uid . zConn "conn"
            . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice :: HasCallStack => Maybe (PlainTextPassword "visible") -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
     g <- view tsGalley
     put $ g
@@ -686,7 +686,7 @@ approveLegalHoldDevice mPassword zusr uid tid = do
 
 disableLegalHoldForUser
     :: HasCallStack
-    => Maybe PlainTextPassword
+    => Maybe (PlainTextPassword "visible")
     -> TeamId
     -> UserId
     -> UserId

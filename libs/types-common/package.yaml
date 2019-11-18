@@ -38,6 +38,7 @@ library:
   - semigroups >=0.12
   - safe >=0.3
   - scientific >=0.3.4
+  - scrypt
   - singletons >=2.0
   - string-conversions
   - swagger >=0.3

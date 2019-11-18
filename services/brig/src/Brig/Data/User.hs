@@ -61,7 +61,7 @@ import Control.Error
 import Control.Lens hiding (from)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.Conduit (ConduitM)
@@ -82,7 +82,7 @@ data ReAuthError
     = ReAuthError !AuthError
     | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
+newAccount :: NewUser "protected" -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid = do
     defLoc  <- setDefaultLocale <$> view settings
     uid     <- Id <$> do
@@ -118,7 +118,7 @@ newAccount u inv tid = do
     user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
 
 -- | Mandatory password authentication.
-authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
+authenticate :: UserId -> PlainTextPassword "protected" -> ExceptT AuthError AppIO ()
 authenticate u pw = lift (lookupAuth u) >>= \case
     Nothing                   -> throwE AuthInvalidUser
     Just (_,         Deleted) -> throwE AuthInvalidUser
@@ -132,7 +132,7 @@ authenticate u pw = lift (lookupAuth u) >>= \case
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: (MonadClient m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
+reauthenticate :: (MonadClient m) => UserId -> Maybe (PlainTextPassword "protected") -> ExceptT ReAuthError m ()
 reauthenticate u pw = lift (lookupAuth u) >>= \case
     Nothing                    -> throwE (ReAuthError AuthInvalidUser)
     Just (_,          Deleted) -> throwE (ReAuthError AuthInvalidUser)
@@ -217,7 +217,7 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u)
 updateHandle :: UserId -> Handle -> AppIO ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
 
-updatePassword :: UserId -> PlainTextPassword -> AppIO ()
+updatePassword :: UserId -> PlainTextPassword "protected" -> AppIO ()
 updatePassword u t = do
     p <- liftIO $ mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))

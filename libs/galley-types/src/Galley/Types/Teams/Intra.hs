@@ -18,7 +18,7 @@ data TeamStatus
     | Deleted
     | Suspended
     | PendingActive
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Bounded, Enum, Generic)
 
 instance ToJSON TeamStatus where
     toJSON Active        = String "active"

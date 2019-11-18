@@ -14,7 +14,7 @@ data InvitationRequest = InvitationRequest
     , irName     :: !Name
     , irLocale   :: !(Maybe Locale)
     , irRole     :: !(Maybe Role)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data Invitation = Invitation
     { inTeam       :: !TeamId
@@ -24,12 +24,12 @@ data Invitation = Invitation
     , inCreatedAt  :: !UTCTimeMillis
     , inCreatedBy  :: !(Maybe UserId)  -- ^ this is always 'Just' for new invitations, but for
                                        -- migration it is allowed to be 'Nothing'.
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data InvitationList = InvitationList
     { ilInvitations :: [Invitation]
     , ilHasMore     :: !Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromJSON InvitationRequest where
     parseJSON = withObject "invitation-request" $ \o ->

@@ -1,0 +1,1343 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RoleAnnotations #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-patterns #-}
+-- FUTUREWORK: move the 'ToSchema' instances to their home modules (where the data types
+-- live), and turn warning about orphans back on.
+
+module Brig.Types.Servant where
+
+import Imports
+
+import qualified "swagger" Data.Swagger.Build.Api as Swagger1
+import "swagger2" Data.Swagger hiding (Header(..))
+import "swagger2" Data.Swagger.Declare
+import "swagger2" Data.Swagger.Internal.Schema
+import "swagger2" Data.Swagger.Internal.TypeShape
+  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
+  -- clash other than -XPackageImports.
+
+import Brig.Types.Activation
+import Brig.Types.Client
+import Brig.Types.Client.Prekey (PrekeyId, Prekey, LastPrekey)
+import Brig.Types.Connection
+import Brig.Types.Intra
+import Brig.Types.Properties
+import Brig.Types.Provider hiding (PasswordChange, CompletePasswordReset)
+import Brig.Types.Search as Search
+import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
+import Brig.Types.User
+import Brig.Types.User.Auth
+import Brig.Types.User.Auth (CookieLabel)
+import Control.Lens
+import Data.Aeson as Aeson hiding (fieldLabelModifier, constructorTagModifier)
+import Data.ByteString.Conversion as BSC
+import Data.ByteString.Conversion (List(..), fromByteString)
+import Data.Currency (Alpha)
+import Data.Id
+import Data.ISO3166_CountryCodes
+import Data.LanguageCodes
+import Data.LegalHold
+import Data.List1 (List1)
+import Data.Misc
+import Data.Proxy
+import Data.Range
+import Data.Singletons.Bool (reflectBool)
+import Data.String.Conversions (cs)
+import Data.Text.Ascii
+import Data.Text as Text (unlines)
+import Data.Text.Encoding (encodeUtf8)
+import Data.Text (Text)
+import Data.Time
+import Data.Typeable (typeOf)
+import Data.UUID (fromText, UUID)
+import GHC.Generics (Rep)
+import Galley.Types
+import Galley.Types.Bot.Service
+import Galley.Types.Teams
+import Galley.Types.Teams.Internal ()
+import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SSO
+import GHC.TypeLits
+import Gundeck.Types.Notification
+import Servant.API
+import Servant.API.Description (FoldDescription, reflectDescription)
+import Servant.API.Modifiers (FoldRequired)
+import Servant hiding (Get, Put, Post, Delete, ReqBody, QueryParam, QueryParam', URI)
+import Servant.Swagger
+import Servant.Swagger.Internal (addDefaultResponse400, addParam)
+import Servant.Swagger.UI
+import Servant.Swagger.UI.Core
+import URI.ByteString.QQ (uri)
+
+import qualified Data.Code
+import qualified Data.HashMap.Strict.InsOrd as HashMap
+import qualified Data.Json.Util
+import qualified Data.Metrics         as Metrics
+import qualified Data.Metrics.Servant as Metrics
+import qualified Data.Text            as Text
+import qualified Servant
+import qualified URI.ByteString
+
+
+----------------------------------------------------------------------
+-- * more stuff we need to move to other places
+
+newtype AccountStatusObject = AccountStatusObject { _fromAccountStatusObject :: AccountStatus }
+    deriving (Eq, Show, Generic)
+
+instance FromJSON AccountStatusObject where
+    parseJSON = withObject "account-status object" $
+        \o -> AccountStatusObject <$> o .: "status"
+
+instance ToJSON AccountStatusObject where
+    toJSON (AccountStatusObject status) = object [ "status" Aeson..= status ]
+
+data ActivationCodeObject = ActivationCodeObject
+    { _acoKey  :: ActivationKey
+    , _acoCode :: ActivationCode
+    }
+    deriving (Eq, Show, Generic)
+
+instance FromJSON ActivationCodeObject where
+    parseJSON = withObject "activation code object" $
+        \o -> ActivationCodeObject <$> o .: "key" <*> o .: "code"
+
+instance ToJSON ActivationCodeObject where
+    toJSON (ActivationCodeObject key code) = object [ "key" Aeson..= key, "code" Aeson..= code ]
+
+instance ToSchema ActivationCodeObject where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_aco"
+
+instance ToSchema ActivationCode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema ActivationKey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+
+----------------------------------------------------------------------
+-- * generic servant helpers
+
+type Head = Verb 'HEAD 204 '[JSON] NoContent
+type Get = Verb 'GET 200 '[JSON]
+type Post = Verb 'POST 201 '[JSON]
+type Put = Verb 'PUT 200 '[JSON]
+type Delete = Verb 'DELETE 200 '[JSON]
+
+type ReqBody = Servant.ReqBody '[JSON]
+
+type QueryParamStrict = Servant.QueryParam' '[Required, Servant.Strict]
+type QueryParamOptional = Servant.QueryParam' '[Optional, Servant.Strict]
+
+
+----------------------------------------------------------------------
+-- * wire auth combinators
+
+type InternalZUser = Header "Z-User" UserId
+type InternalZConn = Header "Z-Connection" ConnId
+
+data AuthZUser
+data AuthZConn
+
+-- this is fun because we want to generate swagger docs for what this looks like from the
+-- other side of nginz, but we still want the handler types for 'HasServer' to pan out.  and
+-- it turns out it's quite simple to achieve this!
+
+-- TODO: the 'HasSwagger' instances have the (small?) flaw that functions who require both
+-- z-user and z-conn will require the authorization header twice.  perhaps we can write a type
+-- family that eliminates all auth headers of type 'Text', and call it here before we inject a
+-- new one?
+
+instance HasSwagger api => HasSwagger (AuthZUser :> api) where
+    toSwagger _ = toSwagger (Proxy @(Header "Authorization" Text :> api))
+
+instance HasSwagger api => HasSwagger (AuthZConn :> api) where
+    toSwagger _ = toSwagger (Proxy @(Header "Authorization" Text :> api))
+
+instance HasServer api ctx => HasServer (AuthZUser :> api) ctx where
+    type ServerT (AuthZUser :> api) m =
+        ServerT (Header "Z-User" UserId :> api) m
+
+    route _ =
+        route (Proxy @(Header "Z-User" UserId :> api))
+
+    hoistServerWithContext _ ctx nt srv =
+        hoistServerWithContext (Proxy @(Header "Z-User" UserId :> api)) ctx nt srv
+
+instance HasServer api ctx => HasServer (AuthZConn :> api) ctx where
+    type ServerT (AuthZConn :> api) m =
+        ServerT (Header "Z-Connection" UserId :> api) m
+
+    route _ =
+        route (Proxy @(Header "Z-Connection" UserId :> api))
+
+    hoistServerWithContext _ ctx nt srv =
+        hoistServerWithContext (Proxy @(Header "Z-Connection" UserId :> api)) ctx nt srv
+
+
+----------------------------------------------------------------------
+-- * swagger helpers
+
+-- | 'mkRef' and 'mkNamedSchema' work well together, and they should *really* be part of the
+-- swagger2 library...
+mkRef
+  :: forall proxy a m. (Typeable a, ToSchema a, MonadDeclare (Definitions Schema) m)
+  => proxy a -> m (Referenced Schema)
+mkRef proxy = do
+  let key = cs . show . typeOf $ (undefined :: a)
+      val = toSchema proxy
+  declare (HashMap.singleton key val)
+  pure . Ref $ Reference key
+
+mkNamedSchema :: forall proxy a. (Typeable a, ToSchema a) => proxy a -> Schema -> NamedSchema
+mkNamedSchema _ = NamedSchema . Just . cs . show . typeOf $ (undefined :: a)
+
+camelToUnderscore :: String -> String
+camelToUnderscore = concatMap go . (ix 0 %~ toLower)
+  where go x = if isUpper x then "_" <> [toLower x] else [x]
+
+-- | errors should be caught by the test suite, so we don't need to be subtle.
+unsafeStripPrefix :: HasCallStack => String -> String -> String
+unsafeStripPrefix pref txt
+  = fromMaybe (error $ "internal error: " <> show (pref, txt))
+  $ stripPrefix pref txt
+
+withFieldLabelMod
+  :: forall a (proxy :: * -> *).
+     ( Generic a
+     , GToSchema (Rep a)
+     , TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
+     )
+  => (String -> String)
+  -> proxy a
+  -> Declare (Definitions Schema) NamedSchema
+withFieldLabelMod fun = genericDeclareNamedSchema opts
+  where opts = defaultSchemaOptions { fieldLabelModifier = fun }
+
+withConstructorTagMod
+  :: forall a (proxy :: * -> *).
+     ( Generic a
+     , GToSchema (Rep a)
+     , TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
+     )
+  => (String -> String)
+  -> proxy a
+  -> Declare (Definitions Schema) NamedSchema
+withConstructorTagMod fun = genericDeclareNamedSchema opts
+  where opts = defaultSchemaOptions { constructorTagModifier = fun }
+
+mkEnumSchema :: [Text] -> Schema
+mkEnumSchema vals = mempty & enum_ .~ Just (String <$> vals)
+
+type SchemaProps = HashMap.InsOrdHashMap Text (Referenced Schema)
+
+
+----------------------------------------------------------------------
+-- * orphans
+
+instance {-# OVERLAPPABLE #-} (Typeable a, FromByteString a) => FromHttpApiData a where
+  parseUrlPiece = maybe (Left err) Right . BSC.fromByteString . cs
+    where
+      err = "a ~ " <> showtype  <> ". (Typeable a, FromByteString a) => FromHttpApiData a"
+      showtype = cs . show . typeOf $ (undefined :: a)
+
+instance ToParamSchema (Id a) where
+    toParamSchema _ = toParamSchema (Proxy @UUID)
+    -- FUTUREWORK: @& description .~ Just (... :: Text)@ would be nice here, but will require
+    -- a patch to swagger2, I think.  and we need to think of a clever way to get from "any"
+    -- in the instance head back to "AnyId".  (the dumb way would also work, just writing 5
+    -- instances.)
+    -- Same for all ToParamSchema instances below.
+
+instance ToSchema (Id a) where
+    declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
+instance ToSchema Metrics.Metrics where
+    declareNamedSchema _ = declareNamedSchema (Proxy @())  -- TODO
+
+instance ToSchema UserSet where
+  declareNamedSchema = withFieldLabelMod $ \"usUsrs" -> "users"
+
+instance ToSchema UserConnection where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "uc"
+    where
+      tweak "conv_id" = "conversation"
+      tweak other     = other
+
+instance ToSchema Relation where
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
+
+instance ToParamSchema Relation where
+
+instance ToSchema Message where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema Data.Json.Util.UTCTimeMillis where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . example .~ (Just . toJSON $ String "1864-05-09T11:01:10.369Z")
+
+
+-- | type-level representation of the warped 'ToJSON' instance of @'NewUser' "visible"@.
+--
+-- FUTUREWORK: this should be used instead of @Cookie ()@ whenever it goes on the wire.
+--
+-- FUTUREWORK: there are is also a lot of information about what values are legal that should
+-- go to the type level, but isn't yet (like, if you can only ever have exactly one of two
+-- fields set, don't use two Maybes, but one Either).  fixing this probably requires changes
+-- to the API.
+data NewUserView = NewUserView
+    { newUserViewName           :: Name
+    , newUserViewUuid           :: Maybe UUID
+
+    -- instead of newUserViewIdentity:
+    , newUserViewEmail          :: Maybe Email
+    , newUserViewPhone          :: Maybe Phone
+    , newUserViewSsoId          :: Maybe UserSSOId
+
+    , newUserViewPicture        :: Maybe Pict
+    , newUserViewAssets         :: [Asset]
+    , newUserViewAccentId       :: Maybe ColourId
+    , newUserViewEmailCode      :: Maybe ActivationCode
+    , newUserViewPhoneCode      :: Maybe ActivationCode
+
+    -- instead of newUserViewOrigin:
+    , newUserViewInvitationCode :: Maybe InvitationCode
+    , newUserViewTeamCode       :: Maybe InvitationCode
+    , newUserViewTeam           :: Maybe BindingNewTeamUser
+    , newUserViewTeamId         :: Maybe TeamId
+
+    , newUserViewLabel          :: Maybe CookieLabel
+    , newUserViewLocale         :: Maybe Locale
+    , newUserViewPassword       :: Maybe (PlainTextPassword "visible")
+    , newUserViewExpiresIn      :: Maybe ExpiresIn
+    , newUserViewManagedBy      :: Maybe ManagedBy
+    } deriving (Generic)
+
+instance ToSchema NewUserView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "newUserView"
+
+instance ToSchema (NewUser "visible") where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NewUserView)
+
+-- only needed for generically deriving @instance ToSchema (NewUser "visible")@
+instance ToSchema NewUserOrigin
+
+instance (KnownNat from, KnownNat to, ToSchema typ) => ToSchema (Range from to typ) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @typ)
+    <&> schema . description .~ Just desc
+    where
+      desc :: Text
+      desc = cs $ "Range; "
+          <> "min=" <> show (natVal (Proxy @from)) <> "; "
+          <> "max=" <> show (natVal (Proxy @to))
+
+-- | type-level representation of the warped 'ToJSON' instance of 'User'.
+--
+-- FUTUREWORK: this should be used instead of 'User' whenever it goes on the wire.
+data UserView = UserView
+    { userViewId        :: UserId
+
+    -- instead of userViewIdentity:
+    , userViewEmail     :: Maybe Email
+    , userViewPhone     :: Maybe Phone
+    , userViewSsoId     :: Maybe UserSSOId
+
+    , userViewName      :: Name
+    , userViewPicture   :: Pict
+    , userViewAssets    :: [Asset]
+    , userViewAccentId  :: ColourId
+    , userViewDeleted   :: Maybe Bool
+    , userViewLocale    :: Locale
+    , userViewService   :: Maybe ServiceRef
+    , userViewHandle    :: Maybe Handle
+    , userViewExpiresAt :: Maybe Data.Json.Util.UTCTimeMillis
+    , userViewTeam      :: Maybe TeamId
+    , userViewManagedBy :: ManagedBy
+    } deriving (Generic)
+
+instance ToSchema UserView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userView"
+
+instance ToSchema User where
+  declareNamedSchema _ = declareNamedSchema (Proxy @UserView)
+
+-- | FUTUREWORK: This is inlined into 'User' and possibly other types.  Not sure we need a
+-- separate 'ToSchema' instance?
+instance ToSchema UserIdentity where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps <- do
+      HashMap.fromList <$> sequence
+        [ ("email",)  <$> mkRef (Proxy @Email)
+        , ("phone",)  <$> mkRef (Proxy @Phone)
+        , ("sso_id",) <$> mkRef (Proxy @UserSSOId)
+        ]
+
+    let example_ :: Maybe Value
+        example_ = Just $ toJSON (SSOIdentity
+                                   (UserSSOId "tenant" "subject")
+                                   (Just (Email "me" "example.com"))
+                                   (Just (Phone "+155512345678")))
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties .~ Just 1
+        & type_ .~ SwaggerObject
+
+instance ToSchema Email where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A valid email address."
+
+instance ToSchema Phone where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A valid phone number."
+
+instance ToSchema Name where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    <&> schema . description .~ Just "A user name."
+
+instance ToSchema UserSSOId where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "userSSOId"
+
+instance ToSchema Pict where
+  declareNamedSchema _ = declareNamedSchema (Proxy @[Text])
+    -- 'Pict' is deprecated anyway, so we might as well lie a little...
+
+instance ToSchema Asset where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps
+      <- HashMap.fromList <$> sequence
+          [ pure ("type", Inline (mkEnumSchema ["image"]))
+          , pure ("key",  Inline (toSchema (Proxy @Text)))
+          , ("size",) <$> mkRef (Proxy @AssetSize)
+          ]
+
+    let example_ :: Maybe Value
+        example_ = Just "{\"size\":\"complete\",\"key\":\"879\",\"type\":\"image\"}"
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["type", "key"]
+        & type_ .~ SwaggerObject
+
+instance ToSchema AssetSize where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "Asset"
+
+instance ToSchema ColourId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema Locale where
+  declareNamedSchema _ = tweak <$> declareNamedSchema (Proxy @Text)
+    where
+      tweak :: NamedSchema -> NamedSchema
+      tweak = schema . description .~ Just "<ISO 639-1>(-<ISO 3166-1-alpha2>)?"
+
+instance ToSchema SelfProfile where
+  declareNamedSchema _ = declareNamedSchema (Proxy @User)
+
+instance ToSchema CookieLabel where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema (PlainTextPassword "visible") where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema ManagedBy where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "ManagedBy"
+
+instance ToSchema InvitationCode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema ServiceRef where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_serviceRef"
+
+instance ToSchema (NewTeam ()) where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps
+      <- HashMap.fromList <$> sequence
+        [ ( "name",)     <$> mkRef (Proxy @(Range 1 256 Text))
+        , ( "icon",)     <$> mkRef (Proxy @(Range 1 256 Text))
+        , ( "icon_key",) <$> mkRef (Proxy @(Maybe (Range 1 256 Text)))
+        ]
+
+    let example_ :: Maybe Value
+        example_ = toJSON <$> (newNewTeam @() <$> checked "name" <*> checked "icon")
+
+    pure $ mkNamedSchema proxy $ mempty
+      & properties .~ properties_
+      & example .~ example_
+      & required .~ ["name", "icon"]
+      & type_ .~ SwaggerObject
+
+instance ToSchema NewTeamUser
+
+instance ToSchema BindingNewTeam where
+  declareNamedSchema _ = declareNamedSchema (Proxy @(NewTeam ()))
+
+instance ToSchema BindingNewTeamUser where
+  declareNamedSchema _ = do
+    properties_ :: SchemaProps
+      <- HashMap.singleton "currency" <$> mkRef (Proxy @Alpha)
+    declareNamedSchema (Proxy @(NewTeam ())) <&> schema . properties %~ (<> properties_)
+
+instance ToSchema Alpha
+instance ToSchema CountryCode
+
+instance ToSchema Value where
+    declareNamedSchema proxy = pure $ mkNamedSchema proxy mempty
+      & type_ .~ SwaggerNull
+
+       -- TODO: the test suite
+                                                                     -- error is almost
+                                                                     -- helpful, but not
+                                                                     -- quite.  generate the
+                                                                     -- swagger json and
+                                                                     -- figure out what it
+                                                                     -- should look like.
+                                                                     -- then make it look like
+                                                                     -- that.
+
+{-
+    Value:                                           FAIL
+      *** Failed! (after 1 test):
+      Exception:
+        Validation against the schema fails:
+          * expected JSON value of type SwaggerString
+
+        JSON value:
+        {}
+
+        Swagger Schema:
+        {
+            "type": "string"
+        }
+
+        Swagger Description Context:
+        {}
+
+        CallStack (from HasCallStack):
+          error, called at test/unit/Test/Brig/Types/Common.hs:193:29 in main:Test.Brig.Types.Common
+      Object (fromList [])
+      Object (fromList [])
+      Use --quickcheck-replay=376097 to reproduce.
+-}
+
+
+instance ToSchema Handle where
+    declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+deriving instance Generic ISO639_1
+instance ToSchema ISO639_1
+
+instance ToSchema Brig.Types.User.EmailUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"euEmail" -> "email"
+
+instance ToSchema ConnectionsStatusRequest where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "csr"
+
+instance ToSchema ConnectionStatus where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cs"
+
+instance ToSchema UserAccount where
+  declareNamedSchema _ = do
+    extra_ :: SchemaProps
+      <- HashMap.singleton "status" <$> mkRef (Proxy @AccountStatus)
+    (schema . properties %~ (<> extra_)) <$> declareNamedSchema (Proxy @User)
+
+instance ToSchema AccountStatus where
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
+
+instance ToParamSchema (List a) where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+-- alternative:
+-- instance (Generic a, ToParamSchema a, ToParamSchema a) => ToParamSchema (List a)
+-- deriving instance Generic a => Generic (List a)
+
+instance ToParamSchema Email where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToParamSchema Phone where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToParamSchema Handle
+instance ToParamSchema AccountStatus
+instance ToParamSchema PhonePrefix
+
+instance ToParamSchema URI.ByteString.URI where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToSchema URI.ByteString.URI where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToJSON URI.ByteString.URI where
+    toJSON = String . cs . URI.ByteString.serializeURIRef'
+
+instance FromJSON URI.ByteString.URI where
+    parseJSON = withText "URI.ByteString.URI"
+        $ either (fail . show) pure
+        . URI.ByteString.parseURI URI.ByteString.laxURIParserOptions
+        . cs
+
+instance ToParamSchema Servant.API.URI where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToSchema HttpsUrl where
+    declareNamedSchema _ = declareNamedSchema (Proxy @URI.ByteString.URI)
+
+
+instance ToSchema AccountStatusUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"suStatus" -> "status"
+
+instance ToSchema AccountStatusObject where
+  declareNamedSchema = withFieldLabelMod $ \"_fromAccountStatusObject" -> "status"
+
+instance ToSchema UserIds where
+  declareNamedSchema = withFieldLabelMod $ \"cUsers" -> "ids"
+
+instance ToSchema ExcludedPrefix where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore
+
+instance ToSchema PhonePrefix where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema UserClients
+{- example:
+ { "00007c34-0000-0dd7-0000-574b000029e4" : [
+      "156432",
+   ],
+   "0000581b-0000-18ad-0000-0015000053f7" : [
+      "3f74fc",
+      "728384",
+      "e086b6"
+   ]
+ }
+-}
+
+instance ToSchema ManagedByUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "mbu"
+
+instance ToSchema RichInfoUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "riu"
+
+instance ToSchema RichInfoVersion where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema RichInfo where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "richInfo"
+
+instance ToSchema RichField where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "richField"
+
+-- FUTUREWORK: once we have https://github.com/haskell-servant/servant-swagger/pull/107 pulled
+-- in, we can send empty bodies again and this would still work.
+instance ToSchema NoContent
+
+instance ToParamSchema ConnId where
+    toParamSchema _ = toParamSchema (Proxy @Text)
+
+-- deprecated (where is this used?)
+instance ToSchema Swagger1.ApiDecl where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Value)
+
+
+instance ToSchema (SwaggerSchemaUI' dir api) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+instance ToSchema (SwaggerUiHtml dir any) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+instance ToSchema Swagger where
+  declareNamedSchema _ = declareNamedSchema (Proxy @NoContent)
+
+instance {-# OVERLAPPING #-} ToSchema (Set Perm) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int32)
+
+instance ToSchema Permissions where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_"
+
+instance ToSchema PhoneUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"puPhone" -> "phone"
+
+instance ToSchema PhoneRemove where
+  declareNamedSchema = withFieldLabelMod $ \"prPhone" -> "phone"
+
+instance ToSchema Team where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_team"
+
+instance ToSchema TeamBinding where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Bool)
+
+instance ToSchema TeamData where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "td"
+
+-- | type-level representation of the warped 'ToJSON' instance of 'TeamMember'.
+--
+-- FUTUREWORK: this should be used instead of @TeamMember@ whenever it goes on the wire.
+--
+-- FUTUREWORK: there are is also some information about what values are legal that should go
+-- to the type level, but isn't yet (like, if you can only ever have exactly one of two fields
+-- set, don't use two Maybes, but one Either).  fixing this probably requires changes to the
+-- API.
+data TeamMemberView = TeamMemberView
+    { teamMemberViewUser            :: UserId
+    , teamMemberViewPermissions     :: Permissions
+    , teamMemberViewCreatedBy       :: Maybe UserId
+    , teamMemberViewCreatedAt       :: Maybe Data.Json.Util.UTCTimeMillis
+    , teamMemberViewLegalholdStatus :: UserLegalHoldStatus
+    } deriving (Generic)
+
+instance ToSchema TeamMemberView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "teamMemberView"
+
+instance ToSchema TeamMember where
+  declareNamedSchema _ = declareNamedSchema (Proxy @TeamMemberView)
+
+instance ToSchema TeamStatus where
+  declareNamedSchema = withConstructorTagMod camelToUnderscore
+
+instance ToSchema PropertyKey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema PropertyValue where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
+
+instance ToSchema (AsciiText r) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToParamSchema typ => ToParamSchema (Range lower upper typ)
+
+instance ToSchema Search.Contact where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "contactUserId"  -> "id"
+    "contactName"    -> "name"
+    "contactColorId" -> "accent_id"
+    "contactHandle"  -> "handle"
+    bad -> error $ "Search.Contact: " <> show bad
+
+instance ToSchema (SearchResult Search.Contact) where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "searchFound"    -> "found"
+    "searchReturned" -> "returned"
+    "searchTook"     -> "took"
+    "searchResults"  -> "documents"
+    bad -> error $ "SearchResult Search.Contact: " <> show bad
+
+instance ToSchema QueuedNotification where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "_queuedNotification"
+
+instance ToSchema (List1 Object) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Value)
+
+instance ToSchema Conversation where
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "cnv") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: SchemaProps
+      properties_ = HashMap.fromList
+        [ ( "last_event"
+          , Inline (toSchema (Proxy @Text) &
+                              description .~ Just "Always \"0.0\".  DEPRECATED."))
+        , ( "last_event_time"
+          , Inline (toSchema (Proxy @Text) &
+                              description .~ Just "Always \"1970-01-01T00:00:00.000Z\".  DEPRECATED."))
+        ]
+
+instance ToSchema Access where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PrivateAccess" -> "private"
+    "InviteAccess"  -> "invite"
+    "LinkAccess"    -> "link"
+    "CodeAccess"    -> "code"
+
+instance ToSchema AccessRole where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PrivateAccessRole" -> "private"
+    "TeamAccessRole" -> "team"
+    "ActivatedAccessRole" -> "activated"
+    "NonActivatedAccessRole" -> "non_activated"
+
+instance ToSchema ConvMembers where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cm"
+
+instance ToSchema Member where
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "mem") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: SchemaProps
+      properties_ = HashMap.fromList
+        [ ( "status"
+          , Inline (toSchema (Proxy @Int) &
+                    description .~ Just "This is always 0. DEPRECATED."))
+        , ( "status_ref"
+          , Inline (toSchema (Proxy @Text) &
+                    description .~ Just "This is always \"0.0\". DEPRECATED."))
+        , ( "status_time"
+          , Inline (toSchema (Proxy @Text) &
+                    description .~ Just "This is always \"1970-01-01T00:00:00.000Z\". DEPRECATED."))
+        ]
+
+instance ToSchema OtherMember where
+  declareNamedSchema proxy = withFieldLabelMod (camelToUnderscore . unsafeStripPrefix "om") proxy
+    <&> schema . properties %~ (<> properties_)
+    where
+      properties_ :: SchemaProps
+      properties_ = HashMap.fromList
+        [ ("status", Inline (toSchema (Proxy @Int) &
+                             description .~ Just "This is always 0. DEPRECATED."))
+        ]
+
+instance ToSchema MutedStatus where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema ReceiptMode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema ConvType where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+    <&> schema . description .~ Just descr
+    where
+      descr = Text.unlines $ "Allowed values:" : (render <$> sort rows)
+
+      rows :: [(Int, ConvType)]
+      rows = do
+        meaning <- [minBound..]
+        let Number (round -> code) = toJSON meaning
+        pure (code, meaning)
+
+      render :: (Int, ConvType) -> Text
+      render (code, meaning) = cs (encode code) <> ": " <> cs (show meaning)
+
+instance ToSchema Client where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "client"
+
+instance ToSchema CookieList where
+  declareNamedSchema = withFieldLabelMod $ \"cookieList" -> "cookies"
+
+-- | type-level representation of the warped 'ToJSON' instance of 'Cookie'.
+-- FUTUREWORK: this should be used instead of @Cookie ()@ whenever it goes on the wire.
+data CookieView = CookieView
+    { cookieViewId        :: CookieId
+    , cookieViewType      :: CookieType
+    , cookieViewCreated   :: UTCTime
+    , cookieViewExpires   :: UTCTime
+    , cookieViewLabel     :: (Maybe CookieLabel)
+    , cookieViewSuccessor :: (Maybe CookieId)
+    } deriving (Generic)
+
+instance ToSchema CookieView where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cookieView"
+
+instance ToSchema (Cookie ()) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @CookieView)
+
+instance ToSchema CookieId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int)
+
+instance ToSchema CookieType where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "SessionCookie" -> "session"
+    "PersistentCookie" -> "persistent"
+
+instance ToSchema Location where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "_latitude"  -> "lat"
+    "_longitude" -> "lon"
+
+data NoSwagger
+  deriving (Generic)
+
+instance HasSwagger (NoSwagger :> api) where
+  toSwagger _ = mempty
+
+
+data SwaggerDesc (notes :: Symbol) (val :: k)
+type role SwaggerDesc phantom phantom
+
+-- Copied and mutated from "Servant.Swagger.Internal".  To make this more composable, we'd
+-- have to touch the package, I think.  (We should probably do that now, no?  write a function
+-- that does what the instance does, plus takes an extra descr string, then writing the two
+-- instances is trivial.  then also find a better name for SwaggerDesc.  WithDescription?)
+instance ( KnownSymbol desc
+         , KnownSymbol sym
+         , ToParamSchema a
+         , HasSwagger sub
+         , SBoolI (FoldRequired mods)
+         , KnownSymbol (FoldDescription mods)
+         ) => HasSwagger (SwaggerDesc desc (QueryParam' mods sym a) :> sub) where
+  toSwagger _ = toSwagger (Proxy :: Proxy sub)
+    & addParam param
+    & addDefaultResponse400 tname
+    where
+      tname = Text.pack (symbolVal (Proxy :: Proxy sym))
+      descText :: [Text]
+        = [ cs $ symbolVal (Proxy :: Proxy desc)
+          , cs $ reflectDescription (Proxy :: Proxy mods)
+          ]
+      transDesc ""   = Nothing
+      transDesc desc = Just desc
+      param = mempty
+        & name .~ tname
+        & description .~ (transDesc . Text.strip . Text.unlines $ descText)
+        & required ?~ reflectBool (Proxy :: Proxy (FoldRequired mods))
+        & schema .~ ParamOther sch
+      sch = mempty
+        & in_ .~ ParamQuery
+        & paramSchema .~ toParamSchema (Proxy :: Proxy a)
+
+
+instance HasServer api ctx => HasServer (NoSwagger :> api) ctx where
+  type ServerT (NoSwagger :> api) m = ServerT api m
+  route _ = route (Proxy @api)
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance HasServer (something :> api) ctx => HasServer (SwaggerDesc (sym :: Symbol) something :> api) ctx where
+  type ServerT (SwaggerDesc sym something :> api) m = ServerT (something :> api) m
+  route _ = route (Proxy @(something :> api))
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @(something :> api))
+
+
+instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (NoSwagger :> api) where
+  getRoutes = mempty
+
+instance Metrics.RoutesToPaths Raw where
+  getRoutes = mempty
+
+
+----------------------------------------------------------------------
+-- more orphans
+
+instance ToSchema Milliseconds where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Word64)
+
+instance ToSchema (ApproveLegalHoldForUserRequest "visible") where
+  declareNamedSchema = withFieldLabelMod $ \"alhfuPassword" -> "password"
+
+instance ToSchema CheckHandles where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "checkHandlesList" -> "handles"
+    "checkHandlesNum"  -> "return"
+
+instance ToSchema PasswordResetIdentity
+
+instance ToSchema (CompletePasswordReset "visible") where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps
+      <- HashMap.fromList <$> sequence
+          [ pure ("key",      Inline (toSchema (Proxy @(Maybe Text))))
+          , ("email",)    <$> mkRef (Proxy @(Maybe Email))
+          , ("phone",)    <$> mkRef (Proxy @(Maybe Phone))
+          , pure ("code",     Inline (toSchema (Proxy @(Maybe Text))))
+          , pure ("password", Inline (toSchema (Proxy @(Maybe Text))))
+          ]
+
+    let example_ :: Maybe Value
+        example_ = Just . toJSON $ CompletePasswordReset @"visible"
+          (PasswordResetPhoneIdentity (Phone "+4916212345678"))
+          (PasswordResetCode exampleUrl)
+          (mkPlainTextPassword "******")
+          where
+            Right exampleUrl = validateBase64Url "http://example.com"
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["code", "password"]
+        & minProperties .~ Just 3
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
+
+instance ToSchema ClientType where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "TemporaryClientType" -> "temporary"
+    "PermanentClientType" -> "permanent"
+    "LegalHoldClientType" -> "legalhold"
+
+instance ToSchema ClientClass where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "PhoneClient"     -> "phone"
+    "TabletClient"    -> "tablet"
+    "DesktopClient"   -> "desktop"
+    "LegalHoldClient" -> "legalhold"
+
+instance ToSchema PasswordResetKey
+instance ToSchema PasswordResetCode
+
+instance ToSchema (DeleteUser "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "deleteUser"
+
+instance ToSchema Data.Code.Timeout where
+  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
+    where
+      tweak = fmap $ schema . description ?~ descr
+      descr = "Number of seconds (integer)."
+
+instance ToSchema DeletionCodeTimeout where
+  declareNamedSchema = withFieldLabelMod $ \"fromDeletionCodeTimeout" -> "expires_in"
+
+instance ToSchema (DisableLegalHoldForUserRequest "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "dlhfu"
+
+instance ToSchema EmailRemove where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "er"
+
+instance ToSchema FeatureFlags where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "_flagLegalHold" -> "legalhold"
+    "_flagSSO"       -> "sso"
+
+instance ToSchema FeatureLegalHold where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "FeatureLegalHoldDisabledPermanently" -> "disabled-permanently"
+    "FeatureLegalHoldDisabledByDefault"   -> "disabled-by-default"
+
+instance ToSchema FeatureSSO where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "FeatureSSOEnabledByDefault"  -> "enabled-by-default"
+    "FeatureSSODisabledByDefault" -> "disabled-by-default"
+
+instance ToSchema HandleUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"huHandle" -> "handle"
+
+instance ToSchema Invitation where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "inTeam"       -> "team"
+    "inRole"       -> "role"
+    "inInvitation" -> "id"
+    "inIdentity"   -> "email"
+    "inCreatedAt"  -> "created_at"
+    "inCreatedBy"  -> "created_by"
+
+instance ToSchema Role where
+  declareNamedSchema = withConstructorTagMod $ \case
+    "RoleOwner" -> "owner"
+    "RoleAdmin" -> "admin"
+    "RoleMember" -> "member"
+    "RoleExternalPartner" -> "partner"
+
+instance ToSchema InvitationList where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "il"
+
+instance ToSchema InvitationRequest where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "ir"
+    where
+      tweak "name" = "inviter_name"
+      tweak other  = other
+
+instance ToSchema LegalHoldClientRequest where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "lhcr"
+
+instance ToSchema ServiceKeyType where
+  declareNamedSchema = withConstructorTagMod $ \case "RsaServiceKey" -> "rsa"
+
+instance ToSchema ServiceKey where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "serviceKeyType" -> "type"
+    "serviceKeySize" -> "size"
+    "serviceKeyPEM"  -> "pem"
+
+instance ToSchema LegalHoldService where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "legalHoldServiceTeam"        -> "team_id"
+    "legalHoldServiceUrl"         -> "base_url"
+    "legalHoldServiceFingerprint" -> "fingerprint"
+    "legalHoldServiceToken"       -> "auth_token"
+    "legalHoldServiceKey"         -> "public_key"
+
+instance ToSchema LegalHoldServiceConfirm where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "lhc"
+
+instance ToSchema LocaleUpdate where
+  declareNamedSchema = withFieldLabelMod $ \"luLocale" -> "locale"
+
+instance ToSchema NewPasswordReset where
+  declareNamedSchema proxy = do
+    properties_ :: SchemaProps
+      <- HashMap.fromList <$> sequence
+           [ ("email",) <$>  mkRef (Proxy @(Maybe Email))
+           , ("phone",) <$>  mkRef (Proxy @(Maybe Phone))
+           ]
+
+    let example_ :: Maybe Value
+        example_ = Just . toJSON . NewPasswordReset . Left $ Email "you" "example.com"
+
+    pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 1
+        & type_ .~ SwaggerObject
+
+instance ToSchema (PasswordChange "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "cp"
+
+instance ToSchema (ReAuthUser "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "reAuth"
+
+instance ToSchema (RemoveLegalHoldSettingsRequest "visible") where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "rmlhsr"
+
+instance ToSchema SSOStatus where
+  declareNamedSchema = withConstructorTagMod $ camelToUnderscore . unsafeStripPrefix "SSO"
+
+instance ToSchema SSOTeamConfig where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "ssoTeamConfig"
+
+instance ToSchema (TeamMemberDeleteData "visible") where
+  declareNamedSchema proxy = pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ []
+        & type_ .~ SwaggerObject
+      where
+        properties_ :: SchemaProps
+        properties_ = HashMap.fromList
+          [ ("password", Inline (toSchema (Proxy @(Maybe Text))))
+          ]
+
+        example_ :: Maybe Value
+        example_ = Just "{\"password\":null}"  -- or "{\"password\":\"wef\"}"
+                                               -- FUTUREWORK: can there be more than one example?
+
+  -- FUTUREWORK: why not @declareNamedSchema = withFieldLabelMod $ \"_tmdAuthPassword" -> "password"@?
+
+instance ToSchema UpdateServiceWhitelist where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "updateServiceWhitelistProvider" -> "provider"
+    "updateServiceWhitelistService" -> "id"
+    "updateServiceWhitelistStatus" -> "whitelisted"
+
+instance ToSchema UserHandleInfo where
+  declareNamedSchema = withFieldLabelMod $ \"userHandleId" -> "user"
+
+instance ToSchema UserProfile where
+  declareNamedSchema = withFieldLabelMod $ tweak . camelToUnderscore . unsafeStripPrefix "profile"
+    where
+      tweak "pict"   = "picture"
+      tweak "expire" = "expires_at"
+      tweak good     = good
+
+instance ToSchema UserUpdate where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "uup"
+
+instance ToSchema Data.Code.Key where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema Data.Code.Value where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema VerifyDeleteUser where
+  declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "verifyDeleteUser"
+
+instance ToSchema ServiceKeyPEM where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ pem
+        pem = String . Text.unlines $
+            [ "-----BEGIN PUBLIC KEY-----"
+            , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+            , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+            , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+            , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+            , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+            , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+            , "nQIDAQAB"
+            , "-----END PUBLIC KEY-----"
+            ]
+
+instance ToSchema (Fingerprint Rsa) where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ fpr
+        fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
+
+instance ToSchema ServiceToken where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . example ?~ tok
+        tok = "sometoken"
+
+instance ToSchema NewLegalHoldService where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "newLegalHoldServiceKey"   -> "public_key"
+    "newLegalHoldServiceUrl"   -> "base_url"
+    "newLegalHoldServiceToken" -> "auth_token"
+
+instance ToSchema ViewLegalHoldService where
+    declareNamedSchema proxy = do
+      properties_ :: SchemaProps
+        <- HashMap.fromList <$> sequence
+          [ ("status",)   <$> mkRef (Proxy @MockViewLegalHoldServiceStatus)  -- TODO: this isn't transitive, that's why the test fails.
+          , ("settings",) <$> mkRef (Proxy @ViewLegalHoldServiceInfo)
+          ]
+
+      let example_ :: Maybe Value
+          example_ = Just . toJSON
+                   $ ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
+            where
+              tok = ServiceToken "sometoken"
+              Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                  [ "-----BEGIN PUBLIC KEY-----"
+                  , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                  , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                  , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                  , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                  , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                  , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                  , "nQIDAQAB"
+                  , "-----END PUBLIC KEY-----"
+                  ]
+              Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+              Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+              fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+      pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 2
+        & type_ .~ SwaggerObject
+
+-- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
+data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
+  deriving (Eq, Show, Generic)
+
+instance ToSchema MockViewLegalHoldServiceStatus where
+    declareNamedSchema = withConstructorTagMod camelToUnderscore
+
+instance ToSchema ViewLegalHoldServiceInfo where
+    {-
+
+    -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
+    -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
+    -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
+    -- 'ToSchema' instance manually.
+    -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
+
+    declareNamedSchema = withFieldLabelMod $ \case
+        "viewLegalHoldServiceFingerprint" -> "fingerprint"
+        "viewLegalHoldServiceUrl"         -> "base_url"
+        "viewLegalHoldServiceTeam"        -> "team_id"
+        "viewLegalHoldServiceAuthToken"   -> "auth_token"
+        "viewLegalHoldServiceKey"         -> "public_key"
+
+    -}
+    declareNamedSchema proxy = do
+      properties_ :: SchemaProps
+        <- HashMap.fromList <$> sequence
+          [ ("team_id",)     <$> mkRef (Proxy @UUID)
+          , ("base_url",)    <$> mkRef (Proxy @HttpsUrl)
+          , ("fingerprint",) <$> mkRef (Proxy @(Fingerprint Rsa))
+          , ("auth_token",)  <$> mkRef (Proxy @(ServiceToken))
+          , ("public_key",)  <$> mkRef (Proxy @(ServiceKeyPEM))
+          ]
+
+      let example_ :: Maybe Value
+          example_ = Just . toJSON
+                   $ ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
+            where
+              tok = ServiceToken "sometoken"
+              Just key = fromByteString . encodeUtf8 $ Text.unlines $
+                  [ "-----BEGIN PUBLIC KEY-----"
+                  , "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0"
+                  , "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH"
+                  , "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV"
+                  , "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS"
+                  , "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8"
+                  , "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la"
+                  , "nQIDAQAB"
+                  , "-----END PUBLIC KEY-----"
+                  ]
+              Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
+              Right lhuri = mkHttpsUrl [uri|https://example.com/|]
+              fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
+      pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & example .~ example_
+        & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
+        & type_ .~ SwaggerObject
+
+instance ToSchema LegalHoldTeamConfig where
+    declareNamedSchema = withFieldLabelMod $ \case "legalHoldTeamConfigStatus" -> "status"
+
+instance ToSchema LegalHoldStatus where
+    declareNamedSchema = tweak . withConstructorTagMod ctmod
+      where
+        ctmod = \case
+          "LegalHoldDisabled" -> "disabled"
+          "LegalHoldEnabled"  -> "enabled"
+
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "determines whether admins of a team " <>
+                    "are allowed to enable LH for their users."
+
+instance ToSchema RequestNewLegalHoldClient where
+    declareNamedSchema = withFieldLabelMod camelToUnderscore
+
+instance ToSchema NewLegalHoldClient where
+  declareNamedSchema = withFieldLabelMod $ \case
+    "newLegalHoldClientPrekeys"     -> "prekeys"
+    "newLegalHoldClientLastKey"     -> "last_prekey"
+
+instance ToSchema UserLegalHoldStatusResponse where
+    declareNamedSchema proxy = do
+      properties_ :: SchemaProps
+        <- HashMap.fromList <$> sequence
+          [ ("status",)      <$> mkRef (Proxy @UserLegalHoldStatus)
+          , ("last_prekey",) <$> mkRef (Proxy @LastPrekey)
+          , ("client",)      <$> mkRef (Proxy @(IdObject ClientId))
+          ]
+
+      pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & required .~ ["status"]
+        & minProperties .~ Just 1
+        & maxProperties .~ Just 3
+        & type_ .~ SwaggerObject
+
+instance (Typeable a, ToSchema a) => ToSchema (IdObject a) where
+    declareNamedSchema proxy = do
+      properties_ :: SchemaProps
+        <- HashMap.singleton "id" <$> mkRef (Proxy @a)
+
+      pure $ mkNamedSchema proxy $ mempty
+        & properties .~ properties_
+        & required .~ ["id"]
+        & type_ .~ SwaggerObject
+
+instance ToSchema UserLegalHoldStatus where
+    declareNamedSchema = tweak . withConstructorTagMod ctmod
+      where
+        ctmod = \case
+          "UserLegalHoldEnabled"  -> "enabled"
+          "UserLegalHoldPending"  -> "pending"
+          "UserLegalHoldDisabled" -> "disabled"
+
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "states whether a user is under legal hold, " <>
+                    "or whether legal hold is pending approval."
+
+instance ToSchema ClientId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
+      where
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "A Client Id"
+
+instance ToSchema PrekeyId where
+    declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
+      where
+        tweak = fmap $ schema . description ?~ descr
+          where
+            descr = "in the range [0..65535]."
+              -- FUTUREWORK: can this be also expressed in swagger, not just in the description?
+
+instance ToSchema Prekey where
+    declareNamedSchema = withFieldLabelMod $ camelToUnderscore . unsafeStripPrefix "prekey"
+
+instance ToSchema LastPrekey where
+    declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)

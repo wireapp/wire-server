@@ -11,18 +11,17 @@ import Imports hiding (head)
 
 import Brig.Types
 import Brig.Types.Intra
-import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (throwM)
 import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
-import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Id
+import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Predicate
+import Data.Proxy (Proxy(Proxy))
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response, response)
 import Data.Text.Encoding (decodeLatin1)
@@ -40,15 +39,19 @@ import Stern.Options
 import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
+import Servant.API.Generic (ToServant, AsApi)
+import Stern.Servant.Handler (groupByStatus, ifNothing)
 
 import qualified Data.Metrics.Middleware      as Metrics
-import qualified "types-common" Data.Swagger as Doc
+import qualified "types-common" Data.Swagger  as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
 import qualified Network.Wai.Middleware.Gzip  as GZip
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Stern.Intra                  as Intra
 import qualified Stern.Swagger                as Doc
+import qualified Stern.Servant.Handler        as SternServant
+import qualified Stern.Servant.Types          as SternServant
 
 default (ByteString)
 
@@ -59,8 +62,21 @@ start o = do
     runSettings s (pipeline e)
   where
     server   e     = Server.defaultServer (unpack $ (stern o)^.epHost) ((stern o)^.epPort) (e^.applog) (e^.metrics)
-    pipeline e     = GZip.gzip GZip.def $ serve e
+    pipeline e     = GZip.gzip GZip.def
+                   . serveServant e
+                   $ serve e
     serve    e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
+
+
+-- TODO: what's with the error in the lower right corner of http://localhost:8091/servant/api-docs/#/ ?!
+-- TODO: the 'try it out' button is a little annoying.  can we flip the default or hide the button altogether?
+
+serveServant :: Env -> Middleware
+serveServant env
+      -- the handlers
+    = SternServant.middleware env
+      -- "/i/metrics"; only measures the paths under 'SternServant.rootPrefix'.
+    . servantPrometheusMiddleware (Proxy @(ToServant SternServant.API AsApi))
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
@@ -313,7 +329,6 @@ sitemap = do
             description "Team ID"
         Doc.returns Doc.docSetLegalHoldStatus
         Doc.response 200 "Legalhold status" Doc.end
-        Doc.returns Doc.bool'
 
     put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
         contentType "application" "json"
@@ -448,12 +463,10 @@ sitemap = do
 type JSON = Media "application" "json"
 
 suspendUser :: UserId -> Handler Response
-suspendUser uid = do
-    Intra.putUserStatus Suspended uid
-    return empty
+suspendUser uid = SternServant.apiSuspendUser uid >> return empty
 
 unsuspendUser :: UserId -> Handler Response
-unsuspendUser uid = Intra.putUserStatus Active uid >> return empty
+unsuspendUser uid = SternServant.apiUnsuspendUser uid >> return empty
 
 usersByEmail :: Email -> Handler Response
 usersByEmail = liftM json . Intra.getUserProfilesByIdentity . Left
@@ -565,24 +578,7 @@ getTeamBillingInfo tid = do
 updateTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfoUpdate -> Handler Response
 updateTeamBillingInfo (_ ::: tid ::: req) = do
     update <- parseBody req !>> Error status400 "client-error"
-    current <- Intra.getTeamBillingInfo tid >>= handleNoTeam
-    let changes = parse update current
-    Intra.setTeamBillingInfo tid changes
-    liftM json $ Intra.getTeamBillingInfo tid
-  where
-    handleNoTeam = ifNothing (Error status404 "no-team" "No team or no billing info for team")
-
-    parse :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
-    parse TeamBillingInfoUpdate{..} tbi = tbi {
-          tbiFirstname = fromMaybe (tbiFirstname tbi) (fromRange <$> tbiuFirstname)
-        , tbiLastname  = fromMaybe (tbiLastname tbi)  (fromRange <$> tbiuLastname)
-        , tbiStreet    = fromMaybe (tbiStreet tbi)    (fromRange <$> tbiuStreet)
-        , tbiZip       = fromMaybe (tbiZip tbi)       (fromRange <$> tbiuZip)
-        , tbiCity      = fromMaybe (tbiCity tbi)      (fromRange <$> tbiuCity)
-        , tbiCountry   = fromMaybe (tbiCountry tbi)   (fromRange <$> tbiuCountry)
-        , tbiCompany   = (fromRange <$> tbiuCompany) <|> tbiCompany tbi
-        , tbiState     = (fromRange <$> tbiuState)   <|> tbiState tbi
-        }
+    liftM json $ SternServant.apiPutTeamBilling tid update
 
 setTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfo -> Handler Response
 setTeamBillingInfo (_ ::: tid ::: req) = do
@@ -605,7 +601,7 @@ getTeamInfoByMemberEmail e = do
 getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
 getTeamInvoice (tid ::: iid ::: _) = do
     url <- Intra.getInvoiceUrl tid iid
-    return $ plain (fromStrict url)
+    return $ plain (fromStrict url)  -- BUG: the swagger docs claim this response is status 307 redirect.
 
 getConsentLog :: Email -> Handler Response
 getConsentLog e = do
@@ -618,52 +614,6 @@ getConsentLog e = do
                            , "marketo"     .= marketo
                            ]
 
--- TODO: This will be removed as soon as this is ported to another tool
+-- FUTUREWORK: This will be removed as soon as this is ported to another tool
 getUserData :: UserId -> Handler Response
-getUserData uid = do
-    account <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
-    conns      <- Intra.getUserConnections uid
-    convs      <- Intra.getUserConversations uid
-    clts       <- Intra.getUserClients uid
-    notfs      <- Intra.getUserNotifications uid
-    consent    <- Intra.getUserConsentValue uid
-    consentLog <- Intra.getUserConsentLog uid
-    cookies    <- Intra.getUserCookies uid
-    properties <- Intra.getUserProperties uid
-    -- Get all info from Marketo too
-    let em = userEmail $ accountUser account
-    marketo    <- maybe (return noEmail) Intra.getMarketoResult em
-    return . json $ object [ "account"       .= account
-                           , "cookies"       .= cookies
-                           , "connections"   .= conns
-                           , "conversations" .= convs
-                           , "clients"       .= clts
-                           , "notifications" .= notfs
-                           , "consent"       .= consent
-                           , "consent_log"   .= consentLog
-                           , "marketo"       .= marketo
-                           , "properties"    .= properties
-                           ]
-  where
-    noEmail = let Object o = object [ "results" .= emptyArray ] in MarketoResult o
-
--- Utilities
-
-groupByStatus :: [UserConnection] -> Value
-groupByStatus conns = object
-    [ "accepted"    .= byStatus Accepted conns
-    , "sent"        .= byStatus Sent conns
-    , "pending"     .= byStatus Pending conns
-    , "blocked"     .= byStatus Blocked conns
-    , "ignored"     .= byStatus Ignored conns
-    , "total"       .= length conns
-    ]
-  where
-    byStatus :: Relation -> [UserConnection] -> Int
-    byStatus s = length . filter ((==) s . ucStatus)
-
-ifNothing :: Error -> Maybe a -> Handler a
-ifNothing e = maybe (throwM e) return
-
-noSuchUser :: Maybe a -> Handler a
-noSuchUser = ifNothing (Error status404 "no-user" "No such user")
+getUserData = fmap json . SternServant.apiGetMetaInfo

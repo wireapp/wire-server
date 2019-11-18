@@ -82,7 +82,7 @@ randomScimUserWithSubject = do
     fields <- replicateM fieldCount $
         RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo (RichInfo fields)
+    randomScimUserWithSubjectAndRichInfo (mkRichInfo fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo

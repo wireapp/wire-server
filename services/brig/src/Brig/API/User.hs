@@ -90,7 +90,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.List1 (List1)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
@@ -121,7 +121,7 @@ import qualified Brig.InternalEvent.Types   as Internal
 -- Create User
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
+createUser :: NewUser "protected" -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
     email <- for (newUserEmail new) $ \e ->
@@ -618,7 +618,7 @@ mkActivationKey (ActivatePhone p) = do
 -------------------------------------------------------------------------------
 -- Password Management
 
-changePassword :: UserId -> PasswordChange -> ExceptT ChangePasswordError AppIO ()
+changePassword :: UserId -> PasswordChange "protected" -> ExceptT ChangePasswordError AppIO ()
 changePassword uid cp = do
     activated <- lift $ Data.isActivated uid
     unless activated $
@@ -648,7 +648,7 @@ beginPasswordReset target = do
         throwE (PasswordResetInProgress Nothing)
     (user,) <$> lift (Data.createPasswordResetCode user target)
 
-completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
+completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword "protected" -> ExceptT PasswordResetError AppIO ()
 completePasswordReset ident code pw = do
     key <- mkPasswordResetKey ident
     muid :: Maybe UserId <- lift $ Data.verifyPasswordResetCode (key, code)
@@ -664,7 +664,7 @@ completePasswordReset ident code pw = do
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
-checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
+checkNewIsDifferent :: UserId -> PlainTextPassword "protected" -> ExceptT PasswordResetError AppIO ()
 checkNewIsDifferent uid pw = do
     mcurrpw <- lift $ Data.lookupPassword uid
     case mcurrpw of
@@ -688,7 +688,7 @@ mkPasswordResetKey ident = case ident of
 -- the team admin has to delete them via the team console on galley.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
-deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
+deleteUser :: UserId -> Maybe (PlainTextPassword "protected") -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
     account <- lift $ Data.lookupAccount uid
     case account of

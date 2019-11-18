@@ -20,7 +20,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Range
 import Data.Text.Ascii
 import Data.UUID (UUID)
@@ -276,30 +276,41 @@ instance ToJSON SelfProfile where
 
 data RichInfo = RichInfo
     { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
+    , richInfoVersion :: RichInfoVersion
     }
+    deriving (Eq, Show, Generic)
+
+mkRichInfo :: [RichField] -> RichInfo
+mkRichInfo = (`RichInfo` RichInfoVersion0)
+
+data RichInfoVersion = RichInfoVersion0
     deriving (Eq, Show, Generic)
 
 instance ToJSON RichInfo where
     toJSON u = object
         [ "fields" .= richInfoFields u
-        , "version" .= (0 :: Int)
+        , "version" .= richInfoVersion u
         ]
+
+instance ToJSON RichInfoVersion where
+    toJSON RichInfoVersion0 = Number 0
 
 instance FromJSON RichInfo where
     parseJSON = withObject "RichInfo" $ \o -> do
-        version :: Int <- o .: "version"
-        case version of
-            0 -> do
-                fields <- o .: "fields"
-                checkDuplicates (map richFieldType fields)
-                pure (RichInfo fields)
-            _ -> fail ("unknown version: " <> show version)
+        version <- o .: "version"
+        fields <- o .: "fields"
+        checkDuplicates (map richFieldType fields)
+        pure (RichInfo fields version)
       where
         checkDuplicates :: [Text] -> Aeson.Parser ()
         checkDuplicates xs =
             case filter ((> 1) . length) . group . sort $ xs of
                 [] -> pure ()
                 ds -> fail ("duplicate fields: " <> show (map head ds))
+
+instance FromJSON RichInfoVersion where
+    parseJSON (Number 0) = pure RichInfoVersion0
+    parseJSON version = fail ("unknown version: " <> show version)
 
 data RichField = RichField
     { richFieldType  :: !Text
@@ -327,6 +338,7 @@ instance FromJSON RichField where
 emptyRichInfo :: RichInfo
 emptyRichInfo = RichInfo
     { richInfoFields = []
+    , richInfoVersion = RichInfoVersion0
     }
 
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
@@ -335,19 +347,20 @@ emptyRichInfo = RichInfo
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
 richInfoSize :: RichInfo -> Int
-richInfoSize (RichInfo fields) =
+richInfoSize (RichInfo fields RichInfoVersion0) =
     sum [Text.length t + Text.length v | RichField t v <- fields]
 
 -- | Remove fields with @""@ values.
 normalizeRichInfo :: RichInfo -> RichInfo
 normalizeRichInfo RichInfo{..} = RichInfo
     { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+    , richInfoVersion = richInfoVersion
     }
 
 -----------------------------------------------------------------------------
 -- New Users
 
-data NewUser = NewUser
+data NewUser protected = NewUser
     { newUserName           :: !Name
     , newUserUUID           :: !(Maybe UUID)  -- ^ use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     , newUserIdentity       :: !(Maybe UserIdentity)
@@ -359,11 +372,13 @@ data NewUser = NewUser
     , newUserOrigin         :: !(Maybe NewUserOrigin)
     , newUserLabel          :: !(Maybe CookieLabel)
     , newUserLocale         :: !(Maybe Locale)
-    , newUserPassword       :: !(Maybe PlainTextPassword)
+    , newUserPassword       :: !(Maybe (PlainTextPassword protected))
     , newUserExpiresIn      :: !(Maybe ExpiresIn)
     , newUserManagedBy      :: !(Maybe ManagedBy)
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic)
+
+deriving instance Show (PlainTextPassword protected) => Show (NewUser protected)
 
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
@@ -373,7 +388,7 @@ data NewUserOrigin =
   | NewUserOriginTeamUser !NewTeamUser
   deriving (Eq, Show, Generic)
 
-parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
+parseNewUserOrigin :: Maybe (PlainTextPassword protected) -> Maybe UserIdentity -> Maybe UserSSOId
                    -> Object -> Aeson.Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
     invcode  <- o .:? "invitation_code"
@@ -400,26 +415,26 @@ jsonNewUserOrigin = \case
     NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
     NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" .= ti]
 
-newUserInvitationCode :: NewUser -> Maybe InvitationCode
+newUserInvitationCode :: NewUser protected -> Maybe InvitationCode
 newUserInvitationCode nu = case newUserOrigin nu of
     Just (NewUserOriginInvitationCode ic) -> Just ic
     _ -> Nothing
 
-newUserTeam :: NewUser -> Maybe NewTeamUser
+newUserTeam :: NewUser protected -> Maybe NewTeamUser
 newUserTeam nu = case newUserOrigin nu of
     Just (NewUserOriginTeamUser tu) -> Just tu
     _ -> Nothing
 
-newUserEmail :: NewUser -> Maybe Email
+newUserEmail :: NewUser protected -> Maybe Email
 newUserEmail = emailIdentity <=< newUserIdentity
 
-newUserPhone :: NewUser -> Maybe Phone
+newUserPhone :: NewUser protected -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe UserSSOId
+newUserSSOId :: NewUser protected -> Maybe UserSSOId
 newUserSSOId = ssoIdentity <=< newUserIdentity
 
-instance FromJSON NewUser where
+instance FromJSON (PlainTextPassword protected) => FromJSON (NewUser protected) where
       parseJSON = withObject "new-user" $ \o -> do
           ssoid                 <- o .:? "sso_id"
           newUserName           <- o .: "name"
@@ -441,7 +456,7 @@ instance FromJSON NewUser where
           newUserManagedBy <- o .:? "managed_by"
           return NewUser{..}
 
-instance ToJSON NewUser where
+instance ToJSON (PlainTextPassword protected) => ToJSON (NewUser protected) where
     toJSON u = object
         $ "name"            .= newUserName u
         # "uuid"            .= newUserUUID u
@@ -509,10 +524,12 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
 --
 --   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
 --     SCIM-managed user)
-newtype NewUserPublic = NewUserPublic NewUser
-    deriving (Eq, Show, Generic)
+newtype NewUserPublic protected = NewUserPublic (NewUser protected)
+    deriving (Eq, Generic)
 
-instance FromJSON NewUserPublic where
+deriving instance Show (PlainTextPassword protected) => Show (NewUserPublic protected)
+
+instance FromJSON (PlainTextPassword protected) => FromJSON (NewUserPublic protected) where
     parseJSON val = do
         nu <- parseJSON val
         when (isJust $ newUserSSOId nu) $
@@ -622,12 +639,14 @@ instance ToJSON PhoneRemove where
 -- Account Deletion
 
 -- | Payload for requesting account deletion.
-newtype DeleteUser = DeleteUser
-    { deleteUserPassword :: Maybe PlainTextPassword
+newtype DeleteUser protected = DeleteUser
+    { deleteUserPassword :: Maybe (PlainTextPassword protected)
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic)
 
-mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
+deriving instance Show (PlainTextPassword protected) => Show (DeleteUser protected)
+
+mkDeleteUser :: Maybe (PlainTextPassword protected) -> (DeleteUser protected)
 mkDeleteUser = DeleteUser
 
 -- | Payload for verifying account deletion via a code.
@@ -644,12 +663,12 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
     { fromDeletionCodeTimeout :: Code.Timeout }
     deriving (Eq, Show, Generic)
 
-instance ToJSON DeleteUser where
+instance ToJSON (PlainTextPassword protected) => ToJSON (DeleteUser protected) where
     toJSON d = object
         $ "password" .= deleteUserPassword d
         # []
 
-instance FromJSON DeleteUser where
+instance FromJSON (PlainTextPassword protected) =>FromJSON (DeleteUser protected) where
     parseJSON = withObject "DeleteUser" $ \o ->
         DeleteUser <$> o .:? "password"
 
@@ -701,19 +720,35 @@ data PasswordResetIdentity
     deriving (Eq, Show, Generic)
 
 -- | The payload for completing a password reset.
-data CompletePasswordReset = CompletePasswordReset
+data CompletePasswordReset protected = CompletePasswordReset
     { cpwrIdent    :: !PasswordResetIdentity
     , cpwrCode     :: !PasswordResetCode
-    , cpwrPassword :: !PlainTextPassword
+    , cpwrPassword :: !(PlainTextPassword protected)
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic)
+
+deriving instance Show (PlainTextPassword protected) => Show (CompletePasswordReset protected)
 
 -- | The payload for setting or changing a password.
-data PasswordChange = PasswordChange
-    { cpOldPassword :: !(Maybe PlainTextPassword)
-    , cpNewPassword :: !PlainTextPassword
+data PasswordChange protected = PasswordChange
+    { cpOldPassword :: !(Maybe (PlainTextPassword protected))
+    , cpNewPassword :: !(PlainTextPassword protected)
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic)
+
+deriving instance Show (PlainTextPassword protected) => Show (PasswordChange protected)
+
+instance ToJSON (PlainTextPassword protected) => ToJSON (PasswordChange protected) where
+    toJSON (PasswordChange old new) = object
+        [ "old_password" .= old
+        , "new_password" .= new
+        ]
+
+instance FromJSON (PlainTextPassword protected) => FromJSON (PasswordChange protected) where
+    parseJSON = withObject "PasswordChange" $ \o ->
+        PasswordChange <$> o .:? "old_password"
+                       <*> o .:  "new_password"
+
 
 instance FromJSON NewPasswordReset where
     parseJSON = withObject "NewPasswordReset" $ \o ->
@@ -725,7 +760,7 @@ instance ToJSON NewPasswordReset where
     toJSON (NewPasswordReset ident) = object
         [ either ("email" .=) ("phone" .=) ident ]
 
-instance FromJSON CompletePasswordReset where
+instance FromJSON (PlainTextPassword protected) => FromJSON (CompletePasswordReset protected) where
     parseJSON = withObject "CompletePasswordReset" $ \o ->
         CompletePasswordReset <$> ident o <*> o .: "code" <*> o .: "password"
       where
@@ -733,7 +768,7 @@ instance FromJSON CompletePasswordReset where
                <|> (PasswordResetEmailIdentity <$> o .: "email")
                <|> (PasswordResetPhoneIdentity <$> o .: "phone")
 
-instance ToJSON CompletePasswordReset where
+instance ToJSON (PlainTextPassword protected) => ToJSON (CompletePasswordReset protected) where
     toJSON (CompletePasswordReset i c pw) = object
         [ ident i, "code" .= c, "password" .= pw ]
       where
@@ -741,25 +776,14 @@ instance ToJSON CompletePasswordReset where
         ident (PasswordResetEmailIdentity e) = "email" .= e
         ident (PasswordResetPhoneIdentity p) = "phone" .= p
 
-instance ToJSON PasswordChange where
-    toJSON (PasswordChange old new) = object
-        [ "old_password" .= old
-        , "new_password" .= new
-        ]
-
-instance FromJSON PasswordChange where
-    parseJSON = withObject "PasswordChange" $ \o ->
-        PasswordChange <$> o .:? "old_password"
-                       <*> o .:  "new_password"
-
 -- DEPRECATED
 
-data PasswordReset = PasswordReset
+data PasswordReset protected = PasswordReset
     { pwrCode     :: !PasswordResetCode
-    , pwrPassword :: !PlainTextPassword
+    , pwrPassword :: !(PlainTextPassword protected)
     }
 
-instance FromJSON PasswordReset where
+instance FromJSON (PlainTextPassword protected) => FromJSON (PasswordReset protected) where
     parseJSON = withObject "PasswordReset" $ \o ->
         PasswordReset <$> o .: "code"
                       <*> o .: "password"

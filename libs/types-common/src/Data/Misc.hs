@@ -2,10 +2,10 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE LambdaCase                 #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -31,7 +31,11 @@ module Data.Misc
     , Rsa
 
       -- * PlainTextPassword
-    , PlainTextPassword (..)
+    , PlainTextPassword
+    , mkPlainTextPassword
+    , encryptPlainTextPassword
+    , verifyPlainTextPassword
+    , FlipPlainTextPasswordProtection
 
       -- * Functor infix ops
     , (<$$>), (<$$$>)
@@ -39,6 +43,7 @@ module Data.Misc
 
 import Imports
 import Control.Lens ((^.), makeLenses)
+import Crypto.Scrypt
 import Data.Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
@@ -61,6 +66,7 @@ import qualified Data.Aeson.Types                 as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port
@@ -177,6 +183,11 @@ instance ToJSON Milliseconds where
 instance FromJSON Milliseconds where
     parseJSON = fmap int64ToMs . parseJSON
 
+#ifdef WITH_ARBITRARY
+instance Arbitrary Milliseconds where
+  arbitrary = int64ToMs <$> arbitrary
+#endif
+
 #ifdef WITH_CQL
 instance Cql Milliseconds where
     ctype = Tagged BigIntColumn
@@ -252,22 +263,53 @@ instance Cql (Fingerprint a) where
 --------------------------------------------------------------------------------
 -- Password
 
-newtype PlainTextPassword = PlainTextPassword
+-- | The phantom type is used for protecting the password from leaking into logs by means of
+-- 'Show', 'ToJSON' etc.  It can only be @"visible"@ or @"protected"@.  If @"protected"@, the
+-- password can only be used in computations, not in output.
+--
+-- There is no way to go from protected to visible without the unexposed constructor in this
+-- module.  The only way to go from visible to protected is to serialize and de-serialize.
+--
+-- The server handlers have @"protected"@ in their type signatures.  To flip a routing table
+-- type from @"visible"@ (client-side) to @"protected"@ (server-side), use
+-- 'FlipPlainTextPasswordProtection'.
+newtype PlainTextPassword protected = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (Eq, ToJSON, Generic)
+    deriving (Eq, Generic)
 
-instance Show PlainTextPassword where
+-- | On the client side, if you want to construct a 'PlainTextPassword' value to send it over
+-- the network, use this function.
+mkPlainTextPassword :: Text -> PlainTextPassword protected
+mkPlainTextPassword = PlainTextPassword
+
+deriving instance Show (PlainTextPassword "visible")
+instance Show (PlainTextPassword "protected") where
     show _ = "PlainTextPassword <hidden>"
 
-instance FromJSON PlainTextPassword where
+deriving instance ToJSON (PlainTextPassword "visible")
+
+instance FromJSON (PlainTextPassword protected) where
     parseJSON x = PlainTextPassword . fromRange
                <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
 
 #ifdef WITH_ARBITRARY
-instance Arbitrary PlainTextPassword where
-    -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
+instance Arbitrary (PlainTextPassword any) where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 #endif
+
+type family FlipPlainTextPasswordProtection (a :: k) :: k where
+    FlipPlainTextPasswordProtection x = x
+    -- TODO: traverse routing types down to the 'PlainTextPassword' types.  (this probably
+    -- needs to be an open type family instead.)
+
+encryptPlainTextPassword :: MonadIO m => PlainTextPassword protected -> m EncryptedPass
+encryptPlainTextPassword
+  = liftIO . encryptPassIO' . Pass . Text.encodeUtf8 . fromPlainTextPassword
+
+verifyPlainTextPassword :: PlainTextPassword protected -> EncryptedPass -> Bool
+verifyPlainTextPassword (Pass . Text.encodeUtf8 . fromPlainTextPassword -> actual) expected
+  = verifyPass' actual expected
+
 
 ----------------------------------------------------------------------
 -- Functor

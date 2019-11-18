@@ -14,18 +14,18 @@ data SearchResult a = SearchResult
     , searchReturned :: Int
     , searchTook     :: Int
     , searchResults  :: [a]
-    } deriving Show
+    } deriving (Eq, Show, Generic)
 
 data Contact = Contact
     { contactUserId  :: UserId
     , contactName    :: Text
     , contactColorId :: Maybe Int
     , contactHandle  :: Maybe Text
-    } deriving Show
+    } deriving (Eq, Show, Generic)
 
 -- | Encodes whether the (current) user has opted in/out of search
 newtype SearchableStatus = SearchableStatus { isSearchable :: Bool }
-    deriving Show
+    deriving (Eq, Show, Generic)
 
 instance ToJSON a => ToJSON (SearchResult a) where
     toJSON r = object

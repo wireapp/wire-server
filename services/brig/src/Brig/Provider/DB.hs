@@ -105,7 +105,7 @@ deleteAccount pid = retry x5 $ write cql $ params Quorum (Identity pid)
 
 updateAccountPassword :: MonadClient m
     => ProviderId
-    -> PlainTextPassword
+    -> PlainTextPassword "protected"
     -> m ()
 updateAccountPassword pid pwd = do
     p <- liftIO $ mkSafePassword pwd

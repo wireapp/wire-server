@@ -18,7 +18,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.List1 (List1)
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword, mkPlainTextPassword)
 import Data.PEM
 import Data.Range
 import Data.Text.Encoding (encodeUtf8)
@@ -206,7 +206,7 @@ testPasswordResetProvider db brig = do
     prv <- randomProvider db brig
 
     let email = providerEmail prv
-    let newPw = PlainTextPassword "newsupersecret"
+    let newPw = mkPlainTextPassword "newsupersecret"
     initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
 
     -- password reset with same password fails.
@@ -219,7 +219,7 @@ testPasswordResetProvider db brig = do
     loginProvider brig email newPw !!!
         const 200 === statusCode
   where
-    resetPw :: PlainTextPassword -> Email -> Http ResponseLBS
+    resetPw :: PlainTextPassword "visible" -> Email -> Http ResponseLBS
     resetPw newPw email = do
         -- Get the code directly from the DB
         gen <- Code.mkGen (Code.ForEmail email)
@@ -245,7 +245,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
 
     let passwordResetData = CompletePasswordReset (Code.codeKey vcodePw)
                                                   (Code.codeValue vcodePw)
-                                                  (PlainTextPassword "doesnotmatter")
+                                                  (mkPlainTextPassword "doesnotmatter")
 
     -- Activate the new email
     genNew <- Code.mkGen (Code.ForEmail newEmail)
@@ -264,8 +264,8 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
     loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
 
     -- exercise the password change endpoint
-    let newPass = PlainTextPassword "newpass"
-    let pwChangeFail = PasswordChange (PlainTextPassword "notcorrect") newPass
+    let newPass = mkPlainTextPassword "newpass"
+    let pwChangeFail = PasswordChange (mkPlainTextPassword "notcorrect") newPass
     updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
     let pwChange = PasswordChange defProviderPassword newPass
     updateProviderPassword brig pid pwChange !!! const 200 === statusCode
@@ -916,7 +916,7 @@ testDeWhitelistDeletedConv config db brig galley cannon = do
 
 registerProvider
     :: Brig
-    -> NewProvider
+    -> NewProvider "visible"
     -> Http ResponseLBS
 registerProvider brig new = post $ brig
     . path "/provider/register"
@@ -944,7 +944,7 @@ activateProvider brig key val = get $ brig
 loginProvider
     :: Brig
     -> Email
-    -> PlainTextPassword
+    -> PlainTextPassword "visible"
     -> Http ResponseLBS
 loginProvider brig email pw = post $ brig
     . path "/provider/login"
@@ -966,7 +966,7 @@ updateProvider brig pid upd = put $ brig
 updateProviderPassword
     :: Brig
     -> ProviderId
-    -> PasswordChange
+    -> PasswordChange "visible"
     -> Http ResponseLBS
 updateProviderPassword brig pid upd = put $ brig
     . path "/provider/password"
@@ -998,7 +998,7 @@ initiatePasswordResetProvider brig npr = post $ brig
 
 completePasswordResetProvider
     :: Brig
-    -> CompletePasswordReset
+    -> CompletePasswordReset "visible"
     -> Http ResponseLBS
 completePasswordResetProvider brig e = post $ brig
     . path "/provider/password-reset/complete"
@@ -1008,7 +1008,7 @@ completePasswordResetProvider brig e = post $ brig
 deleteProvider
     :: Brig
     -> ProviderId
-    -> PlainTextPassword
+    -> PlainTextPassword "visible"
     -> Http ResponseLBS
 deleteProvider brig pid pw = delete $ brig
     . path "/provider"
@@ -1086,7 +1086,7 @@ updateServiceConn
     :: Brig
     -> ProviderId
     -> ServiceId
-    -> UpdateServiceConn
+    -> UpdateServiceConn "visible"
     -> Http ResponseLBS
 updateServiceConn brig pid sid upd = put $ brig
     . paths ["provider", "services", toByteString' sid, "connection"]
@@ -1113,7 +1113,7 @@ deleteService
     :: Brig
     -> ProviderId
     -> ServiceId
-    -> PlainTextPassword
+    -> PlainTextPassword "visible"
     -> Http ResponseLBS
 deleteService brig pid sid pw = delete $ brig
     . paths ["provider", "services", toByteString' sid]
@@ -1294,7 +1294,7 @@ testRegisterProvider db' brig = do
     _rs <- registerProvider brig new <!!
         const 201 === statusCode
 
-    let Just npr = responseJsonMaybe _rs :: Maybe NewProviderResponse
+    let Just npr = responseJsonMaybe _rs :: Maybe (NewProviderResponse "visible")
     -- Since a password was given, none should have been generated
     liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
     let pid = rsNewProviderId npr
@@ -1354,7 +1354,7 @@ randomProvider db brig = do
     let new = defNewProvider email
     _rs <- registerProvider brig new <!!
         const 201 === statusCode
-    let Just pid = rsNewProviderId <$> responseJsonMaybe _rs
+    let Just pid = rsNewProviderId <$> responseJsonMaybe @(NewProviderResponse "visible") _rs
     -- Activate (auto-approval)
     Just vcode <- lookupCode db gen Code.IdentityVerification
     activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
@@ -1429,7 +1429,7 @@ defNewService config = liftIO $ do
         , newServiceTags    = defServiceTags
         }
 
-defNewProvider :: Email -> NewProvider
+defNewProvider :: Email -> NewProvider "visible"
 defNewProvider email = NewProvider
     { newProviderEmail    = email
     , newProviderPassword = Just defProviderPassword
@@ -1450,8 +1450,8 @@ defProviderSummary = "A short summary of the integration test provider"
 defProviderDescr :: Text
 defProviderDescr = "A long description of an integration test provider"
 
-defProviderPassword :: PlainTextPassword
-defProviderPassword = PlainTextPassword "password"
+defProviderPassword :: PlainTextPassword "visible"
+defProviderPassword = mkPlainTextPassword "password"
 
 defServiceName :: Name
 defServiceName = Name "Test Service"

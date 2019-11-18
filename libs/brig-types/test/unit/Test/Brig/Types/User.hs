@@ -10,23 +10,15 @@ module Test.Brig.Types.User where
 
 import Imports
 import Brig.Types.Activation
-import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist)
-import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Typeable (typeOf)
-import Galley.Types.Teams
-import Brig.Types.Test.Arbitrary ()
-import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 
 
 tests :: TestTree
-tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
+tests = testGroup "User" unitTests
 
 unitTests :: [TestTree]
 unitTests =
@@ -65,46 +57,3 @@ unitTests =
 
     hssoid    = UserSSOId "nil" "nil"
     ssoid     = ("sso_id", toJSON hssoid)
-
-
-roundtripTests :: [TestTree]
-roundtripTests =
-    [ run @BindingNewTeamUser
-    , run @CheckHandles
-    , run @CompletePasswordReset
-    , run @DeleteUser
-    , run @DeletionCodeTimeout
-    , run @EmailRemove
-    , run @EmailUpdate
-    , run @HandleUpdate
-    , run @InvitationList
-    , run @Invitation
-    , run @InvitationRequest
-    , run @LocaleUpdate
-    , run @NewPasswordReset
-    , run @NewUser
-    , run @PasswordChange
-    , run @PhoneRemove
-    , run @PhoneUpdate
-    , run @ManagedByUpdate
-    , run @ReAuthUser
-    , run @SelfProfile
-    , run @TeamMember
-    , run @UpdateServiceWhitelist
-    , run @UserHandleInfo
-    , run @UserIdentity
-    , run @UserProfile
-    , run @User
-    , run @RichInfo
-    , run @UserUpdate
-    , run @RichInfoUpdate
-    , run @VerifyDeleteUser
-    ]
-  where
-    run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)
-        => TestTree
-    run = testProperty msg trip
-      where
-        msg = show $ typeOf (undefined :: a)
-        trip (v :: a) = counterexample (show $ toJSON v)
-                      $ Right v === (parseEither parseJSON . toJSON) v

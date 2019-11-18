@@ -112,7 +112,11 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         Just uname -> pure . Name . fromRange $ uname
         Nothing    -> throwSpar err
 
-  let newUser :: NewUser
+  -- 'NewUser' needs to be tagged visible since we are the client here.  (It would but it
+  -- would be nice to find a better way, but it's unclear what what would be.  We need to be
+  -- able to serialize this once it goes on the wire, and that way is necessarily
+  -- exploitable.)
+  let newUser :: NewUser "visible"
       newUser = NewUser
         { newUserName           = uname
         , newUserUUID           = Just buid
@@ -335,7 +339,7 @@ getZUsrOwnedTeam (Just uid) = do
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised :: (HasCallStack, MonadSparToBrig m)
-                   => Maybe UserId -> Maybe PlainTextPassword -> m ()
+                   => Maybe UserId -> Maybe (PlainTextPassword "visible") -> m ()
 ensureReAuthorised Nothing _ = throwSpar SparMissingZUsr
 ensureReAuthorised (Just uid) secret = do
   resp <- call

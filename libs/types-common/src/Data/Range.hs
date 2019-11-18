@@ -68,7 +68,7 @@ import qualified Data.Sequence              as Seq
 
 newtype Range (n :: Nat) (m :: Nat) a = Range
     { fromRange :: a
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 instance NFData (Range n m a) where rnf (Range a) = seq a ()
 

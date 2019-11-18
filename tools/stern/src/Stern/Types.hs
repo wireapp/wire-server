@@ -9,18 +9,23 @@
 module Stern.Types where
 
 import Brig.Types
+import Brig.Types.Intra
+import Brig.Types.User.Auth
 import Data.Aeson
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
 import Imports
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Gundeck.Types.Notification
 
 import qualified Data.HashMap.Strict as M
 
 newtype TeamMemberInfo = TeamMemberInfo { tm :: TeamMember }
+  deriving (Generic)
 
 instance ToJSON TeamMemberInfo where
     toJSON (TeamMemberInfo m) =
@@ -33,6 +38,7 @@ data TeamInfo = TeamInfo
     { tiData    :: TeamData
     , tiMembers :: [TeamMemberInfo]
     }
+    deriving (Generic)
 
 data TeamAdminInfo = TeamAdminInfo
     { taData    :: TeamData
@@ -72,7 +78,7 @@ instance ToJSON TeamAdminInfo where
 
 newtype UserProperties = UserProperties
     { unUserProperties :: M.HashMap PropertyKey PropertyValue
-    } deriving (Eq, Show, ToJSON)
+    } deriving (Eq, Show, ToJSON, Generic)
 
 -- | NOTE: The following datatypes are defined by services used only internally at Wire
 -- related to billing services and others and are not relevant for generic wire-server
@@ -87,16 +93,29 @@ newtype UserProperties = UserProperties
 -- simply use whatever galeb's JSON object looks like
 newtype ConsentLog = ConsentLog
     { unConsentLog :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
 newtype ConsentValue = ConsentValue
     { unConsentValue :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
 newtype MarketoResult = MarketoResult
     { unMarketoResult :: Object
-    } deriving (Eq, Show, ToJSON, FromJSON)
+    } deriving (Eq, Show, ToJSON, FromJSON, Generic)
+
+data ConsentLogPlusMarketo = ConsentLogPlusMarketo
+    { clConsentLog :: ConsentLog
+    , clMarketoResult :: MarketoResult
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON ConsentLogPlusMarketo where
+    toJSON (ConsentLogPlusMarketo cl mr) = object
+        [ "consent_log" .= cl
+        , "marketo"     .= mr
+        ]
 
 newtype InvoiceId = InvoiceId { unInvoiceId :: Text }
-    deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON)
+    deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON, Generic)
 
 data TeamBillingInfo = TeamBillingInfo
     { tbiFirstname :: Text
@@ -107,7 +126,7 @@ data TeamBillingInfo = TeamBillingInfo
     , tbiCountry   :: Text
     , tbiCompany   :: Maybe Text
     , tbiState     :: Maybe Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamBillingInfo
 
@@ -120,7 +139,7 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
     , tbiuCountry   :: Maybe (Range 1 256 Text)
     , tbiuCompany   :: Maybe (Range 1 256 Text)
     , tbiuState     :: Maybe (Range 1 256 Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
 
@@ -133,3 +152,52 @@ data SetSSOStatus = SetSSODisabled | SetSSOEnabled
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
 
 deriveJSON toJSONFieldName ''SetSSOStatus
+
+-- FUTUREWORK: This will be removed as soon as this is ported to another tool
+data UserMetaInfo = UserMetaInfo
+    { _umiAccount       :: UserAccount
+    , _umiConnections   :: [UserConnection]
+    , _umiConversations :: [Conversation]
+    , _umiNotifications :: [QueuedNotification]
+    , _umiClients       :: [Client]
+    , _umiConsent       :: ConsentValue
+    , _umiConsentLog    :: ConsentLog
+    , _umiCookies       :: CookieList
+    , _umiProperties    :: UserProperties
+    , _umiMarketo       :: MarketoResult
+    }
+  deriving (Generic)
+
+instance ToJSON UserMetaInfo where
+  toJSON umi = object
+      [ "account"       .= _umiAccount umi
+      , "connections"   .= _umiConnections umi
+      , "conversations" .= _umiConversations umi
+      , "notifications" .= _umiNotifications umi
+      , "clients"       .= _umiClients umi
+      , "consent"       .= _umiConsent umi
+      , "consent_log"   .= _umiConsentLog umi
+      , "cookies"       .= _umiCookies umi
+      , "properties"    .= _umiProperties umi
+      , "marketo"       .= _umiMarketo umi
+      ]
+
+data UserConnectionsByStatus = UserConnectionsByStatus
+    { _ucbsAccepted :: Int
+    , _ucbsSent     :: Int
+    , _ucbsPending  :: Int
+    , _ucbsBlocked  :: Int
+    , _ucbsIgnored  :: Int
+    , _ucbsTotal    :: Int
+    }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON UserConnectionsByStatus where
+  toJSON ucbs = object
+      [ "accepted"    .= _ucbsAccepted ucbs
+      , "sent"        .= _ucbsSent ucbs
+      , "pending"     .= _ucbsPending ucbs
+      , "blocked"     .= _ucbsBlocked ucbs
+      , "ignored"     .= _ucbsIgnored ucbs
+      , "total"       .= _ucbsTotal ucbs
+      ]

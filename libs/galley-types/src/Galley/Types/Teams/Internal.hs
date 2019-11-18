@@ -18,7 +18,7 @@ import Data.Range
 data TeamBinding =
       Binding
     | NonBinding
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Bounded, Enum, Generic)
 
 data Team = Team
     { _teamId      :: TeamId
@@ -65,6 +65,10 @@ instance FromJSON Team where
              <*> o .:  "icon"
              <*> o .:? "icon_key"
              <*> o .:? "binding" .!= NonBinding
+
+instance (ToJSON a) => ToJSON (NewTeam a) where
+    toJSON (NewTeam n i ik m) =
+        object [ "name" .= n, "icon" .= i, "icon_key" .= ik, "members" .= m ]
 
 instance (FromJSON a) => FromJSON (NewTeam a) where
     parseJSON = withObject "new-team" $ \o -> do
