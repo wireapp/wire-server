@@ -6,6 +6,7 @@
 module ThreadBudget where
 
 import Imports
+import Debug.Trace
 
 import Control.Concurrent.Async
 import Control.Lens
@@ -145,35 +146,43 @@ testThreadBudgets = do
   watcher <- mkWatcher tbs logHistory
 
   flip runReaderT logHistory $ do
+    now <- liftIO $ getCurrentTime
+    traceShowM now
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 5)
     delayms (MilliSeconds 10)
     expectLogHistory null
-    liftIO $ budgetSpent tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (expect 5)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (expect 5)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (expect 5)
 
     delayms (MilliSeconds 80)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory null
-    liftIO $ budgetSpent tbs >>= (@=? 3)
+    liftIO $ budgetSpent tbs >>= (expect 3)
 
     burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
     delayms (MilliSeconds 10)
     expectLogHistory (== [NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
+    liftIO $ budgetSpent tbs >>= (expect 5)
 
   cancel watcher
 
+  where
+    expect :: (HasCallStack, Eq a, Show a) => a -> a -> Assertion
+    expect expected actual = do
+      now <- getCurrentTime
+      traceShowM now
+      expected @=? actual
 
 ----------------------------------------------------------------------
 -- property-based state machine tests
