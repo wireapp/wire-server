@@ -25,7 +25,7 @@ guard-%:
 default: fast
 
 init:
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 
 .PHONY: install
 install: init
