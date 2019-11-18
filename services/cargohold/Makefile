@@ -40,7 +40,6 @@ compile:
 .PHONY: clean
 clean: init
 	stack clean $(NAME)
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: dist
