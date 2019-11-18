@@ -18,6 +18,7 @@ docs:
 # See 'exclude_patterns' in source/conf.py
 docs-administrate:
 	docker run --rm -e SPHINXOPTS='-t administrate' -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
+	cd build && zip -r administration-wire-$$(date +"%Y-%m-%d").zip html
 
 exec:
 	docker run -it -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)

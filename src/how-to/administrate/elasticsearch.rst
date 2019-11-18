@@ -27,7 +27,13 @@ On each server one by one:
 .. code:: sh
 
     ES_IP=<the-ip-of-the-elasticsearch-node-to-stop>
-    curl -sSf -XPUT http://localhost:9200/_cluster/settings -d "{ \"transient\" : {\"cluster.routing.allocation.exclude._ip\": \"$ES_IP\" }}"
+    curl -sSf -XPUT http://localhost:9200/_cluster/settings -H 'Content-Type: application/json' -d "{ \"transient\" : {\"cluster.routing.allocation.exclude._ip\": \"$ES_IP\" }}"; echo;
+
+You should expect some output like this:
+
+.. code:: sh
+
+   {"acknowledged":true,"persistent":{},"transient":{"cluster":{"routing":{"allocation":{"exclude":{"_ip":"<SOME-IP-ADDRESS>"}}}}}}
 
 3. Stop the elasticsearch daemon process: ``systemctl stop elasticsearch``
 4. do any operation you need, if any
@@ -36,7 +42,13 @@ On each server one by one:
 
 .. code:: sh
 
-    curl -sSf -XPUT http://localhost:9200/_cluster/settings -d "{ \"transient\" : {\"cluster.routing.allocation.exclude._ip\": null }}"
+    curl -sSf -XPUT http://localhost:9200/_cluster/settings -H 'Content-Type: application/json' -d "{ \"transient\" : {\"cluster.routing.allocation.exclude._ip\": null }}"; echo;
+
+You should expect some output like this from the above command:
+
+.. code:: sh
+
+   {"acknowledged":true,"persistent":{},"transient":{}}
 
 6. Wait for your cluster to be healthy again.
 7. Do the same on the next server.

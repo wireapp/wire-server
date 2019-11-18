@@ -3,10 +3,12 @@ Restund (TURN)
 
 .. include:: includes/intro.rst
 
+.. _allocations:
+
 How to see how many people are currently connected to the restund server
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can see the amount of ongoing calls:
+You can see the count of currently ongoing calls (also called "allocations"):
 
 .. code:: sh
 
@@ -28,13 +30,80 @@ How to restart restund without having downtime
 
 For maintenance you may need to restart a restund server.
 
-1. Remove that restund server you want to restart from the list of advertised nodes (by taking it out of the turn server list that brig advertises, see the `turnStatic configuration <https://github.com/wireapp/wire-server-deploy/blob/master/charts/brig/values.yaml#L68-L73>`_
-2. Wait for traffic to drain. This can take up to 12 hours after the configuration change. Wait until current allocations (people connected to the restund server) return 0.
-3. It's now safe to ``systemctl restart restund``
-4. Add the restund server back to configuration of advertised nodes.
+1. Remove that restund server you want to restart from the list of advertised nodes, by taking it out of the turn server list that brig advertises:
+
+Go to the place where you store kubernetes configuration for your wire-server installation. This might be a directory on your admin laptop, or a directory on the kubernetes machine.
+
+If your override configuration (``values/wire-server/values.yaml``) looks like the following:
+
+.. code:: yaml
+
+  # (...)
+
+  brig:
+  # (...)
+    turnStatic:
+      v1:
+        # v1 entries can be ignored and are not in use anymore since end of 2018.
+      v2:
+      - turn:server1.example.com:3478 # server 1 UDP
+      - turn:server1.example.com:3478?transport=tcp # server 1 TCP
+      - turns:server1.example.com:5478?transport=tcp # server 1 TLS
+      - turn:server2.example.com:3478 # server 2 UDP
+      - turn:server2.example.com:3478?transport=tcp # server 2 TCP
+      - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+
+And you want to remove server 1, then change the configuration to read
+
+.. code:: yaml
+
+  turnStatic:
+    v2:
+      - turn:server2.example.com:3478 # server 2 UDP
+      - turn:server2.example.com:3478?transport=tcp # server 2 TCP
+      - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+
+(or comment out lines by adding a ``#`` in front of the respective line)
+
+.. code:: yaml
+
+    turnStatic:
+      v2:
+      #- turn:server1.example.com:3478 # server 1 UDP
+      #- turn:server1.example.com:3478?transport=tcp # server 1 TCP
+      #- turns:server1.example.com:5478?transport=tcp # server 1 TLS
+      - turn:server2.example.com:3478 # server 2 UDP
+      - turn:server2.example.com:3478?transport=tcp # server 2 TCP
+      - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+
+Next, apply these changes to configuration with ``./bin/prod-setup.sh``
+
+You then need to restart the ``brig`` pods if your code is older than September 2019 (otherwise brig will restart itself automatically):
+
+.. code:: bash
+
+  delete pod -l wireService=brig
+
+2. Wait for traffic to drain. This can take up to 12 hours after the configuration change. Wait until current allocations (people connected to the restund server) return 0. See :ref:`allocations`.
+3. It's now safe to ``systemctl stop restund``, and take any necessary actions.
+4. ``systemctl start restund`` and then add the restund server back to configuration of advertised nodes (see step 1, put the server back).
 
 How to renew a certificate for restund
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Replace the certificate file on the server
+1. Replace the certificate file on the server (under ``/etc/restund/restund.pem`` usually), either with ansible or manually. Ensure the new certificate file is a concatenation of your whole certificate chain *and* the private key:
+
+.. code:: text
+
+  -----BEGIN CERTIFICATE-----
+  ...
+  -----END CERTIFICATE-----
+  -----BEGIN CERTIFICATE-----
+  ...
+  -----END CERTIFICATE-----
+  -----BEGIN PRIVATE KEY-----
+  ...
+  -----END PRIVATE KEY-----
+
+
 2. Restart restund (see sections above)
