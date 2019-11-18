@@ -168,9 +168,9 @@ createSamlUser suid mbName managedBy = do
 createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  insertUser suid buid
   buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
+  insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
