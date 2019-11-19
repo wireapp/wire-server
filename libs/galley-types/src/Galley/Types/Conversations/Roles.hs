@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -6,6 +7,9 @@
 module Galley.Types.Conversations.Roles where
 
 import Imports
+#ifdef WITH_CQL
+import Cassandra.CQL hiding (Set)
+#endif
 import Control.Applicative (optional)
 import Data.Aeson
 import Data.Attoparsec.Text
@@ -14,48 +18,78 @@ import Data.Bits (testBit, (.|.))
 import Data.Hashable
 import qualified Data.Set as Set
 
-data ConvRoleType = WireConvRoleAdmin
-                  | WireConvRoleMember
-                  | ConvRoleCustom Label Actions
-                  deriving (Eq, Show)
+data ConversationRole = ConvRoleWireAdmin
+                      | ConvRoleWireMember
+                      | ConvRoleCustom RoleName Actions
+                      deriving (Eq, Show)
 
--- TODO: This needs to be modeled in a better way
-data ConversationRole = ConversationRole
-    { crRoleName    :: !ConvRoleType
-    , crRoleActions :: !Actions
+instance ToJSON ConversationRole where
+    toJSON cr = object
+        [ "conversation_role" .= roleToRoleName cr
+        , "actions"           .= (actionsToInt $ Actions (roleActions cr))
+        ]
+
+instance FromJSON ConversationRole where
+    parseJSON = withObject "conversationRole" $ \o -> do
+        role    <- o .: "conversation_role"
+        actions <- intToActions <$> o .: "actions"
+        case (toConvRole role (Just actions)) of
+            Just cr -> return cr
+            Nothing -> fail ("Failed to parse: " ++ show o)
+
+data ConversationRolesList = ConversationRolesList
+    { convRolesList :: [ConversationRole]
     } deriving (Eq, Show)
 
--- Labels with `wire_` prefix are reserved
--- and cannot be created by externals
+instance ToJSON ConversationRolesList where
+    toJSON (ConversationRolesList r) = object
+        [ "conversation_roles" .= r
+        ]
 
-newtype Label = Label { fromLabel :: Text }
+instance FromJSON ConversationRolesList where
+    parseJSON = withObject "conversation-roles-list" $ \o ->
+        ConversationRolesList <$> o .: "convesation_roles"
+
+wireConvRoles :: [ConversationRole]
+wireConvRoles = [ ConvRoleWireAdmin
+                , ConvRoleWireMember
+                ]
+
+-- RoleNames with `wire_` prefix are reserved
+-- and cannot be created by externals
+newtype RoleName = RoleName { fromRoleName :: Text }
     deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
 
-instance FromByteString Label where
-    parser = parser >>= maybe (fail "Invalid label") return . parseLabel
+#ifdef WITH_CQL
+deriving instance Cql RoleName
+#endif
 
-instance FromJSON Label where
-    parseJSON = withText "Label" $
-        maybe (fail "Invalid label") pure . parseLabel
+instance FromByteString RoleName where
+    parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
 
-parseLabel :: Text -> Maybe Label
-parseLabel t
-    | isValidLabel t = Just (Label t)
-    | otherwise            = Nothing
+instance FromJSON RoleName where
+    parseJSON = withText "RoleName" $
+        maybe (fail "Invalid RoleName") pure . parseRoleName
 
--- All labels should have 2-128 chars
---  * Wire labels _must_ start with `wire_`
---  * Custom labels _must not_ start with `wire_`
--- TODO: Ensure that all Wire defined labels start with `wire_`
--- TODO: Should we accept non ascii chars as labels?
---       this will be used for search and thus be awkward...
+-- All RoleNames should have 2-128 chars
+--  * Wire RoleNames _must_ start with `wire_`
+--  * Custom RoleNames _must not_ start with `wire_`
+-- TODO: Parse, don't validate!
+-- TODO: Ensure the above properties
+-- TODO: Should we accept other chars as `RoleName`s?
+--       this will be used for search and thus be awkward to work with
+parseRoleName :: Text -> Maybe RoleName
+parseRoleName t
+    | isValidLabel t = Just (RoleName t)
+    | otherwise      = Nothing
+
 isValidLabel :: Text -> Bool
 isValidLabel = either (const False) (const True)
              . parseOnly customLabel
   where
     customLabel = count 2 (satisfy chars)
-                *> count 126 (optional (satisfy chars))
-                *> endOfInput
+               *> count 126 (optional (satisfy chars))
+               *> endOfInput
     chars = inClass "a-zA-Z0-9_-"
 
 data Actions = Actions
@@ -74,10 +108,18 @@ intToAction 0x0002 = Just RemoveConvMember
 intToAction 0x0004 = Just ModifyConvMetadata
 intToAction _      = Nothing
 
+actionToInt :: Action -> Word64
+actionToInt AddConvMember      = 0x0001
+actionToInt RemoveConvMember   = 0x0002
+actionToInt ModifyConvMetadata = 0x0004
+
 intToActions :: Word64 -> Actions
 intToActions n =
     let actions = [ 2^i | i <- [0 .. 62], n `testBit` i ] in
     Actions $ Set.fromList (mapMaybe intToAction actions)
+
+actionsToInt :: Actions -> Word64
+actionsToInt (Actions as) = Set.foldr' (\p n -> n .|. actionToInt p) 0 as
 
 allActions :: Actions
 allActions = intToActions maxBound
@@ -86,21 +128,32 @@ noActions :: Actions
 noActions = Actions mempty
 
 convRoleWireAdmin :: ConversationRole
-convRoleWireAdmin = ConversationRole WireConvRoleAdmin $ Actions (roleActions WireConvRoleAdmin)
+convRoleWireAdmin = ConvRoleWireAdmin
 
 convRoleWireMember :: ConversationRole
-convRoleWireMember = ConversationRole WireConvRoleMember $ Actions (roleActions WireConvRoleMember)
+convRoleWireMember = ConvRoleWireMember
 
 convRoleCustom :: Text -> Actions -> Maybe ConversationRole
-convRoleCustom name actions = case parseLabel name of
-   Just label -> Just $ ConversationRole (ConvRoleCustom label actions) actions
-   Nothing    -> Nothing
+convRoleCustom name actions = do
+   roleName <- parseRoleName name
+   pure $ ConvRoleCustom roleName actions
 
-roleActions :: ConvRoleType -> Set Action
-roleActions WireConvRoleAdmin = roleActions WireConvRoleMember <> Set.fromList
+roleToRoleName :: ConversationRole -> RoleName
+roleToRoleName ConvRoleWireAdmin    = RoleName "wire_admin"
+roleToRoleName ConvRoleWireMember   = RoleName "wire_member"
+roleToRoleName (ConvRoleCustom l _) = l
+
+toConvRole :: RoleName -> Maybe Actions -> Maybe ConversationRole
+toConvRole (RoleName "wire_admin")  _        = Just ConvRoleWireAdmin
+toConvRole (RoleName "wire_member") _        = Just ConvRoleWireMember
+toConvRole x                       (Just as) = Just (ConvRoleCustom x as)
+toConvRole _                        _        = Nothing
+
+roleActions :: ConversationRole -> Set Action
+roleActions ConvRoleWireAdmin = roleActions ConvRoleWireMember <> Set.fromList
     [ ModifyConvMetadata
     ]
-roleActions WireConvRoleMember = Set.fromList
+roleActions ConvRoleWireMember = Set.fromList
     [ AddConvMember
     , RemoveConvMember
     ]

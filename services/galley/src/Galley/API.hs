@@ -127,6 +127,22 @@ sitemap = do
 
     --
 
+    get "/teams/:tid/roles" (continue getTeamConversationRoles) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamConversationsRoles" $ do
+        summary "Get existing roles available for the given team"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        returns (ref Model.conversationRolesList)
+        response 200 "Team conversations roles list" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.noTeamMember
+
+    --
+
     get "/teams/:tid/members" (continue getTeamMembers) $
         zauthUserId
         .&. capture "tid"
@@ -361,6 +377,21 @@ sitemap = do
             description "Conversation ID"
         errorResponse Error.convNotFound
         errorResponse Error.convAccessDenied
+
+    --
+
+    get "/conversations/:cnv/roles" (continue getConversationRoles) $
+        zauthUserId
+        .&. capture "cnv"
+        .&. accept "application" "json"
+
+    document "GET" "getConversationsRoles" $ do
+        summary "Get existing roles available for the given conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.conversationRolesList)
+        response 200 "Conversations roles list" end
+        errorResponse Error.convNotFound
 
     ---
 

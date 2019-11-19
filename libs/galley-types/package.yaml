@@ -23,6 +23,7 @@ library:
   - currency-codes >=2.0
   - data-default >=0.5
   - gundeck-types >=1.15.13
+  - hashable
   - errors
   - exceptions >=0.10.0
   - lens >=4.12
