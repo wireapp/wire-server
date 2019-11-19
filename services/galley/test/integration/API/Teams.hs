@@ -567,7 +567,7 @@ testUpdateTeamConv (rolePermissions -> perms) = do
     cid <- Util.createTeamConv owner tid [member] (Just "gossip") Nothing Nothing
     resp <- updateTeamConv member cid (ConversationRename "not gossip")
     liftIO $ assertEqual "status"
-        (if ModifyConvMetadata `elem` (perms ^. self) then 200 else 403)
+        (if ModifyConvName `elem` (perms ^. self) then 200 else 403)
         (statusCode resp)
 
 testDeleteTeam :: TestM ()

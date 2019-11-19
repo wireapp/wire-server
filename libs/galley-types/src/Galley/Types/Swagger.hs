@@ -14,12 +14,12 @@ galleyModels =
     , conversations
     , conversationIds
     , conversationMembers
-    , conversationUpdate
+    , conversationUpdateName
     , conversationAccessUpdate
     , conversationReceiptModeUpdate
     , conversationMessageTimerUpdate
     , conversationCode
-    , conversationUpdateEvent
+    , conversationNameUpdateEvent
     , conversationRole
     , conversationRolesList
     , errorObj
@@ -60,7 +60,7 @@ event = defineModel "Event" $ do
         description "Date and time this event occurred"
     children "type" [ memberEvent
                     , connectEvent
-                    , conversationUpdateEvent
+                    , conversationNameUpdateEvent
                     , memberUpdateEvent
                     , typingEvent
                     , otrMessageEvent
@@ -104,10 +104,10 @@ connectEvent = defineModel "ConnectEvent" $ do
     description "connect event"
     property "data" (ref connect) $ description "connect data"
 
-conversationUpdateEvent :: Model
-conversationUpdateEvent = defineModel "ConversationUpdateEvent" $ do
+conversationNameUpdateEvent :: Model
+conversationNameUpdateEvent = defineModel "ConversationNameUpdateEvent" $ do
     description "conversation update event"
-    property "data" (ref conversationUpdate) $ description "conversation data"
+    property "data" (ref conversationUpdateName) $ description "conversation name"
 
 conversationRole :: Model
 conversationRole = defineModel "ConversationRole" $ do
@@ -254,9 +254,9 @@ members = defineModel "Members" $
     property "users" (unique $ array bytes') $
         description "List of user IDs"
 
-conversationUpdate :: Model
-conversationUpdate = defineModel "ConversationUpdate" $ do
-    description "Contains conversation properties to update"
+conversationUpdateName :: Model
+conversationUpdateName = defineModel "ConversationUpdateName" $ do
+    description "Contains conversation name to update"
     property "name" string' $
         description "The new conversation name"
 
