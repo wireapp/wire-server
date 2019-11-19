@@ -17,6 +17,7 @@ module Galley.API.Teams
     , deleteTeamMember
     , getTeamConversations
     , getTeamConversation
+    , getTeamConversationRoles
     , deleteTeamConversation
     , updateTeamMember
     , getSSOStatus
@@ -52,6 +53,7 @@ import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -241,6 +243,16 @@ uncheckedDeleteTeam zusr zcon tid = do
         let ee' = bots `zip` repeat e
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
+
+getTeamConversationRoles :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamConversationRoles (zusr::: tid ::: _) = do
+    mems <- Data.teamMembers tid
+    case findTeamMember zusr mems of
+        Nothing -> throwM noTeamMember
+        Just  _ -> do
+            -- NOTE: If/when custom roles are added, these roles should
+            --       be merged with the team roles (if they exist)
+            return . json $ ConversationRolesList wireConvRoles
 
 getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembers (zusr::: tid ::: _) = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
@@ -11,7 +12,9 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Fingerprint, Rsa, HttpsUrl)
 import Data.Text.Ascii
+#ifdef WITH_CQL
 import Cassandra.CQL
+#endif
 
 -- ServiceRef -----------------------------------------------------------------
 
@@ -41,7 +44,11 @@ instance ToJSON ServiceRef where
 -- | A /secret/ bearer token used to authenticate and authorise requests @towards@
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
 newtype ServiceToken = ServiceToken AsciiBase64Url
-    deriving (Eq, Show, ToByteString, Cql, FromByteString, FromJSON, ToJSON, Generic)
+    deriving (Eq, Show, ToByteString, FromByteString, FromJSON, ToJSON, Generic)
+
+#ifdef WITH_CQL
+deriving instance Cql ServiceToken
+#endif
 
 -- | Service connection information that is needed by galley.
 data Service = Service

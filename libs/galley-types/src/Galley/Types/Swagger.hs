@@ -2,7 +2,7 @@
 
 module Galley.Types.Swagger where
 
-import Imports
+import Imports hiding (min, max)
 import Data.Swagger.Build.Api as Swagger
 import qualified "types-common" Data.Swagger as Swagger
 
@@ -20,6 +20,8 @@ galleyModels =
     , conversationMessageTimerUpdate
     , conversationCode
     , conversationUpdateEvent
+    , conversationRole
+    , conversationRolesList
     , errorObj
     , event
     , invite
@@ -106,6 +108,20 @@ conversationUpdateEvent :: Model
 conversationUpdateEvent = defineModel "ConversationUpdateEvent" $ do
     description "conversation update event"
     property "data" (ref conversationUpdate) $ description "conversation data"
+
+conversationRole :: Model
+conversationRole = defineModel "ConversationRole" $ do
+    description "Conversation role"
+    property "role" string' $
+        description "role name, between 2 and 128 chars"
+    property "actions" (int64 $ min 0 . max 0x7FFFFFFFFFFFFFFF) $
+        description "The permissions bitmask which applies to this role"
+
+conversationRolesList :: Model
+conversationRolesList = defineModel "ConversationRolesList" $ do
+    description "list of roles allowed in the given conversation"
+    property "roles" (unique $ array (ref conversationRole)) $
+        description "the array of conversation roles"
 
 conversationAccessUpdateEvent :: Model
 conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do

@@ -67,6 +67,7 @@ import Data.Json.Util
 import Data.List1
 import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
+import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
 import URI.ByteString
 
@@ -317,11 +318,13 @@ data Member = Member
     , memOtrArchivedRef :: !(Maybe Text)
     , memHidden         :: !Bool
     , memHiddenRef      :: !(Maybe Text)
+    , memConvRoleName   :: !(Maybe RoleName)
     } deriving (Eq, Show, Generic)
 
 data OtherMember = OtherMember
-    { omId      :: !UserId
-    , omService :: !(Maybe ServiceRef)
+    { omId           :: !UserId
+    , omService      :: !(Maybe ServiceRef)
+    , omConvRoleName :: !(Maybe RoleName)
     } deriving (Eq, Show, Generic)
 
 instance Ord OtherMember where
@@ -337,6 +340,7 @@ data MemberUpdate = MemberUpdate
     , mupOtrArchiveRef :: !(Maybe Text)
     , mupHidden        :: !(Maybe Bool)
     , mupHiddenRef     :: !(Maybe Text)
+    , mupConvRoleName  :: !(Maybe RoleName)
     }
 
 deriving instance Eq   MemberUpdate
@@ -411,13 +415,14 @@ data Connect = Connect
 -- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-    { misOtrMuted       :: !(Maybe Bool)
-    , misOtrMutedStatus :: !(Maybe MutedStatus)
-    , misOtrMutedRef    :: !(Maybe Text)
-    , misOtrArchived    :: !(Maybe Bool)
-    , misOtrArchivedRef :: !(Maybe Text)
-    , misHidden         :: !(Maybe Bool)
-    , misHiddenRef      :: !(Maybe Text)
+    { misOtrMuted         :: !(Maybe Bool)
+    , misOtrMutedStatus   :: !(Maybe MutedStatus)
+    , misOtrMutedRef      :: !(Maybe Text)
+    , misOtrArchived      :: !(Maybe Bool)
+    , misOtrArchivedRef   :: !(Maybe Text)
+    , misHidden           :: !(Maybe Bool)
+    , misHiddenRef        :: !(Maybe Text)
+    , misConvRoleName     :: !(Maybe RoleName)
     } deriving (Eq, Show, Generic)
 
 newtype TypingData = TypingData
@@ -585,15 +590,17 @@ instance ToJSON Accept where
 
 instance ToJSON OtherMember where
     toJSON m = object
-        $ "id"      .= omId m
-        # "status"  .= (0 :: Int) -- TODO: Remove
-        # "service" .= omService m
+        $ "id"                .= omId m
+        # "status"            .= (0 :: Int) -- TODO: Remove
+        # "service"           .= omService m
+        # "conversation_role" .= omConvRoleName m
         # []
 
 instance FromJSON OtherMember where
     parseJSON = withObject "other-member" $ \o ->
         OtherMember <$> o .:  "id"
                     <*> o .:? "service"
+                    <*> o .:? "conversation_role"
 
 instance ToJSON a => ToJSON (ConversationList a) where
     toJSON (ConversationList l m) = object
@@ -857,6 +864,7 @@ instance FromJSON MemberUpdate where
                           <*> m .:? "otr_archived_ref"
                           <*> m .:? "hidden"
                           <*> m .:? "hidden_ref"
+                          <*> m .:? "conversation_role"
 
         unless (isJust (mupOtrMute u)
             || isJust (mupOtrMuteStatus u)
@@ -864,20 +872,22 @@ instance FromJSON MemberUpdate where
             || isJust (mupOtrArchive u)
             || isJust (mupOtrArchiveRef u)
             || isJust (mupHidden u)
-            || isJust (mupHiddenRef u)) $
+            || isJust (mupHiddenRef u)
+            || isJust (mupConvRoleName u)) $
             fail "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', \
-                \'otr_archived_ref', 'hidden', 'hidden_ref'} required."
+                \'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
 
         return u
 
 instance ToJSON MemberUpdate where
     toJSON m = object
-        $ "otr_muted"        .= mupOtrMute m
-        # "otr_muted_ref"    .= mupOtrMuteRef m
-        # "otr_archived"     .= mupOtrArchive m
-        # "otr_archived_ref" .= mupOtrArchiveRef m
-        # "hidden"           .= mupHidden m
-        # "hidden_ref"       .= mupHiddenRef m
+        $ "otr_muted"         .= mupOtrMute m
+        # "otr_muted_ref"     .= mupOtrMuteRef m
+        # "otr_archived"      .= mupOtrArchive m
+        # "otr_archived_ref"  .= mupOtrArchiveRef m
+        # "hidden"            .= mupHidden m
+        # "hidden_ref"        .= mupHiddenRef m
+        # "conversation_role" .= mupConvRoleName m
         # []
 
 instance FromJSON MemberUpdateData where
@@ -889,6 +899,7 @@ instance FromJSON MemberUpdateData where
                          <*> m .:? "otr_archived_ref"
                          <*> m .:? "hidden"
                          <*> m .:? "hidden_ref"
+                         <*> m .:? "conversation_role"
 
 instance ToJSON MemberUpdateData where
     toJSON m = object
@@ -903,22 +914,23 @@ instance ToJSON MemberUpdateData where
 
 instance ToJSON Member where
     toJSON m = object
-        [ "id"               .= memId m
-        , "service"          .= memService m
+        [ "id"                .= memId m
+        , "service"           .= memService m
 
 -- Remove ...
-        , "status"           .= (0 :: Int)
-        , "status_ref"       .= ("0.0" :: Text)
-        , "status_time"      .= ("1970-01-01T00:00:00.000Z" :: Text)
+        , "status"            .= (0 :: Int)
+        , "status_ref"        .= ("0.0" :: Text)
+        , "status_time"       .= ("1970-01-01T00:00:00.000Z" :: Text)
 -- ... until here
 
-        , "otr_muted"        .= memOtrMuted m
-        , "otr_muted_status" .= memOtrMutedStatus m
-        , "otr_muted_ref"    .= memOtrMutedRef m
-        , "otr_archived"     .= memOtrArchived m
-        , "otr_archived_ref" .= memOtrArchivedRef m
-        , "hidden"           .= memHidden m
-        , "hidden_ref"       .= memHiddenRef m
+        , "otr_muted"         .= memOtrMuted m
+        , "otr_muted_status"  .= memOtrMutedStatus m
+        , "otr_muted_ref"     .= memOtrMutedRef m
+        , "otr_archived"      .= memOtrArchived m
+        , "otr_archived_ref"  .= memOtrArchivedRef m
+        , "hidden"            .= memHidden m
+        , "hidden_ref"        .= memHiddenRef m
+        , "conversation_role" .= memConvRoleName m
         ]
 
 instance FromJSON Member where
@@ -932,6 +944,7 @@ instance FromJSON Member where
                <*> o .:? "otr_archived_ref"
                <*> o .:? "hidden"           .!= False
                <*> o .:? "hidden_ref"
+               <*> o .:? "conversation_role"
 
 instance FromJSON ConvType where
     parseJSON (Number 0) = return RegularConv

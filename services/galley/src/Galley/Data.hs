@@ -97,6 +97,7 @@ import Galley.Data.Instances ()
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (teamMembers, teamConversations, Event, EventType (..))
 import Galley.Types.Teams.Intra
 import Galley.Validation
@@ -122,7 +123,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 34
+schemaVersion = 36
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -542,8 +543,8 @@ memberLists convs = do
         let f = (Just . maybe [mem] (mem :))
         in Map.alter f conv acc
 
-    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr) =
-        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr)
+    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
 
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
@@ -561,7 +562,7 @@ addMembersUnchecked t conv orig usrs = do
         setConsistency Quorum
         for_ (toList usrs) $ \u -> do
             addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing)
+            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, Nothing)
     let e = Event MemberJoin conv orig t (Just . EdMembers . Members . toList $ usrs)
     return (e, newMember <$> usrs)
 
@@ -586,6 +587,7 @@ updateMember cid uid mup = do
         , misOtrArchivedRef = mupOtrArchiveRef mup
         , misHidden = mupHidden mup
         , misHiddenRef = mupHiddenRef mup
+        , misConvRoleName = mupConvRoleName mup
         }
 
 removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
@@ -617,14 +619,16 @@ newMember u = Member
     , memOtrArchivedRef = Nothing
     , memHidden         = False
     , memHiddenRef      = Nothing
+    , memConvRoleName   = Nothing -- TODO: Should all new members be just member?
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
             , Maybe Bool, Maybe MutedStatus, Maybe Text -- otr muted
             , Maybe Bool, Maybe Text                    -- otr archived
             , Maybe Bool, Maybe Text                    -- hidden
+            , Maybe RoleName                            -- conversation role name
             ) -> Maybe Member
-toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
+toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
     if sta /= Just 0
         then Nothing
         else Just $ Member
@@ -637,6 +641,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
             , memOtrArchivedRef = oarr
             , memHidden         = fromMaybe False hid
             , memHiddenRef      = hidr
+            , memConvRoleName   = crn
             }
 
 -- Clients ------------------------------------------------------------------

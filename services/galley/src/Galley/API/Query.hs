@@ -14,6 +14,7 @@ import Galley.API.Util
 import Galley.Data as Data
 import Galley.Types
 import Galley.Types.Bot (botConvView)
+import Galley.Types.Conversations.Roles
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result)
@@ -34,7 +35,7 @@ getBotConversation (zbot ::: zcnv :::  _) = do
     return $ json cview
   where
     mkMember m
-        | memId m /= botUserId zbot = Just (OtherMember (memId m) (memService m))
+        | memId m /= botUserId zbot = Just (OtherMember (memId m) (memService m) (memConvRoleName m))
         | otherwise                 = Nothing
 
 getConversation :: UserId ::: ConvId ::: JSON -> Galley Response
@@ -47,6 +48,18 @@ getConversation (zusr ::: cnv ::: _) = do
         throwM convAccessDenied
     a <- conversationView zusr c
     return $ json a
+
+getConversationRoles :: UserId ::: ConvId ::: JSON -> Galley Response
+getConversationRoles (zusr ::: cnv ::: _) = do
+    c <- Data.conversation cnv >>= ifNothing convNotFound
+    when (Data.isConvDeleted c) $ do
+        Data.deleteConversation cnv
+        throwM convNotFound
+    unless (zusr `isMember` Data.convMembers c) $
+        throwM convAccessDenied
+    -- NOTE: If/when custom roles are added, these roles should
+    --       be merged with the team roles (if they exist)
+    return . json $ ConversationRolesList wireConvRoles
 
 getConversationIds :: UserId ::: Maybe ConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
 getConversationIds (zusr ::: start ::: size ::: _) = do
