@@ -479,17 +479,22 @@ sitemap = do
 
     ---
 
-    put "/conversations/:cnv" (continue updateConversation) $
+    -- TODO: We should IMHO deprecate this in favor of
+    --       `put "/conversations/:cnv/name"`. The event is called
+    --       "conversation.rename", adding anything to this endpoint
+    --       would be problematic anyways. Mixing "conversation rename"
+    --       and "conversation metadata" should be avoided.
+    put "/conversations/:cnv" (continue updateConversationName) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
         .&. jsonRequest @ConversationRename
 
-    document "PUT" "updateConversation" $ do
-        summary "Update conversation properties"
+    document "PUT" "updateConversationName" $ do
+        summary "Update conversation name"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
-        body (ref Model.conversationUpdate) $
+        body (ref Model.conversationUpdateName) $
             description "JSON body"
         returns (ref Model.event)
         errorResponse Error.convNotFound

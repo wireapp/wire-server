@@ -246,7 +246,7 @@ data Perm =
     | AddTeamMember
     | RemoveTeamMember
     | AddRemoveConvMember
-    | ModifyConvMetadata
+    | ModifyConvName
     | GetBilling
     | SetBilling
     | SetTeamData
@@ -286,7 +286,7 @@ rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
 rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
     [ DeleteConversation
     , AddRemoveConvMember
-    , ModifyConvMetadata
+    , ModifyConvName
     , GetMemberPermissions
     ]
 rolePerms RoleExternalPartner = Set.fromList
@@ -591,7 +591,7 @@ permToInt DeleteConversation       = 0x0002
 permToInt AddTeamMember            = 0x0004
 permToInt RemoveTeamMember         = 0x0008
 permToInt AddRemoveConvMember      = 0x0010
-permToInt ModifyConvMetadata       = 0x0020
+permToInt ModifyConvName       = 0x0020
 permToInt GetBilling               = 0x0040
 permToInt SetBilling               = 0x0080
 permToInt SetTeamData              = 0x0100
@@ -606,7 +606,7 @@ intToPerm 0x0002 = Just DeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
 intToPerm 0x0010 = Just AddRemoveConvMember
-intToPerm 0x0020 = Just ModifyConvMetadata
+intToPerm 0x0020 = Just ModifyConvName
 intToPerm 0x0040 = Just GetBilling
 intToPerm 0x0080 = Just SetBilling
 intToPerm 0x0100 = Just SetTeamData

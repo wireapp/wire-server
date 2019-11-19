@@ -99,19 +99,19 @@ data Actions = Actions
 data Action =
       AddConvMember
     | RemoveConvMember
-    | ModifyConvMetadata
+    | ModifyConvName
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 intToAction :: Word64 -> Maybe Action
 intToAction 0x0001 = Just AddConvMember
 intToAction 0x0002 = Just RemoveConvMember
-intToAction 0x0004 = Just ModifyConvMetadata
+intToAction 0x0004 = Just ModifyConvName
 intToAction _      = Nothing
 
 actionToInt :: Action -> Word64
 actionToInt AddConvMember      = 0x0001
 actionToInt RemoveConvMember   = 0x0002
-actionToInt ModifyConvMetadata = 0x0004
+actionToInt ModifyConvName     = 0x0004
 
 intToActions :: Word64 -> Actions
 intToActions n =
@@ -151,7 +151,7 @@ toConvRole _                        _        = Nothing
 
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin = roleActions ConvRoleWireMember <> Set.fromList
-    [ ModifyConvMetadata
+    [ ModifyConvName
     ]
 roleActions ConvRoleWireMember = Set.fromList
     [ AddConvMember
