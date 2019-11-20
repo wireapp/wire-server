@@ -17,6 +17,7 @@ import Spar.Scim
 import Spar.Types (IdP)
 import Util
 
+
 import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
@@ -26,6 +27,7 @@ import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
+import qualified Web.Scim.Filter                  as Scim.Filter
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -314,10 +316,20 @@ testScimCreateVsUserRef = do
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
     it "lists all users in a team" $ testListAllUsers
-    it "finds a SCIM-provisioned user by username" $ pending
+    it "finds a SCIM-provisioned user by username" $ testFindProvisionedUserByUsername
     it "finds a non-SCIM-provisioned user by username" $ pending
     it "doesn't list deleted users" $ testListNoDeletedUsers
     it "doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+
+
+testFindProvisionedUserByUsername :: TestSpar ()
+testFindProvisionedUserByUsername = do
+    user <- randomScimUser
+    (tok, (_, _, _)) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    users <- listUsers tok (Just (Scim.Filter.FilterAttrCompare Scim.Filter.AttrUserName Scim.Filter.OpEq (Scim.Filter.ValString (Scim.User.userName user))))
+    liftIO $ users `shouldContain` [storedUser]
+    pure ()
 
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.

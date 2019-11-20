@@ -243,6 +243,7 @@ specFinalizeLogin = do
           it "logs out user B, logs in user A" $ do
             pending
 
+        -- TODO(arianvp): Ask Matthias what this even means
         context "more than one dsig cert" $ do
           it "accepts the first of two certs for signatures" $ do
             pending
@@ -266,10 +267,12 @@ specFinalizeLogin = do
             statusCode sparresp `shouldBe` 404
             responseJsonEither sparresp `shouldBe` Right (TestErrorLabel "not-found")
 
+      -- TODO(arianvp): Ask Matthias what this even means
       context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
           pending
 
+      -- TODO(arianvp): Ask Matthias what this even means
       context "AuthnResponse contains assertions that have been offered before" $ do
         it "rejects" $ do
           pending

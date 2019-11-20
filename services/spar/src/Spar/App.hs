@@ -10,8 +10,6 @@ module Spar.App
   , verdictHandler
   , getUser
   , insertUser
-  , createSamlUser
-  , createSamlUserWithId
   , autoprovisionSamlUser
   , autoprovisionSamlUserWithId
   ) where
@@ -139,6 +137,7 @@ getUser uref = do
   muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
+    -- TODO(arianvp): Why does it check if it is a team user? Ask Tiago
     Just uid -> do
       itis <- Intra.isTeamUser uid
       pure $ if itis then Just uid else Nothing
@@ -159,19 +158,19 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
+{-createSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
 createSamlUser suid mbName managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
   createSamlUserWithId buid suid mbName managedBy
-  pure buid
+  pure buid-}
 
 -- | Like 'createSamlUser', but for an already existing 'UserId'.
 createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  insertUser suid buid
   buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
+  insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
