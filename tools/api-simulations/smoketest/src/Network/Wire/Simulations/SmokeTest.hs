@@ -87,6 +87,7 @@ mainBotNet n = do
                    , misOtrArchivedRef = Nothing
                    , misHidden         = Nothing
                    , misHiddenRef      = Nothing
+                   , misConvRoleName   = Nothing
                    }
         memberUpdate meetup update
         c <- getConv meetup
