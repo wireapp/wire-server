@@ -70,7 +70,7 @@ clean:
 
 .PHONY: compile
 compile: $(BIN)
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 	cp src/objs/nginx ../../dist/
 
 .PHONY: dist
