@@ -30,6 +30,7 @@ import Galley.Types (
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
+import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
@@ -1864,7 +1865,7 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     let Just bcnv = responseJsonMaybe _rs
     liftIO $ do
         assertEqual "id" cid (bcnv^.Ext.botConvId)
-        assertEqual "members" [OtherMember uid Nothing] (bcnv^.Ext.botConvMembers)
+        assertEqual "members" [OtherMember uid Nothing roleNameWireAdmin] (bcnv^.Ext.botConvMembers)
 
     -- The user can identify the bot in the member list
     mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
