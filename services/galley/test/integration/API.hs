@@ -12,6 +12,7 @@ import Data.Id
 import Data.List1
 import Data.Range
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -1017,6 +1018,7 @@ putMemberOk update = do
                   , memOtrArchivedRef = mupOtrArchiveRef update
                   , memHidden = fromMaybe False (mupHidden update)
                   , memHiddenRef = mupHiddenRef update
+                  , memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
                   }
 
     -- Update member state & verify push notification
@@ -1163,9 +1165,9 @@ removeUser = do
     liftIO $ do
         (mems1 >>= other bob)  @?= Nothing
         (mems2 >>= other bob)  @?= Nothing
-        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing convRoleWireAdmin)
+        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
         (mems3 >>= other bob)  @?= Nothing
-        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing convRoleWireAdmin)
+        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
   where
     matchMemberLeave conv u n = do
         let e = List1.head (WS.unpackPayload n)
