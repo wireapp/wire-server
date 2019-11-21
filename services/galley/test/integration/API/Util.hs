@@ -806,7 +806,7 @@ encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode
 
 memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
