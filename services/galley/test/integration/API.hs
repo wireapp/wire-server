@@ -1163,9 +1163,9 @@ removeUser = do
     liftIO $ do
         (mems1 >>= other bob)  @?= Nothing
         (mems2 >>= other bob)  @?= Nothing
-        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing)
+        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing convRoleWireAdmin)
         (mems3 >>= other bob)  @?= Nothing
-        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing)
+        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing convRoleWireAdmin)
   where
     matchMemberLeave conv u n = do
         let e = List1.head (WS.unpackPayload n)

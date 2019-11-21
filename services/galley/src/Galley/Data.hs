@@ -619,7 +619,7 @@ newMember u = Member
     , memOtrArchivedRef = Nothing
     , memHidden         = False
     , memHiddenRef      = Nothing
-    , memConvRoleName   = Nothing -- TODO: Should all new members be just member?
+    , memConvRoleName   = roleNameWireAdmin
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
@@ -641,7 +641,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
             , memOtrArchivedRef = oarr
             , memHidden         = fromMaybe False hid
             , memHiddenRef      = hidr
-            , memConvRoleName   = crn
+            , memConvRoleName   = fromMaybe roleNameWireAdmin crn
             }
 
 -- Clients ------------------------------------------------------------------

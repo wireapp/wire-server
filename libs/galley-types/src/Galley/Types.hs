@@ -318,13 +318,13 @@ data Member = Member
     , memOtrArchivedRef :: !(Maybe Text)
     , memHidden         :: !Bool
     , memHiddenRef      :: !(Maybe Text)
-    , memConvRoleName   :: !(Maybe RoleName)
+    , memConvRoleName   :: !RoleName
     } deriving (Eq, Show, Generic)
 
 data OtherMember = OtherMember
     { omId           :: !UserId
     , omService      :: !(Maybe ServiceRef)
-    , omConvRoleName :: !(Maybe RoleName)
+    , omConvRoleName :: !RoleName
     } deriving (Eq, Show, Generic)
 
 instance Ord OtherMember where
@@ -600,7 +600,7 @@ instance FromJSON OtherMember where
     parseJSON = withObject "other-member" $ \o ->
         OtherMember <$> o .:  "id"
                     <*> o .:? "service"
-                    <*> o .:? "conversation_role"
+                    <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON a => ToJSON (ConversationList a) where
     toJSON (ConversationList l m) = object
@@ -937,14 +937,14 @@ instance FromJSON Member where
     parseJSON = withObject "member object" $ \o ->
         Member <$> o .:  "id"
                <*> o .:? "service"
-               <*> o .:? "otr_muted"        .!= False
+               <*> o .:? "otr_muted"         .!= False
                <*> o .:? "otr_muted_status"
                <*> o .:? "otr_muted_ref"
-               <*> o .:? "otr_archived"     .!= False
+               <*> o .:? "otr_archived"      .!= False
                <*> o .:? "otr_archived_ref"
-               <*> o .:? "hidden"           .!= False
+               <*> o .:? "hidden"            .!= False
                <*> o .:? "hidden_ref"
-               <*> o .:? "conversation_role"
+               <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance FromJSON ConvType where
     parseJSON (Number 0) = return RegularConv

@@ -55,6 +55,12 @@ wireConvRoles = [ ConvRoleWireAdmin
                 , ConvRoleWireMember
                 ]
 
+roleNameWireAdmin :: RoleName
+roleNameWireAdmin = RoleName "wire_admin"
+
+roleNameWireMember :: RoleName
+roleNameWireMember = RoleName "wire_member"
+
 -- RoleNames with `wire_` prefix are reserved
 -- and cannot be created by externals
 newtype RoleName = RoleName { fromRoleName :: Text }
@@ -103,6 +109,7 @@ data Action =
     | ModifyConvMessageTimer
     | ModifyConvReceiptMode
     | ModifyConvAccess
+    | DeleteConv
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 intToAction :: Word64 -> Maybe Action
@@ -112,6 +119,7 @@ intToAction 0x0004 = Just ModifyConvName
 intToAction 0x0008 = Just ModifyConvMessageTimer
 intToAction 0x0010 = Just ModifyConvReceiptMode
 intToAction 0x0020 = Just ModifyConvAccess
+intToAction 0x0040 = Just DeleteConv
 intToAction _      = Nothing
 
 actionToInt :: Action -> Word64
@@ -121,6 +129,7 @@ actionToInt ModifyConvName           = 0x0004
 actionToInt ModifyConvMessageTimer   = 0x0008
 actionToInt ModifyConvReceiptMode    = 0x0010
 actionToInt ModifyConvAccess         = 0x0020
+actionToInt DeleteConv               = 0x0040
 
 intToActions :: Word64 -> Actions
 intToActions n =
@@ -148,8 +157,8 @@ convRoleCustom name actions = do
    pure $ ConvRoleCustom roleName actions
 
 roleToRoleName :: ConversationRole -> RoleName
-roleToRoleName ConvRoleWireAdmin    = RoleName "wire_admin"
-roleToRoleName ConvRoleWireMember   = RoleName "wire_member"
+roleToRoleName ConvRoleWireAdmin    = roleNameWireAdmin
+roleToRoleName ConvRoleWireMember   = roleNameWireMember
 roleToRoleName (ConvRoleCustom l _) = l
 
 toConvRole :: RoleName -> Maybe Actions -> Maybe ConversationRole
