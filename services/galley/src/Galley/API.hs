@@ -127,7 +127,7 @@ sitemap = do
 
     --
 
-    get "/teams/:tid/roles" (continue getTeamConversationRoles) $
+    get "/teams/:tid/conversations/roles" (continue getTeamConversationRoles) $
         zauthUserId
         .&. capture "tid"
         .&. accept "application" "json"
