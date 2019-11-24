@@ -17,6 +17,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -504,7 +505,7 @@ testAddManagedConv = do
     tid <- Util.createTeam "foo" owner []
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing
+               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
     post ( g
          . path "/conversations"
          . zUser owner

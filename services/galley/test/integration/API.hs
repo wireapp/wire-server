@@ -639,7 +639,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
     g <- view tsGalley
     alice <- randomUser
-    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
+    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . responseJsonUnsafe

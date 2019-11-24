@@ -15,6 +15,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
@@ -103,7 +104,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             return conv
         else do
             now <- liftIO getCurrentTime
-            mm  <- snd <$> Data.addMember now cid usr
+            mm  <- snd <$> Data.addMember now cid usr roleNameWireAdmin
             return $ conv { Data.convMembers = mems <> toList mm }
     ConnectConv -> case mems of
         [_,_] | usr `isMember` mems -> promote
@@ -112,7 +113,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             when (length mems > 2) $
                 throwM badConvState
             now <- liftIO getCurrentTime
-            (e, mm) <- Data.addMember now cid usr
+            (e, mm) <- Data.addMember now cid usr roleNameWireAdmin
             conv'   <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
             let mems' = mems <> toList mm
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->

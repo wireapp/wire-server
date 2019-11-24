@@ -382,8 +382,9 @@ createConversation :: UserId
                    -> Maybe ConvTeamInfo
                    -> Maybe Milliseconds                  -- ^ Message timer
                    -> Maybe ReceiptMode
+                   -> RoleName
                    -> Galley Conversation
-createConversation usr name acc role others tinfo mtimer recpt = do
+createConversation usr name acc role others tinfo mtimer recpt othersRole = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
     retry x5 $ case tinfo of
@@ -393,7 +394,7 @@ createConversation usr name acc role others tinfo mtimer recpt = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
+    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others) othersRole
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
@@ -402,7 +403,7 @@ createSelfConversation usr name = do
     now <- liftIO getCurrentTime
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-    mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
+    mems <- snd <$> addMembersUnchecked now conv usr (singleton usr) roleNameWireAdmin
     return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation :: MonadClient m
@@ -419,7 +420,7 @@ createConnectConversation a b name conn = do
         write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     -- We add only one member, second one gets added later,
     -- when the other user accepts the connection request.
-    mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
+    mems <- snd <$> addMembersUnchecked now conv a' (singleton a') roleNameWireAdmin
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
     return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
@@ -440,7 +441,7 @@ createOne2OneConversation a b name ti = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
-    mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
+    mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b']) roleNameWireAdmin
     return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
@@ -549,22 +550,26 @@ memberLists convs = do
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
-addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
-addMember t c u = addMembersUnchecked t c u (singleton u)
+addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> RoleName -> m (Event, List1 Member)
+addMember t c u r = addMembersUnchecked t c u (singleton u) r
 
-addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
-addMembers t c u ms = addMembersUnchecked t c u (fromMemberSize ms)
+addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> RoleName -> m (Event, List1 Member)
+addMembers t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
 
-addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 Member)
-addMembersUnchecked t conv orig usrs = do
+addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> RoleName -> m (Event, List1 Member)
+addMembersUnchecked t conv orig usrs othersRole = do
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
         for_ (toList usrs) $ \u -> do
             addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, Nothing)
+            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
     let e = Event MemberJoin conv orig t (Just . EdMembers . Members . toList $ usrs)
     return (e, newMember <$> usrs)
+  where
+    userRole u
+       | u == orig = roleNameWireAdmin
+       | otherwise = othersRole
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

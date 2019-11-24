@@ -20,6 +20,7 @@ import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Validation
 import Network.HTTP.Types
@@ -61,7 +62,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
     name <- rangeCheckedMaybe (newConvName body)
     uids <- checkedConvSize (newConvUsers body)
     ensureConnected zusr (fromConvSize uids)
-    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
+    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
     notifyCreatedConversation Nothing zusr (Just zcon) c
     conversationResponse status201 zusr c
 
@@ -89,7 +90,7 @@ createTeamGroupConv zusr zcon tinfo body = do
             -- 'ensureConnected' for non-team-members.
             ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
             pure otherConvMems
-    conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
+    conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
     now  <- liftIO getCurrentTime
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
@@ -158,7 +159,7 @@ createConnectConversation (usr ::: conn ::: req) = do
             | usr `isMember` mems -> connect n j conv
             | otherwise           -> do
                 now <- liftIO getCurrentTime
-                mm  <- snd <$> Data.addMember now (Data.convId conv) usr
+                mm  <- snd <$> Data.addMember now (Data.convId conv) usr roleNameWireAdmin
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }
