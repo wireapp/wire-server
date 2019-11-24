@@ -30,7 +30,7 @@ import Galley.Types (
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
-import Galley.Types.Conversations.Roles
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
@@ -1212,7 +1212,7 @@ createConv g u us = post $ g
     . contentJson
     . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postMessage
     :: Galley

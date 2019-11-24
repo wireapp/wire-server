@@ -12,11 +12,27 @@ import Cassandra.CQL hiding (Set)
 #endif
 import Control.Applicative (optional)
 import Data.Aeson
+import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import Data.Bits (testBit, (.|.))
 import Data.Hashable
 import qualified Data.Set as Set
+
+data Action =
+      AddConversationMember
+    | RemoveConversationMember
+    | ModifyConversationName
+    | ModifyConversationMessageTimer
+    | ModifyConversationReceiptMode
+    | ModifyConversationAccess
+    | DeleteConvesation
+    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+deriveJSON defaultOptions{ constructorTagModifier = camelTo2 '_' } ''Action
+
+newtype Actions = Actions
+    { allowedActions :: Set Action
+    } deriving (Eq, Ord, Show, Generic)
 
 data ConversationRole = ConvRoleWireAdmin
                       | ConvRoleWireMember
@@ -26,14 +42,14 @@ data ConversationRole = ConvRoleWireAdmin
 instance ToJSON ConversationRole where
     toJSON cr = object
         [ "conversation_role" .= roleToRoleName cr
-        , "actions"           .= (actionsToInt $ Actions (roleActions cr))
+        , "actions"           .= roleActions cr
         ]
 
 instance FromJSON ConversationRole where
     parseJSON = withObject "conversationRole" $ \o -> do
         role    <- o .: "conversation_role"
-        actions <- intToActions <$> o .: "actions"
-        case (toConvRole role (Just actions)) of
+        actions <- o .: "actions"
+        case (toConvRole role (Just $ Actions actions)) of
             Just cr -> return cr
             Nothing -> fail ("Failed to parse: " ++ show o)
 
@@ -98,49 +114,8 @@ isValidLabel = either (const False) (const True)
                *> endOfInput
     chars = inClass "a-zA-Z0-9_-"
 
-data Actions = Actions
-    { allowedActions :: Set Action
-    } deriving (Eq, Ord, Show, Generic)
-
-data Action =
-      AddConvMember
-    | RemoveConvMember
-    | ModifyConvName
-    | ModifyConvMessageTimer
-    | ModifyConvReceiptMode
-    | ModifyConvAccess
-    | DeleteConv
-    deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-intToAction :: Word64 -> Maybe Action
-intToAction 0x0001 = Just AddConvMember
-intToAction 0x0002 = Just RemoveConvMember
-intToAction 0x0004 = Just ModifyConvName
-intToAction 0x0008 = Just ModifyConvMessageTimer
-intToAction 0x0010 = Just ModifyConvReceiptMode
-intToAction 0x0020 = Just ModifyConvAccess
-intToAction 0x0040 = Just DeleteConv
-intToAction _      = Nothing
-
-actionToInt :: Action -> Word64
-actionToInt AddConvMember            = 0x0001
-actionToInt RemoveConvMember         = 0x0002
-actionToInt ModifyConvName           = 0x0004
-actionToInt ModifyConvMessageTimer   = 0x0008
-actionToInt ModifyConvReceiptMode    = 0x0010
-actionToInt ModifyConvAccess         = 0x0020
-actionToInt DeleteConv               = 0x0040
-
-intToActions :: Word64 -> Actions
-intToActions n =
-    let actions = [ 2^i | i <- [0 .. 62], n `testBit` i ] in
-    Actions $ Set.fromList (mapMaybe intToAction actions)
-
-actionsToInt :: Actions -> Word64
-actionsToInt (Actions as) = Set.foldr' (\p n -> n .|. actionToInt p) 0 as
-
 allActions :: Actions
-allActions = intToActions maxBound
+allActions = Actions . Set.fromList $ [ minBound..maxBound ]
 
 noActions :: Actions
 noActions = Actions mempty
@@ -170,7 +145,7 @@ toConvRole _                        _        = Nothing
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions
 roleActions ConvRoleWireMember = Set.fromList
-    [ AddConvMember
-    , RemoveConvMember
+    [ AddConversationMember
+    , RemoveConversationMember
     ]
 roleActions (ConvRoleCustom _ (Actions actions)) = actions
