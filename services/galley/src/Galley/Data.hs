@@ -579,8 +579,11 @@ updateMember cid uid mup = do
             addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
         for_ (mupHidden mup) $ \h ->
             addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
+        for_ (mupConvRoleName mup) $ \r ->
+            addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
     return MemberUpdateData
-        { misOtrMuted = mupOtrMute mup
+        { misId = Just uid
+        , misOtrMuted = mupOtrMute mup
         , misOtrMutedStatus = mupOtrMuteStatus mup
         , misOtrMutedRef = mupOtrMuteRef mup
         , misOtrArchived = mupOtrArchive mup

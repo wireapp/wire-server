@@ -402,6 +402,16 @@ memberUpdate = defineModel "MemberUpdate" $ do
     property "hidden_ref" bytes' $ do
         description "A reference point for (un)hiding"
         optional
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
+        optional
+
+otherMemberUpdate :: Model
+otherMemberUpdate = defineModel "otherMemberUpdate" $ do
+    description "Update user properties of other members relative to a conversation"
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
+        optional
 
 memberUpdateData :: Model
 memberUpdateData = defineModel "MemberUpdateData" $ do
@@ -423,6 +433,18 @@ memberUpdateData = defineModel "MemberUpdateData" $ do
         optional
     property "hidden_ref" bytes' $ do
         description "A reference point for (un)hiding"
+        optional
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
+        optional
+
+otherMemberUpdateData :: Model
+otherMemberUpdateData = defineModel "OtherMemberUpdateData" $ do
+    description "Event data on other member updates"
+    property "id" bytes' $
+        description "The user ID updated"
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
         optional
 
 typing :: Model

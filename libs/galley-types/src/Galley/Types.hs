@@ -47,6 +47,7 @@ module Galley.Types
     , NewConvManaged            (..)
     , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
+    , OtherMemberUpdate         (..)
     , MutedStatus               (..)
     , ReceiptMode               (..)
     , TypingStatus              (..)
@@ -188,6 +189,8 @@ data NewConv = NewConv
     , newConvTeam   :: !(Maybe ConvTeamInfo)
     , newConvMessageTimer :: !(Maybe Milliseconds)
     , newConvReceiptMode  :: !(Maybe ReceiptMode)
+    -- , newConvMemberRole   :: !RoleName
+    -- Every member except for the creator will have this role
     }
 
 deriving instance Eq   NewConv
@@ -330,8 +333,8 @@ data OtherMember = OtherMember
 instance Ord OtherMember where
     compare a b = compare (omId a) (omId b)
 
--- Inbound member updates.  This is what galley expects on its endpoint.  See also
--- 'MemberUpdateData'.
+-- Inbound self member updates.  This is what galley expects on its endpoint.  See also
+-- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
 data MemberUpdate = MemberUpdate
     { mupOtrMute       :: !(Maybe Bool)
     , mupOtrMuteStatus :: !(Maybe MutedStatus)
@@ -345,6 +348,16 @@ data MemberUpdate = MemberUpdate
 
 deriving instance Eq   MemberUpdate
 deriving instance Show MemberUpdate
+
+-- Inbound other member updates.  This is what galley expects on its endpoint.  See also
+-- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
+data OtherMemberUpdate = OtherMemberUpdate
+    { omuConvRoleName  :: !(Maybe RoleName)
+    }
+
+deriving instance Eq   OtherMemberUpdate
+deriving instance Show OtherMemberUpdate
+
 
 newtype Invite = Invite
     { invUsers :: List1 UserId
@@ -415,7 +428,8 @@ data Connect = Connect
 -- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-    { misOtrMuted         :: !(Maybe Bool)
+    { misId               :: !(Maybe UserId)
+    , misOtrMuted         :: !(Maybe Bool)
     , misOtrMutedStatus   :: !(Maybe MutedStatus)
     , misOtrMutedRef      :: !(Maybe Text)
     , misOtrArchived      :: !(Maybe Bool)
@@ -890,9 +904,30 @@ instance ToJSON MemberUpdate where
         # "conversation_role" .= mupConvRoleName m
         # []
 
+instance FromJSON OtherMemberUpdate where
+    parseJSON = withObject "other-member-update object" $ \m -> do
+        u <- OtherMemberUpdate <$> m .:? "conversation_role"
+
+        unless (isJust (omuConvRoleName u)) $
+            fail "One of { 'conversation_role'} required."
+
+        return u
+
+instance ToJSON OtherMemberUpdate where
+    toJSON m = object
+        $ "conversation_role" .= omuConvRoleName m
+        # []
+
 instance FromJSON MemberUpdateData where
     parseJSON = withObject "member-update event data" $ \m ->
-        MemberUpdateData <$> m .:? "otr_muted"
+        MemberUpdateData <$> m .:? "id"
+                         -- TODO: ^-- This is really not a maybe and should
+                         --       be made compulsory 28 days after the next
+                         --       release to prod to guaratee that no events
+                         --       out there do not contain id.
+                         --       Making it compulsory now creates a bit of
+                         --       a fragile parser
+                         <*> m .:? "otr_muted"
                          <*> m .:? "otr_muted_status"
                          <*> m .:? "otr_muted_ref"
                          <*> m .:? "otr_archived"
@@ -903,13 +938,15 @@ instance FromJSON MemberUpdateData where
 
 instance ToJSON MemberUpdateData where
     toJSON m = object
-        $ "otr_muted"        .= misOtrMuted m
-        # "otr_muted_status" .= misOtrMutedStatus m
-        # "otr_muted_ref"    .= misOtrMutedRef m
-        # "otr_archived"     .= misOtrArchived m
-        # "otr_archived_ref" .= misOtrArchivedRef m
-        # "hidden"           .= misHidden m
-        # "hidden_ref"       .= misHiddenRef m
+        $ "id"                .= misId m
+        # "otr_muted"         .= misOtrMuted m
+        # "otr_muted_status"  .= misOtrMutedStatus m
+        # "otr_muted_ref"     .= misOtrMutedRef m
+        # "otr_archived"      .= misOtrArchived m
+        # "otr_archived_ref"  .= misOtrArchivedRef m
+        # "hidden"            .= misHidden m
+        # "hidden_ref"        .= misHiddenRef m
+        # "conversation_role" .= misConvRoleName m
         # []
 
 instance ToJSON Member where

@@ -16,7 +16,8 @@ module Galley.API.Update
 
       -- * Managing Members
     , Galley.API.Update.addMembers
-    , updateMember
+    , updateSelfMember
+    , updateOtherMember
     , removeMember
 
       -- * Talking
@@ -41,6 +42,7 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
+import Data.List (delete)
 import Data.List1
 import Data.Time
 import Galley.App
@@ -364,8 +366,8 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
 
-updateMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
-updateMember (zusr ::: zcon ::: cid ::: req) = do
+updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
+updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
     alive <- Data.isConvAlive cid
     unless alive $ do
         Data.deleteConversation cid
@@ -390,6 +392,51 @@ updateMember (zusr ::: zcon ::: cid ::: req) = do
         , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
         , memHidden         = fromMaybe (memHidden m) (misHidden u)
         , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
+        , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
+        }
+
+-- TODO: This is copy+paste and needs refactoring
+updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
+updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
+    conv <- Data.conversation cid >>= ifNothing convNotFound
+    alive <- Data.isConvAlive cid
+    -- TODO: Optimize
+    unless alive $ do
+        Data.deleteConversation cid
+        throwM convNotFound
+
+    let (_, users) = botsAndUsers (Data.convMembers conv)
+    _memOrigin <- pure (find (\x -> memId x == zusr) users) >>= ifNothing convNotFound
+    -- TODO: Check that memOrigin can change others' status
+    memTarget <- pure (find (\x -> memId x == zusr) users) >>= ifNothing convMemberNotFound
+
+    body <- fromJsonBody req
+
+    up   <- Data.updateMember cid victim (toMemberUpdate body)
+    now  <- liftIO getCurrentTime
+    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+    let ms = applyChanges memTarget up
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : toOtherMembers memTarget users)) $ \p ->
+        push1 $ p
+              & pushConn  ?~ zcon
+              & pushRoute .~ RouteDirect
+    return empty
+  where
+    toOtherMembers :: Member -> [Member] -> [Recipient]
+    toOtherMembers u usrs = fmap recipient $ delete u usrs
+
+    toMemberUpdate :: OtherMemberUpdate -> MemberUpdate
+    toMemberUpdate omu = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing (omuConvRoleName omu)
+
+    applyChanges :: Member -> MemberUpdateData -> Member
+    applyChanges m u = m
+        { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
+        , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
+        , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
+        , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
+        , memHidden         = fromMaybe (memHidden m) (misHidden u)
+        , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
+        , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
         }
 
 removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
