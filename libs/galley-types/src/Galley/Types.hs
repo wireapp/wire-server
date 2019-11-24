@@ -182,14 +182,14 @@ data ConvTeamInfo = ConvTeamInfo
     } deriving (Eq, Show)
 
 data NewConv = NewConv
-    { newConvUsers  :: ![UserId]
-    , newConvName   :: !(Maybe Text)
-    , newConvAccess :: !(Set Access)
-    , newConvAccessRole :: !(Maybe AccessRole)
-    , newConvTeam   :: !(Maybe ConvTeamInfo)
+    { newConvUsers        :: ![UserId]
+    , newConvName         :: !(Maybe Text)
+    , newConvAccess       :: !(Set Access)
+    , newConvAccessRole   :: !(Maybe AccessRole)
+    , newConvTeam         :: !(Maybe ConvTeamInfo)
     , newConvMessageTimer :: !(Maybe Milliseconds)
     , newConvReceiptMode  :: !(Maybe ReceiptMode)
-    -- , newConvMemberRole   :: !RoleName
+    , newConvUsersRole    :: !RoleName
     -- Every member except for the creator will have this role
     }
 
@@ -759,6 +759,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
                 <*> i .:? "receipt_mode"
+                <*> i .:? "users_conversation_role" .!= roleNameWireAdmin
 
 newConvToJSON :: NewConv -> Value
 newConvToJSON i = object
@@ -769,6 +770,7 @@ newConvToJSON i = object
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
         # "receipt_mode" .= newConvReceiptMode i
+        # "users_conversation_role" .= newConvUsersRole i
         # []
 
 instance ToJSON NewConvUnmanaged where

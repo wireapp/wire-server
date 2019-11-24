@@ -19,6 +19,7 @@ import Data.String.Conversions (cs, ST)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
@@ -139,7 +140,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer = do
     g <- view tsGalley
     let tinfo = ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing roleNameWireAdmin
     post ( g
           . path "/conversations"
           . zUser u
@@ -165,7 +166,7 @@ createManagedConv u tid us name acc mtimer = do
     g <- view tsGalley
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
     r <- post ( g
               . path "i/conversations/managed"
               . zUser u
@@ -180,19 +181,19 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
     g <- view tsGalley
     let conv = NewConvUnmanaged $
-               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing roleNameWireAdmin
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt)
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -203,7 +204,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS

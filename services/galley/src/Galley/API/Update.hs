@@ -57,6 +57,7 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
+import Galley.Types.Conversations.Roles (RoleName, roleNameWireAdmin)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
@@ -335,7 +336,8 @@ joinConversation zusr zcon cnv access = do
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
+    -- TODO: Wonder what the type should be here...
+    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv roleNameWireAdmin
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req) = do
@@ -352,7 +354,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
-    addToConversation mems zusr zcon newUsers conv
+    addToConversation mems zusr zcon newUsers conv roleNameWireAdmin
   where
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
@@ -640,13 +642,13 @@ rmBot (zusr ::: zcon ::: req) = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> Galley Response
-addToConversation _              _   _    [] _ = return $ empty & setStatus status204
-addToConversation (bots, others) usr conn xs c = do
+addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> RoleName -> Galley Response
+addToConversation _              _   _    [] _ _    = return $ empty & setStatus status204
+addToConversation (bots, others) usr conn xs c role = do
     ensureGroupConv c
     mems    <- checkedMemberAddSize xs
     now     <- liftIO getCurrentTime
-    (e, mm) <- Data.addMembers now (Data.convId c) usr mems
+    (e, mm) <- Data.addMembers now (Data.convId c) usr mems role
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)

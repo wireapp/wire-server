@@ -506,7 +506,7 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     cc  <- filter (view managedConversation) <$> Data.teamConversations tid
     now <- liftIO getCurrentTime
     for_ cc $ \c ->
-        Data.addMember now (c^.conversationId) (new^.userId)
+        Data.addMember now (c^.conversationId) (new^.userId) roleNameWireAdmin
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new^.userId))
     push1 $ newPush1 (new^.userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
     pure empty
