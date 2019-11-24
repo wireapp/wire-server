@@ -697,7 +697,7 @@ sitemap = do
 
     ---
 
-    put "/conversations/:cnv/self" (continue updateMember) $
+    put "/conversations/:cnv/self" (continue updateSelfMember) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
@@ -709,6 +709,26 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         body (ref Model.memberUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+
+    ---
+
+    put "/conversations/:cnv/members/:usr" (continue updateOtherMember) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. capture "usr"
+        .&. jsonRequest @OtherMemberUpdate
+
+    document "PUT" "updateOtherMember" $ do
+        summary "Update membership of the specified user"
+        notes "Even though all fields are optional, at least one needs to be given."
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        parameter Path "usr" bytes' $
+            description "User ID"
+        body (ref Model.otherMemberUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
 

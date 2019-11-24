@@ -209,6 +209,9 @@ updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref 
 updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
+updateMemberConvRoleName :: PrepQuery W (Roles.RoleName, ConvId, UserId) ()
+updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
+
 -- Clients ------------------------------------------------------------------
 
 selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)
