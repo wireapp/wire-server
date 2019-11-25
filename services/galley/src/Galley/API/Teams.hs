@@ -419,7 +419,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     let convPush = case convMembsAndTeamMembs cmems tmems of
             []     -> []
             (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    pushSome $ convPush
+    pushSome convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
