@@ -36,6 +36,8 @@ dependencies:
 - network >=2.4
 - retry >=0.7
 - semigroups >=0.10
+- servant
+- servant-client
 - text >=1.2
 - time >=1.5
 - tinylog >=0.14
