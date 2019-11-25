@@ -643,7 +643,7 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
         -- 200 response on success
         Team.deleteTeamConv galley tid cid uid2
         -- Events for the users
-        forM_ wss $ \ws -> wsAssertTeamConvDelete ws tid cid
+        forM_ wss $ \ws -> wsAssertConvDelete ws cid uid2
         -- Event for the bot
         svcAssertConvDelete buf uid2 cid
 
@@ -1608,14 +1608,15 @@ wsAssertMemberLeave ws conv usr old = void $ liftIO $
         evtFrom      e @?= usr
         evtData      e @?= Just (EdMembers (Members old))
 
-wsAssertTeamConvDelete :: MonadIO m => WS.WebSocket -> TeamId -> ConvId -> m ()
-wsAssertTeamConvDelete ws tid conv = void $ liftIO $
+wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
+wsAssertConvDelete ws conv from = void $ liftIO $
     WS.assertMatch (5 # Second) ws $ \n -> do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
-        e^.(Team.eventType) @?= Team.ConvDelete
-        e^.(Team.eventTeam) @?= tid
-        e^.(Team.eventData) @?= Just (Team.EdConvDelete conv)
+        evtConv e @?= conv
+        evtType e @?= ConvDelete
+        evtFrom e @?= from
+        evtData e @?= Nothing
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $ liftIO $
