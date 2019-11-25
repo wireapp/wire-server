@@ -28,6 +28,12 @@ data Action =
     | DeleteConvesation
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+-- TODO: Question for Marco/Eva. I think someone mentioned
+-- at some point that some users might not be able to
+-- even leave a conversation... does it make sense to
+-- already had _that_ permission, being the only permission
+-- that members have?
+
 deriveJSON defaultOptions{ constructorTagModifier = camelTo2 '_' } ''Action
 
 newtype Actions = Actions
@@ -145,7 +151,6 @@ toConvRole _                        _        = Nothing
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions
 roleActions ConvRoleWireMember = Set.fromList
-    [ AddConversationMember
-    , RemoveConversationMember
+    [ -- TODO: Currently no action, maybe add LeaveConversation?
     ]
 roleActions (ConvRoleCustom _ (Actions actions)) = actions
