@@ -416,13 +416,14 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     (bots, cmems) <- botsAndUsers <$> Data.members cid
     flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
-    let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
+    let _te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
-    let tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
+    let _tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
+    -- let teamPush = [newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon]
     let convPush = case convMembsAndTeamMembs cmems tmems of
             []     -> []
             (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    pushSome convPush
+    pushSome $ convPush -- <> teamPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
