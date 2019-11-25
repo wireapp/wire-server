@@ -16,10 +16,9 @@ import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, (><), (<|), ViewL (..), ViewR (..))
 import Gundeck.Types.Notification
 import Gundeck.Options (NotificationTTL (..))
-import UnliftIO (mapConcurrently)
+import UnliftIO (pooledForConcurrentlyN_)
 
 import qualified Data.Aeson      as JSON
-import qualified Data.List.Extra as List
 import qualified Data.Sequence   as Seq
 
 data ResultPage = ResultPage
@@ -34,14 +33,15 @@ data ResultPage = ResultPage
         -- iff a start ID ('since') has been given which could not be found.
     }
 
+-- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add :: (MonadClient m, MonadUnliftIO m)
     => NotificationId
     -> List1 NotificationTarget
     -> List1 JSON.Object
     -> NotificationTTL
     -> m ()
-add n (List.chunksOf 32 . toList -> tgts) (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
-    forM_ tgts $ mapConcurrently $ \tgt ->
+add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
+    pooledForConcurrentlyN_ 32 tgts $ \tgt ->
         let u  = tgt^.targetUser
             cs = C.Set (tgt^.targetClients)
         in write cqlInsert (params Quorum (u, n, p, cs, fromIntegral t)) & retry x5
