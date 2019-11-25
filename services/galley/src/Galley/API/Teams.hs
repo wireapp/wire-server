@@ -69,7 +69,6 @@ import qualified Galley.Data.SSO as SSOData
 import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
-import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
 import qualified Galley.Intra.Spar as Spar
 import qualified System.Logger.Class as Log
@@ -416,14 +415,11 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     (bots, cmems) <- botsAndUsers <$> Data.members cid
     flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
-    let _te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
-    let _tr = list1 (userRecipient zusr) (membersToRecipients (Just zusr) tmems)
-    -- let teamPush = [newPush1 zusr (TeamEvent te) tr & pushConn .~ Just zcon]
     let convPush = case convMembsAndTeamMembs cmems tmems of
             []     -> []
             (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    pushSome $ convPush -- <> teamPush
+    pushSome $ convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation

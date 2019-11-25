@@ -902,13 +902,13 @@ checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
         Just (Conv.EdConversation x) -> cnvId x @?= cid
         other                        -> assertFailure $ "Unexpected event data: " <> show other
 
-checkTeamConvDeleteEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> TestM ()
-checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
+checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
+checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
-    e^.eventType @?= ConvDelete
+    e^.eventType @?= TeamDelete
     e^.eventTeam @?= tid
-    e^.eventData @?= Just (EdConvDelete cid)
+    e^.eventData @?= Nothing
 
 checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
