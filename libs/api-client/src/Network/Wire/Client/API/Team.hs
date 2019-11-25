@@ -11,26 +11,28 @@ import Network.HTTP.Client (newManager, defaultManagerSettings)
 import Servant.API
 import Servant.Client
 
+import Data.Aeson.TH (deriveJSON)
+import Util.Options.Common
+
 import Brig.Types
--- import Servant.Types.SourceT (foreach)
+-- import Galley.Types
 
--- import qualified Servant.Client.Streaming as S
---
+data Team = Team
+    { tName :: String
+    , tIcon :: String
+    } deriving (Show, Generic)
 
--- | URI scheme to use
--- data HttpScheme =
---     Http  -- ^ http://
---   | Https -- ^ https://
+deriveJSON toOptionFieldName 'Team
 
--- | Simple data type to represent the target of HTTP requests
---   for servant's automatically-generated clients.
--- data BaseUrl = BaseUrl
---     { baseUrlScheme :: HttpScheme -- ^ URI scheme to use
---     , baseUrlHost :: String   -- ^ host (eg "haskell.org")
---     , baseUrlPort :: Int      -- ^ port (eg 80)
---     , baseUrlPath :: String   -- ^ path (eg "/a/b/c")
---     }
+data TeamUser = TeamUser
+    { name :: String
+    , email :: String
+    , password :: String
+    , team :: Team
+    } deriving (Show, Generic)
 
+instance ToJSON TeamUser
+instance FromJSON TeamUser
 
 type InternalAPI = "i" :> "users" :> ReqBody '[JSON] TeamUser :> Post '[JSON] SelfProfile
 
@@ -38,19 +40,6 @@ internalAPI :: Proxy InternalAPI
 internalAPI = Proxy
 
 createUser = client internalAPI
-
-data TeamUser = TeamUser
-    { name :: String
-    , email :: String
-    , password :: String
-    } deriving (Show, Generic)
-
-instance ToJSON TeamUser
-instance FromJSON TeamUser
-
-
-teamOwner :: TeamUser
-teamOwner = TeamUser { name = "Owner", email = "user1234@example.com" , password = "password" }
 
 createUser :: TeamUser -> ClientM SelfProfile
 
@@ -63,9 +52,17 @@ createUser :: TeamUser -> ClientM SelfProfile
 --             , newUserOrigin = NewUserOriginTeamUser (NewTeamCreator (BindingNewTeam ()))
 --             }
 
+
+teamOwner :: String -> TeamUser
+teamOwner prefix = TeamUser { name = "Owner"
+                     , email = prefix <> "@example.com"
+                     , password = "password"
+                     , team = Team "Teamname" "icon"
+                     }
+
 queries :: ClientM ()
 queries = do
-    _ <- createUser teamOwner
+    _ <- createUser $ teamOwner "hui"
     return ()
 
 
