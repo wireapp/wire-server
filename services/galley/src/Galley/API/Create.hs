@@ -93,8 +93,6 @@ createTeamGroupConv zusr zcon tinfo body = do
     now  <- liftIO getCurrentTime
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-    let notInConv = Set.fromList (map (view userId) teamMems) \\ Set.fromList (zusr : fromConvSize otherConvMems)
-    for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
     conversationResponse status201 zusr conv
 
