@@ -25,6 +25,7 @@ data Action =
     | ModifyConversationMessageTimer
     | ModifyConversationReceiptMode
     | ModifyConversationAccess
+    | LeaveConversation
     | DeleteConvesation
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
@@ -151,6 +152,6 @@ toConvRole _                        _        = Nothing
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions
 roleActions ConvRoleWireMember = Set.fromList
-    [ -- TODO: Currently no action, maybe add LeaveConversation?
+    [ LeaveConversation
     ]
 roleActions (ConvRoleCustom _ (Actions actions)) = actions
