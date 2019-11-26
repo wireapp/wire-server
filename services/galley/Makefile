@@ -41,6 +41,10 @@ install: init
 fast: init
 	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
+.PHONY: ffast
+ffast: init
+	stack install . --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+
 .PHONY:
 compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
@@ -96,12 +100,12 @@ i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
-integration: fast i
+integration: ffast i
 
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast
+integration-%: ffast
 	make "i-$*"
 
 .metadata:

@@ -3,11 +3,15 @@ module Galley.API.Error where
 import Imports
 import Data.Text.Lazy as LT (pack)
 import Galley.Types.Teams (IsPerm)
+import Galley.Types.Conversations.Roles (Action)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
 internalError :: Error
 internalError = Error status500 "internal-error" "internal error"
+
+notImplemented :: Error
+notImplemented = Error status501 "not-implemented" "this feature has not been implemented"
 
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"
@@ -68,6 +72,12 @@ operationDenied p = Error
     status403
     "operation-denied"
     ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
+
+actionDenied :: Action -> Error
+actionDenied a = Error
+    status403
+    "action-denied"
+    ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
 noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."

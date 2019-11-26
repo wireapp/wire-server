@@ -46,6 +46,20 @@ data ConversationRole = ConvRoleWireAdmin
                       | ConvRoleCustom RoleName Actions
                       deriving (Eq, Show)
 
+-- Three possible outcomes:
+-- Just True:  Yes, the action is allowed
+-- Just False: No, the action is not allowed
+-- Nothing: Not enough information, this is a custom role
+isActionAllowed :: Action -> RoleName -> Maybe Bool
+isActionAllowed action rn
+    | isCustomRoleName rn = Nothing
+    | otherwise           = pure $ maybe False (action `elem`) (roleNameToActions rn)
+        -- TODO: This is actually impossible, actions
+        -- must always be a Just at this point
+
+isCustomRoleName :: RoleName -> Bool
+isCustomRoleName = (`notElem` wireConvRoleNames)
+
 instance ToJSON ConversationRole where
     toJSON cr = object
         [ "conversation_role" .= roleToRoleName cr
@@ -77,6 +91,9 @@ wireConvRoles :: [ConversationRole]
 wireConvRoles = [ ConvRoleWireAdmin
                 , ConvRoleWireMember
                 ]
+
+wireConvRoleNames :: [RoleName]
+wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
 
 roleNameWireAdmin :: RoleName
 roleNameWireAdmin = RoleName "wire_admin"
@@ -148,6 +165,11 @@ toConvRole (RoleName "wire_admin")  _        = Just ConvRoleWireAdmin
 toConvRole (RoleName "wire_member") _        = Just ConvRoleWireMember
 toConvRole x                       (Just as) = Just (ConvRoleCustom x as)
 toConvRole _                        _        = Nothing
+
+roleNameToActions :: RoleName -> Maybe (Set Action)
+roleNameToActions r = do
+    let convRole = toConvRole r Nothing
+    roleActions <$> convRole
 
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions

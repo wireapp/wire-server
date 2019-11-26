@@ -69,6 +69,16 @@ bindingTeamMembers tid = do
         Binding -> Data.teamMembers tid
         NonBinding -> throwM nonBindingTeam
 
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+-- If not, throw 'Member'; if the user is found and does not have the given permission, throw
+-- 'operationDenied'.  Otherwise, return the found user.
+conversationActionCheck :: Foldable m => Action -> Member -> Galley ()
+conversationActionCheck a m = case isActionAllowed a (memConvRoleName m) of
+    Just True  -> return ()
+    Just False -> throwM (actionDenied a)
+    Nothing    -> throwM notImplemented
+
 -- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
 -- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.

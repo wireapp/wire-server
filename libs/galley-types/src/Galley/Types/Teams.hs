@@ -242,11 +242,11 @@ data Permissions = Permissions
 
 data Perm =
       CreateConversation
-    | DeleteConversation
+    | DeleteConversation  -- NOTE: This gets overruled by conv level checks
     | AddTeamMember
     | RemoveTeamMember
-    | AddRemoveConvMember
-    | ModifyConvName
+    | AddRemoveConvMember -- NOTE: This gets overruled by conv level checks
+    | ModifyConvName      -- NOTE: This gets overruled by conv level checks
     | GetBilling
     | SetBilling
     | SetTeamData
