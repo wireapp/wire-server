@@ -19,7 +19,7 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate
+import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 
@@ -173,3 +173,20 @@ convMembsAndTeamMembs convMembs teamMembs
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+
+-- Note that we use 2 nearly identical functions but slightly different
+-- semantics; when using `getSelfMember`, if that user is _not_ part of
+-- the conversation, we don't want to disclose that such a conversation
+-- with that id exists.
+getSelfMember :: Foldable m => UserId -> m Member -> Galley Member
+getSelfMember = getMember convNotFound
+
+getOtherMember :: Foldable m => UserId -> m Member -> Galley Member
+getOtherMember = getMember convMemberNotFound
+
+getMember :: Foldable m => Error -> UserId -> m Member -> Galley Member
+getMember ex u ms = do
+    let member = find ((u ==) . memId) ms
+    case member of
+        Just m  -> return m
+        Nothing -> throwM ex

@@ -408,9 +408,9 @@ updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
         throwM convNotFound
 
     let (_, users) = botsAndUsers (Data.convMembers conv)
-    _memOrigin <- pure (find (\x -> memId x == zusr) users) >>= ifNothing convNotFound
+    _memSelf <- getSelfMember zusr users
     -- TODO: Check that memOrigin can change others' status
-    memTarget <- pure (find (\x -> memId x == zusr) users) >>= ifNothing convMemberNotFound
+    memTarget <- getOtherMember victim users
 
     body <- fromJsonBody req
 
@@ -445,6 +445,9 @@ removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers conv)
+    _memSelf <- getSelfMember zusr users
+    -- TODO: Check that memOrigin can change others' status
+    _memVictim <- getOtherMember victim users
     case Data.convTeam conv of
         Nothing -> regularConvChecks users
         Just ti -> teamConvChecks ti
@@ -463,7 +466,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
 
     teamConvChecks tid = do
         unless (zusr == victim) $
-            void $ permissionCheck zusr AddRemoveConvMember =<< Data.teamMembers tid
+            void $ permissionCheck zusr AddRemoveConvMember =<< maybeToList <$> Data.teamMember tid zusr
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
