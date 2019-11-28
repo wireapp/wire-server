@@ -1,3 +1,18 @@
+# 2019-11-28
+
+## Relevant for client developers
+
+- Remove unnecessary fanout team events (#915)
+
+
+## Bug fixes
+
+- SCIM fixes Phase 0: User creation in correct order (#905)
+    
+## Internal changes
+
+- Gundeck: Use polledMapConcurrently (#914)
+
 # 2019-11-06 #901
 
 ## Relevant for self-hosters
