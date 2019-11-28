@@ -20,7 +20,7 @@ import Gundeck.Types
 import Gundeck.Util
 import Network.AWS.Data (toText)
 import System.Logger.Class (MonadLogger, (~~), msg, val, field)
-import UnliftIO (mapConcurrently, handleAny)
+import UnliftIO (mapConcurrently, handleAny, pooledMapConcurrentlyN_)
 
 import qualified Data.Set                  as Set
 import qualified Data.Text                 as Text
@@ -29,7 +29,6 @@ import qualified Gundeck.Aws               as Aws
 import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
-import qualified Data.List.Extra           as List
 
 push :: NativePush -> [Address] -> Gundeck ()
 push _    [] = pure ()
@@ -41,9 +40,7 @@ push m addrs = do
         Nothing -> void $ mapConcurrently (push1 m) addrs
         -- avoid high amounts of fresh parallel network requests by
         -- parallelizing only chunkSize native pushes at a time
-        Just chunkSize -> do
-            let chunks = List.chunksOf chunkSize addrs
-            mapM_ (mapConcurrently (push1 m)) chunks
+        Just chunkSize -> pooledMapConcurrentlyN_ chunkSize (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
 push1 m a = do

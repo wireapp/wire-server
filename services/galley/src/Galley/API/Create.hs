@@ -12,7 +12,6 @@ import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
 import Data.Range
-import Data.Set ((\\))
 import Data.Time
 import Galley.App
 import Galley.API.Error
@@ -30,7 +29,6 @@ import Network.Wai.Utilities
 import qualified Data.Set           as Set
 import qualified Data.UUID.Tagged   as U
 import qualified Galley.Data        as Data
-import qualified Galley.Types.Teams as Teams
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -91,10 +89,7 @@ createTeamGroupConv zusr zcon tinfo body = do
             pure otherConvMems
     conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
     now  <- liftIO getCurrentTime
-    let d = Teams.EdConvCreate (Data.convId conv)
-    let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-    let notInConv = Set.fromList (map (view userId) teamMems) \\ Set.fromList (zusr : fromConvSize otherConvMems)
-    for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
+    -- NOTE: We only send (conversation) events to members of the conversation
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
     conversationResponse status201 zusr conv
 

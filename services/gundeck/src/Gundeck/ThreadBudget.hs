@@ -2,6 +2,8 @@
 -- upper bound.  Like https://hackage.haskell.org/package/token-bucket, but takes the entire
 -- run-time of the actions into account, not just the number of executions.
 -- http://hackage.haskell.org/package/rate-limit also looks related.
+-- https://github.com/juspay/fencer does what this module does, but as a networked service, so
+-- in that way it works more like "Brig.Budget".
 --
 -- FUTUREWORK: https://github.com/layer-3-communications/lockpool seems like almost exactly
 -- the same thing, but I only found this after ThreadBudget was done.  Before considering to

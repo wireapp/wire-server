@@ -27,7 +27,7 @@ default: fast
 
 .PHONY: init
 init:
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 
 .PHONY: install
 install: init
@@ -47,7 +47,6 @@ compile:
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: dist

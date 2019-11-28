@@ -25,7 +25,7 @@ guard-%:
 default: fast
 
 init:
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 
 .PHONY: install
 install: init
@@ -38,7 +38,6 @@ fast: init
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: compile

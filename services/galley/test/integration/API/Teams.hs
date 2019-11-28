@@ -444,9 +444,8 @@ testAddTeamConv = do
         cid2 <- Util.createTeamConv owner tid [extern] (Just "blaa") Nothing Nothing
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
-        -- mem2 is not a conversation member but still receives an event that
-        -- a new team conversation has been created:
-        checkTeamConvCreateEvent tid cid2 wsMem2
+        -- mem2 is not a conversation member and no longer receives
+        -- an event that a new team conversation has been created
 
         Util.addTeamMember owner tid mem1
 
@@ -721,8 +720,10 @@ testDeleteTeamConv = do
                . zConn "conn"
                ) !!!  const 200 === statusCode
 
-        checkTeamConvDeleteEvent tid cid2 wsOwner
-        checkTeamConvDeleteEvent tid cid2 wsMember
+        -- We no longer send duplicate conv deletion events
+        -- i.e., as both a regular "conversation.delete" to all
+        -- conversation members and as "team.conversation-delete"
+        -- to all team members not part of the conversation
         checkConvDeleteEvent cid2 wsOwner
         checkConvDeleteEvent cid2 wsMember
         WS.assertNoEvent timeout [wsOwner, wsMember]
@@ -733,8 +734,10 @@ testDeleteTeamConv = do
                . zConn "conn"
                ) !!!  const 200 === statusCode
 
-        checkTeamConvDeleteEvent tid cid1 wsOwner
-        checkTeamConvDeleteEvent tid cid1 wsMember
+        -- We no longer send duplicate conv deletion events
+        -- i.e., as both a regular "conversation.delete" to all
+        -- conversation members and as "team.conversation-delete"
+        -- to all team members not part of the conversation
         checkConvDeleteEvent cid1 wsOwner
         checkConvDeleteEvent cid1 wsMember
         checkConvDeleteEvent cid1 wsExtern
@@ -890,14 +893,6 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberLeave usr)
 
-checkTeamConvCreateEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> TestM ()
-checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
-    let e = List1.head (WS.unpackPayload notif)
-    e^.eventType @?= ConvCreate
-    e^.eventTeam @?= tid
-    e^.eventData @?= Just (EdConvCreate cid)
-
 checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
@@ -914,14 +909,6 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventType @?= TeamDelete
     e^.eventTeam @?= tid
     e^.eventData @?= Nothing
-
-checkTeamConvDeleteEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> TestM ()
-checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
-    let e = List1.head (WS.unpackPayload notif)
-    e^.eventType @?= ConvDelete
-    e^.eventTeam @?= tid
-    e^.eventData @?= Just (EdConvDelete cid)
 
 checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do

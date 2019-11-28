@@ -27,6 +27,7 @@ import Brig.Types.User as BrigTypes
 import Spar.Intra.Brig as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
+import Control.Exception (assert)
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
@@ -35,7 +36,7 @@ import Data.String.Conversions
 import Galley.Types.Teams    as Galley
 import Network.URI
 
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createSamlUserWithId, wrapMonadClient, getUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts,  wrapMonadClient, getUser)
 import Spar.Intra.Galley
 import Spar.Scim.Types
 import Spar.Scim.Auth ()
@@ -179,8 +180,10 @@ validateScimUser' idp richInfoLimit user = do
     pure $ ValidScimUser user uref handl mbName richInfo
   where
     -- Validate a handle (@userName@).
+    -- We should lowercase the wire handle here first, as SCIM says it's case insensitive.
+    -- TODO(arianvp): We should do this at the hscim level. but for now I do it here
     validateHandle :: Text -> m Handle
-    validateHandle txt = case parseHandle txt of
+    validateHandle txt = case parseHandle (Text.toLower txt) of
         Just h -> pure h
         Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
             (Just "userName must be a valid Wire handle")
@@ -234,7 +237,14 @@ mkUserRef idp extid = case extid of
                 (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
 
--- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
+-- | Creates a SCIM User.
+--
+-- User is created in Brig first, and then in SCIM and SAML.
+--
+-- Rationale: If brig user creation fails halfway, we don't have SCIM records that
+-- point to inactive users. This stops people from logging in into inactive users.
+--
+-- We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
 -- requirement.)
 createValidScimUser
@@ -243,31 +253,37 @@ createValidScimUser
 createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-
     -- ensure uniqueness constraints of all affected identifiers.
+    -- if we crash now, retry POST will just work
     assertUserRefUnused uref
     assertHandleUnused handl buid
-
-    -- Create SCIM user here in spar.
+    -- if we crash now, retry POST will just work, or user gets told the handle
+    -- is already in use and stops POSTing
+   
+    -- TODO(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
+    -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
-    lift . wrapMonadClient $ Data.insertScimUser buid storedUser
-
-    -- Create SAML user here in spar, which in turn creates a brig user. The user is created
-    -- with 'ManagedByScim', which signals to client apps that the user should not be editable
-    -- from the app (and ideally brig should also enforce this). See {#DevScimOneWaySync}.
-    lift $ createSamlUserWithId buid uref mbName ManagedByScim
-
-    -- Set user handle on brig (which can't be done during user creation yet).
-    -- TODO: handle errors better here?
+    idpConfig <-  lift $ SAML.getIdPConfigByIssuer (uref ^. SAML.uidTenant)
+    let teamid = view SAML.idpExtraInfo idpConfig
+    buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
+    assert (buid == buid') $ pure ()
+    -- If we crash now, we have an active user that cannot login. And can not
+    -- be bound this will be a zombie user that needs to be manually cleaned
+    -- up.  We should consider making setUserHandle part of createUser and
+    -- making it transactional.  If the user redoes the POST A new standalone
+    -- user will be created
     lift $ Intra.Brig.setBrigUserHandle buid handl
-
-    -- Set rich info on brig
+    -- If we crash now,  a POST retry will fail with 409 user already exists. 
+    -- Azure at some point will retry with GET /Users?filter=userName eq handle
+    -- and then issue a PATCH containing the rich info and the externalId
+    -- TODO(arianvp): Implement PATCH (Part of Phase 1)
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
-
+    -- If we crash now, same as above, but the PATCH will only contain externalId
+    
+    -- TODO(arianvp): these two actions we probably want to make transactional
+    lift . wrapMonadClient $ Data.insertScimUser buid storedUser
+    lift . wrapMonadClient $ Data.insertSAMLUser uref buid
     pure storedUser
-
-    -- FUTUREWORK: think about potential failure points in this function (SCIM can succeed but
-    -- SAML can fail, Brig user creation can succeed but handle-setting can fail).
 
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
