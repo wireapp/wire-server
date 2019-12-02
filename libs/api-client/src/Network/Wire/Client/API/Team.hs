@@ -16,8 +16,8 @@ import Util.Options.Common
 
 data Team
   = Team
-      { tName :: String,
-        tIcon :: String
+      { tName :: Text,
+        tIcon :: Text
       }
   deriving (Show, Generic)
 
@@ -25,9 +25,9 @@ deriveJSON toOptionFieldName 'Team
 
 data TeamUser
   = TeamUser
-      { name :: String,
-        email :: String,
-        password :: String,
+      { name :: Text,
+        email :: Text,
+        password :: Text,
         team :: Team
       }
   deriving (Show, Generic)
@@ -53,7 +53,7 @@ createUser :: TeamUser -> ClientM SelfProfile
 --             , newUserOrigin = NewUserOriginTeamUser (NewTeamCreator (BindingNewTeam ()))
 --             }
 
-teamOwner :: String -> TeamUser
+teamOwner :: Text -> TeamUser
 teamOwner prefix = TeamUser
   { name = "Owner",
     email = prefix <> "@example.com",
@@ -67,7 +67,7 @@ teamOwner prefix = TeamUser
 
 queries :: ClientM ()
 queries = do
-  emailPrefix <- UUID.toString <$> liftIO nextRandom
+  emailPrefix <- UUID.toText <$> liftIO nextRandom
   _ <- createUser $ teamOwner emailPrefix
   return ()
 
