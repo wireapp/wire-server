@@ -562,11 +562,15 @@ addMembersUnchecked t conv orig usrs othersRole = do
         setType BatchLogged
         setConsistency Quorum
         for_ (toList usrs) $ \u -> do
+            let ur = userRole u
             addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
-    let e = Event MemberJoin conv orig t (Just . EdMembers . Members . toList $ usrs)
+            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, ur)
+    let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
     return (e, newMember <$> usrs)
   where
+    toSimpleMembers :: [UserId] -> [SimpleMember]
+    toSimpleMembers = fmap $ (\u -> SimpleMember u Nothing (userRole u))
+
     userRole u
        | u == orig = roleNameWireAdmin
        | otherwise = othersRole
@@ -607,7 +611,7 @@ removeMembers conv orig victims = do
         for_ (toList victims) $ \u -> do
             addPrepQuery Cql.removeMember   (convId conv, u)
             addPrepQuery Cql.deleteUserConv (u, convId conv)
-    return $ Event MemberLeave (convId conv) orig t (Just . EdMembers . Members . toList $ victims)
+    return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIds . toList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do

@@ -26,7 +26,8 @@ import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
 import Galley.Types (
     Access (..), AccessRole (..), ConversationAccessUpdate (..),
-    NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
+    NewConv (..), NewConvUnmanaged (..), Conversation (..), SimpleMembers (..),
+    UserIds (..), defSimpleMember)
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -1597,7 +1598,7 @@ wsAssertMemberJoin ws conv usr new = void $ liftIO $
         evtConv      e @?= conv
         evtType      e @?= MemberJoin
         evtFrom      e @?= usr
-        evtData      e @?= Just (EdMembers (Members new))
+        evtData      e @?= Just (EdMembersJoin (SimpleMembers (fmap defSimpleMember new)))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $ liftIO $
@@ -1607,7 +1608,7 @@ wsAssertMemberLeave ws conv usr old = void $ liftIO $
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= usr
-        evtData      e @?= Just (EdMembers (Members old))
+        evtData      e @?= Just (EdMembersLeave (Galley.Types.UserIds old))
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
 wsAssertConvDelete ws conv from = void $ liftIO $
@@ -1634,11 +1635,11 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
     evt <- timeout (5 # Second) $ readChan buf
     case evt of
         Just (TestBotMessage e) -> do
-            let msg = Members new
+            let msg = SimpleMembers $ fmap defSimpleMember new
             assertEqual "event type" MemberJoin (evtType e)
             assertEqual "conv" cnv (evtConv e)
             assertEqual "user" usr (evtFrom e)
-            assertEqual "event data" (Just (EdMembers msg)) (evtData e)
+            assertEqual "event data" (Just (EdMembersJoin msg)) (evtData e)
         _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
 svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
@@ -1646,11 +1647,11 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
     evt <- timeout (5 # Second) $ readChan buf
     case evt of
         Just (TestBotMessage e) -> do
-            let msg = Members gone
+            let msg = Galley.Types.UserIds gone
             assertEqual "event type" MemberLeave (evtType e)
             assertEqual "conv" cnv (evtConv e)
             assertEqual "user" usr (evtFrom e)
-            assertEqual "event data" (Just (EdMembers msg)) (evtData e)
+            assertEqual "event data" (Just (EdMembersLeave msg)) (evtData e)
         _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
 svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()

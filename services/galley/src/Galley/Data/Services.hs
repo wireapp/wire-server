@@ -23,6 +23,7 @@ import Galley.Data (newMember)
 import Galley.Data.Queries
 import Galley.Data.Instances ()
 import Galley.Types.Bot
+import Galley.Types.Conversations.Roles
 import Galley.Types hiding (Conversation)
 
 -- BotMember ------------------------------------------------------------------
@@ -46,10 +47,13 @@ addBotMember orig s bot cnv now = do
         setType BatchLogged
         setConsistency Quorum
         addPrepQuery insertUserConv (botUserId bot, cnv)
-        addPrepQuery insertBot (cnv, bot, sid, pid)
-    let e = Event MemberJoin cnv orig now (Just . EdMembers $ Members [botUserId bot])
+        addPrepQuery insertBot (cnv, bot, sid, pid, roleNameWireMember)
+    let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
     let mem = (newMember (botUserId bot)) { memService = Just s }
     return (e, BotMember mem)
+  where
+    toSimpleMember :: UserId -> SimpleMember
+    toSimpleMember u = SimpleMember u (Just s) roleNameWireMember
 
 -- Service --------------------------------------------------------------------
 

@@ -20,12 +20,15 @@ module Galley.Types
     , ConvTeamInfo     (..)
     , ConversationCode (..)
     , mkConversationCode
+    , defSimpleMember
 
       -- * Events
     , Event            (..)
     , EventType        (..)
     , EventData        (..)
-    , Members          (..)
+    , UserIds          (..)
+    , SimpleMember     (..)
+    , SimpleMembers    (..)
     , MemberUpdateData (..)
     , TypingData       (..)
     , OtrMessage       (..)
@@ -311,6 +314,15 @@ newtype Accept = Accept
 newtype MutedStatus = MutedStatus { fromMutedStatus :: Int32 }
     deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
+data SimpleMember = SimpleMember
+    { smId             :: !UserId
+    , smService        :: !(Maybe ServiceRef)
+    , smConvRoleName   :: !RoleName
+    } deriving (Eq, Show, Generic)
+
+defSimpleMember :: UserId -> SimpleMember
+defSimpleMember u = SimpleMember u Nothing defaultConversationRoleName
+
 data Member = Member
     { memId             :: !UserId
     , memService        :: !(Maybe ServiceRef)
@@ -394,7 +406,8 @@ data EventType
     deriving (Eq, Show, Generic)
 
 data EventData
-    = EdMembers             !Members
+    = EdMembersJoin         !SimpleMembers
+    | EdMembersLeave        !UserIds
     | EdConnect             !Connect
     | EdConvReceiptModeUpdate  !ConversationReceiptModeUpdate
     | EdConvRename          !ConversationRename
@@ -414,7 +427,11 @@ data OtrMessage = OtrMessage
     , otrData       :: !(Maybe Text)
     } deriving (Eq, Show, Generic)
 
-newtype Members = Members
+newtype SimpleMembers = SimpleMembers
+    { mMembers :: [SimpleMember]
+    } deriving (Eq, Show, Generic)
+
+newtype UserIds = UserIds
     { mUsers :: [UserId]
     } deriving (Eq, Show, Generic)
 
@@ -677,8 +694,8 @@ instance FromJSON Event where
                 <*> parseEventData t d
 
 parseEventData :: EventType -> Value -> Parser (Maybe EventData)
-parseEventData MemberJoin v        = Just . EdMembers <$> parseJSON v
-parseEventData MemberLeave v       = Just . EdMembers <$> parseJSON v
+parseEventData MemberJoin v        = Just . EdMembersJoin <$> parseJSON v
+parseEventData MemberLeave v       = Just . EdMembersLeave <$> parseJSON v
 parseEventData MemberStateUpdate v = Just . EdMemberUpdate <$> parseJSON v
 parseEventData ConvRename v        = Just . EdConvRename <$> parseJSON v
 parseEventData ConvAccessUpdate v  = Just . EdConvAccessUpdate <$> parseJSON v
@@ -693,7 +710,8 @@ parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
 
 instance ToJSON EventData where
-    toJSON (EdMembers x)            = toJSON x
+    toJSON (EdMembersJoin x)        = toJSON x
+    toJSON (EdMembersLeave x)       = toJSON x
     toJSON (EdConnect x)            = toJSON x
     toJSON (EdConvRename x)         = toJSON x
     toJSON (EdConvAccessUpdate x)   = toJSON x
@@ -972,6 +990,13 @@ instance ToJSON Member where
         , "conversation_role" .= memConvRoleName m
         ]
 
+instance ToJSON SimpleMember where
+    toJSON m = object
+        [ "id"                .= smId m
+        , "service"           .= smService m
+        , "conversation_role" .= smConvRoleName m
+        ]
+
 instance FromJSON Member where
     parseJSON = withObject "member object" $ \o ->
         Member <$> o .:  "id"
@@ -984,6 +1009,12 @@ instance FromJSON Member where
                <*> o .:? "hidden"            .!= False
                <*> o .:? "hidden_ref"
                <*> o .:? "conversation_role" .!= roleNameWireAdmin
+
+instance FromJSON SimpleMember where
+    parseJSON = withObject "simple member object" $ \o ->
+        SimpleMember <$> o .:  "id"
+                     <*> o .:? "service"
+                     <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance FromJSON ConvType where
     parseJSON (Number 0) = return RegularConv
@@ -998,12 +1029,31 @@ instance ToJSON ConvType where
     toJSON One2OneConv = Number 2
     toJSON ConnectConv = Number 3
 
-instance FromJSON Members where
-    parseJSON = withObject "members-payload" $ \o ->
-        Members <$> o .: "user_ids"
+instance FromJSON UserIds where
+    parseJSON = withObject "user-ids-payload" $ \o ->
+        UserIds <$> o .: "user_ids"
 
-instance ToJSON Members where
-    toJSON e = object [ "user_ids" .= mUsers e]
+instance ToJSON UserIds where
+    toJSON e = object [ "user_ids" .= mUsers e ]
+
+-- TODO: Think about backwards compatibility here...
+instance FromJSON SimpleMembers where
+    parseJSON = withObject "simple-members-payload" $ \o -> do
+        users <- o .:? "users" -- This is to make migration easier and
+                                 -- not dependent on deployment ordering
+        membs <- case users of
+            Just mems -> pure mems
+            Nothing   -> do
+                ids <- o .:? "user_ids"
+                case ids of
+                    Just userIds -> pure $ fmap (\u -> SimpleMember u Nothing defaultConversationRoleName) userIds
+                    Nothing      -> fail "Not possible!"
+        pure $ SimpleMembers membs
+
+instance ToJSON SimpleMembers where
+    toJSON e = object [ "user_ids" .= fmap smId (mMembers e)
+                      , "users"    .= mMembers e
+                      ]
 
 instance FromJSON Connect where
     parseJSON = withObject "connect" $ \o ->

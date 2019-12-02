@@ -243,8 +243,8 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 -- Bots ---------------------------------------------------------------------
 
-insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
-insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId, Roles.RoleName) ()
+insertBot = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
 -- LegalHold ----------------------------------------------------------------
 

@@ -3,7 +3,7 @@ module API.Util where
 import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Brig.Types
+import Brig.Types hiding (UserIds)
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
@@ -527,7 +527,7 @@ wsAssertMemberJoin conv usr new n = do
     evtConv      e @?= conv
     evtType      e @?= MemberJoin
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembers (Members new))
+    evtData      e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x Nothing roleNameWireAdmin) new))
 
 wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
@@ -554,9 +554,9 @@ wsAssertMemberLeave conv usr old n = do
     evtConv      e      @?= conv
     evtType      e      @?= MemberLeave
     evtFrom      e      @?= usr
-    sorted (evtData e)  @?= sorted (Just (EdMembers (Members old)))
+    sorted (evtData e)  @?= sorted (Just (EdMembersLeave (UserIds old)))
   where
-    sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
+    sorted (Just (EdMembersLeave (UserIds m))) = Just (EdMembersLeave (UserIds (sort m)))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()

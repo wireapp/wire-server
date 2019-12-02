@@ -95,6 +95,9 @@ wireConvRoles = [ ConvRoleWireAdmin
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
 
+defaultConversationRoleName :: RoleName
+defaultConversationRoleName = roleNameWireAdmin
+
 roleNameWireAdmin :: RoleName
 roleNameWireAdmin = RoleName "wire_admin"
 

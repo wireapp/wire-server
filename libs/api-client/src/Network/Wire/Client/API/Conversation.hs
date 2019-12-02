@@ -44,7 +44,7 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
 -- If some users can not be added to the conversation, 'UnexpectedResponse'
 -- will be thrown. It's not possible that some users will be added and
 -- others will not.
-addMembers :: (MonadSession m, MonadThrow m) => ConvId -> List1 UserId -> m (Maybe (ConvEvent Members))
+addMembers :: (MonadSession m, MonadThrow m) => ConvId -> List1 UserId -> m (Maybe (ConvEvent SimpleMembers))
 addMembers cnv mems = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of
@@ -61,7 +61,7 @@ addMembers cnv mems = do
 
 -- | Remove a user and (in case of success) return the event corresponding
 -- to the user removal.
-removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent Members))
+removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent UserIds))
 removeMember cnv mem = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of

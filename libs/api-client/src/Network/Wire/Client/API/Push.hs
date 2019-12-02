@@ -11,7 +11,8 @@ module Network.Wire.Client.API.Push
       -- * Event Data
     , Event        (..)
     , ConvEvent    (..)
-    , Members      (..)
+    , SimpleMembers(..)
+    , Galley.Types.UserIds (..)
     , OtrMessage   (..)
     , NoData
     , UserInfo     (..)
@@ -25,7 +26,7 @@ module Network.Wire.Client.API.Push
 
 import Imports hiding (fromString)
 import Bilge
-import Brig.Types
+import Brig.Types hiding (UserIds)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)
@@ -146,9 +147,9 @@ data Event
     -- TODO: EUserUpdate UserUpdate
     -- Conversation events
     | EConvCreate             (ConvEvent Conversation)
-    | EMemberJoin             (ConvEvent Members)
+    | EMemberJoin             (ConvEvent SimpleMembers)
+    | EMemberLeave            (ConvEvent UserIds)
     | EConnect                (ConvEvent Connect)
-    | EMemberLeave            (ConvEvent Members)
     | EConvRename             (ConvEvent ConversationRename)
     | EMemberStateUpdate      (ConvEvent MemberUpdate)
     | EOtrMessage             (ConvEvent OtrMessage)
