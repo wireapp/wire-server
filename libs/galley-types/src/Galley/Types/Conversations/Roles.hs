@@ -25,15 +25,10 @@ data Action =
     | ModifyConversationMessageTimer
     | ModifyConversationReceiptMode
     | ModifyConversationAccess
+    | ModifyOtherConversationMember
     | LeaveConversation
     | DeleteConvesation
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
--- TODO: Question for Marco/Eva. I think someone mentioned
--- at some point that some users might not be able to
--- even leave a conversation... does it make sense to
--- already had _that_ permission, being the only permission
--- that members have?
 
 deriveJSON defaultOptions{ constructorTagModifier = camelTo2 '_' } ''Action
 
