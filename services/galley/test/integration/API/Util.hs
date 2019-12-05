@@ -527,7 +527,7 @@ wsAssertMemberJoin conv usr new n = do
     evtConv      e @?= conv
     evtType      e @?= MemberJoin
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x Nothing roleNameWireAdmin) new))
+    evtData      e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x roleNameWireAdmin) new))
 
 wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do

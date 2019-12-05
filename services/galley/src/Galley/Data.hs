@@ -569,7 +569,7 @@ addMembersUnchecked t conv orig usrs othersRole = do
     return (e, newMember <$> usrs)
   where
     toSimpleMembers :: [UserId] -> [SimpleMember]
-    toSimpleMembers = fmap $ (\u -> SimpleMember u Nothing (userRole u))
+    toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole u))
 
     userRole u
        | u == orig = roleNameWireAdmin

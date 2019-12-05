@@ -53,7 +53,7 @@ addBotMember orig s bot cnv now = do
     return (e, BotMember mem)
   where
     toSimpleMember :: UserId -> SimpleMember
-    toSimpleMember u = SimpleMember u (Just s) roleNameWireMember
+    toSimpleMember u = SimpleMember u roleNameWireMember
 
 -- Service --------------------------------------------------------------------
 

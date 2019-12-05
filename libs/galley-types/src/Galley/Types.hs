@@ -317,12 +317,11 @@ newtype MutedStatus = MutedStatus { fromMutedStatus :: Int32 }
 
 data SimpleMember = SimpleMember
     { smId             :: !UserId
-    , smService        :: !(Maybe ServiceRef)
     , smConvRoleName   :: !RoleName
     } deriving (Eq, Show, Generic)
 
 defSimpleMember :: UserId -> SimpleMember
-defSimpleMember u = SimpleMember u Nothing defaultConversationRoleName
+defSimpleMember u = SimpleMember u defaultConversationRoleName
 
 data Member = Member
     { memId             :: !UserId
@@ -998,7 +997,6 @@ instance ToJSON Member where
 instance ToJSON SimpleMember where
     toJSON m = object
         [ "id"                .= smId m
-        , "service"           .= smService m
         , "conversation_role" .= smConvRoleName m
         ]
 
@@ -1018,7 +1016,6 @@ instance FromJSON Member where
 instance FromJSON SimpleMember where
     parseJSON = withObject "simple member object" $ \o ->
         SimpleMember <$> o .:  "id"
-                     <*> o .:? "service"
                      <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance FromJSON ConvType where
@@ -1051,7 +1048,7 @@ instance FromJSON SimpleMembers where
             Nothing   -> do
                 ids <- o .:? "user_ids"
                 case ids of
-                    Just userIds -> pure $ fmap (\u -> SimpleMember u Nothing defaultConversationRoleName) userIds
+                    Just userIds -> pure $ fmap (\u -> SimpleMember u defaultConversationRoleName) userIds
                     Nothing      -> fail "Not possible!"
         pure $ SimpleMembers membs
 
