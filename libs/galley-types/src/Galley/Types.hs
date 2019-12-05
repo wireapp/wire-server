@@ -777,7 +777,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
                 <*> i .:? "receipt_mode"
-                <*> i .:? "users_conversation_role" .!= roleNameWireAdmin
+                <*> i .:? "conversation_role" .!= roleNameWireAdmin
 
 newConvToJSON :: NewConv -> Value
 newConvToJSON i = object
@@ -788,7 +788,7 @@ newConvToJSON i = object
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
         # "receipt_mode" .= newConvReceiptMode i
-        # "users_conversation_role" .= newConvUsersRole i
+        # "conversation_role" .= newConvUsersRole i
         # []
 
 instance ToJSON NewConvUnmanaged where
