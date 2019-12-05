@@ -27,7 +27,7 @@ data Action =
     | ModifyConversationAccess
     | ModifyOtherConversationMember
     | LeaveConversation
-    | DeleteConvesation
+    | DeleteConversation
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 deriveJSON defaultOptions{ constructorTagModifier = camelTo2 '_' } ''Action
