@@ -62,6 +62,12 @@ ensureReAuthorised u secret = do
     unless reAuthed $
         throwM reAuthFailed
 
+ensureActionAllowed :: Action -> Member -> Galley ()
+ensureActionAllowed action mem = do
+    let convRole = memConvRoleName mem
+    unless (isActionAllowed action convRole == Just True) $
+        throwM (actionDenied action)
+
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
     binding <- Data.teamBinding tid >>= ifNothing teamNotFound

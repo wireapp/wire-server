@@ -422,16 +422,17 @@ getTeamConversation (zusr::: tid ::: cid ::: _) = do
 
 deleteTeamConversation :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
 deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
-    tmems <- Data.teamMembers tid
-    void $ permissionCheck zusr DeleteConversation tmems
+    -- FUTUREWORK: Previously, any team member could delete the
+    --             conversation which is a weird feature? In any
+    --             case, do not lookup all team members here
     (bots, cmems) <- botsAndUsers <$> Data.members cid
+    ensureActionAllowed DeleteConvesation =<< getSelfMember zusr cmems
     flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
-    let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
-    let convPush = case convMembsAndTeamMembs cmems tmems of
-            []     -> []
-            (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    pushSome convPush
+    let ce    = Conv.Event Conv.ConvDelete cid zusr now Nothing
+    let recps = fmap recipient cmems
+    let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+    pushSome $ maybeToList convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation

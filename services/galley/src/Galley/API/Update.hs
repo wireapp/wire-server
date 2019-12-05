@@ -57,7 +57,7 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Conversations.Roles (RoleName(..), Action(..), roleNameWireAdmin, isActionAllowed)
+import Galley.Types.Conversations.Roles (RoleName(..), Action(..), roleNameWireAdmin)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
@@ -686,12 +686,6 @@ ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM convAccessDenied
-
-ensureActionAllowed :: Action -> Member -> Galley ()
-ensureActionAllowed action mem = do
-    let convRole = memConvRoleName mem
-    unless (isActionAllowed action convRole == Just True) $
-        throwM (actionDenied action)
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
