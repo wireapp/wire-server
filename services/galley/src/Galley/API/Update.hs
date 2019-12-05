@@ -354,7 +354,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
-    addToConversation mems zusr zcon newUsers conv roleNameWireAdmin
+    addToConversation mems zusr zcon newUsers conv (invRoleName body)
   where
     teamConvChecks tid newUsers conv = do
         -- TODO: Optimize this: we do not need to fetch all team members

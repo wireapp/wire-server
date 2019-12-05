@@ -57,6 +57,7 @@ module Galley.Types
     , UserClientMap             (..)
     , UserClients               (..)
     , filterClients
+    , newInvite
     ) where
 
 import Imports
@@ -371,9 +372,13 @@ deriving instance Eq   OtherMemberUpdate
 deriving instance Show OtherMemberUpdate
 
 
-newtype Invite = Invite
-    { invUsers :: List1 UserId
+data Invite = Invite
+    { invUsers    :: !(List1 UserId)
+    , invRoleName :: !RoleName
     }
+
+newInvite :: List1 UserId -> Invite
+newInvite us = Invite us roleNameWireAdmin
 
 deriving instance Eq   Invite
 deriving instance Show Invite
@@ -822,8 +827,8 @@ instance FromJSON ConvTeamInfo where
         ConvTeamInfo <$> o .: "teamid" <*> o .:? "managed" .!= False
 
 instance FromJSON Invite where
-    parseJSON = withObject "invite object"
-        (\i -> Invite <$> i .: "users")
+    parseJSON = withObject "invite object" $ \o ->
+        Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON Invite where
     toJSON i = object [ "users" .= invUsers i ]

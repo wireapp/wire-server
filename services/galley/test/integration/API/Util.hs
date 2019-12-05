@@ -322,7 +322,7 @@ getConvIds u r s = do
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
     g <- view tsGalley
-    let i = Invite us
+    let i = Invite us roleNameWireAdmin
     post $ g
          . paths ["conversations", toByteString' c, "members"]
          . zUser u
