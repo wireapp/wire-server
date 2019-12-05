@@ -19,7 +19,7 @@ import Data.String.Conversions (cs, ST)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
+import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
@@ -128,19 +128,22 @@ addTeamMemberInternal tid mem = do
         const 200 === statusCode
 
 createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
-createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer
+createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> TestM ConvId
-createTeamConvAccess u tid us name acc role mtimer = do
-    r <- createTeamConvAccessRaw u tid us name acc role mtimer <!! const 201 === statusCode
+createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
+
+createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess u tid us name acc role mtimer convRole = do
+    r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
-createTeamConvAccessRaw u tid us name acc role mtimer = do
+createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
     g <- view tsGalley
     let tinfo = ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing roleNameWireAdmin
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
     post ( g
           . path "/conversations"
           . zUser u

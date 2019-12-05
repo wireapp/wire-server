@@ -17,7 +17,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
+import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -62,8 +62,8 @@ tests s = testGroup "Teams API"
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
-    , test s "update conversation as member" (testUpdateTeamConv RoleMember)
-    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner)
+    , test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin)
+    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember)
     , test s "delete non-binding team" testDeleteTeam
     , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
     , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
@@ -492,7 +492,7 @@ testAddTeamConvAsExternalPartner = do
         (memExternalPartner^.userId)
         tid
         [memMember1^.userId, memMember2^.userId]
-        (Just "blaa") acc (Just TeamAccessRole) Nothing
+        (Just "blaa") acc (Just TeamAccessRole) Nothing Nothing
       !!! do
         const 403 === statusCode
         const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
@@ -541,35 +541,37 @@ testAddTeamMemberToConv = do
     -- Team owner creates new regular team conversation:
     cid <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
 
+    -- NOTE: This functionality was _changed_ as there was no need for it...
     -- Team member 1 (who is *not* a member of the new conversation)
-    -- can add other team members without requiring a user connection
-    -- thanks to both being team members and member 1 having the permission
-    -- `AddRemoveConvMember`.
+    -- can *not* add other team members without requiring a user connection
+    -- despite being a team member and having the permission `AddRemoveConvMember`.
     Util.assertNotConvMember (mem1^.userId) cid
-    Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
+    Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 404 === statusCode
+    Util.assertNotConvMember (mem2^.userId) cid
+
+    -- OTOH, team member 3 _can_ add another team member despite lacking the required team permission
+    -- However, all users are admins by default
+    Util.assertConvMember owner cid
+    Util.postMembers owner (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
     Util.assertConvMember (mem2^.userId) cid
 
-    -- OTOH, team member 3 can not add another team member since it
-    -- lacks the required permission
-    Util.assertNotConvMember (mem3^.userId) cid
-    Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
-        const 403                === statusCode
-        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
-
 testUpdateTeamConv
-    :: Role  -- ^ Role of the user who creates the conversation
+    :: Role     -- ^ Team role of the user who creates the conversation
+    -> RoleName -- ^ Conversation role of the user who creates the conversation
     -> TestM ()
-testUpdateTeamConv (rolePermissions -> perms) = do
+testUpdateTeamConv (rolePermissions -> perms) convRole = do
     owner  <- Util.randomUser
     member <- Util.randomUser
     Util.connectUsers owner (list1 member [])
     tid <- Util.createTeam "foo" owner [newTeamMember member perms Nothing]
-    cid <- Util.createTeamConv owner tid [member] (Just "gossip") Nothing Nothing
+    cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
     resp <- updateTeamConv member cid (ConversationRename "not gossip")
-    liftIO $ assertEqual "status"
-        (if ModifyConvName `elem` (perms ^. self) then 200 else 403)
-        (statusCode resp)
-
+    -- TODO: Should we ensure that the team role _really_ does not matter?
+    -- liftIO $ assertEqual "status" teamRoleCheck (statusCode resp)
+    liftIO $ assertEqual "status conv" convRoleCheck (statusCode resp)
+  where
+    -- teamRoleCheck = if ModifyConvName `elem` (perms ^. self) then 200 else 403
+    convRoleCheck = if isActionAllowed ModifyConversationName convRole == Just True then 200 else 403
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
     g <- view tsGalley
