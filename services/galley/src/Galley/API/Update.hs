@@ -58,7 +58,7 @@ import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
 import Galley.Types.Conversations.Roles (RoleName(..), Action(..), roleNameWireAdmin)
-import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
+import Galley.Types.Teams hiding (EventType (..), EventData (..), Event, self)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Network.HTTP.Types
@@ -114,11 +114,12 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
     ensureConvMember users usr
     -- The conversation has to be a group conversation
     conv <- Data.conversation cnv >>= ifNothing convNotFound
+    self <- getSelfMember usr users
+    ensureActionAllowed ModifyConversationAccess self
     ensureGroupConv conv
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
-        Just tid -> checkTeamConv tid >>
-                    permissionCheckTeamConv usr cnv ModifyConvName
+        Just tid -> checkTeamConv tid self
         Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
     -- When there is no update to be done, we return 204; otherwise we go
     -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -132,18 +133,14 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
                  (currentRole,   targetRole)
                  users bots
   where
-    checkTeamConv tid = do
-        tMembers <- Data.teamMembers tid
-        -- Only team members can change access mode
-        unless (usr `elem` (view userId <$> tMembers)) $
-            throwM convAccessDenied
+    checkTeamConv tid self = do
         -- Access mode change for managed conversation is not allowed
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
         -- Access mode change might result in members being removed from the
         -- conversation, so the user must have the necessary permission flag
-        void $ permissionCheck usr AddRemoveConvMember tMembers
+        ensureActionAllowed RemoveConversationMember self
 
 uncheckedUpdateConversationAccess
     :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
@@ -204,8 +201,8 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
 updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _) = do
     ConversationReceiptModeUpdate target <- fromJsonBody req
-    permissionCheckTeamConv usr cnv ModifyConvName
     (bots, users) <- botsAndUsers <$> Data.members cnv
+    ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
     current <- Data.lookupReceiptMode cnv
     if current == Just target
         then return $ empty & setStatus status204
@@ -225,11 +222,9 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
     let messageTimer = cupMessageTimer body
     -- checks and balances
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    ensureConvMember users usr
+    ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
-    traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
-    permissionCheckTeamConv usr cnv ModifyConvName
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -240,11 +235,6 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
         Data.updateConversationMessageTimer cnv messageTimer
         pushEvent e users bots zcon
         return $ json e & setStatus status200
-  where
-    ensureTeamMember tid = do
-        tMembers <- Data.teamMembers tid
-        unless (usr `elem` (view userId <$> tMembers)) $
-            throwM convAccessDenied
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -336,7 +326,7 @@ joinConversation zusr zcon cnv access = do
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    -- TODO: Wonder what the type should be here...
+    -- TODO: Should this be a different role?
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv roleNameWireAdmin
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
@@ -352,16 +342,16 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     case Data.convTeam conv of
         Nothing -> do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
+            -- TODO: Is this really required for team users?
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv (invRoleName body)
   where
     teamConvChecks tid newUsers conv = do
-        -- TODO: Optimize this: we do not need to fetch all team members
-        --       only the ones that are involved
+        -- FUTUREWORK: Optimize this: we do not need to fetch all team members
+        --             only the ones that are involved
         tms <- Data.teamMembers tid
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
@@ -402,7 +392,6 @@ updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
 -- TODO: This is copy+paste and needs refactoring
 updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
 updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
-    -- TODO: Optimize
     alive <- Data.isConvAlive cid
     unless alive $ do
         Data.deleteConversation cid

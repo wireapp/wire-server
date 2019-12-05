@@ -55,7 +55,7 @@ addMembers cnv mems = do
     req = method POST
         . paths ["conversations", toByteString' cnv, "members"]
         . acceptJson
-        . json (Invite mems roleNameWireAdmin)
+        . json (newInvite mems)
         $ empty
     rsc = status200 :| [status204]
 

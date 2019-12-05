@@ -7,6 +7,7 @@ import Bilge.Assert
 import Data.List1
 import Data.Misc
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -23,7 +24,7 @@ tests s = testGroup "Per-conversation message timer"
         [ test s "1 second" (messageTimerInit timer1sec)
         , test s "nothing"  (messageTimerInit Nothing) ]
     , test s "timer can be changed" messageTimerChange
-    , test s "timer can't be set by guests" messageTimerChangeGuest
+    , test s "timer can't be set by conv member without allowed action" messageTimerChangeWithoutAllowedAction
     , test s "timer can't be set in 1:1 conversations" messageTimerChangeO2O
     , test s "setting the timer generates an event" messageTimerEvent
     ]
@@ -69,22 +70,26 @@ messageTimerChange = do
     getConv jane cid !!!
         const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
 
-messageTimerChangeGuest :: TestM ()
-messageTimerChangeGuest = do
+messageTimerChangeWithoutAllowedAction :: TestM ()
+messageTimerChangeWithoutAllowedAction = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers 3
     connectUsers owner (list1 member [guest])
     tid <- createTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
     -- Create a conversation
-    cid <- createTeamConv owner tid [member, guest] Nothing Nothing Nothing
-    -- Try to change the timer (as the guest user) and observe failure
+    cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
+    -- Try to change the timer (as a non admin, guest user) and observe failure
     putMessageTimerUpdate guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode
-        const "access-denied" === (label . responseJsonUnsafeWithMsg "error label")
+        const "action-denied" === (label . responseJsonUnsafeWithMsg "error label")
     getConv guest cid !!!
         const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
-    -- Try to change the timer (as a team member) and observe success
-    putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!!
+    -- Try to change the timer (as a non admin, team member) and observe failure too
+    putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!! do
+        const 403 === statusCode
+        const "action-denied" === (label . responseJsonUnsafeWithMsg "error label")
+    -- Finally try to change the timer (as an admin) and observe success
+    putMessageTimerUpdate owner cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 200 === statusCode
     getConv guest cid !!!
         const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
