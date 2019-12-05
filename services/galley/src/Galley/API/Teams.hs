@@ -53,7 +53,7 @@ import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
-import Galley.Types.Conversations.Roles
+import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -426,7 +426,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     --             conversation which is a weird feature? In any
     --             case, do not lookup all team members here
     (bots, cmems) <- botsAndUsers <$> Data.members cid
-    ensureActionAllowed DeleteConvesation =<< getSelfMember zusr cmems
+    ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
     flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
     let ce    = Conv.Event Conv.ConvDelete cid zusr now Nothing
