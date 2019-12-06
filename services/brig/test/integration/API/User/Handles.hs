@@ -6,7 +6,7 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Lens ((^?), (^?!))
+import Control.Lens hiding ((#))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -22,11 +22,10 @@ import qualified API.Search.Util             as Search
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
 import qualified Data.UUID                   as UUID
-import qualified Galley.Types.Teams          as Team
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g = testGroup "handles"
     [ test p "handles/update" $ testHandleUpdate b c
     , test p "handles/race"   $ testHandleRace b
@@ -118,8 +117,8 @@ testHandleRace brig = do
         let owners = catMaybes $ filter (maybe False ((== Just (Handle hdl)) . userHandle)) ps
         liftIO $ assertBool "More than one owner of a handle" (length owners <= 1)
 
-testHandleQuery :: Maybe Opt.Opts -> Brig -> Galley -> Http ()
-testHandleQuery _opts brig galley = do
+testHandleQuery :: Opt.Opts -> Brig -> Galley -> Http ()
+testHandleQuery opts brig galley = do
     uid <- userId <$> randomUser brig
     hdl <- randomHandle
 
@@ -157,15 +156,17 @@ testHandleQuery _opts brig galley = do
         const (Just [hdl2, hdl3]) === responseJsonMaybe
 
     -- Let's check for availability outside the team when an option is given
-    (uid3,tid1) <- createUserWithTeam brig galley
-    u4 <- createTeamMember brig galley uid3 tid1 Team.noPermissions
+    uid3 <- fst <$> createUserWithTeam brig galley
+    uid4 <- fst <$> createUserWithTeam brig galley
     h4 <- randomHandle
-    putHandle brig (userId u4) h4 !!! statusCode === const 200
-    -- Query the updated profile
-    get (brig . path "/self" . zUser (userId u4)) !!! do
-        const 200 === statusCode
-        const (Just (Handle h4)) === (>>= userHandle) . responseJsonMaybe
-
+    putHandle brig uid4 h4 !!! statusCode === const 200
+    -- Usually, you can search outside your team
     get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
         const 200 === statusCode
-        const (Just (Handle h4)) === (>>= (listToMaybe >=> userHandle)) . responseJsonMaybe
+        const (Just (Handle h4)) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
+
+    let newOpts = opts & Opt.optionSettings . Opt.handleSearchSameTeamOnly .~ Just True
+    withSettingsOverrides newOpts $ do
+        -- Usually, you can search outside your team
+        get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
+            const 404 === statusCode

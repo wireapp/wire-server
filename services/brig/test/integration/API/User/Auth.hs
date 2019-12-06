@@ -24,7 +24,6 @@ import Data.Time.Clock
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
-import Util.Options.Common
 import API.Team.Util
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..))
 
@@ -42,7 +41,7 @@ import qualified Data.UUID.V4         as UUID
 import qualified Test.Tasty.HUnit     as HUnit
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
+tests :: Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
 tests conf m z b g n = testGroup "auth"
         [ testGroup "login"
             [ test m "email" (testEmailLogin b)
@@ -286,11 +285,11 @@ testLoginFailure brig = do
                 const 403 === statusCode
                 const (Just "invalid-credentials") === errorLabel
 
-testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
+testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
     -- Get the maximum amount of times we are allowed to login before
     -- throttling begins
-    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
+    let l = Opts.setUserCookieLimit (Opts.optSettings conf)
     u <- randomUser b
     let Just e = userEmail u
     -- Login exactly that amount of times, as fast as possible
@@ -307,8 +306,8 @@ testThrottleLogins conf b = do
         threadDelay (1000000 * (n + 1))
     login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
-testLimitRetries :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
-testLimitRetries (Just conf) brig = do
+testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
+testLimitRetries conf brig = do
     let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
     unless (Opts.timeout opts <= 30) $
         error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
@@ -557,10 +556,10 @@ testTokenMismatch z brig galley = do
         const 403 === statusCode
         const (Just "Token mismatch") =~= responseBody
 
-testNewPersistentCookie :: Maybe Opts.Opts -> Brig -> Http ()
+testNewPersistentCookie :: Opts.Opts -> Brig -> Http ()
 testNewPersistentCookie config b = do
     u <- randomUser b
-    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
     let minAge = fromIntegral $  renewAge * 1000000 + 1
         Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) PersistentCookie
@@ -609,10 +608,10 @@ testNewPersistentCookie config b = do
         [PersistentCookie] @=? map cookieType _cs
         [Nothing] @=? map cookieSucc _cs
 
-testNewSessionCookie :: Maybe Opts.Opts -> Brig -> Http ()
+testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
     u <- randomUser b
-    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
     let minAge = fromIntegral $  renewAge * 1000000 + 1
         Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) SessionCookie
@@ -624,8 +623,8 @@ testNewSessionCookie config b = do
         const 200     === statusCode
         const Nothing === getHeader "Set-Cookie"
 
-testSuspendInactiveUsers :: HasCallStack => Maybe Opts.Opts -> Brig -> Http ()
-testSuspendInactiveUsers (Just config) brig = do
+testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> Http ()
+testSuspendInactiveUsers config brig = do
     -- (context information: cookies are stored by user, not be device; so if there if the
     -- cookie is old it means none of the devices of a user has used it for a request.)
 
@@ -742,10 +741,10 @@ testRemoveCookiesByLabelAndId b = do
     let lbl = cookieLabel c4
     listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
-testTooManyCookies :: Maybe Opts.Opts -> Brig -> Http ()
+testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
     u <- randomUser b
-    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) config read "USER_COOKIE_LIMIT"
+    let l = Opts.setUserCookieLimit (Opts.optSettings config)
     let Just e = userEmail u
         carry = 2
         pwlP = emailLogin e defPassword (Just "persistent")

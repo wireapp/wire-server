@@ -74,7 +74,7 @@ runTests iConf bConf otherArgs = do
     emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
-    userApi     <- User.tests bConf mg b c ch g n awsEnv
+    userApi     <- User.tests brigOpts mg b c ch g n awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
