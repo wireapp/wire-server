@@ -1186,13 +1186,24 @@ getUserName (_ ::: self) = do
 
 listUsers :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
 listUsers (_ ::: self ::: qry) = case qry of
-    Left  us -> byIds (fromList us)
+    Left  us -> toResponse =<< byIds (fromList us)
     Right hs -> do
-        us <- mapM (lift . API.lookupHandle) (fromList hs)
-        byIds (catMaybes us)
+        us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
+        sameTeamSearchOnly <- fromMaybe False <$> view (settings . handleSearchSameTeamOnly)
+        toResponse =<< if sameTeamSearchOnly
+            then sameTeamOnly =<< byIds us
+            else byIds us
   where
-    byIds uids = do
-        profiles <- lift $ API.lookupProfiles self uids
+    sameTeamOnly :: [UserProfile] -> Handler [UserProfile]
+    sameTeamOnly us = do
+        selfTeam <- lift $ Data.lookupUserTeam self
+        return $ case selfTeam of
+            Just team -> filter (\x -> profileTeam x == Just team) us
+            Nothing   -> us
+
+    byIds uids = lift $ API.lookupProfiles self uids
+
+    toResponse profiles = do
         return $ case profiles of
             [] -> setStatus status404 empty
             ps -> json ps
