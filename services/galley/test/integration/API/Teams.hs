@@ -928,7 +928,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         evtConv e @?= cid
         evtType e @?= Conv.MemberLeave
         case evtData e of
-            Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIds [usr]
+            Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIdList [usr]
             other                         -> assertFailure $ "Unexpected event data: " <> show other
 
 postCryptoBroadcastMessageJson :: TestM ()

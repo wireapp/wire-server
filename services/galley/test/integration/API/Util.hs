@@ -557,9 +557,9 @@ wsAssertMemberLeave conv usr old n = do
     evtConv      e      @?= conv
     evtType      e      @?= MemberLeave
     evtFrom      e      @?= usr
-    sorted (evtData e)  @?= sorted (Just (EdMembersLeave (UserIds old)))
+    sorted (evtData e)  @?= sorted (Just (EdMembersLeave (UserIdList old)))
   where
-    sorted (Just (EdMembersLeave (UserIds m))) = Just (EdMembersLeave (UserIds (sort m)))
+    sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()

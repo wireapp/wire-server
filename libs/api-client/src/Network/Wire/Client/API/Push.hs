@@ -12,7 +12,7 @@ module Network.Wire.Client.API.Push
     , Event        (..)
     , ConvEvent    (..)
     , SimpleMembers(..)
-    , Galley.Types.UserIds (..)
+    , UserIdList   (..)
     , OtrMessage   (..)
     , NoData
     , UserInfo     (..)
@@ -148,7 +148,7 @@ data Event
     -- Conversation events
     | EConvCreate             (ConvEvent Conversation)
     | EMemberJoin             (ConvEvent SimpleMembers)
-    | EMemberLeave            (ConvEvent UserIds)
+    | EMemberLeave            (ConvEvent UserIdList)
     | EConnect                (ConvEvent Connect)
     | EConvRename             (ConvEvent ConversationRename)
     | EMemberStateUpdate      (ConvEvent MemberUpdate)

@@ -611,7 +611,7 @@ removeMembers conv orig victims = do
         for_ (toList victims) $ \u -> do
             addPrepQuery Cql.removeMember   (convId conv, u)
             addPrepQuery Cql.deleteUserConv (u, convId conv)
-    return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIds . toList $ victims)
+    return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIdList . toList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do

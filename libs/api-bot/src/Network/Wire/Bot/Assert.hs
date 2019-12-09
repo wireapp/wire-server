@@ -73,7 +73,7 @@ assertMembersJoined bs (Just e) = forM_ bs $ \b ->
 assertMembersLeft
     :: (HasCallStack, MonadBotNet m)
     => [Bot]                          -- ^ Who should've received the event
-    -> Maybe (ConvEvent UserIds)-- ^ Users who have (presumably) left
+    -> Maybe (ConvEvent UserIdList)   -- ^ Users who have (presumably) left
     -> m ()
 assertMembersLeft _  Nothing  = return ()
 assertMembersLeft bs (Just e) = forM_ bs $ \b ->

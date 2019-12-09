@@ -1175,4 +1175,4 @@ removeUser = do
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= u
-        evtData      e @?= Just (EdMembersLeave (Galley.Types.UserIds [u]))
+        evtData      e @?= Just (EdMembersLeave (UserIdList [u]))

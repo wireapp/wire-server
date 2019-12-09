@@ -26,7 +26,7 @@ module Galley.Types
     , Event            (..)
     , EventType        (..)
     , EventData        (..)
-    , UserIds          (..)
+    , UserIdList       (..)
     , SimpleMember     (..)
     , SimpleMembers    (..)
     , MemberUpdateData (..)
@@ -410,18 +410,18 @@ data EventType
     deriving (Eq, Show, Generic)
 
 data EventData
-    = EdMembersJoin         !SimpleMembers
-    | EdMembersLeave        !UserIds
-    | EdConnect             !Connect
+    = EdMembersJoin            !SimpleMembers
+    | EdMembersLeave           !UserIdList
+    | EdConnect                !Connect
     | EdConvReceiptModeUpdate  !ConversationReceiptModeUpdate
-    | EdConvRename          !ConversationRename
-    | EdConvAccessUpdate    !ConversationAccessUpdate
+    | EdConvRename             !ConversationRename
+    | EdConvAccessUpdate       !ConversationAccessUpdate
     | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
-    | EdConvCodeUpdate      !ConversationCode
-    | EdMemberUpdate        !MemberUpdateData
-    | EdConversation        !Conversation
-    | EdTyping              !TypingData
-    | EdOtrMessage          !OtrMessage
+    | EdConvCodeUpdate         !ConversationCode
+    | EdMemberUpdate           !MemberUpdateData
+    | EdConversation           !Conversation
+    | EdTyping                 !TypingData
+    | EdOtrMessage             !OtrMessage
     deriving (Eq, Show, Generic)
 
 data OtrMessage = OtrMessage
@@ -435,7 +435,7 @@ newtype SimpleMembers = SimpleMembers
     { mMembers :: [SimpleMember]
     } deriving (Eq, Show, Generic)
 
-newtype UserIds = UserIds
+newtype UserIdList = UserIdList
     { mUsers :: [UserId]
     } deriving (Eq, Show, Generic)
 
@@ -1031,11 +1031,11 @@ instance ToJSON ConvType where
     toJSON One2OneConv = Number 2
     toJSON ConnectConv = Number 3
 
-instance FromJSON UserIds where
+instance FromJSON UserIdList where
     parseJSON = withObject "user-ids-payload" $ \o ->
-        UserIds <$> o .: "user_ids"
+        UserIdList <$> o .: "user_ids"
 
-instance ToJSON UserIds where
+instance ToJSON UserIdList where
     toJSON e = object [ "user_ids" .= mUsers e ]
 
 -- TODO: Think about backwards compatibility here...

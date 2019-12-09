@@ -619,7 +619,7 @@ rmBot (zusr ::: zcon ::: req) = do
         then return $ setStatus status204 empty
         else do
             t <- liftIO getCurrentTime
-            let evd = Just (EdMembersLeave (UserIds [botUserId (b^.rmBotId)]))
+            let evd = Just (EdMembersLeave (UserIdList [botUserId (b^.rmBotId)]))
             let e = Event MemberLeave (Data.convId c) zusr t evd
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
                 push1 $ p & pushConn .~ zcon

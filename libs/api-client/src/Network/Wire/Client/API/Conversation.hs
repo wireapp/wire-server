@@ -61,7 +61,7 @@ addMembers cnv mems = do
 
 -- | Remove a user and (in case of success) return the event corresponding
 -- to the user removal.
-removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent UserIds))
+removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent UserIdList))
 removeMember cnv mem = do
     rs <- sessionRequest req rsc consumeBody
     case statusCode rs of

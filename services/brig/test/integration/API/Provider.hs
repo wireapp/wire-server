@@ -27,7 +27,7 @@ import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
 import Galley.Types (
     Access (..), AccessRole (..), ConversationAccessUpdate (..),
     NewConv (..), NewConvUnmanaged (..), Conversation (..), SimpleMembers (..),
-    UserIds (..), SimpleMembers (..), SimpleMember (..))
+    UserIdList (..), SimpleMembers (..), SimpleMember (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -1608,7 +1608,7 @@ wsAssertMemberLeave ws conv usr old = void $ liftIO $
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= usr
-        evtData      e @?= Just (EdMembersLeave (Galley.Types.UserIds old))
+        evtData      e @?= Just (EdMembersLeave (UserIdList old))
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
 wsAssertConvDelete ws conv from = void $ liftIO $
@@ -1647,7 +1647,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
     evt <- timeout (5 # Second) $ readChan buf
     case evt of
         Just (TestBotMessage e) -> do
-            let msg = Galley.Types.UserIds gone
+            let msg = UserIdList gone
             assertEqual "event type" MemberLeave (evtType e)
             assertEqual "conv" cnv (evtConv e)
             assertEqual "user" usr (evtFrom e)

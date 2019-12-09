@@ -390,7 +390,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
     Data.removeTeamMember tid remove
     let tmids = Set.fromList $ map (view userId) mems
-    let edata = Conv.EdMembersLeave (Conv.UserIds [remove])
+    let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
     cc <- Data.teamConversations tid
     for_ cc $ \c -> Data.conversation (c^.conversationId) >>= \conv ->
         for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
