@@ -41,19 +41,17 @@ data ConversationRole = ConvRoleWireAdmin
                       | ConvRoleCustom RoleName Actions
                       deriving (Eq, Show)
 
--- Three possible outcomes:
+-- Given an action and a RoleName, three possible outcomes:
 -- Just True:  Yes, the action is allowed
 -- Just False: No, the action is not allowed
--- Nothing: Not enough information, this is a custom role
+-- Nothing:    Not enough information, this is a custom role
 isActionAllowed :: Action -> RoleName -> Maybe Bool
 isActionAllowed action rn
     | isCustomRoleName rn = Nothing
     | otherwise           = pure $ maybe False (action `elem`) (roleNameToActions rn)
-        -- TODO: This is actually impossible, actions
-        -- must always be a Just at this point
-
-isCustomRoleName :: RoleName -> Bool
-isCustomRoleName = (`notElem` wireConvRoleNames)
+  where
+    isCustomRoleName :: RoleName -> Bool
+    isCustomRoleName = (`notElem` wireConvRoleNames)
 
 instance ToJSON ConversationRole where
     toJSON cr = object
@@ -82,6 +80,22 @@ instance FromJSON ConversationRolesList where
     parseJSON = withObject "conversation-roles-list" $ \o ->
         ConversationRolesList <$> o .: "convesation_roles"
 
+-- RoleNames with `wire_` prefix are reserved
+-- and cannot be created by externals
+newtype RoleName = RoleName { fromRoleName :: Text }
+    deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
+
+#ifdef WITH_CQL
+deriving instance Cql RoleName
+#endif
+
+instance FromByteString RoleName where
+    parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
+
+instance FromJSON RoleName where
+    parseJSON = withText "RoleName" $
+        maybe (fail "Invalid RoleName") pure . parseRoleName
+
 wireConvRoles :: [ConversationRole]
 wireConvRoles = [ ConvRoleWireAdmin
                 , ConvRoleWireMember
@@ -99,48 +113,8 @@ roleNameWireAdmin = RoleName "wire_admin"
 roleNameWireMember :: RoleName
 roleNameWireMember = RoleName "wire_member"
 
--- RoleNames with `wire_` prefix are reserved
--- and cannot be created by externals
-newtype RoleName = RoleName { fromRoleName :: Text }
-    deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
-
-#ifdef WITH_CQL
-deriving instance Cql RoleName
-#endif
-
-instance FromByteString RoleName where
-    parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
-
-instance FromJSON RoleName where
-    parseJSON = withText "RoleName" $
-        maybe (fail "Invalid RoleName") pure . parseRoleName
-
--- All RoleNames should have 2-128 chars
---  * Wire RoleNames _must_ start with `wire_`
---  * Custom RoleNames _must not_ start with `wire_`
--- TODO: Parse, don't validate!
--- TODO: Ensure the above properties
--- TODO: Should we accept other chars as `RoleName`s?
---       this will be used for search and thus be awkward to work with
-parseRoleName :: Text -> Maybe RoleName
-parseRoleName t
-    | isValidLabel t = Just (RoleName t)
-    | otherwise      = Nothing
-
-isValidLabel :: Text -> Bool
-isValidLabel = either (const False) (const True)
-             . parseOnly customLabel
-  where
-    customLabel = count 2 (satisfy chars)
-               *> count 126 (optional (satisfy chars))
-               *> endOfInput
-    chars = inClass "a-zA-Z0-9_-"
-
 allActions :: Actions
-allActions = Actions . Set.fromList $ [ minBound..maxBound ]
-
-noActions :: Actions
-noActions = Actions mempty
+allActions = Actions $ Set.fromList [ minBound..maxBound ]
 
 convRoleWireAdmin :: ConversationRole
 convRoleWireAdmin = ConvRoleWireAdmin
@@ -148,10 +122,23 @@ convRoleWireAdmin = ConvRoleWireAdmin
 convRoleWireMember :: ConversationRole
 convRoleWireMember = ConvRoleWireMember
 
-convRoleCustom :: Text -> Actions -> Maybe ConversationRole
-convRoleCustom name actions = do
-   roleName <- parseRoleName name
-   pure $ ConvRoleCustom roleName actions
+parseRoleName :: Text -> Maybe RoleName
+parseRoleName t
+    | isValidRoleName t = Just (RoleName t)
+    | otherwise         = Nothing
+
+-- All RoleNames should have 2-128 chars
+--  * Wire RoleNames _must_ start with `wire_`
+--  * Custom RoleNames _must not_ start with `wire_`
+-- TODO: _Actually_ ensure all the above properties
+isValidRoleName :: Text -> Bool
+isValidRoleName = either (const False) (const True)
+                . parseOnly customRoleName
+  where
+    customRoleName = count 2 (satisfy chars)
+                  *> count 126 (optional (satisfy chars))
+                  *> endOfInput
+    chars = inClass "a-zA-Z0-9_-"
 
 roleToRoleName :: ConversationRole -> RoleName
 roleToRoleName ConvRoleWireAdmin    = roleNameWireAdmin
@@ -165,9 +152,7 @@ toConvRole x                       (Just as) = Just (ConvRoleCustom x as)
 toConvRole _                        _        = Nothing
 
 roleNameToActions :: RoleName -> Maybe (Set Action)
-roleNameToActions r = do
-    let convRole = toConvRole r Nothing
-    roleActions <$> convRole
+roleNameToActions r = roleActions <$> toConvRole r Nothing
 
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions

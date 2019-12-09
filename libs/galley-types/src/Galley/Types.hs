@@ -20,7 +20,6 @@ module Galley.Types
     , ConvTeamInfo     (..)
     , ConversationCode (..)
     , mkConversationCode
-    , defSimpleMember
 
       -- * Events
     , Event            (..)
@@ -319,9 +318,6 @@ data SimpleMember = SimpleMember
     { smId             :: !UserId
     , smConvRoleName   :: !RoleName
     } deriving (Eq, Show, Generic)
-
-defSimpleMember :: UserId -> SimpleMember
-defSimpleMember u = SimpleMember u defaultConversationRoleName
 
 data Member = Member
     { memId             :: !UserId
