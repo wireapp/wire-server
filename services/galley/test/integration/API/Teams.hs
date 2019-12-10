@@ -566,12 +566,11 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
     tid <- Util.createTeam "foo" owner [newTeamMember member perms Nothing]
     cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
     resp <- updateTeamConv member cid (ConversationRename "not gossip")
-    -- TODO: Should we ensure that the team role _really_ does not matter?
-    -- liftIO $ assertEqual "status" teamRoleCheck (statusCode resp)
+    -- FUTUREWORK: Ensure that the team role _really_ does not matter
     liftIO $ assertEqual "status conv" convRoleCheck (statusCode resp)
   where
-    -- teamRoleCheck = if ModifyConvName `elem` (perms ^. self) then 200 else 403
     convRoleCheck = if isActionAllowed ModifyConversationName convRole == Just True then 200 else 403
+
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
     g <- view tsGalley
