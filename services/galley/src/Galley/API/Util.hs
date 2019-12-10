@@ -23,9 +23,10 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 
-import qualified Data.Set       as Set
-import qualified Data.Text.Lazy as LT
-import qualified Galley.Data    as Data
+import qualified Data.Set          as Set
+import qualified Data.Text.Lazy    as LT
+import qualified Galley.Data       as Data
+import qualified Galley.Data.Types as DataTypes
 
 type JSON = Media "application" "json"
 
@@ -62,11 +63,15 @@ ensureReAuthorised u secret = do
     unless reAuthed $
         throwM reAuthFailed
 
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+-- If not, throw 'Member'; if the user is found and does not have the given permission, throw
+-- 'operationDenied'.  Otherwise, return the found user.
 ensureActionAllowed :: Action -> Member -> Galley ()
-ensureActionAllowed action mem = do
-    let convRole = memConvRoleName mem
-    unless (isActionAllowed action convRole == Just True) $
-        throwM (actionDenied action)
+ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
+    Just True  -> return ()
+    Just False -> throwM (actionDenied action)
+    Nothing    -> throwM notImplemented
 
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
@@ -74,16 +79,6 @@ bindingTeamMembers tid = do
     case binding of
         Binding -> Data.teamMembers tid
         NonBinding -> throwM nonBindingTeam
-
--- | Given a member in a conversation, check if the given action
--- is permitted.
--- If not, throw 'Member'; if the user is found and does not have the given permission, throw
--- 'operationDenied'.  Otherwise, return the found user.
-conversationActionCheck :: Foldable m => Action -> Member -> Galley ()
-conversationActionCheck a m = case isActionAllowed a (memConvRoleName m) of
-    Just True  -> return ()
-    Just False -> throwM (actionDenied a)
-    Nothing    -> throwM notImplemented
 
 -- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
 -- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
@@ -196,3 +191,13 @@ getMember ex u ms = do
     case member of
         Just m  -> return m
         Nothing -> throwM ex
+
+getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembership zusr cnv = do
+    c <- Data.conversation cnv >>= ifNothing convNotFound
+    when (DataTypes.isConvDeleted c) $ do
+        Data.deleteConversation cnv
+        throwM convNotFound
+    unless (zusr `isMember` Data.convMembers c) $
+        throwM convNotFound
+    return c

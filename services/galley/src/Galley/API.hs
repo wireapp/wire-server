@@ -479,7 +479,8 @@ sitemap = do
 
     ---
 
-    -- TODO: We should IMHO deprecate this in favor of
+    -- FUTUREWORK:
+    --       We should deprecate this in favor of
     --       `put "/conversations/:cnv/name"`. The event is called
     --       "conversation.rename", adding anything to this endpoint
     --       would be problematic anyways. Mixing "conversation rename"
@@ -731,6 +732,7 @@ sitemap = do
         body (ref Model.otherMemberUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
+        errorResponse Error.convMemberNotFound
 
     ---
 

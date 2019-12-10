@@ -562,9 +562,8 @@ addMembersUnchecked t conv orig usrs othersRole = do
         setType BatchLogged
         setConsistency Quorum
         for_ (toList usrs) $ \u -> do
-            let ur = userRole u
             addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, ur)
+            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
     let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
     return (e, newMember <$> usrs)
   where

@@ -443,7 +443,7 @@ data Connect = Connect
     } deriving (Eq, Show, Generic)
 
 -- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
--- 'MemberUpdate'.
+-- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
     { misId               :: !(Maybe UserId)
     , misOtrMuted         :: !(Maybe Bool)

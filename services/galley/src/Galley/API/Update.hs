@@ -326,7 +326,7 @@ joinConversation zusr zcon cnv access = do
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    -- TODO: Should this be a different role?
+    -- NOTE: When joining conversations, all members become admins
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv roleNameWireAdmin
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
@@ -342,7 +342,6 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     case Data.convTeam conv of
         Nothing -> do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
-            -- TODO: Is this really required for team users?
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv (invRoleName body)
@@ -362,74 +361,27 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
 
 updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
 updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
-    alive <- Data.isConvAlive cid
-    unless alive $ do
-        Data.deleteConversation cid
-        throwM convNotFound
+    conv <- getConversationAndCheckMembership zusr cid
     body <- fromJsonBody req
-    m    <- Data.member cid zusr >>= ifNothing convNotFound
-    up   <- Data.updateMember cid zusr body
-    now  <- liftIO getCurrentTime
-    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
-    let ms = applyChanges m up
-    for_ (newPush (evtFrom e) (ConvEvent e) [recipient ms]) $ \p ->
-        push1 $ p
-              & pushConn  ?~ zcon
-              & pushRoute .~ RouteDirect
-    return empty
-  where
-    applyChanges :: Member -> MemberUpdateData -> Member
-    applyChanges m u = m
-        { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
-        , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
-        , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
-        , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
-        , memHidden         = fromMaybe (memHidden m) (misHidden u)
-        , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
-        , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
-        }
+    m    <- getSelfMember zusr (Data.convMembers conv)
 
--- TODO: This is copy+paste and needs refactoring
+    void $ processUpdateMemberEvent zusr zcon cid [m] m body
+    return empty
+
 updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
 updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
-    alive <- Data.isConvAlive cid
-    unless alive $ do
-        Data.deleteConversation cid
-        throwM convNotFound
+    conv <- getConversationAndCheckMembership zusr cid
     body <- fromJsonBody req
-
-    conv <- Data.conversation cid >>= ifNothing convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers conv)
     ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
     memTarget <- getOtherMember victim users
 
-    up   <- Data.updateMember cid victim (toMemberUpdate body)
-    now  <- liftIO getCurrentTime
-    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
-    let ms = applyChanges memTarget up
-    for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : toOtherMembers memTarget users)) $ \p ->
-        push1 $ p
-              & pushConn  ?~ zcon
-              & pushRoute .~ RouteDirect
+    e <- processUpdateMemberEvent zusr zcon cid users memTarget (toMemberUpdate body)
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return empty
   where
-    toOtherMembers :: Member -> [Member] -> [Recipient]
-    toOtherMembers u usrs = fmap recipient $ delete u usrs
-
     toMemberUpdate :: OtherMemberUpdate -> MemberUpdate
     toMemberUpdate omu = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing (omuConvRoleName omu)
-
-    applyChanges :: Member -> MemberUpdateData -> Member
-    applyChanges m u = m
-        { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
-        , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
-        , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
-        , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
-        , memHidden         = fromMaybe (memHidden m) (misHidden u)
-        , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
-        , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
-        }
 
 removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
@@ -676,6 +628,34 @@ ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM convAccessDenied
 
+applyMemUpdateChanges :: Member -> MemberUpdateData -> Member
+applyMemUpdateChanges m u = m
+    { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
+    , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
+    , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
+    , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
+    , memHidden         = fromMaybe (memHidden m) (misHidden u)
+    , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
+    , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
+    }
+
+processUpdateMemberEvent :: UserId
+                         -> ConnId
+                         -> ConvId
+                         -> [Member]
+                         -> Member
+                         -> MemberUpdate
+                         -> Galley Event
+processUpdateMemberEvent zusr zcon cid users target update = do
+    up   <- Data.updateMember cid (memId target) update
+    now  <- liftIO getCurrentTime
+    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+    let ms = applyMemUpdateChanges target up
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+        push1 $ p
+              & pushConn  ?~ zcon
+              & pushRoute .~ RouteDirect
+    return e
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
 

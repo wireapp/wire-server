@@ -728,7 +728,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let bcl = newClientId (fromIntegral (hash bid))
 
     -- Ask the external service to create a bot
-    let origmem = OtherMember zuid Nothing roleNameWireAdmin
+    let origmem = OtherMember zuid Nothing roleNameWireMember
     let members = origmem : (cmOthers mems)
     let bcnv    = Ext.botConvView (cnvId cnv) (cnvName cnv) members
     let busr    = mkBotUserView zusr

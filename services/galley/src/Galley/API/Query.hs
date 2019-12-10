@@ -2,13 +2,11 @@ module Galley.API.Query where
 
 import Imports
 import Cassandra (result, hasMore)
-import Control.Monad.Catch
 import Data.Aeson (Value (Null))
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Range
 import Galley.App
-import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Data as Data
@@ -24,12 +22,7 @@ import qualified Galley.Data.Types as Data
 
 getBotConversation :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversation (zbot ::: zcnv :::  _) = do
-    c <- Data.conversation zcnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
-        Data.deleteConversation zcnv
-        throwM convNotFound
-    unless (botUserId zbot `isMember` Data.convMembers c) $
-        throwM convNotFound
+    c <- getConversationAndCheckMembership (botUserId zbot) zcnv
     let cmems = mapMaybe mkMember (toList (Data.convMembers c))
     let cview = botConvView zcnv (Data.convName c) cmems
     return $ json cview
@@ -40,23 +33,13 @@ getBotConversation (zbot ::: zcnv :::  _) = do
 
 getConversation :: UserId ::: ConvId ::: JSON -> Galley Response
 getConversation (zusr ::: cnv ::: _) = do
-    c <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
-        Data.deleteConversation cnv
-        throwM convNotFound
-    unless (zusr `isMember` Data.convMembers c) $
-        throwM convAccessDenied
+    c <- getConversationAndCheckMembership zusr cnv
     a <- conversationView zusr c
     return $ json a
 
 getConversationRoles :: UserId ::: ConvId ::: JSON -> Galley Response
 getConversationRoles (zusr ::: cnv ::: _) = do
-    c <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
-        Data.deleteConversation cnv
-        throwM convNotFound
-    unless (zusr `isMember` Data.convMembers c) $
-        throwM convAccessDenied
+    void $ getConversationAndCheckMembership zusr cnv
     -- NOTE: If/when custom roles are added, these roles should
     --       be merged with the team roles (if they exist)
     return . json $ ConversationRolesList wireConvRoles

@@ -112,15 +112,28 @@ conversationNameUpdateEvent = defineModel "ConversationNameUpdateEvent" $ do
 conversationRole :: Model
 conversationRole = defineModel "ConversationRole" $ do
     description "Conversation role"
-    property "role" string' $
+    property "conversation_role" string' $
         description "role name, between 2 and 128 chars"
-    property "actions" (int64 $ min 0 . max 0x7FFFFFFFFFFFFFFF) $
-        description "The permissions bitmask which applies to this role"
+    property "actions" (array conversationRoleAction) $
+        description "The set of actions allowed for this role"
+
+conversationRoleAction :: DataType
+conversationRoleAction = string $ enum
+    [ "add_conversation_member"
+    , "remove_conversation_member"
+    , "modify_conversation_name"
+    , "modify_conversation_message_timer"
+    , "modify_conversation_receipt_mode"
+    , "modify_conversation_access"
+    , "modify_other_conversation_member"
+    , "leave_conversation"
+    , "delete_conversation"
+    ]
 
 conversationRolesList :: Model
 conversationRolesList = defineModel "ConversationRolesList" $ do
     description "list of roles allowed in the given conversation"
-    property "roles" (unique $ array (ref conversationRole)) $
+    property "conversation_roles" (unique $ array (ref conversationRole)) $
         description "the array of conversation roles"
 
 conversationAccessUpdateEvent :: Model
@@ -410,12 +423,15 @@ otherMemberUpdate :: Model
 otherMemberUpdate = defineModel "otherMemberUpdate" $ do
     description "Update user properties of other members relative to a conversation"
     property "conversation_role" string' $ do
-        description "Name of the conversation role to update to"
+        description "Name of the conversation role updated to"
         optional
 
 memberUpdateData :: Model
 memberUpdateData = defineModel "MemberUpdateData" $ do
     description "Event data on member updates"
+    property "id" bytes' $ do
+        description "Whether to notify on conversation updates"
+        optional
     property "otr_muted" bool' $ do
         description "Whether to notify on conversation updates"
         optional
