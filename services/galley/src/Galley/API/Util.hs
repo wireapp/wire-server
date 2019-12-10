@@ -199,5 +199,5 @@ getConversationAndCheckMembership zusr cnv = do
         Data.deleteConversation cnv
         throwM convNotFound
     unless (zusr `isMember` Data.convMembers c) $
-        throwM convNotFound
+        throwM convAccessDenied
     return c

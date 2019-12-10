@@ -246,8 +246,8 @@ uncheckedDeleteTeam zusr zcon tid = do
 
 getTeamConversationRoles :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversationRoles (zusr::: tid ::: _) = do
-    mems <- Data.teamMembers tid
-    case findTeamMember zusr mems of
+    mem <- Data.teamMember tid zusr
+    case mem of
         Nothing -> throwM noTeamMember
         Just  _ -> do
             -- NOTE: If/when custom roles are added, these roles should

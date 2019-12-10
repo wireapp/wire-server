@@ -17,6 +17,7 @@ module Galley.Data
     , teamIdsOf
     , teamMember
     , teamMembers
+    , teamMembers'
     , userTeams
     , oneUserTeam
     , Galley.Data.teamBinding
@@ -182,6 +183,16 @@ teamConversations t = map (uncurry newTeamConversation) <$>
 teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
 teamMembers t = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
+  where
+    newTeamMember'
+        :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+        -> m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+        newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+teamMembers' :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
+teamMembers' t u = mapM newTeamMember' =<<
+    retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
   where
     newTeamMember'
         :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
