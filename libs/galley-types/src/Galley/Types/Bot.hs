@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE StandaloneDeriving         #-}
+-- {-# LANGUAGE StandaloneDeriving         #-}
 
 module Galley.Types.Bot
     ( AddBot

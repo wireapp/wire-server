@@ -3,7 +3,7 @@ module API.Util where
 import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Brig.Types hiding (UserIds)
+import Brig.Types
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)

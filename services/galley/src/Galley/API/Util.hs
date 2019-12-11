@@ -193,11 +193,14 @@ getMember ex u ms = do
         Nothing -> throwM ex
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembership zusr cnv = do
+getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
+
+getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr cnv = do
     c <- Data.conversation cnv >>= ifNothing convNotFound
     when (DataTypes.isConvDeleted c) $ do
         Data.deleteConversation cnv
         throwM convNotFound
     unless (zusr `isMember` Data.convMembers c) $
-        throwM convAccessDenied
+        throwM ex
     return c

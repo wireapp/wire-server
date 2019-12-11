@@ -26,7 +26,7 @@ module Network.Wire.Client.API.Push
 
 import Imports hiding (fromString)
 import Bilge
-import Brig.Types hiding (UserIds)
+import Brig.Types
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)

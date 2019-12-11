@@ -7,6 +7,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Range
 import Galley.App
+import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Data as Data
@@ -22,7 +23,7 @@ import qualified Galley.Data.Types as Data
 
 getBotConversation :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversation (zbot ::: zcnv :::  _) = do
-    c <- getConversationAndCheckMembership (botUserId zbot) zcnv
+    c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
     let cmems = mapMaybe mkMember (toList (Data.convMembers c))
     let cview = botConvView zcnv (Data.convName c) cmems
     return $ json cview
