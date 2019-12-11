@@ -1,3 +1,5 @@
+.. _investigative_tasks:
+
 Investigative tasks (e.g. searching for users as server admin)
 ---------------------------------------------------------------
 
@@ -68,8 +70,12 @@ Which should give you output like:
 
 The interesting part is the ``id`` (in the example case ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``):
 
+.. _user-deletion:
+
 Deleting a user which is not a team user
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following will completely delete a user, its conversations, assets, etc. The only thing remaining will be an entry in cassandra indicating that this user existed in the past (only the UUID remains, all other attributes like name etc are purged)
 
 You can now delete that user by double-checking that the user you wish to delete is really the correct user:
 
@@ -82,8 +88,8 @@ Afterwards, the previous command (to search for a user in cassandra) should retu
 
 When done, on terminal 1, ctrl+c to cancel the port-forwarding.
 
-Manual search on elasticsearch
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Manual search on elasticsearch (via brig, recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This should only be necessary in the case of some (suspected) data inconsistency between cassandra and elasticsearch.
 
@@ -132,3 +138,60 @@ If matches are found, the result should look like this:
       "returned" : 2,
       "took" : 4
    }
+
+How to manually search for a user on elasticsearh directly (not recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+First, ssh to an elasticsearch instance.
+
+.. code:: sh
+
+   PREFIX=...
+   curl -s "http://localhost:9200/directory/_search?q=$PREFIX" | json_pp
+
+The `id` (UUID) returned can be used when deleting (see below).
+
+How to manually delete a user from elasticsearch only
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+
+   This is NOT RECOMMENDED. Be sure you know what you're doing. This only deletes the user from elasticsearch, but not from cassandra. Any change of e.g. the username or displayname of that user means this user will re-appear in the elasticsearch database. Instead, either fully delete a user: :ref:`user-deletion` or make use of the internal GET/PUT ``/i/searchable`` endpoint on brig to make this user prefix-unsearchable.
+
+If, despite the warning, you wish to continue?
+
+First, ssh to an elasticsearch instance.
+
+Next, check that the user exists:
+
+.. code:: sh
+
+   UUID=...
+   curl -s "http://localhost:9200/directory/user/$UUID" | json_pp
+
+That should return a ``"found": true``, like this:
+
+.. code:: json
+
+   {
+      "_type" : "user",
+      "_version" : 1575998428262000,
+      "_id" : "b3e9e445-fb02-47f3-bac0-63f5f680d258",
+      "found" : true,
+      "_index" : "directory",
+      "_source" : {
+         "normalized" : "Mr Test",
+         "handle" : "test12345",
+         "id" : "b3e9e445-fb02-47f3-bac0-63f5f680d258",
+         "name" : "Mr Test",
+         "accent_id" : 1
+      }
+   }
+
+
+Then delete it:
+
+.. code:: sh
+
+   UUID=...
+   curl -s -XDELETE "http://localhost:9200/directory/user/$UUID" | json_pp

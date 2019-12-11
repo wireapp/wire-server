@@ -52,3 +52,8 @@ You should expect some output like this from the above command:
 
 6. Wait for your cluster to be healthy again.
 7. Do the same on the next server.
+
+How to manually look into what is stored in elasticsearch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+See also the elasticsearch sections in :ref:`investigative_tasks`.
