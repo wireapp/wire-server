@@ -23,8 +23,7 @@ insert :: MonadClient m => UserKey -> m ()
 insert uk = retry x5 $ write keyInsert (params Quorum (Identity $ keyText uk))
 
 exists :: MonadClient m => UserKey -> m Bool
-exists uk = return . isJust =<< fmap runIdentity <$>
-    retry x1 (query1 keySelect (params Quorum (Identity $ keyText uk)))
+exists uk = isJust <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText uk)))
 
 delete :: MonadClient m => UserKey -> m ()
 delete uk = retry x5 $ write keyDelete (params Quorum (Identity $ keyText uk))

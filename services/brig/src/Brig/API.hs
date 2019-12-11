@@ -153,6 +153,15 @@ sitemap o = do
       accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
 
+    head "/i/users/whitelist" (continue handlerCheckWhitelist) $
+        param "email" ||| param "phone"
+
+    delete "/i/users/whitelist" (continue handlerDeleteFromWhitelist) $
+        param "email" ||| param "phone"
+
+    post "/i/users/whitelist" (continue handlerAddWhitelist) $
+        param "email" ||| param "phone"
+
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
       capture "uid"
@@ -1435,6 +1444,21 @@ addPhonePrefix :: JSON ::: JsonRequest ExcludedPrefix -> Handler Response
 addPhonePrefix (_ ::: req) = do
     prefix :: ExcludedPrefix <- parseJsonBody req
     void . lift $ API.phonePrefixInsert prefix
+    return empty
+
+handlerCheckWhitelist :: Either Email Phone -> Handler Response
+handlerCheckWhitelist emailOrPhone = do
+    wl <- lift $ API.isWhitelisted emailOrPhone
+    return $ setStatus (bool status404 status200 wl) empty
+
+handlerDeleteFromWhitelist :: Either Email Phone -> Handler Response
+handlerDeleteFromWhitelist emailOrPhone = do
+    void . lift $ API.whitelistDelete emailOrPhone
+    return empty
+
+handlerAddWhitelist :: Either Email Phone -> Handler Response
+handlerAddWhitelist emailOrPhone = do
+    void . lift $ API.whitelistInsert emailOrPhone
     return empty
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
