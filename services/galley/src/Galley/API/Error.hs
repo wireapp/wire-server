@@ -10,9 +10,6 @@ import Network.Wai.Utilities.Error
 internalError :: Error
 internalError = Error status500 "internal-error" "internal error"
 
-notImplemented :: Error
-notImplemented = Error status501 "not-implemented" "this feature has not been implemented"
-
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"
 
@@ -42,6 +39,9 @@ invalidOp = Error status403 "invalid-op"
 
 invalidPayload :: LText -> Error
 invalidPayload = Error status400 "invalid-payload"
+
+badRequest :: LText -> Error
+badRequest = Error status400 "bad-request"
 
 notConnected :: Error
 notConnected = Error status403 "not-connected" "Users are not connected"

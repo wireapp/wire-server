@@ -71,7 +71,9 @@ ensureActionAllowed :: Action -> Member -> Galley ()
 ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
     Just True  -> return ()
     Just False -> throwM (actionDenied action)
-    Nothing    -> throwM notImplemented
+    Nothing    -> throwM (badRequest "Custom roles not supported")
+               -- ^ Actually, this will "never" happen due to the
+               --   fact that there can be no custom roles at the moment
 
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
@@ -179,13 +181,13 @@ membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view use
 -- semantics; when using `getSelfMember`, if that user is _not_ part of
 -- the conversation, we don't want to disclose that such a conversation
 -- with that id exists.
-getSelfMember :: Foldable m => UserId -> m Member -> Galley Member
+getSelfMember :: Foldable t => UserId -> t Member -> Galley Member
 getSelfMember = getMember convNotFound
 
-getOtherMember :: Foldable m => UserId -> m Member -> Galley Member
+getOtherMember :: Foldable t => UserId -> t Member -> Galley Member
 getOtherMember = getMember convMemberNotFound
 
-getMember :: Foldable m => Error -> UserId -> m Member -> Galley Member
+getMember :: Foldable t => Error -> UserId -> t Member -> Galley Member
 getMember ex u ms = do
     let member = find ((u ==) . memId) ms
     case member of

@@ -17,7 +17,7 @@ module Galley.Data
     , teamIdsOf
     , teamMember
     , teamMembers
-    , teamMembers'
+    , teamMembersLimited
     , userTeams
     , oneUserTeam
     , Galley.Data.teamBinding
@@ -190,8 +190,11 @@ teamMembers t = mapM newTeamMember' =<<
     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
         newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
-teamMembers' :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
-teamMembers' t u = mapM newTeamMember' =<<
+-- Lookup only specific team members: this is particularly useful for large teams when you
+-- want to look up only a small subset of members (typically 2, user to perform the action
+-- as the target user)
+teamMembersLimited :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
+teamMembersLimited t u = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
   where
     newTeamMember'

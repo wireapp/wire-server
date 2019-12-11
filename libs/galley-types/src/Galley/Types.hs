@@ -369,7 +369,7 @@ deriving instance Show OtherMemberUpdate
 
 data Invite = Invite
     { invUsers    :: !(List1 UserId)
-    , invRoleName :: !RoleName
+    , invRoleName :: !RoleName -- This role name is to be applied to all users
     }
 
 newInvite :: List1 UserId -> Invite
@@ -445,7 +445,7 @@ data Connect = Connect
 -- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-    { misId               :: !(Maybe UserId)
+    { misId               :: !(Maybe UserId) -- Target user of this action
     , misOtrMuted         :: !(Maybe Bool)
     , misOtrMutedStatus   :: !(Maybe MutedStatus)
     , misOtrMutedRef      :: !(Maybe Text)
@@ -1034,11 +1034,9 @@ instance FromJSON UserIdList where
 instance ToJSON UserIdList where
     toJSON e = object [ "user_ids" .= mUsers e ]
 
--- TODO: Think about backwards compatibility here...
 instance FromJSON SimpleMembers where
     parseJSON = withObject "simple-members-payload" $ \o -> do
-        users <- o .:? "users" -- This is to make migration easier and
-                                 -- not dependent on deployment ordering
+        users <- o .:? "users" -- This is to make migration easier and not dependent on deployment ordering
         membs <- case users of
             Just mems -> pure mems
             Nothing   -> do

@@ -430,7 +430,7 @@ memberUpdateData :: Model
 memberUpdateData = defineModel "MemberUpdateData" $ do
     description "Event data on member updates"
     property "id" bytes' $ do
-        description "Whether to notify on conversation updates"
+        description "Id of the user that the action was performed on"
         optional
     property "otr_muted" bool' $ do
         description "Whether to notify on conversation updates"
@@ -458,7 +458,7 @@ otherMemberUpdateData :: Model
 otherMemberUpdateData = defineModel "OtherMemberUpdateData" $ do
     description "Event data on other member updates"
     property "id" bytes' $
-        description "The user ID updated"
+        description "Id of the user that the action was performed on"
     property "conversation_role" string' $ do
         description "Name of the conversation role to update to"
         optional

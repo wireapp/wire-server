@@ -112,11 +112,11 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
     -- The user who initiated access change has to be a conversation member
     (bots, users) <- botsAndUsers <$> Data.members cnv
     ensureConvMember users usr
-    -- The conversation has to be a group conversation
     conv <- Data.conversation cnv >>= ifNothing convNotFound
+    -- The conversation has to be a group conversation
+    ensureGroupConv conv
     self <- getSelfMember usr users
     ensureActionAllowed ModifyConversationAccess self
-    ensureGroupConv conv
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
         Just tid -> checkTeamConv tid self
@@ -347,9 +347,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     addToConversation mems zusr zcon newUsers conv (invRoleName body)
   where
     teamConvChecks tid newUsers conv = do
-        -- FUTUREWORK: Optimize this: we do not need to fetch all team members
-        --             only the ones that are involved
-        tms <- Data.teamMembers' tid newUsers
+        tms <- Data.teamMembersLimited tid newUsers
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
@@ -364,7 +362,6 @@ updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
     conv <- getConversationAndCheckMembership zusr cid
     body <- fromJsonBody req
     m    <- getSelfMember zusr (Data.convMembers conv)
-
     void $ processUpdateMemberEvent zusr zcon cid [m] m body
     return empty
 
@@ -375,7 +372,6 @@ updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
     let (bots, users) = botsAndUsers (Data.convMembers conv)
     ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
     memTarget <- getOtherMember victim users
-
     e <- processUpdateMemberEvent zusr zcon cid users memTarget (toMemberUpdate body)
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return empty

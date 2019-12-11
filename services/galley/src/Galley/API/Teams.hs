@@ -422,9 +422,6 @@ getTeamConversation (zusr::: tid ::: cid ::: _) = do
 
 deleteTeamConversation :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
 deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
-    -- FUTUREWORK: Previously, any team member could delete the
-    --             conversation which is a weird feature? In any
-    --             case, do not lookup all team members here
     (bots, cmems) <- botsAndUsers <$> Data.members cid
     ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
     flip Data.deleteCode ReusableCode =<< mkKey cid
