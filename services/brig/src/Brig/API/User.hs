@@ -54,6 +54,10 @@ module Brig.API.User
     , blacklistDelete
     , blacklistInsert
 
+    , isWhitelisted
+    , whitelistDelete
+    , whitelistInsert
+
       -- * Phone Prefix blocking
     , phonePrefixGet
     , phonePrefixDelete
@@ -97,6 +101,7 @@ import Network.Wai.Utilities
 import System.Logger.Message
 
 import qualified Brig.Data.Blacklist        as Blacklist
+import qualified Brig.Data.Whitelist        as Whitelist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
 import qualified Brig.Data.Client           as Data
@@ -924,6 +929,21 @@ phonePrefixDelete = Blacklist.deletePrefix
 
 phonePrefixInsert :: ExcludedPrefix -> AppIO ()
 phonePrefixInsert = Blacklist.insertPrefix
+
+isWhitelisted :: Either Email Phone -> AppIO Bool
+isWhitelisted emailOrPhone = do
+    let uk = either userEmailKey userPhoneKey emailOrPhone
+    Whitelist.exists uk
+
+whitelistInsert :: Either Email Phone -> AppIO ()
+whitelistInsert emailOrPhone = do
+    let uk = either userEmailKey userPhoneKey emailOrPhone
+    Whitelist.insert uk
+
+whitelistDelete :: Either Email Phone -> AppIO ()
+whitelistDelete emailOrPhone = do
+    let uk = either userEmailKey userPhoneKey emailOrPhone
+    Whitelist.delete uk
 
 -------------------------------------------------------------------------------
 -- Utilities
