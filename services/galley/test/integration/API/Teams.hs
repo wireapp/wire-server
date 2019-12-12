@@ -17,7 +17,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
-import Galley.Types.Conversations.Roles hiding (DeleteConversation)
+import Galley.Types.Conversations.Roles hiding (DoNotUseDeprecatedDeleteConversation)
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -135,7 +135,7 @@ testCreateTeamWithMembers = do
     owner <- Util.randomUser
     user1 <- Util.randomUser
     user2 <- Util.randomUser
-    let pp = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let pp = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
     let m1 = newTeamMember' pp user1
     let m2 = newTeamMember' pp user2
     Util.connectUsers owner (list1 user1 [user2])
@@ -192,8 +192,8 @@ testEnableSSOPerTeam = do
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
@@ -242,8 +242,8 @@ testAddTeamMember = do
     c <- view tsCannon
     g <- view tsGalley
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
@@ -309,8 +309,8 @@ testRemoveTeamMember = do
     c <- view tsCannon
     g <- view tsGalley
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
-    let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember, RemoveTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     mext1 <- Util.randomUser
@@ -359,7 +359,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
     mext  <- Util.randomUser
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     Util.addTeamMemberInternal tid mem1
     assertQueue "team member join" $ tUpdate 2 [owner]
@@ -429,7 +429,7 @@ testAddTeamConv = do
     owner  <- Util.randomUser
     extern <- Util.randomUser
 
-    let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser
     mem2 <- newTeamMember' p <$> Util.randomUser
 
@@ -481,7 +481,7 @@ testAddTeamConvWithRole = do
     owner  <- Util.randomUser
     extern <- Util.randomUser
 
-    let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser
     mem2 <- newTeamMember' p <$> Util.randomUser
 
@@ -583,7 +583,7 @@ testAddTeamConvWithUsers = do
 testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
     owner <- Util.randomUser
-    let p = Util.symmPermissions [AddRemoveConvMember]
+    let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser
     mem2 <- newTeamMember' p <$> Util.randomUser
     mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
@@ -597,7 +597,7 @@ testAddTeamMemberToConv = do
     -- NOTE: This functionality was _changed_ as there was no need for it...
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can *not* add other team members without requiring a user connection
-    -- despite being a team member and having the permission `AddRemoveConvMember`.
+    -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
     Util.assertNotConvMember (mem1^.userId) cid
     Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 404 === statusCode
     Util.assertNotConvMember (mem2^.userId) cid
@@ -629,7 +629,7 @@ testDeleteTeam = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [AddRemoveConvMember]
+    let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     member <- newTeamMember' p <$> Util.randomUser
     extern <- Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [extern])
@@ -682,11 +682,11 @@ testDeleteBindingTeam ownerHasPassword = do
     owner  <- Util.randomUser' ownerHasPassword
     tid    <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
-    let p2 = Util.symmPermissions [AddRemoveConvMember]
+    let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem2 <- newTeamMember' p2 <$> Util.randomUser
-    let p3 = Util.symmPermissions [AddRemoveConvMember]
+    let p3 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem3 <- newTeamMember' p3 <$> Util.randomUser
     Util.addTeamMemberInternal tid mem1
     assertQueue "team member join 2" $ tUpdate 2 [owner]
@@ -751,7 +751,7 @@ testDeleteTeamConv = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [DeleteConversation]
+    let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
     extern <- Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [extern])
@@ -810,7 +810,7 @@ testUpdateTeam = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [DeleteConversation]
+    let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [])
     tid <- Util.createTeam "foo" owner [member]

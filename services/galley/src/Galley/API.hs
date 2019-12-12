@@ -23,6 +23,7 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
+import Galley.Types.Conversations.Roles
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
@@ -292,7 +293,7 @@ sitemap = do
         parameter Path "cid" bytes' $
             description "Conversation ID"
         errorResponse Error.noTeamMember
-        errorResponse (Error.operationDenied DeleteConversation)
+        errorResponse (Error.actionDenied DeleteConversation)
 
    --
 
@@ -479,13 +480,7 @@ sitemap = do
 
     ---
 
-    -- FUTUREWORK:
-    --       We should deprecate this in favor of
-    --       `put "/conversations/:cnv/name"`. The event is called
-    --       "conversation.rename", adding anything to this endpoint
-    --       would be problematic anyways. Mixing "conversation rename"
-    --       and "conversation metadata" should be avoided.
-    put "/conversations/:cnv" (continue updateConversationName) $
+    put "/conversations/:cnv/name" (continue updateConversationName) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
@@ -500,6 +495,22 @@ sitemap = do
         returns (ref Model.event)
         errorResponse Error.convNotFound
 
+    ---
+
+    put "/conversations/:cnv" (continue updateConversationDeprecated) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. jsonRequest @ConversationRename
+
+    document "PUT" "updateConversationName" $ do
+        summary "DEPRECATED! Please use updateConversationName instead!"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        body (ref Model.conversationUpdateName) $
+            description "JSON body"
+        returns (ref Model.event)
+        errorResponse Error.convNotFound
     ---
 
     post "/conversations/:cnv/join" (continue joinConversationById) $

@@ -57,6 +57,7 @@ module Galley.Types
     , UserClients               (..)
     , filterClients
     , newInvite
+    , memberUpdate
     ) where
 
 import Imports
@@ -353,6 +354,9 @@ data MemberUpdate = MemberUpdate
     , mupHiddenRef     :: !(Maybe Text)
     , mupConvRoleName  :: !(Maybe RoleName)
     }
+
+memberUpdate :: MemberUpdate
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 deriving instance Eq   MemberUpdate
 deriving instance Show MemberUpdate

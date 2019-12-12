@@ -20,7 +20,7 @@ import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (pack)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
-import Galley.Types as M hiding (Event, EventType)
+import Galley.Types as M hiding (Event, EventType, memberUpdate)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP

@@ -242,11 +242,11 @@ data Permissions = Permissions
 
 data Perm =
       CreateConversation
-    | DeleteConversation  -- NOTE: This gets now overruled by conv level checks
+    | DoNotUseDeprecatedDeleteConversation  -- NOTE: This gets now overruled by conv level checks
     | AddTeamMember
     | RemoveTeamMember
-    | AddRemoveConvMember -- NOTE: This gets now overruled by conv level checks
-    | ModifyConvName      -- NOTE: This gets now overruled by conv level checks
+    | DoNotUseDeprecatedAddRemoveConvMember -- NOTE: This gets now overruled by conv level checks
+    | DoNotUseDeprecatedModifyConvName      -- NOTE: This gets now overruled by conv level checks
     | GetBilling
     | SetBilling
     | SetTeamData
@@ -284,9 +284,9 @@ rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
     , SetMemberPermissions
     ]
 rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
-    [ DeleteConversation
-    , AddRemoveConvMember
-    , ModifyConvName
+    [ DoNotUseDeprecatedDeleteConversation
+    , DoNotUseDeprecatedAddRemoveConvMember
+    , DoNotUseDeprecatedModifyConvName
     , GetMemberPermissions
     ]
 rolePerms RoleExternalPartner = Set.fromList
@@ -540,7 +540,7 @@ noPermissions = Permissions mempty mempty
 serviceWhitelistPermissions :: Set Perm
 serviceWhitelistPermissions = Set.fromList
     [ AddTeamMember, RemoveTeamMember
-    , AddRemoveConvMember
+    , DoNotUseDeprecatedAddRemoveConvMember
     , SetTeamData
     ]
 
@@ -586,27 +586,27 @@ isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
 
 permToInt :: Perm -> Word64
-permToInt CreateConversation       = 0x0001
-permToInt DeleteConversation       = 0x0002
-permToInt AddTeamMember            = 0x0004
-permToInt RemoveTeamMember         = 0x0008
-permToInt AddRemoveConvMember      = 0x0010
-permToInt ModifyConvName           = 0x0020
-permToInt GetBilling               = 0x0040
-permToInt SetBilling               = 0x0080
-permToInt SetTeamData              = 0x0100
-permToInt GetMemberPermissions     = 0x0200
-permToInt GetTeamConversations     = 0x0400
-permToInt DeleteTeam               = 0x0800
-permToInt SetMemberPermissions     = 0x1000
+permToInt CreateConversation                    = 0x0001
+permToInt DoNotUseDeprecatedDeleteConversation  = 0x0002
+permToInt AddTeamMember                         = 0x0004
+permToInt RemoveTeamMember                      = 0x0008
+permToInt DoNotUseDeprecatedAddRemoveConvMember = 0x0010
+permToInt DoNotUseDeprecatedModifyConvName      = 0x0020
+permToInt GetBilling                            = 0x0040
+permToInt SetBilling                            = 0x0080
+permToInt SetTeamData                           = 0x0100
+permToInt GetMemberPermissions                  = 0x0200
+permToInt GetTeamConversations                  = 0x0400
+permToInt DeleteTeam                            = 0x0800
+permToInt SetMemberPermissions                  = 0x1000
 
 intToPerm :: Word64 -> Maybe Perm
 intToPerm 0x0001 = Just CreateConversation
-intToPerm 0x0002 = Just DeleteConversation
+intToPerm 0x0002 = Just DoNotUseDeprecatedDeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
-intToPerm 0x0010 = Just AddRemoveConvMember
-intToPerm 0x0020 = Just ModifyConvName
+intToPerm 0x0010 = Just DoNotUseDeprecatedAddRemoveConvMember
+intToPerm 0x0020 = Just DoNotUseDeprecatedModifyConvName
 intToPerm 0x0040 = Just GetBilling
 intToPerm 0x0080 = Just SetBilling
 intToPerm 0x0100 = Just SetTeamData

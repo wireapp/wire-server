@@ -113,7 +113,9 @@ conversationRole :: Model
 conversationRole = defineModel "ConversationRole" $ do
     description "Conversation role"
     property "conversation_role" string' $
-        description "role name, between 2 and 128 chars"
+        description "role name, between 2 and 128 chars, 'wire_' prefix \
+                    \is reserved for roles designed by Wire (i.e., no \
+                    \custom roles can have the same prefix)"
     property "actions" (array conversationRoleAction) $
         description "The set of actions allowed for this role"
 

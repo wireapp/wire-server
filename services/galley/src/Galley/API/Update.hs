@@ -9,6 +9,7 @@ module Galley.API.Update
     , addCode
     , rmCode
     , getCode
+    , updateConversationDeprecated
     , updateConversationName
     , updateConversationAccess
     , updateConversationReceiptMode
@@ -372,12 +373,9 @@ updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
     let (bots, users) = botsAndUsers (Data.convMembers conv)
     ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
     memTarget <- getOtherMember victim users
-    e <- processUpdateMemberEvent zusr zcon cid users memTarget (toMemberUpdate body)
+    e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate { mupConvRoleName = omuConvRoleName body })
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return empty
-  where
-    toMemberUpdate :: OtherMemberUpdate -> MemberUpdate
-    toMemberUpdate omu = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing (omuConvRoleName omu)
 
 removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
@@ -481,6 +479,9 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushTransient      (newOtrTransient msg)
             in (toBots, p:toUsers)
 
+updateConversationDeprecated :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversationDeprecated (zusr ::: zcon ::: cnv ::: req) = updateConversationName (zusr ::: zcon ::: cnv ::: req)
+
 updateConversationName :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
 updateConversationName (zusr ::: zcon ::: cnv ::: req) = do
     body <- fromJsonBody req
@@ -545,13 +546,12 @@ addBot (zusr ::: zcon ::: req) = do
         unless (zusr `isMember` users) $
             throwM convNotFound
         ensureGroupConv c
+        ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
         unless (any ((== b^.addBotId) . botMemId) bots) $
             ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b^.addBotId)]
         return (bots, users)
 
     teamConvChecks cid tid = do
-        tms <- Data.teamMembers tid
-        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
