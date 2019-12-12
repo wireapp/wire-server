@@ -23,7 +23,7 @@ tests _cl _at opts p b _c _g = testGroup "property"
     , test p "get /properties - 200"          $ testListPropertyKeys b
     , test p "get /properties-values - 200"   $ testListPropertyKeysAndValues b
     , test p "delete /properties - 200"       $ testClearProperties b
-    , test p "put /properties/:key - 403"     $ testPropertyLimits b
+    , test p "put /properties/:key - 403"     $ testPropertyLimits opts b
     , test p "size limits"                    $ testSizeLimits opts b
     ]
 
@@ -102,16 +102,21 @@ testClearProperties brig = do
     getProperty brig (userId u) "bar" !!!
         const 404 === statusCode
 
-testPropertyLimits :: Brig -> Http ()
-testPropertyLimits brig = do
+testPropertyLimits :: Maybe Opt.Opts -> Brig -> Http ()
+testPropertyLimits Nothing _ = error "no config!"
+testPropertyLimits (Just opts) brig = do
     u <- randomUser brig
+
+    let maxKeyLen = fromIntegral $ fromMaybe defMaxKeyLen . setPropertyMaxKeyLen $ optSettings opts
+        maxValueLen = fromIntegral $ fromMaybe defMaxValueLen . setPropertyMaxValueLen $ optSettings opts
+
     -- Maximum key length
-    setProperty brig (userId u) (C.replicate 257 'x') (String "y") !!! do
+    setProperty brig (userId u) (C.replicate (maxKeyLen + 1) 'x') (String "y") !!! do
         const 403 === statusCode
         const (Just "property-key-too-large") === fmap Error.label . responseJsonMaybe
 
     -- Maximum value length
-    setProperty brig (userId u) "foo" (String (T.replicate 513 "x")) !!! do
+    setProperty brig (userId u) "foo" (String (T.replicate (maxValueLen + 1) "x")) !!! do
         const 403 === statusCode
         const (Just "property-value-too-large") === fmap Error.label . responseJsonMaybe
 
