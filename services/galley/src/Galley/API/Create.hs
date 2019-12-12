@@ -19,7 +19,6 @@ import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Types
-import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Validation
 import Network.HTTP.Types
@@ -154,7 +153,7 @@ createConnectConversation (usr ::: conn ::: req) = do
             | usr `isMember` mems -> connect n j conv
             | otherwise           -> do
                 now <- liftIO getCurrentTime
-                mm  <- snd <$> Data.addMember now (Data.convId conv) usr roleNameWireAdmin
+                mm  <- snd <$> Data.addMember now (Data.convId conv) usr
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }

@@ -80,7 +80,7 @@ mainBotNet n = do
 
     runBotSession bill $ do
         let update = MemberUpdateData
-                   { misId             = Just $ botId bill
+                   { misTarget         = Just $ botId bill
                    , misOtrMuted       = Nothing
                    , misOtrMutedStatus = Nothing
                    , misOtrMutedRef    = Nothing

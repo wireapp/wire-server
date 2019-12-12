@@ -585,7 +585,7 @@ addToConversation (bots, others) usr conn xs c role = do
     ensureGroupConv c
     mems    <- checkedMemberAddSize xs
     now     <- liftIO getCurrentTime
-    (e, mm) <- Data.addMembers now (Data.convId c) usr mems role
+    (e, mm) <- Data.addMembersWithRole now (Data.convId c) usr mems role
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)

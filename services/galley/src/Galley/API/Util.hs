@@ -117,7 +117,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             return conv
         else do
             now <- liftIO getCurrentTime
-            mm  <- snd <$> Data.addMember now cid usr roleNameWireAdmin
+            mm  <- snd <$> Data.addMember now cid usr
             return $ conv { Data.convMembers = mems <> toList mm }
     ConnectConv -> case mems of
         [_,_] | usr `isMember` mems -> promote
@@ -126,7 +126,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             when (length mems > 2) $
                 throwM badConvState
             now <- liftIO getCurrentTime
-            (e, mm) <- Data.addMember now cid usr roleNameWireAdmin
+            (e, mm) <- Data.addMember now cid usr
             conv'   <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
             let mems' = mems <> toList mm
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->

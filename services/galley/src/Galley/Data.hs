@@ -50,6 +50,7 @@ module Galley.Data
     -- * Conversation Members
     , addMember
     , addMembers
+    , addMembersWithRole
     , member
     , members
     , removeMember
@@ -564,11 +565,14 @@ memberLists convs = do
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
-addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> RoleName -> m (Event, List1 Member)
-addMember t c u r = addMembersUnchecked t c u (singleton u) r
+addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
+addMember t c u = addMembersUnchecked t c u (singleton u) roleNameWireAdmin
 
-addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> RoleName -> m (Event, List1 Member)
-addMembers t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
+addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
+addMembers t c u ms = addMembersUnchecked t c u (fromMemberSize ms) roleNameWireAdmin
+
+addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> RoleName -> m (Event, List1 Member)
+addMembersWithRole t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
 
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> RoleName -> m (Event, List1 Member)
 addMembersUnchecked t conv orig usrs othersRole = do
