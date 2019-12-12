@@ -138,7 +138,7 @@ isValidRoleName = either (const False) (const True)
     customRoleName = count 2 (satisfy chars)
                   *> count 126 (optional (satisfy chars))
                   *> endOfInput
-    chars = inClass "a-zA-Z0-9_-"
+    chars = inClass "a-z0-9_"
 
 roleToRoleName :: ConversationRole -> RoleName
 roleToRoleName ConvRoleWireAdmin    = roleNameWireAdmin

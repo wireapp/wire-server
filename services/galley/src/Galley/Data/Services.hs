@@ -47,13 +47,13 @@ addBotMember orig s bot cnv now = do
         setType BatchLogged
         setConsistency Quorum
         addPrepQuery insertUserConv (botUserId bot, cnv)
-        addPrepQuery insertBot (cnv, bot, sid, pid, roleNameWireMember)
+        addPrepQuery insertBot (cnv, bot, sid, pid, roleNameWireAdmin)
     let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
     let mem = (newMember (botUserId bot)) { memService = Just s }
     return (e, BotMember mem)
   where
     toSimpleMember :: UserId -> SimpleMember
-    toSimpleMember u = SimpleMember u roleNameWireMember
+    toSimpleMember u = SimpleMember u roleNameWireAdmin
 
 -- Service --------------------------------------------------------------------
 

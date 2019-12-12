@@ -442,10 +442,13 @@ data Connect = Connect
     , cEmail     :: !(Maybe Text)
     } deriving (Eq, Show, Generic)
 
--- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
+-- Outbound member updates. When a user A acts upon a user B,
+-- then a user event is generated where B's user ID is set
+-- as misTarget.
+-- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-    { misId               :: !(Maybe UserId) -- Target user of this action
+    { misTarget           :: !(Maybe UserId) -- Target user of this action
     , misOtrMuted         :: !(Maybe Bool)
     , misOtrMutedStatus   :: !(Maybe MutedStatus)
     , misOtrMutedRef      :: !(Maybe Text)
@@ -940,8 +943,8 @@ instance ToJSON OtherMemberUpdate where
 
 instance FromJSON MemberUpdateData where
     parseJSON = withObject "member-update event data" $ \m ->
-        MemberUpdateData <$> m .:? "id"
-                         -- TODO: ^-- This is really not a maybe and should
+        MemberUpdateData <$> m .:? "target"
+                         -- NOTE: ^-- This is really not a maybe and should
                          --       be made compulsory 28 days after the next
                          --       release to prod to guaratee that no events
                          --       out there do not contain id.
@@ -958,7 +961,7 @@ instance FromJSON MemberUpdateData where
 
 instance ToJSON MemberUpdateData where
     toJSON m = object
-        $ "id"                .= misId m
+        $ "target"            .= misTarget m
         # "otr_muted"         .= misOtrMuted m
         # "otr_muted_status"  .= misOtrMutedStatus m
         # "otr_muted_ref"     .= misOtrMutedRef m

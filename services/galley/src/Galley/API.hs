@@ -728,7 +728,7 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Path "usr" bytes' $
-            description "User ID"
+            description "Target User ID"
         body (ref Model.otherMemberUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
@@ -763,7 +763,7 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Path "usr" bytes' $
-            description "User ID"
+            description "Target User ID"
         returns (ref Model.event)
         response 200 "Member removed" end
         response 204 "No change" end

@@ -31,7 +31,7 @@ import Galley.Types (
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
-import Galley.Types.Conversations.Roles (roleNameWireMember,roleNameWireAdmin)
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
@@ -1598,7 +1598,7 @@ wsAssertMemberJoin ws conv usr new = void $ liftIO $
         evtConv      e @?= conv
         evtType      e @?= MemberJoin
         evtFrom      e @?= usr
-        evtData      e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireMember) new)))
+        evtData      e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $ liftIO $
@@ -1635,7 +1635,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
     evt <- timeout (5 # Second) $ readChan buf
     case evt of
         Just (TestBotMessage e) -> do
-            let msg = SimpleMembers $ fmap (\u -> SimpleMember u roleNameWireMember) new
+            let msg = SimpleMembers $ fmap (\u -> SimpleMember u roleNameWireAdmin) new
             assertEqual "event type" MemberJoin (evtType e)
             assertEqual "conv" cnv (evtConv e)
             assertEqual "user" usr (evtFrom e)
