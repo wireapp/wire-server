@@ -111,12 +111,12 @@ testPropertyLimits (Just opts) brig = do
         maxValueLen = fromIntegral $ fromMaybe defMaxValueLen . setPropertyMaxValueLen $ optSettings opts
 
     -- Maximum key length
-    setProperty brig (userId u) (C.replicate (maxKeyLen+1) 'x') (String "y") !!! do
+    setProperty brig (userId u) (C.replicate (maxKeyLen + 1) 'x') (String "y") !!! do
         const 403 === statusCode
         const (Just "property-key-too-large") === fmap Error.label . responseJsonMaybe
 
     -- Maximum value length
-    setProperty brig (userId u) "foo" (String (T.replicate (maxValueLen+1) "x")) !!! do
+    setProperty brig (userId u) "foo" (String (T.replicate (maxValueLen + 1) "x")) !!! do
         const 403 === statusCode
         const (Just "property-value-too-large") === fmap Error.label . responseJsonMaybe
 
