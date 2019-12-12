@@ -70,7 +70,16 @@ instance Scim.UserDB SparTag Spar where
            -> Maybe Scim.Filter
            -> Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser SparTag))
   getUsers ScimTokenInfo{stiTeam} mbFilter = do
+    -- TODO(arianvp): Rewrite this procedure completely. It already doesn't
+    -- work for customers using SCIM. We should special-case the filter, and do
+    -- smart stuff, Especially when the filter provided filters on a primary
+    -- key, we can do a quick database lookup instead.  and for now we only
+    -- support filters on primary keys anyway
+    --
+    -- DECISION: We will not support the full getUsers. It is not used by Okta
+    -- nor Azure. If the user does not provide a Filter, we will error out
     members <- lift $ getTeamMembers stiTeam
+    -- TODO(arianvp): FIXME FIXME: getBrigUsers does O(n) getBrigUser calls
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
@@ -110,12 +119,6 @@ instance Scim.UserDB SparTag Spar where
           -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
   putUser tokinfo uid newScimUser =
     updateValidScimUser tokinfo uid =<< validateScimUser tokinfo newScimUser
-
-  patchUser :: ScimTokenInfo
-            -> Scim.UserId SparTag
-            -> Value
-            -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-  patchUser _ _ _ = throwError $ Scim.notFound "PATCH /Users" "not implemented"
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
   deleteUser = deleteScimUser

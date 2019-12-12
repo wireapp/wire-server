@@ -327,7 +327,7 @@ testFindProvisionedUserByUsername = do
     user <- randomScimUser
     (tok, (_, _, _)) <- registerIdPAndScimToken
     storedUser <- createUser tok user
-    users <- listUsers tok (Just (Scim.Filter.FilterAttrCompare Scim.Filter.AttrUserName Scim.Filter.OpEq (Scim.Filter.ValString (Scim.User.userName user))))
+    users <- listUsers tok (Just (Scim.Filter.FilterAttrCompare (Scim.Filter.AttrPath Nothing (Scim.Filter.attrName "userName") Nothing) Scim.Filter.OpEq (Scim.Filter.ValString (Scim.User.userName user))))
     liftIO $ users `shouldContain` [storedUser]
     pure ()
 
