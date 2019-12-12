@@ -583,7 +583,7 @@ addMembersUnchecked t conv orig usrs othersRole = do
             addPrepQuery Cql.insertUserConv (u, conv)
             addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
     let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-    return (e, newMember <$> usrs)
+    return (e, fmap (\u -> newMemberWithRole u (userRole u)) usrs)
   where
     toSimpleMembers :: [UserId] -> [SimpleMember]
     toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole u))
@@ -638,7 +638,10 @@ removeMember usr cnv = retry x5 $ batch $ do
     addPrepQuery Cql.deleteUserConv (usr, cnv)
 
 newMember :: UserId -> Member
-newMember u = Member
+newMember = flip newMemberWithRole roleNameWireAdmin
+
+newMemberWithRole :: UserId -> RoleName -> Member
+newMemberWithRole u r = Member
     { memId             = u
     , memService        = Nothing
     , memOtrMuted       = False
@@ -648,7 +651,7 @@ newMember u = Member
     , memOtrArchivedRef = Nothing
     , memHidden         = False
     , memHiddenRef      = Nothing
-    , memConvRoleName   = roleNameWireAdmin
+    , memConvRoleName   = r
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
