@@ -399,7 +399,7 @@ createConversation :: UserId
                    -> Maybe ReceiptMode
                    -> RoleName
                    -> Galley Conversation
-createConversation usr name acc role others tinfo mtimer recpt othersRole = do
+createConversation usr name acc role others tinfo mtimer recpt othersConversationRole = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
     retry x5 $ case tinfo of
@@ -409,7 +409,7 @@ createConversation usr name acc role others tinfo mtimer recpt othersRole = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others) othersRole
+    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others) othersConversationRole
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
