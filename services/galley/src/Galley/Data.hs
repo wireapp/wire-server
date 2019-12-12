@@ -604,7 +604,7 @@ updateMember cid uid mup = do
         for_ (mupConvRoleName mup) $ \r ->
             addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
     return MemberUpdateData
-        { misId = Just uid
+        { misTarget = Just uid
         , misOtrMuted = mupOtrMute mup
         , misOtrMutedStatus = mupOtrMuteStatus mup
         , misOtrMutedRef = mupOtrMuteRef mup
