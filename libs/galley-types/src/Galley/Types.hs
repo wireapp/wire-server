@@ -1049,7 +1049,7 @@ instance FromJSON SimpleMembers where
             Nothing   -> do
                 ids <- o .:? "user_ids"
                 case ids of
-                    Just userIds -> pure $ fmap (\u -> SimpleMember u defaultConversationRoleName) userIds
+                    Just userIds -> pure $ fmap (\u -> SimpleMember u roleNameWireAdmin) userIds
                     Nothing      -> fail "Not possible!"
         pure $ SimpleMembers membs
 

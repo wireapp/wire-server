@@ -17,7 +17,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
-import Galley.Types.Conversations.Roles hiding (DoNotUseDeprecatedDeleteConversation)
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO

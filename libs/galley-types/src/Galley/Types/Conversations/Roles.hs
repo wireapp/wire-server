@@ -4,7 +4,24 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
-module Galley.Types.Conversations.Roles where
+module Galley.Types.Conversations.Roles
+    ( ConversationRole
+    , convRoleCustom
+    , convRoleWireAdmin
+    , convRoleWireMember
+    , wireConvRoles
+
+    , RoleName
+    , roleNameWireAdmin
+    , roleNameWireMember
+    , wireConvRoleNames
+
+    , Action (..)
+    , ConversationRolesList (..)
+
+    , isActionAllowed
+    )
+where
 
 import Imports
 #ifdef WITH_CQL
@@ -16,7 +33,8 @@ import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
-import qualified Data.Set as Set
+import qualified Data.Set  as Set
+import qualified Data.Text as T
 
 data Action =
       AddConversationMember
@@ -36,6 +54,8 @@ newtype Actions = Actions
     { allowedActions :: Set Action
     } deriving (Eq, Ord, Show, Generic)
 
+-- Do not ever expose the constructors directly, custom
+-- roles must be validated to obey the prefix rules
 data ConversationRole = ConvRoleWireAdmin
                       | ConvRoleWireMember
                       | ConvRoleCustom RoleName Actions
@@ -49,9 +69,6 @@ isActionAllowed :: Action -> RoleName -> Maybe Bool
 isActionAllowed action rn
     | isCustomRoleName rn = Nothing
     | otherwise           = pure $ maybe False (action `elem`) (roleNameToActions rn)
-  where
-    isCustomRoleName :: RoleName -> Bool
-    isCustomRoleName = (`notElem` wireConvRoleNames)
 
 instance ToJSON ConversationRole where
     toJSON cr = object
@@ -104,17 +121,11 @@ wireConvRoles = [ ConvRoleWireAdmin
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
 
-defaultConversationRoleName :: RoleName
-defaultConversationRoleName = roleNameWireAdmin
-
 roleNameWireAdmin :: RoleName
 roleNameWireAdmin = RoleName "wire_admin"
 
 roleNameWireMember :: RoleName
 roleNameWireMember = RoleName "wire_member"
-
-allActions :: Actions
-allActions = Actions $ Set.fromList [ minBound..maxBound ]
 
 convRoleWireAdmin :: ConversationRole
 convRoleWireAdmin = ConvRoleWireAdmin
@@ -122,15 +133,17 @@ convRoleWireAdmin = ConvRoleWireAdmin
 convRoleWireMember :: ConversationRole
 convRoleWireMember = ConvRoleWireMember
 
+convRoleCustom :: RoleName -> Actions -> Maybe ConversationRole
+convRoleCustom r a
+    | isCustomRoleName r = Just (ConvRoleCustom r a)
+    | otherwise          = Nothing
+
 parseRoleName :: Text -> Maybe RoleName
 parseRoleName t
     | isValidRoleName t = Just (RoleName t)
     | otherwise         = Nothing
 
 -- All RoleNames should have 2-128 chars
---  * Wire RoleNames _must_ start with `wire_`
---  * Custom RoleNames _must not_ start with `wire_`
--- TODO: _Actually_ ensure all the above properties
 isValidRoleName :: Text -> Bool
 isValidRoleName = either (const False) (const True)
                 . parseOnly customRoleName
@@ -139,6 +152,10 @@ isValidRoleName = either (const False) (const True)
                   *> count 126 (optional (satisfy chars))
                   *> endOfInput
     chars = inClass "a-z0-9_"
+
+--  * Custom RoleNames _must not_ start with `wire_`
+isCustomRoleName :: RoleName -> Bool
+isCustomRoleName (RoleName r) = isValidRoleName r && (not $ "wire_" `T.isPrefixOf` r)
 
 roleToRoleName :: ConversationRole -> RoleName
 roleToRoleName ConvRoleWireAdmin    = roleNameWireAdmin
@@ -153,6 +170,9 @@ toConvRole _                        _        = Nothing
 
 roleNameToActions :: RoleName -> Maybe (Set Action)
 roleNameToActions r = roleActions <$> toConvRole r Nothing
+
+allActions :: Actions
+allActions = Actions $ Set.fromList [ minBound..maxBound ]
 
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin  = allowedActions allActions

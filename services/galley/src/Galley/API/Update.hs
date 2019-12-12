@@ -58,7 +58,7 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Conversations.Roles (RoleName(..), Action(..), roleNameWireMember)
+import Galley.Types.Conversations.Roles (RoleName, Action(..), roleNameWireMember)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event, self)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
