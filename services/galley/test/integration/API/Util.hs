@@ -127,6 +127,27 @@ addTeamMemberInternal tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
+-- Note that here we don't make use of the datatype because NewConv has a default
+-- and therefore cannot be unset. However, given that this is to test the legacy
+-- API (i.e., no roles) it's fine to hardcode the JSON object in the test since
+-- it clearly shows the API that old(er) clients use.
+createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM ConvId
+createTeamConvLegacy u tid us name = do
+    g <- view tsGalley
+    let tinfo = ConvTeamInfo tid False
+    let convPayload = object
+                    [ "users" .= us
+                    , "name"  .= name
+                    , "team"  .= Just tinfo
+                    ]
+    post ( g
+          . path "/conversations"
+          . zUser u
+          . zConn "conn"
+          . zType "access"
+          . json convPayload
+          ) >>= \r -> fromBS (getHeader' "Location" r)
+
 createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
@@ -447,6 +468,13 @@ deleteUser :: HasCallStack => UserId -> TestM ()
 deleteUser u = do
     g <- view tsGalley
     delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
+
+assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> TestM ()
+assertConvMemberWithRole r c u =
+    getSelfMember u c !!! do
+        const 200       === statusCode
+        const (Right u) === (fmap memId <$> responseJsonEither)
+        const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
 
 assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =

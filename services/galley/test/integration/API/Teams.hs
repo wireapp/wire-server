@@ -57,7 +57,7 @@ tests s = testGroup "Teams API"
     , test s "remove team member" testRemoveTeamMember
     , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
     , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
-    , test s "add team conversation" testAddTeamConv
+    , test s "add team conversation (no role as argument)" testAddTeamConvLegacy
     , test s "add team conversation with role" testAddTeamConvWithRole
     , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
@@ -423,8 +423,8 @@ testRemoveBindingTeamMember ownerHasPassword = do
         -- Mem1 is now gone from Wire
         Util.ensureDeletedState True owner (mem1^.userId)
 
-testAddTeamConv :: TestM ()
-testAddTeamConv = do
+testAddTeamConvLegacy :: TestM ()
+testAddTeamConvLegacy = do
     c <- view tsCannon
     owner  <- Util.randomUser
     extern <- Util.randomUser
@@ -435,45 +435,13 @@ testAddTeamConv = do
 
     Util.connectUsers owner (list1 (mem1^.userId) [extern, mem2^.userId])
     tid <- Util.createTeam "foo" owner [mem2]
+    let allUserIds = [owner, extern, mem1^.userId, mem2^.userId]
 
-    WS.bracketRN c [owner, extern, mem1^.userId, mem2^.userId]  $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
-        -- Managed conversation:
-        cid1 <- Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
-        checkConvCreateEvent cid1 wsOwner
-        checkConvCreateEvent cid1 wsMem2
-
-        -- Regular conversation:
-        cid2 <- Util.createTeamConv owner tid [extern] (Just "blaa") Nothing Nothing
-        checkConvCreateEvent cid2 wsOwner
-        checkConvCreateEvent cid2 wsExtern
-        -- mem2 is not a conversation member and no longer receives
-        -- an event that a new team conversation has been created
-
-        Util.addTeamMember owner tid mem1
-
-        checkTeamMemberJoin tid (mem1^.userId) wsOwner
-        checkTeamMemberJoin tid (mem1^.userId) wsMem1
-        checkTeamMemberJoin tid (mem1^.userId) wsMem2
-
-        -- New team members are added automatically to managed conversations ...
-        Util.assertConvMember (mem1^.userId) cid1
-        -- ... but not to regular ones.
-        Util.assertNotConvMember (mem1^.userId) cid2
-
-        -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
-        for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
-            Util.assertConvMember u cid3
-
-        checkConvCreateEvent cid3 wsOwner
-        checkConvCreateEvent cid3 wsMem1
-        checkConvCreateEvent cid3 wsMem2
-
-        -- Non team members are never added implicitly.
-        for_ [cid1, cid3] $
-            Util.assertNotConvMember extern
-
-        WS.assertNoEvent timeout ws
+    WS.bracketRN c allUserIds $ \wss -> do
+        cid <- Util.createTeamConvLegacy owner tid allUserIds (Just "blaa")
+        mapM_ (checkConvCreateEvent cid) wss
+        -- All members become admin by default
+        mapM_ (assertConvMemberWithRole roleNameWireAdmin cid) allUserIds
 
 testAddTeamConvWithRole :: TestM ()
 testAddTeamConvWithRole = do
@@ -495,9 +463,18 @@ testAddTeamConvWithRole = do
         checkConvCreateEvent cid1 wsMem2
 
         -- Regular conversation:
-        cid2 <- Util.createTeamConv owner tid [extern] (Just "blaa") Nothing Nothing
+        cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
+        mapM_ (assertConvMemberWithRole roleNameWireAdmin cid2) [owner, extern]
+
+        -- Regular conversation (using member role for participants):
+        cid3 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireMember
+        checkConvCreateEvent cid3 wsOwner
+        checkConvCreateEvent cid3 wsExtern
+        assertConvMemberWithRole roleNameWireAdmin cid3 owner
+        assertConvMemberWithRole roleNameWireMember cid3 extern
+
         -- mem2 is not a conversation member and no longer receives
         -- an event that a new team conversation has been created
 
@@ -513,16 +490,16 @@ testAddTeamConvWithRole = do
         Util.assertNotConvMember (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
+        cid4 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
-            Util.assertConvMember u cid3
+            Util.assertConvMember u cid4
 
-        checkConvCreateEvent cid3 wsOwner
-        checkConvCreateEvent cid3 wsMem1
-        checkConvCreateEvent cid3 wsMem2
+        checkConvCreateEvent cid4 wsOwner
+        checkConvCreateEvent cid4 wsMem1
+        checkConvCreateEvent cid4 wsMem2
 
         -- Non team members are never added implicitly.
-        for_ [cid1, cid3] $
+        for_ [cid1, cid4] $
             Util.assertNotConvMember extern
 
         WS.assertNoEvent timeout ws

@@ -113,21 +113,6 @@ createTeamConv g tid u us mtimer = do
     maybe (error "invalid conv id") return $
         fromByteString $ getHeader' "Location" r
 
--- createTeamConvLegacy :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
--- createTeamConvLegacy g tid u us mtimer = do
---     let tinfo = Just $ ConvTeamInfo tid False
---     let conv = NewConvUnmanaged $
---                NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
---     r <- post ( g
---               . path "/conversations"
---               . zUser u
---               . zConn "conn"
---               . contentJson
---               . lbytes (encode conv)
---               ) <!! const 201 === statusCode
---     maybe (error "invalid conv id") return $
---         fromByteString $ getHeader' "Location" r
-
 -- See Note [managed conversations]
 createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createManagedConv g tid u us mtimer = do
