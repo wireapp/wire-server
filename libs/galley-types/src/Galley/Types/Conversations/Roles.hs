@@ -17,9 +17,11 @@ module Galley.Types.Conversations.Roles
     , wireConvRoleNames
 
     , Action (..)
+    , Actions (..)
     , ConversationRolesList (..)
 
     , isActionAllowed
+    , roleNameToActions
     )
 where
 

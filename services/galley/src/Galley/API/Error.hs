@@ -95,6 +95,9 @@ teamNotFound = Error status404 "no-team" "team not found"
 invalidPermissions :: Error
 invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
 
+invalidActions :: Error
+invalidActions = Error status403 "invalid-actions" "The specified actions are invalid."
+
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
 

@@ -77,6 +77,12 @@ createTeamGroupConv zusr zcon tinfo body = do
             checkedConvSize otherConvMems
         else do
             otherConvMems <- checkedConvSize (newConvUsers body)
+            -- In teams we don't have 1:1 conversations, only regular conversations. We want
+            -- users without the 'AddRemoveConvMember' permission to still be able to create
+            -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+            -- there are going to be more than two users in the conversation.
+            when (length (fromConvSize otherConvMems) > 1) $ do
+                void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
             -- Team members are always considered to be connected, so we only check
             -- 'ensureConnected' for non-team-members.
             ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)

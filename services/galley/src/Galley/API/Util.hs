@@ -75,6 +75,21 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
                -- ^ Actually, this will "never" happen due to the
                --   fact that there can be no custom roles at the moment
 
+-- | Ensure that the set of actions provided are not "greater" than the user's
+--   own. This is used to ensure users cannot "elevate" allowed actions
+--   This function needs to be review when custom roles are introduced since only
+--   custom roles can cause `roleNameToActions` to return a Nothing
+ensureConvRoleNotElevated :: RoleName -> Member -> Galley ()
+ensureConvRoleNotElevated targetRole origMember = do
+    case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
+         (Just targetActions, Just memberActions) ->
+            unless (Set.isSubsetOf targetActions memberActions) $
+                throwM invalidActions
+         (_                 , _                 ) ->
+            throwM (badRequest "Custom roles not supported")
+            -- ^ Actually, this will "never" happen due to the
+            --   fact that there can be no custom roles at the moment
+
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
     binding <- Data.teamBinding tid >>= ifNothing teamNotFound

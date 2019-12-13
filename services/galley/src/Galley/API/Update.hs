@@ -335,11 +335,13 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     body <- fromJsonBody req
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
-    ensureActionAllowed AddConversationMember =<< getSelfMember zusr (snd mems)
+    self <- getSelfMember zusr (snd mems)
+    ensureActionAllowed AddConversationMember self
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     ensureAccess conv InviteAccess
+    ensureConvRoleNotElevated (invRoleName body) self
     case Data.convTeam conv of
         Nothing -> do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
