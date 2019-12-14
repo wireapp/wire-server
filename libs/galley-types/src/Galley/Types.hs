@@ -833,7 +833,9 @@ instance FromJSON Invite where
         Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON Invite where
-    toJSON i = object [ "users" .= invUsers i ]
+    toJSON i = object [ "users" .= invUsers i
+                      , "conversation_role" .= invRoleName i
+                      ]
 
 instance FromJSON ConversationMeta where
     parseJSON = withObject "conversation-meta" $ \o ->

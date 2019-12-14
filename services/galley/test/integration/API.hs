@@ -27,6 +27,7 @@ import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
 import qualified API.Teams.LegalHold      as Teams.LegalHold
 import qualified API.MessageTimer         as MessageTimer
+import qualified API.Roles                as Roles
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -41,6 +42,7 @@ tests s = testGroup "Galley integration tests"
     , mainTests
     , Teams.tests s
     , MessageTimer.tests s
+    , Roles.tests s
     ]
   where
     mainTests = testGroup "Main API"
@@ -948,22 +950,15 @@ deleteMembersFailO2O = do
 
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
-    g <- view tsGalley
     c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     connectUsers alice (singleton bob)
     conv  <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+    -- This endpoint should be deprecated but clients still use it
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-        let update = ConversationRename "gossip++"
-        put ( g
-            . paths ["conversations", toByteString' conv]
-            . zUser bob
-            . zConn "conn"
-            . zType "access"
-            . json update
-            ) !!! const 200 === statusCode
-        void. liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+        void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
             let e = List1.head (WS.unpackPayload n)
             ntfTransient n @?= False
             evtConv      e @?= conv
@@ -1056,7 +1051,6 @@ putMemberOk update = do
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
-    g <- view tsGalley
     c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
@@ -1070,13 +1064,7 @@ putReceiptModeOk = do
             const (Just Nothing) === fmap cnvReceiptMode . responseJsonUnsafe
 
         -- Set receipt mode
-        put ( g
-         . paths ["conversations", toByteString' cnv, "receipt-mode"]
-         . zUser alice
-         . zConn "conn"
-         . zType "access"
-         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
-         ) !!! const 200 === statusCode
+        putReceiptMode alice cnv (ReceiptMode 0) !!! const 200 === statusCode
 
         -- Ensure the field is properly set
         getConv alice cnv !!! do
@@ -1086,13 +1074,7 @@ putReceiptModeOk = do
         void . liftIO $ checkWs alice (cnv, wsB)
 
         -- No changes
-        put ( g
-         . paths ["conversations", toByteString' cnv, "receipt-mode"]
-         . zUser alice
-         . zConn "conn"
-         . zType "access"
-         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
-         ) !!! const 204 === statusCode
+        putReceiptMode alice cnv (ReceiptMode 0) !!! const 204 === statusCode
         -- No event should have been generated
         WS.assertNoEvent (1 # Second) [wsB]
 

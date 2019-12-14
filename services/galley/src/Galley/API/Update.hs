@@ -341,7 +341,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     let newUsers = filter (notIsMember conv) (toList toAdd)
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     ensureAccess conv InviteAccess
-    ensureConvRoleNotElevated (invRoleName body) self
+    ensureConvRoleNotElevated self (invRoleName body)
     case Data.convTeam conv of
         Nothing -> do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
@@ -365,14 +365,18 @@ updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
     conv <- getConversationAndCheckMembership zusr cid
     body <- fromJsonBody req
     m    <- getSelfMember zusr (Data.convMembers conv)
+    -- Ensure no self role upgrades
+    for_ (mupConvRoleName body) $ ensureConvRoleNotElevated m
     void $ processUpdateMemberEvent zusr zcon cid [m] m body
     return empty
 
 updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
 updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
+    when (zusr == victim) $
+        throwM invalidTargetUserOp
     conv <- getConversationAndCheckMembership zusr cid
-    body <- fromJsonBody req
     let (bots, users) = botsAndUsers (Data.convMembers conv)
+    body <- fromJsonBody req
     ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
     memTarget <- getOtherMember victim users
     e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate { mupConvRoleName = omuConvRoleName body })

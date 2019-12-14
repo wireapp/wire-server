@@ -744,6 +744,7 @@ sitemap = do
             description "JSON body"
         errorResponse Error.convNotFound
         errorResponse Error.convMemberNotFound
+        errorResponse Error.invalidTargetUserOp
 
     ---
 
