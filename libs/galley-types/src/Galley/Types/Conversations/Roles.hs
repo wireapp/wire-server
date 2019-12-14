@@ -6,7 +6,6 @@
 
 module Galley.Types.Conversations.Roles
     ( ConversationRole
-    , convRoleCustom
     , convRoleWireAdmin
     , convRoleWireMember
     , wireConvRoles
@@ -135,10 +134,14 @@ convRoleWireAdmin = ConvRoleWireAdmin
 convRoleWireMember :: ConversationRole
 convRoleWireMember = ConvRoleWireMember
 
-convRoleCustom :: RoleName -> Actions -> Maybe ConversationRole
-convRoleCustom r a
-    | isCustomRoleName r = Just (ConvRoleCustom r a)
-    | otherwise          = Nothing
+-- | This is how the definition of the convRoleCustom constructor
+--   should look like. We comment this out due to the fact that we
+--   do not want to use this yet and want to avoid `Defined but not
+--   used warnings`
+-- convRoleCustom :: RoleName -> Actions -> Maybe ConversationRole
+-- convRoleCustom r a
+--     | isCustomRoleName r = Just (ConvRoleCustom r a)
+--     | otherwise          = Nothing
 
 parseRoleName :: Text -> Maybe RoleName
 parseRoleName t

@@ -34,6 +34,9 @@ invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
 invalidTargetAccess :: Error
 invalidTargetAccess = invalidOp "invalid target access"
 
+invalidTargetUserOp :: Error
+invalidTargetUserOp = invalidOp "invalid target user for the given operation"
+
 invalidOp :: LText -> Error
 invalidOp = Error status403 "invalid-op"
 

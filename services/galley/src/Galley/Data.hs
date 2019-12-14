@@ -49,7 +49,6 @@ module Galley.Data
 
     -- * Conversation Members
     , addMember
-    , addMembers
     , addMembersWithRole
     , member
     , members
@@ -568,9 +567,6 @@ members conv = join <$> memberLists [conv]
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
 addMember t c u = addMembersUnchecked t c u (singleton u) roleNameWireAdmin
 
-addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
-addMembers t c u ms = addMembersUnchecked t c u (fromMemberSize ms) roleNameWireAdmin
-
 addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> RoleName -> m (Event, List1 Member)
 addMembersWithRole t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
 
@@ -591,6 +587,7 @@ addMembersUnchecked t conv orig usrs othersRole = do
     userRole u
        | u == orig = roleNameWireAdmin
        | otherwise = othersRole
+    -- TODO: ^ This should NOT assume the orig role!!! Rethink this a bit
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

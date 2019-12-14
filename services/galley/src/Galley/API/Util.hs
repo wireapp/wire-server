@@ -79,8 +79,8 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: RoleName -> Member -> Galley ()
-ensureConvRoleNotElevated targetRole origMember = do
+ensureConvRoleNotElevated :: Member -> RoleName -> Galley ()
+ensureConvRoleNotElevated origMember targetRole = do
     case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
          (Just targetActions, Just memberActions) ->
             unless (Set.isSubsetOf targetActions memberActions) $
