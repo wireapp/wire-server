@@ -22,7 +22,7 @@ import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
-import Gundeck.Types.Notification
+import Gundeck.Types.Notification hiding (target)
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import TestSetup
@@ -215,9 +215,7 @@ postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe Access
 postConvWithRole u us name a r mtimer role = do
     g <- view tsGalley
     let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing role
-    rsp <- post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
-    void $ assertConvWithRole rsp RegularConv u u us name mtimer role
-    return rsp
+    post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
@@ -626,6 +624,19 @@ wsAssertMemberJoinWithRole conv usr new role n = do
     evtType      e @?= MemberJoin
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+
+wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
+wsAssertMemberUpdateWithRole conv usr target role n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n @?= False
+    evtConv      e @?= conv
+    evtType      e @?= MemberStateUpdate
+    evtFrom      e @?= usr
+    case evtData e of
+        Just (Galley.Types.EdMemberUpdate mis) -> do
+                assertEqual "target"            (Just target) (misTarget mis)
+                assertEqual "conversation_role" (Just role) (misConvRoleName mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
 
 wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
