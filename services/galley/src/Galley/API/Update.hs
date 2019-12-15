@@ -58,7 +58,7 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Conversations.Roles (RoleName, Action(..), roleNameWireMember)
+import Galley.Types.Conversations.Roles (RoleName, Action(..), roleNameWireAdmin)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event, self)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
@@ -327,8 +327,9 @@ joinConversation zusr zcon cnv access = do
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    -- NOTE: When joining conversations, all users become members
-    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv roleNameWireMember
+    -- NOTE: When joining conversations, all users become admins
+    -- as this is anyway our default.
+    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv roleNameWireAdmin
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req) = do
