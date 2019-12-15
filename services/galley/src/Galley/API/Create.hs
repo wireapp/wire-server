@@ -84,7 +84,8 @@ createTeamGroupConv zusr zcon tinfo body = do
             -- TODO: We keep this permission around because not doing so will break backwards
             -- compatibility in the sense that partners would be able to create group
             -- conversations. Not sure at the moment how to best solve this but it is unlikely
-            -- we can ever get read of the team permission model anyway.
+            -- we can ever get read of the team permission model anyway - the only thing I can
+            -- think of is that partners can create convs but not be admins...
             when (length (fromConvSize otherConvMems) > 1) $ do
                 void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
             -- Team members are always considered to be connected, so we only check
