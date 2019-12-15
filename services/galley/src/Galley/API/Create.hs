@@ -81,6 +81,10 @@ createTeamGroupConv zusr zcon tinfo body = do
             -- users without the 'AddRemoveConvMember' permission to still be able to create
             -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
             -- there are going to be more than two users in the conversation.
+            -- TODO: We keep this permission around because not doing so will break backwards
+            -- compatibility in the sense that partners would be able to create group
+            -- conversations. Not sure at the moment how to best solve this but it is unlikely
+            -- we can ever get read of the team permission model anyway.
             when (length (fromConvSize otherConvMems) > 1) $ do
                 void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
             -- Team members are always considered to be connected, so we only check

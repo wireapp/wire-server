@@ -55,8 +55,9 @@ newtype Actions = Actions
     { allowedActions :: Set Action
     } deriving (Eq, Ord, Show, Generic)
 
--- Do not ever expose the constructors directly, custom
--- roles must be validated to obey the prefix rules
+-- Do not expose the constructors directly, use smart
+-- constructors instead to ensure that all validation
+-- is performed
 data ConversationRole = ConvRoleWireAdmin
                       | ConvRoleWireMember
                       | ConvRoleCustom RoleName Actions
@@ -99,7 +100,8 @@ instance FromJSON ConversationRolesList where
         ConversationRolesList <$> o .: "convesation_roles"
 
 -- RoleNames with `wire_` prefix are reserved
--- and cannot be created by externals
+-- and cannot be created by externals. Therefore, never
+-- expose this constructor outside of this module.
 newtype RoleName = RoleName { fromRoleName :: Text }
     deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
 

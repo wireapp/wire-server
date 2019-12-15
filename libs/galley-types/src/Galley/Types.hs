@@ -435,6 +435,11 @@ newtype SimpleMembers = SimpleMembers
     { mMembers :: [SimpleMember]
     } deriving (Eq, Show, Generic)
 
+-- This datatype replaces the old `Members` datatype,
+-- which has been replaced by `SimpleMembers`. This is
+-- needed due to backwards compatible reasons since old
+-- clients will break if we switch these types. Also, this
+-- definition represents better what information it carries
 newtype UserIdList = UserIdList
     { mUsers :: [UserId]
     } deriving (Eq, Show, Generic)
