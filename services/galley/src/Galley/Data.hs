@@ -17,6 +17,7 @@ module Galley.Data
     , teamIdsOf
     , teamMember
     , teamMembers
+    , teamMembersLimited
     , userTeams
     , oneUserTeam
     , Galley.Data.teamBinding
@@ -48,7 +49,7 @@ module Galley.Data
 
     -- * Conversation Members
     , addMember
-    , addMembers
+    , addMembersWithRole
     , member
     , members
     , removeMember
@@ -97,6 +98,7 @@ import Galley.Data.Instances ()
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (teamMembers, teamConversations, Event, EventType (..))
 import Galley.Types.Teams.Intra
 import Galley.Validation
@@ -122,7 +124,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 34
+schemaVersion = 36
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -181,6 +183,19 @@ teamConversations t = map (uncurry newTeamConversation) <$>
 teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
 teamMembers t = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
+  where
+    newTeamMember'
+        :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+        -> m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+        newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- Lookup only specific team members: this is particularly useful for large teams when
+-- needed to look up only a small subset of members (typically 2, user to perform the action
+-- and the target user)
+teamMembersLimited :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
+teamMembersLimited t u = mapM newTeamMember' =<<
+    retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
   where
     newTeamMember'
         :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
@@ -381,8 +396,9 @@ createConversation :: UserId
                    -> Maybe ConvTeamInfo
                    -> Maybe Milliseconds                  -- ^ Message timer
                    -> Maybe ReceiptMode
+                   -> RoleName
                    -> Galley Conversation
-createConversation usr name acc role others tinfo mtimer recpt = do
+createConversation usr name acc role others tinfo mtimer recpt othersConversationRole = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
     retry x5 $ case tinfo of
@@ -392,7 +408,7 @@ createConversation usr name acc role others tinfo mtimer recpt = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
+    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others) othersConversationRole
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
@@ -401,7 +417,7 @@ createSelfConversation usr name = do
     now <- liftIO getCurrentTime
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-    mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
+    mems <- snd <$> addMembersUnchecked now conv usr (singleton usr) roleNameWireAdmin
     return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation :: MonadClient m
@@ -418,7 +434,7 @@ createConnectConversation a b name conn = do
         write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     -- We add only one member, second one gets added later,
     -- when the other user accepts the connection request.
-    mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
+    mems <- snd <$> addMembersUnchecked now conv a' (singleton a') roleNameWireAdmin
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
     return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
@@ -439,7 +455,7 @@ createOne2OneConversation a b name ti = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
-    mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
+    mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b']) roleNameWireAdmin
     return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
@@ -542,28 +558,35 @@ memberLists convs = do
         let f = (Just . maybe [mem] (mem :))
         in Map.alter f conv acc
 
-    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr) =
-        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr)
+    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
 
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
-addMember t c u = addMembersUnchecked t c u (singleton u)
+addMember t c u = addMembersUnchecked t c u (singleton u) roleNameWireAdmin
 
-addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
-addMembers t c u ms = addMembersUnchecked t c u (fromMemberSize ms)
+addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> RoleName -> m (Event, List1 Member)
+addMembersWithRole t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
 
-addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 Member)
-addMembersUnchecked t conv orig usrs = do
+addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> RoleName -> m (Event, List1 Member)
+addMembersUnchecked t conv orig usrs othersRole = do
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
         for_ (toList usrs) $ \u -> do
             addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing)
-    let e = Event MemberJoin conv orig t (Just . EdMembers . Members . toList $ usrs)
-    return (e, newMember <$> usrs)
+            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
+    let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
+    return (e, fmap (\u -> newMemberWithRole u (userRole u)) usrs)
+  where
+    toSimpleMembers :: [UserId] -> [SimpleMember]
+    toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole u))
+
+    userRole u
+       | u == orig = roleNameWireAdmin
+       | otherwise = othersRole
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do
@@ -578,14 +601,18 @@ updateMember cid uid mup = do
             addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
         for_ (mupHidden mup) $ \h ->
             addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
+        for_ (mupConvRoleName mup) $ \r ->
+            addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
     return MemberUpdateData
-        { misOtrMuted = mupOtrMute mup
+        { misTarget = Just uid
+        , misOtrMuted = mupOtrMute mup
         , misOtrMutedStatus = mupOtrMuteStatus mup
         , misOtrMutedRef = mupOtrMuteRef mup
         , misOtrArchived = mupOtrArchive mup
         , misOtrArchivedRef = mupOtrArchiveRef mup
         , misHidden = mupHidden mup
         , misHiddenRef = mupHiddenRef mup
+        , misConvRoleName = mupConvRoleName mup
         }
 
 removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
@@ -597,7 +624,7 @@ removeMembers conv orig victims = do
         for_ (toList victims) $ \u -> do
             addPrepQuery Cql.removeMember   (convId conv, u)
             addPrepQuery Cql.deleteUserConv (u, convId conv)
-    return $ Event MemberLeave (convId conv) orig t (Just . EdMembers . Members . toList $ victims)
+    return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIdList . toList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do
@@ -607,7 +634,10 @@ removeMember usr cnv = retry x5 $ batch $ do
     addPrepQuery Cql.deleteUserConv (usr, cnv)
 
 newMember :: UserId -> Member
-newMember u = Member
+newMember = flip newMemberWithRole roleNameWireAdmin
+
+newMemberWithRole :: UserId -> RoleName -> Member
+newMemberWithRole u r = Member
     { memId             = u
     , memService        = Nothing
     , memOtrMuted       = False
@@ -617,14 +647,16 @@ newMember u = Member
     , memOtrArchivedRef = Nothing
     , memHidden         = False
     , memHiddenRef      = Nothing
+    , memConvRoleName   = r
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
             , Maybe Bool, Maybe MutedStatus, Maybe Text -- otr muted
             , Maybe Bool, Maybe Text                    -- otr archived
             , Maybe Bool, Maybe Text                    -- hidden
+            , Maybe RoleName                            -- conversation role name
             ) -> Maybe Member
-toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
+toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
     if sta /= Just 0
         then Nothing
         else Just $ Member
@@ -637,6 +669,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
             , memOtrArchivedRef = oarr
             , memHidden         = fromMaybe False hid
             , memHiddenRef      = hidr
+            , memConvRoleName   = fromMaybe roleNameWireAdmin crn
             }
 
 -- Clients ------------------------------------------------------------------

@@ -23,6 +23,7 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Galley.Types.Bot.Service
 import Galley.Types.Bot (AddBot, RemoveBot)
+import Galley.Types.Conversations.Roles
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
@@ -124,6 +125,22 @@ sitemap = do
         errorResponse Error.deleteQueueFull
         errorResponse Error.reAuthFailed
         errorResponse Error.teamNotFound
+
+    --
+
+    get "/teams/:tid/conversations/roles" (continue getTeamConversationRoles) $
+        zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamConversationsRoles" $ do
+        summary "Get existing roles available for the given team"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        returns (ref Model.conversationRolesList)
+        response 200 "Team conversations roles list" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.noTeamMember
 
     --
 
@@ -276,7 +293,7 @@ sitemap = do
         parameter Path "cid" bytes' $
             description "Conversation ID"
         errorResponse Error.noTeamMember
-        errorResponse (Error.operationDenied DeleteConversation)
+        errorResponse (Error.actionDenied DeleteConversation)
 
    --
 
@@ -361,6 +378,21 @@ sitemap = do
             description "Conversation ID"
         errorResponse Error.convNotFound
         errorResponse Error.convAccessDenied
+
+    --
+
+    get "/conversations/:cnv/roles" (continue getConversationRoles) $
+        zauthUserId
+        .&. capture "cnv"
+        .&. accept "application" "json"
+
+    document "GET" "getConversationsRoles" $ do
+        summary "Get existing roles available for the given conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.conversationRolesList)
+        response 200 "Conversations roles list" end
+        errorResponse Error.convNotFound
 
     ---
 
@@ -448,21 +480,37 @@ sitemap = do
 
     ---
 
-    put "/conversations/:cnv" (continue updateConversation) $
+    put "/conversations/:cnv/name" (continue updateConversationName) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
         .&. jsonRequest @ConversationRename
 
-    document "PUT" "updateConversation" $ do
-        summary "Update conversation properties"
+    document "PUT" "updateConversationName" $ do
+        summary "Update conversation name"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
-        body (ref Model.conversationUpdate) $
+        body (ref Model.conversationUpdateName) $
             description "JSON body"
         returns (ref Model.event)
         errorResponse Error.convNotFound
 
+    ---
+
+    put "/conversations/:cnv" (continue updateConversationDeprecated) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. jsonRequest @ConversationRename
+
+    document "PUT" "updateConversationName" $ do
+        summary "DEPRECATED! Please use updateConversationName instead!"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        body (ref Model.conversationUpdateName) $
+            description "JSON body"
+        returns (ref Model.event)
+        errorResponse Error.convNotFound
     ---
 
     post "/conversations/:cnv/join" (continue joinConversationById) $
@@ -661,7 +709,7 @@ sitemap = do
 
     ---
 
-    put "/conversations/:cnv/self" (continue updateMember) $
+    put "/conversations/:cnv/self" (continue updateSelfMember) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
@@ -675,6 +723,28 @@ sitemap = do
         body (ref Model.memberUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
+
+    ---
+
+    put "/conversations/:cnv/members/:usr" (continue updateOtherMember) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. capture "usr"
+        .&. jsonRequest @OtherMemberUpdate
+
+    document "PUT" "updateOtherMember" $ do
+        summary "Update membership of the specified user"
+        notes "Even though all fields are optional, at least one needs to be given."
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        parameter Path "usr" bytes' $
+            description "Target User ID"
+        body (ref Model.otherMemberUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.convMemberNotFound
+        errorResponse Error.invalidTargetUserOp
 
     ---
 
@@ -705,7 +775,7 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Path "usr" bytes' $
-            description "User ID"
+            description "Target User ID"
         returns (ref Model.event)
         response 200 "Member removed" end
         response 204 "No change" end

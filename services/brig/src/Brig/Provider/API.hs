@@ -37,6 +37,7 @@ import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessR
 import Galley.Types (OtherMember (..), UserClients)
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
+import Galley.Types.Conversations.Roles
 import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -727,7 +728,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let bcl = newClientId (fromIntegral (hash bid))
 
     -- Ask the external service to create a bot
-    let origmem = OtherMember zuid Nothing
+    let origmem = OtherMember zuid Nothing roleNameWireAdmin
     let members = origmem : (cmOthers mems)
     let bcnv    = Ext.botConvView (cnvId cnv) (cnvName cnv) members
     let busr    = mkBotUserView zusr

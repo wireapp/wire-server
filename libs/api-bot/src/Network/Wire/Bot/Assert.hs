@@ -8,7 +8,7 @@ import Data.Id (ConvId, UserId)
 import Network.Wire.Bot.Monad
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
-import Network.Wire.Client.API.User
+import Network.Wire.Client.API.User hiding (UserIds)
 
 import qualified Data.Set as Set
 
@@ -59,7 +59,7 @@ awaitOtrMessage c (from, fc) (to, tc) =
 assertMembersJoined
     :: (HasCallStack, MonadBotNet m)
     => [Bot]                          -- ^ Who should've received the event
-    -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) joined
+    -> Maybe (ConvEvent SimpleMembers)-- ^ Users who have (presumably) joined
     -> m ()
 assertMembersJoined _  Nothing  = return ()
 assertMembersJoined bs (Just e) = forM_ bs $ \b ->
@@ -73,7 +73,7 @@ assertMembersJoined bs (Just e) = forM_ bs $ \b ->
 assertMembersLeft
     :: (HasCallStack, MonadBotNet m)
     => [Bot]                          -- ^ Who should've received the event
-    -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) left
+    -> Maybe (ConvEvent UserIdList)   -- ^ Users who have (presumably) left
     -> m ()
 assertMembersLeft _  Nothing  = return ()
 assertMembersLeft bs (Just e) = forM_ bs $ \b ->
@@ -103,6 +103,6 @@ connStatus from to rel = \case
 
 memberJoined :: UserId -> UserId -> Event -> Bool
 memberJoined from other = \case
-    EMemberJoin m -> null (toList (mUsers (convEvtData m)) \\ [other, from]) &&
+    EMemberJoin m -> null (toList (fmap smId $ mMembers (convEvtData m)) \\ [other, from]) &&
                      convEvtFrom m == from
     _             -> False

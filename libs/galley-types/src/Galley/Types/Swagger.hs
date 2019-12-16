@@ -14,12 +14,14 @@ galleyModels =
     , conversations
     , conversationIds
     , conversationMembers
-    , conversationUpdate
+    , conversationUpdateName
     , conversationAccessUpdate
     , conversationReceiptModeUpdate
     , conversationMessageTimerUpdate
     , conversationCode
-    , conversationUpdateEvent
+    , conversationNameUpdateEvent
+    , conversationRole
+    , conversationRolesList
     , errorObj
     , event
     , invite
@@ -58,7 +60,7 @@ event = defineModel "Event" $ do
         description "Date and time this event occurred"
     children "type" [ memberEvent
                     , connectEvent
-                    , conversationUpdateEvent
+                    , conversationNameUpdateEvent
                     , memberUpdateEvent
                     , typingEvent
                     , otrMessageEvent
@@ -102,10 +104,39 @@ connectEvent = defineModel "ConnectEvent" $ do
     description "connect event"
     property "data" (ref connect) $ description "connect data"
 
-conversationUpdateEvent :: Model
-conversationUpdateEvent = defineModel "ConversationUpdateEvent" $ do
+conversationNameUpdateEvent :: Model
+conversationNameUpdateEvent = defineModel "ConversationNameUpdateEvent" $ do
     description "conversation update event"
-    property "data" (ref conversationUpdate) $ description "conversation data"
+    property "data" (ref conversationUpdateName) $ description "conversation name"
+
+conversationRole :: Model
+conversationRole = defineModel "ConversationRole" $ do
+    description "Conversation role"
+    property "conversation_role" string' $
+        description "role name, between 2 and 128 chars, 'wire_' prefix \
+                    \is reserved for roles designed by Wire (i.e., no \
+                    \custom roles can have the same prefix)"
+    property "actions" (array conversationRoleAction) $
+        description "The set of actions allowed for this role"
+
+conversationRoleAction :: DataType
+conversationRoleAction = string $ enum
+    [ "add_conversation_member"
+    , "remove_conversation_member"
+    , "modify_conversation_name"
+    , "modify_conversation_message_timer"
+    , "modify_conversation_receipt_mode"
+    , "modify_conversation_access"
+    , "modify_other_conversation_member"
+    , "leave_conversation"
+    , "delete_conversation"
+    ]
+
+conversationRolesList :: Model
+conversationRolesList = defineModel "ConversationRolesList" $ do
+    description "list of roles allowed in the given conversation"
+    property "conversation_roles" (unique $ array (ref conversationRole)) $
+        description "the array of conversation roles"
 
 conversationAccessUpdateEvent :: Model
 conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
@@ -238,9 +269,9 @@ members = defineModel "Members" $
     property "users" (unique $ array bytes') $
         description "List of user IDs"
 
-conversationUpdate :: Model
-conversationUpdate = defineModel "ConversationUpdate" $ do
-    description "Contains conversation properties to update"
+conversationUpdateName :: Model
+conversationUpdateName = defineModel "ConversationUpdateName" $ do
+    description "Contains conversation name to update"
     property "name" string' $
         description "The new conversation name"
 
@@ -386,10 +417,23 @@ memberUpdate = defineModel "MemberUpdate" $ do
     property "hidden_ref" bytes' $ do
         description "A reference point for (un)hiding"
         optional
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
+        optional
+
+otherMemberUpdate :: Model
+otherMemberUpdate = defineModel "otherMemberUpdate" $ do
+    description "Update user properties of other members relative to a conversation"
+    property "conversation_role" string' $ do
+        description "Name of the conversation role updated to"
+        optional
 
 memberUpdateData :: Model
 memberUpdateData = defineModel "MemberUpdateData" $ do
     description "Event data on member updates"
+    property "target" bytes' $ do
+        description "Target ID of the user that the action was performed on"
+        optional
     property "otr_muted" bool' $ do
         description "Whether to notify on conversation updates"
         optional
@@ -407,6 +451,19 @@ memberUpdateData = defineModel "MemberUpdateData" $ do
         optional
     property "hidden_ref" bytes' $ do
         description "A reference point for (un)hiding"
+        optional
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
+        optional
+
+otherMemberUpdateData :: Model
+otherMemberUpdateData = defineModel "OtherMemberUpdateData" $ do
+    description "Event data on other member updates"
+    property "target" bytes' $ do
+        description "Target ID of the user that the action was performed on"
+        optional
+    property "conversation_role" string' $ do
+        description "Name of the conversation role to update to"
         optional
 
 typing :: Model

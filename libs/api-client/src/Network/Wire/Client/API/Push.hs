@@ -11,7 +11,8 @@ module Network.Wire.Client.API.Push
       -- * Event Data
     , Event        (..)
     , ConvEvent    (..)
-    , Members      (..)
+    , SimpleMembers(..)
+    , UserIdList   (..)
     , OtrMessage   (..)
     , NoData
     , UserInfo     (..)
@@ -146,9 +147,9 @@ data Event
     -- TODO: EUserUpdate UserUpdate
     -- Conversation events
     | EConvCreate             (ConvEvent Conversation)
-    | EMemberJoin             (ConvEvent Members)
+    | EMemberJoin             (ConvEvent SimpleMembers)
+    | EMemberLeave            (ConvEvent UserIdList)
     | EConnect                (ConvEvent Connect)
-    | EMemberLeave            (ConvEvent Members)
     | EConvRename             (ConvEvent ConversationRename)
     | EMemberStateUpdate      (ConvEvent MemberUpdate)
     | EOtrMessage             (ConvEvent OtrMessage)

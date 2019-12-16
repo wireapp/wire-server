@@ -80,13 +80,15 @@ mainBotNet n = do
 
     runBotSession bill $ do
         let update = MemberUpdateData
-                   { misOtrMuted       = Nothing
+                   { misTarget         = Just $ botId bill
+                   , misOtrMuted       = Nothing
                    , misOtrMutedStatus = Nothing
                    , misOtrMutedRef    = Nothing
                    , misOtrArchived    = Just True
                    , misOtrArchivedRef = Nothing
                    , misHidden         = Nothing
                    , misHiddenRef      = Nothing
+                   , misConvRoleName   = Nothing
                    }
         memberUpdate meetup update
         c <- getConv meetup

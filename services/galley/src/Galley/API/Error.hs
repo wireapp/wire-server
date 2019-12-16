@@ -3,6 +3,7 @@ module Galley.API.Error where
 import Imports
 import Data.Text.Lazy as LT (pack)
 import Galley.Types.Teams (IsPerm)
+import Galley.Types.Conversations.Roles (Action)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
@@ -11,6 +12,9 @@ internalError = Error status500 "internal-error" "internal error"
 
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"
+
+convMemberNotFound :: Error
+convMemberNotFound = Error status404 "no-conversation-member" "conversation member not found"
 
 invalidSelfOp :: Error
 invalidSelfOp = invalidOp "invalid operation for self conversation"
@@ -30,11 +34,17 @@ invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
 invalidTargetAccess :: Error
 invalidTargetAccess = invalidOp "invalid target access"
 
+invalidTargetUserOp :: Error
+invalidTargetUserOp = invalidOp "invalid target user for the given operation"
+
 invalidOp :: LText -> Error
 invalidOp = Error status403 "invalid-op"
 
 invalidPayload :: LText -> Error
 invalidPayload = Error status400 "invalid-payload"
+
+badRequest :: LText -> Error
+badRequest = Error status400 "bad-request"
 
 notConnected :: Error
 notConnected = Error status403 "not-connected" "Users are not connected"
@@ -66,6 +76,12 @@ operationDenied p = Error
     "operation-denied"
     ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
 
+actionDenied :: Action -> Error
+actionDenied a = Error
+    status403
+    "action-denied"
+    ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
+
 noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
@@ -81,6 +97,9 @@ teamNotFound = Error status404 "no-team" "team not found"
 
 invalidPermissions :: Error
 invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
+
+invalidActions :: Error
+invalidActions = Error status403 "invalid-actions" "The specified actions are invalid."
 
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"

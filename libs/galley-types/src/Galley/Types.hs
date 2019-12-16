@@ -25,7 +25,9 @@ module Galley.Types
     , Event            (..)
     , EventType        (..)
     , EventData        (..)
-    , Members          (..)
+    , UserIdList       (..)
+    , SimpleMember     (..)
+    , SimpleMembers    (..)
     , MemberUpdateData (..)
     , TypingData       (..)
     , OtrMessage       (..)
@@ -47,12 +49,15 @@ module Galley.Types
     , NewConvManaged            (..)
     , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
+    , OtherMemberUpdate         (..)
     , MutedStatus               (..)
     , ReceiptMode               (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
     , UserClients               (..)
     , filterClients
+    , newInvite
+    , memberUpdate
     ) where
 
 import Imports
@@ -67,6 +72,7 @@ import Data.Json.Util
 import Data.List1
 import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
+import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
 import URI.ByteString
 
@@ -180,13 +186,15 @@ data ConvTeamInfo = ConvTeamInfo
     } deriving (Eq, Show)
 
 data NewConv = NewConv
-    { newConvUsers  :: ![UserId]
-    , newConvName   :: !(Maybe Text)
-    , newConvAccess :: !(Set Access)
-    , newConvAccessRole :: !(Maybe AccessRole)
-    , newConvTeam   :: !(Maybe ConvTeamInfo)
+    { newConvUsers        :: ![UserId]
+    , newConvName         :: !(Maybe Text)
+    , newConvAccess       :: !(Set Access)
+    , newConvAccessRole   :: !(Maybe AccessRole)
+    , newConvTeam         :: !(Maybe ConvTeamInfo)
     , newConvMessageTimer :: !(Maybe Milliseconds)
     , newConvReceiptMode  :: !(Maybe ReceiptMode)
+    , newConvUsersRole    :: !RoleName
+    -- Every member except for the creator will have this role
     }
 
 deriving instance Eq   NewConv
@@ -307,6 +315,11 @@ newtype Accept = Accept
 newtype MutedStatus = MutedStatus { fromMutedStatus :: Int32 }
     deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
+data SimpleMember = SimpleMember
+    { smId             :: !UserId
+    , smConvRoleName   :: !RoleName
+    } deriving (Eq, Show, Generic)
+
 data Member = Member
     { memId             :: !UserId
     , memService        :: !(Maybe ServiceRef)
@@ -317,18 +330,20 @@ data Member = Member
     , memOtrArchivedRef :: !(Maybe Text)
     , memHidden         :: !Bool
     , memHiddenRef      :: !(Maybe Text)
+    , memConvRoleName   :: !RoleName
     } deriving (Eq, Show, Generic)
 
 data OtherMember = OtherMember
-    { omId      :: !UserId
-    , omService :: !(Maybe ServiceRef)
+    { omId           :: !UserId
+    , omService      :: !(Maybe ServiceRef)
+    , omConvRoleName :: !RoleName
     } deriving (Eq, Show, Generic)
 
 instance Ord OtherMember where
     compare a b = compare (omId a) (omId b)
 
--- Inbound member updates.  This is what galley expects on its endpoint.  See also
--- 'MemberUpdateData'.
+-- Inbound self member updates.  This is what galley expects on its endpoint.  See also
+-- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
 data MemberUpdate = MemberUpdate
     { mupOtrMute       :: !(Maybe Bool)
     , mupOtrMuteStatus :: !(Maybe MutedStatus)
@@ -337,14 +352,32 @@ data MemberUpdate = MemberUpdate
     , mupOtrArchiveRef :: !(Maybe Text)
     , mupHidden        :: !(Maybe Bool)
     , mupHiddenRef     :: !(Maybe Text)
+    , mupConvRoleName  :: !(Maybe RoleName)
     }
+
+memberUpdate :: MemberUpdate
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 deriving instance Eq   MemberUpdate
 deriving instance Show MemberUpdate
 
-newtype Invite = Invite
-    { invUsers :: List1 UserId
+-- Inbound other member updates.  This is what galley expects on its endpoint.  See also
+-- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
+data OtherMemberUpdate = OtherMemberUpdate
+    { omuConvRoleName  :: !(Maybe RoleName)
     }
+
+deriving instance Eq   OtherMemberUpdate
+deriving instance Show OtherMemberUpdate
+
+
+data Invite = Invite
+    { invUsers    :: !(List1 UserId)
+    , invRoleName :: !RoleName -- This role name is to be applied to all users
+    }
+
+newInvite :: List1 UserId -> Invite
+newInvite us = Invite us roleNameWireAdmin
 
 deriving instance Eq   Invite
 deriving instance Show Invite
@@ -377,17 +410,18 @@ data EventType
     deriving (Eq, Show, Generic)
 
 data EventData
-    = EdMembers             !Members
-    | EdConnect             !Connect
+    = EdMembersJoin            !SimpleMembers
+    | EdMembersLeave           !UserIdList
+    | EdConnect                !Connect
     | EdConvReceiptModeUpdate  !ConversationReceiptModeUpdate
-    | EdConvRename          !ConversationRename
-    | EdConvAccessUpdate    !ConversationAccessUpdate
+    | EdConvRename             !ConversationRename
+    | EdConvAccessUpdate       !ConversationAccessUpdate
     | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
-    | EdConvCodeUpdate      !ConversationCode
-    | EdMemberUpdate        !MemberUpdateData
-    | EdConversation        !Conversation
-    | EdTyping              !TypingData
-    | EdOtrMessage          !OtrMessage
+    | EdConvCodeUpdate         !ConversationCode
+    | EdMemberUpdate           !MemberUpdateData
+    | EdConversation           !Conversation
+    | EdTyping                 !TypingData
+    | EdOtrMessage             !OtrMessage
     deriving (Eq, Show, Generic)
 
 data OtrMessage = OtrMessage
@@ -397,7 +431,16 @@ data OtrMessage = OtrMessage
     , otrData       :: !(Maybe Text)
     } deriving (Eq, Show, Generic)
 
-newtype Members = Members
+newtype SimpleMembers = SimpleMembers
+    { mMembers :: [SimpleMember]
+    } deriving (Eq, Show, Generic)
+
+-- This datatype replaces the old `Members` datatype,
+-- which has been replaced by `SimpleMembers`. This is
+-- needed due to backwards compatible reasons since old
+-- clients will break if we switch these types. Also, this
+-- definition represents better what information it carries
+newtype UserIdList = UserIdList
     { mUsers :: [UserId]
     } deriving (Eq, Show, Generic)
 
@@ -408,16 +451,21 @@ data Connect = Connect
     , cEmail     :: !(Maybe Text)
     } deriving (Eq, Show, Generic)
 
--- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
--- 'MemberUpdate'.
+-- Outbound member updates. When a user A acts upon a user B,
+-- then a user event is generated where B's user ID is set
+-- as misTarget.
+-- Used for events (sent over the websocket, etc.).  See also
+-- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-    { misOtrMuted       :: !(Maybe Bool)
-    , misOtrMutedStatus :: !(Maybe MutedStatus)
-    , misOtrMutedRef    :: !(Maybe Text)
-    , misOtrArchived    :: !(Maybe Bool)
-    , misOtrArchivedRef :: !(Maybe Text)
-    , misHidden         :: !(Maybe Bool)
-    , misHiddenRef      :: !(Maybe Text)
+    { misTarget           :: !(Maybe UserId) -- Target user of this action
+    , misOtrMuted         :: !(Maybe Bool)
+    , misOtrMutedStatus   :: !(Maybe MutedStatus)
+    , misOtrMutedRef      :: !(Maybe Text)
+    , misOtrArchived      :: !(Maybe Bool)
+    , misOtrArchivedRef   :: !(Maybe Text)
+    , misHidden           :: !(Maybe Bool)
+    , misHiddenRef        :: !(Maybe Text)
+    , misConvRoleName     :: !(Maybe RoleName)
     } deriving (Eq, Show, Generic)
 
 newtype TypingData = TypingData
@@ -585,15 +633,17 @@ instance ToJSON Accept where
 
 instance ToJSON OtherMember where
     toJSON m = object
-        $ "id"      .= omId m
-        # "status"  .= (0 :: Int) -- TODO: Remove
-        # "service" .= omService m
+        $ "id"                .= omId m
+        # "status"            .= (0 :: Int) -- TODO: Remove
+        # "service"           .= omService m
+        # "conversation_role" .= omConvRoleName m
         # []
 
 instance FromJSON OtherMember where
     parseJSON = withObject "other-member" $ \o ->
         OtherMember <$> o .:  "id"
                     <*> o .:? "service"
+                    <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON a => ToJSON (ConversationList a) where
     toJSON (ConversationList l m) = object
@@ -656,8 +706,8 @@ instance FromJSON Event where
                 <*> parseEventData t d
 
 parseEventData :: EventType -> Value -> Parser (Maybe EventData)
-parseEventData MemberJoin v        = Just . EdMembers <$> parseJSON v
-parseEventData MemberLeave v       = Just . EdMembers <$> parseJSON v
+parseEventData MemberJoin v        = Just . EdMembersJoin <$> parseJSON v
+parseEventData MemberLeave v       = Just . EdMembersLeave <$> parseJSON v
 parseEventData MemberStateUpdate v = Just . EdMemberUpdate <$> parseJSON v
 parseEventData ConvRename v        = Just . EdConvRename <$> parseJSON v
 parseEventData ConvAccessUpdate v  = Just . EdConvAccessUpdate <$> parseJSON v
@@ -672,7 +722,8 @@ parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
 
 instance ToJSON EventData where
-    toJSON (EdMembers x)            = toJSON x
+    toJSON (EdMembersJoin x)        = toJSON x
+    toJSON (EdMembersLeave x)       = toJSON x
     toJSON (EdConnect x)            = toJSON x
     toJSON (EdConvRename x)         = toJSON x
     toJSON (EdConvAccessUpdate x)   = toJSON x
@@ -738,6 +789,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
                 <*> i .:? "receipt_mode"
+                <*> i .:? "conversation_role" .!= roleNameWireAdmin
 
 newConvToJSON :: NewConv -> Value
 newConvToJSON i = object
@@ -748,6 +800,7 @@ newConvToJSON i = object
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
         # "receipt_mode" .= newConvReceiptMode i
+        # "conversation_role" .= newConvUsersRole i
         # []
 
 instance ToJSON NewConvUnmanaged where
@@ -781,11 +834,13 @@ instance FromJSON ConvTeamInfo where
         ConvTeamInfo <$> o .: "teamid" <*> o .:? "managed" .!= False
 
 instance FromJSON Invite where
-    parseJSON = withObject "invite object"
-        (\i -> Invite <$> i .: "users")
+    parseJSON = withObject "invite object" $ \o ->
+        Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON Invite where
-    toJSON i = object [ "users" .= invUsers i ]
+    toJSON i = object [ "users" .= invUsers i
+                      , "conversation_role" .= invRoleName i
+                      ]
 
 instance FromJSON ConversationMeta where
     parseJSON = withObject "conversation-meta" $ \o ->
@@ -857,6 +912,7 @@ instance FromJSON MemberUpdate where
                           <*> m .:? "otr_archived_ref"
                           <*> m .:? "hidden"
                           <*> m .:? "hidden_ref"
+                          <*> m .:? "conversation_role"
 
         unless (isJust (mupOtrMute u)
             || isJust (mupOtrMuteStatus u)
@@ -864,74 +920,113 @@ instance FromJSON MemberUpdate where
             || isJust (mupOtrArchive u)
             || isJust (mupOtrArchiveRef u)
             || isJust (mupHidden u)
-            || isJust (mupHiddenRef u)) $
+            || isJust (mupHiddenRef u)
+            || isJust (mupConvRoleName u)) $
             fail "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', \
-                \'otr_archived_ref', 'hidden', 'hidden_ref'} required."
+                \'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
 
         return u
 
 instance ToJSON MemberUpdate where
     toJSON m = object
-        $ "otr_muted"        .= mupOtrMute m
-        # "otr_muted_ref"    .= mupOtrMuteRef m
-        # "otr_archived"     .= mupOtrArchive m
-        # "otr_archived_ref" .= mupOtrArchiveRef m
-        # "hidden"           .= mupHidden m
-        # "hidden_ref"       .= mupHiddenRef m
+        $ "otr_muted"         .= mupOtrMute m
+        # "otr_muted_ref"     .= mupOtrMuteRef m
+        # "otr_archived"      .= mupOtrArchive m
+        # "otr_archived_ref"  .= mupOtrArchiveRef m
+        # "hidden"            .= mupHidden m
+        # "hidden_ref"        .= mupHiddenRef m
+        # "conversation_role" .= mupConvRoleName m
+        # []
+
+instance FromJSON OtherMemberUpdate where
+    parseJSON = withObject "other-member-update object" $ \m -> do
+        u <- OtherMemberUpdate <$> m .:? "conversation_role"
+
+        unless (isJust (omuConvRoleName u)) $
+            fail "One of { 'conversation_role'} required."
+
+        return u
+
+instance ToJSON OtherMemberUpdate where
+    toJSON m = object
+        $ "conversation_role" .= omuConvRoleName m
         # []
 
 instance FromJSON MemberUpdateData where
     parseJSON = withObject "member-update event data" $ \m ->
-        MemberUpdateData <$> m .:? "otr_muted"
+        MemberUpdateData <$> m .:? "target"
+                         -- NOTE: ^-- This is really not a maybe and should
+                         --       be made compulsory 28 days after the next
+                         --       release to prod to guaratee that no events
+                         --       out there do not contain id.
+                         --       Making it compulsory now creates a bit of
+                         --       a fragile parser
+                         <*> m .:? "otr_muted"
                          <*> m .:? "otr_muted_status"
                          <*> m .:? "otr_muted_ref"
                          <*> m .:? "otr_archived"
                          <*> m .:? "otr_archived_ref"
                          <*> m .:? "hidden"
                          <*> m .:? "hidden_ref"
+                         <*> m .:? "conversation_role"
 
 instance ToJSON MemberUpdateData where
     toJSON m = object
-        $ "otr_muted"        .= misOtrMuted m
-        # "otr_muted_status" .= misOtrMutedStatus m
-        # "otr_muted_ref"    .= misOtrMutedRef m
-        # "otr_archived"     .= misOtrArchived m
-        # "otr_archived_ref" .= misOtrArchivedRef m
-        # "hidden"           .= misHidden m
-        # "hidden_ref"       .= misHiddenRef m
+        $ "target"            .= misTarget m
+        # "otr_muted"         .= misOtrMuted m
+        # "otr_muted_status"  .= misOtrMutedStatus m
+        # "otr_muted_ref"     .= misOtrMutedRef m
+        # "otr_archived"      .= misOtrArchived m
+        # "otr_archived_ref"  .= misOtrArchivedRef m
+        # "hidden"            .= misHidden m
+        # "hidden_ref"        .= misHiddenRef m
+        # "conversation_role" .= misConvRoleName m
         # []
 
 instance ToJSON Member where
     toJSON m = object
-        [ "id"               .= memId m
-        , "service"          .= memService m
+        [ "id"                .= memId m
+        , "service"           .= memService m
 
 -- Remove ...
-        , "status"           .= (0 :: Int)
-        , "status_ref"       .= ("0.0" :: Text)
-        , "status_time"      .= ("1970-01-01T00:00:00.000Z" :: Text)
+        , "status"            .= (0 :: Int)
+        , "status_ref"        .= ("0.0" :: Text)
+        , "status_time"       .= ("1970-01-01T00:00:00.000Z" :: Text)
 -- ... until here
 
-        , "otr_muted"        .= memOtrMuted m
-        , "otr_muted_status" .= memOtrMutedStatus m
-        , "otr_muted_ref"    .= memOtrMutedRef m
-        , "otr_archived"     .= memOtrArchived m
-        , "otr_archived_ref" .= memOtrArchivedRef m
-        , "hidden"           .= memHidden m
-        , "hidden_ref"       .= memHiddenRef m
+        , "otr_muted"         .= memOtrMuted m
+        , "otr_muted_status"  .= memOtrMutedStatus m
+        , "otr_muted_ref"     .= memOtrMutedRef m
+        , "otr_archived"      .= memOtrArchived m
+        , "otr_archived_ref"  .= memOtrArchivedRef m
+        , "hidden"            .= memHidden m
+        , "hidden_ref"        .= memHiddenRef m
+        , "conversation_role" .= memConvRoleName m
+        ]
+
+instance ToJSON SimpleMember where
+    toJSON m = object
+        [ "id"                .= smId m
+        , "conversation_role" .= smConvRoleName m
         ]
 
 instance FromJSON Member where
     parseJSON = withObject "member object" $ \o ->
         Member <$> o .:  "id"
                <*> o .:? "service"
-               <*> o .:? "otr_muted"        .!= False
+               <*> o .:? "otr_muted"         .!= False
                <*> o .:? "otr_muted_status"
                <*> o .:? "otr_muted_ref"
-               <*> o .:? "otr_archived"     .!= False
+               <*> o .:? "otr_archived"      .!= False
                <*> o .:? "otr_archived_ref"
-               <*> o .:? "hidden"           .!= False
+               <*> o .:? "hidden"            .!= False
                <*> o .:? "hidden_ref"
+               <*> o .:? "conversation_role" .!= roleNameWireAdmin
+
+instance FromJSON SimpleMember where
+    parseJSON = withObject "simple member object" $ \o ->
+        SimpleMember <$> o .:  "id"
+                     <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance FromJSON ConvType where
     parseJSON (Number 0) = return RegularConv
@@ -946,12 +1041,29 @@ instance ToJSON ConvType where
     toJSON One2OneConv = Number 2
     toJSON ConnectConv = Number 3
 
-instance FromJSON Members where
-    parseJSON = withObject "members-payload" $ \o ->
-        Members <$> o .: "user_ids"
+instance FromJSON UserIdList where
+    parseJSON = withObject "user-ids-payload" $ \o ->
+        UserIdList <$> o .: "user_ids"
 
-instance ToJSON Members where
-    toJSON e = object [ "user_ids" .= mUsers e]
+instance ToJSON UserIdList where
+    toJSON e = object [ "user_ids" .= mUsers e ]
+
+instance FromJSON SimpleMembers where
+    parseJSON = withObject "simple-members-payload" $ \o -> do
+        users <- o .:? "users" -- This is to make migration easier and not dependent on deployment ordering
+        membs <- case users of
+            Just mems -> pure mems
+            Nothing   -> do
+                ids <- o .:? "user_ids"
+                case ids of
+                    Just userIds -> pure $ fmap (\u -> SimpleMember u roleNameWireAdmin) userIds
+                    Nothing      -> fail "Not possible!"
+        pure $ SimpleMembers membs
+
+instance ToJSON SimpleMembers where
+    toJSON e = object [ "user_ids" .= fmap smId (mMembers e)
+                      , "users"    .= mMembers e
+                      ]
 
 instance FromJSON Connect where
     parseJSON = withObject "connect" $ \o ->

@@ -17,6 +17,7 @@ module Galley.API.Teams
     , deleteTeamMember
     , getTeamConversations
     , getTeamConversation
+    , getTeamConversationRoles
     , deleteTeamConversation
     , updateTeamMember
     , getSSOStatus
@@ -52,6 +53,7 @@ import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
+import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -242,6 +244,16 @@ uncheckedDeleteTeam zusr zcon tid = do
         let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
         pure (pp', ee' ++ ee)
 
+getTeamConversationRoles :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamConversationRoles (zusr::: tid ::: _) = do
+    mem <- Data.teamMember tid zusr
+    case mem of
+        Nothing -> throwM noTeamMember
+        Just  _ -> do
+            -- NOTE: If/when custom roles are added, these roles should
+            --       be merged with the team roles (if they exist)
+            return . json $ ConversationRolesList wireConvRoles
+
 getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembers (zusr::: tid ::: _) = do
     mems <- Data.teamMembers tid
@@ -378,7 +390,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
     Data.removeTeamMember tid remove
     let tmids = Set.fromList $ map (view userId) mems
-    let edata = Conv.EdMembers (Conv.Members [remove])
+    let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
     cc <- Data.teamConversations tid
     for_ cc $ \c -> Data.conversation (c^.conversationId) >>= \conv ->
         for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
@@ -410,16 +422,14 @@ getTeamConversation (zusr::: tid ::: cid ::: _) = do
 
 deleteTeamConversation :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
 deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
-    tmems <- Data.teamMembers tid
-    void $ permissionCheck zusr DeleteConversation tmems
     (bots, cmems) <- botsAndUsers <$> Data.members cid
+    ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
     flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
-    let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
-    let convPush = case convMembsAndTeamMembs cmems tmems of
-            []     -> []
-            (m:mm) -> [newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    pushSome convPush
+    let ce    = Conv.Event Conv.ConvDelete cid zusr now Nothing
+    let recps = fmap recipient cmems
+    let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+    pushSome $ maybeToList convPush
     void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
