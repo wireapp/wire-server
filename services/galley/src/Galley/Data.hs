@@ -112,6 +112,7 @@ import qualified Data.UUID.Tagged     as U
 import qualified Galley.Data.Queries  as Cql
 import qualified Galley.Types.Clients as Clients
 import qualified System.Logger.Class  as Log
+import qualified Data.List.Extra      as List
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
 -- can not reliably used for paging.
@@ -572,12 +573,21 @@ addMembersWithRole t c u ms r = addMembersUnchecked t c u (fromMemberSize ms) r
 
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> RoleName -> m (Event, List1 Member)
 addMembersUnchecked t conv orig usrs othersRole = do
-    retry x5 $ batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        for_ (toList usrs) $ \u -> do
-            addPrepQuery Cql.insertUserConv (u, conv)
-            addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
+    -- batch statement with 500 users are known to be above the batch size limit
+    -- and throw "Batch too large" errors. Therefor we chunk requests and insert
+    -- sequentially. (parallelizing would not aid performance as the partition
+    -- key, i.e. the convId, is on the same cassandra node)
+    -- chunk size 32 was chosen to lead to batch statements
+    -- below the batch threshold
+    -- With chunk size of 64:
+    -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
+    for_ (List.chunksOf 32 (toList usrs)) $ \chunk -> do
+        retry x5 $ batch $ do
+            setType BatchLogged
+            setConsistency Quorum
+            for_ chunk $ \u -> do
+                addPrepQuery Cql.insertUserConv (u, conv)
+                addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
     let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
     return (e, fmap (\u -> newMemberWithRole u (userRole u)) usrs)
   where
