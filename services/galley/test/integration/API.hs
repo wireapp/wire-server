@@ -50,6 +50,7 @@ tests s = testGroup "Galley integration tests"
         , test s "monitoring" monitor
         , test s "metrics" metrics
         , test s "create conversation" postConvOk
+        , test s "create large conversation" postLargeConvOk
         , test s "get empty conversations" getConvsOk
         , test s "get conversations by ids" getConvsOk2
         , test s "fail to get >100 conversations" getConvsFailMaxSize
@@ -154,6 +155,23 @@ postConvOk = do
         case evtData e of
             Just (EdConversation c') -> assertConvEquals cnv c'
             _                        -> assertFailure "Unexpected event data"
+
+-- TODO: requires changes to settings/options in galley and brig:
+-- setMaxConvSize of 500 on both galley and brig
+-- setUserMaxConnections of 500
+--
+-- TODO have a look at 'withSettingsOverrides' as used in some tests in brig.
+--
+-- FUTUREWORK: find a way to override settings also for other services during testing.
+-- (i.e. override settings in brig during galley integration tests)
+postLargeConvOk :: TestM ()
+postLargeConvOk = do
+    alice <- randomUser
+    bob  <- randomUser
+    users  <- randomUsers 498
+    connectUsers alice (list1 bob users)
+    postConv alice (bob : users) (Just "ConvName123") [] Nothing Nothing !!!
+        const 201 === statusCode
 
 postCryptoMessage1 :: TestM ()
 postCryptoMessage1 = do
