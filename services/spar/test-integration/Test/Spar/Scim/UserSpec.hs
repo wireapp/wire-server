@@ -9,6 +9,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
+import Data.Aeson.Types (toJSON)
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
 import Data.Id (UserId)
@@ -25,9 +26,10 @@ import qualified Spar.Intra.Brig                  as Intra
 import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.PatchOp          as PatchOp
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
-import qualified Web.Scim.Filter                  as Scim.Filter
+import qualified Web.Scim.Filter                  as Filter
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -35,6 +37,7 @@ spec = do
     specCreateUser
     specListUsers
     specGetUser
+    specPatchUser
     specUpdateUser
     specDeleteUser
 
@@ -327,7 +330,7 @@ testFindProvisionedUserByUsername = do
     user <- randomScimUser
     (tok, (_, _, _)) <- registerIdPAndScimToken
     storedUser <- createUser tok user
-    users <- listUsers tok (Just (Scim.Filter.FilterAttrCompare (Scim.Filter.AttrPath Nothing (Scim.Filter.attrName "userName") Nothing) Scim.Filter.OpEq (Scim.Filter.ValString (Scim.User.userName user))))
+    users <- listUsers tok (Just (Filter.FilterAttrCompare (Filter.topLevelAttrPath "userName") Filter.OpEq (Filter.ValString (Scim.User.userName user))))
     liftIO $ users `shouldContain` [storedUser]
     pure ()
 
@@ -463,12 +466,30 @@ specUpdateUser = describe "PUT /Users/:id" $ do
         it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
         it "fails" $ pending
+    it "does not update if nothing changed" $ testSameUpdateNoChange
     context "brig user is updated" $ do
+        -- TODO(arianvp): This will be fixed by
+        -- https://github.com/zinfra/backend-issues/issues/1006 The comment
+        -- means: If we update a user on the brig side; then currently this is
+        -- not reflected on the SCIM side. We can fix this by making brig
+        -- actually the source of truth for SCIM SCIM then becomes a _view_;
+        -- not a separate database.
         it "does NOT mirror this in the scim user" $
             pendingWith "this is arguably not great behavior, but i'm not sure \
                         \we want to implement synchronisation from brig to spar?"
         it "updates to scim user will overwrite these updates" $
             pendingWith "that's probably what we want?"
+
+-- | Test that when you're not changing any fields, then that update should not
+-- change anything (Including version field)
+testSameUpdateNoChange :: TestSpar ()
+testSameUpdateNoChange = do
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    storedUser' <- updateUser tok userid user
+    liftIO $ storedUser `shouldBe` storedUser'
 
 -- | Test that @PUT /Users@ returns 4xx when called without the @:id@ part.
 testUpdateRequiresUserId :: TestSpar ()
@@ -621,6 +642,141 @@ testBrigSideIsUpdated = do
         validateScimUser' idp 999999 user'
     brigUser      <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
     brigUser `userShouldMatch` validScimUser
+
+----------------------------------------------------------------------------
+-- Patcing users
+specPatchUser :: SpecWith TestEnv
+specPatchUser = do
+    -- Context: PATCH is implemented in the hscim library as a getUser followed
+    -- by a series of transformation on the User object, and then a putUser. The
+    -- correctness of the series of transformations is tested in the hscim test
+    -- suite; and is independent of spar code.  GET and PUT are both already
+    -- tested in the spar code; so here we just simply have a few smoke tests We
+    -- also describe the current limitations. (We only support three fields so
+    -- far)
+    describe  "PATCH /Users/:id" $ do
+        let replaceAttrib name value = 
+                PatchOp.Operation
+                    PatchOp.Replace
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (toJSON value))
+        let removeAttrib name = 
+                PatchOp.Operation
+                    PatchOp.Remove
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    Nothing
+        it "doing nothing doesn't change the user" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid (PatchOp.PatchOp [])
+            liftIO $ storedUser `shouldBe` storedUser'
+        it "can update userName" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            let userName = Scim.User.userName user'
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "userName" userName ]
+            let user'' = Scim.value (Scim.thing storedUser')
+            liftIO $ Scim.User.userName user'' `shouldBe` userName
+        it "can update displayName" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let displayName = Scim.User.displayName user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "displayName" displayName ]
+            let user'' = Scim.value (Scim.thing storedUser')
+            liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+        it "can update externalId" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let externalId = Scim.User.externalId user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "externalId" externalId ]
+            let user'' = Scim.value . Scim.thing $ storedUser'
+            liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+        it "replacing every supported atttribute at once works" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let externalId = Scim.User.externalId user'
+            let userName = Scim.User.userName user'
+            let displayName = Scim.User.displayName user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "externalId" externalId
+                , replaceAttrib "userName" userName
+                , replaceAttrib "displayName" displayName
+                ]
+            let user'' = Scim.value . Scim.thing $ storedUser'
+            liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+            liftIO $ Scim.User.userName user'' `shouldBe` userName
+            liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+
+        -- NOTE: Also the "extra" attributes are ignored 
+        --
+        it "other valid attributes are quietly ignored for now" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "emails" ("hello" :: Text) ]
+            liftIO $ storedUser `shouldBe` storedUser'
+        it "invalid attributes are quietly ignored for now" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "totallyBogus" ("hello" :: Text) ]
+            liftIO $ storedUser `shouldBe` storedUser'
+
+        -- NOTE: Remove at the moment actually never works! As all the fields
+        -- we support are required in our book
+        it "userName cannot be removed according to scim" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- patchUser tok userid $ PatchOp.PatchOp
+                [ removeAttrib "userName" ]
+            pure ()
+        it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- patchUser tok userid $ PatchOp.PatchOp
+                [ removeAttrib "displayName" ]
+            pure ()
+        it "externalId cannot be removed in spar (though possible in scim)" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- patchUser tok userid $ PatchOp.PatchOp
+                [ removeAttrib "externalName" ]
+            pure ()
+            
+            
+            
+            
+
+
+
+
 
 ----------------------------------------------------------------------------
 -- Deleting users

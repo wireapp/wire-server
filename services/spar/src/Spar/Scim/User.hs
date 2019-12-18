@@ -77,7 +77,21 @@ instance Scim.UserDB SparTag Spar where
     -- support filters on primary keys anyway
     --
     -- DECISION: We will not support the full getUsers. It is not used by Okta
-    -- nor Azure. If the user does not provide a Filter, we will error out
+    -- nor Azure. If the user does not provide a Filter, we will hard crash
+    --
+    {-case mbFilter of
+      Nothing ->
+        throwError $ Scim.unimplemented ("Sorry; we don't support listing all users. we don't think it is a useful part of SCIM, which is meant for provisioning")
+      Just (Scim.FilterAttrCompare (Scim.AttrPath schema attrName subAttr) Scim.OpEq (Scim.ValString val))
+        | Scim.isUserSchema schema ->
+            case (Scim.rAttrName -> attrName) of
+              "username" ->
+                _
+              "externalid" -> _
+        | otherwise -> throwError $ Scim.unimplemented ("Sorry; dont support anything else but core user schema for now")
+      Just _ -> throwError $ Scim.unimplemented ("Sorry, can only do eq on externalId, userName")
+    -}
+    
     members <- lift $ getTeamMembers stiTeam
     -- TODO(arianvp): FIXME FIXME: getBrigUsers does O(n) getBrigUser calls
     brigusers :: [User]
@@ -88,6 +102,7 @@ instance Scim.UserDB SparTag Spar where
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
+
             let user' = Scim.value (Scim.thing user)
             in case Scim.filterUser filter_ user' of
                  Right res -> pure res

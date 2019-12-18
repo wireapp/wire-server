@@ -30,6 +30,7 @@ import qualified Text.Email.Parser                as Email
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
 import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.PatchOp          as Scim.PatchOp
 import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
@@ -71,6 +72,11 @@ registerScimToken teamid midpid = do
 -- hspec package when done.
 randomScimUser :: MonadRandom m => m (Scim.User.User SparTag)
 randomScimUser = fst <$> randomScimUserWithSubject
+
+randomUserName :: MonadRandom m => m Text
+randomUserName = do
+    suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+    pure $ "scimuser_" <> suffix
 
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
@@ -168,7 +174,20 @@ updateUser tok userid user = do
          <!! const 200 === statusCode
     pure (responseJsonUnsafe r)
 
--- | Update a user.
+-- | Patch a user
+patchUser
+    :: HasCallStack
+    => ScimToken
+    -> UserId
+    -> Scim.PatchOp.PatchOp
+    -> TestSpar (Scim.StoredUser SparTag)
+patchUser tok uid patchOp = do
+    env <- ask
+    r <- patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (responseJsonUnsafe r)
+
+-- | Delete a user.
 deleteUser
     :: HasCallStack
     => ScimToken
@@ -300,6 +319,18 @@ updateUser_ auth muid user spar_ = do
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
+        . acceptScim
+        )
+
+-- | Patch a user
+patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp -> SparReq -> TestSpar ResponseLBS
+patchUser_ auth muid patchop spar_ = 
+    call . patch $
+        ( spar_
+        . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
+        . scimAuth auth
+        . contentScim
+        . body (RequestBodyLBS . Aeson.encode $ patchop)
         . acceptScim
         )
 
