@@ -351,7 +351,7 @@ postJoinConvOk = do
         postJoinConv bob conv !!! const 200 === statusCode
         postJoinConv bob conv !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-            wsAssertMemberJoin conv bob [bob]
+            wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
@@ -380,7 +380,7 @@ postJoinCodeConvOk = do
         -- eve cannot join
         postJoinCodeConv eve payload !!! const 403 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-            wsAssertMemberJoin conv bob [bob]
+            wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
         -- changing access to non-activated should give eve access
         let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
         putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
@@ -459,7 +459,7 @@ postConvertTeamConv = do
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
         postJoinCodeConv mallory j !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-            wsAssertMemberJoin conv mallory [mallory]
+            wsAssertMemberJoinWithRole conv mallory [mallory] roleNameWireMember
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
         let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
