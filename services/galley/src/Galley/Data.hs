@@ -409,7 +409,7 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (list1 usr $ fromConvSize others, othersConversationRole)
+    mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (list1 (usr, roleNameWireAdmin) ((, othersConversationRole) <$> fromConvSize others))
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
@@ -568,14 +568,14 @@ members conv = join <$> memberLists [conv]
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
 addMember t c u = addMembersUnchecked t c u (singleton u)
 
-addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> (ConvMemberAddSizeChecked (List1 UserId), RoleName) -> m (Event, List1 Member)
-addMembersWithRole t c usrWithRole (ms, msRole) = addMembersUncheckedWithRole t c usrWithRole (fromMemberSize ms, msRole)
+addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked (List1 (UserId, RoleName)) -> m (Event, List1 Member)
+addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (fromMemberSize mems)
 
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 Member)
-addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) (usrs, roleNameWireAdmin)
+addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((, roleNameWireAdmin) <$> usrs)
 
-addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> (List1 UserId, RoleName) -> m (Event, List1 Member)
-addMembersUncheckedWithRole t conv (orig, origRole) (usrs, othersRole) = do
+addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, List1 Member)
+addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
     -- batch statement with 500 users are known to be above the batch size limit
     -- and throw "Batch too large" errors. Therefor we chunk requests and insert
     -- sequentially. (parallelizing would not aid performance as the partition
@@ -588,18 +588,14 @@ addMembersUncheckedWithRole t conv (orig, origRole) (usrs, othersRole) = do
         retry x5 $ batch $ do
             setType BatchLogged
             setConsistency Quorum
-            for_ chunk $ \u -> do
+            for_ chunk $ \(u, r) -> do
                 addPrepQuery Cql.insertUserConv (u, conv)
-                addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
+                addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, r)
     let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-    return (e, fmap (\u -> newMemberWithRole u (userRole u)) usrs)
+    return (e, fmap (uncurry newMemberWithRole  ) usrs)
   where
-    toSimpleMembers :: [UserId] -> [SimpleMember]
-    toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole u))
-
-    userRole u
-       | u == orig = origRole
-       | otherwise = othersRole
+    toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
+    toSimpleMembers = fmap (uncurry SimpleMember)
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

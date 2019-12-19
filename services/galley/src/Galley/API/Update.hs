@@ -330,7 +330,7 @@ joinConversation zusr zcon cnv access = do
     -- NOTE: When joining conversations, all users become members
     -- as this is our desired behavior for these types of conversations
     -- where there is no way to control who joins, etc.
-    addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon (newUsers, roleNameWireMember) conv
+    addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((, roleNameWireMember) <$> newUsers) conv
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req) = do
@@ -349,7 +349,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
-    addToConversation mems (zusr, memConvRoleName self) zcon (newUsers, invRoleName body) conv
+    addToConversation mems (zusr, memConvRoleName self) zcon ((, invRoleName body) <$> newUsers) conv
   where
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembersLimited tid newUsers
@@ -587,13 +587,13 @@ rmBot (zusr ::: zcon ::: req) = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [Member]) -> (UserId, RoleName) -> ConnId -> ([UserId], RoleName) -> Data.Conversation -> Galley Response
-addToConversation _              _             _    ([], _     ) _ = return $ empty & setStatus status204
-addToConversation (bots, others) (usr,usrRole) conn (xs, xsRole) c = do
+addToConversation :: ([BotMember], [Member]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> Data.Conversation -> Galley Response
+addToConversation _              _             _    [] _ = return $ empty & setStatus status204
+addToConversation (bots, others) (usr,usrRole) conn xs c = do
     ensureGroupConv c
     mems    <- checkedMemberAddSize xs
     now     <- liftIO getCurrentTime
-    (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) (mems, xsRole)
+    (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
