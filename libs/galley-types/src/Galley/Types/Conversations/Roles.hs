@@ -15,6 +15,11 @@ module Galley.Types.Conversations.Roles
     , roleNameWireMember
     , wireConvRoleNames
 
+#ifdef WITH_CQL
+    , RoleNameDB
+    , fromRoleNameDB
+    , roleNameDB
+#endif
     , Action (..)
     , Actions (..)
     , ConversationRolesList (..)
@@ -106,7 +111,11 @@ newtype RoleName = RoleName { fromRoleName :: Text }
     deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
 
 #ifdef WITH_CQL
-deriving instance Cql RoleName
+newtype RoleNameDB = RoleNameDB { fromRoleNameDB :: Int32 }
+    deriving (Eq, Show, Generic, Cql)
+
+roleNameDB :: Int32 -> RoleNameDB
+roleNameDB = RoleNameDB
 #endif
 
 instance FromByteString RoleName where

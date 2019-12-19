@@ -546,11 +546,23 @@ privateOnly = Set [PrivateAccess]
 -- Conversation Members -----------------------------------------------------
 
 member :: MonadClient m => ConvId -> UserId -> m (Maybe Member)
-member cnv usr = (toMember =<<) <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
+member cnv usr = toMember' =<< (retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr))))
+  where
+    toMember' :: MonadClient m => Maybe (UserId, Maybe ServiceId, Maybe ProviderId,
+                            Maybe Cql.MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text,
+                            Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleNameDB)
+              -> m (Maybe Member)
+    toMember' Nothing  = return Nothing
+    toMember' (Just r) = toMember <$> fromMemberDBtoMember' r
+
 
 memberLists :: MonadClient m => [ConvId] -> m [[Member]]
 memberLists convs = do
-    mems <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
+    mems' <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
+    -- TODO: With custom roles, this would potentially cause a lookup for every
+    --       single role... a better implementation is to gather all roles first
+    --       and then lookup only the necessary ones
+    mems  <- mapM fromMemberDBtoMember mems'
     let m = foldr (insert . mkMem) Map.empty mems
     return $ map (\i -> fromMaybe [] (Map.lookup i m)) convs
   where
@@ -581,25 +593,34 @@ addMembersUnchecked t conv orig usrs othersRole = do
     -- below the batch threshold
     -- With chunk size of 64:
     -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
+    origRoleCql <- roleNameToCql roleNameWireAdmin
+    othersRoleCql <- roleNameToCql othersRole
     for_ (List.chunksOf 32 (toList usrs)) $ \chunk -> do
         retry x5 $ batch $ do
             setType BatchLogged
             setConsistency Quorum
             for_ chunk $ \u -> do
                 addPrepQuery Cql.insertUserConv (u, conv)
-                addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRole u)
+                addPrepQuery Cql.insertMember   (conv, u, Nothing, Nothing, userRoleDB origRoleCql othersRoleCql u)
     let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-    return (e, fmap (\u -> newMemberWithRole u (userRole u)) usrs)
+    return (e, fmap (\u -> newMemberWithRole u (userRole roleNameWireAdmin othersRole u)) usrs)
   where
     toSimpleMembers :: [UserId] -> [SimpleMember]
-    toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole u))
+    toSimpleMembers = fmap $ (\u -> SimpleMember u (userRole roleNameWireAdmin othersRole u))
 
-    userRole u
-       | u == orig = roleNameWireAdmin
-       | otherwise = othersRole
+    userRole origRole otherRole u
+       | u == orig = origRole
+       | otherwise = otherRole
+
+    userRoleDB origCql otherCql u
+       | u == orig = origCql
+       | otherwise = otherCql
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do
+    roleNameCql <- case mupConvRoleName mup of
+        Just r  -> roleNameToCql r >>= return . Just
+        Nothing -> return Nothing
     retry x5 $ batch $ do
         setType BatchUnLogged
         setConsistency Quorum
@@ -611,7 +632,7 @@ updateMember cid uid mup = do
             addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
         for_ (mupHidden mup) $ \h ->
             addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-        for_ (mupConvRoleName mup) $ \r ->
+        for_ roleNameCql $ \r ->
             addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
     return MemberUpdateData
         { misTarget = Just uid
@@ -664,7 +685,7 @@ toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
             , Maybe Bool, Maybe MutedStatus, Maybe Text -- otr muted
             , Maybe Bool, Maybe Text                    -- otr archived
             , Maybe Bool, Maybe Text                    -- hidden
-            , Maybe RoleName                            -- conversation role name
+            , RoleName                                  -- conversation role name
             ) -> Maybe Member
 toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
     if sta /= Just 0
@@ -679,8 +700,50 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
             , memOtrArchivedRef = oarr
             , memHidden         = fromMaybe False hid
             , memHiddenRef      = hidr
-            , memConvRoleName   = fromMaybe roleNameWireAdmin crn
+            , memConvRoleName   = crn
             }
+
+roleNameToCql :: MonadClient m => RoleName -> m RoleNameDB
+roleNameToCql r
+  | r == roleNameWireAdmin  = return $ roleNameDB 0
+  | r == roleNameWireMember = return $ roleNameDB 1
+  | otherwise = do
+        -- Look up in table with (team_id, conversation_role_text, conversation_role)
+        -- return conversation_role
+        fail "Not implemented"
+
+fromRoleNameCql :: MonadClient m => RoleNameDB -> m RoleName
+fromRoleNameCql r = case fromRoleNameDB r of
+    0  -> return roleNameWireAdmin
+    1  -> return roleNameWireMember
+    _n -> do
+        -- Look up in table with (team_id, conversation_role, conversation_role_text)
+        -- return conversation_role_text
+        fail $ "Not implemented"
+
+fromMemberDBtoMember :: MonadClient m => (ConvId, UserId, Maybe ServiceId,
+                                  Maybe ProviderId, Maybe Cql.MemberStatus, Maybe Bool,
+                                  Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text,
+                                  Maybe Bool, Maybe Text, Maybe RoleNameDB)
+                     -> m (ConvId, UserId, Maybe ServiceId,
+                                  Maybe ProviderId, Maybe Cql.MemberStatus, Maybe Bool,
+                                  Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text,
+                                  Maybe Bool, Maybe Text, RoleName)
+fromMemberDBtoMember (a, b, c, d, e, f, g, h, i, j, k, l, roleDB) = do
+    role <- maybe (return roleNameWireAdmin) fromRoleNameCql roleDB
+    return (a, b, c, d, e, f, g, h, i, j, k, l, role)
+
+fromMemberDBtoMember' :: MonadClient m => (UserId, Maybe ServiceId,
+                                  Maybe ProviderId, Maybe Cql.MemberStatus, Maybe Bool,
+                                  Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text,
+                                  Maybe Bool, Maybe Text, Maybe RoleNameDB)
+                     -> m (UserId, Maybe ServiceId,
+                                  Maybe ProviderId, Maybe Cql.MemberStatus, Maybe Bool,
+                                  Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text,
+                                  Maybe Bool, Maybe Text, RoleName)
+fromMemberDBtoMember' (a, b, c, d, e, f, g, h, i, j, k, roleDB) = do
+    role <- maybe (return roleNameWireAdmin) fromRoleNameCql roleDB
+    return (a, b, c, d, e, f, g, h, i, j, k, role)
 
 -- Clients ------------------------------------------------------------------
 

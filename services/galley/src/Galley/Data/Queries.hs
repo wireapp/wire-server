@@ -197,13 +197,13 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleNameDB)
 selectMember = "select user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleNameDB)
 selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
+insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleNameDB) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
 removeMember :: PrepQuery W (ConvId, UserId) ()
@@ -221,7 +221,7 @@ updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref 
 updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
+updateMemberConvRoleName :: PrepQuery W (RoleNameDB, ConvId, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
