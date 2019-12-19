@@ -644,7 +644,7 @@ testBrigSideIsUpdated = do
     brigUser `userShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
--- Patcing users
+-- Patching users
 specPatchUser :: SpecWith TestEnv
 specPatchUser = do
     -- Context: PATCH is implemented in the hscim library as a getUser followed
@@ -746,28 +746,31 @@ specPatchUser = do
         -- NOTE: Remove at the moment actually never works! As all the fields
         -- we support are required in our book
         it "userName cannot be removed according to scim" $ do
+            env <- ask
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            _ <- patchUser tok userid $ PatchOp.PatchOp
-                [ removeAttrib "userName" ]
+            let patchOp = PatchOp.PatchOp [ removeAttrib "userName" ]
+            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
             pure ()
         it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
+            env <- ask
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            _ <- patchUser tok userid $ PatchOp.PatchOp
-                [ removeAttrib "displayName" ]
+            let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
+            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
             pure ()
         it "externalId cannot be removed in spar (though possible in scim)" $ do
+            env <- ask
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            _ <- patchUser tok userid $ PatchOp.PatchOp
-                [ removeAttrib "externalName" ]
+            let patchOp = PatchOp.PatchOp [ removeAttrib "externalId" ]
+            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
             pure ()
             
             
