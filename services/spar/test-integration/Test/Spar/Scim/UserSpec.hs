@@ -683,6 +683,26 @@ specPatchUser = do
                 [ replaceAttrib "userName" userName ]
             let user'' = Scim.value (Scim.thing storedUser')
             liftIO $ Scim.User.userName user'' `shouldBe` userName
+        it "can't update to someone else's userName" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- createUser tok user'
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "userName" (Scim.User.userName user') ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+        it "can't update to someone else's externalId" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- createUser tok user'
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "externalId" (Scim.User.externalId user') ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
         it "can update displayName" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
@@ -752,8 +772,7 @@ specPatchUser = do
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "userName" ]
-            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
-            pure ()
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
         it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
             env <- ask
             (tok, _) <- registerIdPAndScimToken
@@ -761,8 +780,7 @@ specPatchUser = do
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
-            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
-            pure ()
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
         it "externalId cannot be removed in spar (though possible in scim)" $ do
             env <- ask
             (tok, _) <- registerIdPAndScimToken
@@ -770,8 +788,7 @@ specPatchUser = do
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "externalId" ]
-            _ <- patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) <!! const 400 === statusCode
-            pure ()
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
             
             
             
