@@ -73,11 +73,6 @@ registerScimToken teamid midpid = do
 randomScimUser :: MonadRandom m => m (Scim.User.User SparTag)
 randomScimUser = fst <$> randomScimUserWithSubject
 
-randomUserName :: MonadRandom m => m Text
-randomUserName = do
-    suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-    pure $ "scimuser_" <> suffix
-
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
 randomScimUserWithSubject
