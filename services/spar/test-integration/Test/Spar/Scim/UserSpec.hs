@@ -462,6 +462,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "updates the matching Brig user" $ testBrigSideIsUpdated
     it "cannot update user to match another user's externalId"
         testUpdateToExistingExternalIdFails
+    it "cannot remove display name" $ testCannotRemoveDisplayName
     context "user is from different team" $ do
         it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
@@ -479,6 +480,17 @@ specUpdateUser = describe "PUT /Users/:id" $ do
                         \we want to implement synchronisation from brig to spar?"
         it "updates to scim user will overwrite these updates" $
             pendingWith "that's probably what we want?"
+
+-- | Tests that you can't unset your display name
+testCannotRemoveDisplayName :: TestSpar ()
+testCannotRemoveDisplayName = do
+    env <- ask
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    let user' = user { Scim.User.displayName = Nothing }
+    updateUser_ (Just tok) (Just userid) user'  (env ^. teSpar) !!! const 409 === statusCode
 
 -- | Test that when you're not changing any fields, then that update should not
 -- change anything (Including version field)
