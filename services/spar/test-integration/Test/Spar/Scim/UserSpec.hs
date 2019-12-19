@@ -484,6 +484,17 @@ specUpdateUser = describe "PUT /Users/:id" $ do
 -- | Tests that you can't unset your display name
 testCannotRemoveDisplayName :: TestSpar ()
 testCannotRemoveDisplayName = do
+    -- NOTE: This behaviour is in violation of SCIM.
+    -- We either: 
+    --  - Treat Null and omission the same; by always removing
+    --  - Or default on omissison, delete on null
+    --  We have to choose between the two behaviours; in order
+    --  to be a valid SCIM API. we now do an akward mixture of both
+    --  However; I don't think this is currently blocking us on Azure.
+    --  We should however fix this behaviour in the future TODO(arianvp)
+    pendingWith
+      "We default to the externalId when displayName is removed. lets keep that for now"
+    {-
     env <- ask
     user <- randomScimUser
     (tok, _) <- registerIdPAndScimToken
@@ -491,6 +502,7 @@ testCannotRemoveDisplayName = do
     let userid = scimUserId storedUser
     let user' = user { Scim.User.displayName = Nothing }
     updateUser_ (Just tok) (Just userid) user'  (env ^. teSpar) !!! const 409 === statusCode
+    -}
 
 -- | Test that when you're not changing any fields, then that update should not
 -- change anything (Including version field)
@@ -792,13 +804,15 @@ specPatchUser = do
             let patchOp = PatchOp.PatchOp [ removeAttrib "userName" ]
             patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
         it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
-            env <- ask
+            pendingWith
+              "We default to the externalId when displayName is removed. lets keep that for now"
+            {-env <- ask
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
-            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode -}
         it "externalId cannot be removed in spar (though possible in scim)" $ do
             env <- ask
             (tok, _) <- registerIdPAndScimToken
