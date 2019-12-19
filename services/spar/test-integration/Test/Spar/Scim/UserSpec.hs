@@ -12,7 +12,7 @@ import Control.Lens
 import Data.Aeson.Types (toJSON)
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
-import Data.Id (UserId)
+import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Spar.Scim
 import Spar.Types (IdP)
@@ -703,6 +703,12 @@ specPatchUser = do
             _ <- createUser tok user'
             let patchOp = PatchOp.PatchOp [ replaceAttrib "externalId" (Scim.User.externalId user') ]
             patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+        it "can't update a non-existing user" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            userid <- liftIO $ randomId
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "externalId" ("blah" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 404 === statusCode
         it "can update displayName" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
