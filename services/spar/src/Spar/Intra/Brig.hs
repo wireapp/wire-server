@@ -162,8 +162,11 @@ getBrigUser buid = do
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
 -- TODO: implement an internal end-point on brig that makes this possible with one request.
+-- TODO(arianvp): This endpoint exists!
 getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
 getBrigUsers = fmap catMaybes . mapM getBrigUser
+
+
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
