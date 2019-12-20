@@ -1,3 +1,21 @@
+# 2019-12-20
+
+## Relevant for self-hosters
+
+- Access tokens are now sanitized on nginz logs (#920)
+
+## Relevant for client developers
+
+- Conversation roles (#911)
+  - Users joining by link are always members (#924) and (#927)
+
+## Bug fixes
+
+- Limit batch size when adding users to conversations (#923)
+- Fixed user property integration test (#922)
+
+
+
 # 2019-11-28
 
 ## Relevant for client developers
@@ -8,7 +26,7 @@
 ## Bug fixes
 
 - SCIM fixes Phase 0: User creation in correct order (#905)
-    
+
 ## Internal changes
 
 - Gundeck: Use polledMapConcurrently (#914)
