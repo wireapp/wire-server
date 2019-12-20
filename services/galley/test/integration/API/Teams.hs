@@ -17,6 +17,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
@@ -56,13 +57,14 @@ tests s = testGroup "Teams API"
     , test s "remove team member" testRemoveTeamMember
     , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
     , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
-    , test s "add team conversation" testAddTeamConv
+    , test s "add team conversation (no role as argument)" testAddTeamConvLegacy
+    , test s "add team conversation with role" testAddTeamConvWithRole
     , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
-    , test s "update conversation as member" (testUpdateTeamConv RoleMember)
-    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner)
+    , test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin)
+    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember)
     , test s "delete non-binding team" testDeleteTeam
     , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
     , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
@@ -133,7 +135,7 @@ testCreateTeamWithMembers = do
     owner <- Util.randomUser
     user1 <- Util.randomUser
     user2 <- Util.randomUser
-    let pp = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let pp = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
     let m1 = newTeamMember' pp user1
     let m2 = newTeamMember' pp user2
     Util.connectUsers owner (list1 user1 [user2])
@@ -190,8 +192,8 @@ testEnableSSOPerTeam = do
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
@@ -240,8 +242,8 @@ testAddTeamMember = do
     c <- view tsCannon
     g <- view tsGalley
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     Util.connectUsers owner (list1 (mem1^.userId) [mem2^.userId])
@@ -307,8 +309,8 @@ testRemoveTeamMember = do
     c <- view tsCannon
     g <- view tsGalley
     owner <- Util.randomUser
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
-    let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
+    let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember, RemoveTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     mem2 <- newTeamMember' p2 <$> Util.randomUser
     mext1 <- Util.randomUser
@@ -357,7 +359,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
     tid   <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
     mext  <- Util.randomUser
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
     Util.addTeamMemberInternal tid mem1
     assertQueue "team member join" $ tUpdate 2 [owner]
@@ -421,13 +423,33 @@ testRemoveBindingTeamMember ownerHasPassword = do
         -- Mem1 is now gone from Wire
         Util.ensureDeletedState True owner (mem1^.userId)
 
-testAddTeamConv :: TestM ()
-testAddTeamConv = do
+testAddTeamConvLegacy :: TestM ()
+testAddTeamConvLegacy = do
     c <- view tsCannon
     owner  <- Util.randomUser
     extern <- Util.randomUser
 
-    let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+    mem1 <- newTeamMember' p <$> Util.randomUser
+    mem2 <- newTeamMember' p <$> Util.randomUser
+
+    Util.connectUsers owner (list1 (mem1^.userId) [extern, mem2^.userId])
+    tid <- Util.createTeam "foo" owner [mem2]
+    let allUserIds = [owner, extern, mem1^.userId, mem2^.userId]
+
+    WS.bracketRN c allUserIds $ \wss -> do
+        cid <- Util.createTeamConvLegacy owner tid allUserIds (Just "blaa")
+        mapM_ (checkConvCreateEvent cid) wss
+        -- All members become admin by default
+        mapM_ (assertConvMemberWithRole roleNameWireAdmin cid) allUserIds
+
+testAddTeamConvWithRole :: TestM ()
+testAddTeamConvWithRole = do
+    c <- view tsCannon
+    owner  <- Util.randomUser
+    extern <- Util.randomUser
+
+    let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser
     mem2 <- newTeamMember' p <$> Util.randomUser
 
@@ -441,9 +463,18 @@ testAddTeamConv = do
         checkConvCreateEvent cid1 wsMem2
 
         -- Regular conversation:
-        cid2 <- Util.createTeamConv owner tid [extern] (Just "blaa") Nothing Nothing
+        cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
+        mapM_ (assertConvMemberWithRole roleNameWireAdmin cid2) [owner, extern]
+
+        -- Regular conversation (using member role for participants):
+        cid3 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireMember
+        checkConvCreateEvent cid3 wsOwner
+        checkConvCreateEvent cid3 wsExtern
+        assertConvMemberWithRole roleNameWireAdmin cid3 owner
+        assertConvMemberWithRole roleNameWireMember cid3 extern
+
         -- mem2 is not a conversation member and no longer receives
         -- an event that a new team conversation has been created
 
@@ -459,16 +490,16 @@ testAddTeamConv = do
         Util.assertNotConvMember (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
+        cid4 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
-            Util.assertConvMember u cid3
+            Util.assertConvMember u cid4
 
-        checkConvCreateEvent cid3 wsOwner
-        checkConvCreateEvent cid3 wsMem1
-        checkConvCreateEvent cid3 wsMem2
+        checkConvCreateEvent cid4 wsOwner
+        checkConvCreateEvent cid4 wsMem1
+        checkConvCreateEvent cid4 wsMem2
 
         -- Non team members are never added implicitly.
-        for_ [cid1, cid3] $
+        for_ [cid1, cid4] $
             Util.assertNotConvMember extern
 
         WS.assertNoEvent timeout ws
@@ -491,7 +522,7 @@ testAddTeamConvAsExternalPartner = do
         (memExternalPartner^.userId)
         tid
         [memMember1^.userId, memMember2^.userId]
-        (Just "blaa") acc (Just TeamAccessRole) Nothing
+        (Just "blaa") acc (Just TeamAccessRole) Nothing Nothing
       !!! do
         const 403 === statusCode
         const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
@@ -503,7 +534,7 @@ testAddManagedConv = do
     tid <- Util.createTeam "foo" owner []
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing
+               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
     post ( g
          . path "/conversations"
          . zUser owner
@@ -529,7 +560,7 @@ testAddTeamConvWithUsers = do
 testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
     owner <- Util.randomUser
-    let p = Util.symmPermissions [AddRemoveConvMember]
+    let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser
     mem2 <- newTeamMember' p <$> Util.randomUser
     mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
@@ -540,41 +571,42 @@ testAddTeamMemberToConv = do
     -- Team owner creates new regular team conversation:
     cid <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
 
+    -- NOTE: This functionality was _changed_ as there was no need for it...
     -- Team member 1 (who is *not* a member of the new conversation)
-    -- can add other team members without requiring a user connection
-    -- thanks to both being team members and member 1 having the permission
-    -- `AddRemoveConvMember`.
+    -- can *not* add other team members without requiring a user connection
+    -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
     Util.assertNotConvMember (mem1^.userId) cid
-    Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
+    Util.postMembers (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 404 === statusCode
+    Util.assertNotConvMember (mem2^.userId) cid
+
+    -- OTOH, team member 3 _can_ add another team member despite lacking the required team permission
+    -- However, all users are admins by default
+    Util.assertConvMember owner cid
+    Util.postMembers owner (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
     Util.assertConvMember (mem2^.userId) cid
 
-    -- OTOH, team member 3 can not add another team member since it
-    -- lacks the required permission
-    Util.assertNotConvMember (mem3^.userId) cid
-    Util.postMembers (mem3^.userId) (list1 (mem1^.userId) []) cid !!! do
-        const 403                === statusCode
-        const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
-
 testUpdateTeamConv
-    :: Role  -- ^ Role of the user who creates the conversation
+    :: Role     -- ^ Team role of the user who creates the conversation
+    -> RoleName -- ^ Conversation role of the user who creates the conversation
     -> TestM ()
-testUpdateTeamConv (rolePermissions -> perms) = do
+testUpdateTeamConv (rolePermissions -> perms) convRole = do
     owner  <- Util.randomUser
     member <- Util.randomUser
     Util.connectUsers owner (list1 member [])
     tid <- Util.createTeam "foo" owner [newTeamMember member perms Nothing]
-    cid <- Util.createTeamConv owner tid [member] (Just "gossip") Nothing Nothing
+    cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
     resp <- updateTeamConv member cid (ConversationRename "not gossip")
-    liftIO $ assertEqual "status"
-        (if ModifyConvMetadata `elem` (perms ^. self) then 200 else 403)
-        (statusCode resp)
+    -- FUTUREWORK: Ensure that the team role _really_ does not matter
+    liftIO $ assertEqual "status conv" convRoleCheck (statusCode resp)
+  where
+    convRoleCheck = if isActionAllowed ModifyConversationName convRole == Just True then 200 else 403
 
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [AddRemoveConvMember]
+    let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     member <- newTeamMember' p <$> Util.randomUser
     extern <- Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [extern])
@@ -627,11 +659,11 @@ testDeleteBindingTeam ownerHasPassword = do
     owner  <- Util.randomUser' ownerHasPassword
     tid    <- Util.createTeamInternal "foo" owner
     assertQueue "create team" tActivate
-    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser
-    let p2 = Util.symmPermissions [AddRemoveConvMember]
+    let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem2 <- newTeamMember' p2 <$> Util.randomUser
-    let p3 = Util.symmPermissions [AddRemoveConvMember]
+    let p3 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
     mem3 <- newTeamMember' p3 <$> Util.randomUser
     Util.addTeamMemberInternal tid mem1
     assertQueue "team member join 2" $ tUpdate 2 [owner]
@@ -696,7 +728,7 @@ testDeleteTeamConv = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [DeleteConversation]
+    let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
     extern <- Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [extern])
@@ -755,7 +787,7 @@ testUpdateTeam = do
     g <- view tsGalley
     c <- view tsCannon
     owner <- Util.randomUser
-    let p = Util.symmPermissions [DeleteConversation]
+    let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
     member <- newTeamMember' p <$> Util.randomUser
     Util.connectUsers owner (list1 (member^.userId) [])
     tid <- Util.createTeam "foo" owner [member]
@@ -925,8 +957,8 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         evtConv e @?= cid
         evtType e @?= Conv.MemberLeave
         case evtData e of
-            Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
-            other                    -> assertFailure $ "Unexpected event data: " <> show other
+            Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIdList [usr]
+            other                         -> assertFailure $ "Unexpected event data: " <> show other
 
 postCryptoBroadcastMessageJson :: TestM ()
 postCryptoBroadcastMessageJson = do

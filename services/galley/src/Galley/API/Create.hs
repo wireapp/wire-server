@@ -59,7 +59,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
     name <- rangeCheckedMaybe (newConvName body)
     uids <- checkedConvSize (newConvUsers body)
     ensureConnected zusr (fromConvSize uids)
-    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
+    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
     notifyCreatedConversation Nothing zusr (Just zcon) c
     conversationResponse status201 zusr c
 
@@ -81,13 +81,19 @@ createTeamGroupConv zusr zcon tinfo body = do
             -- users without the 'AddRemoveConvMember' permission to still be able to create
             -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
             -- there are going to be more than two users in the conversation.
+            -- FUTUREWORK: We keep this permission around because not doing so will break backwards
+            -- compatibility in the sense that the team role 'partners' would be able to create group
+            -- conversations (which they should not be able to).
+            -- Not sure at the moment how to best solve this but it is unlikely
+            -- we can ever get rid of the team permission model anyway - the only thing I can
+            -- think of is that 'partners' can create convs but not be admins...
             when (length (fromConvSize otherConvMems) > 1) $ do
-                void $ permissionCheck zusr AddRemoveConvMember teamMems
+                void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
             -- Team members are always considered to be connected, so we only check
             -- 'ensureConnected' for non-team-members.
             ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
             pure otherConvMems
-    conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
+    conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
     now  <- liftIO getCurrentTime
     -- NOTE: We only send (conversation) events to members of the conversation
     notifyCreatedConversation (Just now) zusr (Just zcon) conv

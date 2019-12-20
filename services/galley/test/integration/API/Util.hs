@@ -19,9 +19,10 @@ import Data.String.Conversions (cs, ST)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
+import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
-import Gundeck.Types.Notification
+import Gundeck.Types.Notification hiding (target)
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import TestSetup
@@ -126,20 +127,44 @@ addTeamMemberInternal tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
-createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer
+-- Note that here we don't make use of the datatype because NewConv has a default
+-- and therefore cannot be unset. However, given that this is to test the legacy
+-- API (i.e., no roles) it's fine to hardcode the JSON object in the test since
+-- it clearly shows the API that old(er) clients use.
+createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM ConvId
+createTeamConvLegacy u tid us name = do
+    g <- view tsGalley
+    let tinfo = ConvTeamInfo tid False
+    let convPayload = object
+                    [ "users" .= us
+                    , "name"  .= name
+                    , "team"  .= Just tinfo
+                    ]
+    post ( g
+          . path "/conversations"
+          . zUser u
+          . zConn "conn"
+          . zType "access"
+          . json convPayload
+          ) >>= \r -> fromBS (getHeader' "Location" r)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> TestM ConvId
-createTeamConvAccess u tid us name acc role mtimer = do
-    r <- createTeamConvAccessRaw u tid us name acc role mtimer <!! const 201 === statusCode
+createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
+createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
+
+createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
+
+createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess u tid us name acc role mtimer convRole = do
+    r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
-createTeamConvAccessRaw u tid us name acc role mtimer = do
+createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
     g <- view tsGalley
     let tinfo = ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
     post ( g
           . path "/conversations"
           . zUser u
@@ -165,7 +190,7 @@ createManagedConv u tid us name acc mtimer = do
     g <- view tsGalley
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
     r <- post ( g
               . path "i/conversations/managed"
               . zUser u
@@ -180,19 +205,22 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
     g <- view tsGalley
     let conv = NewConvUnmanaged $
-               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
-postConv u us name a r mtimer = do
+postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
+
+postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole u us name a r mtimer role = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing role
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt)
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -203,7 +231,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
     g <- view tsGalley
-    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -321,7 +349,18 @@ getConvIds u r s = do
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
     g <- view tsGalley
-    let i = Invite us
+    let i = newInvite us
+    post $ g
+         . paths ["conversations", toByteString' c, "members"]
+         . zUser u
+         . zConn "conn"
+         . zType "access"
+         . json i
+
+postMembersWithRole :: UserId -> List1 UserId -> ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole u us c r = do
+    g <- view tsGalley
+    let i = (newInvite us) { invRoleName = r }
     post $ g
          . paths ["conversations", toByteString' c, "members"]
          . zUser u
@@ -356,6 +395,40 @@ putMember u m c = do
       . zConn "conn"
       . zType "access"
       . json m
+
+putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
+putOtherMember from to m c = do
+    g <- view tsGalley
+    put $ g
+      . paths ["conversations", toByteString' c, "members", toByteString' to]
+      . zUser from
+      . zConn "conn"
+      . zType "access"
+      . json m
+
+putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
+putConversationName u c n = do
+    g <- view tsGalley
+    let update = ConversationRename n
+    put ( g
+        . paths ["conversations", toByteString' c]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+        )
+
+putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
+putReceiptMode u c r = do
+   g <- view tsGalley
+   let update = ConversationReceiptModeUpdate r
+   put ( g
+       . paths ["conversations", toByteString' c, "receipt-mode"]
+       . zUser u
+       . zConn "conn"
+       . zType "access"
+       . json update
+       )
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
@@ -444,10 +517,17 @@ deleteUser u = do
     g <- view tsGalley
     delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
+assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> TestM ()
+assertConvMemberWithRole r c u =
+    getSelfMember u c !!! do
+        const 200       === statusCode
+        const (Right u) === (fmap memId <$> responseJsonEither)
+        const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
+
 assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =
     getSelfMember u c !!! do
-        const 200      === statusCode
+        const 200       === statusCode
         const (Right u) === (fmap memId <$> responseJsonEither)
 
 assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
@@ -482,7 +562,19 @@ assertConv :: HasCallStack
            -> Maybe Text
            -> Maybe Milliseconds
            -> TestM ConvId
-assertConv r t c s us n mt = do
+assertConv r t c s us n mt = assertConvWithRole r t c s us n mt roleNameWireAdmin
+
+assertConvWithRole :: HasCallStack
+           => Response (Maybe Lazy.ByteString)
+           -> ConvType
+           -> UserId
+           -> UserId
+           -> [UserId]
+           -> Maybe Text
+           -> Maybe Milliseconds
+           -> RoleName
+           -> TestM ConvId
+assertConvWithRole r t c s us n mt role = do
     cId <- fromBS $ getHeader' "Location" r
     let cnv = responseJsonMaybe @Conversation r
     let _self = cmSelf . cnvMembers <$> cnv
@@ -495,6 +587,8 @@ assertConv r t c s us n mt = do
         assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
         assertEqual "self" (Just s) (memId <$> _self)
         assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
+        assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
+        assertBool  "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
         assertBool  "otr muted not false" (Just False == (memOtrMuted <$> _self))
         assertBool  "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
         assertBool  "otr archived not false" (Just False == (memOtrArchived <$> _self))
@@ -505,7 +599,6 @@ assertConv r t c s us n mt = do
             One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
             _           -> return ()
     return cId
-
 
 wsAssertOtr :: ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr = wsAssertOtr' "data"
@@ -519,14 +612,31 @@ wsAssertOtr' evData conv usr from to txt n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
 
+-- | This assumes the default role name
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
-wsAssertMemberJoin conv usr new n = do
+wsAssertMemberJoin conv usr new n = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin n
+
+wsAssertMemberJoinWithRole :: ConvId -> UserId -> [UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole conv usr new role n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= MemberJoin
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembers (Members new))
+    evtData      e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+
+wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
+wsAssertMemberUpdateWithRole conv usr target role n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n @?= False
+    evtConv      e @?= conv
+    evtType      e @?= MemberStateUpdate
+    evtFrom      e @?= usr
+    case evtData e of
+        Just (Galley.Types.EdMemberUpdate mis) -> do
+                assertEqual "target"            (Just target) (misTarget mis)
+                assertEqual "conversation_role" (Just role) (misConvRoleName mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
 
 wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
@@ -553,9 +663,9 @@ wsAssertMemberLeave conv usr old n = do
     evtConv      e      @?= conv
     evtType      e      @?= MemberLeave
     evtFrom      e      @?= usr
-    sorted (evtData e)  @?= sorted (Just (EdMembers (Members old)))
+    sorted (evtData e)  @?= sorted (Just (EdMembersLeave (UserIdList old)))
   where
-    sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
+    sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -804,9 +914,6 @@ otrRecipients = OtrRecipients . UserClientMap . Map.fromList . map toUserClientM
 
 encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode
-
-memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary

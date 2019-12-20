@@ -12,6 +12,7 @@ import Data.Id
 import Data.List1
 import Data.Range
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -26,6 +27,7 @@ import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
 import qualified API.Teams.LegalHold      as Teams.LegalHold
 import qualified API.MessageTimer         as MessageTimer
+import qualified API.Roles                as Roles
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -40,6 +42,7 @@ tests s = testGroup "Galley integration tests"
     , mainTests
     , Teams.tests s
     , MessageTimer.tests s
+    , Roles.tests s
     ]
   where
     mainTests = testGroup "Main API"
@@ -348,7 +351,7 @@ postJoinConvOk = do
         postJoinConv bob conv !!! const 200 === statusCode
         postJoinConv bob conv !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-            wsAssertMemberJoin conv bob [bob]
+            wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
@@ -377,7 +380,7 @@ postJoinCodeConvOk = do
         -- eve cannot join
         postJoinCodeConv eve payload !!! const 403 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-            wsAssertMemberJoin conv bob [bob]
+            wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
         -- changing access to non-activated should give eve access
         let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
         putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
@@ -433,7 +436,7 @@ postConvertTeamConv = do
     alice <- randomUser
     tid   <- createTeamInternal "foo" alice
     assertQueue "create team" tActivate
-    let p1 = symmPermissions [Teams.AddRemoveConvMember]
+    let p1 = symmPermissions [Teams.DoNotUseDeprecatedAddRemoveConvMember]
     bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser
     addTeamMemberInternal tid bobMem
     let bob = bobMem^.Teams.userId
@@ -446,17 +449,17 @@ postConvertTeamConv = do
     connectUsers alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     -- creating a team-only conversation containing eve should fail
-    createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just TeamAccessRole) Nothing !!!
+    createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just TeamAccessRole) Nothing Nothing !!!
         const 403 === statusCode
     -- create conversation allowing any type of guest
-    conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing
+    conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing Nothing
     -- mallory joins by herself
     mallory  <- ephemeralUser
     j <- decodeConvCodeEvent <$> postConvCode alice conv
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
         postJoinCodeConv mallory j !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-            wsAssertMemberJoin conv mallory [mallory]
+            wsAssertMemberJoinWithRole conv mallory [mallory] roleNameWireMember
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
         let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
@@ -638,7 +641,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
     g <- view tsGalley
     alice <- randomUser
-    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
+    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -947,22 +950,15 @@ deleteMembersFailO2O = do
 
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
-    g <- view tsGalley
     c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
     connectUsers alice (singleton bob)
     conv  <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+    -- This endpoint should be deprecated but clients still use it
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-        let update = ConversationRename "gossip++"
-        put ( g
-            . paths ["conversations", toByteString' conv]
-            . zUser bob
-            . zConn "conn"
-            . zType "access"
-            . json update
-            ) !!! const 200 === statusCode
-        void. liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+        void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
             let e = List1.head (WS.unpackPayload n)
             ntfTransient n @?= False
             evtConv      e @?= conv
@@ -1017,6 +1013,7 @@ putMemberOk update = do
                   , memOtrArchivedRef = mupOtrArchiveRef update
                   , memHidden = fromMaybe False (mupHidden update)
                   , memHiddenRef = mupHiddenRef update
+                  , memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
                   }
 
     -- Update member state & verify push notification
@@ -1054,7 +1051,6 @@ putMemberOk update = do
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
-    g <- view tsGalley
     c <- view tsCannon
     alice <- randomUser
     bob   <- randomUser
@@ -1068,13 +1064,7 @@ putReceiptModeOk = do
             const (Just Nothing) === fmap cnvReceiptMode . responseJsonUnsafe
 
         -- Set receipt mode
-        put ( g
-         . paths ["conversations", toByteString' cnv, "receipt-mode"]
-         . zUser alice
-         . zConn "conn"
-         . zType "access"
-         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
-         ) !!! const 200 === statusCode
+        putReceiptMode alice cnv (ReceiptMode 0) !!! const 200 === statusCode
 
         -- Ensure the field is properly set
         getConv alice cnv !!! do
@@ -1084,13 +1074,7 @@ putReceiptModeOk = do
         void . liftIO $ checkWs alice (cnv, wsB)
 
         -- No changes
-        put ( g
-         . paths ["conversations", toByteString' cnv, "receipt-mode"]
-         . zUser alice
-         . zConn "conn"
-         . zType "access"
-         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
-         ) !!! const 204 === statusCode
+        putReceiptMode alice cnv (ReceiptMode 0) !!! const 204 === statusCode
         -- No event should have been generated
         WS.assertNoEvent (1 # Second) [wsB]
 
@@ -1163,9 +1147,9 @@ removeUser = do
     liftIO $ do
         (mems1 >>= other bob)  @?= Nothing
         (mems2 >>= other bob)  @?= Nothing
-        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing)
+        (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
         (mems3 >>= other bob)  @?= Nothing
-        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing)
+        (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
   where
     matchMemberLeave conv u n = do
         let e = List1.head (WS.unpackPayload n)
@@ -1173,4 +1157,4 @@ removeUser = do
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= u
-        evtData      e @?= Just (EdMembers (Members [u]))
+        evtData      e @?= Just (EdMembersLeave (UserIdList [u]))

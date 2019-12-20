@@ -1,7 +1,6 @@
 module Galley.API.Update
     ( -- * Managing Conversations
-      updateConversation
-    , acceptConv
+      acceptConv
     , blockConv
     , unblockConv
     , checkReusableCode
@@ -10,13 +9,16 @@ module Galley.API.Update
     , addCode
     , rmCode
     , getCode
+    , updateConversationDeprecated
+    , updateConversationName
     , updateConversationAccess
     , updateConversationReceiptMode
     , updateConversationMessageTimer
 
       -- * Managing Members
     , Galley.API.Update.addMembers
-    , updateMember
+    , updateSelfMember
+    , updateOtherMember
     , removeMember
 
       -- * Talking
@@ -41,6 +43,7 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
+import Data.List (delete)
 import Data.List1
 import Data.Time
 import Galley.App
@@ -55,7 +58,8 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
+import Galley.Types.Conversations.Roles (RoleName, Action(..), roleNameWireMember)
+import Galley.Types.Teams hiding (EventType (..), EventData (..), Event, self)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Network.HTTP.Types
@@ -109,13 +113,14 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
     -- The user who initiated access change has to be a conversation member
     (bots, users) <- botsAndUsers <$> Data.members cnv
     ensureConvMember users usr
-    -- The conversation has to be a group conversation
     conv <- Data.conversation cnv >>= ifNothing convNotFound
+    -- The conversation has to be a group conversation
     ensureGroupConv conv
+    self <- getSelfMember usr users
+    ensureActionAllowed ModifyConversationAccess self
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
-        Just tid -> checkTeamConv tid >>
-                    permissionCheckTeamConv usr cnv ModifyConvMetadata
+        Just tid -> checkTeamConv tid self
         Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
     -- When there is no update to be done, we return 204; otherwise we go
     -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -129,18 +134,14 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
                  (currentRole,   targetRole)
                  users bots
   where
-    checkTeamConv tid = do
-        tMembers <- Data.teamMembers tid
-        -- Only team members can change access mode
-        unless (usr `elem` (view userId <$> tMembers)) $
-            throwM convAccessDenied
+    checkTeamConv tid self = do
         -- Access mode change for managed conversation is not allowed
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
         -- Access mode change might result in members being removed from the
         -- conversation, so the user must have the necessary permission flag
-        void $ permissionCheck usr AddRemoveConvMember tMembers
+        ensureActionAllowed RemoveConversationMember self
 
 uncheckedUpdateConversationAccess
     :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
@@ -201,8 +202,8 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
 updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _) = do
     ConversationReceiptModeUpdate target <- fromJsonBody req
-    permissionCheckTeamConv usr cnv ModifyConvMetadata
     (bots, users) <- botsAndUsers <$> Data.members cnv
+    ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
     current <- Data.lookupReceiptMode cnv
     if current == Just target
         then return $ empty & setStatus status204
@@ -222,11 +223,9 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
     let messageTimer = cupMessageTimer body
     -- checks and balances
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    ensureConvMember users usr
+    ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
-    traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
-    permissionCheckTeamConv usr cnv ModifyConvMetadata
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -237,11 +236,6 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
         Data.updateConversationMessageTimer cnv messageTimer
         pushEvent e users bots zcon
         return $ json e & setStatus status200
-  where
-    ensureTeamMember tid = do
-        tMembers <- Data.teamMembers tid
-        unless (usr `elem` (view userId <$> tMembers)) $
-            throwM convAccessDenied
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -333,73 +327,72 @@ joinConversation zusr zcon cnv access = do
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
+    -- NOTE: When joining conversations, all users become members
+    -- as this is our desired behavior for these types of conversations
+    -- where there is no way to control who joins, etc.
+    addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((, roleNameWireMember) <$> newUsers) conv
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req) = do
     body <- fromJsonBody req
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
+    self <- getSelfMember zusr (snd mems)
+    ensureActionAllowed AddConversationMember self
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     ensureAccess conv InviteAccess
+    ensureConvRoleNotElevated self (invRoleName body)
     case Data.convTeam conv of
         Nothing -> do
-            ensureConvMember (snd mems) zusr
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
-    addToConversation mems zusr zcon newUsers conv
+    addToConversation mems (zusr, memConvRoleName self) zcon ((, invRoleName body) <$> newUsers) conv
   where
     teamConvChecks tid newUsers conv = do
-        tms <- Data.teamMembers tid
+        tms <- Data.teamMembersLimited tid newUsers
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
-        -- Team members are alwasy considered connected, so we only check 'ensureConnected'
+        -- Team members are always considered connected, so we only check 'ensureConnected'
         -- for non-team-members.
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
 
-updateMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
-updateMember (zusr ::: zcon ::: cid ::: req) = do
-    alive <- Data.isConvAlive cid
-    unless alive $ do
-        Data.deleteConversation cid
-        throwM convNotFound
+updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
+updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
+    conv <- getConversationAndCheckMembership zusr cid
     body <- fromJsonBody req
-    m    <- Data.member cid zusr >>= ifNothing convNotFound
-    up   <- Data.updateMember cid zusr body
-    now  <- liftIO getCurrentTime
-    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
-    let ms = applyChanges m up
-    for_ (newPush (evtFrom e) (ConvEvent e) [recipient ms]) $ \p ->
-        push1 $ p
-              & pushConn  ?~ zcon
-              & pushRoute .~ RouteDirect
+    m    <- getSelfMember zusr (Data.convMembers conv)
+    -- Ensure no self role upgrades
+    for_ (mupConvRoleName body) $ ensureConvRoleNotElevated m
+    void $ processUpdateMemberEvent zusr zcon cid [m] m body
     return empty
-  where
-    applyChanges :: Member -> MemberUpdateData -> Member
-    applyChanges m u = m
-        { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
-        , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
-        , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
-        , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
-        , memHidden         = fromMaybe (memHidden m) (misHidden u)
-        , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
-        }
+
+updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
+updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
+    when (zusr == victim) $
+        throwM invalidTargetUserOp
+    conv <- getConversationAndCheckMembership zusr cid
+    let (bots, users) = botsAndUsers (Data.convMembers conv)
+    body <- fromJsonBody req
+    ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
+    memTarget <- getOtherMember victim users
+    e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate { mupConvRoleName = omuConvRoleName body })
+    void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+    return empty
 
 removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers conv)
+    genConvChecks conv users
     case Data.convTeam conv of
-        Nothing -> regularConvChecks users
+        Nothing -> pure ()
         Just ti -> teamConvChecks ti
-    ensureGroupConv conv
     if victim `isMember` users then do
         e <- Data.removeMembers conv zusr (singleton victim)
         for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
@@ -409,12 +402,13 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
     else
         return $ empty & setStatus status204
   where
-    regularConvChecks users =
-        unless (zusr `isMember` users) $ throwM convNotFound
+    genConvChecks conv usrs = do
+        ensureGroupConv conv
+        if zusr == victim
+            then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
+            else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
 
     teamConvChecks tid = do
-        unless (zusr == victim) $
-            void $ permissionCheck zusr AddRemoveConvMember =<< Data.teamMembers tid
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
@@ -493,17 +487,18 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushTransient      (newOtrTransient msg)
             in (toBots, p:toUsers)
 
-updateConversation :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
-updateConversation (zusr ::: zcon ::: cnv ::: req) = do
+updateConversationDeprecated :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversationDeprecated (zusr ::: zcon ::: cnv ::: req) = updateConversationName (zusr ::: zcon ::: cnv ::: req)
+
+updateConversationName :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversationName (zusr ::: zcon ::: cnv ::: req) = do
     body <- fromJsonBody req
-    permissionCheckTeamConv zusr cnv ModifyConvMetadata
     alive <- Data.isConvAlive cnv
     unless alive $ do
         Data.deleteConversation cnv
         throwM convNotFound
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    unless (zusr `isMember` users) $
-        throwM convNotFound
+    ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
     now <- liftIO getCurrentTime
     cn  <- rangeChecked (cupName body)
     Data.updateConversation cnv cn
@@ -559,13 +554,12 @@ addBot (zusr ::: zcon ::: req) = do
         unless (zusr `isMember` users) $
             throwM convNotFound
         ensureGroupConv c
+        ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
         unless (any ((== b^.addBotId) . botMemId) bots) $
             ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b^.addBotId)]
         return (bots, users)
 
     teamConvChecks cid tid = do
-        tms <- Data.teamMembers tid
-        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
@@ -581,7 +575,7 @@ rmBot (zusr ::: zcon ::: req) = do
         then return $ setStatus status204 empty
         else do
             t <- liftIO getCurrentTime
-            let evd = Just (EdMembers (Members [botUserId (b^.rmBotId)]))
+            let evd = Just (EdMembersLeave (UserIdList [botUserId (b^.rmBotId)]))
             let e = Event MemberLeave (Data.convId c) zusr t evd
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
                 push1 $ p & pushConn .~ zcon
@@ -593,13 +587,13 @@ rmBot (zusr ::: zcon ::: req) = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> Galley Response
-addToConversation _              _   _    [] _ = return $ empty & setStatus status204
-addToConversation (bots, others) usr conn xs c = do
+addToConversation :: ([BotMember], [Member]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> Data.Conversation -> Galley Response
+addToConversation _              _             _    [] _ = return $ empty & setStatus status204
+addToConversation (bots, others) (usr,usrRole) conn xs c = do
     ensureGroupConv c
     mems    <- checkedMemberAddSize xs
     now     <- liftIO getCurrentTime
-    (e, mm) <- Data.addMembers now (Data.convId c) usr mems
+    (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn
     void . forkIO $ void $ External.deliver (bots `zip` repeat e)
@@ -638,6 +632,34 @@ ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM convAccessDenied
 
+applyMemUpdateChanges :: Member -> MemberUpdateData -> Member
+applyMemUpdateChanges m u = m
+    { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
+    , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
+    , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
+    , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
+    , memHidden         = fromMaybe (memHidden m) (misHidden u)
+    , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
+    , memConvRoleName   = fromMaybe (memConvRoleName m) (misConvRoleName u)
+    }
+
+processUpdateMemberEvent :: UserId
+                         -> ConnId
+                         -> ConvId
+                         -> [Member]
+                         -> Member
+                         -> MemberUpdate
+                         -> Galley Event
+processUpdateMemberEvent zusr zcon cid users target update = do
+    up   <- Data.updateMember cid (memId target) update
+    now  <- liftIO getCurrentTime
+    let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+    let ms = applyMemUpdateChanges target up
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+        push1 $ p
+              & pushConn  ?~ zcon
+              & pushRoute .~ RouteDirect
+    return e
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
 

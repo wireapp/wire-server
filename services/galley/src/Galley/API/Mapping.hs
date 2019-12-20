@@ -24,7 +24,7 @@ conversationView u Data.Conversation{..} = do
     let (name, mems) = (convName, ConvMembers m (map toOther them))
     return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer convReceiptMode
   where
-    toOther x = OtherMember (memId x) (memService x)
+    toOther x = OtherMember (memId x) (memService x) (memConvRoleName x)
 
     memberNotFound = do
         Log.err . msg $ val "User "

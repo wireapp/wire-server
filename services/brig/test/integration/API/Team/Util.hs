@@ -16,6 +16,7 @@ import Data.Id hiding (client)
 import Data.Misc (Milliseconds)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvUnmanaged (..), NewConvManaged (..))
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Test.Tasty.HUnit
 import Util
 
@@ -101,7 +102,7 @@ createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Mayb
 createTeamConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -117,7 +118,7 @@ createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> M
 createManagedConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
     r <- post ( g
               . path "/i/conversations/managed"
               . zUser u

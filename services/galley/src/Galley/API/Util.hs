@@ -15,16 +15,18 @@ import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
+import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate
+import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 
-import qualified Data.Set       as Set
-import qualified Data.Text.Lazy as LT
-import qualified Galley.Data    as Data
+import qualified Data.Set          as Set
+import qualified Data.Text.Lazy    as LT
+import qualified Galley.Data       as Data
+import qualified Galley.Data.Types as DataTypes
 
 type JSON = Media "application" "json"
 
@@ -60,6 +62,33 @@ ensureReAuthorised u secret = do
     reAuthed <- reAuthUser u (ReAuthUser secret)
     unless reAuthed $
         throwM reAuthFailed
+
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+-- If not, throw 'Member'; if the user is found and does not have the given permission, throw
+-- 'operationDenied'.  Otherwise, return the found user.
+ensureActionAllowed :: Action -> Member -> Galley ()
+ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
+    Just True  -> return ()
+    Just False -> throwM (actionDenied action)
+    Nothing    -> throwM (badRequest "Custom roles not supported")
+               -- ^ Actually, this will "never" happen due to the
+               --   fact that there can be no custom roles at the moment
+
+-- | Ensure that the set of actions provided are not "greater" than the user's
+--   own. This is used to ensure users cannot "elevate" allowed actions
+--   This function needs to be review when custom roles are introduced since only
+--   custom roles can cause `roleNameToActions` to return a Nothing
+ensureConvRoleNotElevated :: Member -> RoleName -> Galley ()
+ensureConvRoleNotElevated origMember targetRole = do
+    case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
+         (Just targetActions, Just memberActions) ->
+            unless (Set.isSubsetOf targetActions memberActions) $
+                throwM invalidActions
+         (_                 , _                 ) ->
+            throwM (badRequest "Custom roles not supported")
+            -- ^ Actually, this will "never" happen due to the
+            --   fact that there can be no custom roles at the moment
 
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
@@ -162,3 +191,33 @@ convMembsAndTeamMembs convMembs teamMembs
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+
+-- Note that we use 2 nearly identical functions but slightly different
+-- semantics; when using `getSelfMember`, if that user is _not_ part of
+-- the conversation, we don't want to disclose that such a conversation
+-- with that id exists.
+getSelfMember :: Foldable t => UserId -> t Member -> Galley Member
+getSelfMember = getMember convNotFound
+
+getOtherMember :: Foldable t => UserId -> t Member -> Galley Member
+getOtherMember = getMember convMemberNotFound
+
+getMember :: Foldable t => Error -> UserId -> t Member -> Galley Member
+getMember ex u ms = do
+    let member = find ((u ==) . memId) ms
+    case member of
+        Just m  -> return m
+        Nothing -> throwM ex
+
+getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
+
+getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr cnv = do
+    c <- Data.conversation cnv >>= ifNothing convNotFound
+    when (DataTypes.isConvDeleted c) $ do
+        Data.deleteConversation cnv
+        throwM convNotFound
+    unless (zusr `isMember` Data.convMembers c) $
+        throwM ex
+    return c
