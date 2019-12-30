@@ -641,12 +641,20 @@ testNonSearchableAcrossTeam opts brig galley = do
         cName = fromName $ userName creatorWithHandle
         Just iHandle = fromHandle <$> userHandle inviteeWithHandle
         Just oHandle = fromHandle <$> userHandle creatorOtherWithHandle
+        oName = fromName $ userName creatorOtherWithHandle
 
     -- users are searchable by default
     assertSearchable "user is searchable" brig uid1 True
     assertCanFind brig uid2 uid1 uHandle
     -- users are also searcheable by name
-    assertCanFind brig uid2 uid1 uName
+    assertCanFind brig uid3 uid1 uName
+
+    -- team users can also be made searchable
+    updateSearchableStatus brig uid4 optIn
+    assertSearchable "user is searchable" brig uid4 True
+    refreshIndex brig
+    assertCanFind brig uid2 uid4 oHandle
+    assertCanFind brig uid3 uid4 oName
 
     -- team owners are not searchable by default
     assertSearchable "owner isn't searchable" brig uid2 False
@@ -660,10 +668,13 @@ testNonSearchableAcrossTeam opts brig galley = do
     updateSearchableStatus brig uid2 optIn
     refreshIndex brig
 
-    -- he is searchable for uid1, uid3 and uid4 now
+    -- uid2 is searchable for uid1, uid3 and uid4 now
     assertCanFind brig uid1 uid2 cHandle
+    assertCanFind brig uid1 uid2 cName
     assertCanFind brig uid3 uid2 cHandle
+    assertCanFind brig uid3 uid2 cName
     assertCanFind brig uid4 uid2 cHandle
+    assertCanFind brig uid4 uid2 cName
 
     let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
     withSettingsOverrides newOpts $ do
@@ -672,7 +683,8 @@ testNonSearchableAcrossTeam opts brig galley = do
         assertCan'tFind brig uid2 uid1 uName
         -- and also not across
         assertCan'tFind brig uid3 uid4 oHandle
-        -- uid3 can find uid2 because they are on the same team
+        assertCan'tFind brig uid3 uid4 oName
+        -- uid3 can find uid2 because uid2 is visible and they are on the same team
         assertCanFind brig uid3 uid2 cHandle
         assertCanFind brig uid3 uid2 cName
 
