@@ -77,7 +77,7 @@ runTests iConf bConf otherArgs = do
     userApi     <- User.tests brigOpts mg b c ch g n awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
-    teamApis    <- Team.tests bConf mg b c g awsEnv
+    teamApis    <- Team.tests brigOpts mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
     metricsApi  <- Metrics.tests mg b
     settingsApi <- Settings.tests brigOpts mg b g

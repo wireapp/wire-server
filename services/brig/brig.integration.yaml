@@ -151,6 +151,11 @@ optSettings:
   setPropertyMaxKeyLen: 1024
   setPropertyMaxValueLen: 4096
   setDeleteThrottleMillis: 0
+  # NOTE: this filters out search results for team users,
+  # i.e., if you are a team user the search endpoints will
+  # return only users part of the same team. For name search,
+  # this is slightly more inefficient as it requires 2 extra DB lookups
+  # setSearchSameTeamOnly: false
 
 logLevel: Warn
 logNetStrings: false

@@ -1189,7 +1189,7 @@ listUsers (_ ::: self ::: qry) = case qry of
     Left  us -> toResponse =<< byIds (fromList us)
     Right hs -> do
         us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
-        sameTeamSearchOnly <- fromMaybe False <$> view (settings . handleSearchSameTeamOnly)
+        sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
         toResponse =<< if sameTeamSearchOnly
             then sameTeamOnly =<< byIds us
             else byIds us

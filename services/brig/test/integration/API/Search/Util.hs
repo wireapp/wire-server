@@ -4,6 +4,7 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types
+import Control.Monad.Catch    (MonadCatch)
 import Data.Aeson             (decode, encode)
 import Data.Id
 import Data.Text.Encoding     (encodeUtf8)
@@ -15,7 +16,7 @@ optIn,optOut :: SearchableStatus
 optIn  = SearchableStatus True
 optOut = SearchableStatus False
 
-updateSearchableStatus :: HasCallStack => Brig -> UserId -> SearchableStatus -> Http ()
+updateSearchableStatus :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> SearchableStatus -> m ()
 updateSearchableStatus brig uid status =
     put ( brig
         . path "/self/searchable"
@@ -24,7 +25,7 @@ updateSearchableStatus brig uid status =
         . body (RequestBodyLBS (encode status))
         ) !!!  const 200 === statusCode
 
-executeSearch :: HasCallStack => Brig -> UserId -> Text -> Http (Maybe (SearchResult Contact))
+executeSearch :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (Maybe (SearchResult Contact))
 executeSearch brig self q = do
     r <- get ( brig
              . path "/search/contacts"
@@ -33,11 +34,11 @@ executeSearch brig self q = do
              ) <!! const 200 === statusCode
     return . decode . fromMaybe "" $ responseBody r
 
-refreshIndex :: HasCallStack => Brig -> Http ()
+refreshIndex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 refreshIndex brig =
     post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-reindex :: HasCallStack => Brig -> Http ()
+reindex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 reindex brig =
     post (brig . path "/i/index/reindex") !!! const 200 === statusCode
 
@@ -46,7 +47,7 @@ randomUserWithHandle brig = do
     u <- randomUser brig
     setRandomHandle brig u
 
-setRandomHandle :: HasCallStack => Brig -> User -> Http User
+setRandomHandle :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> m User
 setRandomHandle brig user = do
     h <- randomHandle
     put ( brig
@@ -58,7 +59,7 @@ setRandomHandle brig user = do
         ) !!!  const 200 === statusCode
     return user { userHandle = Just (Handle h) }
 
-assertCanFind :: HasCallStack => Brig -> UserId -> UserId -> Text -> Http ()
+assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCanFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO $ do
@@ -67,13 +68,13 @@ assertCanFind brig self expected q = do
         assertBool ("User not in results for query: " <> show q) $
             elem expected . map contactUserId $ r
 
-assertCan'tFind :: HasCallStack => Brig -> UserId -> UserId -> Text -> Http ()
+assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO .  assertBool ("User unexpectedly in results for query: " <> show q) $
         notElem expected . map contactUserId $ r
 
-assertSearchable :: HasCallStack => String -> (Request -> Request) -> UserId -> Bool -> Http ()
+assertSearchable :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => String -> (Request -> Request) -> UserId -> Bool -> m ()
 assertSearchable label brig uid status = do
     response <- get (brig . path "/self/searchable" . zUser uid)
     liftIO $ assertEqual (label ++ ", statuscode") 200 (statusCode response)
