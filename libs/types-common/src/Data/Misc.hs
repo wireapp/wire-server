@@ -25,6 +25,7 @@ module Data.Misc
 
       -- * HttpsUrl
     , HttpsUrl (..), mkHttpsUrl
+    , HttpHeader (..), mkHttpHeader
 
       -- * Fingerprint
     , Fingerprint (..)
@@ -43,6 +44,7 @@ import Data.Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
+import Data.CaseInsensitive (mk)
 import Data.Int (Int64)
 import Data.IP (IP)
 import Data.Range
@@ -54,6 +56,7 @@ import Cassandra
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck (Arbitrary(..))
 #endif
+import Network.HTTP.Types.Header
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
 
@@ -223,6 +226,30 @@ instance Cql HttpsUrl where
     fromCql _           = fail "HttpsUrl: Expected CqlBlob"
 #endif
 
+--------------------------------------------------------------------------------
+-- Http Header
+
+newtype HttpHeader = HttpHeader
+    { unHttpHeader :: Header
+    } deriving (Eq, Show)
+
+mkHttpHeader :: Text -> Text -> HttpHeader
+mkHttpHeader k v = HttpHeader (mk $ encodeUtf8 k, encodeUtf8 v)
+
+instance FromJSON HttpHeader where
+    parseJSON = withText "HttpHeader" undefined
+
+instance ToJSON HttpHeader where
+    toJSON = undefined
+
+#ifdef WITH_CQL
+instance Cql HttpHeader where
+    ctype = Tagged BlobColumn
+    toCql = CqlBlob . toByteString
+
+    fromCql (CqlBlob t) = runParser parser (toStrict t)
+    fromCql _           = fail "HttpHeader: Expected CqlBlob"
+#endif
 --------------------------------------------------------------------------------
 -- Fingerprint
 

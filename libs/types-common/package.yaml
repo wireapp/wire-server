@@ -22,6 +22,7 @@ library:
   - base64-bytestring >=1.0
   - bytestring >=0.10
   - bytestring-conversion >=0.2
+  - case-insensitive >=1.0
   - containers >=0.5
   - cryptohash-md5 >=0.11.7.2
   - cryptohash-sha1 >=0.11.7.2
@@ -31,6 +32,7 @@ library:
   - errors >=2.0
   - ghc-prim
   - hashable >=1.2
+  - http-types >=0.12
   - iproute >=1.5
   - optparse-applicative >=0.10
   - lens >=4.10

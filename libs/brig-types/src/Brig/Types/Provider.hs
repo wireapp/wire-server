@@ -13,6 +13,7 @@ module Brig.Types.Provider
       -- * Re-exports
     , module Common
     , HttpsUrl (..)
+    , HttpHeader (..)
     , ServiceToken (..)
     , ServiceTag (..)
     ) where
@@ -28,7 +29,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.List1 (List1)
-import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
+import Data.Misc (HttpsUrl (..), HttpHeader (..), PlainTextPassword (..))
 import Data.PEM
 import Data.Range
 import Data.Singletons.TypeLits
