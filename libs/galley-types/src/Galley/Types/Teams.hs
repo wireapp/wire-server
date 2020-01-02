@@ -240,6 +240,7 @@ data Permissions = Permissions
     , _copy :: Set Perm
     } deriving (Eq, Ord, Show, Generic)
 
+-- | Team-level permission.  Analog to conversation-level 'Action'.
 data Perm =
       CreateConversation
     | DoNotUseDeprecatedDeleteConversation  -- NOTE: This gets now overruled by conv level checks
@@ -260,6 +261,7 @@ data Perm =
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+-- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
     deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
