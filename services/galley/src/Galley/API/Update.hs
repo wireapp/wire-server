@@ -346,7 +346,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
     case Data.convTeam conv of
         Nothing -> do
             ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
-            ensureConnected zusr newUsers
+            ensureConnectedOrSameTeam zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv (invRoleName body)
   where
@@ -358,8 +358,7 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
             throwM noAddToManaged
         -- Team members are always considered connected, so we only check 'ensureConnected'
         -- for non-team-members.
-        let guests = notTeamMember newUsers tms
-        ensureConnected zusr guests
+        ensureConnectedOrSameTeam zusr newUsers
 
 updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
 updateSelfMember (zusr ::: zcon ::: cid ::: req) = do

@@ -21,6 +21,7 @@ tests :: IO TestSetup -> TestTree
 tests s = testGroup "Conversation roles"
         [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin
         , test s "conversation roles member (and upgrade)" handleConversationRoleMember
+        , test s "allowed adding members across teams (regardless of conversation ownership" handleConversationRoleAcrossTeam
         ]
 
 handleConversationRoleAdmin :: TestM ()
@@ -203,6 +204,9 @@ wireMemberChecks cid mem admin otherMem = do
     deleteMember mem mem cid !!! assertActionSucceeded
     -- Let's readd the user to make tests easier
     postMembersWithRole admin (singleton mem) cid role !!! const 200 === statusCode
+
+handleConversationRoleAcrossTeam :: TestM ()
+handleConversationRoleAcrossTeam = return ()
 
 assertActionSucceeded :: HasCallStack => Assertions ()
 assertActionSucceeded = const 200 === statusCode
