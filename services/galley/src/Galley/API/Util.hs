@@ -43,6 +43,10 @@ ensureAccessRole role users mbTms = case role of
         when (length activated /= length users) $ throwM convAccessDenied
     NonActivatedAccessRole -> return ()
 
+ensureConnectedOrSameTeam :: UserId -> [UserId] -> Galley ()
+ensureConnectedOrSameTeam _ []   = pure ()
+ensureConnectedOrSameTeam u uids = ensureConnected u uids
+
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
