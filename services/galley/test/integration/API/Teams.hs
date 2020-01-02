@@ -593,7 +593,7 @@ testAddTeamMemberToConv = do
     Util.postMembers ownerT1 (list1 (mem2T1^.userId) []) cidT1 !!! const 200 === statusCode
     Util.assertConvMember (mem2T1^.userId) cidT1
 
-    -- The following tests check the logic: users can add other users to a conversatio
+    -- The following tests check the logic: users can add other users to a conversation
     -- iff:
     --    - *the adding user is connected to the users being added*
     --    OR
