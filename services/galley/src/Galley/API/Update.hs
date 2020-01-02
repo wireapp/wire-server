@@ -357,8 +357,6 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
-        -- Team members are always considered connected, so we only check 'ensureConnected'
-        -- for non-team-members.
         ensureConnectedOrSameTeam zusr newUsers
 
 updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
