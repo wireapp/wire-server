@@ -62,6 +62,7 @@ tests s = testGroup "Teams API"
     , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
+    -- Queue is emptied here to ensure that lingering events do not affect other tests
     , test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty)
     , test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin)
     , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember)
@@ -641,9 +642,6 @@ testAddTeamMemberToConv = do
     -- Users *can* add across teams if *connected*
     Util.postMembers ownerT1 (list1 ownerT2 []) cidPersonal !!! const 200 === statusCode
     Util.assertConvMember ownerT2 cidPersonal
-
-    -- We don't care about these events now, we just empty the queue
-    ensureQueueEmpty
 
 testUpdateTeamConv
     :: Role     -- ^ Team role of the user who creates the conversation
