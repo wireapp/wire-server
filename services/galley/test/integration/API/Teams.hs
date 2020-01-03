@@ -588,7 +588,7 @@ testAddTeamMemberToConv = do
     Util.assertNotConvMember (mem2T1^.userId) cidT1
 
     -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
-    -- However, all users are admins by default
+    -- since conversation roles trump any team roles. Note that all users are admins by default
     Util.assertConvMember ownerT1 cidT1
     Util.postMembers ownerT1 (list1 (mem2T1^.userId) []) cidT1 !!! const 200 === statusCode
     Util.assertConvMember (mem2T1^.userId) cidT1
@@ -605,16 +605,18 @@ testAddTeamMemberToConv = do
     -- And they can add their own team members
     Util.postMembers ownerT2 (list1 (mem1T2^.userId) []) cidT1 !!! const 200 === statusCode
     Util.assertConvMember (mem1T2^.userId) cidT1
-    -- Still, they cannot add random members from T1, despite the conversation being "hosted" there
+    -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
     Util.postMembers ownerT2 (list1 (mem4T1^.userId) []) cidT1 !!! const 403 === statusCode
     Util.assertNotConvMember (mem4T1^.userId) cidT1
 
     -- Now let's look at convs hosted on team2
     -- ownerT2 *is* connected to ownerT1
     Util.postMembers ownerT2 (list1 ownerT1 []) cidT2 !!! const 200 === statusCode
-    Util.assertConvMember ownerT2 cidT2
+    Util.assertConvMember ownerT1 cidT2
     -- and mem1T2 is on the same team, but mem1T1 is *not*
     Util.postMembers ownerT2 (list1 (mem1T2^.userId) [mem1T1^.userId]) cidT2 !!! const 403 === statusCode
+    Util.assertNotConvMember (mem1T1^.userId) cidT2
+    Util.assertNotConvMember (mem1T2^.userId) cidT2
     -- mem1T2 is on the same team, so that is fine too
     Util.postMembers ownerT2 (list1 (mem1T2^.userId) []) cidT2 !!! const 200 === statusCode
     Util.assertConvMember (mem1T2^.userId) cidT2
@@ -624,7 +626,7 @@ testAddTeamMemberToConv = do
 
     -- For personal conversations, same logic applies
 
-    -- Can add users that am connected to
+    -- Can add connected users
     Util.postMembers personalUser (list1 ownerT1 []) cidPersonal !!! const 200 === statusCode
     Util.assertConvMember ownerT1 cidPersonal
     -- Can *not* add users that are *not* connected
