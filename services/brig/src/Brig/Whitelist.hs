@@ -2,51 +2,34 @@
 --
 -- Email/phone whitelist.
 module Brig.Whitelist
-    ( Whitelist (..)
-    , InternalWhitelist (..)
-    , verifyInternal
+    ( verifyInternal
     , verifyService
     ) where
 
 import Imports
-import Data.Aeson
-import Data.Aeson.TH (deriveJSON)
+import Brig.App (AppIO)
 import Bilge.IO
 import Bilge.Request
 import Bilge.Response
 import Bilge.Retry
 import Brig.Types
+import Brig.Options (Whitelist (..), InternalWhitelist (..))
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Retry
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
-import Util.Options.Common (toOptionFieldName)
 
+import qualified Brig.API.User as User
 import qualified Data.Text as T
-
--- | A service providing a whitelist of allowed email addresses and phone numbers
--- DEPRECATED: use internal whitelisting instead!
-data Whitelist = Whitelist
-    { whitelistUrl  :: !Text     -- ^ Service URL
-    , whitelistUser :: !Text     -- ^ Service Username (basic auth)
-    , whitelistPass :: !Text     -- ^ Service Password (basic auth)
-
-    } deriving (Show, Generic)
-
-instance FromJSON Whitelist
-
-data InternalWhitelist = InternalWhitelist
-    { internalWhitelistDomains :: ![Text]} deriving (Show, Generic)
-
-deriveJSON toOptionFieldName 'internalWhitelistDomains
 
 -- | Check internal whitelist for given email/phone number. Currently this
 -- consults a statically configured whitelist of allowed email domains..
-verifyInternal :: InternalWhitelist -> Either Email Phone -> Bool
+verifyInternal :: InternalWhitelist -> Either Email Phone -> AppIO Bool
 verifyInternal (InternalWhitelist domains) key =
     let allowFromDomains (Left e) = (emailDomain e) `elem` domains
         allowFromDomains _        = False
-    in allowFromDomains key
+
+    in liftA2 (||) (pure $ allowFromDomains key) (User.isWhitelisted key)
 
 -- | Do a request to the whitelist service and verify that the provided email/phone address is
 -- whitelisted.

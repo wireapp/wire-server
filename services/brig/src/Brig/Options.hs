@@ -8,15 +8,16 @@ import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
-import Brig.Whitelist (Whitelist(..), InternalWhitelist(..))
 import qualified Control.Lens as Lens
-import Data.Aeson.Types (typeMismatch)
 import Data.Aeson (withText)
+import Data.Aeson.TH (deriveJSON)
+import Data.Aeson.Types (typeMismatch)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml (FromJSON(..), ToJSON(..))
 import Util.Options
+import Util.Options.Common (toOptionFieldName)
 import System.Logger.Extended (Level, LogFormat)
 
 import qualified Brig.ZAuth  as ZAuth
@@ -234,6 +235,24 @@ instance ToJSON EmailVisibility where
     toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
     toJSON EmailVisibleToSelf   = "visible_to_self"
 
+
+-- | A service providing a whitelist of allowed email addresses and phone numbers
+-- DEPRECATED: use internal whitelisting instead!
+data Whitelist = Whitelist
+    { whitelistUrl  :: !Text     -- ^ Service URL
+    , whitelistUser :: !Text     -- ^ Service Username (basic auth)
+    , whitelistPass :: !Text     -- ^ Service Password (basic auth)
+
+    } deriving (Show, Generic)
+
+instance FromJSON Whitelist
+
+data InternalWhitelist = InternalWhitelist
+    { internalWhitelistDomains :: ![Text]} deriving (Show, Generic)
+
+deriveJSON toOptionFieldName 'internalWhitelistDomains
+
+
 -- | Options that are consumed on startup
 data Opts = Opts
     -- services
@@ -350,6 +369,7 @@ instance FromJSON Opts
 -- TODO: Does it make sense to generate lens'es for all?
 Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
 Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
+Lens.makeLensesFor [("setInternalWhitelist", "internalWhitelist")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings
 Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
