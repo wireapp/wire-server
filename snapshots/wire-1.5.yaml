@@ -1,0 +1,6 @@
+# DO NOT MODIFY THIS FILE. See README.md to learn why.
+
+resolver: https://raw.githubusercontent.com/wireapp/wire-server/develop/snapshots/wire-1.4.yaml
+name: wire-1.5
+
+compiler: ghc-8.4.4

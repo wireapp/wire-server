@@ -1,4 +1,5 @@
-resolver: snapshots/wire-1.4.yaml
+resolver: snapshots/wire-1.5.yaml
+compiler: ghc-8.4.4
 
 packages:
 - libs/api-bot
