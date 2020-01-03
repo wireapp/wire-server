@@ -11,7 +11,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Control.Arrow ((&&&))
-import Control.Lens ((^?), (^.))
+import Control.Lens ((^?), (^.), (.~))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Lens
@@ -51,7 +51,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _ at _ p b c ch g aws = testGroup "account"
+tests _ at opts p b c ch g aws = testGroup "account"
     [ test' aws p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b aws
     , test' aws p "post /register - 201"                     $ testCreateUser b g
     , test' aws p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
@@ -62,6 +62,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
+    , test' aws p "post /register - 403 whitelist"           $ testCreateUserWhitelist b opts
     , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
     , test' aws p "get /users/:uid - 404"                    $ testNonExistingUser b
@@ -311,6 +312,21 @@ testCreateUserBlacklist brig aws =
         when (statusCode r == 404 && n > 0) $ do
             liftIO $ threadDelay 1000000
             awaitBlacklist (n-1) e
+
+testCreateUserWhitelist :: Brig -> Maybe Opt.Opts -> Http ()
+testCreateUserWhitelist _ Nothing = error "no options"
+testCreateUserWhitelist brig (Just opts) = do
+    e <- randomEmail
+    withSettingsOverrides whitelistEnabled $ do
+        post (brig . path "/register" . contentJson . body (p e)) !!! const 403 === statusCode
+    return ()
+  where
+    whitelistEnabled :: Opt.Opts
+    whitelistEnabled = opts & Opt.optionSettings . Opt.internalWhitelist .~ (Just $ Opt.InternalWhitelist [])
+    p email = RequestBodyLBS . encode $ object [ "name"     .= ("Alice" :: Text)
+                                               , "email"    .= email
+                                               , "password" .= defPassword
+                                               ]
 
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do

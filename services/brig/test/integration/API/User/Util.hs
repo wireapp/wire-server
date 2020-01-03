@@ -126,6 +126,16 @@ removeBlacklist :: Brig -> Email -> Http ()
 removeBlacklist brig email =
     void $ delete (brig . path "/i/users/blacklist" . queryItem "email" (toByteString' email))
 
+-- Add email to internal whitelist
+addWhitelist :: Brig -> Email -> Http ()
+addWhitelist brig email =
+    void $ post (brig . path "/i/users/whitelist" . queryItem "email" (toByteString' email))
+
+-- Remove email from internal whitelist
+removeWhitelist :: Brig -> Email -> Http ()
+removeWhitelist brig email =
+    void $ delete (brig . path "/i/users/whitelist" . queryItem "email" (toByteString' email))
+
 getClient :: Brig -> UserId -> ClientId -> Http ResponseLBS
 getClient brig u c = get $ brig
     . paths ["clients", toByteString' c]
