@@ -43,6 +43,21 @@ ensureAccessRole role users mbTms = case role of
         when (length activated /= length users) $ throwM convAccessDenied
     NonActivatedAccessRole -> return ()
 
+-- | Check that the given user is either part of the same team(s) as the other
+-- users OR that there is a connection.
+--
+-- Team members are always considered connected, so we only check 'ensureConnected'
+-- for non-team-members of the _given_ user
+ensureConnectedOrSameTeam :: UserId -> [UserId] -> Galley ()
+ensureConnectedOrSameTeam _ []   = pure ()
+ensureConnectedOrSameTeam u uids = do
+    uTeams <- Data.userTeams u
+    -- We collect all the relevant uids from same teams as the origin user
+    sameTeamUids <- forM uTeams $ \team ->
+        fmap (view userId) <$> Data.teamMembersLimited team uids
+    -- Do not check connections for users that are on the same team
+    ensureConnected u (uids \\ join sameTeamUids)
+
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
