@@ -56,7 +56,7 @@ ensureConnectedOrSameTeam u uids = do
     sameTeamUids <- forM uTeams $ \team ->
         fmap (view userId) <$> Data.teamMembersLimited team uids
     -- Do not check connections for users that are on the same team
-    ensureConnected u (uids \\ (join sameTeamUids))
+    ensureConnected u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
