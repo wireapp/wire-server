@@ -53,6 +53,7 @@ import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 import qualified System.Logger.Class as Log
 
+import qualified Web.Scim.AttrName                as Scim
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
 import qualified Web.Scim.Handler                 as Scim

@@ -207,7 +207,7 @@ testRichInfo = do
             => Scim.UserC.StoredUser SparTag -> RichInfo -> TestSpar ()
         checkStoredUser storedUser rinf = liftIO $ do
             (Scim.User.extra . Scim.value . Scim.thing) storedUser
-                `shouldBe` (ScimUserExtra rinf)
+                `shouldBe` (ScimUserExtra rinf minBound)
 
         -- validate server state after the fact
         probeUser

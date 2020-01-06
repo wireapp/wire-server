@@ -8,16 +8,24 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
+{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
+
 module Test.Spar.ScimSpec where
 
 import Imports
-import Brig.Types.User (emptyRichInfo)
+import Brig.Types.Test.Arbitrary
+import Brig.Types.User (RichInfo(..), RichField(..), emptyRichInfo, normalizeAndSortRichInfo)
+import Control.Lens ((%~), (.~))
+import Data.Aeson (encode, eitherDecode')
 import Data.Id
 import Network.URI (parseURI)
 import Spar.Scim
 import Test.Hspec
+import Test.QuickCheck
 import URI.ByteString
 
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.Text                        as T
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Web.Scim.Class.User as ScimC
@@ -62,7 +70,7 @@ spec = describe "toScimStoredUser'" $ do
           , Scim.entitlements = []
           , Scim.roles = []
           , Scim.x509Certificates = []
-          , Scim.extra = ScimUserExtra emptyRichInfo
+          , Scim.extra = ScimUserExtra emptyRichInfo minBound
           }
 
         meta :: Scim.Meta
@@ -85,3 +93,34 @@ spec = describe "toScimStoredUser'" $ do
 
     Scim.meta result `shouldBe` meta
     Scim.value (Scim.thing result) `shouldBe` usr
+
+  it "roundtrips" . property $ do
+      \(sue :: ScimUserExtra) ->
+        eitherDecode' (encode sue) `shouldBe` Right (sue & sueRichInfo %~ normalizeScimUserExtra)
+
+
+z :: IO ()
+z = hspec $
+  it "roundtrips" . property $ do
+      \(sue :: ScimUserExtra) ->
+        eitherDecode' (encode sue) `shouldBe` Right (normalizeScimUserExtra sue)
+
+
+x :: ScimUserExtra
+x = ScimUserExtra {_sueRichInfo = RichInfo {richInfoFields = [RichField {richFieldType = "T", richFieldValue = ";m"},RichField {richFieldType = "T\180192", richFieldValue = "\ESCu\843858"},RichField {richFieldType = "", richFieldValue = "5\a"}]}, _sueCustomSchema = UserExtraSchemaInlined}
+
+x' :: Either String ScimUserExtra
+x' = eitherDecode' (encode x)
+
+
+
+
+instance Arbitrary ScimUserExtra where
+  arbitrary = ScimUserExtra <$> arbitrary <*> arbitrary
+
+instance Arbitrary UserCustomSchema where
+  arbitrary = elements [minBound..]
+
+
+
+-- TODO: what happens if an key occurs twice in the richinfo list?

@@ -103,7 +103,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
              , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
-    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
+    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo minBound))
                { Scim.User.displayName  = Just ("Scim User #" <> suffix)
                , Scim.User.externalId   = Just externalId
                , Scim.User.emails       = emails
@@ -318,7 +318,7 @@ updateUser_ auth muid user spar_ = do
 
 -- | Patch a user
 patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp -> SparReq -> TestSpar ResponseLBS
-patchUser_ auth muid patchop spar_ = 
+patchUser_ auth muid patchop spar_ =
     call . patch $
         ( spar_
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))

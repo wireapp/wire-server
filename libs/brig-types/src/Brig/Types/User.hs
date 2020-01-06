@@ -298,7 +298,9 @@ instance Monoid RichInfo where
 -- | Make sure this is version 1, not 2.  Version 2 attributes overwrite version 1 attributes.
 -- (Non-overlapping version 1 attributes are not removed.)
 backportRichInfo :: RichInfo -> RichInfo
-backportRichInfo = undefined
+backportRichInfo = undefined  -- TODO: call this on what we return from the richinfo api
+                              -- end-point(s).  default is v1; spar must ask for v2 in a query
+                              -- param.
 
 instance ToJSON RichInfo where
     toJSON (RichInfoV0 rif) = object
@@ -311,6 +313,22 @@ instance ToJSON RichInfo where
         , "version" .= (1 :: Int)
         ]
 
+-- | A json list of 'RichField's.  Eg., under the @extra@ attribute in scim user schema.
+parseRichInfoV0 :: Value -> Aeson.Parser RichInfo
+parseRichInfoV0 = parseJSON @RichInfo
+
+-- | A set of key-value pairs stored in the  json object of key-value pairs
+-- inlined in a place of the caller's choice anywhere in the 'Scim.User'
+parseRichInfoV1 :: Value -> Aeson.Parser RichInfo
+parseRichInfoV1 = undefined
+{-
+parseJSON @RichInfo
+            1 -> RichInfoV1 <$> getFields o <*> getInlinedFields o
+        getInlinedFields :: Aeson.Object -> Aeson.Parser (HashMap Text Text)
+        getInlinedFields = (.: "inlined-fields")
+-}
+
+-- | Parses only RichInfoV0.  See 'parseRichInfoV1' for why.
 instance FromJSON RichInfo where
     parseJSON = withObject "RichInfo" $ \o -> do
         version :: Int <- o .: "version"
