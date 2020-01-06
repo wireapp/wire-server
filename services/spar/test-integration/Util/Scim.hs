@@ -103,9 +103,8 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
              , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
-    pure ( (Scim.User.empty userSchemas (ScimUserExtra richInfo))
-               { Scim.User.userName     = "scimuser_" <> suffix
-               , Scim.User.displayName  = Just ("Scim User #" <> suffix)
+    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
+               { Scim.User.displayName  = Just ("Scim User #" <> suffix)
                , Scim.User.externalId   = Just externalId
                , Scim.User.emails       = emails
                , Scim.User.phoneNumbers = phones

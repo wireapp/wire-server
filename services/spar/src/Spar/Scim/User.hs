@@ -25,7 +25,9 @@ module Spar.Scim.User
 
 import Imports
 import Brig.Types.User as BrigTypes
+import Galley.Types.Teams    as Galley
 import Spar.Intra.Brig as Brig
+import Spar.Intra.Galley as Galley
 import Control.Lens  ((^.), view)
 import Control.Monad.Except
 import Control.Error ((??), (!?))
@@ -61,6 +63,15 @@ import qualified Web.Scim.Schema.ResourceType     as Scim
 import qualified Web.Scim.Schema.User             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 
+-- | The information needed to synthesize a Scim user.
+data NeededInfo = NeededInfo
+  { neededHandle :: Handle
+  , neededName :: Name
+  , neededUserId :: UserId
+  , neededExternalId :: Text
+  , neededRichInfo :: RichInfo
+  }
+
 ----------------------------------------------------------------------------
 -- UserDB instance
 
@@ -80,39 +91,93 @@ instance Scim.UserDB SparTag Spar where
   getUsers :: ScimTokenInfo
            -> Maybe Scim.Filter
            -> Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser SparTag))
-  getUsers _ Nothing = do
-    -- TODO(arianvp): This shouldn't be a 501 according to joe
-    throwError $ Scim.unimplemented ("Sorry; we don't support listing all users. we don't think it is a useful part of SCIM, which is meant for provisioning")
+  getUsers ScimTokenInfo{stiTeam} Nothing = do
+    -- TODO(arianvp): DEPRECATED
+    -- Getting users without a filter is deprecated an must be
+    -- removed in the next release. It is never what we want; and non of the
+    -- current SCIM implementations mandate its use. 
+    --
+    -- The code is rather problematic as it does O(n) HTTP requests to Brig (as
+    -- brig does not support getting users in bulk). Given that Azure would
+    -- send a /Users request _per user_ this would yield in O(n^2) requests,
+    -- which blows up extremely quickly for large teams.
+    --
+    -- NOTE: unless you supply a filter, it will only list
+    -- SCIM users, not all users in a team. That was the original behaviour
+    -- and we didn't feel like changing it for this as it's going to be removed
+    -- soon anyway. Please scream loudly in the review if you disagree with this,
+    -- but it would complicate this code a bit, instead of leaving it as is.
+    members <- lift $ Galley.getTeamMembers stiTeam
+    brigusers :: [User]
+      <- filter (not . userDeleted) <$>
+         lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
+    scimusers :: [Scim.StoredUser SparTag]
+      <- lift . wrapMonadClient . Data.getScimUsers $ BrigTypes.userId <$> brigusers
+    pure $ Scim.fromList scimusers
+
   getUsers ScimTokenInfo{stiTeam, stiIdP} (Just filter') = do
     idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
     idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp)  !? Scim.serverError "No IdP configured for the provisioning token"
-    (isSSO, brigUser) <-
+    neededInfo <-
       case filter' of
         Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
           | Scim.isUserSchema schema ->
-            case Scim.rAttrName attrName of
+            -- TODO(arianvp,fisx): Some of this code is already in Spar.App  but
+            -- just slightly different.  i.e. there is no byHandle functions in
+            -- Spar.App.   Perhaps we should refactor this code a bit and make
+            -- common pieces reusable
+            case attrName of
               "username" -> do
                 handle <- validateHandle val
-                brigUser <- Intra.Brig.getBrigUserByHandle handle !? Scim.notFound "User" "Couldn't find user by handle"
-                pure $ (isJust (userIdentity brigUser >>= ssoIdentity) , brigUser)
+                brigUser <- Intra.Brig.getBrigUserByHandle handle -- !? Scim.notFound "User" "Couldn't find user by handle"
+                unless (userTeam brigUser == Just stiTeam) $ throwError $ Scim.notFound "User" "Not in team"
+                let uid = BrigTypes.userId brigUser
+                richInfo <- lift $ Intra.Brig.getBrigUserRichInfo uid
+
+                -- NOTE: presence of ssoIdentity is enough to decide that the
+                -- user is indeed an SSO user TODO(arianvp): This requirement
+                -- might change in the future!
+                externalId' <- lift . toExternalId =<< (userIdentity brigUser >>= ssoIdentity) ?? Scim.notFound "User" "Not an SSO User"
+                pure $ NeededInfo
+                  { neededHandle = handle
+                  , neededName = userName brigUser
+                  , neededUserId = uid
+                  , neededExternalId = externalId'
+                  , neededRichInfo = richInfo
+                  }
               "externalid" -> do
                 uref <- mkUserRef idpConfig (pure val)
                 uid <- (wrapMonadClient . Data.getSAMLUser $ uref) !? Scim.notFound "User" "Not a known SAML User"
                 brigUser <- Intra.Brig.getBrigUser uid !? Scim.notFound "User" "Not a known brig user"
-                pure (True, brigUser)
+                unless (userTeam brigUser == Just stiTeam) $ throwError $ Scim.notFound "User" "Not in team"
+                richInfo <- lift $ Intra.Brig.getBrigUserRichInfo uid
+                -- NOTE: The SSO login flow without scim _forces_ the user to
+                -- choose a handle. So this isn't a problem in practise
+                handle <- userHandle brigUser ?? Scim.serverError "Found an SSO user without a handle. This should not happen!"
+                pure $ NeededInfo
+                  { neededHandle = handle
+                  , neededName = userName brigUser
+                  , neededUserId = uid
+                  , neededExternalId = val
+                  , neededRichInfo = richInfo
+                  }
               _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Attribute not supported")
                 
           | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Not a supported schema")
         _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
 
-    unless (userTeam brigUser == Just stiTeam) $ throwError $ Scim.notFound "User" "Not in team"
-    -- TODO(arianvp): This requirement might change in the future!
-    unless isSSO $ throwError $ Scim.notFound "User" "Not an SSO user. we only support SSO users"
-
-    mScimUser <- lift . wrapMonadClient . Data.getScimUser . BrigTypes.userId $ brigUser
+    let buid = neededUserId neededInfo
+    -- NOTE: We set ManagedBy to SCIM as quickly as possible; as to reduce
+    -- the amount of time a race condition can occur.  
+    mScimUser <- lift . wrapMonadClient . Data.getScimUser $ buid
     case mScimUser of
       Just scimUser -> pure $ Scim.fromList [scimUser]
-      Nothing -> Scim.fromList . (:[]) <$> (lift . synthesizeScimUser $ brigUser)
+      Nothing -> do
+        -- NOTE: This case only happens when you search users by "externalId". By construction doesn't happen when you search by handle
+        let user = synthesizeScimUser neededInfo 
+        storedUser <- lift $ toScimStoredUser buid user
+        lift . wrapMonadClient $ Data.insertScimUser buid storedUser
+        pure $ Scim.fromList [storedUser]
 
   -- | Get a single user by its ID.
   getUser :: ScimTokenInfo
@@ -307,13 +372,6 @@ updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo -> UserId -> ValidScimUser -> m (Scim.StoredUser SparTag)
 updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
-    -- TODO(arianvp):
-    --   getUsers currently synthesizes SCIM users out of thin air, but doesn't store
-    --   them in the SCIM table. Maybe it should. However one thing it for sure 
-    --   does not do is set the ManagedByScim flag, because get should be read-only
-    --   So PUT (which might be issued after a GET /Users) must set ManagedByScim
-    --   if this was not yet the case for this user
-
     -- TODO: currently the types in @hscim@ are constructed in such a way that
     -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
     -- does. @fisx believes that this situation could be improved (see
@@ -525,6 +583,20 @@ assertHandleNotUsedElsewhere hndl uid = do
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl uid
 
+-- | Fails if the handle isn't set
+synthesizeScimUser :: NeededInfo -> Scim.User SparTag
+synthesizeScimUser info =
+  let 
+    Handle userName = neededHandle info
+    Name displayName = neededName info
+  in
+    (Scim.empty userSchemas userName (ScimUserExtra (neededRichInfo info)))
+      { Scim.externalId = Just $ neededExternalId info
+      , Scim.displayName = Just displayName
+      }
+
+
+
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -564,12 +636,6 @@ toScimEmail (Email eLocal eDomain) =
     }
 
 -}
-
--- | Synthesizes a minimal scim user.
--- TODO(arianvp): We need to come up with a "time touched" and a "Version" here. but we cant
--- really come up with one out of thin air I think? Maybe we can
-synthesizeScimUser :: forall m. (SAML.HasNow m, MonadReader Env m) => User -> m (Scim.StoredUser SparTag)
-synthesizeScimUser  = undefined --TODO(arianvp): Implement
 
 -- Note [error handling]
 -- ~~~~~~~~~~~~~~~~~

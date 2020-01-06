@@ -4,10 +4,12 @@
 module Spar.Intra.Brig
   ( toUserSSOId
   , fromUserSSOId
+  , toExternalId
   , getBrigUser
   , getBrigUserTeam
   , getBrigUsers
   , getBrigUserByHandle
+  , getBrigUserRichInfo
   , setBrigUserName
   , setBrigUserHandle
   , setBrigUserManagedBy
@@ -62,6 +64,12 @@ fromUserSSOId (UserSSOId (cs -> tenant) (cs -> subject)) =
     (Left msg, _)      -> throwError msg
     (_, Left msg)      -> throwError msg
 
+-- | Converts a brig User SSO Id into an external id
+toExternalId :: MonadError SparError m => UserSSOId -> m Text
+toExternalId ssoid = do
+  uref <- either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ fromUserSSOId ssoid
+  let subj = uref ^. SAML.uidSubject
+  pure $ SAML.nameIDToST subj
 
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
@@ -260,6 +268,19 @@ setBrigUserRichInfo buid richInfo = do
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
+
+getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
+getBrigUserRichInfo buid = do
+  resp <- call
+    $ method GET
+    . paths [ "users", toByteString' buid, "rich-info" ]
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+  case statusCode resp of
+    200 -> do
+      parseResponse @RichInfo resp
+    _   -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
+    
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
 -- anything but authorization.

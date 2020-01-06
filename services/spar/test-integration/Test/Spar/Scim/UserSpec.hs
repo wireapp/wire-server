@@ -23,6 +23,7 @@ import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
 import qualified Spar.Intra.Brig                  as Intra
+import qualified Galley.Types.Teams               as Team
 import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
@@ -318,26 +319,23 @@ testScimCreateVsUserRef = do
 -- | Tests for @GET /Users@.
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
-    it "lists all users in a team" $ testListAllUsers
-    it "finds a SCIM-provisioned user by username" $ testFindProvisionedUserByUsername
-    it "finds a non-SCIM-provisioned user by username" $ pending
+    it "lists all SCIM users in a team" $ testListProvisionedUsers
+
+    it "finds a SCIM-provisioned user" $ testFindProvisionedUser
+    it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
     it "doesn't list deleted users" $ testListNoDeletedUsers
-    it "doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+    it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
+    it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+    it "doesn't list users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
 
-testFindProvisionedUserByUsername :: TestSpar ()
-testFindProvisionedUserByUsername = do
-    user <- randomScimUser
-    (tok, (_, _, _)) <- registerIdPAndScimToken
-    storedUser <- createUser tok user
-    users <- listUsers tok (Just (Filter.FilterAttrCompare (Filter.topLevelAttrPath "userName") Filter.OpEq (Filter.ValString (Scim.User.userName user))))
-    liftIO $ users `shouldContain` [storedUser]
-    pure ()
-
+filterBy :: Text -> Text -> Filter.Filter
+filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
+  
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
-testListAllUsers :: TestSpar ()
-testListAllUsers = do
+testListProvisionedUsers :: TestSpar ()
+testListProvisionedUsers = do
     -- Create a user via SCIM
     user <- randomScimUser
     (tok, (owner, _, _)) <- registerIdPAndScimToken
@@ -349,6 +347,54 @@ testListAllUsers = do
     -- Check that the (non-SCIM-provisioned) team owner is NOT present
     liftIO $ (scimUserId <$> users) `shouldNotContain` [owner]
 
+
+testFindProvisionedUser :: TestSpar ()
+testFindProvisionedUser = do
+    user <- randomScimUser
+    (tok, (_, _, _)) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+    liftIO $ users `shouldContain` [storedUser]
+    let Just externalId = Scim.User.externalId user
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users' `shouldContain` [storedUser]
+
+    -- TODO(arianvp): We will stop supporting list users without filter in the
+    -- future, as it is a performance issue.
+    users'' <- listUsers tok Nothing
+    liftIO $ users'' `shouldContain` [storedUser]
+    pure ()
+
+-- When explicitly filtering, we should be able to find non-SCIM-provisioned users
+testFindNonProvisionedUser :: TestSpar ()
+testFindNonProvisionedUser = do
+    env <- ask  
+    let brig = env ^. teBrig
+    let galley =  env ^. teGalley
+    (tok, (_, teamId, _)) <- registerIdPAndScimToken
+    member <- runHttpT (env ^. teMgr)
+      $ createTeamMember brig galley teamId Team.noPermissions
+
+    -- TODO(arianvp): This is currently failing; as createTeamMember creates an SSO
+    -- user without a handle; eventhough we assumed that SSO users would always have
+    -- handles. Very odd indeed! Ask @fisx tomorrow
+    Just (Handle userName) <- (>>= userHandle) <$> runSpar (Intra.getBrigUser member)
+    users <- listUsers tok (Just (filterBy "userName" userName))
+    liftIO $ (scimUserId <$> users) `shouldContain` [member]
+
+    -- TODO(arianvp): Also add a test to search by "externalId" and show that
+    -- works.  problem is that "createTeamMember" has the following comment:
+    -- NB: this does create an SSO UserRef on brig, but not on spar.  this is
+    -- inconsistent, but the inconsistency does not affect the tests we're
+    -- running with this.  to resolve it, we could add an internal end-point to
+    -- spar that allows us to create users without idp response verification.
+    --
+    -- This actually is a problem now! And I wonder how other parts of Spar are
+    -- tested?? e.g. the SAML stuff. I should ask @fisx tomorrow.
+    users' <- listUsers tok (Just (filterBy "userName" userName))
+    liftIO $ (scimUserId <$> users') `shouldContain` [member]
+
+
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()
 testListNoDeletedUsers = do
@@ -358,12 +404,34 @@ testListNoDeletedUsers = do
     (tok, _) <- registerIdPAndScimToken
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
-    -- Delete the user (TODO: do it via SCIM)
+    -- Delete the user (TODO: do it via SCIM) TODO(arianvp): Ask @fisx what he meant with this comment???
     call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Get all users
     users <- listUsers tok Nothing
     -- Check that the user is absent
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
+
+
+testFindNoDeletedUsers :: TestSpar ()
+testFindNoDeletedUsers = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+
+    call $ deleteUserOnBrig (env ^. teBrig) userid
+
+    let Just externalId = Scim.User.externalId user
+
+    -- TODO(arianvp): This test is currently failing! List should never return a 404, but an empty
+    -- list on NotFound! We should change the code!!
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users' `shouldSatisfy` all ((/= userid) . scimUserId)
+
+    users'' <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+    liftIO $ users'' `shouldSatisfy` all ((/= userid) . scimUserId)
 
 -- | Test that users are not listed if not in the team associated with the token.
 testUserListFailsWithNotFoundIfOutsideTeam :: TestSpar ()
@@ -374,6 +442,20 @@ testUserListFailsWithNotFoundIfOutsideTeam = do
     storedUser <- createUser tokTeamA user
     let userid = scimUserId storedUser
     users <- listUsers tokTeamB Nothing
+    liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
+
+testUserFindFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserFindFailsWithNotFoundIfOutsideTeam = do
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+
+    -- TODO(arianvp): This fails due to a bug in the implementation. The test
+    -- case was very deceitfully named; it made me think I had to return a 404,
+    -- but instead an empty list is expected by the SCIM spec!
+    users <- listUsers tokTeamB (Just (filterBy "userName" (Scim.User.userName user)))
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
 ----------------------------------------------------------------------------
@@ -419,6 +501,8 @@ testGetNoDeletedUsers = do
     -- Try to find the user
     getUser_ (Just tok) userid (env ^. teSpar)
         !!! const 404 === statusCode
+
+    -- TODO(arianvp): What does this mean; @fisx ??
     pendingWith "TODO: delete via SCIM"
 
 -- | Test that gets are not allowed if token is not for the user's team
