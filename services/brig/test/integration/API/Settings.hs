@@ -3,7 +3,6 @@ module API.Settings  where
 import           Imports
 import           Bilge              hiding (accept, timeout)
 import           Brig.Options (Opts)
-import           Brig.Run (mkApp)
 import           Test.Tasty         hiding (Timeout)
 import           Util
 import           API.Team.Util
@@ -21,15 +20,9 @@ import Control.Lens
 import Data.ByteString.Conversion
 import Test.Tasty.HUnit
 
-import qualified Network.Wai.Test as WaiTest
-
 import qualified Data.ByteString.Char8       as C8
 import qualified Data.Set                    as Set
 
-withCustomOptions :: Opts -> WaiTest.Session a -> IO a
-withCustomOptions opts sess = do
-    (app, _) <- mkApp opts
-    WaiTest.runSession sess app
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = return $ do
