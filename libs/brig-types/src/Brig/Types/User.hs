@@ -13,6 +13,7 @@ module Brig.Types.User
     ) where
 
 import Imports
+import Control.Lens (_1, (%~))
 import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
@@ -27,6 +28,7 @@ import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
+import qualified Data.HashMap.Strict as HM
 import qualified Brig.Types.Code     as Code
 import qualified Data.Aeson.Types    as Aeson
 import qualified Data.Currency       as Currency
@@ -274,15 +276,39 @@ instance ToJSON SelfProfile where
 ----------------------------------------------------------------------------
 -- Rich info
 
-data RichInfo = RichInfo
+data RichInfo
+  = RichInfoV0
     { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
+    }
+  | RichInfoV1
+    { richInfoFields :: ![RichField]
+    , richInfoInlinedFields :: !(HashMap Text Text)  -- ^ Representation of a json object
     }
     deriving (Eq, Show, Generic)
 
+instance Semigroup RichInfo where
+  RichInfoV0 rif      <> RichInfoV0 rif'       = RichInfoV0 ((rif \\ rif') <> rif')
+  RichInfoV0 rif      <> RichInfoV1 rif' riif' = RichInfoV1 ((rif \\ rif') <> rif') riif'
+  RichInfoV1 rif riif <> RichInfoV0 rif'       = RichInfoV1 ((rif \\ rif') <> rif') riif
+  RichInfoV1 rif riif <> RichInfoV1 rif' riif' = RichInfoV1 ((rif \\ rif') <> rif') (riif <> riif')
+
+instance Monoid RichInfo where
+  mempty = RichInfoV0 mempty
+
+-- | Make sure this is version 1, not 2.  Version 2 attributes overwrite version 1 attributes.
+-- (Non-overlapping version 1 attributes are not removed.)
+backportRichInfo :: RichInfo -> RichInfo
+backportRichInfo = undefined
+
 instance ToJSON RichInfo where
-    toJSON u = object
-        [ "fields" .= richInfoFields u
+    toJSON (RichInfoV0 rif) = object
+        [ "fields" .= rif
         , "version" .= (0 :: Int)
+        ]
+    toJSON (RichInfoV1 rif riif) = object
+        [ "fields" .= rif
+        , "inlined-fields" .= riif
+        , "version" .= (1 :: Int)
         ]
 
 instance FromJSON RichInfo where
@@ -292,7 +318,7 @@ instance FromJSON RichInfo where
             0 -> do
                 fields <- o .: "fields"
                 checkDuplicates (map richFieldType fields)
-                pure (RichInfo fields)
+                pure (RichInfoV0 fields)
             _ -> fail ("unknown version: " <> show version)
       where
         checkDuplicates :: [Text] -> Aeson.Parser ()
@@ -323,25 +349,26 @@ instance FromJSON RichField where
             <$> o .: "type"
             <*> o .: "value"
 
--- | Empty rich info, returned for users who don't have rich info set.
-emptyRichInfo :: RichInfo
-emptyRichInfo = RichInfo
-    { richInfoFields = []
-    }
-
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
 -- 'setRichInfoLimit'
 --
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
 richInfoSize :: RichInfo -> Int
-richInfoSize (RichInfo fields) =
+richInfoSize (RichInfoV0 fields) =
     sum [Text.length t + Text.length v | RichField t v <- fields]
+richInfoSize (RichInfoV1 fields inlined) =
+    sum [Text.length t + Text.length v | RichField t v <- fields] +
+    sum [Text.length t + Text.length v | (t, v) <- HM.toList inlined]
 
 -- | Remove fields with @""@ values.
 normalizeRichInfo :: RichInfo -> RichInfo
-normalizeRichInfo RichInfo{..} = RichInfo
-    { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+normalizeRichInfo (RichInfoV0 rif) = RichInfoV0
+    { richInfoFields = filter (not . Text.null . richFieldValue) rif
+    }
+normalizeRichInfo (RichInfoV1 rif riif) = RichInfoV1
+    { richInfoFields = filter (not . Text.null . richFieldValue) rif
+    , richInfoInlinedFields = HM.fromList . fmap (_1 %~ Text.toLower) . HM.toList $ riif
     }
 
 -----------------------------------------------------------------------------
