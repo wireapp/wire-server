@@ -4,6 +4,8 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
+-- | This module contains the analog of some of the team-level roles & permissions types in
+-- "Galley.Types.Teams".
 module Galley.Types.Conversations.Roles
     ( ConversationRole
     , convRoleWireAdmin
@@ -37,6 +39,8 @@ import Data.Hashable
 import qualified Data.Set  as Set
 import qualified Data.Text as T
 
+-- | These conversation-level permissions.  Analogous to the team-level permissions called
+-- 'Perm' (or 'Permissions').
 data Action =
       AddConversationMember
     | RemoveConversationMember
@@ -55,6 +59,9 @@ newtype Actions = Actions
     { allowedActions :: Set Action
     } deriving (Eq, Ord, Show, Generic)
 
+-- | A conversation role is associated to a user in the scope of a conversation and implies
+-- with a set of 'Action's.  Conversation-level analog to what 'Role' is on the team-level.
+--
 -- Do not expose the constructors directly, use smart
 -- constructors instead to ensure that all validation
 -- is performed
