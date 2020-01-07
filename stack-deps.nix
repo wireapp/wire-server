@@ -40,6 +40,7 @@ in
     buildInputs = with pkgs; [
       cryptobox-c
       geoip
+      git
       icu
       libsodium
       libxml2
