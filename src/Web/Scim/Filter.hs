@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | A query might specify a filter that should be applied to the results
 -- before returning them. This module implements a very limited subset of
 -- the specification: <https://tools.ietf.org/html/rfc7644#section-3.4.2.2>.
@@ -21,27 +22,40 @@ module Web.Scim.Filter
   , parseFilter
   , renderFilter
 
-  -- * Filtering logic
-  , filterUser
-
   -- * Constructing filters
   , CompValue(..)
   , CompareOp(..)
-  , Attribute(..)
+  , AttrPath(..)
+  , ValuePath(..)
+  , SubAttr(..)
+  , pAttrPath
+  , pValuePath
+  , pSubAttr
+  , pFilter
+  , rAttrPath
+  , rValuePath
+  , rSubAttr
+  , compareStr
+  , topLevelAttrPath
   ) where
 
+import Data.String
+import Prelude hiding (takeWhile)
+import Control.Applicative(optional)
 import Data.Scientific
-import Data.Text
-import Data.Text.Encoding
+import Data.Text (Text, pack, isInfixOf, isPrefixOf, isSuffixOf)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Attoparsec.ByteString.Char8
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson
 import Data.Aeson as Aeson
+import Data.Maybe (fromMaybe)
 import Lens.Micro
 import Web.HttpApiData
 
-import Web.Scim.Schema.User
+import Web.Scim.Schema.Schema (getSchemaUri, Schema, pSchema)
+import Web.Scim.AttrName
 
 ----------------------------------------------------------------------------
 -- Types
@@ -67,14 +81,7 @@ data CompareOp
   | OpGe            -- ^ Greater than or equal to
   | OpLt            -- ^ Less than
   | OpLe            -- ^ Less than or equal to
-  deriving (Eq, Ord, Show)
-
--- | An attribute (e.g. username).
---
--- Only usernames are supported as attributes. Paths are not supported.
-data Attribute
-  = AttrUserName
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | A filter.
 --
@@ -82,27 +89,82 @@ data Attribute
 -- validity on the type level. If a filter does something silly (e.g. tries
 -- to compare a username with a boolean), it will be caught during filtering
 -- and an appropriate error message will be thrown (see 'filterUser').
+--
+-- TODO(arianvp): Implement the following grammar fully if we want to support
+-- more complex filters
+--
+-- FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
 data Filter
   -- | Compare the attribute value with a literal
-  = FilterAttrCompare Attribute CompareOp CompValue
+  = FilterAttrCompare AttrPath CompareOp CompValue
   deriving (Eq, Show)
+
+-- | valuePath = attrPath "[" valFilter "]"
+-- TODO(arianvp): This is a slight simplification at the moment as we
+-- don't support the complete Filter grammar. This should be a
+-- valFilter, not a FILTER.
+data ValuePath  = ValuePath AttrPath Filter
+  deriving (Eq, Show)
+
+-- | subAttr   = "." ATTRNAME
+newtype SubAttr = SubAttr AttrName
+  deriving (Eq, Show, IsString)
+
+-- | attrPath  = [URI ":"] ATTRNAME *1subAtt
+data AttrPath = AttrPath (Maybe Schema) AttrName (Maybe SubAttr)
+  deriving (Eq, Show)
+
+
+-- | Smart constructor that refers to a toplevel field with default schema
+topLevelAttrPath :: Text -> AttrPath
+topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
+
+-- | PATH = attrPath / valuePath [subAttr]
+--
+-- Currently we don't support matching on lists in paths as
+-- we currently don't support filtering on arbitrary attributes yet
+-- e.g.
+-- @
+-- "path":"members[value eq
+--            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
+-- @
+-- is not supported
 
 ----------------------------------------------------------------------------
 -- Parsing
 
--- Note: this parser is written with Attoparsec because I don't know how to
--- lift an Attoparsec parser (from Aeson) to Megaparsec
-
 -- | Parse a filter. Spaces surrounding the filter will be stripped.
 --
 -- If parsing fails, returns a 'Left' with an error description.
+--
+-- Note: this parser is written with Attoparsec because I don't know how to
+-- lift an Attoparsec parser (from Aeson) to Megaparsec
 parseFilter :: Text -> Either Text Filter
 parseFilter =
   over _Left pack .
   parseOnly (skipSpace *> pFilter <* skipSpace <* endOfInput) .
   encodeUtf8
 
--- parser pieces
+-- |
+-- @
+-- ATTRNAME  = ALPHA *(nameChar)
+-- attrPath  = [URI ":"] ATTRNAME *1subAtt
+-- @
+pAttrPath :: Parser AttrPath
+pAttrPath =
+  AttrPath
+    <$> (optional (pSchema <* char ':'))
+    <*> pAttrName
+    <*> optional pSubAttr
+
+-- | subAttr   = "." ATTRNAME
+pSubAttr :: Parser SubAttr
+pSubAttr = char '.' *> (SubAttr <$> pAttrName)
+
+-- | valuePath = attrPath "[" valFilter "]"
+pValuePath :: Parser ValuePath
+pValuePath =
+  ValuePath <$> pAttrPath <*> (char '[' *> pFilter <* char ']')
 
 -- | Value literal parser.
 pCompValue :: Parser CompValue
@@ -128,17 +190,11 @@ pCompareOp = choice
   , OpLe <$ stringCI "le"
   ]
 
--- | Attribute name parser.
-pAttribute :: Parser Attribute
-pAttribute = choice
-  [ AttrUserName <$ stringCI "username"
-  ]
-
 -- | Filter parser.
 pFilter :: Parser Filter
 pFilter = choice
   [ FilterAttrCompare
-      <$> pAttribute
+      <$> pAttrPath
       <*> (skipSpace1 *> pCompareOp)
       <*> (skipSpace1 *> pCompValue)
   ]
@@ -154,7 +210,17 @@ skipSpace1 = space *> skipSpace
 renderFilter :: Filter -> Text
 renderFilter filter_ = case filter_ of
   FilterAttrCompare attr op val ->
-    rAttribute attr <> " " <> rCompareOp op <> " " <> rCompValue val
+    rAttrPath attr <> " " <> rCompareOp op <> " " <> rCompValue val
+
+rAttrPath :: AttrPath -> Text
+rAttrPath (AttrPath schema attr subAttr)
+  =  fromMaybe "" ((<> ":") . getSchemaUri <$> schema) <> rAttrName attr <> fromMaybe "" (rSubAttr <$> subAttr)
+
+rSubAttr :: SubAttr -> Text
+rSubAttr (SubAttr x) = "." <> (rAttrName x)
+
+rValuePath :: ValuePath -> Text
+rValuePath (ValuePath attrPath filter') = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
 
 -- | Value literal renderer.
 rCompValue :: CompValue -> Text
@@ -177,27 +243,6 @@ rCompareOp = \case
   OpGe -> "ge"
   OpLt -> "lt"
   OpLe -> "le"
-
--- | Attribute name renderer.
-rAttribute :: Attribute -> Text
-rAttribute = \case
-  AttrUserName -> "username"
-
-----------------------------------------------------------------------------
--- Applying
-
--- | Check whether a user satisfies the filter.
---
--- Returns 'Left' if the filter is constructed incorrectly (e.g. tries to
--- compare a username with a boolean).
-filterUser :: Filter -> User extra -> Either Text Bool
-filterUser filter_ user = case filter_ of
-  FilterAttrCompare AttrUserName op (ValString str) ->
-    -- Comparing usernames has to be case-insensitive; look at the
-    -- 'caseExact' parameter of the user schema
-    Right (compareStr op (toCaseFold (userName user)) (toCaseFold str))
-  FilterAttrCompare AttrUserName _ _ ->
-    Left "usernames can only be compared with strings"
 
 -- | Execute a comparison operator.
 compareStr :: CompareOp -> Text -> Text -> Bool

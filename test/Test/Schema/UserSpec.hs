@@ -1,9 +1,11 @@
+{- LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Test.Schema.UserSpec (spec) where
 
-import           Test.Util
+import           Web.Scim.Test.Util
 
 import           Web.Scim.Schema.Common (URI(..))
 import           Web.Scim.Schema.Schema (Schema(..))
@@ -17,16 +19,41 @@ import           Web.Scim.Schema.User.Phone as Phone
 import           Web.Scim.Schema.User.Photo as Photo
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
-import           Data.Text (Text, toLower)
+import           Data.Text (Text, toLower, toUpper)
 import           Lens.Micro
 import           Test.Hspec
 import           Text.Email.Validate (emailAddress)
 import           Network.URI.Static (uri)
+import           HaskellWorks.Hspec.Hedgehog (require)
+import           Hedgehog
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
+
+prop_roundtrip :: Property
+prop_roundtrip = property $ do
+  user <- forAll genUser
+  tripping user toJSON fromJSON
+
+
+
+-- TODO(arianvp): Note that this only tests the top-level fields.
+-- extrac this to a generic test and also do this for sub-properties
+prop_caseInsensitive :: Property
+prop_caseInsensitive = property $ do
+  user <- forAll genUser
+  let (Object user') = toJSON user
+  let user'' = HM.foldlWithKey' (\u k v -> HM.insert (toUpper k) v u) user' HM.empty
+  let user''' = HM.foldlWithKey' (\u k v -> HM.insert (toLower k) v u) user' HM.empty
+
+  fromJSON (Object user'') === Success user
+  fromJSON (Object user''') === Success user
+
 
 spec :: Spec
 spec = do
   describe "JSON serialization" $ do
     it "handles all fields" $ do
+      require prop_roundtrip
       toJSON completeUser `shouldBe` completeUserJson
       eitherDecode (encode completeUserJson) `shouldBe` Right completeUser
 
@@ -37,7 +64,8 @@ spec = do
     it "treats 'null' and '[]' as absence of fields" $
       eitherDecode (encode minimalUserJsonRedundant) `shouldBe` Right minimalUser
 
-    it "allows casing variations in field names" $
+    it "allows casing variations in field names" $ do
+      require prop_caseInsensitive
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
 
     it "doesn't require the 'schemas' field" $
@@ -52,6 +80,72 @@ spec = do
       toJSON (extendedUser (UserExtraObject "foo")) `shouldBe` extendedUserObjectJson
       eitherDecode (encode extendedUserObjectJson) `shouldBe`
         Right (extendedUser (UserExtraObject "foo"))
+
+genName :: Gen Name
+genName =
+  Name
+    <$> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
+
+
+genUri :: Gen URI
+genUri = Gen.element [ URI [uri|https://example.com|] ]
+
+-- TODO(arianvp) Generate the lists too, but first need better support for SCIM
+-- lists in the first place
+genUser :: Gen (User (TestTag Text () () NoUserExtra))
+genUser = do
+  schemas' <- pure [User20] -- TODO random schemas or?
+  userName' <- Gen.text (Range.constant 0 20) Gen.unicode
+  externalId' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  name' <- Gen.maybe genName
+  displayName' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  nickName' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  profileUrl' <- Gen.maybe $ genUri
+  title' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  userType' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  preferredLanguage' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  locale' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  active' <- Gen.maybe $ Gen.bool
+  password' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
+  emails' <- pure [] -- Gen.list (Range.constant 0 20) genEmail
+  phoneNumbers' <- pure [] -- Gen.list (Range.constant 0 20) genPhone
+  ims' <- pure [] -- Gen.list (Range.constant 0 20) genIM
+  photos' <- pure [] -- Gen.list (Range.constant 0 20) genPhoto
+  addresses' <- pure [] -- Gen.list (Range.constant 0 20) genAddress
+  entitlements' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 20) Gen.unicode)
+  roles' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 10) Gen.unicode)
+  x509Certificates' <- pure [] -- Gen.list (Range.constant 0 20) genCertificate
+
+  pure $ User
+    { schemas = schemas'
+    , userName = userName'
+    , externalId = externalId'
+    , name = name'
+    , displayName = displayName'
+    , nickName = nickName'
+    , profileUrl = profileUrl'
+    , title = title'
+    , userType = userType'
+    , preferredLanguage = preferredLanguage'
+    , locale = locale'
+    , active = active'
+    , password = password'
+    , emails = emails'
+    , phoneNumbers = phoneNumbers'
+    , ims = ims'
+    , photos = photos'
+    , addresses = addresses'
+    , entitlements = entitlements'
+    , roles = roles'
+    , x509Certificates = x509Certificates'
+    , extra = NoUserExtra
+    }
+
 
 -- | A 'User' with all attributes present.
 completeUser :: User (TestTag Text () () NoUserExtra)
@@ -182,7 +276,7 @@ completeUserJson = [scim|
 
 -- | A 'User' with all attributes empty (if possible).
 minimalUser :: User (TestTag Text () () NoUserExtra)
-minimalUser = (empty [User20] NoUserExtra) { userName = "sample userName" }
+minimalUser = empty [User20] "sample userName" NoUserExtra
 
 -- | Reference encoding of 'minimalUser'.
 minimalUserJson :: Value
@@ -264,8 +358,7 @@ instance ToJSON UserExtraTest where
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
 extendedUser e =
-    (empty [User20, CustomSchema "urn:hscim:test"] e)
-    { userName = "sample userName" }
+    (empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
 
 -- | Encoding of @extendedUser UserExtraEmpty@.
 extendedUserEmptyJson :: Value

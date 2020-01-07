@@ -88,7 +88,7 @@ badRequest
   -> ScimError
 badRequest typ mbDetail =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 400
     , scimType = pure typ
     , detail = mbDetail
@@ -99,7 +99,7 @@ unauthorized
   -> ScimError
 unauthorized details =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 401
     , scimType = Nothing
     , detail = pure $ "authorization failed: " <> details
@@ -110,7 +110,7 @@ forbidden
   -> ScimError
 forbidden details =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 403
     , scimType = Nothing
     , detail = pure $ "forbidden: " <> details
@@ -122,7 +122,7 @@ notFound
   -> ScimError
 notFound resourceType resourceId =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 404
     , scimType = Nothing
     , detail = pure $ resourceType <> " " <> resourceId <> " not found"
@@ -131,7 +131,7 @@ notFound resourceType resourceId =
 conflict :: ScimError
 conflict =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 409
     , scimType = Just Uniqueness
     , detail = Nothing
@@ -142,7 +142,7 @@ serverError
   -> ScimError
 serverError details =
   ScimError
-    { schemas = [Error2_0]
+    { schemas = [Error20]
     , status = Status 500
     , scimType = Nothing
     , detail = pure details

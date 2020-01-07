@@ -9,6 +9,8 @@ import           Web.Scim.Capabilities.MetaSchema.ResourceType
 
 import           Data.Text
 import           Data.Aeson
+import Data.Attoparsec.ByteString (Parser,  (<?>))
+import Control.Applicative ((<|>))
 
 -- | All schemas that we support.
 data Schema = User20
@@ -16,8 +18,9 @@ data Schema = User20
             | Group20
             | Schema20
             | ResourceType20
-            | ListResponse2_0
-            | Error2_0
+            | ListResponse20
+            | Error20
+            | PatchOp20
             | CustomSchema Text
   deriving (Show, Eq)
 
@@ -39,14 +42,49 @@ getSchemaUri Schema20 =
   "urn:ietf:params:scim:schemas:core:2.0:Schema"
 getSchemaUri ResourceType20 =
   "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
-getSchemaUri ListResponse2_0 =
+getSchemaUri ListResponse20 =
   "urn:ietf:params:scim:api:messages:2.0:ListResponse"
-getSchemaUri Error2_0 =
+getSchemaUri Error20 =
   "urn:ietf:params:scim:api:messages:2.0:Error"
+getSchemaUri PatchOp20 =
+  "urn:ietf:params:scim:api:messages:2.0:PatchOp"
 getSchemaUri (CustomSchema x) =
   x
 
+-- | Parser for known schemas. Fails on unknown schemas (E.g. CustomSchema escape hatch doesn't work)
+--
+-- NOTE: according to the spec, this parser needs to be case insensitive, but
+-- that is literally insane. Won't implement.
+pSchema :: Parser Schema
+pSchema =
+  (User20
+    <$ "urn:ietf:params:scim:schemas:core:2.0:User" <|>
+  ServiceProviderConfig20
+    <$ "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" <|>
+  Group20
+    <$ "urn:ietf:params:scim:schemas:core:2.0:Group" <|>
+  Schema20
+    <$ "urn:ietf:params:scim:schemas:core:2.0:Schema" <|>
+  ResourceType20
+    <$ "urn:ietf:params:scim:schemas:core:2.0:ResourceType" <|>
+  ListResponse20
+    <$ "urn:ietf:params:scim:api:messages:2.0:ListResponse" <|>
+  Error20
+    <$ "urn:ietf:params:scim:api:messages:2.0:Error" <|>
+  PatchOp20
+    <$ "urn:ietf:params:scim:api:messages:2.0:PatchOp") <?> "unknown schema"
+
 -- | Get a schema by its URI.
+--
+-- NOTE: cas sensitive against the spec.  Same as 'pSchema'.
+--
+-- FUTUREWORK: implement this in terms of 'pSchema': parse all the non-custom schemas with
+-- 'pSchema; in case of error, use the parser *input* as the custom schema.
+--
+-- TODO(arianvp): probably too lenient. want to only accept valid URNs
+-- This means the CustomSchema part might go... We need to kind of
+-- rethink how we're  gonna do extensions anyway, as we're gonna have to
+-- support multiple extensions, which is currently a bit iffy I think
 fromSchemaUri :: Text -> Schema
 fromSchemaUri s = case s of
   "urn:ietf:params:scim:schemas:core:2.0:User" ->
@@ -60,9 +98,11 @@ fromSchemaUri s = case s of
   "urn:ietf:params:scim:schemas:core:2.0:ResourceType" ->
     ResourceType20
   "urn:ietf:params:scim:api:messages:2.0:ListResponse" ->
-    ListResponse2_0
+    ListResponse20
   "urn:ietf:params:scim:api:messages:2.0:Error" ->
-    Error2_0
+    Error20
+  "urn:ietf:params:scim:api:messages:2.0:PatchOp" ->
+    PatchOp20
   x ->
     CustomSchema x
 
@@ -80,9 +120,11 @@ getSchema ResourceType20 =
   pure resourceSchema
 -- Schemas for these types are not in the SCIM standard.
 -- FUTUREWORK: write schema definitions anyway.
-getSchema ListResponse2_0 =
+getSchema ListResponse20 =
   Nothing
-getSchema Error2_0 =
+getSchema Error20 =
+  Nothing
+getSchema PatchOp20 =
   Nothing
 -- This is not controlled by @hscim@ so we can't write a schema.
 -- FUTUREWORK: allow supplying schemas for 'CustomSchema'.

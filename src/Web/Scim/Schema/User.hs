@@ -1,6 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | SCIM user representation.
 --
@@ -18,13 +21,8 @@
 --
 -- == Optional fields
 --
--- The spec doesn't say which fields should be optional and which shouldn't, and
--- in theory every SCIM server can decide for itself which fields it will
--- consider optional (as long as it makes it clear in the resource schema).
--- Currently we don't provide any control over this; all fields are optional
--- except for @userName@.
---
--- TODO: why @userName@?
+-- The spec only mandates the @userName@ and @id@ attribute. All other
+-- attributes seem optional.
 --
 -- == Multi-valued fields
 --
@@ -33,19 +31,31 @@
 -- opted for the latter to conform to an example in the spec:
 -- <https://tools.ietf.org/html/rfc7644#section-3.5.1>.
 --
--- == Field names
+-- TODO(arianvp):
+--  Multi-valued attributes actually have some more quirky semantics that we
+--  currently don't support yet. E.g. if the multi-values have a
+--  'primary' field then only one of the entires must have 'primary: true'
+--  and all the others are either implied 'primary: false' or must be checked
+--  that they're false
+--
+--
+-- == Attribute names
 --
 -- When parsing JSON objects, we ignore capitalization differences in field
--- names -- e.g. both @USERNAME@ and @userName@ are accepted. This behavior is
--- not prescribed by the spec, but it allows us to work with buggy SCIM
--- implementations.
+-- names -- e.g. both @USERNAME@ and @userName@ are accepted.
+--  This is described by the spec  https://tools.ietf.org/html/rfc7643#section-2.1
+--
 module Web.Scim.Schema.User where
 
-import Data.Text (Text, toLower)
+import Control.Monad (foldM)
 import Data.Aeson
+import Data.List ((\\))
 import qualified Data.HashMap.Strict as HM
+import Data.Text (Text, pack, toLower)
 import Lens.Micro
 
+import Web.Scim.AttrName
+import Web.Scim.Filter (AttrPath(..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema (Schema(..))
 import Web.Scim.Schema.User.Address (Address)
@@ -55,8 +65,11 @@ import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
 import Web.Scim.Schema.User.Phone (Phone)
 import Web.Scim.Schema.User.Photo (Photo)
+import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.Error
 
 import GHC.Generics (Generic)
+import Control.Monad.Except
 
 -- | Configurable parts of 'User'.
 class UserTypes tag where
@@ -116,13 +129,15 @@ data User tag = User
 deriving instance Show (UserExtra tag) => Show (User tag)
 deriving instance Eq (UserExtra tag) => Eq (User tag)
 
+
 empty
   :: [Schema]               -- ^ Schemas
+  -> Text                   -- ^ userName
   -> UserExtra tag          -- ^ Extra data
   -> User tag
-empty schemas extra = User
+empty schemas userName extra = User
   { schemas = schemas
-  , userName = ""
+  , userName = userName 
   , externalId = Nothing
   , name = Nothing
   , displayName = Nothing
@@ -226,3 +241,70 @@ instance FromJSON NoUserExtra where
 
 instance ToJSON NoUserExtra where
   toJSON _ = object []
+
+----------------------------------------------------------------------------
+-- Applying
+
+-- | Applies a JSON Patch to a SCIM Core User
+-- Only supports the core attributes.
+-- Evenmore, only some hand-picked ones currently.
+-- We'll have to think how patch is going to work in the presence of extensions.
+-- Also, we can probably make  PatchOp type-safe to some extent (Read arianvp's thesis :))
+applyPatch :: (FromJSON (UserExtra tag), MonadError ScimError m) => User tag  -> PatchOp ->  m (User tag)
+applyPatch = (. getOperations) . foldM applyOperation
+
+resultToScimError :: (MonadError ScimError m) => Result a -> m a
+resultToScimError (Error reason) = throwError $ badRequest InvalidValue (Just (pack reason))
+resultToScimError (Success a) = pure a
+
+-- TODO(arianvp): support multi-valued and complex attributes.
+-- TODO(arianvp): Actually do this in some kind of type-safe way. e.g.
+-- have a UserPatch type.
+--
+-- What I understand from the spec:  The difference between add an replace is only
+-- in the fact that replace will not concat multi-values, and behaves differently for complex values too.
+-- For simple attributes, add and replace are identical.
+applyOperation :: forall m tag. (MonadError ScimError m, FromJSON (UserExtra tag)) =>  User tag  -> Operation -> m (User tag)
+applyOperation user (Operation Add path value) = applyOperation user (Operation Replace path value)
+
+applyOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) = do
+  case attr of
+    "username" ->
+      (\x -> user { userName = x }) <$> resultToScimError (fromJSON value)
+    "displayname" ->
+      (\x -> user { displayName = x }) <$> resultToScimError (fromJSON value)
+    "externalid" ->
+      (\x -> user { externalId = x }) <$> resultToScimError (fromJSON value)
+    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
+applyOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
+  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+applyOperation user (Operation Replace Nothing (Just value)) = do
+  case value of
+    Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid"]) -> pure ()
+    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
+  (u :: User tag) <- resultToScimError $ fromJSON value
+  pure $ user
+    { userName = userName u
+    , displayName = displayName u
+    , externalId = externalId u
+    }
+applyOperation _ (Operation Replace _ Nothing) =
+  throwError (badRequest InvalidValue (Just "No value was provided"))
+
+applyOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
+applyOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
+  case attr of
+    "username" -> throwError (badRequest Mutability Nothing)
+    "displayname" -> pure $ user { displayName = Nothing }
+    "externalid" -> pure $ user { externalId = Nothing }
+    _ -> pure user
+applyOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
+  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+
+
+-- Omission of a schema for users is implicitly the core schema
+-- TODO(arianvp): Link to part of the spec that claims this.
+isUserSchema :: Maybe Schema -> Bool
+isUserSchema Nothing = True
+isUserSchema (Just User20) = True
+isUserSchema (Just _) = False

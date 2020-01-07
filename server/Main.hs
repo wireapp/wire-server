@@ -51,9 +51,8 @@ mkUserDB = do
                       (emailAddress "elton@wire.com")
         , E.primary = Nothing
         }
-  let user = (User.empty [User20] NoUserExtra)
-        { userName = "elton"
-        , name = Just Name
+  let user = (User.empty [User20] "elton" NoUserExtra)
+        { name = Just Name
             { formatted = Just "Elton John"
             , familyName = Just "John"
             , givenName = Just "Elton"

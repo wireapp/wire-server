@@ -4,7 +4,6 @@ module Web.Scim.Schema.User.Name where
 import Data.Text (Text)
 import Data.Aeson
 import GHC.Generics
-
 import Web.Scim.Schema.Common
 
 data Name = Name

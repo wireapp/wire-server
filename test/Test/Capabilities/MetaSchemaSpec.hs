@@ -2,7 +2,7 @@
 
 module Test.Capabilities.MetaSchemaSpec (spec) where
 
-import           Test.Util
+import           Web.Scim.Test.Util
 
 import qualified Data.List as List
 import           Data.Aeson
@@ -85,7 +85,7 @@ spConfig = [scim|
          "maxPayloadSize":0,
          "supported":false
         },
- "patch":{"supported":false},
+ "patch":{"supported":true},
  "authenticationSchemes":[
    {"type":"httpbasic",
     "name":"HTTP Basic",
@@ -113,7 +113,7 @@ resourceTypes = [scim|
     "name":"Group",
     "endpoint":"/Groups"}],
  "totalResults":2,
- "startIndex":0,
+ "startIndex":1,
  "itemsPerPage":2
 }
 |]

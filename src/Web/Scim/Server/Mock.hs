@@ -16,13 +16,14 @@ import           Control.Monad.Reader
 import           Control.Monad.Morph
 import           Data.Aeson
 import           Data.Hashable
-import           Data.Text (Text, pack)
+import           Data.Text (Text, pack, toCaseFold)
 import           Data.Time.Clock
 import           Data.Time.Calendar
 import           GHC.Exts (sortWith)
 import           ListT
 import qualified STMContainers.Map as STMMap
 import           Text.Read (readMaybe)
+import           Web.Scim.Filter (Filter(..), CompValue(..), AttrPath(..), compareStr)
 import           Web.Scim.Schema.User
 import           Web.Scim.Schema.Error
 import           Web.Scim.Schema.Meta
@@ -30,7 +31,6 @@ import           Web.Scim.Schema.ListResponse
 import           Web.Scim.Schema.ResourceType
 import           Web.Scim.Schema.Common (WithId(WithId, value))
 import qualified Web.Scim.Schema.Common     as Common
-import           Web.Scim.Filter
 import           Web.Scim.Handler
 import           Servant
 
@@ -108,8 +108,6 @@ instance UserDB Mock TestServer where
         let newUser = WithMeta (meta stored) $ WithId uid user
         liftSTM $ STMMap.insert newUser uid m
         pure newUser
-
-  patchUser _ _ _ = throwScim (serverError "PATCH /Users not implemented")
 
   deleteUser () uid = do
     m <- userDB <$> ask
@@ -201,3 +199,23 @@ nt :: TestStorage -> ScimHandler TestServer a -> Handler a
 nt storage =
   flip runReaderT storage .
   fromScimHandler (lift . throwError . scimToServantErr)
+
+
+-- | Check whether a user satisfies the filter.
+--
+-- Returns 'Left' if the filter is constructed incorrectly (e.g. tries to
+-- compare a username with a boolean).
+--
+-- TODO(arianvp): We need to generalise filtering at some point probably.
+filterUser :: Filter -> User extra -> Either Text Bool
+filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
+  | isUserSchema schema' =
+      case (subAttr, val) of
+        (Nothing, (ValString str)) | attrib == "userName" ->
+          Right (compareStr op (toCaseFold (userName user)) (toCaseFold str))
+        (Nothing, _) | attrib == "userName" ->
+          Left "usernames can only be compared with strings"
+        (_, _) ->
+          Left "Only search on usernames is currently supported"
+  | otherwise = Left "Invalid schema. Only user schema is supported"
+

@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 module Web.Scim.Class.User
     ( UserDB (..)
@@ -7,8 +8,10 @@ module Web.Scim.Class.User
     , userServer
     ) where
 
+import           Data.Aeson.Types (FromJSON)
 import           GHC.Generics (Generic)
 import           Web.Scim.Schema.User
+import           Web.Scim.Schema.PatchOp
 import           Web.Scim.Schema.Meta
 import           Web.Scim.Schema.Common
 import           Web.Scim.Schema.ListResponse hiding (schemas)
@@ -19,8 +22,6 @@ import           Web.Scim.Class.Auth
 import           Servant
 import           Servant.API.Generic
 import           Servant.Server.Generic
-
-import qualified Data.Aeson as Aeson
 
 ----------------------------------------------------------------------------
 -- /Users API
@@ -43,7 +44,7 @@ data UserSite tag route = UserSite
       Put '[SCIM] (StoredUser tag)
   , usPatchUser :: route :-
       Capture "id" (UserId tag) :>
-      ReqBody '[SCIM] Aeson.Value :>
+      ReqBody '[SCIM] PatchOp :>
       Patch '[SCIM] (StoredUser tag)
   , usDeleteUser :: route :-
       Capture "id" (UserId tag) :>
@@ -78,8 +79,9 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
 
   -- | Overwrite an existing user.
   --
-  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if uniqueness
-  -- constraints are violated.
+  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if
+  -- uniqueness constraints are violated.
+  --
   putUser
     :: AuthInfo tag
     -> UserId tag
@@ -88,16 +90,40 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
 
   -- | Modify an existing user.
   --
-  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if uniqueness
-  -- constraints are violated.
+  -- Should throw 'notFound' if the user doesn't exist, and 'conflict' if
+  -- uniqueness constraints are violated.
   --
-  -- FUTUREWORK: add types for PATCH (instead of 'Aeson.Value').
-  -- See <https://tools.ietf.org/html/rfc7644#section-3.5.2>
+  --  https://tools.ietf.org/html/rfc7644#section-3.5.2
+  --
+  --    If the target location already contains the value specified, no changes
+  --    SHOULD be made to the resource, and a success response SHOULD be
+  --    returned.  Unless other operations change the resource, this operation
+  --    SHALL NOT change the modify timestamp of the resource.
+  --
+  --  Given that PUT has the same constraints, we can implement PATCH in terms
+  --  of some magic in this library, GET and PUT.
+  --
+  --  SCIM's Patch semantics are hard to get right. So we advice using the
+  --  library built-in implementation.  we implement PATCH in terms of a GET
+  --  followed by a PUT.  GET will retrieve the entire record; we then modify
+  --  this record by a series of PATCH operations, and then PUT the entire
+  --  record.
+  -- 
   patchUser
     :: AuthInfo tag
     -> UserId tag
-    -> Aeson.Value  -- ^ PATCH payload
+    -> PatchOp  -- ^ PATCH payload
     -> ScimHandler m (StoredUser tag)
+  default patchUser 
+    :: FromJSON (UserExtra tag)
+    => AuthInfo tag
+    -> UserId tag
+    -> PatchOp  -- ^ PATCH payload
+    -> ScimHandler m (StoredUser tag)
+  patchUser info uid op' = do
+    (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
+    (newUser :: User tag) <- applyPatch user op'
+    putUser info uid newUser
 
   -- | Delete a user.
   --
@@ -128,7 +154,7 @@ userServer authData = UserSite
       putUser @tag auth uid user
   , usPatchUser = \uid patch -> do
       auth <- authCheck @tag authData
-      patchUser @tag auth uid patch
+      patchUser @tag @m auth uid patch
   , usDeleteUser = \uid -> do
       auth <- authCheck @tag authData
       deleteUser @tag auth uid

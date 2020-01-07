@@ -2,7 +2,7 @@
 
 module Test.Class.GroupSpec (spec) where
 
-import           Test.Util
+import           Web.Scim.Test.Util
 
 import           Network.Wai (Application)
 import           Servant (Proxy(Proxy))
@@ -84,7 +84,7 @@ groups = [scim|
             ],
           "totalResults":1,
           "itemsPerPage":1,
-          "startIndex":0
+          "startIndex":1
         }|]
 
 admins :: ResponseMatcher
@@ -139,5 +139,5 @@ emptyList = [scim|
          "Resources":[],
          "totalResults":0,
          "itemsPerPage":0,
-         "startIndex":0
+         "startIndex":1
        }|]

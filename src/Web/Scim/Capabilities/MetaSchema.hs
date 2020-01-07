@@ -81,7 +81,7 @@ empty = Configuration
               , Schema20
               , ResourceType20
               ]
-  , patch = Supported False ()
+  , patch = Supported True ()
   , bulk = Supported False $ BulkConfig 0 0
   , filter = Supported False $ FilterConfig 0
   , changePassword = Supported False ()

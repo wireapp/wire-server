@@ -63,27 +63,3 @@ parseOptions = defaultOptions
   { fieldLabelModifier = fmap Char.toLower
   }
 
-data Unsettable a = Unset | Omitted | Some a
-  deriving (Show, Eq)
-
-instance Functor Unsettable where
-  fmap f (Some a) = Some $ f a
-  fmap _ Unset = Unset
-  fmap _ Omitted = Omitted
-
-instance (FromJSON a) => FromJSON (Unsettable a) where
-  parseJSON Null = pure Unset
-  parseJSON v = do
-    res <- parseJSON v
-    case res of
-      Nothing -> pure Omitted
-      Just some -> pure $ Some some
-
-toMaybe :: Unsettable a -> Maybe a
-toMaybe Unset = Nothing
-toMaybe Omitted = Nothing
-toMaybe (Some a) = Just a
-
-instance (ToJSON a) => ToJSON (Unsettable a) where
-  toJSON Unset = Null
-  toJSON v     = toJSON . toMaybe $ v
