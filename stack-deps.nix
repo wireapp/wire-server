@@ -1,4 +1,4 @@
-let 
+let
   # Pin nixpkgs for all dependencies.
   # If you want to update.
   # 1. go to https://nixos.org/channels/nixos-19.09
@@ -37,17 +37,17 @@ let
 in
   pkgs.haskell.lib.buildStackProject {
     name = "wire-server";
-    buildInputs = with pkgs; [ 
-      pkgconfig
-      cryptobox-c 
-      libsodium
+    buildInputs = with pkgs; [
+      cryptobox-c
       geoip
-      protobuf
-      openssl
-      snappy
       icu
-      zlib
+      libsodium
       libxml2
+      openssl
+      pkgconfig
+      protobuf
+      snappy
+      zlib
     ];
     ghc = pkgs.haskell.compiler.ghc844;
   }
