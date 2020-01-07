@@ -266,6 +266,8 @@ putSSOEnabledInternal gly tid enabled = do
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
 -- internal end-point to spar that allows us to create users without idp response verification.
+--
+-- TODO: drop this and always use 'loginSsoUserFirstTime' instead!
 createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
                  => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
 createTeamMember brigreq galleyreq teamid perms = do
