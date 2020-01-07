@@ -269,7 +269,7 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
-getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
+getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe RichInfo)
 getBrigUserRichInfo buid = do
   resp <- call
     $ method GET
@@ -278,7 +278,8 @@ getBrigUserRichInfo buid = do
     . header "Z-Connection" ""
   case statusCode resp of
     200 -> do
-      parseResponse @RichInfo resp
+      Just <$> parseResponse @RichInfo resp
+    404   -> pure Nothing
     _   -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
     
 

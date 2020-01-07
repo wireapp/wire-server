@@ -30,6 +30,7 @@ import Spar.Intra.Brig as Brig
 import Spar.Intra.Galley as Galley
 import Control.Lens  ((^.), view)
 import Control.Monad.Except
+import Control.Monad.Trans.Maybe
 import Control.Error ((??), (!?))
 import Control.Exception (assert)
 import Crypto.Hash
@@ -67,7 +68,6 @@ import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 data NeededInfo = NeededInfo
   { neededHandle :: Handle
   , neededName :: Name
-  , neededUserId :: UserId
   , neededExternalId :: Text
   , neededRichInfo :: RichInfo
   }
@@ -118,66 +118,47 @@ instance Scim.UserDB SparTag Spar where
   getUsers ScimTokenInfo{stiTeam, stiIdP} (Just filter') = do
     idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
     idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp)  !? Scim.serverError "No IdP configured for the provisioning token"
-    neededInfo <-
-      case filter' of
-        Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
-          | Scim.isUserSchema schema ->
-            -- TODO(arianvp,fisx): Some of this code is already in Spar.App  but
-            -- just slightly different.  i.e. there is no byHandle functions in
-            -- Spar.App.   Perhaps we should refactor this code a bit and make
-            -- common pieces reusable
-            case attrName of
-              "username" -> do
-                handle <- validateHandle val
-                brigUser <- Intra.Brig.getBrigUserByHandle handle -- !? Scim.notFound "User" "Couldn't find user by handle"
-                unless (userTeam brigUser == Just stiTeam) $ throwError $ Scim.notFound "User" "Not in team"
+    case filter' of
+      Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
+        | Scim.isUserSchema schema -> do
+            let
+              createOrGetScimUser :: BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
+              createOrGetScimUser brigUser = do
+                team <- MaybeT . pure . userTeam $ brigUser
+                guard $ stiTeam == team
                 let uid = BrigTypes.userId brigUser
-                richInfo <- lift $ Intra.Brig.getBrigUserRichInfo uid
-
-                -- NOTE: presence of ssoIdentity is enough to decide that the
-                -- user is indeed an SSO user TODO(arianvp): This requirement
-                -- might change in the future!
-                externalId' <- lift . toExternalId =<< (userIdentity brigUser >>= ssoIdentity) ?? Scim.notFound "User" "Not an SSO User"
-                pure $ NeededInfo
-                  { neededHandle = handle
-                  , neededName = userName brigUser
-                  , neededUserId = uid
-                  , neededExternalId = externalId'
-                  , neededRichInfo = richInfo
-                  }
+                -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
+                mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
+                case mScimUser of
+                  Just scimUser -> pure scimUser
+                  Nothing -> do
+                    handle <- MaybeT . pure . userHandle $ brigUser
+                    let name = userName brigUser
+                    richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
+                    ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
+                    externalId <-
+                      either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
+                      pure .
+                      toExternalId $ ssoIdentity'
+                    let neededInfo = NeededInfo handle name externalId richInfo
+                    let user = synthesizeScimUser neededInfo
+                    storedUser <- lift . lift $ toScimStoredUser uid user
+                    lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
+                    pure storedUser
+            x <- runMaybeT $ case attrName of
+              "username" -> do
+                handle <- lift $ validateHandle val
+                brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
+                createOrGetScimUser brigUser
               "externalid" -> do
                 uref <- mkUserRef idpConfig (pure val)
-                uid <- (wrapMonadClient . Data.getSAMLUser $ uref) !? Scim.notFound "User" "Not a known SAML User"
-                brigUser <- Intra.Brig.getBrigUser uid !? Scim.notFound "User" "Not a known brig user"
-                unless (userTeam brigUser == Just stiTeam) $ throwError $ Scim.notFound "User" "Not in team"
-                richInfo <- lift $ Intra.Brig.getBrigUserRichInfo uid
-                -- NOTE: The SSO login flow without scim _forces_ the user to
-                -- choose a handle. So this isn't a problem in practise
-                handle <- userHandle brigUser ?? Scim.serverError "Found an SSO user without a handle. This should not happen!"
-                pure $ NeededInfo
-                  { neededHandle = handle
-                  , neededName = userName brigUser
-                  , neededUserId = uid
-                  , neededExternalId = val
-                  , neededRichInfo = richInfo
-                  }
-              _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Attribute not supported")
-                
-          | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Not a supported schema")
-        _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
-
-    let buid = neededUserId neededInfo
-    -- NOTE: We set ManagedBy to SCIM as quickly as possible; as to reduce
-    -- the amount of time a race condition can occur.  
-    mScimUser <- lift . wrapMonadClient . Data.getScimUser $ buid
-    case mScimUser of
-      Just scimUser -> pure $ Scim.fromList [scimUser]
-      Nothing -> do
-        -- NOTE: This case only happens when you search users by "externalId". By construction doesn't happen when you search by handle
-        let user = synthesizeScimUser neededInfo 
-        storedUser <- lift $ toScimStoredUser buid user
-        lift . wrapMonadClient $ Data.insertScimUser buid storedUser
-        pure $ Scim.fromList [storedUser]
+                uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
+                brigUser  <- MaybeT . lift . Intra.Brig.getBrigUser $ uid
+                createOrGetScimUser brigUser
+              _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
+            pure $ Scim.fromList (toList x)
+        | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
+      _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
 
   -- | Get a single user by its ID.
   getUser :: ScimTokenInfo

@@ -23,7 +23,6 @@ import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
 import qualified Spar.Intra.Brig                  as Intra
-import qualified Galley.Types.Teams               as Team
 import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
@@ -323,6 +322,7 @@ specListUsers = describe "GET /Users" $ do
 
     it "finds a SCIM-provisioned user" $ testFindProvisionedUser
     it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
+    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored 
     it "doesn't list deleted users" $ testListNoDeletedUsers
     it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
     it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
@@ -365,33 +365,40 @@ testFindProvisionedUser = do
     liftIO $ users'' `shouldContain` [storedUser]
     pure ()
 
+-- NOTE: I'm not sure if this is desired behaviour yet.  But there can be cases
+-- where people logged in but haven't set the handle yet in the UI. We do not
+-- want to 'crash' for those cases apparently.
+testSsoUsersWithoutHandleSilentlyIgnored :: TestSpar ()
+testSsoUsersWithoutHandleSilentlyIgnored = do
+    ((_, teamid, idp)) <- registerTestIdP
+    member <- loginSsoUserFirstTime idp
+    -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+    Just brigUser <- runSpar $ Intra.getBrigUser member
+    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
+    let Right externalId = Intra.toExternalId ssoIdentity'
+    users <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
+  
+
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
 testFindNonProvisionedUser = do
-    env <- ask  
-    let brig = env ^. teBrig
-    let galley =  env ^. teGalley
-    (tok, (_, teamId, _)) <- registerIdPAndScimToken
-    member <- runHttpT (env ^. teMgr)
-      $ createTeamMember brig galley teamId Team.noPermissions
+    ((_, teamid, idp)) <- registerTestIdP
+    member <- loginSsoUserFirstTime idp
+    -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
 
-    -- TODO(arianvp): This is currently failing; as createTeamMember creates an SSO
-    -- user without a handle; eventhough we assumed that SSO users would always have
-    -- handles. Very odd indeed! Ask @fisx tomorrow
-    Just (Handle userName) <- (>>= userHandle) <$> runSpar (Intra.getBrigUser member)
-    users <- listUsers tok (Just (filterBy "userName" userName))
+    handle'@(Handle handle) <- nextHandle
+    runSpar $ Intra.setBrigUserHandle member handle'
+    users <- listUsers tok (Just (filterBy "userName" handle))
     liftIO $ (scimUserId <$> users) `shouldContain` [member]
 
-    -- TODO(arianvp): Also add a test to search by "externalId" and show that
-    -- works.  problem is that "createTeamMember" has the following comment:
-    -- NB: this does create an SSO UserRef on brig, but not on spar.  this is
-    -- inconsistent, but the inconsistency does not affect the tests we're
-    -- running with this.  to resolve it, we could add an internal end-point to
-    -- spar that allows us to create users without idp response verification.
-    --
-    -- This actually is a problem now! And I wonder how other parts of Spar are
-    -- tested?? e.g. the SAML stuff. I should ask @fisx tomorrow.
-    users' <- listUsers tok (Just (filterBy "userName" userName))
+    Just brigUser <- runSpar $ Intra.getBrigUser member
+    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
+    let Right externalId = Intra.toExternalId ssoIdentity'
+
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ (scimUserId <$> users') `shouldContain` [member]
 
 
@@ -858,24 +865,25 @@ specPatchUser = do
             liftIO $ Scim.User.userName user'' `shouldBe` userName
             liftIO $ Scim.User.displayName user'' `shouldBe` displayName
 
-        -- NOTE: Also the "extra" attributes are ignored 
-        --
-        it "other valid attributes are quietly ignored for now" $ do
+        it "other valid attributes that we do not explicit support throw an error" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
-                [ replaceAttrib "emails" ("hello" :: Text) ]
-            liftIO $ storedUser `shouldBe` storedUser'
+            env <- ask
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "emails" ("hello" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+               !!! const 400 === statusCode
+
         it "invalid attributes are quietly ignored for now" $ do
             (tok, _) <- registerIdPAndScimToken
             user <- randomScimUser
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
-                [ replaceAttrib "totallyBogus" ("hello" :: Text) ]
-            liftIO $ storedUser `shouldBe` storedUser'
+            env <- ask
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "totallyBogus" ("hello" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+               !!! const 400 === statusCode
 
         -- NOTE: Remove at the moment actually never works! As all the fields
         -- we support are required in our book
@@ -887,6 +895,7 @@ specPatchUser = do
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "userName" ]
             patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+
         it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
             pendingWith
               "We default to the externalId when displayName is removed. lets keep that for now"
