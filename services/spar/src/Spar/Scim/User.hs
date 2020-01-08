@@ -109,6 +109,7 @@ instance Scim.UserDB SparTag Spar where
     -- but it would complicate this code a bit, instead of leaving it as is.
     members <- lift $ Galley.getTeamMembers stiTeam
     brigusers :: [User]
+      -- TODO userDeleted is redundant. `getBrigUsers` already calls userDeleted in intra
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser SparTag]
@@ -165,6 +166,7 @@ instance Scim.UserDB SparTag Spar where
           -> UserId
           -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
   getUser ScimTokenInfo{stiTeam} uid = do
+    -- NOTE: Code smell!  isJust;  == Just;  This is the Maybe Monad.
     mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
     mbScimUser <- if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
       then lift . wrapMonadClient . Data.getScimUser $ uid
