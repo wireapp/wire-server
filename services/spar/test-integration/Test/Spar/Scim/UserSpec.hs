@@ -326,7 +326,7 @@ specListUsers = describe "GET /Users" $ do
     it "doesn't list deleted users" $ testListNoDeletedUsers
     it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
     it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
-    it "doesn't list users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
+    it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
 
 filterBy :: Text -> Text -> Filter.Filter
