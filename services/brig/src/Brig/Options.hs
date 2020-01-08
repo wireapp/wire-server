@@ -312,10 +312,11 @@ data Settings = Settings
 
     , setPropertyMaxKeyLen     :: !(Maybe Int64)
     , setPropertyMaxValueLen   :: !(Maybe Int64)
-    , setDeleteThrottleMillis  :: !(Maybe Int) -- ^ How long, in milliseconds, to wait
-                                               -- in between processing delete events
-                                               -- from the internal delete queue
-
+    , setDeleteThrottleMillis  :: !(Maybe Int)  -- ^ How long, in milliseconds, to wait
+                                                -- in between processing delete events
+                                                -- from the internal delete queue
+    , setSearchSameTeamOnly :: !(Maybe Bool) -- ^ When true, search only
+                                             -- returns users from the same team
     } deriving (Show, Generic)
 
 defMaxKeyLen :: Int64
@@ -344,3 +345,4 @@ Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
 Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings
+Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings

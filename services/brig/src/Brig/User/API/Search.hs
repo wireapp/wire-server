@@ -2,9 +2,12 @@ module Brig.User.API.Search (routes) where
 
 import Imports
 import Brig.API.Handler
+import Brig.App
+import Brig.Options
 import Brig.User.Event
 import Brig.User.Search.Index
-import Brig.Types.Search (SearchableStatus)
+import Brig.Types.Search hiding (isSearchable)
+import Control.Lens
 import Data.Id
 import Data.Range
 import Data.Predicate
@@ -78,7 +81,30 @@ routes = do
 -- Handlers
 
 search :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
-search (_ ::: u ::: q ::: s) = json <$> lift (searchIndex u q s)
+search (_ ::: u ::: q ::: s) = do
+    sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
+    contacts <- lift (searchIndex u q s)
+    -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
+    --             the extra work done here and greatly simplify the query.
+    return . json =<< if sameTeamSearchOnly
+        then maybeFilterTeamUsers contacts
+        else pure contacts
+  where
+    maybeFilterTeamUsers :: SearchResult Contact -> Handler (SearchResult Contact)
+    maybeFilterTeamUsers sresult = do
+        selfTeam <- lift $ DB.lookupUserTeam u
+        case selfTeam of
+            Nothing   -> pure sresult
+            Just team -> filterTeamUsers sresult team
+
+    -- Filter the result set with users from the given team only
+    filterTeamUsers sresult team = do
+        others <- lift $ DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
+        let sameTeamMembers = fmap fst $ filter ((== Just team) . snd) others
+        let searchResultsFiltered = filter ((`elem` sameTeamMembers) . contactUserId) (searchResults sresult)
+        return $ sresult { searchReturned = length searchResultsFiltered
+                         , searchResults  = searchResultsFiltered
+                         }
 
 isSearchable :: JSON ::: UserId -> Handler Response
 isSearchable (_ ::: u) = json <$> lift (checkIndex u)

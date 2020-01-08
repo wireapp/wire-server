@@ -42,7 +42,6 @@ testOptInOut brig = do
     assertSearchable "opted in" brig uid1 True
     assertCanFind brig uid2 uid1 h1
 
-
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do
     u1 <- randomUser brig

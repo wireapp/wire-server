@@ -10,7 +10,7 @@ import Util
 
 import qualified Brig.Options                as Opt
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at _conf p b _c _g = testGroup "onboarding"
     [ test p "post /onboarding/v3 - 200" $ testOnboarding b
     ]

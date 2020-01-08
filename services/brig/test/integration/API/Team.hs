@@ -11,7 +11,7 @@ import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import UnliftIO.Async (mapConcurrently_, replicateConcurrently, pooledForConcurrentlyN_)
-import Control.Lens ((^.), view)
+import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
@@ -23,7 +23,6 @@ import Test.Tasty.HUnit
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
 import Util.AWS as Util
-import Util.Options.Common
 
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
@@ -36,10 +35,10 @@ import qualified Test.Tasty.Cannon           as WS
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
-    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "TEAM_MAX_SIZE"
-    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings) conf read "TEAM_INVITATION_TIMEOUT"
+    let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
+    let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
@@ -66,6 +65,7 @@ tests conf m b c g aws = do
             ]
         , testGroup "search"
             [ test m "post /register members are unsearchable" $ testNonSearchableDefault b g
+            , test m "team members may only search within team if set" $ testNonSearchableAcrossTeam conf b g
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
@@ -600,6 +600,93 @@ testNonSearchableDefault brig galley = do
     -- team members are not searchable by default
     assertSearchable "member isn't searchable" brig uid3 False
     assertCan'tFind brig uid1 uid3 iHandle
+
+testNonSearchableAcrossTeam :: Opt.Opts -> Brig -> Galley -> Http ()
+testNonSearchableAcrossTeam opts brig galley = do
+    nonMember <- randomUserWithHandle brig
+    email     <- randomEmail
+    rsp       <- register email newTeam brig
+
+    act <- getActivationCode brig (Left email)
+    case act of
+      Nothing -> liftIO $ assertFailure "activation key/code not found"
+      Just kc -> activate brig kc !!! const 200 === statusCode
+
+    let Just creator = responseJsonMaybe rsp
+    [team]  <- view Team.teamListTeams <$> getTeams (userId creator) galley
+    let tid = view Team.teamId team
+    invitee <- inviteAndRegisterUser (userId creator) tid brig
+    creatorWithHandle <- setRandomHandle brig creator
+    inviteeWithHandle <- setRandomHandle brig invitee
+    -- Separate team creator
+    emailOther <- randomEmail
+    rspOther <- register emailOther newTeam brig
+    actOther <- getActivationCode brig (Left emailOther)
+    case actOther of
+      Nothing -> liftIO $ assertFailure "activation key/code not found"
+      Just kc -> activate brig kc !!! const 200 === statusCode
+
+    let Just creatorOther = responseJsonMaybe rspOther
+    creatorOtherWithHandle <- setRandomHandle brig creatorOther
+
+    refreshIndex brig
+
+    let uid1 = userId nonMember
+        uid2 = userId creatorWithHandle
+        uid3 = userId inviteeWithHandle
+        uid4 = userId creatorOtherWithHandle
+        Just uHandle = fromHandle <$> userHandle nonMember
+        uName = fromName $ userName nonMember
+        Just cHandle = fromHandle <$> userHandle creatorWithHandle
+        cName = fromName $ userName creatorWithHandle
+        Just iHandle = fromHandle <$> userHandle inviteeWithHandle
+        Just oHandle = fromHandle <$> userHandle creatorOtherWithHandle
+        oName = fromName $ userName creatorOtherWithHandle
+
+    -- users are searchable by default
+    assertSearchable "user is searchable" brig uid1 True
+    assertCanFind brig uid2 uid1 uHandle
+    -- users are also searcheable by name
+    assertCanFind brig uid3 uid1 uName
+
+    -- team users can also be made searchable
+    updateSearchableStatus brig uid4 optIn
+    assertSearchable "user is searchable" brig uid4 True
+    refreshIndex brig
+    assertCanFind brig uid2 uid4 oHandle
+    assertCanFind brig uid3 uid4 oName
+
+    -- team owners are not searchable by default
+    assertSearchable "owner isn't searchable" brig uid2 False
+    assertCan'tFind brig uid1 uid2 cHandle
+
+    -- team members are not searchable by default
+    assertSearchable "member isn't searchable" brig uid3 False
+    assertCan'tFind brig uid1 uid3 iHandle
+
+    -- make the creator searchable
+    updateSearchableStatus brig uid2 optIn
+    refreshIndex brig
+
+    -- uid2 is searchable for uid1, uid3 and uid4 now
+    assertCanFind brig uid1 uid2 cHandle
+    assertCanFind brig uid1 uid2 cName
+    assertCanFind brig uid3 uid2 cHandle
+    assertCanFind brig uid3 uid2 cName
+    assertCanFind brig uid4 uid2 cHandle
+    assertCanFind brig uid4 uid2 cName
+
+    let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
+    withSettingsOverrides newOpts $ do
+        -- team users cannot search by name nor handle if not a team user
+        assertCan'tFind brig uid2 uid1 uHandle
+        assertCan'tFind brig uid2 uid1 uName
+        -- and also not across
+        assertCan'tFind brig uid3 uid4 oHandle
+        assertCan'tFind brig uid3 uid4 oName
+        -- uid3 can find uid2 because uid2 is visible and they are on the same team
+        assertCanFind brig uid3 uid2 cHandle
+        assertCanFind brig uid3 uid2 cName
 
 ----------------------------------------------------------------------
 -- SSO
