@@ -432,7 +432,6 @@ testFindNoDeletedUsers = do
 
     let Just externalId = Scim.User.externalId user
 
-    -- list on NotFound! We should change the code!!
     users' <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ users' `shouldSatisfy` all ((/= userid) . scimUserId)
 
