@@ -587,7 +587,7 @@ createOrGetScimUser stiTeam brigUser = do
     getUserTeam' = MaybeT . pure . userTeam
     getUserHandle' = MaybeT . pure . userHandle
     setManagedBy' uid = lift . lift . Intra.Brig.setBrigUserManagedBy uid
-    getRichInfo' = MaybeT . lift . Intra.Brig.getBrigUserRichInfo
+    getRichInfo' = lift . lift . Intra.Brig.getBrigUserRichInfo
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
     toExternalId' =
       either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))

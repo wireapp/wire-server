@@ -175,7 +175,6 @@ getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
 getBrigUsers = fmap catMaybes . mapM getBrigUser
 
 
-
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if
@@ -269,7 +268,8 @@ setBrigUserRichInfo buid richInfo = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
-getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe RichInfo)
+-- TODO: We should add an internal endpoint for this instead
+getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
 getBrigUserRichInfo buid = do
   resp <- call
     $ method GET
@@ -277,9 +277,7 @@ getBrigUserRichInfo buid = do
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
   case statusCode resp of
-    200 -> do
-      Just <$> parseResponse @RichInfo resp
-    404   -> pure Nothing
+    200 -> parseResponse @RichInfo resp
     _   -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
     
 
