@@ -117,7 +117,7 @@ instance Scim.UserDB SparTag Spar where
         | Scim.isUserSchema schema -> do
             x <- runMaybeT $ case attrName of
               "username" -> do
-                handle <- lift $ validateHandle val
+                handle <- MaybeT . pure . parseHandle . Text.toLower $ val
                 brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
                 createOrGetScimUser stiTeam brigUser
               "externalid" -> do
