@@ -470,9 +470,6 @@ testUserFindFailsWithNotFoundIfOutsideTeam = do
     storedUser <- createUser tokTeamA user
     let userid = scimUserId storedUser
 
-    -- TODO(arianvp): This fails due to a bug in the implementation. The test
-    -- case was very deceitfully named; it made me think I had to return a 404,
-    -- but instead an empty list is expected by the SCIM spec!
     users <- listUsers tokTeamB (Just (filterBy "userName" (Scim.User.userName user)))
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
