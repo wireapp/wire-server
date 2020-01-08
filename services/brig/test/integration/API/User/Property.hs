@@ -102,9 +102,8 @@ testClearProperties brig = do
     getProperty brig (userId u) "bar" !!!
         const 404 === statusCode
 
-testPropertyLimits :: Maybe Opt.Opts -> Brig -> Http ()
-testPropertyLimits Nothing _ = error "no config!"
-testPropertyLimits (Just opts) brig = do
+testPropertyLimits :: Opt.Opts -> Brig -> Http ()
+testPropertyLimits opts brig = do
     u <- randomUser brig
 
     let maxKeyLen = fromIntegral $ fromMaybe defMaxKeyLen . setPropertyMaxKeyLen $ optSettings opts

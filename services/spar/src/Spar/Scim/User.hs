@@ -117,7 +117,7 @@ instance Scim.UserDB SparTag Spar where
         | Scim.isUserSchema schema -> do
             x <- runMaybeT $ case attrName of
               "username" -> do
-                handle <- lift $ validateHandle val
+                handle <- MaybeT . pure . parseHandle . Text.toLower $ val
                 brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
                 createOrGetScimUser stiTeam brigUser
               "externalid" -> do
@@ -188,7 +188,7 @@ validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
 validateHandle txt = case parseHandle (Text.toLower txt) of
     Just h -> pure h
     Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
-        (Just "userName must be a valid Wire handle")
+        (Just (txt <> "is not a valid Wire handle"))
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
