@@ -391,15 +391,28 @@ testFindNonProvisionedUser = do
 
     handle'@(Handle handle) <- nextHandle
     runSpar $ Intra.setBrigUserHandle member handle'
+
+    Just brigUser <- runSpar $ Intra.getBrigUser member
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByWire
+
     users <- listUsers tok (Just (filterBy "userName" handle))
     liftIO $ (scimUserId <$> users) `shouldContain` [member]
 
-    Just brigUser <- runSpar $ Intra.getBrigUser member
-    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
+    Just brigUser' <- runSpar $ Intra.getBrigUser member
+    liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
+
+    -- a scim record should've been inserted too
+    _ <- getUser tok member
+
+
+
+    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser'
     let Right externalId = Intra.toExternalId ssoIdentity'
 
     users' <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ (scimUserId <$> users') `shouldContain` [member]
+
+    
 
 
 -- | Test that deleted users are not listed.

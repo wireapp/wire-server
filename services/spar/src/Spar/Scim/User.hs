@@ -72,6 +72,33 @@ data NeededInfo = NeededInfo
   , neededRichInfo :: RichInfo
   }
 
+-- | Helper function that given a brig user, creates a scim user on the fly or returns
+-- an already existing scim user 
+createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
+createOrGetScimUser stiTeam brigUser = do
+  team <- MaybeT . pure . userTeam $ brigUser
+  guard $ stiTeam == team
+  let uid = BrigTypes.userId brigUser
+  -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
+  mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
+  case mScimUser of
+    Just scimUser -> pure scimUser
+    Nothing -> do
+      lift . lift $  Intra.Brig.setBrigUserManagedBy uid ManagedByScim
+      handle <- MaybeT . pure . userHandle $ brigUser
+      let name = userName brigUser
+      richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
+      ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
+      externalId <-
+        either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
+        pure .
+        toExternalId $ ssoIdentity'
+      let neededInfo = NeededInfo handle name externalId richInfo
+      let user = synthesizeScimUser neededInfo
+      storedUser <- lift . lift $ toScimStoredUser uid user
+      lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
+      pure storedUser
+
 ----------------------------------------------------------------------------
 -- UserDB instance
 
@@ -123,39 +150,16 @@ instance Scim.UserDB SparTag Spar where
       Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
         | Scim.isUserSchema schema -> do
             let
-              createOrGetScimUser :: BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
-              createOrGetScimUser brigUser = do
-                team <- MaybeT . pure . userTeam $ brigUser
-                guard $ stiTeam == team
-                let uid = BrigTypes.userId brigUser
-                -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
-                mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
-                case mScimUser of
-                  Just scimUser -> pure scimUser
-                  Nothing -> do
-                    handle <- MaybeT . pure . userHandle $ brigUser
-                    let name = userName brigUser
-                    richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
-                    ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
-                    externalId <-
-                      either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
-                      pure .
-                      toExternalId $ ssoIdentity'
-                    let neededInfo = NeededInfo handle name externalId richInfo
-                    let user = synthesizeScimUser neededInfo
-                    storedUser <- lift . lift $ toScimStoredUser uid user
-                    lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
-                    pure storedUser
             x <- runMaybeT $ case attrName of
               "username" -> do
                 handle <- lift $ validateHandle val
                 brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
-                createOrGetScimUser brigUser
+                createOrGetScimUser stiTeam brigUser
               "externalid" -> do
                 uref <- mkUserRef idpConfig (pure val)
                 uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
                 brigUser  <- MaybeT . lift . Intra.Brig.getBrigUser $ uid
-                createOrGetScimUser brigUser
+                createOrGetScimUser stiTeam brigUser
               _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
             pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
