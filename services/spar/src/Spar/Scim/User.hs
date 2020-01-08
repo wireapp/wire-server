@@ -115,7 +115,6 @@ instance Scim.UserDB SparTag Spar where
     case filter' of
       Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
         | Scim.isUserSchema schema -> do
-            let
             x <- runMaybeT $ case attrName of
               "username" -> do
                 handle <- lift $ validateHandle val
@@ -136,12 +135,17 @@ instance Scim.UserDB SparTag Spar where
           -> UserId
           -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
   getUser ScimTokenInfo{stiTeam} uid = do
-    -- NOTE: Code smell!  isJust;  == Just;  This is the Maybe Monad.
-    mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
-    mbScimUser <- if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
-      then lift . wrapMonadClient . Data.getScimUser $ uid
-      else pure Nothing
-    maybe (throwError . Scim.notFound "User" $ idToText uid) pure mbScimUser
+    user <- runMaybeT $ do
+      brigUser <- getBrigUser' uid
+      team' <- getUserTeam' brigUser
+      guard $ stiTeam == team'
+      getScimUser' uid
+    maybe (throwError . Scim.notFound "User" $ idToText uid) pure user
+    where
+      -- pretty wrappers; should use some MTL instances to get rid of lifts
+      getBrigUser' = MaybeT . lift . Intra.Brig.getBrigUser
+      getUserTeam' = MaybeT . pure . userTeam
+      getScimUser' = MaybeT . lift . wrapMonadClient . Data.getScimUser
 
   -- | Create a new user.
   postUser :: ScimTokenInfo
@@ -560,28 +564,37 @@ synthesizeScimUser info =
 -- an already existing scim user 
 createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
 createOrGetScimUser stiTeam brigUser = do
-  team <- MaybeT . pure . userTeam $ brigUser
+  team <- getUserTeam' brigUser
   guard $ stiTeam == team
-  let uid = BrigTypes.userId brigUser
-  -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
-  mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
-  case mScimUser of
-    Just scimUser -> pure scimUser
-    Nothing -> do
-      lift . lift $  Intra.Brig.setBrigUserManagedBy uid ManagedByScim
-      handle <- MaybeT . pure . userHandle $ brigUser
-      let name = userName brigUser
-      richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
-      ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
-      externalId <-
-        either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
-        pure .
-        toExternalId $ ssoIdentity'
+  getScimUser' (BrigTypes.userId brigUser) <|> createScimUser' brigUser
+  where
+    createScimUser' brigUser' = do
+      let uid = BrigTypes.userId brigUser'
+      setManagedBy' uid ManagedByScim
+      handle <- getUserHandle' brigUser'
+      let name = userName brigUser'
+      richInfo <- getRichInfo' uid
+      ssoIdentity' <- getSSOIdentity' brigUser'
+      externalId <- toExternalId' ssoIdentity'
       let neededInfo = NeededInfo handle name externalId richInfo
       let user = synthesizeScimUser neededInfo
-      storedUser <- lift . lift $ toScimStoredUser uid user
-      lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
+      storedUser <-  toScimStoredUser'' uid user
+      insertScimUser' uid storedUser
       pure storedUser
+
+    -- All this is boilerplate that can go away if we have the correct MTL instances I think? :)
+    getScimUser' = MaybeT . lift . wrapMonadClient . Data.getScimUser
+    getUserTeam' = MaybeT . pure . userTeam
+    getUserHandle' = MaybeT . pure . userHandle
+    setManagedBy' uid = lift . lift . Intra.Brig.setBrigUserManagedBy uid
+    getRichInfo' = MaybeT . lift . Intra.Brig.getBrigUserRichInfo
+    getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
+    toExternalId' =
+      either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
+        pure .
+      toExternalId
+    toScimStoredUser'' uid = lift . lift . toScimStoredUser uid
+    insertScimUser' uid = lift . lift .wrapMonadClient . Data.insertScimUser uid
 
 
 {- TODO: might be useful later.
