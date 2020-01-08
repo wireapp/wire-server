@@ -41,7 +41,6 @@ testOptInOut brig = do
     refreshIndex brig
     assertSearchable "opted in" brig uid1 True
     assertCanFind brig uid2 uid1 h1
-    -- Even if users opt in, team users in other teams should not be found
 
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do
