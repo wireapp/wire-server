@@ -64,40 +64,6 @@ import qualified Web.Scim.Schema.ResourceType     as Scim
 import qualified Web.Scim.Schema.User             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 
--- | The information needed to synthesize a Scim user.
-data NeededInfo = NeededInfo
-  { neededHandle :: Handle
-  , neededName :: Name
-  , neededExternalId :: Text
-  , neededRichInfo :: RichInfo
-  }
-
--- | Helper function that given a brig user, creates a scim user on the fly or returns
--- an already existing scim user 
-createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
-createOrGetScimUser stiTeam brigUser = do
-  team <- MaybeT . pure . userTeam $ brigUser
-  guard $ stiTeam == team
-  let uid = BrigTypes.userId brigUser
-  -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
-  mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
-  case mScimUser of
-    Just scimUser -> pure scimUser
-    Nothing -> do
-      lift . lift $  Intra.Brig.setBrigUserManagedBy uid ManagedByScim
-      handle <- MaybeT . pure . userHandle $ brigUser
-      let name = userName brigUser
-      richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
-      ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
-      externalId <-
-        either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
-        pure .
-        toExternalId $ ssoIdentity'
-      let neededInfo = NeededInfo handle name externalId richInfo
-      let user = synthesizeScimUser neededInfo
-      storedUser <- lift . lift $ toScimStoredUser uid user
-      lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
-      pure storedUser
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -570,7 +536,14 @@ assertHandleNotUsedElsewhere hndl uid = do
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl uid
 
--- | Fails if the handle isn't set
+-- | The information needed to synthesize a Scim user.
+data NeededInfo = NeededInfo
+  { neededHandle :: Handle
+  , neededName :: Name
+  , neededExternalId :: Text
+  , neededRichInfo :: RichInfo
+  }
+
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
 synthesizeScimUser info =
   let 
@@ -582,6 +555,33 @@ synthesizeScimUser info =
       , Scim.displayName = Just displayName
       }
 
+
+-- | Helper function that given a brig user, creates a scim user on the fly or returns
+-- an already existing scim user 
+createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
+createOrGetScimUser stiTeam brigUser = do
+  team <- MaybeT . pure . userTeam $ brigUser
+  guard $ stiTeam == team
+  let uid = BrigTypes.userId brigUser
+  -- NOTE: We should have MTL instances so we can get rid of the lift . lift issues
+  mScimUser <- lift . lift . wrapMonadClient . Data.getScimUser $ uid
+  case mScimUser of
+    Just scimUser -> pure scimUser
+    Nothing -> do
+      lift . lift $  Intra.Brig.setBrigUserManagedBy uid ManagedByScim
+      handle <- MaybeT . pure . userHandle $ brigUser
+      let name = userName brigUser
+      richInfo <- MaybeT . lift . Intra.Brig.getBrigUserRichInfo $ uid
+      ssoIdentity' <- MaybeT . pure $ userIdentity >=> ssoIdentity $ brigUser
+      externalId <-
+        either (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
+        pure .
+        toExternalId $ ssoIdentity'
+      let neededInfo = NeededInfo handle name externalId richInfo
+      let user = synthesizeScimUser neededInfo
+      storedUser <- lift . lift $ toScimStoredUser uid user
+      lift . lift . wrapMonadClient $ Data.insertScimUser uid storedUser
+      pure storedUser
 
 
 {- TODO: might be useful later.
