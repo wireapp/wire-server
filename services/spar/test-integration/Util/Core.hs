@@ -12,7 +12,7 @@ module Util.Core
   -- * Test environment
     mkEnvFromOptions, mkEnv, destroyEnv
   -- * Test helpers
-  , passes, it, pending, pendingWith
+  , passes, it, pending, pendingWith, xit
   , shouldRespondWith
   , module Test.Hspec
   , aFewTimes
@@ -34,6 +34,7 @@ module Util.Core
   , promoteTeamMember
   , getSelfProfile
   , nextWireId
+  , nextHandle
   , nextSAMLID
   , nextSubject
   , nextUserRef
@@ -206,6 +207,12 @@ it :: HasCallStack
    => String -> TestSpar () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
+xit :: HasCallStack
+       -- or, more generally:
+       -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
+   => String -> TestSpar () -> SpecWith TestEnv
+xit msg bdy = Test.Hspec.xit msg $ runReaderT bdy
+
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
@@ -266,6 +273,8 @@ putSSOEnabledInternal gly tid enabled = do
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
 -- internal end-point to spar that allows us to create users without idp response verification.
+--
+-- TODO: drop this and always use 'loginSsoUserFirstTime' instead!
 createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
                  => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
 createTeamMember brigreq galleyreq teamid perms = do
@@ -316,6 +325,9 @@ nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
+
+nextHandle :: MonadIO m => m Brig.Handle
+nextHandle = liftIO $ Brig.Handle . cs . show <$> randomRIO (0::Int,13371137)
 
 -- | Generate a 'SAML.UserRef' subject.
 nextSubject :: (HasCallStack, MonadIO m) => m NameID
@@ -637,7 +649,7 @@ loginSsoUserFirstTime idp = do
   spmeta <- getTestSPMetadata
   authnResp <- runSimpleSP $ mkAuthnResponse privCreds idp spmeta authnReq True
   sparAuthnResp <- submitAuthnResponse authnResp
-  let wireCookie = maybe (error "no wire cookie") id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
+  let wireCookie = maybe (error (show sparAuthnResp)) id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
 
   accessResp :: ResponseLBS <- call $
     post ((env ^. teBrig) . path "/access" . header "Cookie" wireCookie . expect2xx)
