@@ -16,7 +16,7 @@ import qualified Data.ByteString.Char8       as C
 import qualified Data.Text                   as T
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b _c _g = testGroup "property"
     [ test p "put/get /properties/:key - 200" $ testSetGetProperty b
     , test p "delete /properties/:key - 200"  $ testDeleteProperty b
@@ -102,9 +102,8 @@ testClearProperties brig = do
     getProperty brig (userId u) "bar" !!!
         const 404 === statusCode
 
-testPropertyLimits :: Maybe Opt.Opts -> Brig -> Http ()
-testPropertyLimits Nothing _ = error "no config!"
-testPropertyLimits (Just opts) brig = do
+testPropertyLimits :: Opt.Opts -> Brig -> Http ()
+testPropertyLimits opts brig = do
     u <- randomUser brig
 
     let maxKeyLen = fromIntegral $ fromMaybe defMaxKeyLen . setPropertyMaxKeyLen $ optSettings opts
@@ -128,9 +127,8 @@ testPropertyLimits (Just opts) brig = do
         const 403 === statusCode
         const (Just "too-many-properties") === fmap Error.label . responseJsonMaybe
 
-testSizeLimits :: HasCallStack => Maybe Opt.Opts -> Brig -> Http ()
-testSizeLimits Nothing _ = error "no config!"
-testSizeLimits (Just opts) brig = do
+testSizeLimits :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testSizeLimits opts brig = do
     let maxKeyLen = fromIntegral $ fromMaybe defMaxKeyLen . setPropertyMaxKeyLen $ optSettings opts
         maxValueLen = fromIntegral $ fromMaybe defMaxValueLen . setPropertyMaxValueLen $ optSettings opts
 

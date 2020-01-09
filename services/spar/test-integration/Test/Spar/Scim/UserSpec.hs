@@ -9,9 +9,10 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
+import Data.Aeson.Types (toJSON)
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
-import Data.Id (UserId)
+import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Spar.Scim
 import Spar.Types (IdP)
@@ -25,9 +26,10 @@ import qualified Spar.Intra.Brig                  as Intra
 import qualified Web.Scim.Class.User              as ScimC.User
 import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.PatchOp          as PatchOp
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
-import qualified Web.Scim.Filter                  as Scim.Filter
+import qualified Web.Scim.Filter                  as Filter
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -35,8 +37,10 @@ spec = do
     specCreateUser
     specListUsers
     specGetUser
+    specPatchUser
     specUpdateUser
     specDeleteUser
+    specAzureQuirks
 
     describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
         it "..." $ do
@@ -315,26 +319,24 @@ testScimCreateVsUserRef = do
 -- | Tests for @GET /Users@.
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
-    it "lists all users in a team" $ testListAllUsers
-    it "finds a SCIM-provisioned user by username" $ testFindProvisionedUserByUsername
-    it "finds a non-SCIM-provisioned user by username" $ pending
+    it "lists all SCIM users in a team" $ testListProvisionedUsers
+
+    it "finds a SCIM-provisioned user" $ testFindProvisionedUser
+    it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
+    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored 
     it "doesn't list deleted users" $ testListNoDeletedUsers
-    it "doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+    it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
+    it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+    it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
 
-testFindProvisionedUserByUsername :: TestSpar ()
-testFindProvisionedUserByUsername = do
-    user <- randomScimUser
-    (tok, (_, _, _)) <- registerIdPAndScimToken
-    storedUser <- createUser tok user
-    users <- listUsers tok (Just (Scim.Filter.FilterAttrCompare Scim.Filter.AttrUserName Scim.Filter.OpEq (Scim.Filter.ValString (Scim.User.userName user))))
-    liftIO $ users `shouldContain` [storedUser]
-    pure ()
-
+filterBy :: Text -> Text -> Filter.Filter
+filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
+  
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
-testListAllUsers :: TestSpar ()
-testListAllUsers = do
+testListProvisionedUsers :: TestSpar ()
+testListProvisionedUsers = do
     -- Create a user via SCIM
     user <- randomScimUser
     (tok, (owner, _, _)) <- registerIdPAndScimToken
@@ -346,6 +348,74 @@ testListAllUsers = do
     -- Check that the (non-SCIM-provisioned) team owner is NOT present
     liftIO $ (scimUserId <$> users) `shouldNotContain` [owner]
 
+
+testFindProvisionedUser :: TestSpar ()
+testFindProvisionedUser = do
+    user <- randomScimUser
+    (tok, (_, _, _)) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+    liftIO $ users `shouldContain` [storedUser]
+    let Just externalId = Scim.User.externalId user
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users' `shouldContain` [storedUser]
+
+    -- TODO(arianvp): We will stop supporting list users without filter in the
+    -- future, as it is a performance issue.
+    users'' <- listUsers tok Nothing
+    liftIO $ users'' `shouldContain` [storedUser]
+    pure ()
+
+-- NOTE: I'm not sure if this is desired behaviour yet.  But there can be cases
+-- where people logged in but haven't set the handle yet in the UI. We do not
+-- want to 'crash' for those cases apparently.
+testSsoUsersWithoutHandleSilentlyIgnored :: TestSpar ()
+testSsoUsersWithoutHandleSilentlyIgnored = do
+    ((_, teamid, idp)) <- registerTestIdP
+    member <- loginSsoUserFirstTime idp
+    -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+    Just brigUser <- runSpar $ Intra.getBrigUser member
+    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
+    let Right externalId = Intra.toExternalId ssoIdentity'
+    users <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
+  
+
+-- When explicitly filtering, we should be able to find non-SCIM-provisioned users
+testFindNonProvisionedUser :: TestSpar ()
+testFindNonProvisionedUser = do
+    ((_, teamid, idp)) <- registerTestIdP
+    member <- loginSsoUserFirstTime idp
+    -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+    tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+
+    handle'@(Handle handle) <- nextHandle
+    runSpar $ Intra.setBrigUserHandle member handle'
+
+    Just brigUser <- runSpar $ Intra.getBrigUser member
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByWire
+
+    users <- listUsers tok (Just (filterBy "userName" handle))
+    liftIO $ (scimUserId <$> users) `shouldContain` [member]
+
+    Just brigUser' <- runSpar $ Intra.getBrigUser member
+    liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
+
+    -- a scim record should've been inserted too
+    _ <- getUser tok member
+
+
+
+    let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser'
+    let Right externalId = Intra.toExternalId ssoIdentity'
+
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ (scimUserId <$> users') `shouldContain` [member]
+
+    
+
+
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()
 testListNoDeletedUsers = do
@@ -355,12 +425,32 @@ testListNoDeletedUsers = do
     (tok, _) <- registerIdPAndScimToken
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
-    -- Delete the user (TODO: do it via SCIM)
+    -- Delete the user (TODO: do it via SCIM) TODO(arianvp): Ask @fisx what he meant with this comment???
     call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Get all users
     users <- listUsers tok Nothing
     -- Check that the user is absent
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
+
+
+testFindNoDeletedUsers :: TestSpar ()
+testFindNoDeletedUsers = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+
+    call $ deleteUserOnBrig (env ^. teBrig) userid
+
+    let Just externalId = Scim.User.externalId user
+
+    users' <- listUsers tok (Just (filterBy "externalId" externalId))
+    liftIO $ users' `shouldSatisfy` all ((/= userid) . scimUserId)
+
+    users'' <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+    liftIO $ users'' `shouldSatisfy` all ((/= userid) . scimUserId)
 
 -- | Test that users are not listed if not in the team associated with the token.
 testUserListFailsWithNotFoundIfOutsideTeam :: TestSpar ()
@@ -371,6 +461,17 @@ testUserListFailsWithNotFoundIfOutsideTeam = do
     storedUser <- createUser tokTeamA user
     let userid = scimUserId storedUser
     users <- listUsers tokTeamB Nothing
+    liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
+
+testUserFindFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserFindFailsWithNotFoundIfOutsideTeam = do
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+
+    users <- listUsers tokTeamB (Just (filterBy "userName" (Scim.User.userName user)))
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
 ----------------------------------------------------------------------------
@@ -416,6 +517,8 @@ testGetNoDeletedUsers = do
     -- Try to find the user
     getUser_ (Just tok) userid (env ^. teSpar)
         !!! const 404 === statusCode
+
+    -- TODO(arianvp): What does this mean; @fisx ??
     pendingWith "TODO: delete via SCIM"
 
 -- | Test that gets are not allowed if token is not for the user's team
@@ -459,16 +562,58 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "updates the matching Brig user" $ testBrigSideIsUpdated
     it "cannot update user to match another user's externalId"
         testUpdateToExistingExternalIdFails
+    it "cannot remove display name" $ testCannotRemoveDisplayName
     context "user is from different team" $ do
         it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
         it "fails" $ pending
+    it "does not update if nothing changed" $ testSameUpdateNoChange
     context "brig user is updated" $ do
+        -- TODO(arianvp): This will be fixed by
+        -- https://github.com/zinfra/backend-issues/issues/1006 The comment
+        -- means: If we update a user on the brig side; then currently this is
+        -- not reflected on the SCIM side. We can fix this by making brig
+        -- actually the source of truth for SCIM SCIM then becomes a _view_;
+        -- not a separate database.
         it "does NOT mirror this in the scim user" $
             pendingWith "this is arguably not great behavior, but i'm not sure \
                         \we want to implement synchronisation from brig to spar?"
         it "updates to scim user will overwrite these updates" $
             pendingWith "that's probably what we want?"
+
+-- | Tests that you can't unset your display name
+testCannotRemoveDisplayName :: TestSpar ()
+testCannotRemoveDisplayName = do
+    -- NOTE: This behaviour is in violation of SCIM.
+    -- We either: 
+    --  - Treat Null and omission the same; by always removing
+    --  - Or default on omissison, delete on null
+    --  We have to choose between the two behaviours; in order
+    --  to be a valid SCIM API. we now do an akward mixture of both
+    --  However; I don't think this is currently blocking us on Azure.
+    --  We should however fix this behaviour in the future TODO(arianvp)
+    pendingWith
+      "We default to the externalId when displayName is removed. lets keep that for now"
+    {-
+    env <- ask
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    let user' = user { Scim.User.displayName = Nothing }
+    updateUser_ (Just tok) (Just userid) user'  (env ^. teSpar) !!! const 409 === statusCode
+    -}
+
+-- | Test that when you're not changing any fields, then that update should not
+-- change anything (Including version field)
+testSameUpdateNoChange :: TestSpar ()
+testSameUpdateNoChange = do
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    storedUser' <- updateUser tok userid user
+    liftIO $ storedUser `shouldBe` storedUser'
 
 -- | Test that @PUT /Users@ returns 4xx when called without the @:id@ part.
 testUpdateRequiresUserId :: TestSpar ()
@@ -623,6 +768,171 @@ testBrigSideIsUpdated = do
     brigUser `userShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
+-- Patching users
+specPatchUser :: SpecWith TestEnv
+specPatchUser = do
+    -- Context: PATCH is implemented in the hscim library as a getUser followed
+    -- by a series of transformation on the User object, and then a putUser. The
+    -- correctness of the series of transformations is tested in the hscim test
+    -- suite; and is independent of spar code.  GET and PUT are both already
+    -- tested in the spar code; so here we just simply have a few smoke tests We
+    -- also describe the current limitations. (We only support three fields so
+    -- far)
+    describe  "PATCH /Users/:id" $ do
+        let replaceAttrib name value = 
+                PatchOp.Operation
+                    PatchOp.Replace
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (toJSON value))
+        let removeAttrib name = 
+                PatchOp.Operation
+                    PatchOp.Remove
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    Nothing
+        it "doing nothing doesn't change the user" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid (PatchOp.PatchOp [])
+            liftIO $ storedUser `shouldBe` storedUser'
+        it "can update userName" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            let userName = Scim.User.userName user'
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "userName" userName ]
+            let user'' = Scim.value (Scim.thing storedUser')
+            liftIO $ Scim.User.userName user'' `shouldBe` userName
+        it "can't update to someone else's userName" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- createUser tok user'
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "userName" (Scim.User.userName user') ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+        it "can't update to someone else's externalId" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            _ <- createUser tok user'
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "externalId" (Scim.User.externalId user') ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+        it "can't update a non-existing user" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            userid <- liftIO $ randomId
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "externalId" ("blah" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 404 === statusCode
+        it "can update displayName" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let displayName = Scim.User.displayName user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "displayName" displayName ]
+            let user'' = Scim.value (Scim.thing storedUser')
+            liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+        it "can update externalId" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let externalId = Scim.User.externalId user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "externalId" externalId ]
+            let user'' = Scim.value . Scim.thing $ storedUser'
+            liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+        it "replacing every supported atttribute at once works" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            user' <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let externalId = Scim.User.externalId user'
+            let userName = Scim.User.userName user'
+            let displayName = Scim.User.displayName user'
+            storedUser' <- patchUser tok userid $ PatchOp.PatchOp
+                [ replaceAttrib "externalId" externalId
+                , replaceAttrib "userName" userName
+                , replaceAttrib "displayName" displayName
+                ]
+            let user'' = Scim.value . Scim.thing $ storedUser'
+            liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+            liftIO $ Scim.User.userName user'' `shouldBe` userName
+            liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+
+        it "other valid attributes that we do not explicit support throw an error" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            env <- ask
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "emails" ("hello" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+               !!! const 400 === statusCode
+
+        it "invalid attributes are quietly ignored for now" $ do
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            env <- ask
+            let patchOp = PatchOp.PatchOp [ replaceAttrib "totallyBogus" ("hello" :: Text) ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+               !!! const 400 === statusCode
+
+        -- NOTE: Remove at the moment actually never works! As all the fields
+        -- we support are required in our book
+        it "userName cannot be removed according to scim" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let patchOp = PatchOp.PatchOp [ removeAttrib "userName" ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+
+        it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
+            pendingWith
+              "We default to the externalId when displayName is removed. lets keep that for now"
+            {-env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode -}
+        it "externalId cannot be removed in spar (though possible in scim)" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            user <- randomScimUser
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            let patchOp = PatchOp.PatchOp [ removeAttrib "externalId" ]
+            patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+            
+            
+            
+            
+
+
+
+
+
+----------------------------------------------------------------------------
 -- Deleting users
 
 specDeleteUser :: SpecWith TestEnv
@@ -723,3 +1033,19 @@ specDeleteUser = do
             storedUser <- createUser tok user
             deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
                 !!! assertTrue_ (inRange (200, 499) . statusCode)
+
+-- TODO(arianvp): Move the acceptance tests from hscim to spar. We should've caught this mistake!!!
+specAzureQuirks :: SpecWith TestEnv
+specAzureQuirks = do
+  describe "Assert that we implement all azure quirks" $ do
+    -- Azure sends a request for an unknown user to test out whether your API is online
+    -- However; it sends a userName that is not a valid wire handle. So we should ignore
+    -- when wire handles are invalid :)
+    it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+      (tok, (_, _, _)) <- registerIdPAndScimToken
+      users <- listUsers tok (Just (filterBy "userName" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
+      liftIO $ users `shouldBe` []
+      users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
+      liftIO $ users' `shouldBe` []
+      
+

@@ -30,6 +30,7 @@ import qualified Text.Email.Parser                as Email
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
 import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.PatchOp          as Scim.PatchOp
 import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
@@ -102,9 +103,8 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
              , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
-    pure ( (Scim.User.empty userSchemas (ScimUserExtra richInfo))
-               { Scim.User.userName     = "scimuser_" <> suffix
-               , Scim.User.displayName  = Just ("Scim User #" <> suffix)
+    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
+               { Scim.User.displayName  = Just ("Scim User #" <> suffix)
                , Scim.User.externalId   = Just externalId
                , Scim.User.emails       = emails
                , Scim.User.phoneNumbers = phones
@@ -168,7 +168,20 @@ updateUser tok userid user = do
          <!! const 200 === statusCode
     pure (responseJsonUnsafe r)
 
--- | Update a user.
+-- | Patch a user
+patchUser
+    :: HasCallStack
+    => ScimToken
+    -> UserId
+    -> Scim.PatchOp.PatchOp
+    -> TestSpar (Scim.StoredUser SparTag)
+patchUser tok uid patchOp = do
+    env <- ask
+    r <- patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (responseJsonUnsafe r)
+
+-- | Delete a user.
 deleteUser
     :: HasCallStack
     => ScimToken
@@ -300,6 +313,18 @@ updateUser_ auth muid user spar_ = do
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
+        . acceptScim
+        )
+
+-- | Patch a user
+patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp -> SparReq -> TestSpar ResponseLBS
+patchUser_ auth muid patchop spar_ = 
+    call . patch $
+        ( spar_
+        . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
+        . scimAuth auth
+        . contentScim
+        . body (RequestBodyLBS . Aeson.encode $ patchop)
         . acceptScim
         )
 

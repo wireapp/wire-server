@@ -22,11 +22,11 @@ import qualified Brig.AWS     as AWS
 import qualified Brig.Options as Opt
 import qualified Brig.ZAuth   as ZAuth
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> IO TestTree
+tests :: Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Nginz -> AWS.Env -> IO TestTree
 tests conf p b c ch g n aws = do
-    cl <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
-    at <- optOrEnv (Opt.setActivationTimeout . Opt.optSettings)                    conf read                     "USER_ACTIVATION_TIMEOUT"
-    z  <- mkZAuthEnv conf
+    let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
+    let at = Opt.setActivationTimeout (Opt.optSettings conf)
+    z  <- mkZAuthEnv (Just conf)
     return $ testGroup "user"
         [ API.User.Client.tests        cl at conf p b c g
         , API.User.Account.tests       cl at conf p b c ch g aws

@@ -12,7 +12,7 @@ import Util
 
 import qualified Brig.Options as Opt
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at _conf p b _c _g = testGroup "password-reset"
     [ test p "post /password-reset[/complete] - 201[/200]"  $ testPasswordReset b
     , test p "post /password-reset & put /self/email - 400" $ testPasswordResetAfterEmailUpdate b

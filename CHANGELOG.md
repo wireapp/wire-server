@@ -1,3 +1,19 @@
+# 2020-01-08
+
+## Relevant for self-hosters
+
+- Handle search within team (#921)
+- Fixed logic with connection checks (#930)
+
+## Relevant for client developers
+
+- SCIM Fixes Phase 1 + 2 (#926)
+
+## Bug fixes
+
+- Stack nix fixes (#937)
+
+
 # 2019-12-20
 
 ## Relevant for self-hosters

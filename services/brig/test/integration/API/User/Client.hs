@@ -24,7 +24,7 @@ import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
 tests _cl _at _conf p b c g = testGroup "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients"
                $ testCan'tDeleteLegalHoldClient b

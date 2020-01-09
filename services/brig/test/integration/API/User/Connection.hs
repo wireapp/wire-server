@@ -22,7 +22,7 @@ import qualified Data.UUID.V4                as UUID
 import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests cl _at _conf p b _c g = testGroup "connection"
     [ test p "post /connections"                    $ testCreateManualConnections b
     , test p "post /connections mutual"             $ testCreateMutualConnections b g

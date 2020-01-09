@@ -17,7 +17,7 @@ import qualified Data.List1                  as List1
 import qualified Data.Text                   as Text
 import qualified Galley.Types.Teams          as Team
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
     , test p "missing fields in an update are deleted" $ testDeleteMissingFieldsInUpdates b g
@@ -79,9 +79,8 @@ testForbidDuplicateFieldNames brig galley = do
             ]
     putRichInfo brig owner bad !!! const 400 === statusCode
 
-testRichInfoSizeLimit :: HasCallStack => Brig -> Galley -> Maybe Opt.Opts -> Http ()
-testRichInfoSizeLimit _ _ Nothing = error "this test needs a config file"
-testRichInfoSizeLimit brig galley (Just conf) = do
+testRichInfoSizeLimit :: HasCallStack => Brig -> Galley -> Opt.Opts -> Http ()
+testRichInfoSizeLimit brig galley conf = do
     let maxSize :: Int = setRichInfoLimit $ optSettings conf
     (owner, _) <- createUserWithTeam brig galley
     let bad1 = RichInfo
