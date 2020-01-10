@@ -1,5 +1,5 @@
-resolver: snapshots/wire-1.5.yaml
-compiler: ghc-8.4.4
+resolver: snapshots/wire-2.0.yaml
+compiler: ghc-8.6.5
 
 packages:
 - libs/api-bot
@@ -71,3 +71,4 @@ allow-newer: false
 
 nix:
   shell-file: stack-deps.nix
+  enable: true
