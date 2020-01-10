@@ -29,6 +29,7 @@ import           Web.Scim.Schema.Error
 import           Web.Scim.Schema.Meta
 import           Web.Scim.Schema.ListResponse
 import           Web.Scim.Schema.ResourceType
+import           Web.Scim.Schema.Schema (Schema(User20))
 import           Web.Scim.Schema.Common (WithId(WithId, value))
 import qualified Web.Scim.Schema.Common     as Common
 import           Web.Scim.Handler
@@ -73,6 +74,7 @@ hoistSTM = hoist liftSTM
 instance UserTypes Mock where
   type UserId Mock = Id
   type UserExtra Mock = NoUserExtra
+  supportedSchemas = [User20]
 
 instance UserDB Mock TestServer where
   getUsers () mbFilter = do
@@ -218,4 +220,3 @@ filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
         (_, _) ->
           Left "Only search on usernames is currently supported"
   | otherwise = Left "Invalid schema. Only user schema is supported"
-

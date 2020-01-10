@@ -1,4 +1,3 @@
-{- LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -9,7 +8,10 @@ import           Web.Scim.Test.Util
 
 import           Web.Scim.Schema.Common (URI(..))
 import           Web.Scim.Schema.Schema (Schema(..))
-import           Web.Scim.Schema.User
+import           Web.Scim.Schema.User (User(..), NoUserExtra(..))
+import qualified Web.Scim.Schema.User as User
+import           Web.Scim.Schema.PatchOp (PatchOp(..), Op(..), Operation(..), Patchable(..))
+import qualified Web.Scim.Schema.PatchOp as PatchOp
 import           Web.Scim.Schema.User.Address as Address
 import           Web.Scim.Schema.User.Certificate as Certificate
 import           Web.Scim.Schema.User.Email as Email
@@ -34,8 +36,6 @@ prop_roundtrip = property $ do
   user <- forAll genUser
   tripping user toJSON fromJSON
 
-
-
 -- TODO(arianvp): Note that this only tests the top-level fields.
 -- extrac this to a generic test and also do this for sub-properties
 prop_caseInsensitive :: Property
@@ -48,9 +48,22 @@ prop_caseInsensitive = property $ do
   fromJSON (Object user'') === Success user
   fromJSON (Object user''') === Success user
 
+type PatchTag = TestTag Text () () UserExtraPatch
+
+type UserExtraPatch = HM.HashMap Text Text
 
 spec :: Spec
 spec = do
+  describe "applyPatch" $ do
+    it "applies patch to `extra`" $ do
+      let schemas' = []
+      let extras = HM.empty
+      let user :: User PatchTag = User.empty schemas' "hello" extras
+      let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
+      let operation =  Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
+      let patchOp  = PatchOp [ operation ]
+      User.extra <$> (User.applyPatch user patchOp) `shouldBe` Right (HM.singleton "programmingLanguage" "haskell")
+
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -276,7 +289,7 @@ completeUserJson = [scim|
 
 -- | A 'User' with all attributes empty (if possible).
 minimalUser :: User (TestTag Text () () NoUserExtra)
-minimalUser = empty [User20] "sample userName" NoUserExtra
+minimalUser = User.empty [User20] "sample userName" NoUserExtra
 
 -- | Reference encoding of 'minimalUser'.
 minimalUserJson :: Value
@@ -355,10 +368,14 @@ instance ToJSON UserExtraTest where
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
 
+
+instance Patchable UserExtraTest where
+  applyOperation _ _ = undefined
+
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
 extendedUser e =
-    (empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
+    (User.empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
 
 -- | Encoding of @extendedUser UserExtraEmpty@.
 extendedUserEmptyJson :: Value

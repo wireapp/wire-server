@@ -32,6 +32,7 @@ import qualified Data.HashMap.Strict as SMap
 import           Web.Scim.Schema.User (UserTypes (..))
 import           Web.Scim.Class.Group (GroupTypes (..))
 import           Web.Scim.Class.Auth (AuthTypes (..))
+import           Web.Scim.Schema.Schema (Schema (User20, CustomSchema))
 
 ----------------------------------------------------------------------------
 -- Redefine wai test helpers to include scim+json content type
@@ -138,6 +139,7 @@ data TestTag id authData authInfo userExtra
 instance UserTypes (TestTag id authData authInfo userExtra) where
   type UserId (TestTag id authData authInfo userExtra) = id
   type UserExtra (TestTag id authData authInfo userExtra) = userExtra
+  supportedSchemas = [User20, CustomSchema "urn:hscim:test"]
 
 instance GroupTypes (TestTag id authData authInfo userExtra) where
   type GroupId (TestTag id authData authInfo userExtra) = id

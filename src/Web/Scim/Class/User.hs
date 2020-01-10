@@ -44,7 +44,7 @@ data UserSite tag route = UserSite
       Put '[SCIM] (StoredUser tag)
   , usPatchUser :: route :-
       Capture "id" (UserId tag) :>
-      ReqBody '[SCIM] PatchOp :>
+      ReqBody '[SCIM] (PatchOp tag) :>
       Patch '[SCIM] (StoredUser tag)
   , usDeleteUser :: route :-
       Capture "id" (UserId tag) :>
@@ -112,13 +112,13 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   patchUser
     :: AuthInfo tag
     -> UserId tag
-    -> PatchOp  -- ^ PATCH payload
+    -> PatchOp tag  -- ^ PATCH payload
     -> ScimHandler m (StoredUser tag)
   default patchUser
-    :: FromJSON (UserExtra tag)
+    :: (Patchable (UserExtra tag), FromJSON (UserExtra tag))
     => AuthInfo tag
     -> UserId tag
-    -> PatchOp  -- ^ PATCH payload
+    -> PatchOp tag  -- ^ PATCH payload
     -> ScimHandler m (StoredUser tag)
   patchUser info uid op' = do
     (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid

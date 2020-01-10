@@ -1,10 +1,20 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Test.Schema.PatchOpSpec where
 import Data.Foldable (for_)
-import Test.Hspec (Spec, describe, xit, it, shouldSatisfy, shouldBe)
+import Test.Hspec (Spec, describe, it, xit, shouldSatisfy, shouldBe)
+import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Web.Scim.Test.Util (scim)
+import Data.Either (isLeft)
+import Web.Scim.Test.Util (scim, TestTag)
 import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.User (UserTypes)
+import Web.Scim.Schema.UserTypes (supportedSchemas)
+import Web.Scim.Schema.Schema (Schema(User20))
+import Web.Scim.AttrName (AttrName(..))
+import Web.Scim.Filter (AttrPath(..), Filter(..), ValuePath(..), CompareOp(OpEq), CompValue(ValNull))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Aeson.Types (toJSON, fromJSON, Result(Success, Error), Value(String))
 import Data.Attoparsec.ByteString (parseOnly)
 import HaskellWorks.Hspec.Hedgehog (require)
@@ -12,59 +22,92 @@ import Hedgehog (Gen, tripping, forAll, Property, property)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.FilterSpec (genValuePath, genAttrPath, genSubAttr)
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
 
 isSuccess :: Result a -> Bool
 isSuccess (Success _) = True
 isSuccess (Error _) = False
 
-genPatchOp :: Gen Value -> Gen PatchOp
-genPatchOp genValue = PatchOp <$> Gen.list (Range.constant 0 20) (genOperation genValue)
+genPatchOp :: forall tag.UserTypes tag => Gen Value -> Gen (PatchOp tag)
+genPatchOp genValue = PatchOp <$> Gen.list (Range.constant 0 20) ((genOperation @tag) genValue)
 
-genOperation :: Gen Value -> Gen Operation
-genOperation genValue = Operation <$> Gen.enumBounded <*> Gen.maybe genPath <*> Gen.maybe genValue
+genOperation :: forall tag.UserTypes tag => Gen Value -> Gen Operation
+genOperation genValue = Operation <$> Gen.enumBounded <*> Gen.maybe (genPath @tag) <*> Gen.maybe genValue
 
-genPath :: Gen Path
+genPath :: forall tag.UserTypes tag => Gen Path
 genPath = Gen.choice
-  [ IntoValuePath <$> genValuePath <*> Gen.maybe genSubAttr
-  , NormalPath <$> genAttrPath
+  [ IntoValuePath <$> (genValuePath @tag) <*> Gen.maybe genSubAttr
+  , NormalPath <$> (genAttrPath @tag)
   ]
 
-prop_roundtrip :: Property
+prop_roundtrip :: forall tag.UserTypes tag => Property
 prop_roundtrip = property $ do
-  x <- forAll genPath
-  tripping x (encodeUtf8 . rPath) (parseOnly pPath)
+  x <- forAll $ genPath @tag
+  tripping x (encodeUtf8 . rPath) (parseOnly $ pPath $ supportedSchemas @tag)
 
-prop_roundtrip_PatchOp :: Property
+prop_roundtrip_PatchOp :: forall tag.UserTypes tag => Property
 prop_roundtrip_PatchOp = property $ do
   -- Just some strings for now. However, should be constrained to what the
   -- PatchOp is operating on in the future... We need better typed PatchOp for
   -- this. TODO(arianvp)
-  x <- forAll (genPatchOp (String <$> Gen.text (Range.constant 0 20) Gen.unicode))
+  x <- forAll (genPatchOp @tag (String <$> Gen.text (Range.constant 0 20) Gen.unicode))
   tripping x toJSON fromJSON
-  
+
+type PatchTestTag = TestTag () () () ()
+
 spec :: Spec
 spec = do
+  describe "Patchable" $ do
+    describe "HashMap Text Text" $ do
+      it "supports `Add` operation" $ do
+        let theMap :: HashMap Text Text = HM.empty
+            operation = Operation Add (Just $ NormalPath (AttrPath Nothing (AttrName "key") Nothing)) $ Just "value"
+        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key" "value")
+
+      it "supports `Replace` operation" $ do
+        let theMap :: HashMap Text Text = HM.singleton "key" "value1"
+            operation = Operation Replace (Just $ NormalPath (AttrPath Nothing (AttrName "key") Nothing)) $ Just "value2"
+        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key" "value2")
+
+      it "supports `Delete` operation" $ do
+        let theMap :: HashMap Text Text = HM.fromList [("key1", "value1"), ("key2", "value2")]
+            operation = Operation Remove (Just $ NormalPath (AttrPath Nothing (AttrName "key1") Nothing)) Nothing
+        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key2" "value2")
+
+      it "gracefully rejects invalid/unsupported operations" $ do
+        let theMap :: HashMap Text Text = HM.fromList [("key1", "value1"), ("key2", "value2")]
+            key1Path = (AttrPath Nothing (AttrName "key1") Nothing)
+            key2Path = (AttrPath Nothing (AttrName "key2") Nothing)
+            invalidOperations =
+              [ Operation Add (Just $ NormalPath key1Path) Nothing -- Nothing to add
+              , Operation Replace (Just $ NormalPath key1Path) Nothing -- Nothing to replace
+              , Operation Add (Just $ IntoValuePath (ValuePath key1Path (FilterAttrCompare key2Path OpEq ValNull)) Nothing) Nothing
+                -- IntoValuePaths don't make sense for HashMap Text Text
+              ]
+        mapM_ (\o -> applyOperation theMap o `shouldSatisfy` isLeft) invalidOperations
+
   describe "urn:ietf:params:scim:api:messages:2.0:PatchOp" $ do
     describe "The body of each request MUST contain the \"schemas\" attribute with the URI value of \"urn:ietf:params:scim:api:messages:2.0:PatchOp\"." $ do
       it "rejects an empty schemas list" $ do
-        fromJSON @PatchOp [scim| { 
+        fromJSON @(PatchOp PatchTestTag) [scim| {
           "schemas": [],
           "operations": []
         }|] `shouldSatisfy`  (not . isSuccess)
     --TODO(arianvp): We don't support arbitrary path names (yet)
-    it "roundtrips Path" $ require prop_roundtrip
-    it "roundtrips PatchOp" $ require prop_roundtrip_PatchOp
+    it "roundtrips Path" $ require $ prop_roundtrip @PatchTestTag
+    it "roundtrips PatchOp" $ require $ prop_roundtrip_PatchOp  @PatchTestTag
     it "rejects invalid operations" $ do
-      fromJSON @PatchOp [scim| {
+      fromJSON @(PatchOp PatchTestTag) [scim| {
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "operations": [{"op":"unknown"}]
       }|] `shouldSatisfy` (not . isSuccess)
 
-    -- TODO(arianvp): Only makes sense if we have a Patch type _specifically_ for User
+    -- TODO(arianvp/akshay): Implement if required
     xit "rejects unknown paths" $ do
-      fromJSON @Path "unknown.field" `shouldSatisfy` (not . isSuccess)
+       Aeson.parse (pathFromJSON [User20]) (Aeson.String "unknown.field") `shouldSatisfy` (not . isSuccess)
     it "rejects invalid paths" $ do
-      fromJSON @Path "unknown]field" `shouldSatisfy` (not . isSuccess)
+      Aeson.parse (pathFromJSON [User20]) "unknown]field" `shouldSatisfy` (not . isSuccess)
     describe "Examples from https://tools.ietf.org/html/rfc7644#section-3.5.2 Figure 8" $ do
       let
         examples =
@@ -74,6 +117,4 @@ spec = do
           , "members[value eq \"2819c223-7f76-453a-919d-413861904646\"]"
           , "members[value eq \"2819c223-7f76-453a-919d-413861904646\"].displayname"
           ]
-      for_ examples $ \p -> it ("parses " ++ show p) $ (rPath <$> parseOnly pPath p) `shouldBe` Right (decodeUtf8 p)
-
-  
+      for_ examples $ \p -> it ("parses " ++ show p) $ (rPath <$> parseOnly (pPath $ supportedSchemas @PatchTestTag) p) `shouldBe` Right (decodeUtf8 p)

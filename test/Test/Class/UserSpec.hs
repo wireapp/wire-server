@@ -175,8 +175,8 @@ spec = beforeAll app $ do
             "value": 5
           }]}|] `shouldRespondWith` 400
         get "/0" `shouldRespondWith` smallUserGet { matchStatus = 200 }
-        
-        
+
+
     describe "Replace" $ do
       -- TODO(arianvp): Implement and test multi-value fields properly
       it "adds all fields if no target" $ do
@@ -276,7 +276,7 @@ spec = beforeAll app $ do
           }]}|] `shouldRespondWith` 400
         get "/0" `shouldRespondWith` smallUserGet { matchStatus = 200 }
 
-    describe "Remove" $ do 
+    describe "Remove" $ do
       it "fails if no target" $ do
         _ <- put "/0" barbUpdate0  -- reset
         patch "/0" [scim|{

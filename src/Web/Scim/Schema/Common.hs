@@ -24,7 +24,6 @@ instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where
   parseJSON = withObject "WithId" $ \o ->
     WithId <$> o .: "id" <*> parseJSON (Object o)
 
-
 newtype URI = URI { unURI :: Network.URI }
   deriving (Show, Eq)
 

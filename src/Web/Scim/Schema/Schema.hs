@@ -1,4 +1,3 @@
-
 module Web.Scim.Schema.Schema where
 
 import           Web.Scim.Capabilities.MetaSchema.User
@@ -7,10 +6,11 @@ import           Web.Scim.Capabilities.MetaSchema.Group
 import           Web.Scim.Capabilities.MetaSchema.Schema
 import           Web.Scim.Capabilities.MetaSchema.ResourceType
 
-import           Data.Text
+import           Data.Text (Text)
 import           Data.Aeson (FromJSON, parseJSON, toJSON, ToJSON, withText, Value)
-import Data.Attoparsec.ByteString (Parser,  (<?>))
-import Control.Applicative ((<|>))
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Attoparsec.ByteString (Parser)
+import qualified Data.Attoparsec.ByteString.Char8 as Parser
 
 -- | All schemas that we support.
 data Schema = User20
@@ -51,35 +51,19 @@ getSchemaUri PatchOp20 =
 getSchemaUri (CustomSchema x) =
   x
 
--- | Parser for known schemas. Fails on unknown schemas (E.g. CustomSchema escape hatch doesn't work)
+-- TODO: (akshay)Make everything Text, ByteStrings are unnecessary here
+-- | Parser for schemas
 --
 -- NOTE: according to the spec, this parser needs to be case insensitive, but
 -- that is literally insane. Won't implement.
-pSchema :: Parser Schema
-pSchema =
-  (User20
-    <$ "urn:ietf:params:scim:schemas:core:2.0:User" <|>
-  ServiceProviderConfig20
-    <$ "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" <|>
-  Group20
-    <$ "urn:ietf:params:scim:schemas:core:2.0:Group" <|>
-  Schema20
-    <$ "urn:ietf:params:scim:schemas:core:2.0:Schema" <|>
-  ResourceType20
-    <$ "urn:ietf:params:scim:schemas:core:2.0:ResourceType" <|>
-  ListResponse20
-    <$ "urn:ietf:params:scim:api:messages:2.0:ListResponse" <|>
-  Error20
-    <$ "urn:ietf:params:scim:api:messages:2.0:Error" <|>
-  PatchOp20
-    <$ "urn:ietf:params:scim:api:messages:2.0:PatchOp") <?> "unknown schema"
+pSchema :: [Schema] -> Parser Schema
+pSchema supportedSchemas =
+  Parser.choice
+  $ map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supportedSchemas
 
 -- | Get a schema by its URI.
 --
--- NOTE: cas sensitive against the spec.  Same as 'pSchema'.
---
--- FUTUREWORK: implement this in terms of 'pSchema': parse all the non-custom schemas with
--- 'pSchema; in case of error, use the parser *input* as the custom schema.
+-- NOTE: case sensitive against the spec.  Same as 'pSchema'.
 --
 -- TODO(arianvp): probably too lenient. want to only accept valid URNs
 -- This means the CustomSchema part might go... We need to kind of

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.32.0.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f2b10a42030a70e77c8ab8273dccb11998299e253bb932b5ad69a0a1da8aac1d
+-- hash: dacbefe6b2a13bf0be7cc0a32b675c371e2afc853228e2feb0e834c908d9aaf6
 
 name:           hscim
 version:        0.3.0
@@ -57,6 +57,7 @@ library
       Web.Scim.Schema.User.Name
       Web.Scim.Schema.User.Phone
       Web.Scim.Schema.User.Photo
+      Web.Scim.Schema.UserTypes
       Web.Scim.Server
       Web.Scim.Server.Mock
       Web.Scim.Test.Acceptance

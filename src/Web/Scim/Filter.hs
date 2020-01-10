@@ -41,7 +41,7 @@ module Web.Scim.Filter
 
 import Data.String
 import Prelude hiding (takeWhile)
-import Control.Applicative(optional)
+import Control.Applicative (optional, (<|>))
 import Data.Scientific
 import Data.Text (Text, pack, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Text.Encoding (encodeUtf8)
@@ -50,11 +50,10 @@ import Data.Attoparsec.ByteString.Char8
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson
 import Data.Aeson as Aeson
-import Data.Maybe (fromMaybe)
 import Lens.Micro
 import Web.HttpApiData
 
-import Web.Scim.Schema.Schema (getSchemaUri, Schema, pSchema)
+import Web.Scim.Schema.Schema (Schema(User20), getSchemaUri, pSchema)
 import Web.Scim.AttrName
 
 ----------------------------------------------------------------------------
@@ -139,10 +138,10 @@ topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 --
 -- Note: this parser is written with Attoparsec because I don't know how to
 -- lift an Attoparsec parser (from Aeson) to Megaparsec
-parseFilter :: Text -> Either Text Filter
-parseFilter =
+parseFilter :: [Schema] -> Text -> Either Text Filter
+parseFilter supportedSchemas =
   over _Left pack .
-  parseOnly (skipSpace *> pFilter <* skipSpace <* endOfInput) .
+  parseOnly (skipSpace *> pFilter supportedSchemas <* skipSpace <* endOfInput) .
   encodeUtf8
 
 -- |
@@ -150,21 +149,19 @@ parseFilter =
 -- ATTRNAME  = ALPHA *(nameChar)
 -- attrPath  = [URI ":"] ATTRNAME *1subAtt
 -- @
-pAttrPath :: Parser AttrPath
-pAttrPath =
-  AttrPath
-    <$> (optional (pSchema <* char ':'))
-    <*> pAttrName
-    <*> optional pSubAttr
+pAttrPath :: [Schema] -> Parser AttrPath
+pAttrPath supportedSchemas = do
+  schema <- (Just <$> (pSchema supportedSchemas <* char ':') ) <|> pure Nothing
+  AttrPath schema <$> pAttrName <*> optional pSubAttr
 
 -- | subAttr   = "." ATTRNAME
 pSubAttr :: Parser SubAttr
 pSubAttr = char '.' *> (SubAttr <$> pAttrName)
 
 -- | valuePath = attrPath "[" valFilter "]"
-pValuePath :: Parser ValuePath
-pValuePath =
-  ValuePath <$> pAttrPath <*> (char '[' *> pFilter <* char ']')
+pValuePath :: [Schema] -> Parser ValuePath
+pValuePath supportedSchemas =
+  ValuePath <$> pAttrPath supportedSchemas <*> (char '[' *> pFilter supportedSchemas <* char ']')
 
 -- | Value literal parser.
 pCompValue :: Parser CompValue
@@ -191,13 +188,12 @@ pCompareOp = choice
   ]
 
 -- | Filter parser.
-pFilter :: Parser Filter
-pFilter = choice
-  [ FilterAttrCompare
-      <$> pAttrPath
-      <*> (skipSpace1 *> pCompareOp)
-      <*> (skipSpace1 *> pCompValue)
-  ]
+pFilter :: [Schema] -> Parser Filter
+pFilter supportedSchemas =
+  FilterAttrCompare
+  <$> pAttrPath supportedSchemas
+  <*> (skipSpace1 *> pCompareOp)
+  <*> (skipSpace1 *> pCompValue)
 
 -- | Utility parser for skipping one or more spaces.
 skipSpace1 :: Parser ()
@@ -214,10 +210,12 @@ renderFilter filter_ = case filter_ of
 
 rAttrPath :: AttrPath -> Text
 rAttrPath (AttrPath schema attr subAttr)
-  =  fromMaybe "" ((<> ":") . getSchemaUri <$> schema) <> rAttrName attr <> fromMaybe "" (rSubAttr <$> subAttr)
+  =  maybe "" ((<> ":") . getSchemaUri) schema
+  <> rAttrName attr
+  <> maybe "" rSubAttr subAttr
 
 rSubAttr :: SubAttr -> Text
-rSubAttr (SubAttr x) = "." <> (rAttrName x)
+rSubAttr (SubAttr x) = "." <> rAttrName x
 
 rValuePath :: ValuePath -> Text
 rValuePath (ValuePath attrPath filter') = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
@@ -260,8 +258,9 @@ compareStr = \case
 ----------------------------------------------------------------------------
 -- Instances
 
+-- | We currently only support filtering on core user schema
 instance FromHttpApiData Filter where
-  parseUrlPiece = parseFilter
+  parseUrlPiece = parseFilter [User20]
 
 instance ToHttpApiData Filter where
   toUrlPiece = renderFilter

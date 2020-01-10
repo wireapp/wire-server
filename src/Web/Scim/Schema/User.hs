@@ -45,7 +45,16 @@
 -- names -- e.g. both @USERNAME@ and @userName@ are accepted.
 --  This is described by the spec  https://tools.ietf.org/html/rfc7643#section-2.1
 --
-module Web.Scim.Schema.User where
+module Web.Scim.Schema.User
+  ( User(..)
+  , empty
+  , NoUserExtra(..)
+  , applyPatch
+  , resultToScimError
+  , isUserSchema
+  , module Web.Scim.Schema.UserTypes
+  )
+where
 
 import Control.Monad (foldM)
 import Data.Aeson
@@ -57,7 +66,7 @@ import Lens.Micro
 import Web.Scim.AttrName
 import Web.Scim.Filter (AttrPath(..))
 import Web.Scim.Schema.Common
-import Web.Scim.Schema.Schema (Schema(..))
+import Web.Scim.Schema.Schema (Schema(..), getSchemaUri)
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
 import Web.Scim.Schema.User.Email (Email)
@@ -67,16 +76,11 @@ import Web.Scim.Schema.User.Phone (Phone)
 import Web.Scim.Schema.User.Photo (Photo)
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.Error
+import Web.Scim.Schema.UserTypes
 
 import GHC.Generics (Generic)
 import Control.Monad.Except
-
--- | Configurable parts of 'User'.
-class UserTypes tag where
-  -- | User ID type.
-  type UserId tag
-  -- | Extra data carried with each 'User'.
-  type UserExtra tag
+import qualified Data.Text as Text
 
 -- | SCIM user record, parametrized with type-level tag @t@ (see 'UserTypes').
 data User tag = User
@@ -137,7 +141,7 @@ empty
   -> User tag
 empty schemas userName extra = User
   { schemas = schemas
-  , userName = userName 
+  , userName = userName
   , externalId = Nothing
   , name = Nothing
   , displayName = Nothing
@@ -242,6 +246,9 @@ instance FromJSON NoUserExtra where
 instance ToJSON NoUserExtra where
   toJSON _ = object []
 
+instance Patchable NoUserExtra where
+  applyOperation a _ = pure a
+
 ----------------------------------------------------------------------------
 -- Applying
 
@@ -250,7 +257,12 @@ instance ToJSON NoUserExtra where
 -- Evenmore, only some hand-picked ones currently.
 -- We'll have to think how patch is going to work in the presence of extensions.
 -- Also, we can probably make  PatchOp type-safe to some extent (Read arianvp's thesis :))
-applyPatch :: (FromJSON (UserExtra tag), MonadError ScimError m) => User tag  -> PatchOp ->  m (User tag)
+applyPatch ::
+  ( Patchable (UserExtra tag)
+  , FromJSON (UserExtra tag)
+  , MonadError ScimError m
+  , UserTypes tag
+  ) => User tag  -> PatchOp tag ->  m (User tag)
 applyPatch = (. getOperations) . foldM applyOperation
 
 resultToScimError :: (MonadError ScimError m) => Result a -> m a
@@ -264,10 +276,16 @@ resultToScimError (Success a) = pure a
 -- What I understand from the spec:  The difference between add an replace is only
 -- in the fact that replace will not concat multi-values, and behaves differently for complex values too.
 -- For simple attributes, add and replace are identical.
-applyOperation :: forall m tag. (MonadError ScimError m, FromJSON (UserExtra tag)) =>  User tag  -> Operation -> m (User tag)
-applyOperation user (Operation Add path value) = applyOperation user (Operation Replace path value)
-
-applyOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) = do
+applyUserOperation
+  :: forall m tag.( UserTypes tag
+                  , FromJSON (User tag)
+                  , Patchable (UserExtra tag)
+                  , MonadError ScimError m)
+  => User tag
+  -> Operation
+  -> m (User tag)
+applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
+applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of
     "username" ->
       (\x -> user { userName = x }) <$> resultToScimError (fromJSON value)
@@ -276,9 +294,10 @@ applyOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr 
     "externalid" ->
       (\x -> user { externalId = x }) <$> resultToScimError (fromJSON value)
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
-applyOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
+
+applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
-applyOperation user (Operation Replace Nothing (Just value)) = do
+applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
     Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid"]) -> pure ()
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
@@ -288,23 +307,29 @@ applyOperation user (Operation Replace Nothing (Just value)) = do
     , displayName = displayName u
     , externalId = externalId u
     }
-applyOperation _ (Operation Replace _ Nothing) =
+applyUserOperation _ (Operation Replace _ Nothing) =
   throwError (badRequest InvalidValue (Just "No value was provided"))
 
-applyOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
-applyOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
+applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
+applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
   case attr of
     "username" -> throwError (badRequest Mutability Nothing)
     "displayname" -> pure $ user { displayName = Nothing }
     "externalid" -> pure $ user { externalId = Nothing }
     _ -> pure user
-applyOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
+applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 
+instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patchable (User tag) where
+  applyOperation user op@(Operation _ (Just (NormalPath (AttrPath schema _ _))) _)
+    | isUserSchema schema = applyUserOperation user op
+    | isSupportedCustomSchema schema = (\x ->  user { extra = x }) <$> applyOperation (extra user) op
+    | otherwise =
+      throwError $ badRequest InvalidPath $ Just $ "we only support these schemas: " <> (Text.intercalate ", " $ map getSchemaUri $ supportedSchemas @tag)
+    where isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
+  applyOperation user op = applyUserOperation user op
 
 -- Omission of a schema for users is implicitly the core schema
 -- TODO(arianvp): Link to part of the spec that claims this.
 isUserSchema :: Maybe Schema -> Bool
-isUserSchema Nothing = True
-isUserSchema (Just User20) = True
-isUserSchema (Just _) = False
+isUserSchema = maybe True (== User20)
