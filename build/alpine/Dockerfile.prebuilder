@@ -1,6 +1,6 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-FROM alpine:3.8 as cryptobox-builder
+FROM alpine:3.11 as cryptobox-builder
 
 # compile cryptobox-c
 RUN apk add --no-cache cargo libsodium-dev git && \
@@ -9,7 +9,7 @@ RUN apk add --no-cache cargo libsodium-dev git && \
     cd cryptobox-c && \
     cargo build --release
 
-FROM alpine:3.8
+FROM alpine:3.11
 
 # install cryptobox-c in the new container
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib/libcryptobox.so
