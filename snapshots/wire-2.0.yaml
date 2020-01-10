@@ -1,0 +1,66 @@
+# DO NOT MODIFY THIS FILE. See README.md to learn why.
+
+resolver: lts-12.14
+name: wire-2.0
+
+compiler: ghc-8.6.5
+
+packages:
+- git: https://github.com/kim/hs-collectd
+  commit: 885da222be2375f78c7be36127620ed772b677c9
+
+- git: https://github.com/kim/snappy-framing
+  commit: d99f702c0086729efd6848dea8a01e5266c3a61c
+
+- git: https://gitlab.com/twittner/wai-routing
+  commit: 7e996a93fec5901767f845a50316b3c18e51a61d
+
+# Includes the changes from <https://gitlab.com/twittner/cql-io/merge_requests/14>
+- git: https://gitlab.com/twittner/cql-io.git
+  commit: 8b91d053c469887a427e8c075cef43139fa189c4
+
+#  Our fork of multihash with relaxed upper bounds
+- git: https://github.com/wireapp/haskell-multihash.git
+  commit: 300a6f46384bfca33e545c8bab52ef3717452d12
+
+# Our fork of aws with minor fixes
+- git: https://github.com/wireapp/aws
+  commit: 42695688fc20f80bf89cec845c57403954aab0a2
+
+# https://github.com/hspec/hspec-wai/pull/49
+- git: https://github.com/wireapp/hspec-wai
+  commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3
+
+# amazonka-1.6.0 is buggy: https://github.com/brendanhay/amazonka/issues/466
+# amazonka-HEAD is also buggy: https://github.com/brendanhay/amazonka/issues/490
+#
+# Therefore we use our own fork of amazonka here. More precisely, we pull two libraries out of
+# it: amazonka and amazonka-core. Other packages weren't changed between 1.6.0 and this
+# commit, so we can use Stackage-supplied versions for them.
+#
+# The important commits for us are:
+#
+#   * https://github.com/brendanhay/amazonka/commit/2688190f
+#   * https://github.com/brendanhay/amazonka/pull/493/files
+#
+# The archive corresponds to commit 52896fd46ef6812708e9e4d7456becc692698f6b.
+- archive: https://github.com/wireapp/amazonka/archive/wire-2019-01-25.tar.gz
+  subdirs:
+  - amazonka
+  - core
+
+############################################################
+# Wire packages (only ones that change infrequently)
+############################################################
+
+- git: https://github.com/wireapp/cryptobox-haskell
+  commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
+
+- git: https://github.com/wireapp/hsaml2
+  commit: 678997815033584e023205fe774d16201ccf8f62    # master (Feb 13, 2019)
+- archive: https://github.com/wireapp/http-client/archive/wire-2019-11-04.tar.gz
+  subdirs:
+  - http-client
+  - http-client-openssl
+  - http-client-tls
+  - http-conduit
