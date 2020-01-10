@@ -1,6 +1,6 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-FROM alpine:3.8 as cryptobox-builder
+FROM alpine:3.11 as cryptobox-builder
 
 # compile cryptobox-c
 RUN apk add --no-cache cargo libsodium-dev git && \
@@ -10,7 +10,7 @@ RUN apk add --no-cache cargo libsodium-dev git && \
     cargo build --release
 
 # Minimal dependencies for alpine-compiled, dynamically linked wire-server Haskell services
-FROM alpine:3.8
+FROM alpine:3.11
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 
