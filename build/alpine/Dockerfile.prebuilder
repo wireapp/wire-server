@@ -3,10 +3,11 @@
 FROM alpine:3.11 as cryptobox-builder
 
 # compile cryptobox-c
-RUN apk add --no-cache cargo libsodium-dev git && \
+RUN apk add --no-cache cargo file libsodium-dev git && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
     cd cryptobox-c && \
+    export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
 FROM alpine:3.11
