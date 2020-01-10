@@ -1,4 +1,4 @@
-resolver: snapshots/wire-1.4.yaml
+resolver: snapshots/wire-2.0.yaml
 
 packages:
 - libs/api-bot
@@ -69,3 +69,4 @@ allow-newer: false
 
 nix:
   shell-file: stack-deps.nix
+  enable: true
