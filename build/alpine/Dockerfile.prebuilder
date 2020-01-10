@@ -1,43 +1,45 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-FROM alpine:3.11 as cryptobox-builder
+ARG UBUNTU_VERSION=19.10
+
+FROM ubuntu:${UBUNTU_VERSION} as cryptobox-builder
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y ubuntu-server
 
 # compile cryptobox-c
-RUN apk add --no-cache cargo file libsodium-dev git && \
+RUN apt-get install -y pkg-config file cargo libsodium-dev git && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
     cd cryptobox-c && \
     export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
-FROM alpine:3.11
+FROM ubuntu:${UBUNTU_VERSION}
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y ubuntu-server
 
 # install cryptobox-c in the new container
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib/libcryptobox.so
 COPY --from=cryptobox-builder /tmp/cryptobox-c/src/cbox.h /usr/include/cbox.h
 
 # development packages required for wire-server Haskell services
-RUN apk add --no-cache \
-        alpine-sdk \
-        ca-certificates \
-        linux-headers \
-        zlib-dev \
-        ghc \
-        ghc-dev \
-        ghc-doc \
-        libsodium-dev \
-        openssl-dev \
-        protobuf \
-        icu-dev \
-        geoip-dev \
-        snappy-dev \
-        llvm-libunwind-dev \
+RUN apt-get install -y \
         bash \
-        xz \
-        libxml2-dev \
+        ca-certificates \
+        curl \
+        ghc \
+        ghc-doc \
+        ghc-prof \
         git \
-        ncurses \
-        sed
+        hdevtools \
+        icu-devtools libicu-dev \
+        libsodium-dev \
+        libxml2-dev \
+        openssl \
+        protobuf-compiler \
+        sed \
+        zlib1g-dev
+
 
 # get static version of Haskell Stack and use system ghc by default
 ARG STACK_ALPINE_VERSION=2.1.3

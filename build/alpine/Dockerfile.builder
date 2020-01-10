@@ -11,8 +11,7 @@ WORKDIR /
 # We build docs for haskell-src-exts without hyperlinking enabled to avoid
 # a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
-RUN apk add --no-cache && \
-    git clone -b develop https://github.com/wireapp/wire-server.git && \
+RUN git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
     stack update && \
     echo "allow-different-user: true" >> /root/.stack/config.yaml && \
