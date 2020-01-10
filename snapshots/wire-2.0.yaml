@@ -64,3 +64,35 @@ packages:
   - http-client-openssl
   - http-client-tls
   - http-conduit
+
+# Dropped from upstream snapshot
+- bloodhound-0.16.0.0
+- template-0.2.0.10
+
+# Not on stackage
+- currency-codes-3.0.0.1
+- mime-0.4.0.2
+- data-timeout-0.3.1
+- geoip2-0.4.0.1
+- stomp-queue-0.3.1
+- text-icu-translit-0.1.0.7
+
+# Stopped caring
+- wai-middleware-gunzip-0.0.2
+- wai-route-1.0.0
+- cql-io-tinylog-0.1.0
+- text-format-0.3.2
+- redis-io-1.0.0
+- redis-resp-1.0.0
+- invertible-hxt-0.1
+- network-uri-static-0.1.2.1
+- base58-bytestring-0.1.0
+- hedgehog-quickcheck-0.1.1
+- servant-multipart-0.11.4
+- stompl-0.5.0
+- pattern-trie-0.1.0
+- prometheus-client-1.0.0
+- base-compat-batteries-0.10.5
+
+# Don't know why
+- unliftio-0.2.12
