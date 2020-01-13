@@ -18,7 +18,7 @@ dependencies:
 - base ==4.*
 - bytestring
 - imports
-- proto-lens-protoc >=0.2
+- proto-lens-runtime
 - time
 - types-common
 - uuid
@@ -33,7 +33,7 @@ library:
   - Proto.TeamEvents_Fields
   - Proto.UserEvents
   - Proto.UserEvents_Fields
-build-type: Custom
-verbatim: |
-  custom-setup
-      setup-depends: base, Cabal, proto-lens-protoc
+# build-type: Custom
+# verbatim: |
+custom-setup:
+  dependencies: [base, Cabal, proto-lens-setup]

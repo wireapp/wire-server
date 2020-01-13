@@ -25,7 +25,7 @@ import GHC.TypeLits
 import qualified Data.ByteString.Lazy as BL
 
 
--- | Like 'ReqBody'', but takes parsers that throw 'ServantErr', not 'String'.  @tag@ is used
+-- | Like 'ReqBody'', but takes parsers that throw 'ServerError', not 'String'.  @tag@ is used
 -- to select a 'MakeCustomError' instance.
 --
 -- FUTUREWORK: this does not reflect the changes we make to the error responses wrt. the
@@ -50,9 +50,9 @@ type ReqBodyCustomError = ReqBodyCustomError' '[Required, Strict]
 
 -- | Custom parse error for bad request bodies.
 class MakeCustomError (tag :: Symbol) (a :: *) where
-  makeCustomError :: String -> ServantErr
+  makeCustomError :: String -> ServerError
 
--- | Variant of the 'ReqBody'' instance that takes a 'ServantErr' as argument instead of a
+-- | Variant of the 'ReqBody'' instance that takes a 'ServerError' as argument instead of a
 -- 'String'.  This gives the caller more control over error responses.
 instance ( MakeCustomError tag a
          , AllCTUnrender list a
@@ -61,7 +61,7 @@ instance ( MakeCustomError tag a
          ) => HasServer (ReqBodyCustomError' mods list tag a :> api) context where
 
   type ServerT (ReqBodyCustomError' mods list tag a :> api) m =
-    If (FoldLenient mods) (Either ServantErr a) a -> ServerT api m
+    If (FoldLenient mods) (Either ServerError a) a -> ServerT api m
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -83,7 +83,7 @@ instance ( MakeCustomError tag a
 
       -- Body check, we get a body parsing functions as the first argument.
       bodyCheck :: (BL.ByteString -> Either String a)
-                -> DelayedIO (If (FoldLenient mods) (Either ServantErr a) a)
+                -> DelayedIO (If (FoldLenient mods) (Either ServerError a) a)
       bodyCheck f = withRequest $ \ request -> do
         mrqbody <- fmapL (makeCustomError @tag @a) . f <$> liftIO (lazyRequestBody request)
         case sbool :: SBool (FoldLenient mods) of

@@ -45,7 +45,7 @@ where
 import           Imports
 import           Brig.Types.TURN.Internal
 import           Control.Lens               hiding ((.=))
-import           Data.Aeson
+import           Data.Aeson                 hiding ((<?>))
 import           Data.Aeson.Encoding        (text)
 import           Data.Attoparsec.Text       hiding (parse)
 import           Data.ByteString.Builder

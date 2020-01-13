@@ -11,12 +11,12 @@ module Spar.Error
   ( SparError
   , SparCustomError(..)
   , throwSpar
-  , sparToServantErrWithLogging
+  , sparToServerErrorWithLogging
   , renderSparErrorWithLogging
 
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
-  , sparToServantErr
+  , sparToServerError
   ) where
 
 import Imports
@@ -87,34 +87,34 @@ data SparCustomError
   | SparScimError Scim.ScimError
   deriving (Eq, Show)
 
-sparToServantErrWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServantErr
-sparToServantErrWithLogging logger err = do
-  let errServant = sparToServantErr err
+sparToServerErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServerError
+sparToServerErrorWithLogging logger err = do
+  let errServant = sparToServerError err
   liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (servantToWaiError errServant)
   pure errServant
 
-servantToWaiError :: ServantErr -> Wai.Error
-servantToWaiError (ServantErr code phrase body _headers) =
+servantToWaiError :: ServerError -> Wai.Error
+servantToWaiError (ServerError code phrase body _headers) =
   Wai.Error (Status code (cs phrase)) (cs phrase) (cs body)
 
-sparToServantErr :: SparError -> ServantErr
-sparToServantErr = either id waiToServant . renderSparError
+sparToServerError :: SparError -> ServerError
+sparToServerError = either id waiToServant . renderSparError
 
-waiToServant :: Wai.Error -> ServantErr
-waiToServant waierr@(Wai.Error status label _) = ServantErr
+waiToServant :: Wai.Error -> ServerError
+waiToServant waierr@(Wai.Error status label _) = ServerError
   { errHTTPCode     = statusCode status
   , errReasonPhrase = cs label
   , errBody         = encode waierr
   , errHeaders      = []
   }
 
-renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServantErr Wai.Error)
+renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
 renderSparErrorWithLogging logger err = do
   let errPossiblyWai = renderSparError err
   liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
   pure errPossiblyWai
 
-renderSparError :: SparError -> Either ServantErr Wai.Error
+renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest)                       = Right $ Wai.Error status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
 renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg))        = Right $ Wai.Error status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
@@ -168,6 +168,6 @@ renderSparError (SAML.CustomError SparIdPHasBoundUsers)                    = Rig
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg))       = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached)       = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
-renderSparError (SAML.CustomError (SparScimError err))                     = Left $ Scim.scimToServantErr err
+renderSparError (SAML.CustomError (SparScimError err))                     = Left $ Scim.scimToServerError err
 -- Other
 renderSparError (SAML.CustomServant err)                                   = Left err

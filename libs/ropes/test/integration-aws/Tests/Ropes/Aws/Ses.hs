@@ -57,9 +57,9 @@ testMimeMail = Mail
     , mailParts   = [ [ Part
                        { partType     = "text/plain; charset=UTF-8"
                        , partEncoding = QuotedPrintableText
-                       , partFilename = Nothing
                        , partHeaders  = []
-                       , partContent  = T.encodeUtf8 "Hi Bjørn!"
+                       , partContent  = PartContent $ T.encodeUtf8 "Hi Bjørn!"
+                       , partDisposition = DefaultDisposition
                        }
                     ] ]
     }

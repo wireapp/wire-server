@@ -83,6 +83,7 @@ import Control.Exception
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Except
+import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
@@ -232,13 +233,13 @@ aFewTimes action good = do
         (\_ -> action `runReaderT` env)
 
 
-createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     (uid, tid) <- createUserWithTeamDisableSSO brg gly
     putSSOEnabledInternal gly tid Galley.SSOEnabled
     pure (uid, tid)
 
-createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom

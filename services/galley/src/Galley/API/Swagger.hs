@@ -138,7 +138,7 @@ instance ToSchema ViewLegalHoldService where
         & required .~ ["status"]
         & minProperties .~ Just 1
         & maxProperties .~ Just 2
-        & type_ .~ SwaggerObject
+        & type_ .~ Just SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
@@ -200,7 +200,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
         & properties .~ properties_
         & example .~ example_
         & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
-        & type_ .~ SwaggerObject
+        & type_ .~ Just SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
@@ -277,7 +277,7 @@ instance ToSchema UserLegalHoldStatusResponse where
         & required .~ ["status"]
         & minProperties .~ Just 1
         & maxProperties .~ Just 3
-        & type_ .~ SwaggerObject
+        & type_ .~ Just SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
@@ -290,7 +290,7 @@ instance ToSchema a => ToSchema (IdObject a) where
     declareNamedSchema _ = pure $ NamedSchema (Just "IdObject a") $ mempty
         & properties .~ properties_
         & required .~ ["id"]
-        & type_ .~ SwaggerObject
+        & type_ .~ Just SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList

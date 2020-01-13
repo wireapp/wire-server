@@ -60,7 +60,7 @@ import Servant
 import Servant.API.Generic
 import Spar.App (Spar(..), Env(..))
 import Spar.Error (SparError, SparCustomError(SparScimError),
-                   throwSpar, sparToServantErrWithLogging)
+                   throwSpar, sparToServerErrorWithLogging)
 import Spar.Scim.Types
 import Spar.Scim.Auth
 import Spar.Scim.User
@@ -115,7 +115,7 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
             --
             -- TODO: does it have to be logged?
             Right (Left sparError) -> do
-                err <- sparToServantErrWithLogging (sparCtxLogger env) sparError
+                err <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
                 pure $ Left . SAML.CustomError . SparScimError $
                     Scim.serverError (cs (errBody err))
 

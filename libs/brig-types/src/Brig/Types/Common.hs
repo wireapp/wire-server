@@ -11,7 +11,7 @@ module Brig.Types.Common where
 import Imports
 import Control.Applicative (optional)
 import Control.Error (hush)
-import Data.Aeson
+import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
