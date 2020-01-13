@@ -1,13 +1,10 @@
 module Gundeck.API (sitemap) where
 
 import Imports hiding (head)
-import Control.Lens (view)
-import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text.Encoding (decodeLatin1)
 import Gundeck.API.Error
-import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Types
 import Network.Wai
@@ -155,15 +152,9 @@ sitemap = do
 
     get  "/i/status" (continue $ const (return empty)) true
 
-    get "/i/monitoring" (continue monitoring) $
-        accept "application" "json"
-
 type JSON = Media "application" "json"
 
 docs :: ByteString ::: JSON -> Gundeck Response
 docs (url ::: _) =
     let doc = mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
     return $ json doc
-
-monitoring :: JSON -> Gundeck Response
-monitoring _ = json <$> (render =<< view monitor)

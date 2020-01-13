@@ -47,7 +47,6 @@ tests s = testGroup "Galley integration tests"
   where
     mainTests = testGroup "Main API"
         [ test s "status" status
-        , test s "monitoring" monitor
         , test s "metrics" metrics
         , test s "create conversation" postConvOk
         , test s "get empty conversations" getConvsOk
@@ -109,13 +108,6 @@ status = do
     g <- view tsGalley
     get (g . path "/i/status") !!!
       const 200 === statusCode
-
-monitor :: TestM ()
-monitor = do
-    g <- view tsGalley
-    get (g . path "/i/monitoring") !!! do
-        const 200 === statusCode
-        const (Just "application/json") =~= getHeader "Content-Type"
 
 metrics :: TestM ()
 metrics = do
