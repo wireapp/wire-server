@@ -11,12 +11,7 @@ import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
-import Control.Lens
 import Data.ByteString.Conversion
-import Data.String.Conversions (cs)
-import Data.Aeson
-import Data.Aeson.Lens
-import Data.Set as Set
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -47,11 +42,36 @@ testMonitoringEndpoint brig = do
     _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
     _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
 
-    resp :: Value <- responseJsonUnsafe <$> get (brig . path "i/monitoring")
-    let have :: Set Text = Set.fromList $ fst <$> (resp ^@.. key "net" . key "resources" . members)
-        want :: Set Text = Set.fromList $ cs <$> [p1, p2 ":uid"]
-        errmsg = "some of " <> show want <> " missing in metrics: " <> show have
-    liftIO $ assertBool errmsg (want `Set.isSubsetOf` have)
+    get (brig . path "i/metrics") !!! do
+        -- GET /self was called once
+        const (Just "http_request_duration_seconds_count{handler=\"/self\",method=\"GET\",status_code=\"200\"} 1") =~= responseBody
+
+        -- GET /users/:uid/clients was called twice
+        const (Just "http_request_duration_seconds_count{handler=\"/users/:uid/clients\",method=\"GET\",status_code=\"200\"} 2") =~= responseBody
+
+
+-- FUTUREWORK: check whether prometheus metrics are correct regarding timings:
+
+-- Do we have a bug here?
+
+-- Making two requests to POST /i/users leads to
+
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.005"} 0
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.01"} 0
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.025"} 0
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.05"} 0
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.1"} 0
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.25"} 1
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="0.5"} 2
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="1.0"} 2
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="2.5"} 2
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="5.0"} 2
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="10.0"} 2
+-- http_request_duration_seconds_bucket{handler="/i/users",method="POST",status_code="201",le="+Inf"} 2
+-- http_request_duration_seconds_sum{handler="/i/users",method="POST",status_code="201"} 0.60430278
+-- http_request_duration_seconds_count{handler="/i/users",method="POST",status_code="201"} 2
+
+-- i.e. all the "buckets" above "le 0.5 seconds" contain 2 elements, which seems incorrect? (or am I misunderstanding prometheus here?)
 
 
 {- FUTUREWORK:
