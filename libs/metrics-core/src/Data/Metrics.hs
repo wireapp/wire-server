@@ -227,6 +227,8 @@ gaugeValue (Gauge g) = liftIO $ P.getGauge g
 -- prefixed with @collectd@) then you can delete this middleware entirely since the prometheus
 -- middleware records request durations already. In fact it much of the `metrics-wai` package
 -- can likely be deleted at that point.
+--
+-- NOTE: this is also used in the smoketests (api-simulations library) which needs to be changed before this can be removed.
 deprecatedRequestDurationHistogram :: Path -> HistogramInfo
 deprecatedRequestDurationHistogram pth = customHistogram pth requestDurationBuckets
     where

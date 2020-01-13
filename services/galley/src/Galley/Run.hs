@@ -7,7 +7,6 @@ import           Cassandra.Schema                   (versionCheck)
 import           Control.Exception                  (finally)
 import           Control.Lens                       ((^.))
 import           Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
-import           Data.Metrics.WaiRoute              (treeToPaths)
 import           Data.Misc                          (portNumber)
 import           Data.Text                          (unpack)
 import           Network.Wai                        (Middleware)
@@ -41,11 +40,8 @@ run o = do
     refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
     let rtree    = compile sitemap
         app r k  = runGalley e r (route rtree r k)
-        measured :: Middleware
-        measured = measureRequests m (treeToPaths rtree)
         middlewares :: Middleware
         middlewares = waiPrometheusMiddleware sitemap
-                    . measured
                     . catchErrors l [Right m]
                     . GZip.gunzip
                     . GZip.gzip GZip.def

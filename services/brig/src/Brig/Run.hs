@@ -8,7 +8,6 @@ import           Brig.API.Handler
 import           Brig.Options                 hiding (internalEvents, sesQueue)
 import           Control.Monad.Catch          (finally)
 import           Control.Lens                 ((^.))
-import           Data.Metrics.WaiRoute        (treeToPaths)
 import           Data.Text                    (unpack)
 import           Network.Wai.Utilities.Server
 import           Util.Options
@@ -51,7 +50,6 @@ mkApp o = do
     rtree      = compile (sitemap o)
     middleware :: Env -> Wai.Middleware
     middleware e = Metrics.waiPrometheusMiddleware (sitemap o)
-                 . measureRequests (e^.metrics) (treeToPaths rtree)
                  . catchErrors (e^.applog) [Right $ e^.metrics]
                  . GZip.gunzip . GZip.gzip GZip.def
     serve e r k = runHandler e r (Server.route rtree r k) k

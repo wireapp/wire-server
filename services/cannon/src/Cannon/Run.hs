@@ -13,7 +13,6 @@ import Control.Lens ((^.))
 import Control.Monad.Catch (finally)
 import Data.Metrics.Middleware (gaugeSet, path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.Wai.Utilities.Server
@@ -45,11 +44,9 @@ run o = do
     refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
     s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout)
     let rtree    = compile sitemap
-        measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
         middleware :: Wai.Middleware
         middleware = waiPrometheusMiddleware sitemap
-                   . measured
                    . catchErrors g [Right m]
                    . Gzip.gzip Gzip.def
         start    =  middleware app
