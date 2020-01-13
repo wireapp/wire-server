@@ -30,7 +30,6 @@ library:
   - bytestring-conversion
   - cereal
   - cereal-conduit
-  - collectd
   - containers
   - ekg-core
   - exceptions

@@ -1,34 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Network.BSD got deprecated in network-2.7; this line won't be needed once we
--- move to network-3.0 because then we can use the network-bsd package
-{-# OPTIONS_GHC -Wno-deprecations #-}
-
 module Bonanza.Metrics
     ( Stats (..)
-    , debugCollectd
     , dumpStderr
-    , emitCollectd
-    , formatCollectd
     , formatStderr
     )
 where
 
+-- FUTUREWORK: In case bonanza is to be used in the future (big 'if'!)
+-- and there is a wish to have metrics in bonanza (another 'if'),
+-- then you may wish to implement prometheus-style metrics in this module.
+-- This library used to support collectd metrics,
+-- which were removed as part of https://github.com/wireapp/wire-server/pull/940
+
 import Imports
-import Control.Exception              (bracket)
-import Data.Collectd.PlainText
-import Data.Text                      (pack)
-import Data.Text.Lazy.Builder
-import Data.Text.Lazy.Encoding
 import Data.Time
-import Network.BSD                    (getHostName)
-import Network.Socket                 hiding (recv)
-import Network.Socket.ByteString.Lazy
 import System.IO
-
-import qualified Data.Text.Lazy.IO as TIO
-
 
 data Stats = Stats
     { sBytesIn  :: !Int64
@@ -50,42 +38,3 @@ formatStderr Stats{..} = unlines . map (intercalate "\t") $
     , ["CPU time:",      show sCPUTime ]
     , ["Wall time:",     show sWallTime]
     ]
-
-emitCollectd :: FilePath -> Maybe String -> Stats -> IO ()
-emitCollectd p inst s = do
-    host <- pack <$> getHostName
-    withSocket $ \ sock -> do
-        sendAll sock . encodeUtf8 . toLazyText $
-            formatCollectd host (pack `fmap` inst) s
-        void $ recv sock 1024
-  where
-    withSocket = bracket
-        (do sock <- socket AF_UNIX Stream defaultProtocol
-            connect sock (SockAddrUnix p)
-            return sock)
-        close
-
-debugCollectd :: Maybe String -> Stats -> IO ()
-debugCollectd inst s = do
-    host <- pack <$> getHostName
-    TIO.hPutStrLn stderr . toLazyText $
-        formatCollectd host (pack `fmap` inst) s
-
-formatCollectd :: Text -> Maybe Text -> Stats -> Builder
-formatCollectd host inst Stats{..} =
-    let ident = Identifier host "bonanza" inst "gauge"
-        vlist = ValueList Now . (:[])
-        vals  = [ ("events_in", Gauge $ fromIntegral sEventsIn)
-                , ("bytes_in",  Gauge $ fromIntegral sBytesIn)
-                , ("bytes_out", Gauge $ fromIntegral sBytesOut)
-                , ("cpu_time",  Gauge $ realToFrac   sCPUTime)
-                , ("wall_time", Gauge $ realToFrac   sWallTime)
-                ]
-     in foldl' (\ b (l,v) -> b
-                          <> formatRequest (PutVal (ident (Just l)) [] (vlist v))
-                          <> nl)
-               mempty
-               vals
-
-nl :: Builder
-nl = singleton '\n'

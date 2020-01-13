@@ -28,6 +28,7 @@ packages:
 - network-2.7.0.2  # to get nicer errors when connections fail
 - HaskellNet-SSL-0.3.4.1  # first version to support network-2.7
 
+# DEPRECATED: hs-collectd not in use anymore, remove in next stack snapshot
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
 
