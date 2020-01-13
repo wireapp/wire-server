@@ -10,8 +10,6 @@ module API.Metrics (tests) where
 import Imports
 import Bilge
 import Bilge.Assert
-import Brig.Types.User
-import Data.ByteString.Conversion
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -21,7 +19,6 @@ tests :: Manager -> Brig -> IO TestTree
 tests manager brig = do
     return $ testGroup "metrics"
         [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig)
-        , testCase "work" . void $ runHttpT manager (testMonitoringEndpoint brig)
         ]
 
 testPrometheusMetrics :: Brig -> Http ()
@@ -30,25 +27,6 @@ testPrometheusMetrics brig = do
         const 200 === statusCode
         -- Should contain the request duration metric in its output
         const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
-
-testMonitoringEndpoint :: Brig -> Http ()
-testMonitoringEndpoint brig = do
-    let p1 = "/self"
-        p2 uid = "/users/" <> uid <> "/clients"
-
-    uid <- userId <$> randomUser brig
-    uid' <- userId <$> randomUser brig
-    _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
-    _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
-    _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
-
-    get (brig . path "i/metrics") !!! do
-        -- GET /self was called once
-        const (Just "http_request_duration_seconds_count{handler=\"/self\",method=\"GET\",status_code=\"200\"} 1") =~= responseBody
-
-        -- GET /users/:uid/clients was called twice
-        const (Just "http_request_duration_seconds_count{handler=\"/users/:uid/clients\",method=\"GET\",status_code=\"200\"} 2") =~= responseBody
-
 
 -- FUTUREWORK: check whether prometheus metrics are correct regarding timings:
 
