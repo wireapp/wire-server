@@ -40,8 +40,8 @@ packages:
 - tools/stern
 
 extra-deps:
-- servant-swagger-1.1.6
-- swagger2-2.3.0.1
+- servant-swagger-1.1.7.1
+- swagger2-2.5
 - git: https://github.com/fimad/prometheus-haskell
   commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
   subdirs:
@@ -50,10 +50,13 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: ff9b9f445475809d1fa31ef7f2932caa0ed31613    # master (Oct 9, 2019)
+  commit: 813b50c9241e0084db2bd3a7b275c6496d40cc86 # No PR yet, test failing
 - git: https://github.com/wireapp/hscim
-  commit: 37d4e2ede83267e2fc9ccca87403751566ebed19    # master (Jan 7, 2020)
+  # commit: 37d4e2ede83267e2fc9ccca87403751566ebed19    # master (Jan 7, 2020)
+  commit: 0378b87d2b05b84bf9adf55e1b0d8a61dd51cf3e  # PR: https://github.com/wireapp/hscim/pull/37
 - quickcheck-state-machine-0.4.2
+- stm-containers-0.2.16
+- focus-0.1.5.2
 
 flags:
   types-common:

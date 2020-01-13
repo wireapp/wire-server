@@ -76,6 +76,7 @@ import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (retry)
 import Control.Monad.Base
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Catch hiding (try)
 import Control.Monad.Trans.Control
 import Data.Id
@@ -190,7 +191,7 @@ initMetrics = do
 
 newtype BotNet a = BotNet { unBotNet :: ReaderT BotNetEnv IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow,
-              MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO)
+              MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO, MonadFail)
 
 class MonadIO m => MonadBotNet m where
     liftBotNet :: BotNet a -> m a

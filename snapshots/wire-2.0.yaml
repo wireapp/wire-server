@@ -1,9 +1,9 @@
 # DO NOT MODIFY THIS FILE. See README.md to learn why.
 
-resolver: lts-12.14
+resolver: lts-14.12
 name: wire-2.0
 
-compiler: ghc-8.6.5
+# compiler: ghc-8.6.5
 
 packages:
 - git: https://github.com/kim/hs-collectd
@@ -16,8 +16,8 @@ packages:
   commit: 7e996a93fec5901767f845a50316b3c18e51a61d
 
 # Includes the changes from <https://gitlab.com/twittner/cql-io/merge_requests/14>
-- git: https://gitlab.com/twittner/cql-io.git
-  commit: 8b91d053c469887a427e8c075cef43139fa189c4
+# - git: https://gitlab.com/twittner/cql-io.git
+#   commit: 8b91d053c469887a427e8c075cef43139fa189c4
 
 #  Our fork of multihash with relaxed upper bounds
 - git: https://github.com/wireapp/haskell-multihash.git
@@ -57,8 +57,10 @@ packages:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: 678997815033584e023205fe774d16201ccf8f62    # master (Feb 13, 2019)
-- archive: https://github.com/wireapp/http-client/archive/wire-2019-11-04.tar.gz
+  commit: e395cd1477630d6f8385c44b9010f68b8a1ede06   # PR: https://github.com/wireapp/hsaml2/pull/5
+
+- git: https://github.com/wireapp/http-client
+  commit: 3b82a6ad7dbccf80222313b6f4ece1692f6301cd
   subdirs:
   - http-client
   - http-client-openssl
@@ -68,6 +70,20 @@ packages:
 # Dropped from upstream snapshot
 - bloodhound-0.16.0.0
 - template-0.2.0.10
+- HaskellNet-0.5.1
+- HaskellNet-SSL-0.3.4.1
+- snappy-0.2.0.2
+- smtp-mail-0.2.0.0
+- stm-containers-1.1.0.4
+- wai-route-0.4.0 # Not latest
+- redis-io-1.0.0
+- redis-resp-1.0.0
+- hedgehog-quickcheck-0.1.1
+
+# Only in nightly
+- stm-hamt-1.2.0.4
+- optics-th-0.2
+- primitive-unlifted-0.1.2.0
 
 # Not on stackage
 - currency-codes-3.0.0.1
@@ -76,23 +92,18 @@ packages:
 - geoip2-0.4.0.1
 - stomp-queue-0.3.1
 - text-icu-translit-0.1.0.7
-
-# Stopped caring
 - wai-middleware-gunzip-0.0.2
-- wai-route-1.0.0
 - cql-io-tinylog-0.1.0
-- text-format-0.3.2
-- redis-io-1.0.0
-- redis-resp-1.0.0
 - invertible-hxt-0.1
 - network-uri-static-0.1.2.1
 - base58-bytestring-0.1.0
-- hedgehog-quickcheck-0.1.1
-- servant-multipart-0.11.4
 - stompl-0.5.0
 - pattern-trie-0.1.0
-- prometheus-client-1.0.0
-- base-compat-batteries-0.10.5
 
-# Don't know why
-- unliftio-0.2.12
+# Need to be upgraded
+- primitive-0.7.0.0
+- primitive-extras-0.8
+
+# Need to downgrade
+# - servant-server-0.15
+# - servant-0.15

@@ -145,7 +145,7 @@ type IdpCreate  = ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
 type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where
-  makeCustomError = sparToServantErr . SAML.CustomError . SparNewIdPBadMetadata . cs
+  makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent

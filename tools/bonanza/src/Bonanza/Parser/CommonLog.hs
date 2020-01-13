@@ -24,7 +24,7 @@ import Bonanza.Parser.Time
 import Bonanza.Types
 import Control.Applicative              (optional)
 import Control.Lens.Operators
-import Data.Aeson
+import Data.Aeson                       hiding ((<?>))
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8            (unpack)
 import Data.HashMap.Strict              (fromList)

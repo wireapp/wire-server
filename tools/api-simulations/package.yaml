@@ -76,6 +76,6 @@ executables:
     - transformers >=0.3
     - tinylog >=0.14
     - types-common >=0.11
-    - unliftio # >=0.2.10
+    - unliftio >=0.2.10
     - uuid >=1.3
 stability: experimental

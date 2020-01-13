@@ -219,7 +219,7 @@ instance SPHandler SparError Spar where
 
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
-          sparToServantErrWithLogging (sparCtxLogger ctx) err >>= throwError
+          sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
@@ -283,7 +283,7 @@ catchVerdictErrors = (`catchError` hndlr)
       waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-        Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+        Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
@@ -335,7 +335,7 @@ verdictHandlerWeb = pure . \case
     VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
-    forbiddenPage errlbl reasons = ServantErr
+    forbiddenPage errlbl reasons = ServerError
       { errHTTPCode     = 200
       , errReasonPhrase = cs errlbl  -- (not sure what this is used for)
       , errBody         = easyHtml $
@@ -356,7 +356,7 @@ verdictHandlerWeb = pure . \case
                         ]
 
     successPage :: SetCookie -> SAML.ResponseVerdict
-    successPage cky = ServantErr
+    successPage cky = ServerError
       { errHTTPCode     = 200
       , errReasonPhrase = "success"
       , errBody         = easyHtml $
