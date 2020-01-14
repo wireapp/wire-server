@@ -15,6 +15,7 @@ module Web.Scim.Test.Util (
   ) where
 
 import           Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as L
 import           Data.Aeson
 import           Data.Aeson.Internal (JSONPathElement (Key), (<?>))
@@ -37,6 +38,14 @@ import           Web.Scim.Schema.Schema (Schema (User20, CustomSchema))
 ----------------------------------------------------------------------------
 -- Redefine wai test helpers to include scim+json content type
 
+-- | avoid multiple @/@.  (kill at most one @/@ at the end of first arg and beginning of
+-- second arg, resp., then add one during concatenation.
+(<//>) :: ByteString -> ByteString -> ByteString
+(<//>) a b = a' <> "/" <> b'
+  where
+    a' = maybe a fst $ BS.unsnoc a
+    b' = maybe b snd $ BS.uncons b
+
 post :: ByteString -> L.ByteString -> WaiSession SResponse
 post path = request methodPost path [(hContentType, "application/scim+json")]
 
@@ -46,20 +55,20 @@ put path = request methodPut path [(hContentType, "application/scim+json")]
 patch :: ByteString -> L.ByteString -> WaiSession SResponse
 patch path = request methodPatch path [(hContentType, "application/scim+json")]
 
-get' :: ByteString -> WaiSession SResponse
-get' path = request methodGet path [(hAuthorization, "authorized"), (hContentType, "application/scim+json")] ""
+get' :: ByteString -> ByteString -> WaiSession SResponse
+get' prefix path = request methodGet (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")] ""
 
-post' :: ByteString -> L.ByteString -> WaiSession SResponse
-post' path = request methodPost path [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+post' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
+post' prefix path = request methodPost (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
 
-put' :: ByteString -> L.ByteString -> WaiSession SResponse
-put' path = request methodPut path [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+put' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
+put' prefix path = request methodPut (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
 
-patch' :: ByteString -> L.ByteString -> WaiSession SResponse
-patch' path = request methodPatch path [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+patch' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
+patch' prefix path = request methodPatch (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
 
-delete' :: ByteString -> L.ByteString -> WaiSession SResponse
-delete' path = request methodDelete path [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+delete' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
+delete' prefix path = request methodDelete (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
 
 
 

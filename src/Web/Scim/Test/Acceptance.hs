@@ -3,15 +3,16 @@
 -- implementation is compatible with popular SCIM 2.0 providers
 module Web.Scim.Test.Acceptance where
 
-import Web.Scim.Test.Util (scim, get', post', patch', delete')
-import Test.Hspec (Spec, xit, it, shouldBe, beforeAll, pending, describe,)
-import Test.Hspec.Wai (shouldRespondWith,  matchStatus)
+import Data.ByteString
 import Network.Wai (Application)
+import Test.Hspec (Spec, xit, it, shouldBe, beforeAll, pending, describe)
+import Test.Hspec.Wai (shouldRespondWith,  matchStatus)
+import Web.Scim.Test.Util (scim, get', post', patch', delete')
 
 
 -- https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/use-scim-to-provision-users-and-groups#step-2-understand-the-azure-ad-scim-implementation
-microsoftAzure :: IO Application -> Spec
-microsoftAzure app = do
+microsoftAzure :: ByteString -> IO Application -> Spec
+microsoftAzure scimPathPrefix scimApp = do
   describe "Within the SCIM 2.0 protocol specification, your application must meet these requirements:" $ do
     it "Supports creating users, and optionally also groups, as per section 3.3 of the SCIM protocol." $ pending -- TODO(arianvp): Write test
     it "Supports modifying users or groups with PATCH requests, as per section 3.5.2 of the SCIM protocol." $ pending -- TODO(arianvp): Write test
@@ -44,7 +45,7 @@ microsoftAzure app = do
       -- TODO(arianvp): Implement 'and' as Azure needs it
       it "and" $ pending
 
-  beforeAll app $ do
+  beforeAll scimApp $ do
     describe "User Operations" $ do
       it "POST /Users" $ do
         let user = [scim|
@@ -71,11 +72,11 @@ microsoftAzure app = do
             "roles": []
           }
         |]
-        post' "/Users" user `shouldRespondWith` 201
+        post' scimPathPrefix "/Users" user `shouldRespondWith` 201
       it "Get user by query" $ do
-        get' "/Users?filter userName eq \"Test_User_ab6490ee-1e48-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
+        get' scimPathPrefix "/Users?filter userName eq \"Test_User_ab6490ee-1e48-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
       it "Get user by query, zero results" $ do
-        get' "/Users?filter=userName eq \"non-existent user\"" `shouldRespondWith` [scim|
+        get' scimPathPrefix "/Users?filter=userName eq \"non-existent user\"" `shouldRespondWith` [scim|
           {
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
             "totalResults": 0,
@@ -85,9 +86,9 @@ microsoftAzure app = do
           }
         |] { matchStatus = 200 }
       it "Get user by externalId works" $ do
-        get' "/Users?filter externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
+        get' scimPathPrefix "/Users?filter externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
       xit "Update user [Multi-valued properties]" $ do
-        patch' "/Users/0" [scim|
+        patch' scimPathPrefix "/Users/0" [scim|
             {
               "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
               "Operations": [
@@ -105,7 +106,7 @@ microsoftAzure app = do
             }
         |] `shouldRespondWith` 200
       describe "Update user [Single-valued properties]" $ do
-        it "replace userName" $ patch' "/Users/0"
+        it "replace userName" $ patch' scimPathPrefix "/Users/0"
           [scim|
             {
                     "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -116,7 +117,7 @@ microsoftAzure app = do
                     }]
             }
           |] `shouldRespondWith` 200
-        it "replace displayName" $ patch' "/Users/0"
+        it "replace displayName" $ patch' scimPathPrefix "/Users/0"
           [scim|
             {
                     "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -158,7 +159,7 @@ microsoftAzure app = do
               "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef"
             }
           |]
-        it "remove displayName" $ patch' "/Users/0"
+        it "remove displayName" $ patch' scimPathPrefix "/Users/0"
           [scim|
             {
                     "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -200,7 +201,7 @@ microsoftAzure app = do
           |]
           -- TODO match body
       it "Delete User" $ do
-        delete' "/Users/0" "" `shouldRespondWith` 204
-        delete' "/Users/0" "" `shouldRespondWith` 404
+        delete' scimPathPrefix "/Users/0" "" `shouldRespondWith` 204
+        delete' scimPathPrefix "/Users/0" "" `shouldRespondWith` 404
     describe "Group operations" $
       it "is in progress" $ \_-> pending

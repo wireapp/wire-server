@@ -16,4 +16,4 @@ spec = do
       storage <- emptyTestStorage
       pure (app @Mock empty (nt storage))
 
-  describe "Azure" $ microsoftAzure  app'
+  describe "Azure" $ microsoftAzure "" app'
