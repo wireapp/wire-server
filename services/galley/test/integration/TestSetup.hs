@@ -20,6 +20,7 @@ import Imports
 import Data.Aeson
 import Control.Lens        (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Fail  (MonadFail)
 import Bilge (Manager, MonadHttp(..), Request, withResponse)
 import Util.Options
 import Galley.Options      (Opts)
@@ -77,6 +78,7 @@ newtype TestM a =
              , MonadThrow
              , MonadMask
              , MonadUnliftIO
+             , MonadFail
              )
 
 instance MonadHttp TestM where
