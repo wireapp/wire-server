@@ -40,7 +40,7 @@ packages:
 - tools/stern
 
 extra-deps:
-- servant-swagger-1.1.7.1
+- servant-swagger-1.1.7.1@rev:2
 - swagger2-2.5
 - git: https://github.com/fimad/prometheus-haskell
   commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
