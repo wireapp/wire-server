@@ -54,7 +54,6 @@ extra-deps:
 - git: https://github.com/wireapp/hscim
   # commit: 37d4e2ede83267e2fc9ccca87403751566ebed19    # master (Jan 7, 2020)
   commit: 0378b87d2b05b84bf9adf55e1b0d8a61dd51cf3e  # PR: https://github.com/wireapp/hscim/pull/37
-- stm-containers-0.2.16
 - focus-0.1.5.2
 
 flags:
@@ -70,6 +69,6 @@ flags:
     cql: true
 
 allow-newer: false
-
+executable-stripping: true
 nix:
   shell-file: stack-deps.nix

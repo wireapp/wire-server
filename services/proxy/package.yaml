@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: proxy
 version: '0.9.0'
 description: 3rd party proxy

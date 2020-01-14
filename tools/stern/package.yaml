@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: stern
 version: '1.7.2'
 description: Backoffice facade

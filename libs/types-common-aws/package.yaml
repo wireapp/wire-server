@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: types-common-aws
 version: '0.16.0'
 synopsis: Shared AWS type definitions.

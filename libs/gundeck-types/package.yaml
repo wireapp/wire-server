@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: gundeck-types
 version: '1.45.0'
 description: API types of Gundeck.

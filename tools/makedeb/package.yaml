@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: makedeb
 version: '0.3.0'
 synopsis: Create debian archives with dpkg-deb.

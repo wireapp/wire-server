@@ -1,5 +1,3 @@
-defaults:
-  local: ../../../package-defaults.yaml
 name: migrate-sso-feature-flag
 version: '1.0.0'
 synopsis: Backfill sso feature flag into teams that already have an IdP.

@@ -1,5 +1,3 @@
-defaults: 
-  local: ../../../package-defaults.yaml
 name: auto-whitelist
 version: '1.0.0'
 synopsis: Backfill service tables

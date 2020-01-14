@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: sodium-crypto-sign
 version: '0.1.2'
 synopsis: FFI to some of libsodium's crypto_sign_* functions.

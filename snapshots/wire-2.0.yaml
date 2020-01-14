@@ -44,7 +44,8 @@ packages:
 #   * https://github.com/brendanhay/amazonka/pull/493/files
 #
 # The archive corresponds to commit 52896fd46ef6812708e9e4d7456becc692698f6b.
-- archive: https://github.com/wireapp/amazonka/archive/wire-2019-01-25.tar.gz
+- git: https://github.com/wireapp/amazonka
+  commit: 52896fd46ef6812708e9e4d7456becc692698f6b
   subdirs:
   - amazonka
   - core
@@ -74,7 +75,8 @@ packages:
 - HaskellNet-SSL-0.3.4.1
 - snappy-0.2.0.2
 - smtp-mail-0.2.0.0
-- stm-containers-1.1.0.4
+- stm-containers-0.2.16
+# - stm-containers-1.1.0.4
 - wai-route-0.4.0 # Not latest as latst one breaks wai-routing
 - redis-io-1.0.0
 - redis-resp-1.0.0

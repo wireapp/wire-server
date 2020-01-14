@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: api-client
 version: '0.4.2'
 synopsis: (Internal) Wire HTTP API Client

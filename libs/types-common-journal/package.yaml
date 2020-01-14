@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: types-common-journal
 version: '0.1.0'
 synopsis: Shared protobuf type definitions.
@@ -23,6 +23,9 @@ dependencies:
 - time
 - types-common
 - uuid
+build-tools:
+- proto-lens-protoc
+- protobuf-lol
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported

@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: brig
 version: '1.35.0'
 synopsis: User Service

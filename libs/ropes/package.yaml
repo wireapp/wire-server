@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: ropes
 version: '0.4.20'
 synopsis: Various ropes to tie together with external web services.

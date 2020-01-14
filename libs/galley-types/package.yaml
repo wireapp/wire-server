@@ -1,5 +1,51 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+ghc-options:
+- -O2
+- -Wall
+- -fwarn-tabs
+# These errors pop up from time to time but haven't caused any serious trouble yet
+- -optP-Wno-nonportable-include-path
+
+default-extensions:
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DerivingStrategies
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+
 name: galley-types
 version: '0.81.0'
 description: API types of Galley.

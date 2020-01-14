@@ -1,5 +1,5 @@
-defaults:
-  local: ../../package-defaults.yaml
+
+
 name: api-simulations
 version: '0.4.2'
 synopsis: (Internal) Wire API simulations
