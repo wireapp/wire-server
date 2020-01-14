@@ -16,10 +16,12 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Id
 import Data.Proto
+import Data.ProtoLens (defMessage)
 import Data.Proto.Id
 import Data.ProtoLens.Encoding (encodeMessage)
 import Data.UUID.V4 (nextRandom)
-import Proto.UserEvents
+import Proto.UserEvents (UserEvent, UserEvent'EventType(..))
+import qualified Proto.UserEvents_Fields as U
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Brig.AWS as AWS
@@ -44,6 +46,13 @@ journalEvent :: UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> 
 journalEvent typ uid em loc tid nm = view awsEnv >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
     ts  <- now
     rnd <- liftIO nextRandom
-    let encoded = fromStrict . B64.encode . encodeMessage
-                $ UserEvent typ (toBytes uid) ts (toByteString' <$> em) (pack . show <$> loc) (toBytes <$> tid) (toByteString' <$> nm) []
+    let userEvent :: UserEvent = defMessage
+                                 & U.eventType .~ typ
+                                 & U.userId .~ (toBytes uid)
+                                 & U.utcTime .~ ts
+                                 & U.maybe'email .~ (toByteString' <$> em)
+                                 & U.maybe'locale .~ (pack . show <$> loc)
+                                 & U.maybe'teamId .~ (toBytes <$> tid)
+                                 & U.maybe'name .~ (toByteString' <$> nm) -- []
+        encoded = fromStrict $ B64.encode $ encodeMessage  userEvent
     AWS.execute env (AWS.enqueueFIFO queue "user.events" rnd encoded)

@@ -5,6 +5,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types
 import Control.Monad.Catch    (MonadCatch)
+import Control.Monad.Fail     (MonadFail)
 import Data.Aeson             (decode, encode)
 import Data.Id
 import Data.Text.Encoding     (encodeUtf8)
@@ -59,7 +60,7 @@ setRandomHandle brig user = do
         ) !!!  const 200 === statusCode
     return user { userHandle = Just (Handle h) }
 
-assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCanFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO $ do
@@ -68,7 +69,7 @@ assertCanFind brig self expected q = do
         assertBool ("User not in results for query: " <> show q) $
             elem expected . map contactUserId $ r
 
-assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO .  assertBool ("User unexpectedly in results for query: " <> show q) $

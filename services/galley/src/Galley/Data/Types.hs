@@ -18,7 +18,6 @@ import Imports
 import Brig.Types.Code
 import Data.ByteString.Conversion
 import Cassandra hiding (Value)
-import Control.Monad.Fail (MonadFail)
 import Data.Id
 import Data.Range
 import Data.Misc (Milliseconds)
@@ -100,7 +99,7 @@ toCode k s (val, ttl, cnv) = Code
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
 -- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
-generate :: (MonadIO m, MonadFail m) => ConvId -> Scope -> Timeout -> m Code
+generate :: MonadIO m => ConvId -> Scope -> Timeout -> m Code
 generate cnv s t = do
     key <- mkKey cnv
     val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
@@ -112,7 +111,7 @@ generate cnv s t = do
         , codeScope = s
         }
 
-mkKey :: (MonadIO m, MonadFail m) => ConvId -> m Key
+mkKey :: MonadIO m => ConvId -> m Key
 mkKey cnv = do
-    Just sha256 <- liftIO $ getDigestByName "SHA256"
+    sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
     return $ Key . unsafeRange. Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)

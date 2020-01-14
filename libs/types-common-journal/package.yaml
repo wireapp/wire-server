@@ -14,6 +14,7 @@ extra-source-files:
 - proto/UserEvents.proto
 ghc-options:
 - -fno-warn-redundant-constraints
+- -ddump-splices
 dependencies:
 - base ==4.*
 - bytestring
@@ -33,7 +34,8 @@ library:
   - Proto.TeamEvents_Fields
   - Proto.UserEvents
   - Proto.UserEvents_Fields
-# build-type: Custom
-# verbatim: |
 custom-setup:
-  dependencies: [base, Cabal, proto-lens-setup]
+  dependencies:
+  - base
+  - Cabal
+  - proto-lens-setup

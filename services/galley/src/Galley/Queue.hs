@@ -10,13 +10,14 @@ module Galley.Queue
 
 import Imports
 import qualified Control.Concurrent.STM as Stm
+import Numeric.Natural (Natural)
 
 data Queue a = Queue
     { _len   :: Stm.TVar Word
     , _queue :: Stm.TBQueue a
     }
 
-new :: MonadIO m => Int -> m (Queue a)
+new :: MonadIO m => Natural -> m (Queue a)
 new n = liftIO $ Queue <$> Stm.newTVarIO 0 <*> Stm.newTBQueueIO n
 
 tryPush :: MonadIO m => Queue a -> a -> m Bool
