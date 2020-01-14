@@ -78,6 +78,7 @@ data SparCustomError
   | SparNewIdPPubkeyMismatch
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
+  | SparIdPHasBoundUsers
 
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
@@ -162,6 +163,7 @@ renderSparError (SAML.CustomError (SparNewIdPBadMetadata msg))             = Rig
 renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse)                  = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg))               = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
+renderSparError (SAML.CustomError SparIdPHasBoundUsers)                    = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg))       = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached)       = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
