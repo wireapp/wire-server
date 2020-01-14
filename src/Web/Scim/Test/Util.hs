@@ -147,4 +147,3 @@ instance GroupTypes (TestTag id authData authInfo userExtra) where
 instance AuthTypes (TestTag id authData authInfo userExtra) where
   type AuthData (TestTag id authData authInfo userExtra) = authData
   type AuthInfo (TestTag id authData authInfo userExtra) = authInfo
-

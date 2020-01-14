@@ -21,8 +21,8 @@ microsoftAzure app = do
       it "query by id" $ pending -- TODO(arianvp): Write test
       it "query by manager" $ pending -- TODO(arianvp): Implement support for enterprise extension
     it "Supports querying groups by ID and by member, as per section 3.4.2 of the SCIM protocol." $ pending -- TODO(arianvp): Implement groups
-    it "Accepts a single bearer token for authentication and authorization of Azure AD to your application." $ 
-      -- This is provided by the library 
+    it "Accepts a single bearer token for authentication and authorization of Azure AD to your application." $
+      -- This is provided by the library
       True `shouldBe` True
 
   describe "Follow these general guidelines when implementing a SCIM endpoint to ensure compatibility with Azure AD:" $ do
@@ -32,10 +32,10 @@ microsoftAzure app = do
     it "Response to a query/filter request should always be a ListResponse." $
       -- NOTE: This is guaranteed by the type-system. No need for a test
       True `shouldBe` True
-    it "Groups are optional, but only supported if the SCIM implementation supports PATCH requests." $ 
+    it "Groups are optional, but only supported if the SCIM implementation supports PATCH requests." $
       -- TODO(arianvp): Implement groups
       True `shouldBe` True
-    it "Don't require a case-sensitive match on structural elements in SCIM, in particular PATCH op operation values, as defined in https://tools.ietf.org/html/rfc7644#section-3.5.2. Azure AD emits the values of 'op' as Add, " $ 
+    it "Don't require a case-sensitive match on structural elements in SCIM, in particular PATCH op operation values, as defined in https://tools.ietf.org/html/rfc7644#section-3.5.2. Azure AD emits the values of 'op' as Add, " $
       -- TODO(arianvp): Write test
       pending
     describe "Microsoft Azure AD only uses the following operators: eq and" $ do
@@ -202,8 +202,5 @@ microsoftAzure app = do
       it "Delete User" $ do
         delete' "/Users/0" "" `shouldRespondWith` 204
         delete' "/Users/0" "" `shouldRespondWith` 404
-    describe "Group operations" $ 
+    describe "Group operations" $
       it "is in progress" $ \_-> pending
-
-          
-

@@ -11,7 +11,7 @@ import           Web.Scim.Test.Acceptance (microsoftAzure)
 
 spec :: Spec
 spec = do
-  let 
+  let
     app' = do
       storage <- emptyTestStorage
       pure (app @Mock empty (nt storage))
