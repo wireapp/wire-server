@@ -26,7 +26,7 @@ readBody :: (MonadIO m, HasRequest r) => r -> m LByteString
 readBody r = liftIO $ Lazy.fromChunks <$> P.toListM chunks
   where
     chunks = do
-        b <- lift $ requestBody (getRequest r)
+        b <- lift $ getRequestBodyChunk (getRequest r)
         unless (B.null b) $ do
             yield b
             chunks

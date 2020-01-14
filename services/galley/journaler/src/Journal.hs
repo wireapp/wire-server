@@ -8,7 +8,7 @@ import Data.ByteString.Conversion
 import Data.Proto
 import Data.ProtoLens (defMessage)
 import Data.Proto.Id as Proto
-import Proto.TeamEvents (TeamEvent'EventData(..), TeamEvent'EventType(..))
+import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType(..))
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
 import System.Logger.Class (Logger)

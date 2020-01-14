@@ -50,5 +50,5 @@ in
       snappy
       zlib
     ];
-    ghc = pkgs.haskell.compiler.ghc844;
+    ghc = pkgs.haskell.compiler.ghc865;
   }

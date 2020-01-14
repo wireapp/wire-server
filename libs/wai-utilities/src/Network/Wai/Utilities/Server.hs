@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
 module Network.Wai.Utilities.Server
     ( -- * Server Setup
@@ -350,6 +351,6 @@ restrict l u = fmap $ \x -> x >>= \v ->
 
 flushRequestBody :: Request -> IO ()
 flushRequestBody req = do
-    bs <- requestBody req
+    bs <- getRequestBodyChunk req
     unless (BS.null bs) $
         flushRequestBody req
