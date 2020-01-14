@@ -222,7 +222,7 @@ getSAMLAnyUserByIssuer issuer = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ?"
+    sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser (SAML.UserRef tenant subject) = runIdentity <$$>
