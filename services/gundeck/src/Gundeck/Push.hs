@@ -199,7 +199,7 @@ pushAll pushes = do
         forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
             let rcps' = nativeTargetsRecipients psh
                 cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
-                  -- ^ this is a rough budget cost, since there may be more than one device in a
+                  -- this is a rough budget cost, since there may be more than one device in a
                   -- 'Presence', so one budget token may trigger at most 8 push notifications
                   -- to be sent out.
                   -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests

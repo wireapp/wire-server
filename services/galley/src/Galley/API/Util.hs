@@ -87,8 +87,8 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
     Just True  -> return ()
     Just False -> throwM (actionDenied action)
     Nothing    -> throwM (badRequest "Custom roles not supported")
-               -- ^ Actually, this will "never" happen due to the
-               --   fact that there can be no custom roles at the moment
+               -- Actually, this will "never" happen due to the
+               -- fact that there can be no custom roles at the moment
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
@@ -102,8 +102,8 @@ ensureConvRoleNotElevated origMember targetRole = do
                 throwM invalidActions
          (_                 , _                 ) ->
             throwM (badRequest "Custom roles not supported")
-            -- ^ Actually, this will "never" happen due to the
-            --   fact that there can be no custom roles at the moment
+            -- Actually, this will "never" happen due to the
+            -- fact that there can be no custom roles at the moment
 
 bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do

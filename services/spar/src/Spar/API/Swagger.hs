@@ -118,7 +118,7 @@ instance ToSchema IdPMetadataInfo where
         & properties .~ properties_
         & minProperties ?~ 1
         & maxProperties ?~ 1
-        & type_ .~ (Just SwaggerObject)
+        & type_ .~ Just SwaggerObject
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList

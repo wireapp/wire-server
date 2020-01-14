@@ -34,6 +34,7 @@ let
         cp src/cbox.h $out/include
       '';
     }) {};
+  hoogle = pkgs.haskellPackages.hoogle;
 in
   pkgs.haskell.lib.buildStackProject {
     name = "wire-server";
@@ -49,6 +50,7 @@ in
       protobuf
       snappy
       zlib
+      hoogle
     ];
     ghc = pkgs.haskell.compiler.ghc865;
   }
