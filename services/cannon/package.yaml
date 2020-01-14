@@ -87,7 +87,7 @@ tests:
     - cannon
     - criterion >=1.0
     - metrics-wai
-    - QuickCheck >=2.7 && <2.12
+    - QuickCheck >=2.7
     - random >=1.0
     - tasty >=0.8
     - tasty-hunit >=0.8
