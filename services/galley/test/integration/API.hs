@@ -49,6 +49,7 @@ tests s = testGroup "Galley integration tests"
         [ test s "status" status
         , test s "monitoring" monitor
         , test s "metrics" metrics
+        , test s "config.json" configJson
         , test s "create conversation" postConvOk
         , test s "get empty conversations" getConvsOk
         , test s "get conversations by ids" getConvsOk2
@@ -125,6 +126,14 @@ metrics = do
         -- Should contain the request duration metric in its output
         const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
+configJson :: TestM ()
+configJson = do
+    g <- view tsGalley
+    get (g . path "/config.json") !!! do
+        const 200
+           === statusCode
+        const (ConfigJson "https://localhost:8080/" "https://localhost:8080/" Nothing False)
+           === responseJsonUnsafe @ConfigJson
 
 postConvOk :: TestM ()
 postConvOk = do

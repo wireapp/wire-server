@@ -40,3 +40,8 @@ journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
   endpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   region: eu-west-1
+
+configJson:
+  backend-URI: https://localhost:8080/,
+  backend-websocketURI: https://localhost:8080/,
+  no-account-creation: false
