@@ -35,6 +35,7 @@ import qualified Data.Set                 as Set
 import qualified Data.Text                as T
 import qualified Test.Tasty.Cannon        as WS
 import qualified Data.Code                as Code
+import qualified URI.ByteString           as URI
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests"
@@ -128,11 +129,12 @@ metrics = do
 
 configJson :: TestM ()
 configJson = do
+    let toUrl = either (error . show) id . URI.parseURI URI.strictURIParserOptions
     g <- view tsGalley
     get (g . path "/config.json") !!! do
         const 200
            === statusCode
-        const (ConfigJson "https://localhost:8080/" "https://localhost:8080/" Nothing False)
+        const (ConfigJson (toUrl "https://localhost:8080/") (toUrl "https://localhost:8080/") Nothing False)
            === responseJsonUnsafe @ConfigJson
 
 postConvOk :: TestM ()
