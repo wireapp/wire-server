@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
 module Galley.Types
@@ -68,12 +69,13 @@ import Imports
 import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import Data.Binary.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import Data.Misc
-import Data.Time
 import Data.Id
 import Data.Json.Util
 import Data.List1
+import Data.Misc
+import Data.Time
 import Data.UUID (UUID, toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
@@ -83,7 +85,10 @@ import URI.ByteString
 import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict     as Map
+import qualified Data.String.Conversions as StringConvs
+import qualified Data.Text           as T
 import qualified Data.Text.Encoding  as T
+import qualified Data.UUID           as UUID
 
 -- /config.json ------------------------------------------------------------
 
@@ -517,10 +522,53 @@ mkConversationCode k v (HttpsUrl prefix) = ConversationCode
 -- JSON
 
 instance FromJSON ConfigJson where
-    parseJSON = undefined
+    parseJSON = withObject "ConfigJson" $ \obj -> do
+        let textToUrl :: Text -> Parser URI
+            textToUrl = either (fail . ("uri-bytestring " <>) . StringConvs.cs . show) pure
+                      . parseURI strictURIParserOptions
+                      . StringConvs.cs
+
+        cjBackendURI
+            <- textToUrl =<< obj .: "backend-URI"
+        cjBackendWebsocketURI
+            <- textToUrl =<< obj .: "backend-websocketURI"
+
+        cjSsoCode :: Maybe (UUID, ConfigJsonOnlySSO)
+            <- do
+              mcode <- obj .:? "sso-code"
+              monly <- obj .:? "only-sso"
+
+              case (mcode, monly) of
+                  (Nothing, Nothing) -> pure Nothing
+                  (Nothing, Just _) -> fail "field 'only-sso' requires 'sso-code'"
+                  (Just code, _) -> do
+                      uuid <- maybe (fail "sso login code") pure $ case T.splitAt 4 code of
+                            ("sso_", rest) -> UUID.fromText rest
+                            _ -> Nothing
+                      let only = case monly of
+                            Just True  -> ConfigJsonOnlySSO
+                            Just False -> ConfigJsonOptionalSSO
+                            Nothing    -> ConfigJsonOptionalSSO
+                      pure $ Just (uuid, only)
+
+        cjNoAccountCreation
+            <- maybe False id <$> (obj .:? "no-account-creation")
+
+        pure ConfigJson {..}
 
 instance ToJSON ConfigJson where
-    toJSON = undefined
+    toJSON (ConfigJson url wsurl sso nocreate) = object $
+        [ "backend-URI" .= urlToText url ] <>
+        [ "backend-websocketURI" .= urlToText wsurl ] <>
+        [ "sso-code" .= (("sso_" <>) . UUID.toString . fst <$> sso) | isJust sso ] <>
+        [ "only-sso" .= True | isOnly $ snd <$> sso ] <>
+        [ "no-account-creation" .= True | nocreate ]
+      where
+        urlToText = StringConvs.cs @_ @Text . toLazyByteString . serializeURIRef
+        isOnly = \case
+            Just ConfigJsonOnlySSO     -> True
+            Just ConfigJsonOptionalSSO -> False
+            Nothing                    -> False
 
 instance ToJSON Access where
     toJSON PrivateAccess = String "private"
