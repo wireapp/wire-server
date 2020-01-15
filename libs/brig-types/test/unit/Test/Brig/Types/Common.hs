@@ -58,6 +58,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @SSOTeamConfig
     , run @FeatureFlags
     , run @ConfigJson
+    , configJsonSamples
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -90,3 +91,24 @@ instance Arbitrary FeatureFlags where
   arbitrary = FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound..]
       <*> Test.Tasty.QuickCheck.elements [minBound..]
+
+configJsonSamples :: TestTree
+configJsonSamples = testGroup "ConfigJson samples" $ testSample <$>
+    [ "{\
+      \  \"backend-URI\": \"https://localhost:8080/\",\
+      \  \"backend-websocketURI\": \"https://localhost:8080/\",\
+      \  \"sso-code\": \"sso_d77d40dc-3788-11ea-8727-0787655d59e1\",\
+      \  \"only-sso\": false,\
+      \  \"no-account-creation\": false\
+      \}"
+    , "{\
+      \  \"backend-URI\": \"https://localhost:8080/\",\
+      \  \"backend-websocketURI\": \"https://localhost:8080/\",\
+      \  \"no-account-creation\": false\
+      \}"
+    ]
+  where
+    testSample = testCase "sample"
+               . assertBool "sample"
+               . isRight
+               . (eitherDecode @ConfigJson)
