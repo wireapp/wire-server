@@ -17,6 +17,7 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Typeable (typeOf)
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
 import Test.Tasty
@@ -56,6 +57,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @SSOStatus
     , run @SSOTeamConfig
     , run @FeatureFlags
+    , run @ConfigJson
     , testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]

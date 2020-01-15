@@ -40,9 +40,11 @@ import Data.Misc
 import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
@@ -56,6 +58,7 @@ import qualified Data.Set as Set
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as ST
 import qualified System.Random
+import qualified URI.ByteString as URIBS
 
 
 newtype Octet = Octet { octet :: Word16 }
@@ -100,6 +103,16 @@ instance Arbitrary TurnURI where
                         <*> arbitrary
                         <*> arbitrary
 
+instance Arbitrary URIBS.URI where
+    arbitrary = do
+        let arbString = listOf1 (elements ['a'..'z'])
+        scheme <- elements ["http", "https"]
+        host   <- arbString
+        port   <- elements [(1 :: Int)..10000]
+        path   <- listOf arbString
+        let raw :: String
+            raw = scheme <> "://" <> host <> ":" <> show port <> "/" <> intercalate "/" path
+        either (error . show) pure $ URIBS.parseURI URIBS.strictURIParserOptions (cs raw)
 
 instance Arbitrary Handle where
   arbitrary = Handle . ST.pack <$> do
@@ -534,5 +547,16 @@ instance Arbitrary Prekey where
 
 instance Arbitrary PrekeyId where
     arbitrary = PrekeyId <$> arbitrary
+
+
+instance Arbitrary ConfigJson where
+  arbitrary = ConfigJson
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary ConfigJsonOnlySSO where
+  arbitrary = elements [minBound..]
 
 #endif
