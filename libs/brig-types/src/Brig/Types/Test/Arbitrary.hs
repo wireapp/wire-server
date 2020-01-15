@@ -524,7 +524,7 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldServiceConfirm where
     arbitrary =
-        LegalHoldServiceConfirm 
+        LegalHoldServiceConfirm
           <$> arbitrary
           <*> arbitrary
           <*> arbitrary
