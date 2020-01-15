@@ -7,7 +7,11 @@
 
 module Galley.Types
     ( -- * Galley conversation types
-      Conversation     (..)
+      ConfigJson        (..)
+    , ConfigJsonOnlySSO (..)
+
+      -- * Galley conversation types
+    , Conversation     (..)
     , Member           (..)
     , ConvMembers      (..)
     , OtherMember      (..)
@@ -70,7 +74,7 @@ import Data.Time
 import Data.Id
 import Data.Json.Util
 import Data.List1
-import Data.UUID (toASCIIBytes)
+import Data.UUID (UUID, toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
@@ -80,6 +84,21 @@ import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict     as Map
 import qualified Data.Text.Encoding  as T
+
+-- /config.json ------------------------------------------------------------
+
+-- | The json blob sent to clients from under @/config.json@ so they can sort out how to
+-- connect to us.
+data ConfigJson = ConfigJson
+    { cjBackendURI          :: URI
+    , cjBackendWebsocketURI :: URI
+    , cjSsoCode             :: Maybe (UUID, ConfigJsonOnlySSO)
+    , cjNoAccountCreation   :: Bool
+    }
+  deriving (Eq, Ord, Show, Generic)
+
+data ConfigJsonOnlySSO = ConfigJsonOnlySSO | ConfigJsonOptionalSSO
+  deriving (Eq, Ord, Show, Bounded, Enum, Generic)
 
 -- Conversations ------------------------------------------------------------
 
@@ -496,6 +515,12 @@ mkConversationCode k v (HttpsUrl prefix) = ConversationCode
 -- Instances ----------------------------------------------------------------
 
 -- JSON
+
+instance FromJSON ConfigJson where
+    parseJSON = undefined
+
+instance ToJSON ConfigJson where
+    toJSON = undefined
 
 instance ToJSON Access where
     toJSON PrivateAccess = String "private"
