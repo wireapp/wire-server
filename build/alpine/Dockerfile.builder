@@ -1,10 +1,9 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
 ARG prebuilder_tag=latest
-ARG prebuilder=quay.io/wire/alpine-prebuilder:${prebuilder_tag}
-ARG wire_server_branch=develop
+ARG prebuilder=quay.io/wire/alpine-prebuilder
 
-FROM ${prebuilder}
+FROM ${prebuilder}:${prebuilder_tag}
 WORKDIR /
 
 # Download stack indices and compile/cache dependencies to speed up subsequent
@@ -13,7 +12,9 @@ WORKDIR /
 # We build docs for haskell-src-exts without hyperlinking enabled to avoid
 # a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
-RUN apk add --no-cache && \
+ARG wire_server_branch=develop
+RUN set -x && apk add --no-cache && \
+    echo ${wire_server_branch} && \
     git clone -b ${wire_server_branch} https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
     stack update && \
