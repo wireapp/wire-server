@@ -2,6 +2,7 @@
 
 ARG prebuilder_tag=latest
 ARG prebuilder=quay.io/wire/alpine-prebuilder:${prebuilder_tag}
+ARG wire_server_branch=develop
 
 FROM ${prebuilder}
 WORKDIR /
@@ -13,7 +14,7 @@ WORKDIR /
 # a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
 RUN apk add --no-cache && \
-    git clone -b develop https://github.com/wireapp/wire-server.git && \
+    git clone -b ${wire_server_branch} https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
     stack update && \
     echo "allow-different-user: true" >> /root/.stack/config.yaml && \
