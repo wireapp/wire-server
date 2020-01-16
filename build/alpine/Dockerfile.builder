@@ -1,6 +1,7 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-ARG prebuilder=quay.io/wire/alpine-prebuilder
+ARG prebuilder_tag=latest
+ARG prebuilder=quay.io/wire/alpine-prebuilder:${prebuilder_tag}
 
 FROM ${prebuilder}
 WORKDIR /
