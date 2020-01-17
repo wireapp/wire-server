@@ -4,8 +4,8 @@ This page documents how to install necessary dependencies to work with the wire-
 
 In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration:
 
-* [alpine setup for Haskell services](../build/alpine/Dockerfile.builder)
-* [alpine setup for nginz](../services/nginz/Dockerfile)
+* [alpine setup for Haskell services](../../build/alpine/Dockerfile.builder)
+* [alpine setup for nginz](../../services/nginz/Dockerfile)
 
 ## General package dependencies (needed to compile Haskell services)
 
