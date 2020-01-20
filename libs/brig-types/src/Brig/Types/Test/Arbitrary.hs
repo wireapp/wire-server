@@ -43,6 +43,7 @@ import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
@@ -534,5 +535,12 @@ instance Arbitrary Prekey where
 
 instance Arbitrary PrekeyId where
     arbitrary = PrekeyId <$> arbitrary
+
+instance Arbitrary CustomBackend where
+    arbitrary =
+        CustomBackend
+            <$> arbitrary
+            <*> arbitrary
+            <*> arbitrary
 
 #endif

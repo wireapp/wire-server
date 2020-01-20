@@ -22,6 +22,7 @@ library:
   - containers >=0.5
   - currency-codes >=2.0
   - data-default >=0.5
+  - email-validate >=2.0
   - gundeck-types >=1.15.13
   - hashable
   - errors

@@ -153,6 +153,7 @@ executables:
     - -threaded
     dependencies:
     - aeson
+    - aeson-qq
     - amazonka
     - amazonka-sqs
     - async

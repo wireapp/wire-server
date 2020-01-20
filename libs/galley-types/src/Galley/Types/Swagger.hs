@@ -45,6 +45,7 @@ galleyModels =
     , teamInfo
     , legalHoldTeamConfig
     , ssoTeamConfig
+    , customBackend
     ]
 
 event :: Model
@@ -517,3 +518,13 @@ featureStatus = string $ enum
     [ "enabled"
     , "disabled"
     ]
+
+customBackend :: Model
+customBackend = defineModel "CustomBackend" $ do
+    description "Description of a custom backend"
+    property "config_json_url" string' $
+        description "the location of the custom backend's config.json file"
+    property "webapp_welcome_url" string' $
+        description "the location of the custom webapp"
+    property "block_cloud_users" bool' $
+        description "whether the backend blocks cloud users from signing up"
