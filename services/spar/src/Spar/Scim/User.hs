@@ -20,7 +20,6 @@ module Spar.Scim.User
       validateScimUser'
     , toScimStoredUser'
     , mkUserRef
-    , validateHandle
     ) where
 
 import Imports
@@ -182,10 +181,8 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
     validateScimUser' idpConfig richInfoLimit user
 
 -- | Validate a handle (@userName@).
--- We should lowercase the wire handle here first, as SCIM says it's case insensitive.
--- TODO(arianvp): We should do this at the hscim level. but for now I do it here
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
-validateHandle txt = case parseHandle (Text.toLower txt) of
+validateHandle txt = case parseHandle txt of
     Just h -> pure h
     Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
         (Just (txt <> "is not a valid Wire handle"))
@@ -222,7 +219,9 @@ validateScimUser'
   -> m ValidScimUser
 validateScimUser' idp richInfoLimit user = do
     uref :: SAML.UserRef <- mkUserRef idp (Scim.externalId user)
-    handl <- validateHandle (Scim.userName user)
+    handl <- validateHandle . Text.toLower . Scim.userName $ user
+        -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
+        -- be a little less brittle.
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
     pure $ ValidScimUser user uref handl mbName richInfo
