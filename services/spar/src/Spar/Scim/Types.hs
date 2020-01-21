@@ -44,6 +44,7 @@ import qualified Web.Scim.Class.User              as Scim.User
 import qualified Web.Scim.Schema.Schema           as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Server                  as Scim
+import qualified Web.Scim.Schema.PatchOp          as Scim
 
 
 ----------------------------------------------------------------------------
@@ -89,6 +90,7 @@ data SparTag
 instance Scim.User.UserTypes SparTag where
   type UserId SparTag = UserId
   type UserExtra SparTag = ScimUserExtra
+  supportedSchemas = userSchemas
 
 instance Scim.Group.GroupTypes SparTag where
   type GroupId SparTag = ()
@@ -189,6 +191,9 @@ instance ToJSON ScimUserExtra where
         [ key .= val | RichField key val <- richInfoFields $ _sueRichInfo v
         ]
       ]
+
+instance Scim.Patchable ScimUserExtra where
+  applyOperation = undefined
 
 -- | Parse 'RichInfo', trying several formats in a row. We have to know how to parse different
 -- formats, because not all provisioning agents can send us information in the canonical

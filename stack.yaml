@@ -51,7 +51,7 @@ extra-deps:
 - git: https://github.com/wireapp/saml2-web-sso
   commit: ff9b9f445475809d1fa31ef7f2932caa0ed31613    # master (Oct 9, 2019)
 - git: https://github.com/wireapp/hscim
-  commit: 37d4e2ede83267e2fc9ccca87403751566ebed19    # master (Jan 7, 2020)
+  commit: 5f5ca096e34b14d0aa9d08bc6d3e8c9c66e90bf1    # https://github.com/wireapp/hscim/pull/39
 - quickcheck-state-machine-0.4.2
 
 flags:

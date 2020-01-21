@@ -173,7 +173,7 @@ patchUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> Scim.PatchOp.PatchOp
+    -> Scim.PatchOp.PatchOp SparTag
     -> TestSpar (Scim.StoredUser SparTag)
 patchUser tok uid patchOp = do
     env <- ask
@@ -317,7 +317,7 @@ updateUser_ auth muid user spar_ = do
         )
 
 -- | Patch a user
-patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp -> SparReq -> TestSpar ResponseLBS
+patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp SparTag -> SparReq -> TestSpar ResponseLBS
 patchUser_ auth muid patchop spar_ =
     call . patch $
         ( spar_
