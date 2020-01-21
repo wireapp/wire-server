@@ -371,11 +371,21 @@ updateValidScimUser tokinfo uid newScimUser = do
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
             -- (internal error?  race condition?)
 
-        -- TODO: rich info and/or user handle may not have changed.  in that case don't write
-        -- it.
-        maybe (pure ()) (lift . Intra.Brig.setBrigUserName uid) $ newScimUser ^. vsuName
-        lift . Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
-        lift . Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
+        oldScimUser :: ValidScimUser
+          <- validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
+              -- the old scim user from our db is already validated, but this also recovers
+              -- the extra details not stored in the DB that we need here.
+
+        lift $ do
+            case newScimUser ^. vsuName of
+                Just nm | oldScimUser ^. vsuName /= Just nm -> Intra.Brig.setBrigUserName uid nm
+                _ -> pure ()
+
+            when (oldScimUser ^. vsuHandle /= newScimUser ^. vsuHandle) $
+                Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
+
+            when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo) $
+                Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
 
         -- store new user value to scim_user table (spar). (this must happen last, so in case
         -- of crash the client can repeat the operation and it won't be considered a noop.)
