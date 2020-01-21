@@ -71,7 +71,7 @@ import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 instance Scim.UserDB SparTag Spar where
   -- | Filters users based on some predicate.  We do not support this endpoint
   -- without an explicit predicate due to performance reasons.  The predicate
-  -- can currently look for users based on handle or SSO ID. 
+  -- can currently look for users based on handle or SSO ID.
   --
   -- This endpoint will look for users in Brig, and then synthesize the
   -- corresponding SCIM record.
@@ -88,7 +88,7 @@ instance Scim.UserDB SparTag Spar where
     -- TODO(arianvp): DEPRECATED
     -- Getting users without a filter is deprecated an must be
     -- removed in the next release. It is never what we want; and non of the
-    -- current SCIM implementations mandate its use. 
+    -- current SCIM implementations mandate its use.
     --
     -- The code is rather problematic as it does O(n) HTTP requests to Brig (as
     -- brig does not support getting users in bulk). Given that Azure would
@@ -119,12 +119,12 @@ instance Scim.UserDB SparTag Spar where
               "username" -> do
                 handle <- MaybeT . pure . parseHandle . Text.toLower $ val
                 brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
-                createOrGetScimUser stiTeam brigUser
+                getOrCreateScimUser stiTeam brigUser
               "externalid" -> do
                 uref <- mkUserRef idpConfig (pure val)
                 uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
                 brigUser  <- MaybeT . lift . Intra.Brig.getBrigUser $ uid
-                createOrGetScimUser stiTeam brigUser
+                getOrCreateScimUser stiTeam brigUser
               _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
             pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -176,7 +176,7 @@ validateScimUser
   -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
-    idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp) !? 
+    idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp) !?
       Scim.serverError "No IdP configured for the provisioning token"
     richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
     validateScimUser' idpConfig richInfoLimit user
@@ -299,7 +299,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     assertHandleUnused handl buid
     -- if we crash now, retry POST will just work, or user gets told the handle
     -- is already in use and stops POSTing
-   
+
     -- TODO(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
     -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
@@ -313,13 +313,13 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- making it transactional.  If the user redoes the POST A new standalone
     -- user will be created
     lift $ Intra.Brig.setBrigUserHandle buid handl
-    -- If we crash now,  a POST retry will fail with 409 user already exists. 
+    -- If we crash now,  a POST retry will fail with 409 user already exists.
     -- Azure at some point will retry with GET /Users?filter=userName eq handle
     -- and then issue a PATCH containing the rich info and the externalId
     -- TODO(arianvp): Implement PATCH (Part of Phase 1)
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
     -- If we crash now, same as above, but the PATCH will only contain externalId
-    
+
     -- TODO(arianvp): these two actions we probably want to make transactional
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     lift . wrapMonadClient $ Data.insertSAMLUser uref buid
@@ -358,6 +358,15 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
         let newuref = newScimUser ^. vsuSAMLUserRef
         molduref <- do
           let eid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
+
+          -- TODO(arianvp): This line is very confusing and complex.
+          -- 1.  We know that stiIdP is never 'Nothing' here as we _must_ have called validateScimUser
+          -- on newScimUser.  So we're handling a case that never occurs, but the code
+          -- isn't clear about that.
+          --
+          -- The code suggest this is about returning Nothing if olduref doesn't exist,
+          -- but that's not the case! This is about the _IDP_ not existing!!
+          --
           (lift . wrapMonadClient . Data.getIdPConfig) `mapM` stiIdP >>= \case
             Just (Just idp) -> Just <$> mkUserRef idp eid
             _               -> pure Nothing
@@ -366,6 +375,8 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
             lift . wrapMonadClient $ Data.deleteSAMLUser olduref
             lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
           Nothing -> do
+            -- TODO(arianvp): This is _NOT_ what this Nothing means. it means "if there is no IdP or there is no URef"
+            -- I think this is a pretty nasty bug.
             -- if there was no uref before.  (can't currently happen because we require saml
             -- for scim to work, but this would be the right way to handle the case.)
             lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
@@ -550,7 +561,7 @@ data NeededInfo = NeededInfo
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
 synthesizeScimUser info =
-  let 
+  let
     Handle userName = neededHandle info
     Name displayName = neededName info
   in
@@ -561,21 +572,23 @@ synthesizeScimUser info =
 
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
--- an already existing scim user 
-createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
-createOrGetScimUser stiTeam brigUser = do
+-- an already existing scim user
+getOrCreateScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
+getOrCreateScimUser stiTeam brigUser = do
   team <- getUserTeam' brigUser
   guard $ stiTeam == team
   getScimUser' (BrigTypes.userId brigUser) <|> createScimUser' brigUser
   where
     createScimUser' brigUser' = do
       let uid = BrigTypes.userId brigUser'
-      setManagedBy' uid ManagedByScim
       handle <- getUserHandle' brigUser'
       let name = userName brigUser'
       richInfo <- getRichInfo' uid
+      -- NOTE: If user is not an SSO User; this returns Nothing
+      -- Hence; we should only set managedByScim if this _succeeds_
       ssoIdentity' <- getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
+      setManagedBy' uid ManagedByScim
       let neededInfo = NeededInfo handle name externalId richInfo
       let user = synthesizeScimUser neededInfo
       storedUser <-  toScimStoredUser'' uid user
