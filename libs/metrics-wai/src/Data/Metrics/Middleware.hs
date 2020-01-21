@@ -5,7 +5,6 @@ module Data.Metrics.Middleware
     ( PathTemplate
     , Paths
     , withPathTemplate
-    , duration
     , requestCounter
     , module Data.Metrics
     ) where
@@ -16,7 +15,6 @@ import Data.Metrics.Types
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal (Response (ResponseRaw))
-import System.Clock
 
 import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
@@ -29,17 +27,6 @@ withPathTemplate t f app r k = f (fromMaybe def tmp) app r k
     tmp = PathTemplate
         . T.decodeUtf8
       <$> treeLookup t (Tree.segments $ rawPathInfo r)
-
-duration :: Metrics -> PathTemplate -> Middleware
-duration m (PathTemplate t) f rq k = do
-    st <- getTime Monotonic
-    rs <- f rq k
-    ed <- getTime Monotonic
-    let p = mkPath [t, methodName rq, "time"]
-    let timeElapsed = timeSpecAsMilliSecs $ ed `diffTimeSpec` st
-    let requestDurationHisto = deprecatedRequestDurationHistogram p 
-    histoSubmit timeElapsed requestDurationHisto m
-    return rs
 
 -- Count Requests and their status code.
 --
@@ -72,6 +59,3 @@ code = T.pack . show . statusCode . responseStatus
 methodName :: Request -> Text
 methodName = T.decodeUtf8 . requestMethod
 {-# INLINE methodName #-}
-
-timeSpecAsMilliSecs :: TimeSpec -> Double
-timeSpecAsMilliSecs t = fromIntegral (sec t * 1000 + nsec t `div` 1000000)

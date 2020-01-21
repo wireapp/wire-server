@@ -2,11 +2,9 @@ module Galley.API where
 
 import Imports hiding (head)
 import Brig.Types.Team.LegalHold
-import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
-import Data.Metrics.Middleware as Metrics
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text.Encoding (decodeLatin1)
@@ -936,9 +934,6 @@ sitemap = do
 
     get "/i/status" (continue $ const (return empty)) true
 
-    get "/i/monitoring" (continue monitoring) $
-        accept "application" "json"
-
     get "/i/conversations/:cnv/members/:usr" (continue internalGetMember) $
         capture "cnv"
         .&. capture "usr"
@@ -1071,10 +1066,6 @@ docs (_ ::: url) = do
     let models = Model.galleyModels ++ TeamsModel.teamsModels
     let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
     pure $ responseLBS status200 [jsonContent] apidoc
-
-monitoring :: JSON -> Galley Response
-monitoring _ = do
-    json <$> (render =<< view monitor)
 
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")

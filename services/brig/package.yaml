@@ -147,6 +147,7 @@ executables:
     source-dirs: test/integration
     dependencies:
     - async
+    - attoparsec
     - bilge
     - brig
     - brig-types

@@ -13,7 +13,6 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
-  - aeson >=0.6
   - atomic-primops >=0.8
   - base >=4.9
   - containers

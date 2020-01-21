@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Metrics.GC (toJson, spawnGCMetricsCollector) where
+module Data.Metrics.GC (spawnGCMetricsCollector) where
 
 import Imports
 import Control.Immortal
-import Data.Aeson
 import GHC.Stats
 import Prometheus
 
@@ -35,18 +34,3 @@ spawnGCMetricsCollector = whenM getRTSStatsEnabled . void $ do
         setGauge bytesUsedCurrentGauge . fromIntegral $ gcdetails_live_bytes (gc rts)
         setGauge gcSecondsCPUGauge . fromIntegral $ gcdetails_cpu_ns (gc rts)
         setGauge gcSecondsWallGauge . fromIntegral $ gcdetails_elapsed_ns (gc rts)
-
-toJson :: IO (Maybe Value)
-toJson = do
-    enabled <- getRTSStatsEnabled
-    if enabled then Just <$> getStats else return Nothing
-  where
-    getStats = do
-        rts <- getRTSStats
-        return $ object
-            [ "gc.bytes.allocated.total" .= allocated_bytes rts
-            , "gc.bytes.used.max"        .= max_live_bytes rts
-            , "gc.bytes.used.current"    .= gcdetails_live_bytes (gc rts)
-            , "gc.seconds.cpu"           .= gcdetails_cpu_ns (gc rts)
-            , "gc.seconds.wall"          .= gcdetails_elapsed_ns (gc rts)
-            ]
