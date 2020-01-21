@@ -297,7 +297,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- if we crash now, retry POST will just work, or user gets told the handle
     -- is already in use and stops POSTing
 
-    -- TODO(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
+    -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
     -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
     idpConfig <-  lift $ SAML.getIdPConfigByIssuer (uref ^. SAML.uidTenant)
@@ -313,11 +313,10 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- If we crash now,  a POST retry will fail with 409 user already exists.
     -- Azure at some point will retry with GET /Users?filter=userName eq handle
     -- and then issue a PATCH containing the rich info and the externalId
-    -- TODO(arianvp): Implement PATCH (Part of Phase 1)
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
     -- If we crash now, same as above, but the PATCH will only contain externalId
 
-    -- TODO(arianvp): these two actions we probably want to make transactional
+    -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     lift . wrapMonadClient $ Data.insertSAMLUser uref buid
     pure storedUser
