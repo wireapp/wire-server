@@ -101,9 +101,7 @@ instance Scim.UserDB SparTag Spar where
     -- but it would complicate this code a bit, instead of leaving it as is.
     members <- lift $ Galley.getTeamMembers stiTeam
     brigusers :: [User]
-      -- TODO userDeleted is redundant. `getBrigUsers` already calls userDeleted in intra
-      <- filter (not . userDeleted) <$>
-         lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
+      <- lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser SparTag]
       <- lift . wrapMonadClient . Data.getScimUsers $ BrigTypes.userId <$> brigusers
     pure $ Scim.fromList scimusers
