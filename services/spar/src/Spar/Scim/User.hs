@@ -222,7 +222,7 @@ validateScimUser' idp richInfoLimit user = do
         -- be a little less brittle.
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
-    pure $ ValidScimUser user uref handl mbName richInfo
+    pure $ ValidScimUser user uref idp handl mbName richInfo
   where
 
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
@@ -287,7 +287,7 @@ mkUserRef idp extid = case extid of
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser SparTag)
-createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
+createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- ensure uniqueness constraints of all affected identifiers.
@@ -300,7 +300,6 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
     -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
-    idpConfig <-  lift $ SAML.getIdPConfigByIssuer (uref ^. SAML.uidTenant)
     let teamid = view SAML.idpExtraInfo idpConfig
     buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
     assert (buid == buid') $ pure ()
@@ -324,7 +323,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo -> UserId -> ValidScimUser -> m (Scim.StoredUser SparTag)
-updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
+updateValidScimUser tokinfo uid newScimUser = do
     -- TODO: currently the types in @hscim@ are constructed in such a way that
     -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
     -- does. @fisx believes that this situation could be improved (see
@@ -352,29 +351,17 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
         -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef' if it exists and
         -- is different from the new one)
         let newuref = newScimUser ^. vsuSAMLUserRef
-        molduref <- do
-          let eid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
+        olduref <- do
+          let extid :: Maybe Text
+              extid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
 
-          -- TODO(arianvp): This line is very confusing and complex.
-          -- 1.  We know that stiIdP is never 'Nothing' here as we _must_ have called validateScimUser
-          -- on newScimUser.  So we're handling a case that never occurs, but the code
-          -- isn't clear about that.
-          --
-          -- The code suggest this is about returning Nothing if olduref doesn't exist,
-          -- but that's not the case! This is about the _IDP_ not existing!!
-          --
-          (lift . wrapMonadClient . Data.getIdPConfig) `mapM` stiIdP >>= \case
-            Just (Just idp) -> Just <$> mkUserRef idp eid
-            _               -> pure Nothing
-        case molduref of
-          Just olduref -> when (olduref /= newuref) $ do
+              idp :: IdP
+              idp = newScimUser ^. vsuIdp
+
+          mkUserRef idp extid
+
+        when (olduref /= newuref) $ do
             lift . wrapMonadClient $ Data.deleteSAMLUser olduref
-            lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
-          Nothing -> do
-            -- TODO(arianvp): This is _NOT_ what this Nothing means. it means "if there is no IdP or there is no URef"
-            -- I think this is a pretty nasty bug.
-            -- if there was no uref before.  (can't currently happen because we require saml
-            -- for scim to work, but this would be the right way to handle the case.)
             lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
 
         -- update 'SAML.UserRef' on brig
