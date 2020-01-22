@@ -288,6 +288,13 @@ createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser SparTag)
 createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = do
+    -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
+    -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
+    -- tenant and had the idp config already in context from an earlier lookup.)
+    () <- let inidp = idpConfig ^. SAML.idpMetadata . SAML.edIssuer
+              inuref = uref ^. SAML.uidTenant
+          in assert (inidp == inuref) $ pure ()
+
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- ensure uniqueness constraints of all affected identifiers.
