@@ -503,7 +503,6 @@ mkConversationCode k v (HttpsUrl prefix) = ConversationCode
 data CustomBackend = CustomBackend
     { backendConfigJsonUrl :: !HttpsUrl
     , backendWebappWelcomeUrl :: !HttpsUrl
-    , backendBlockCloudUsers :: !Bool
     } deriving (Eq, Show)
 
 newtype EmailDomain = EmailDomain
@@ -1144,7 +1143,6 @@ instance ToJSON CustomBackend where
     toJSON j = object
         $ "config_json_url"    .= backendConfigJsonUrl j
         # "webapp_welcome_url" .= backendWebappWelcomeUrl j
-        # "block_cloud_users"  .= backendBlockCloudUsers j
         # []
 
 instance FromJSON CustomBackend where
@@ -1152,4 +1150,3 @@ instance FromJSON CustomBackend where
         CustomBackend
             <$> o .: "config_json_url"
             <*> o .: "webapp_welcome_url"
-            <*> o .: "block_cloud_users"

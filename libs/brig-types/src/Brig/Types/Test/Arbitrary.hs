@@ -541,6 +541,5 @@ instance Arbitrary CustomBackend where
         CustomBackend
             <$> arbitrary
             <*> arbitrary
-            <*> arbitrary
 
 #endif

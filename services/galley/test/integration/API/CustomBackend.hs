@@ -42,8 +42,7 @@ getByDomainFound = do
     let jsonBody :: Value
         jsonBody = [aesonQQ|{
           "config_json_url": "https://wire-rest.https.no2.com/config.json",
-          "webapp_welcome_url": "https://app.wire.no2.com/",
-          "block_cloud_users": false
+          "webapp_welcome_url": "https://app.wire.no2.com/"
           }|]
 
     put (galley . path "/i/custom-backend/by-domain/domain.no2" . json jsonBody) !!!
@@ -60,8 +59,7 @@ getByDomainDeleted = do
     let jsonBody :: Value
         jsonBody = [aesonQQ|{
           "config_json_url": "https://wire-rest.https.no3.com/config.json",
-          "webapp_welcome_url": "https://app.wire.no3.com/",
-          "block_cloud_users": false
+          "webapp_welcome_url": "https://app.wire.no3.com/"
           }|]
 
     put (galley . path "/i/custom-backend/by-domain/domain.no3" . json jsonBody) !!!

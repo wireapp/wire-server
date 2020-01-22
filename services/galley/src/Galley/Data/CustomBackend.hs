@@ -16,12 +16,12 @@ getCustomBackend :: MonadClient m => EmailDomain -> m (Maybe CustomBackend)
 getCustomBackend domain = fmap toCustomBackend <$> do
     retry x1 $ query1 Cql.selectCustomBackend (params Quorum (Identity domain))
   where
-    toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl, backendBlockCloudUsers) =
+    toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl) =
         CustomBackend{..}
 
 setCustomBackend :: MonadClient m => EmailDomain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend{..} = do
-    retry x5 $ write Cql.updateCustomBackend (params Quorum (backendConfigJsonUrl, backendWebappWelcomeUrl, backendBlockCloudUsers, domain))
+    retry x5 $ write Cql.updateCustomBackend (params Quorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
 deleteCustomBackend :: MonadClient m => EmailDomain -> m ()
 deleteCustomBackend domain = do

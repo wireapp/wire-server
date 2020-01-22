@@ -11,7 +11,6 @@ migration = Migration 37 "Create table `custom_backend`" $ do
             domain             text,
             config_json_url    blob,
             webapp_welcome_url blob,
-            block_cloud_users  boolean,
             PRIMARY KEY (domain)
         );
         |]

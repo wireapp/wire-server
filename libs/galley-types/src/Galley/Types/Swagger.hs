@@ -526,5 +526,3 @@ customBackend = defineModel "CustomBackend" $ do
         description "the location of the custom backend's config.json file"
     property "webapp_welcome_url" string' $
         description "the location of the custom webapp"
-    property "block_cloud_users" bool' $
-        description "whether the backend blocks cloud users from signing up"
