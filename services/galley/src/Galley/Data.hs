@@ -125,7 +125,7 @@ import qualified Data.List.Extra      as List
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 36
+schemaVersion = 37
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()

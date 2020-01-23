@@ -321,3 +321,15 @@ selectSSOTeamConfig =
 updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
+
+selectCustomBackend :: PrepQuery R (Identity EmailDomain) (HttpsUrl, HttpsUrl)
+selectCustomBackend =
+  "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
+
+updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, EmailDomain) ()
+updateCustomBackend =
+  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
+
+deleteCustomBackend :: PrepQuery W (Identity EmailDomain) ()
+deleteCustomBackend =
+  "delete from custom_backend where domain = ?"

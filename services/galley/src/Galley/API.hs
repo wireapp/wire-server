@@ -33,6 +33,7 @@ import Network.Wai.Utilities.Swagger
 
 import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
+import qualified Galley.API.CustomBackend      as CustomBackend
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.API.LegalHold          as LegalHold
@@ -923,6 +924,17 @@ sitemap = do
         returns (ref Model.ssoTeamConfig)
         response 200 "SSO status" end
 
+    get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomain) $
+        capture "domain"
+        .&. accept "application" "json"
+
+    document "GET" "getCustomBackendByDomain" $ do
+        summary "Shows information about custom backends related to a given email domain"
+        parameter Path "domain" string' $
+            description "URL-encoded email domain"
+        returns (ref Model.customBackend)
+        response 200 "Custom backend" end
+
     -- internal
 
     put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -1058,6 +1070,14 @@ sitemap = do
         zauthUserId
         .&. opt zauthConnId
         .&. jsonRequest @RemoveBot
+
+    put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomain) $
+        capture "domain"
+        .&. jsonRequest @CustomBackend
+
+    delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomain) $
+        capture "domain"
+        .&. accept "application" "json"
 
 type JSON = Media "application" "json"
 

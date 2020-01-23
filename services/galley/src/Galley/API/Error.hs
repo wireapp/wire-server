@@ -1,7 +1,9 @@
 module Galley.API.Error where
 
 import Imports
+import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
+import Galley.Types (EmailDomain(..))
 import Galley.Types.Teams (IsPerm)
 import Galley.Types.Conversations.Roles (Action)
 import Network.HTTP.Types.Status
@@ -170,3 +172,8 @@ disableSsoNotImplemented = Error status403 "not-implemented"
     \\n\
     \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."
+
+customBackendNotFound :: EmailDomain -> Error
+customBackendNotFound domain =
+    Error status404 "custom-backend-not-found"
+        ("custom backend not found for domain: " <> cs (emailDomainText domain))
