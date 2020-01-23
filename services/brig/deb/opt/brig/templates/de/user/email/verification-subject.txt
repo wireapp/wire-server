@@ -1,1 +1,1 @@
-${brand} Bestätigungs-Code ist ${code}
+Dein ${brand} Bestätigungs-Code
