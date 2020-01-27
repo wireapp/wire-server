@@ -149,14 +149,17 @@ run-docker-builder:
 
 CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema:
+git-add-cassandra-schema: db-reset
+	( echo '# automatically generated with `make git-add-cassandra-schema`' ; echo 'describe schema' | docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh ) > ./docs/reference/cassandra-schema.txt
+	git add ./docs/reference/cassandra-schema.txt
+
+.PHONY: db-reset
+db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	make -C services/brig db-reset
 	make -C services/galley db-reset
 	make -C services/gundeck db-reset
 	make -C services/spar db-reset
-	( echo '# automatically generated with `make git-add-cassandra-schema`' ; echo 'describe schema' | docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh ) > ./docs/reference/cassandra-schema.txt
-	git add ./docs/reference/cassandra-schema.txt
 
 #################################
 ## dependencies
