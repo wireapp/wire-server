@@ -150,7 +150,7 @@ run-docker-builder:
 CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
 .PHONY: git-add-cassandra-schema
 git-add-cassandra-schema: db-reset
-	( echo '# automatically generated with `make git-add-cassandra-schema`' ; echo 'describe schema' | docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh ) > ./docs/reference/cassandra-schema.txt
+	( echo '# automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.txt
 	git add ./docs/reference/cassandra-schema.txt
 
 .PHONY: db-reset
