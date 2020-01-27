@@ -20,7 +20,7 @@ import Data.Text (cons, Text)
 prop_roundtrip :: forall tag.UserTypes tag => Property
 prop_roundtrip = property $ do
   x <- forAll $ genFilter @tag
-  tripping x renderFilter (parseFilter $ supportedSchemas @tag)
+  tripping x renderFilter $ parseFilter (supportedSchemas @tag)
 
 spec :: Spec
 spec = do
@@ -56,7 +56,7 @@ genSubAttr = SubAttr <$> genAttrName
 -- this: @data Schema = Buitin BuitinSchema | Custom Text; data BuiltinSchema = ... deriving
 -- (Bounded, Enum, ...)@
 genSchema :: forall tag.UserTypes tag => Gen Schema
-genSchema = Gen.element $ supportedSchemas @tag
+genSchema = Gen.element (supportedSchemas @tag)
 
 genAttrPath :: forall tag.UserTypes tag => Gen AttrPath
 genAttrPath = AttrPath <$> Gen.maybe (genSchema @tag) <*> genAttrName <*> Gen.maybe genSubAttr

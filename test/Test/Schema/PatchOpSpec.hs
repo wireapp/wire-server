@@ -44,7 +44,7 @@ genPath = Gen.choice
 prop_roundtrip :: forall tag.UserTypes tag => Property
 prop_roundtrip = property $ do
   x <- forAll $ genPath @tag
-  tripping x (encodeUtf8 . rPath) (parseOnly $ pPath $ supportedSchemas @tag)
+  tripping x (encodeUtf8 . rPath) (parseOnly $ pPath (supportedSchemas @tag))
 
 prop_roundtrip_PatchOp :: forall tag.UserTypes tag => Property
 prop_roundtrip_PatchOp = property $ do
@@ -117,4 +117,4 @@ spec = do
           , "members[value eq \"2819c223-7f76-453a-919d-413861904646\"]"
           , "members[value eq \"2819c223-7f76-453a-919d-413861904646\"].displayname"
           ]
-      for_ examples $ \p -> it ("parses " ++ show p) $ (rPath <$> parseOnly (pPath $ supportedSchemas @PatchTestTag) p) `shouldBe` Right (decodeUtf8 p)
+      for_ examples $ \p -> it ("parses " ++ show p) $ (rPath <$> parseOnly (pPath (supportedSchemas @PatchTestTag)) p) `shouldBe` Right (decodeUtf8 p)

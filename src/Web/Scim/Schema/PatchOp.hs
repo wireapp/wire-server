@@ -72,7 +72,7 @@ instance UserTypes tag => FromJSON (PatchOp tag) where
     let o = HashMap.fromList . map (first toLower) . HashMap.toList $ v
     schemas' :: [Schema] <- o .: "schemas"
     guard $ PatchOp20 `elem` schemas'
-    operations <- Aeson.explicitParseField (Aeson.listParser $ operationFromJSON $ supportedSchemas @tag) o "operations"
+    operations <- Aeson.explicitParseField (Aeson.listParser $ operationFromJSON (supportedSchemas @tag)) o "operations"
     pure $ PatchOp operations
 
 instance ToJSON (PatchOp tag) where
