@@ -247,7 +247,7 @@ instance ToJSON NoUserExtra where
   toJSON _ = object []
 
 instance Patchable NoUserExtra where
-  applyOperation a _ = pure a
+  applyOperation _ _ = throwError $ badRequest InvalidValue (Just "there are no user extra attributes to patch")
 
 ----------------------------------------------------------------------------
 -- Applying
