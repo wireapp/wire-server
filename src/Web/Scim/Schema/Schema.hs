@@ -51,7 +51,7 @@ getSchemaUri PatchOp20 =
 getSchemaUri (CustomSchema x) =
   x
 
--- TODO: (akshay)Make everything Text, ByteStrings are unnecessary here
+-- TODO(akshay): Make everything Text, ByteStrings are unnecessary here
 -- | Parser for schemas
 --
 -- NOTE: according to the spec, this parser needs to be case insensitive, but
