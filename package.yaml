@@ -1,5 +1,5 @@
 name:                hscim
-version:             0.2
+version:             0.3.0
 synopsis:            ...
 description:         ...
 homepage:            https://github.com/wireapp/hscim/README.md
@@ -33,45 +33,45 @@ default-extensions:
 extra-source-files:
   - README.md
 
+
 dependencies:
-  - aeson
-  - aeson-qq
-  - attoparsec
-  - base >= 4.11 && < 5
-  - bytestring
-  - email-validate
-  - errors
-  - hashable
-  - hedgehog
-  - hspec
-  - hspec-expectations
-  - hspec-wai
-  - http-api-data
-  - http-media
-  - http-types
-  - hw-hspec-hedgehog
-  - list-t
-  - microlens
-  - mmorph
-  - mtl
-  - network-uri
-  - network-uri-static >= 0.1.1.0
-  - scientific
-  - servant
-  - servant-server
-  - servant-server >= 0.14.1
-  - stm
-  - stm-containers
-  - template-haskell
-  - text
-  - time
-  - unordered-containers
-  - uuid
-  - vector
-  - wai
-  - wai-extra
-  - wai-logger
-  - warp
+  -  aeson                >= 1.4.5 && < 1.5
+  -  attoparsec           >= 0.13.2 && < 0.14
+  -  bytestring           >= 0.10.8 && < 0.11
+  -  base                 >= 4.12  && < 4.13
+  -  scientific           >= 0.3.6 && < 0.4
+  -  hashable             >= 1.2.7 && < 1.4
+  -  text                 >= 1.2.3 && < 1.3
+  -  time                 >= 1.8.0 && < 1.9
+  -  template-haskell     >= 2.14.0 && < 2.15
+  -  unordered-containers >= 0.2.10 && < 0.3
+  -  vector               >= 0.12.0 && < 0.13
+  -  aeson-qq             >= 0.8.2 && < 0.9
+  -  mtl                  >= 2.2.2 && < 2.3
+  -  email-validate       >= 2.3.2 && < 2.4
+  -  errors               >= 2.3.0 && < 2.4
+  -  stm                  >= 2.5.0 && < 2.6
+  -  hedgehog             >= 1.0.1 && < 1.1
+  -  mmorph               >= 1.1.3 && < 1.2
+  -  hspec                >= 2.7.1 && < 2.8
+  -  hspec-wai            >= 0.9.2 && < 0.10
+  -  hspec-expectations   >= 0.8.2 && < 0.9
+  -  http-types           >= 0.12.3 && < 0.13
+  -  wai                  >= 3.2.2 && < 3.3
+  -  wai-extra            >= 3.0.28 && < 3.1
+  -  wai-logger           >= 2.3.5 && < 2.4
+  -  http-api-data        >= 0.4.1 && < 0.5
+  -  http-media           >= 0.8.0 && < 0.9
+  -  hw-hspec-hedgehog    >= 0.1.0 && < 0.2
+  -  list-t               >= 1.0.4 && < 1.1
+  -  microlens            >= 0.4.10 && < 0.5
+  -  network-uri          >= 2.6.1 && < 2.7
+  -  network-uri-static   >= 0.1.2 && < 0.2
+  -  servant              >= 0.16.2 && < 0.17
+  -  servant-server       >= 0.16.2 && < 0.17
+  -  warp                 >= 3.2.28 && < 3.4
+  -  stm-containers       >= 1.1.0 && < 1.2
+  -  uuid                 >= 1.3.13 && < 1.4
 
 ghc-options: -Wall -Werror
 
@@ -85,7 +85,6 @@ executables:
     source-dirs: server
     dependencies:
       - hscim
-      - warp
 
 tests:
   spec:
@@ -93,27 +92,7 @@ tests:
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     source-dirs:
       - test
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - hscim
-      - aeson
-      - aeson-qq
-      - base
-      - bytestring
-      - containers
-      - hedgehog
-      - hspec
-      - hspec-discover
-      - hspec-expectations
-      - hspec-wai
-      - http-types
-      - hw-hspec-hedgehog
-      - mtl
-      - servant-server
-      - stm-containers
-      - template-haskell
-      - text
-      - time
-      - vector
-      - wai-extra
-      - wai-logger
-      - warp

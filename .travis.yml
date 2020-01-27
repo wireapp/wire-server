@@ -12,19 +12,16 @@ addons:
     packages:
       - libgmp-dev
 
-env:
-- RESOLVER=lts-12.10
-
 before_install:
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 install:
-- stack --resolver=$RESOLVER --no-terminal --install-ghc test --fast --only-dependencies
+- stack --no-terminal --install-ghc test --fast --only-dependencies
 
 script:
-- stack --resolver=$RESOLVER --no-terminal test --fast --haddock --no-haddock-deps
+- stack --no-terminal test --fast --haddock --no-haddock-deps
 
 notifications:  # see https://docs.travis-ci.com/user/notifications
   email: false

@@ -16,7 +16,7 @@ import           Web.Scim.Capabilities.MetaSchema as MetaSchema
 import           Data.Time
 import           Network.Wai.Handler.Warp
 import           Network.URI.Static
-import qualified STMContainers.Map as STMMap
+import qualified StmContainers.Map as STMMap
 import           Control.Monad.STM (atomically)
 import           Text.Email.Validate
 

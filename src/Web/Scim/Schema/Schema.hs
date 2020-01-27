@@ -8,7 +8,7 @@ import           Web.Scim.Capabilities.MetaSchema.Schema
 import           Web.Scim.Capabilities.MetaSchema.ResourceType
 
 import           Data.Text
-import           Data.Aeson
+import           Data.Aeson (FromJSON, parseJSON, toJSON, ToJSON, withText, Value)
 import Data.Attoparsec.ByteString (Parser,  (<?>))
 import Control.Applicative ((<|>))
 

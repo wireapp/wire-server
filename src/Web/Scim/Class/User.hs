@@ -108,13 +108,13 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   --  followed by a PUT.  GET will retrieve the entire record; we then modify
   --  this record by a series of PATCH operations, and then PUT the entire
   --  record.
-  -- 
+  --
   patchUser
     :: AuthInfo tag
     -> UserId tag
     -> PatchOp  -- ^ PATCH payload
     -> ScimHandler m (StoredUser tag)
-  default patchUser 
+  default patchUser
     :: FromJSON (UserExtra tag)
     => AuthInfo tag
     -> UserId tag

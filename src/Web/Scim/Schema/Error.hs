@@ -15,7 +15,7 @@ module Web.Scim.Schema.Error
   , serverError
 
   -- * Servant interoperability
-  , scimToServantErr
+  , scimToServerError
   ) where
 
 import Data.Text (Text, pack)
@@ -23,7 +23,7 @@ import Data.Aeson hiding (Error)
 import Control.Exception
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
-import Servant (ServantErr (..))
+import Servant (ServerError (..))
 
 import GHC.Generics (Generic)
 
@@ -153,9 +153,9 @@ serverError details =
 
 -- | Convert a SCIM 'Error' to a Servant one by encoding it with the
 -- appropriate headers.
-scimToServantErr :: ScimError -> ServantErr
-scimToServantErr err =
-  ServantErr
+scimToServerError :: ScimError -> ServerError
+scimToServerError err =
+  ServerError
     { errHTTPCode = unStatus (status err)
     , errReasonPhrase = reasonPhrase (status err)
     , errBody = encode err
