@@ -334,7 +334,7 @@ specListUsers = describe "GET /Users" $ do
 
     it "finds a SCIM-provisioned user" $ testFindProvisionedUser
     it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
-    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored 
+    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored
     it "doesn't list deleted users" $ testListNoDeletedUsers
     it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
     it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
@@ -343,7 +343,7 @@ specListUsers = describe "GET /Users" $ do
 
 filterBy :: Text -> Text -> Filter.Filter
 filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
-  
+
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
@@ -391,7 +391,7 @@ testSsoUsersWithoutHandleSilentlyIgnored = do
     let Right externalId = Intra.toExternalId ssoIdentity'
     users <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
-  
+
 
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
@@ -416,15 +416,11 @@ testFindNonProvisionedUser = do
     -- a scim record should've been inserted too
     _ <- getUser tok member
 
-
-
     let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser'
     let Right externalId = Intra.toExternalId ssoIdentity'
 
     users' <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ (scimUserId <$> users') `shouldContain` [member]
-
-    
 
 
 -- | Test that deleted users are not listed.
@@ -596,7 +592,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
 testCannotRemoveDisplayName :: TestSpar ()
 testCannotRemoveDisplayName = do
     -- NOTE: This behaviour is in violation of SCIM.
-    -- We either: 
+    -- We either:
     --  - Treat Null and omission the same; by always removing
     --  - Or default on omissison, delete on null
     --  We have to choose between the two behaviours; in order
@@ -790,15 +786,15 @@ specPatchUser = do
     -- also describe the current limitations. (We only support three fields so
     -- far)
     describe  "PATCH /Users/:id" $ do
-        let replaceAttrib name value = 
+        let replaceAttrib name value =
                 PatchOp.Operation
                     PatchOp.Replace
-                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
                     (Just (toJSON value))
-        let removeAttrib name = 
+        let removeAttrib name =
                 PatchOp.Operation
                     PatchOp.Remove
-                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
                     Nothing
         it "doing nothing doesn't change the user" $ do
             (tok, _) <- registerIdPAndScimToken
@@ -934,10 +930,10 @@ specPatchUser = do
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "externalId" ]
             patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
-            
-            
-            
-            
+
+
+
+
 
 
 
@@ -1058,5 +1054,3 @@ specAzureQuirks = do
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users' `shouldBe` []
-      
-
