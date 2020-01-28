@@ -45,7 +45,6 @@ import Spar.Scim.Auth ()
 import Spar.Types
 
 import qualified Data.Text    as Text
-import qualified Data.Map     as Map
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
@@ -236,17 +235,15 @@ validateScimUser' idp richInfoLimit user = do
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
-        let assocListSize = length $ richInfoAssocList richInfo
-            mapSize = Map.size $ richInfoMap richInfo
-            errorIfTooBig s name =
+        let errorIfTooBig s name =
               when (s > richInfoLimit) $ throwError $
               (Scim.badRequest Scim.InvalidValue
                 (Just . cs $
                   cs name <> " exceeds the limit: max " <> show richInfoLimit <>
                   " characters, but got " <> show s))
               { Scim.status = Scim.Status 413 }
-        errorIfTooBig assocListSize richInfoAssocListURN
-        errorIfTooBig mapSize richInfoMapURN
+        errorIfTooBig (richInfoAssocListSize richInfo) richInfoAssocListURN
+        errorIfTooBig (richInfoMapSize richInfo) richInfoMapURN
         pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
