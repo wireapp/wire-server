@@ -45,7 +45,6 @@ import Spar.Scim.Auth ()
 import Spar.Types
 
 import qualified Data.Text    as Text
-import qualified Data.Map     as Map
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
