@@ -13,7 +13,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Control.Applicative ((<|>))
 import Control.Error
-import Control.Lens (view, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad (liftM, void, when, unless)
 import Data.Aeson hiding (json, Error)
@@ -41,7 +41,6 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), name, Error, trace)
 import Util.Options
 
-import qualified Data.Metrics.Middleware      as Metrics
 import qualified "types-common" Data.Swagger as Doc
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text                    as T
@@ -69,9 +68,6 @@ sitemap = do
 
     get  "/i/status" (continue $ const $ return empty) true
     head "/i/status" (continue $ const $ return empty) true
-
-    get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . Metrics.render) $
-        accept "application" "json"
 
     -- End Internal
 

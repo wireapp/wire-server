@@ -44,6 +44,9 @@ module Galley.Types
     , ConversationReceiptModeUpdate (..)
     , ConversationMessageTimerUpdate (..)
     , ConvType                  (..)
+    , CustomBackend             (..)
+    , EmailDomain               (emailDomainText)
+    , mkEmailDomain
     , Invite                    (..)
     , NewConv                   (..)
     , NewConvManaged            (..)
@@ -64,6 +67,7 @@ import Imports
 import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import Data.Bifunctor (bimap)
 import Data.ByteString.Conversion
 import Data.Misc
 import Data.Time
@@ -76,10 +80,12 @@ import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
 import URI.ByteString
 
+import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict     as Map
 import qualified Data.Text.Encoding  as T
+import qualified Text.Email.Validate as Email
 
 -- Conversations ------------------------------------------------------------
 
@@ -492,6 +498,30 @@ mkConversationCode k v (HttpsUrl prefix) = ConversationCode
   where
     q = [("key", toByteString' k), ("code", toByteString' v)]
     link = prefix & (queryL . queryPairsL) .~ q
+
+
+data CustomBackend = CustomBackend
+    { backendConfigJsonUrl :: !HttpsUrl
+    , backendWebappWelcomeUrl :: !HttpsUrl
+    } deriving (Eq, Show)
+
+newtype EmailDomain = EmailDomain
+    { emailDomainText :: Text
+    } deriving (Eq, Generic, Show)
+
+mkEmailDomain :: ByteString -> Either String EmailDomain
+mkEmailDomain = bimap show EmailDomain . T.decodeUtf8' <=< validateDomain
+  where
+    -- this is a slightly hacky way of validating an email domain,
+    -- but Text.Email.Validate doesn't expose the parser for the domain.
+    validateDomain = fmap Email.domainPart . Email.validate . ("local-part@" <>)
+
+instance FromByteString EmailDomain where
+    parser = do
+        bs <- Atto.takeByteString
+        case mkEmailDomain bs of
+            Left err -> fail ("Failed parsing ByteString as EmailDomain: " <> err)
+            Right domain -> pure domain
 
 -- Instances ----------------------------------------------------------------
 
@@ -1108,3 +1138,15 @@ instance FromJSON ConversationCode where
         ConversationCode <$> o .: "key"
             <*> o .:  "code"
             <*> o .:? "uri"
+
+instance ToJSON CustomBackend where
+    toJSON j = object
+        $ "config_json_url"    .= backendConfigJsonUrl j
+        # "webapp_welcome_url" .= backendWebappWelcomeUrl j
+        # []
+
+instance FromJSON CustomBackend where
+    parseJSON = withObject "CustomBackend" $ \o ->
+        CustomBackend
+            <$> o .: "config_json_url"
+            <*> o .: "webapp_welcome_url"

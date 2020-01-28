@@ -47,8 +47,6 @@ data CommonOpts = CommonOpts
     , anon   :: [String]
     , quiet  :: !Bool
     , debug  :: !Bool
-    , csock  :: !(Maybe FilePath)
-    , cinst  :: !(Maybe String)
     , decomp :: !(Maybe Compression)
     , comp   :: !(Maybe Compression)
     } deriving (Show)
@@ -123,22 +121,6 @@ opts = Opts
           <> help "Output debugging info."
            )
        <*> optional
-           ( strOption
-             ( short 'c'
-            <> long "collectd-socket"
-            <> metavar "PATH"
-            <> help "Path to collectd's UNIX domain socket."
-             )
-           )
-       <*> optional
-           ( strOption
-             ( short 'i'
-            <> long "collectd-instance"
-            <> metavar "STR"
-            <> help "collectd instance name. Should be given when using collectd."
-             )
-           )
-       <*> optional
            ( option auto
              ( long "decompress"
             <> help "Decompress input."
@@ -204,10 +186,7 @@ runBonanza = execParser optInfo >>= \ (Opts CommonOpts{..} cmd) -> do
 
     unless quiet $ do
         dumpStderr stats
-        when debug $
-            debugCollectd cinst stats
 
-    maybe (return ()) (\ path -> emitCollectd path cinst stats) csock
   where
     runGeo []   _  = Conduit.map id
     runGeo tags db = Conduit.mapM

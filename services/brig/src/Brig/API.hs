@@ -20,7 +20,6 @@ import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Metrics.Middleware hiding (metrics)
 import Data.Misc (IpAddr (..))
 import Data.Range
 import Data.Text.Encoding (decodeLatin1)
@@ -71,9 +70,6 @@ sitemap o = do
 
     get  "/i/status" (continue $ const $ return empty) true
     head "/i/status" (continue $ const $ return empty) true
-
-    get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
-        accept "application" "json"
 
     post "/i/users/:uid/auto-connect" (continue autoConnect) $
         accept "application" "json"

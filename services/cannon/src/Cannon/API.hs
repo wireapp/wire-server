@@ -23,7 +23,6 @@ import System.Logger.Class (msg, val)
 
 import qualified Cannon.Dict                 as D
 import qualified Data.ByteString.Lazy        as L
-import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger.Class         as LC
 
@@ -61,15 +60,9 @@ sitemap = do
     head "/i/presences/:uid/:conn" (continue checkPresence) $
         param "uid" .&. param "conn"
 
-    get "/i/monitoring" (continue monitoring) $
-        accept "application" "json"
-
     get  "/i/status" (continue (const $ return empty)) true
 
     head "/i/status" (continue (const $ return empty)) true
-
-monitoring :: Media "application" "json" -> Cannon Response
-monitoring _ = json <$> (Metrics.render =<< monitor)
 
 docs :: Media "application" "json" ::: Text -> Cannon Response
 docs (_ ::: url) = do

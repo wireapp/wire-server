@@ -11,7 +11,6 @@ module Network.Wai.Utilities.Server
     , route
 
       -- * Middlewares
-    , measureRequests
     , catchErrors
     , OnErrorMetrics
     , heavyDebugLogging
@@ -165,18 +164,6 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 
 --------------------------------------------------------------------------------
 -- Middlewares
-
--- | DEPRECATED; use 'waiPrometheusMiddleware' instead.
--- Create a middleware that tracks detailed request / response
--- statistics, including timing information, for every path in the
--- given routing tree.
---
--- Note: For accurate metrics on error responses, this middleware
--- should be combined with the 'catchErrors' middleware.
-measureRequests :: Metrics -> Paths -> Middleware
-measureRequests m rtree = withPathTemplate rtree $ \p ->
-      requestCounter m p . duration m p
-{-# INLINEABLE measureRequests #-}
 
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging

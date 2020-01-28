@@ -28,6 +28,7 @@ import qualified API.Teams                as Teams
 import qualified API.Teams.LegalHold      as Teams.LegalHold
 import qualified API.MessageTimer         as MessageTimer
 import qualified API.Roles                as Roles
+import qualified API.CustomBackend        as CustomBackend
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -43,11 +44,11 @@ tests s = testGroup "Galley integration tests"
     , Teams.tests s
     , MessageTimer.tests s
     , Roles.tests s
+    , CustomBackend.tests s
     ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status
-        , test s "monitoring" monitor
         , test s "metrics" metrics
         , test s "create conversation" postConvOk
         , test s "get empty conversations" getConvsOk
@@ -109,13 +110,6 @@ status = do
     g <- view tsGalley
     get (g . path "/i/status") !!!
       const 200 === statusCode
-
-monitor :: TestM ()
-monitor = do
-    g <- view tsGalley
-    get (g . path "/i/monitoring") !!! do
-        const 200 === statusCode
-        const (Just "application/json") =~= getHeader "Content-Type"
 
 metrics :: TestM ()
 metrics = do

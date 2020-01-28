@@ -7,11 +7,13 @@ module Galley.Data.Instances () where
 import Imports
 import Cassandra.CQL
 import Control.Error (note)
+import Data.Text.Encoding (encodeUtf8)
 import Galley.Types
 import Galley.Types.Bot()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+
 
 deriving instance Cql MutedStatus
 deriving instance Cql ReceiptMode
@@ -121,3 +123,9 @@ instance Cql SSOStatus where
 
     toCql SSODisabled = CqlInt 0
     toCql SSOEnabled = CqlInt 1
+
+instance Cql EmailDomain where
+    ctype = Tagged TextColumn
+    toCql = CqlText . emailDomainText
+    fromCql (CqlText txt) = either fail pure . mkEmailDomain $ encodeUtf8 txt
+    fromCql _             = fail "EmailDomain: Text expected"
