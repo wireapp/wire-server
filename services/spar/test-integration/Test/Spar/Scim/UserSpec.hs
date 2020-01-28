@@ -18,6 +18,7 @@ import Spar.Scim
 import Spar.Types (IdP)
 import Util
 
+import qualified Data.Aeson                       as Aeson
 import qualified Data.Map                         as Map
 import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
@@ -191,8 +192,8 @@ testLocation = do
     r <- call (get (const req)) <!! const 200 === statusCode
     liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
-testRichInfo :: RichInfo -> RichInfo -> TestSpar ()
-testRichInfo richInfo richInfo' = do
+testRichInfo :: RichInfo -> RichInfo -> PatchOp.PatchOp SparTag -> TestSpar ()
+testRichInfo richInfo richInfo' patchOp = do
     brig <- asks (view teBrig)
 
     -- set things up
@@ -243,17 +244,35 @@ testRichInfo richInfo richInfo' = do
     liftIO $ putUid `shouldBe` postUid
     probeUser putUid richInfo'
 
+    -- patch response contains correct rich info.
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOp
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfo
+
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfo
+
 testRichInfoMap :: TestSpar ()
 testRichInfoMap =
     let richInfo  = RichInfo (Map.singleton "Platforms" "OpenBSD; Plan9") mempty
         richInfo' = RichInfo (Map.singleton "Platforms" "Windows10") mempty
-    in testRichInfo richInfo richInfo'
+        patchOp   = PatchOp.PatchOp [PatchOp.Operation PatchOp.Add (Just patchPath) (Just patchValue)]
+          where
+            patchPath :: PatchOp.Path
+            patchPath = undefined  -- PatchOp.InfoValuePath (Filter.ValuePath (Filter.AttrPath Nothing "Platforms" Nothing)
+
+            patchValue :: Aeson.Value
+            patchValue = Aeson.String "green"
+
+    in testRichInfo richInfo richInfo' patchOp
 
 testRichInfoAssocList :: TestSpar ()
 testRichInfoAssocList =
     let richInfo  = RichInfo mempty [RichField "Platforms" "OpenBSD; Plan9"]
         richInfo' = RichInfo mempty [RichField "Platforms" "Windows10"]
-    in testRichInfo richInfo richInfo'
+        patchOp   = undefined
+    in testRichInfo richInfo richInfo' patchOp
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
