@@ -321,6 +321,9 @@ instance Arbitrary RichInfo where
         richInfoMap <- arbitrary
         pure RichInfo{..}
 
+instance Arbitrary RichInfoAssocList where
+  arbitrary = RichInfoAssocList <$> nubOn richFieldType <$> arbitrary
+
 instance Arbitrary RichInfoUpdate where
     arbitrary = RichInfoUpdate <$> arbitrary
 

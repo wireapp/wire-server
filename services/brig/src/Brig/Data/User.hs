@@ -223,7 +223,7 @@ updatePassword u t = do
     p <- liftIO $ mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))
 
-updateRichInfo :: UserId -> RichInfo -> AppIO ()
+updateRichInfo :: UserId -> RichInfoAssocList -> AppIO ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
 
 deleteEmail :: UserId -> AppIO ()
@@ -301,7 +301,7 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
-lookupRichInfo :: UserId -> AppIO (Maybe RichInfo)
+lookupRichInfo :: UserId -> AppIO (Maybe RichInfoAssocList)
 lookupRichInfo u = fmap runIdentity <$>
     retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
@@ -415,7 +415,7 @@ accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
-richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfo)
+richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
@@ -487,7 +487,7 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
-userRichInfoUpdate :: PrepQuery W (RichInfo, UserId) ()
+userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------

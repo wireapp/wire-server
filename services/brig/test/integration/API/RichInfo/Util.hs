@@ -12,7 +12,7 @@ getRichInfo
     => Brig
     -> UserId            -- ^ The user who is performing the query
     -> UserId            -- ^ The users whose rich info is being queried
-    -> Http (Either Int RichInfo)
+    -> Http (Either Int RichInfoAssocList)
 getRichInfo brig self uid = do
     r <- get ( brig
              . paths ["users", toByteString' uid, "rich-info"]
@@ -29,7 +29,7 @@ putRichInfo
     :: HasCallStack
     => Brig
     -> UserId            -- ^ The user whose rich info is being updated
-    -> RichInfo
+    -> RichInfoAssocList
     -> Http ResponseLBS
 putRichInfo brig uid rinfo = do
     put ( brig

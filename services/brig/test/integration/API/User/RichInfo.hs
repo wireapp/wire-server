@@ -38,7 +38,7 @@ testDefaultRichInfo brig galley = do
     -- The first user should see the second user's rich info and it should be empty
     richInfo <- getRichInfo brig member1 member2
     liftIO $ assertEqual "rich info is not empty, or not present"
-        (Right (RichInfo mempty mempty))
+        (Right (RichInfoAssocList mempty))
         richInfo
 
 testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
@@ -46,11 +46,11 @@ testDeleteMissingFieldsInUpdates brig galley = do
     (owner, tid) <- createUserWithTeam brig galley
     member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
     member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
-    let superset = RichInfo mempty
+    let superset = RichInfoAssocList
             [ RichField "department" "blue"
             , RichField "relevance" "meh"
             ]
-        subset = RichInfo mempty
+        subset = RichInfoAssocList
             [ RichField "relevance" "meh"
             ]
     putRichInfo brig member2 superset !!! const 200 === statusCode
@@ -63,17 +63,17 @@ testDeleteEmptyFields brig galley = do
     (owner, tid) <- createUserWithTeam brig galley
     member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
     member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
-    let withEmpty = RichInfo mempty
+    let withEmpty = RichInfoAssocList
             [ RichField "department" ""
             ]
     putRichInfo brig member2 withEmpty !!! const 200 === statusCode
     withoutEmpty <- getRichInfo brig member1 member2
-    liftIO $ assertEqual "dangling rich info fields" (Right $ RichInfo mempty []) withoutEmpty
+    liftIO $ assertEqual "dangling rich info fields" (Right $ RichInfoAssocList []) withoutEmpty
 
 testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
 testForbidDuplicateFieldNames brig galley = do
     (owner, _) <- createUserWithTeam brig galley
-    let bad = RichInfo mempty
+    let bad = RichInfoAssocList
             [ RichField "department" "blue"
             , RichField "department" "green"
             ]
@@ -83,10 +83,10 @@ testRichInfoSizeLimit :: HasCallStack => Brig -> Galley -> Opt.Opts -> Http ()
 testRichInfoSizeLimit brig galley conf = do
     let maxSize :: Int = setRichInfoLimit $ optSettings conf
     (owner, _) <- createUserWithTeam brig galley
-    let bad1 = RichInfo mempty
+    let bad1 = RichInfoAssocList
             [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
             ]
-        bad2 = RichInfo mempty $ [0 .. ((maxSize `div` 2))] <&>
+        bad2 = RichInfoAssocList $ [0 .. ((maxSize `div` 2))] <&>
             \i -> RichField (Text.pack $ show i) "#"
     putRichInfo brig owner bad1 !!! const 413 === statusCode
     putRichInfo brig owner bad2 !!! const 413 === statusCode

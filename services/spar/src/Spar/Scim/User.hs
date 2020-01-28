@@ -242,7 +242,7 @@ validateScimUser' idp richInfoLimit user = do
                   cs name <> " exceeds the limit: max " <> show richInfoLimit <>
                   " characters, but got " <> show s))
               { Scim.status = Scim.Status 413 }
-        errorIfTooBig (richInfoAssocListSize richInfo) richInfoAssocListURN
+        errorIfTooBig (richInfoAssocListSize $ richInfoAssocList richInfo) richInfoAssocListURN
         errorIfTooBig (richInfoMapSize richInfo) richInfoMapURN
         pure richInfo
 

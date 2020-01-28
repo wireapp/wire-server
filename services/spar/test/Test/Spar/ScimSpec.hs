@@ -79,7 +79,7 @@ spec = describe "toScimStoredUser'" $ do
           { Scim.resourceType = ScimR.UserResource
           , Scim.created = now
           , Scim.lastModified = now
-          , Scim.version = Scim.Weak "cd79ccdd2cff3eeb01bce976f586b086547325907e0a3a7303ecaa61a04635da"
+          , Scim.version = Scim.Weak "dccc201da4a3c726d020aed877e481592ab3ee111b3f247a2c8f5a4a871ac0b0"
           , Scim.location = Scim.URI . fromJust $ Network.URI.parseURI
                             "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
           }
@@ -118,15 +118,8 @@ x = ScimUserExtra $ RichInfo { richInfoMap = Map.fromList [ ("T", ";m")
 x' :: Either String ScimUserExtra
 x' = eitherDecode' (encode x)
 
-
-
-
 instance Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> arbitrary
 
 instance Arbitrary UserCustomSchema where
   arbitrary = elements [minBound..]
-
-
-
--- TODO: what happens if an key occurs twice in the richinfo list?

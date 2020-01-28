@@ -325,20 +325,11 @@ instance FromJSON RichInfo where
             richInfo <- mLookup "richinfo" $ hmMapKeys CI.mk innerObj
             case richInfo of
               Object richinfoObj -> do
-                version :: Int <- richinfoObj .: "version"
-                when (version /= 0) $ fail $ "unknown version: " <> show version
-                fields <- richinfoObj .: "fields"
-                checkDuplicates (map richFieldType fields)
+                fields <- richInfoAssocListFromObject richinfoObj
                 pure fields
               Array fields -> parseJSON (Array fields)
               v -> Aeson.typeMismatch "Object" v
           Just v -> Aeson.typeMismatch "Object" v
-
-      checkDuplicates :: [Text] -> Aeson.Parser ()
-      checkDuplicates xs =
-        case filter ((> 1) . length) . group . sort $ xs of
-          [] -> pure ()
-          ds -> fail ("duplicate fields: " <> show (map head ds))
 
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
       hmMapKeys f = HashMap.fromList . (map (\(k,v) -> (f k, v))) . HashMap.toList
@@ -348,14 +339,37 @@ instance FromJSON RichInfo where
                              Nothing -> fail $ "key '" ++ show key ++ "' not found"
                              Just v -> return v
 
+richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
+richInfoAssocListFromObject richinfoObj = do
+  version :: Int <- richinfoObj .: "version"
+  when (version /= 0) $ fail $ "unknown version: " <> show version
+  fields <- richinfoObj .: "fields"
+  checkDuplicates (map richFieldType fields)
+  pure fields
+  where
+    checkDuplicates :: [Text] -> Aeson.Parser ()
+    checkDuplicates xs =
+      case filter ((> 1) . length) . group . sort $ xs of
+        [] -> pure ()
+        ds -> fail ("duplicate fields: " <> show (map head ds))
+
 instance ToJSON RichInfo where
   toJSON u =
     object [ richInfoAssocListURN .=
-             object [ "richinfo" .= object [ "fields" .= richInfoAssocList u
+             object [ "richInfo" .= object [ "fields" .= richInfoAssocList u
                                            , "version" .= (0 :: Int)
                                            ]]
            , richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
            ]
+
+instance FromJSON RichInfoAssocList where
+  parseJSON v =
+    RichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
+
+instance ToJSON RichInfoAssocList where
+  toJSON (RichInfoAssocList l) = object [ "fields" .= l
+                                        , "version" .= (0 :: Int)
+                                        ]
 
 data RichField = RichField
     { richFieldType  :: !Text
@@ -382,11 +396,15 @@ instance FromJSON RichField where
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
 -- 'setRichInfoLimit'
 --
+-- This works on @[RichField]@ so it can be reused by @RichInfoAssocList@
+--
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
-richInfoAssocListSize :: RichInfo -> Int
-richInfoAssocListSize rif = sum [Text.length t + Text.length v | RichField t v <- richInfoAssocList rif]
+richInfoAssocListSize :: [RichField] -> Int
+richInfoAssocListSize fields = sum [Text.length t + Text.length v | RichField t v <- fields]
 
+-- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
+-- 'setRichInfoLimit'
 richInfoMapSize :: RichInfo -> Int
 richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k,v) <- Map.toList $ richInfoMap rif]
 
@@ -397,8 +415,10 @@ normalizeRichInfo (RichInfo rifMap assocList) = RichInfo
     , richInfoMap = rifMap
     }
 
-emptyRichInfo :: RichInfo
-emptyRichInfo = RichInfo mempty mempty
+-- | Remove fields with @""@ values.
+normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
+normalizeRichInfoAssocList (RichInfoAssocList l) =
+  RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
 
 -----------------------------------------------------------------------------
 -- New Users
@@ -595,7 +615,7 @@ newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show, Gener
 newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show, Generic)
 newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show, Generic)
 newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show, Generic)
-newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show, Generic)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfoAssocList } deriving (Eq, Show, Generic)
 
 newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show, Generic)
 newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show, Generic)
