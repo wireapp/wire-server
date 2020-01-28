@@ -227,19 +227,21 @@ testRichInfo richInfo richInfo' = do
                 responseJsonEither resp `shouldBe` Right rinf
 
     -- post response contains correct rich info.
-    scimStoredUser <- createUser tok user
-    checkStoredUser scimStoredUser richInfo
+    postResp :: Scim.UserC.StoredUser SparTag <- createUser tok user
+    let postUid = scimUserId postResp
+    checkStoredUser postResp richInfo
 
     -- post updates the backend as expected.
-    probeUser (scimUserId scimStoredUser) richInfo
+    probeUser postUid richInfo
 
     -- put response contains correct rich info.
-    scimStoredUser' <- updateUser tok (scimUserId scimStoredUser) user'
-    checkStoredUser scimStoredUser' richInfo'
+    putResp :: Scim.UserC.StoredUser SparTag <- updateUser tok postUid user'
+    let putUid = scimUserId putResp
+    checkStoredUser putResp richInfo'
 
     -- put updates the backend as expected.
-    liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
-    probeUser (scimUserId scimStoredUser) richInfo'
+    liftIO $ putUid `shouldBe` postUid
+    probeUser putUid richInfo'
 
 testRichInfoMap :: TestSpar ()
 testRichInfoMap =
