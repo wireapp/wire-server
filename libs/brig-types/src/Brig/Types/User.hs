@@ -13,7 +13,6 @@ module Brig.Types.User
     ) where
 
 import Imports
-import Control.Lens (_1, (%~))
 import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
@@ -298,7 +297,7 @@ instance FromJSON RichInfo where
         case HM.lookup richInfoMapURN o of
           Nothing -> pure mempty
           Just innerObj -> do
-            parseJSON innerObj
+            Map.mapKeys CI.mk <$> parseJSON innerObj
 
       extractAssocList :: Object -> Aeson.Parser [RichField]
       extractAssocList o =
@@ -322,7 +321,7 @@ instance ToJSON RichInfo where
     object [ richInfoAssocListURN .=  object [ "fields" .= richInfoAssocList u
                                              , "version" .= (0 :: Int)
                                              ]
-           , richInfoMapURN .= richInfoMap u
+           , richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
            ]
 
 data RichField = RichField

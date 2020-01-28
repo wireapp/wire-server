@@ -37,7 +37,7 @@ import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Schema.User.Email       as Email
 import qualified Web.Scim.Schema.User.Phone       as Phone
-
+import qualified Data.CaseInsensitive             as CI
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -84,7 +84,7 @@ randomScimUserWithSubject = do
     fields <- replicateM fieldCount $
               (,) <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
+    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.mapKeys CI.mk $ Map.fromList fields) (map (uncurry RichField) fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo
@@ -290,7 +290,6 @@ createUser_ auth user spar_ = do
     -- still some confusion here about the distinction between *validated*
     -- emails and *scim-provided* emails, which are two entirely
     -- different things.
-    print $ Aeson.encode $ user
     call . post $
         ( spar_
         . paths ["scim", "v2", "Users"]
