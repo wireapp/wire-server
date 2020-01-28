@@ -18,7 +18,7 @@ import Spar.Scim
 import Spar.Types (IdP)
 import Util
 
-
+import qualified Data.Map                         as Map
 import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
@@ -64,7 +64,8 @@ specCreateUser = describe "POST /Users" $ do
     it "allows an occupied externalId when the IdP is different" $
         testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
-    it "handles rich info correctly (this also tests put, get)" $ testRichInfo
+    it "handles rich info assocList correctly (this also tests put, get)" $ testRichInfoAssocList
+    it "handles rich info map correctly (this also tests put, get)" $ testRichInfoMap
     it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -190,13 +191,11 @@ testLocation = do
     r <- call (get (const req)) <!! const 200 === statusCode
     liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
-testRichInfo :: TestSpar ()
-testRichInfo = do
+testRichInfo :: RichInfo -> RichInfo -> TestSpar ()
+testRichInfo richInfo richInfo' = do
     brig <- asks (view teBrig)
 
     -- set things up
-    let richInfo  = RichInfo [RichField "Platforms" "OpenBSD; Plan9"]
-        richInfo' = RichInfo [RichField "Platforms" "Windows10"]
     (user, _)  <- randomScimUserWithSubjectAndRichInfo richInfo
     (user', _) <- randomScimUserWithSubjectAndRichInfo richInfo'
     (tok, (owner, _, _)) <- registerIdPAndScimToken
@@ -207,7 +206,7 @@ testRichInfo = do
             => Scim.UserC.StoredUser SparTag -> RichInfo -> TestSpar ()
         checkStoredUser storedUser rinf = liftIO $ do
             (Scim.User.extra . Scim.value . Scim.thing) storedUser
-                `shouldBe` (ScimUserExtra rinf minBound)
+                `shouldBe` (ScimUserExtra rinf)
 
         -- validate server state after the fact
         probeUser
@@ -241,6 +240,18 @@ testRichInfo = do
     -- post updates the backend as expected.
     liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
     probeUser (scimUserId scimStoredUser) richInfo'
+
+testRichInfoMap :: TestSpar ()
+testRichInfoMap =
+    let richInfo  = RichInfo (Map.singleton "Platforms" "OpenBSD; Plan9") mempty
+        richInfo' = RichInfo (Map.singleton "Platforms" "Windows10") mempty
+    in testRichInfo richInfo richInfo'
+
+testRichInfoAssocList :: TestSpar ()
+testRichInfoAssocList =
+    let richInfo  = RichInfo mempty [RichField "Platforms" "OpenBSD; Plan9"]
+        richInfo' = RichInfo mempty [RichField "Platforms" "Windows10"]
+    in testRichInfo richInfo richInfo'
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.

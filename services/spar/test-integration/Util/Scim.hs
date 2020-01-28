@@ -24,6 +24,7 @@ import Util.Types
 import Web.HttpApiData (toHeader)
 
 import qualified Data.Aeson                       as Aeson
+import qualified Data.Map                         as Map
 import qualified SAML2.WebSSO                     as SAML
 import qualified Spar.Intra.Brig                  as Intra
 import qualified Text.Email.Parser                as Email
@@ -81,9 +82,9 @@ randomScimUserWithSubject
 randomScimUserWithSubject = do
     fieldCount <- getRandomR (0, 3)
     fields <- replicateM fieldCount $
-        RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
+              (,) <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo (RichInfo fields)
+    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo
@@ -103,7 +104,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
              , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
-    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo minBound))
+    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
                { Scim.User.displayName  = Just ("Scim User #" <> suffix)
                , Scim.User.externalId   = Just externalId
                , Scim.User.emails       = emails
@@ -289,6 +290,7 @@ createUser_ auth user spar_ = do
     -- still some confusion here about the distinction between *validated*
     -- emails and *scim-provided* emails, which are two entirely
     -- different things.
+    print $ Aeson.encode $ user
     call . post $
         ( spar_
         . paths ["scim", "v2", "Users"]

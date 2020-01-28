@@ -35,11 +35,11 @@ import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
-import Data.List.Extra (nubOn)
 import Data.Misc
 import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
+import Data.List.Extra (nubOn)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
@@ -316,8 +316,8 @@ instance Arbitrary RichField where
 
 instance Arbitrary RichInfo where
     arbitrary = do
-        richInfoFields <- nubOn richFieldType <$> arbitrary
-        richInfoInlinedFields <- arbitrary
+        richInfoAssocList <- nubOn richFieldType <$> arbitrary
+        richInfoMap <- arbitrary
         pure RichInfo{..}
 
 instance Arbitrary RichInfoUpdate where

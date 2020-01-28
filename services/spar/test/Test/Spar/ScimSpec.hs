@@ -14,7 +14,7 @@ module Test.Spar.ScimSpec where
 
 import Imports
 import Brig.Types.Test.Arbitrary
-import Brig.Types.User (RichInfo(..), RichField(..), emptyRichInfo, normalizeAndSortRichInfo)
+import Brig.Types.User (RichInfo(..))
 import Control.Lens ((%~), (.~))
 import Data.Aeson (encode, eitherDecode')
 import Data.Id
@@ -25,6 +25,7 @@ import Test.QuickCheck
 import URI.ByteString
 
 import qualified Data.HashMap.Strict              as HM
+import qualified Data.Map as Map
 import qualified Data.Text                        as T
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
@@ -70,7 +71,7 @@ spec = describe "toScimStoredUser'" $ do
           , Scim.entitlements = []
           , Scim.roles = []
           , Scim.x509Certificates = []
-          , Scim.extra = ScimUserExtra emptyRichInfo minBound
+          , Scim.extra = ScimUserExtra (RichInfo mempty mempty)
           }
 
         meta :: Scim.Meta
@@ -96,18 +97,23 @@ spec = describe "toScimStoredUser'" $ do
 
   it "roundtrips" . property $ do
       \(sue :: ScimUserExtra) ->
-        eitherDecode' (encode sue) `shouldBe` Right (sue & sueRichInfo %~ normalizeScimUserExtra)
+        eitherDecode' (encode sue) `shouldBe` Right (sue & sueRichInfo %~ id)
 
 
 z :: IO ()
 z = hspec $
   it "roundtrips" . property $ do
       \(sue :: ScimUserExtra) ->
-        eitherDecode' (encode sue) `shouldBe` Right (normalizeScimUserExtra sue)
+        eitherDecode' (encode sue) `shouldBe` Right sue
 
 
 x :: ScimUserExtra
-x = ScimUserExtra {_sueRichInfo = RichInfo {richInfoFields = [RichField {richFieldType = "T", richFieldValue = ";m"},RichField {richFieldType = "T\180192", richFieldValue = "\ESCu\843858"},RichField {richFieldType = "", richFieldValue = "5\a"}]}, _sueCustomSchema = UserExtraSchemaInlined}
+x = ScimUserExtra $ RichInfo { richInfoMap = Map.fromList [ ("T", ";m")
+                                                          , ("T\180192", "\ESCu\843858")
+                                                          , ("", "5\a")
+                                                          ]
+                             , richInfoAssocList = []
+                             }
 
 x' :: Either String ScimUserExtra
 x' = eitherDecode' (encode x)
@@ -116,7 +122,7 @@ x' = eitherDecode' (encode x)
 
 
 instance Arbitrary ScimUserExtra where
-  arbitrary = ScimUserExtra <$> arbitrary <*> arbitrary
+  arbitrary = ScimUserExtra <$> arbitrary
 
 instance Arbitrary UserCustomSchema where
   arbitrary = elements [minBound..]

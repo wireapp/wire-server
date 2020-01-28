@@ -27,13 +27,16 @@ import Data.Text.Ascii
 import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
+import Data.CaseInsensitive (CI)
 
-import qualified Data.HashMap.Strict as HM
-import qualified Brig.Types.Code     as Code
-import qualified Data.Aeson.Types    as Aeson
-import qualified Data.Currency       as Currency
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text           as Text
+import qualified Data.HashMap.Strict  as HM
+import qualified Brig.Types.Code      as Code
+import qualified Data.Aeson.Types     as Aeson
+import qualified Data.Currency        as Currency
+import qualified Data.HashMap.Strict  as HashMap
+import qualified Data.Text            as Text
+import qualified Data.Map             as Map
+import qualified Data.CaseInsensitive as CI
 
 -----------------------------------------------------------------------------
 -- User Attributes
@@ -276,74 +279,51 @@ instance ToJSON SelfProfile where
 ----------------------------------------------------------------------------
 -- Rich info
 
-data RichInfo
-  = RichInfoV0
-    { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
-    }
-  | RichInfoV1
-    { richInfoFields :: ![RichField]
-    , richInfoInlinedFields :: !(HashMap Text Text)  -- ^ Representation of a json object
-    }
-    deriving (Eq, Show, Generic)
+data RichInfo = RichInfo { richInfoMap :: Map (CI Text) Text
+                         , richInfoAssocList :: [RichField]
+                         }
+  deriving (Eq, Show, Generic)
 
-instance Semigroup RichInfo where
-  RichInfoV0 rif      <> RichInfoV0 rif'       = RichInfoV0 ((rif \\ rif') <> rif')
-  RichInfoV0 rif      <> RichInfoV1 rif' riif' = RichInfoV1 ((rif \\ rif') <> rif') riif'
-  RichInfoV1 rif riif <> RichInfoV0 rif'       = RichInfoV1 ((rif \\ rif') <> rif') riif
-  RichInfoV1 rif riif <> RichInfoV1 rif' riif' = RichInfoV1 ((rif \\ rif') <> rif') (riif <> riif')
+richInfoMapURN, richInfoAssocListURN :: Text
+richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
+richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
-instance Monoid RichInfo where
-  mempty = RichInfoV0 mempty
-
--- | Make sure this is version 1, not 2.  Version 2 attributes overwrite version 1 attributes.
--- (Non-overlapping version 1 attributes are not removed.)
-backportRichInfo :: RichInfo -> RichInfo
-backportRichInfo = undefined  -- TODO: call this on what we return from the richinfo api
-                              -- end-point(s).  default is v1; spar must ask for v2 in a query
-                              -- param.
-
-instance ToJSON RichInfo where
-    toJSON (RichInfoV0 rif) = object
-        [ "fields" .= rif
-        , "version" .= (0 :: Int)
-        ]
-    toJSON (RichInfoV1 rif riif) = object
-        [ "fields" .= rif
-        , "inlined-fields" .= riif
-        , "version" .= (1 :: Int)
-        ]
-
--- | A json list of 'RichField's.  Eg., under the @extra@ attribute in scim user schema.
-parseRichInfoV0 :: Value -> Aeson.Parser RichInfo
-parseRichInfoV0 = parseJSON @RichInfo
-
--- | A set of key-value pairs stored in the  json object of key-value pairs
--- inlined in a place of the caller's choice anywhere in the 'Scim.User'
-parseRichInfoV1 :: Value -> Aeson.Parser RichInfo
-parseRichInfoV1 = undefined
-{-
-parseJSON @RichInfo
-            1 -> RichInfoV1 <$> getFields o <*> getInlinedFields o
-        getInlinedFields :: Aeson.Object -> Aeson.Parser (HashMap Text Text)
-        getInlinedFields = (.: "inlined-fields")
--}
-
--- | Parses only RichInfoV0.  See 'parseRichInfoV1' for why.
+-- TODO(akshay): Use proper lookup keys
 instance FromJSON RichInfo where
-    parseJSON = withObject "RichInfo" $ \o -> do
-        version :: Int <- o .: "version"
-        case version of
-            0 -> do
-                fields <- o .: "fields"
-                checkDuplicates (map richFieldType fields)
-                pure (RichInfoV0 fields)
-            _ -> fail ("unknown version: " <> show version)
-      where
-        checkDuplicates :: [Text] -> Aeson.Parser ()
-        checkDuplicates xs =
-            case filter ((> 1) . length) . group . sort $ xs of
-                [] -> pure ()
-                ds -> fail ("duplicate fields: " <> show (map head ds))
+  parseJSON =
+    withObject "RichInfo" $ \o -> RichInfo <$> extractMap o <*> extractAssocList o
+    where
+      extractMap :: Object -> Aeson.Parser (Map (CI Text) Text)
+      extractMap o =
+        case HM.lookup richInfoMapURN o of
+          Nothing -> pure mempty
+          Just innerObj -> do
+            parseJSON innerObj
+
+      extractAssocList :: Object -> Aeson.Parser [RichField]
+      extractAssocList o =
+        case HM.lookup richInfoAssocListURN o of
+          Nothing -> pure []
+          Just (Object innerObj) -> do
+            fields <- innerObj .: "fields"
+            checkDuplicates (map richFieldType fields)
+            pure fields
+          Just v -> Aeson.typeMismatch "Object" v
+
+      checkDuplicates :: [Text] -> Aeson.Parser ()
+      checkDuplicates xs =
+        case filter ((> 1) . length) . group . sort $ xs of
+          [] -> pure ()
+          ds -> fail ("duplicate fields: " <> show (map head ds))
+
+-- TODO(akshay): Make this respect the map
+instance ToJSON RichInfo where
+  toJSON u =
+    object [ richInfoAssocListURN .=  object [ "fields" .= richInfoAssocList u
+                                             , "version" .= (0 :: Int)
+                                             ]
+           , richInfoMapURN .= richInfoMap u
+           ]
 
 data RichField = RichField
     { richFieldType  :: !Text
@@ -372,23 +352,19 @@ instance FromJSON RichField where
 --
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
-richInfoSize :: RichInfo -> Int
-richInfoSize (RichInfoV0 fields) =
-    sum [Text.length t + Text.length v | RichField t v <- fields]
-richInfoSize (RichInfoV1 fields inlined) =
-    sum [Text.length t + Text.length v | RichField t v <- fields] +
-    sum [Text.length t + Text.length v | (t, v) <- HM.toList inlined]
+-- richInfoSize :: RichInfo -> Int
+-- richInfoSize (RichInfo info) = HM.size info
 
 -- | Remove fields with @""@ values.
+-- TODO(akshay): Update above comment. Looks like we only lowercase the keys with HashMaps
 normalizeRichInfo :: RichInfo -> RichInfo
-normalizeRichInfo (RichInfoV0 rif) = RichInfoV0
-    { richInfoFields = filter (not . Text.null . richFieldValue) rif
-    }
-normalizeRichInfo (RichInfoV1 rif riif) = RichInfoV1
-    { richInfoFields = filter (not . Text.null . richFieldValue) rif
-    , richInfoInlinedFields = HM.fromList . fmap (_1 %~ Text.toLower) . HM.toList $ riif
+normalizeRichInfo (RichInfo rifMap assocList) = RichInfo
+    { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList
+    , richInfoMap = rifMap
     }
 
+emptyRichInfo :: RichInfo
+emptyRichInfo = RichInfo mempty mempty
 -----------------------------------------------------------------------------
 -- New Users
 
@@ -646,8 +622,9 @@ instance FromJSON RichInfoUpdate where
     parseJSON = withObject "rich-info-update" $ \o ->
         RichInfoUpdate <$> o .: "rich_info"
 
+-- TODO(akshay): Maybe we need to support outputing assoc lists as well as hashmaps
 instance ToJSON RichInfoUpdate where
-    toJSON m = object ["rich_info" .= riuRichInfo m]
+    toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

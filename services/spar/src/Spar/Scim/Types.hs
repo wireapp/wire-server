@@ -35,8 +35,6 @@ import Servant
 import Spar.API.Util
 import Spar.Types
 
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.Text                        as T
 import qualified SAML2.WebSSO                     as SAML
 import qualified Web.Scim.Class.Auth              as Scim.Auth
 import qualified Web.Scim.Class.Group             as Scim.Group
@@ -141,56 +139,48 @@ newtype WrappedScimUser tag = WrappedScimUser
 
 -- | Extra Wire-specific data contained in a SCIM user profile.
 data ScimUserExtra = ScimUserExtra
-  { _sueCustomSchema :: UserCustomSchema
-  , _sueRichInfo :: RichInfo
+  { _sueRichInfo :: RichInfo
   }
   deriving (Eq, Show)
 
 makeLenses ''ScimUserExtra
 
-normalizeScimUserExtra :: ScimUserExtra -> ScimUserExtra
-normalizeScimUserExtra = sueRichInfo %~ reallyNormalizeRichInfo  -- I feel like I'm writing php...  :(
-  where
-    reallyNormalizeRichInfo (RichInfo fields) = normalizeAndSortRichInfo $ RichInfo (lowercase fields)
-    lowercase = map (\(RichField key val) -> RichField (T.toLower key) val)
+-- normalizeScimUserExtra :: ScimUserExtra -> ScimUserExtra
+-- normalizeScimUserExtra = sueRichInfo %~ reallyNormalizeRichInfo  -- I feel like I'm writing php...  :(
+--   where
+--     reallyNormalizeRichInfo (RichInfoV0 fields) = normalizeAndSortRichInfo $ RichInfoV0 (lowercase fields)
+--     lowercase = map (\(RichField key val) -> RichField (T.toLower key) val)
 
 -- | TODO: is there a nicer implementation?  one more general even wrt. UserExtraSchema, perhaps?
+-- instance FromJSON ScimUserExtra where
+--   parseJSON = withObject "ScimUserExtra" $ \(lowercase -> o) -> do
+--     v1 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaRichInfo) >>= \case
+--       Nothing -> pure Nothing
+--       Just (lowercase -> o2) -> do  -- TODO: why lowercase?  (same for v2)
+--         _sueRichInfo <- parseRichInfo =<< o2 .: "richinfo"
+--         let _sueCustomSchema = UserExtraSchemaRichInfo
+--         pure $ Just ScimUserExtra{..}
+--     v2 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaInlined) >>= \case
+--       Nothing -> pure Nothing
+--       Just (lowercase -> o2) -> do
+--         _sueRichInfo <- parseJSON $ Aeson.Object o2 --parseRichInfoInlined o2
+--         let _sueCustomSchema = UserExtraSchemaInlined
+--         pure $ Just ScimUserExtra{..}
+--     case (v1, v2) of
+--       (Nothing,  Nothing)  -> pure $ ScimUserExtra UserExtraSchemaInlined (RichInfo mempty)
+--                                 -- TODO: make 'ScimUserExtra' a Maybe in User type, or make it contain a Maybe, or something
+--       (Just val, Nothing)  -> pure $ val
+--       (Nothing,  Just val) -> pure $ val
+--       (Just _,   Just _)   -> let urns = userCustomSchemaURN <$> [UserExtraSchemaRichInfo, UserExtraSchemaInlined]
+--         in fail $ "name spaces " <> show urns <> " are mutually exclusive"
+--     where
+--       lowercase = HM.fromList . map (over _1 T.toLower) . HM.toList
+
 instance FromJSON ScimUserExtra where
-  parseJSON = withObject "ScimUserExtra" $ \(lowercase -> o) -> do
-    v1 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaRichInfo) >>= \case
-      Nothing -> pure Nothing
-      Just (lowercase -> o2) -> do  -- TODO: why lowercase?  (same for v2)
-        _sueRichInfo <- parseRichInfo =<< o2 .: "richinfo"
-        let _sueCustomSchema = UserExtraSchemaRichInfo
-        pure $ Just ScimUserExtra{..}
-    v2 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaInlined) >>= \case
-      Nothing -> pure Nothing
-      Just (lowercase -> o2) -> do
-        _sueRichInfo <- parseRichInfoInlined o2
-        let _sueCustomSchema = UserExtraSchemaInlined
-        pure $ Just ScimUserExtra{..}
-    case (v1, v2) of
-      (Nothing,  Nothing)  -> pure $ ScimUserExtra emptyRichInfo minBound
-                                -- TODO: make 'ScimUserExtra' a Maybe in User type, or make it contain a Maybe, or something
-      (Just val, Nothing)  -> pure $ val
-      (Nothing,  Just val) -> pure $ normalizeScimUserExtra val
-      (Just _,   Just _)   -> let urns = userCustomSchemaURN <$> [UserExtraSchemaRichInfo, UserExtraSchemaInlined]
-        in fail $ "name spaces " <> show urns <> " are mutually exclusive"
-    where
-      lowercase = HM.fromList . map (over _1 T.toLower) . HM.toList
+  parseJSON v = ScimUserExtra <$> parseJSON v
 
 instance ToJSON ScimUserExtra where
-  toJSON v = case _sueCustomSchema v of
-    UserExtraSchemaRichInfo -> object
-      [ userCustomSchemaURN UserExtraSchemaRichInfo .= object
-        [ "richInfo" .= _sueRichInfo v
-        ]
-      ]
-    UserExtraSchemaInlined -> object
-      [ userCustomSchemaURN UserExtraSchemaInlined .= object
-        [ key .= val | RichField key val <- richInfoFields $ _sueRichInfo v
-        ]
-      ]
+  toJSON (ScimUserExtra rif) = toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
   applyOperation = undefined
@@ -199,24 +189,24 @@ instance Scim.Patchable ScimUserExtra where
 -- formats, because not all provisioning agents can send us information in the canonical
 -- @ToJSON RichInfo@ format.
 parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
-parseRichInfo v =
-  normalizeRichInfo .
+parseRichInfo _ =
+  -- normalizeRichInfo .
   asum [
-    -- Canonical format
-      parseJSON @RichInfo v
-    -- A list of {type, value} 'RichField's
-    , parseJSON @[RichField] v <&> \xs -> RichInfo { richInfoFields = xs }  -- TODO: check for duplicates!
+    -- -- Canonical format
+    --   parseJSON @RichInfo v
+    -- -- A list of {type, value} 'RichField's
+    -- , parseJSON @[RichField] v <&> \xs -> RichInfoV0 { richInfoFields = xs }  -- TODO: check for duplicates!
     -- Otherwise we fail
-    , fail "couldn't parse RichInfo"
+    -- , fail "couldn't parse RichInfo"
     ]
 
-parseRichInfoInlined :: Aeson.Object -> Aeson.Parser RichInfo
-parseRichInfoInlined (HM.toList -> obj) =
-  normalizeAndSortAndLowerCaseKeysRichInfo .
-  RichInfo <$>
-  (forM obj $ \case
-      (key, String val) -> pure $ RichField key val
-      (key, _) -> fail $ "Text under key " <> show key)
+-- parseRichInfoInlined :: Aeson.Object -> Aeson.Parser RichInfo
+-- parseRichInfoInlined o = RichInfo <$> parseJSON o
+  -- normalizeAndSortAndLowerCaseKeysRichInfo .
+  -- RichInfo <$>
+  -- (forM obj $ \case
+  --     (key, String val) -> pure $ RichField key val
+  --     (key, _) -> fail $ "Text under key " <> show key)
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
 --

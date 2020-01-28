@@ -2,13 +2,16 @@
 {-# LANGUAGE BinaryLiterals             #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 module Brig.Types.Provider.Tag where
 
 import Imports
 import Data.Aeson
 import Data.ByteString.Conversion
+#ifdef WITH_CQL
 import Cassandra.CQL (Cql)
+#endif
 import Data.Range
 import Data.Bits
 import Data.List (foldl')
@@ -159,7 +162,11 @@ match = MatchAll . Set.singleton
 
 
 newtype Bucket = Bucket Int32
+#ifdef WITH_CQL
     deriving newtype (Cql, Show)
+#else
+    deriving newtype (Show)
+#endif
 
 -- | Bucketing allows us to distribute individual tag bitmasks
 -- across multiple wide rows, if it should become necessary.

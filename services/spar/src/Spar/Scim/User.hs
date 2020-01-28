@@ -46,6 +46,7 @@ import Spar.Scim.Auth ()
 import Spar.Types
 
 import qualified Data.Text    as Text
+import qualified Data.Map     as Map
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
@@ -53,7 +54,6 @@ import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 import qualified System.Logger.Class as Log
 
-import qualified Web.Scim.AttrName                as Scim
 import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
 import qualified Web.Scim.Handler                 as Scim
@@ -239,13 +239,17 @@ validateScimUser' idp richInfoLimit user = do
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
-        let size = richInfoSize richInfo
-        when (size > richInfoLimit) $ throwError $
-            (Scim.badRequest Scim.InvalidValue
-                 (Just . cs $
-                      "richInfo exceeds the limit: max " <> show richInfoLimit <>
-                      " characters, but got " <> show size))
-            { Scim.status = Scim.Status 413 }
+        let assocListSize = length $ richInfoAssocList richInfo
+            mapSize = Map.size $ richInfoMap richInfo
+            errorIfTooBig s name =
+              when (s > richInfoLimit) $ throwError $
+              (Scim.badRequest Scim.InvalidValue
+                (Just . cs $
+                  cs name <> " exceeds the limit: max " <> show richInfoLimit <>
+                  " characters, but got " <> show s))
+              { Scim.status = Scim.Status 413 }
+        errorIfTooBig assocListSize richInfoAssocListURN
+        errorIfTooBig mapSize richInfoMapURN
         pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
@@ -551,7 +555,7 @@ data NeededInfo = NeededInfo
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
 synthesizeScimUser info =
-  let 
+  let
     Handle userName = neededHandle info
     Name displayName = neededName info
   in
@@ -562,7 +566,7 @@ synthesizeScimUser info =
 
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
--- an already existing scim user 
+-- an already existing scim user
 createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
 createOrGetScimUser stiTeam brigUser = do
   team <- getUserTeam' brigUser
