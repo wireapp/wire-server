@@ -1481,9 +1481,9 @@ updateManagedBy (uid ::: _ ::: req) = do
 updateRichInfo :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
 updateRichInfo (uid ::: _ ::: req) = do
     richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
-    -- TODO(akshay): Fix this
-    -- maxSize <- setRichInfoLimit <$> view settings
-    -- when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+    maxSize <- setRichInfoLimit <$> view settings
+    when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+    when (richInfoMapSize richInfo > maxSize) $ throwStd tooLargeRichInfo
     lift $ Data.updateRichInfo uid richInfo
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)

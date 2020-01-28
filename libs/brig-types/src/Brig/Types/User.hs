@@ -351,8 +351,11 @@ instance FromJSON RichField where
 --
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
--- richInfoSize :: RichInfo -> Int
--- richInfoSize (RichInfo info) = HM.size info
+richInfoAssocListSize :: RichInfo -> Int
+richInfoAssocListSize rif = sum [Text.length t + Text.length v | RichField t v <- richInfoAssocList rif]
+
+richInfoMapSize :: RichInfo -> Int
+richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k,v) <- Map.toList $ richInfoMap rif]
 
 -- | Remove fields with @""@ values.
 -- TODO(akshay): Update above comment. Looks like we only lowercase the keys with HashMaps
