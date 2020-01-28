@@ -313,7 +313,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
 
 instance Arbitrary RichField where
-    arbitrary = RichField <$> arbitrary <*> arbitrary
+    arbitrary = RichField <$> arbitrary <*> (arbitrary `suchThat` (/= ""))
 
 instance Arbitrary RichInfo where
     arbitrary = do

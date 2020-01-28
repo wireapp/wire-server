@@ -305,9 +305,10 @@ instance FromJSON RichInfo where
     withObject "RichInfo"
     $ \o ->
         let objWithCIKeys = hmMapKeys CI.mk o
-        in RichInfo
-           <$> extractMap objWithCIKeys
-           <*> extractAssocList objWithCIKeys
+        in normalizeRichInfo
+           <$> (RichInfo
+                <$> extractMap objWithCIKeys
+                <*> extractAssocList objWithCIKeys)
     where
       extractMap :: HashMap (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
       extractMap o =

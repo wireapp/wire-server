@@ -144,9 +144,9 @@ unitTests =
                                         "richinfo" : {
                                           "fields" : [
                                             {"type" : "foo", "value" : "bar"},
-                                            {"type" : "", "value" : "dropped"}
+                                            {"type" : "dropped", "value" : ""}
                                           ],
-                                          "version" : 42
+                                          "version" : 0
                                         }
                                      }
                                    }|]
