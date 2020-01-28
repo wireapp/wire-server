@@ -11,7 +11,7 @@ import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Network.HTTP.Types.Header
 import           Network.HTTP.Types.Method (methodGet)
-import qualified StmContainers.Map   as STMMap
+import qualified STMContainers.Map   as STMMap
 
 testStorage :: IO TestStorage
 testStorage = TestStorage <$> STMMap.newIO <*> STMMap.newIO

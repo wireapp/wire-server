@@ -6,11 +6,11 @@ import           Web.Scim.Capabilities.MetaSchema.Group
 import           Web.Scim.Capabilities.MetaSchema.Schema
 import           Web.Scim.Capabilities.MetaSchema.ResourceType
 
-import           Data.Text (Text)
 import           Data.Aeson (FromJSON, parseJSON, toJSON, ToJSON, withText, Value)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Attoparsec.ByteString (Parser)
+import           Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import           Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import           Data.Text (Text)
 
 -- | All schemas that we support.
 data Schema = User20

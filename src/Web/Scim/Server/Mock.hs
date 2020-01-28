@@ -21,7 +21,7 @@ import           Data.Time.Clock
 import           Data.Time.Calendar
 import           GHC.Exts (sortWith)
 import           ListT
-import qualified StmContainers.Map as STMMap
+import qualified STMContainers.Map as STMMap
 import           Text.Read (readMaybe)
 import           Web.Scim.Filter (Filter(..), CompValue(..), AttrPath(..), compareStr)
 import           Web.Scim.Schema.User
@@ -79,7 +79,7 @@ instance UserTypes Mock where
 instance UserDB Mock TestServer where
   getUsers () mbFilter = do
     m <- userDB <$> ask
-    users <- liftSTM $ ListT.toList $ STMMap.listT m
+    users <- liftSTM $ ListT.toList $ STMMap.stream m
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ -> do
@@ -130,7 +130,7 @@ instance GroupTypes Mock where
 instance GroupDB Mock TestServer where
   getGroups () = do
     m <- groupDB <$> ask
-    groups <- liftSTM $ ListT.toList $ STMMap.listT m
+    groups <- liftSTM $ ListT.toList $ STMMap.stream m
     return $ fromList . sortWith (Common.id . thing) $ snd <$> groups
 
   getGroup () gid = do
@@ -200,7 +200,7 @@ createMeta rType = Meta
 nt :: TestStorage -> ScimHandler TestServer a -> Handler a
 nt storage =
   flip runReaderT storage .
-  fromScimHandler (lift . throwError . scimToServerError)
+  fromScimHandler (lift . throwError . scimToServantErr)
 
 
 -- | Check whether a user satisfies the filter.
