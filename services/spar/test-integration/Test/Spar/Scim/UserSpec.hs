@@ -237,7 +237,7 @@ testRichInfo richInfo richInfo' = do
     scimStoredUser' <- updateUser tok (scimUserId scimStoredUser) user'
     checkStoredUser scimStoredUser' richInfo'
 
-    -- post updates the backend as expected.
+    -- put updates the backend as expected.
     liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
     probeUser (scimUserId scimStoredUser) richInfo'
 
