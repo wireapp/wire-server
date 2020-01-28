@@ -288,7 +288,13 @@ newtype RichInfoAssocList = RichInfoAssocList [RichField]
   deriving (Eq, Show, Generic)
 
 toRichInfoAssocList :: RichInfo -> RichInfoAssocList
-toRichInfoAssocList = undefined
+toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
+  where
+    nubrf :: [RichField] -> [RichField]
+    nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
+
+    toal :: Map (CI Text) Text -> [RichField]
+    toal = map (\(k, v) -> RichField (CI.foldedCase k) v) . Map.toAscList
 
 richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
