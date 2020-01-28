@@ -27,7 +27,6 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict, (#))
 import Data.Aeson as Aeson
-import Data.Aeson.Types as Aeson
 import Data.Misc (PlainTextPassword)
 import Data.Id
 import Data.Json.Util ((#))

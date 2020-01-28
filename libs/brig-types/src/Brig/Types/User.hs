@@ -279,11 +279,16 @@ instance ToJSON SelfProfile where
 
 ----------------------------------------------------------------------------
 -- Rich info
-
 data RichInfo = RichInfo { richInfoMap :: Map (CI Text) Text
                          , richInfoAssocList :: [RichField]
                          }
   deriving (Eq, Show, Generic)
+
+newtype RichInfoAssocList = RichInfoAssocList [RichField]
+  deriving (Eq, Show, Generic)
+
+toRichInfoAssocList :: RichInfo -> RichInfoAssocList
+toRichInfoAssocList = undefined
 
 richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
@@ -387,6 +392,7 @@ normalizeRichInfo (RichInfo rifMap assocList) = RichInfo
 
 emptyRichInfo :: RichInfo
 emptyRichInfo = RichInfo mempty mempty
+
 -----------------------------------------------------------------------------
 -- New Users
 
