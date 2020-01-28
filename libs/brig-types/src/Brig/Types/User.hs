@@ -27,6 +27,8 @@ import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 import Data.CaseInsensitive (CI)
+import Data.Hashable (Hashable)
+import Control.Monad.Fail (MonadFail)
 
 import qualified Data.HashMap.Strict  as HM
 import qualified Brig.Types.Code      as Code
@@ -287,26 +289,37 @@ richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
 richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
--- TODO(akshay): Use proper lookup keys
 instance FromJSON RichInfo where
   parseJSON =
-    withObject "RichInfo" $ \o -> RichInfo <$> extractMap o <*> extractAssocList o
+    withObject "RichInfo"
+    $ \o ->
+        let objWithCIKeys = hmMapKeys CI.mk o
+        in RichInfo
+           <$> extractMap objWithCIKeys
+           <*> extractAssocList objWithCIKeys
     where
-      extractMap :: Object -> Aeson.Parser (Map (CI Text) Text)
+      extractMap :: HashMap (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
       extractMap o =
-        case HM.lookup richInfoMapURN o of
+        case HM.lookup (CI.mk richInfoMapURN) o of
           Nothing -> pure mempty
           Just innerObj -> do
             Map.mapKeys CI.mk <$> parseJSON innerObj
 
-      extractAssocList :: Object -> Aeson.Parser [RichField]
+      extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
       extractAssocList o =
-        case HM.lookup richInfoAssocListURN o of
+        case HM.lookup (CI.mk richInfoAssocListURN) o of
           Nothing -> pure []
           Just (Object innerObj) -> do
-            fields <- innerObj .: "fields"
-            checkDuplicates (map richFieldType fields)
-            pure fields
+            richInfo <- mLookup "richinfo" $ hmMapKeys CI.mk innerObj
+            case richInfo of
+              Object richinfoObj -> do
+                version :: Int <- richinfoObj .: "version"
+                when (version /= 0) $ fail $ "unknown version: " <> show version
+                fields <- richinfoObj .: "fields"
+                checkDuplicates (map richFieldType fields)
+                pure fields
+              Array fields -> parseJSON (Array fields)
+              v -> Aeson.typeMismatch "Object" v
           Just v -> Aeson.typeMismatch "Object" v
 
       checkDuplicates :: [Text] -> Aeson.Parser ()
@@ -315,12 +328,20 @@ instance FromJSON RichInfo where
           [] -> pure ()
           ds -> fail ("duplicate fields: " <> show (map head ds))
 
--- TODO(akshay): Make this respect the map
+      hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
+      hmMapKeys f = HashMap.fromList . (map (\(k,v) -> (f k, v))) . HashMap.toList
+
+      mLookup :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
+      mLookup key theMap = case HM.lookup key theMap of
+                             Nothing -> fail $ "key '" ++ show key ++ "' not found"
+                             Just v -> return v
+
 instance ToJSON RichInfo where
   toJSON u =
-    object [ richInfoAssocListURN .=  object [ "fields" .= richInfoAssocList u
-                                             , "version" .= (0 :: Int)
-                                             ]
+    object [ richInfoAssocListURN .=
+             object [ "richinfo" .= object [ "fields" .= richInfoAssocList u
+                                           , "version" .= (0 :: Int)
+                                           ]]
            , richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
            ]
 
@@ -358,7 +379,6 @@ richInfoMapSize :: RichInfo -> Int
 richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k,v) <- Map.toList $ richInfoMap rif]
 
 -- | Remove fields with @""@ values.
--- TODO(akshay): Update above comment. Looks like we only lowercase the keys with HashMaps
 normalizeRichInfo :: RichInfo -> RichInfo
 normalizeRichInfo (RichInfo rifMap assocList) = RichInfo
     { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList

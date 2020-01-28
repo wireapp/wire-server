@@ -145,37 +145,6 @@ data ScimUserExtra = ScimUserExtra
 
 makeLenses ''ScimUserExtra
 
--- normalizeScimUserExtra :: ScimUserExtra -> ScimUserExtra
--- normalizeScimUserExtra = sueRichInfo %~ reallyNormalizeRichInfo  -- I feel like I'm writing php...  :(
---   where
---     reallyNormalizeRichInfo (RichInfoV0 fields) = normalizeAndSortRichInfo $ RichInfoV0 (lowercase fields)
---     lowercase = map (\(RichField key val) -> RichField (T.toLower key) val)
-
--- | TODO: is there a nicer implementation?  one more general even wrt. UserExtraSchema, perhaps?
--- instance FromJSON ScimUserExtra where
---   parseJSON = withObject "ScimUserExtra" $ \(lowercase -> o) -> do
---     v1 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaRichInfo) >>= \case
---       Nothing -> pure Nothing
---       Just (lowercase -> o2) -> do  -- TODO: why lowercase?  (same for v2)
---         _sueRichInfo <- parseRichInfo =<< o2 .: "richinfo"
---         let _sueCustomSchema = UserExtraSchemaRichInfo
---         pure $ Just ScimUserExtra{..}
---     v2 <- o .:? T.toLower (userCustomSchemaURN UserExtraSchemaInlined) >>= \case
---       Nothing -> pure Nothing
---       Just (lowercase -> o2) -> do
---         _sueRichInfo <- parseJSON $ Aeson.Object o2 --parseRichInfoInlined o2
---         let _sueCustomSchema = UserExtraSchemaInlined
---         pure $ Just ScimUserExtra{..}
---     case (v1, v2) of
---       (Nothing,  Nothing)  -> pure $ ScimUserExtra UserExtraSchemaInlined (RichInfo mempty)
---                                 -- TODO: make 'ScimUserExtra' a Maybe in User type, or make it contain a Maybe, or something
---       (Just val, Nothing)  -> pure $ val
---       (Nothing,  Just val) -> pure $ val
---       (Just _,   Just _)   -> let urns = userCustomSchemaURN <$> [UserExtraSchemaRichInfo, UserExtraSchemaInlined]
---         in fail $ "name spaces " <> show urns <> " are mutually exclusive"
---     where
---       lowercase = HM.fromList . map (over _1 T.toLower) . HM.toList
-
 instance FromJSON ScimUserExtra where
   parseJSON v = ScimUserExtra <$> parseJSON v
 
@@ -184,29 +153,6 @@ instance ToJSON ScimUserExtra where
 
 instance Scim.Patchable ScimUserExtra where
   applyOperation = undefined
-
--- | Parse 'RichInfo', trying several formats in a row. We have to know how to parse different
--- formats, because not all provisioning agents can send us information in the canonical
--- @ToJSON RichInfo@ format.
-parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
-parseRichInfo _ =
-  -- normalizeRichInfo .
-  asum [
-    -- -- Canonical format
-    --   parseJSON @RichInfo v
-    -- -- A list of {type, value} 'RichField's
-    -- , parseJSON @[RichField] v <&> \xs -> RichInfoV0 { richInfoFields = xs }  -- TODO: check for duplicates!
-    -- Otherwise we fail
-    -- , fail "couldn't parse RichInfo"
-    ]
-
--- parseRichInfoInlined :: Aeson.Object -> Aeson.Parser RichInfo
--- parseRichInfoInlined o = RichInfo <$> parseJSON o
-  -- normalizeAndSortAndLowerCaseKeysRichInfo .
-  -- RichInfo <$>
-  -- (forM obj $ \case
-  --     (key, String val) -> pure $ RichField key val
-  --     (key, _) -> fail $ "Text under key " <> show key)
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
 --

@@ -66,6 +66,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
+    - aeson-qq
     - attoparsec
     - base
     - brig-types
