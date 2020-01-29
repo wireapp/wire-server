@@ -51,6 +51,9 @@ instance Arbitrary IdPMetadataInfo where
     mdata <- arbitrary
     pure $ IdPMetadataValue (cs $ encode mdata) mdata
 
+instance Arbitrary SSOSettings where
+  arbitrary = SSOSettings <$> arbitrary
+
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58
 
