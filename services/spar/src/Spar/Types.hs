@@ -237,3 +237,18 @@ ttlToNominalDiffTime (TTL i32) = fromIntegral i32
 
 maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
+
+-- TODO can we derive JSON/Swagger instances? Do we want to? sss_default_code?
+data SSOSettings = SSOSettings
+    { ssoDefaultCode :: !(Maybe IdPId)
+    }
+  deriving (Show)
+
+instance FromJSON SSOSettings where
+  parseJSON = withObject "SSOSettings" $ \obj -> do
+    SSOSettings
+      <$> obj .: "default_sso_code"  -- key needs to be present, but can be null
+
+instance ToJSON SSOSettings where
+  toJSON SSOSettings{ssoDefaultCode} =
+    object [ "default_sso_code" .= ssoDefaultCode]
