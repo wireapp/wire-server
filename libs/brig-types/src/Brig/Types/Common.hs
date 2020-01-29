@@ -47,10 +47,11 @@ isValidHandle :: Text -> Bool
 isValidHandle t = either (const False) (const True)
                 $ parseOnly handle t
   where
-    handle = count 2 (satisfy chars)
-          *> count 19 (optional (satisfy chars))
+    handle = count 2 (satisfy charsFirst)
+          *> count 62 (optional (satisfy charsSecond))
           *> endOfInput
-    chars  = inClass "a-z0-9_"
+    charsFirst = inClass "a-z0-9_"
+    charsSecond = inClass "a-z0-9_-."
 
 --------------------------------------------------------------------------------
 -- Name
