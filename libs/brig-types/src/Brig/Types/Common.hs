@@ -50,6 +50,9 @@ isValidHandle t = either (const False) (const True)
     handle = count 2 (satisfy charsFirst)
           *> count 62 (optional (satisfy charsSecond))
           *> endOfInput
+    -- NOTE: Ensure that characters such as `@` and `+` should _NOT_
+    -- be used so that "phone numbers", "emails", and "handles" remain
+    -- disjoint sets.
     charsFirst = inClass "a-z0-9_"
     charsSecond = inClass "a-z0-9_-."
 
