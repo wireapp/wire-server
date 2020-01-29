@@ -200,5 +200,26 @@ spec = describe "toScimStoredUser'" $ do
         isLeft (applyOperation (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue"])) operation)
           `shouldBe` True
 
+      it "treats rich info assoc list case insensitively" $ do
+        let operationJSON = [aesonQQ|{
+                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                       "operations" : [{
+                                         "op" : "replace",
+                                         "path" : "urn:wire:scim:schemas:profile:1.0:secondAttr",
+                                         "value" : "newSecondVal"
+                                       }]
+                                     }|]
+        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
+        let origAssocList = [ RichField "firstAttr" "firstVal"
+                            , RichField "SECONDATTR" "secondVal"
+                            , RichField "thirdAttr" "thirdVal"
+                            ]
+        let expectedAssocList = [ RichField "firstAttr" "firstVal"
+                                , RichField "secondAttr" "newSecondVal"
+                                , RichField "thirdAttr" "thirdVal"
+                                ]
+        applyOperation (ScimUserExtra (RichInfo mempty origAssocList)) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo mempty expectedAssocList)))
+
 instance Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> arbitrary

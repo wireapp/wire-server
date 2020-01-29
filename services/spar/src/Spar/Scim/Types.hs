@@ -152,11 +152,11 @@ instance Scim.Patchable ScimUserExtra where
               (Just (String textVal)) ->
                 let assocList = richInfoAssocList rinf
                     newField = RichField attrName textVal
-                    replaceIfRequired f@(RichField k _) =
-                      if k == attrName then newField else f
-                    newRichInfo = if null $ filter (\(RichField k _) -> k == attrName) assocList
+                    matchesAttrName (RichField k _) = CI.foldCase k == CI.foldCase attrName
+                    replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
+                    newRichInfo = if not $ any matchesAttrName assocList
                                   then rinf { richInfoAssocList = assocList ++ [newField]}
-                                  else rinf { richInfoAssocList = map replaceIfRequired assocList }
+                                  else rinf { richInfoAssocList = map replaceIfMatchesAttrName assocList }
                 in pure $ ScimUserExtra $ newRichInfo
               _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"

@@ -370,7 +370,7 @@ instance ToJSON RichInfoAssocList where
   toJSON (RichInfoAssocList l) = object [ "fields" .= l
                                         , "version" .= (0 :: Int)
                                         ]
-
+-- TODO: Make richFieldType @CI Text@
 data RichField = RichField
     { richFieldType  :: !Text
     , richFieldValue :: !Text
