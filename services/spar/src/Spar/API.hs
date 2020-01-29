@@ -70,6 +70,7 @@ apiSSO opts
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
   :<|> authresp
+  :<|> ssoSettings
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
@@ -83,6 +84,7 @@ apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
      = internalStatus
   :<|> internalDeleteTeam
+  :<|> internalPutSSOSettings
 
 
 appName :: ST
@@ -155,6 +157,8 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
 
+ssoSettings :: Spar SSOSettings
+ssoSettings = pure SSOSettings{ssoDefaultCode = Nothing}
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -280,4 +284,8 @@ internalStatus = pure NoContent
 internalDeleteTeam :: TeamId -> Spar NoContent
 internalDeleteTeam team = do
   wrapMonadClient $ Data.deleteTeam team
+  pure NoContent
+
+internalPutSSOSettings :: SSOSettings -> Spar NoContent
+internalPutSSOSettings _settings = do
   pure NoContent
