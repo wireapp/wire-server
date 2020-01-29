@@ -33,7 +33,13 @@ import Data.Json.Util ((#))
 import Servant
 import Spar.API.Util
 import Spar.Types
+import Web.Scim.Schema.PatchOp (Path(NormalPath), Operation(..))
+import Web.Scim.AttrName (AttrName(..))
+import Web.Scim.Filter (AttrPath(..))
+import Web.Scim.Schema.Schema (Schema(CustomSchema))
 
+import qualified Data.Map                         as Map
+import qualified Data.CaseInsensitive             as CI
 import qualified SAML2.WebSSO                     as SAML
 import qualified Web.Scim.Class.Auth              as Scim.Auth
 import qualified Web.Scim.Class.Group             as Scim.Group
@@ -42,13 +48,16 @@ import qualified Web.Scim.Schema.Schema           as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Server                  as Scim
 import qualified Web.Scim.Schema.PatchOp          as Scim
-
+import qualified Web.Scim.Schema.Error            as Scim
 
 ----------------------------------------------------------------------------
 -- Schemas
 
 userSchemas :: [Scim.Schema]
-userSchemas = [Scim.User20, Scim.CustomSchema (userCustomSchemaURN UserExtraSchemaRichInfo)]
+userSchemas = [ Scim.User20
+              , Scim.CustomSchema (userCustomSchemaURN UserExtraSchemaRichInfo)
+              , Scim.CustomSchema (userCustomSchemaURN UserExtraSchemaInlined)
+              ]
 
 data UserCustomSchema
   = UserExtraSchemaRichInfo  -- ^ Schema identifier for extra Wire data in the @richInfo@
@@ -151,7 +160,36 @@ instance ToJSON ScimUserExtra where
   toJSON (ScimUserExtra rif) = toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
-  applyOperation = undefined
+  applyOperation (ScimUserExtra rinf) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName attrName) Nothing))) val)
+    | schema == richInfoMapURN =
+        case o of
+          Scim.Remove ->
+            pure $ ScimUserExtra $ rinf{richInfoMap = Map.delete (CI.mk attrName) $ richInfoMap rinf}
+          _AddOrReplace ->
+            case val of
+              (Just (String textVal)) ->
+                pure $ ScimUserExtra $ rinf{richInfoMap = Map.insert (CI.mk attrName) textVal $ richInfoMap rinf}
+              _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+    | schema == richInfoAssocListURN =
+        case o of
+          Scim.Remove ->
+            pure $ ScimUserExtra $ rinf{ richInfoAssocList =
+                                           filter (\(RichField key _) -> key /= attrName) $ richInfoAssocList rinf
+                                       }
+          _AddOrReplace ->
+            case val of
+              (Just (String textVal)) ->
+                let assocList = richInfoAssocList rinf
+                    newField = RichField attrName textVal
+                    replaceIfRequired f@(RichField k _) =
+                      if k == attrName then newField else f
+                    newRichInfo = if null $ filter (\(RichField k _) -> k == attrName) assocList
+                                  then rinf { richInfoAssocList = assocList ++ [newField]}
+                                  else rinf { richInfoAssocList = map replaceIfRequired assocList }
+                in pure $ ScimUserExtra $ newRichInfo
+              _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+    | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
+  applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
 --
