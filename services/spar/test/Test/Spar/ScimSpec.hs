@@ -16,7 +16,6 @@ module Test.Spar.ScimSpec where
 import Imports
 import Brig.Types.Test.Arbitrary
 import Brig.Types.User (RichInfo(..), RichField(..))
-import Control.Lens ((%~), (.~))
 import Data.Aeson (encode, eitherDecode', parseJSON)
 import Data.Id
 import Network.URI (parseURI)
@@ -106,7 +105,7 @@ spec = describe "toScimStoredUser'" $ do
 
   it "roundtrips" . property $ do
       \(sue :: ScimUserExtra) ->
-        eitherDecode' (encode sue) `shouldBe` Right (sue & sueRichInfo %~ id)
+        eitherDecode' (encode sue) `shouldBe` Right sue
 
   describe "ScimUserExtra" $ do
     describe "Patchable" $ do
@@ -200,24 +199,6 @@ spec = describe "toScimStoredUser'" $ do
             operation = Operation Remove path Nothing
         isLeft (applyOperation (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue"])) operation)
           `shouldBe` True
-
-z :: IO ()
-z = hspec $
-  it "roundtrips" . property $ do
-      \(sue :: ScimUserExtra) ->
-        eitherDecode' (encode sue) `shouldBe` Right sue
-
-
-x :: ScimUserExtra
-x = ScimUserExtra $ RichInfo { richInfoMap = Map.fromList [ ("T", ";m")
-                                                          , ("T\180192", "\ESCu\843858")
-                                                          , ("", "5\a")
-                                                          ]
-                             , richInfoAssocList = []
-                             }
-
-x' :: Either String ScimUserExtra
-x' = eitherDecode' (encode x)
 
 instance Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> arbitrary
