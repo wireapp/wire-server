@@ -221,6 +221,3 @@ x' = eitherDecode' (encode x)
 
 instance Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> arbitrary
-
-instance Arbitrary UserCustomSchema where
-  arbitrary = elements [minBound..]

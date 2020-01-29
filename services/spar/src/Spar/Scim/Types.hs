@@ -55,38 +55,9 @@ import qualified Web.Scim.Schema.Error            as Scim
 
 userSchemas :: [Scim.Schema]
 userSchemas = [ Scim.User20
-              , Scim.CustomSchema (userCustomSchemaURN UserExtraSchemaRichInfo)
-              , Scim.CustomSchema (userCustomSchemaURN UserExtraSchemaInlined)
+              , Scim.CustomSchema richInfoAssocListURN
+              , Scim.CustomSchema richInfoMapURN
               ]
-
-data UserCustomSchema
-  = UserExtraSchemaRichInfo  -- ^ Schema identifier for extra Wire data in the @richInfo@
-                             -- attribute.
-  | UserExtraSchemaInlined   -- ^ Schema identifier for inlined extra Wire data (extra
-                             -- top-level attributes not in the user schema).
-  -- FUTUREWORK: @UserExtraSchemaEnterprise@ for the enterprise attributes extension
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-instance FromJSON UserCustomSchema where
-  parseJSON = withText "UserCustomSchema" $ \txt ->
-    case lookup txt [ (userCustomSchemaURN scm, scm) | scm <- [(minBound :: UserCustomSchema)..] ] of
-      Nothing -> fail "UserCustomSchema"
-      Just scm -> pure scm
-
-
--- parseAttributeName should only accept alphanum
-
-
-instance ToJSON UserCustomSchema where
-  toJSON = String . userCustomSchemaURN
-
--- | 'UserExtraSchemaInlined' is for azure support.  (Azure only accepts top-level attributes,
--- and only this shape of URN (tested on 2020-01-02), so we can't hack support for it into the
--- 'parseRichInfo' case switch.)
-userCustomSchemaURN :: UserCustomSchema -> Text
-userCustomSchemaURN UserExtraSchemaRichInfo = "urn:wire:scim:schemas:profile:1.0"
-userCustomSchemaURN UserExtraSchemaInlined = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"  -- TODO: or does it have to be 2.0?
-
 
 ----------------------------------------------------------------------------
 -- @hscim@ extensions and wrappers
