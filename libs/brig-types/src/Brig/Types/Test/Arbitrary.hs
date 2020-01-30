@@ -313,7 +313,10 @@ instance Arbitrary UserProfile where
         <*> arbitrary
 
 instance Arbitrary RichField where
-    arbitrary = RichField <$> arbitrary <*> (arbitrary `suchThat` (/= ""))
+    arbitrary =
+      RichField
+      <$> arbitrary
+      <*> (arbitrary `suchThat` (/= "")) -- This is required because FromJSON calls @normalizeRichInfo@ and roundtrip tests fail
 
 instance Arbitrary RichInfo where
     arbitrary = do
