@@ -24,10 +24,10 @@ import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
-import Brig.Types.Team.Invitation
-import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
+import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
@@ -35,19 +35,19 @@ import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
+import Data.List.Extra (nubOn)
 import Data.Misc
 import Data.PEM (pemParseBS)
 import Data.Proxy
 import Data.Range
-import Data.List.Extra (nubOn)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import GHC.TypeLits
 import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
-import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
