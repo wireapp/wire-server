@@ -420,6 +420,9 @@ normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
 normalizeRichInfoAssocList (RichInfoAssocList l) =
   RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
 
+emptyRichInfoAssocList :: RichInfoAssocList
+emptyRichInfoAssocList = RichInfoAssocList []
+
 -----------------------------------------------------------------------------
 -- New Users
 

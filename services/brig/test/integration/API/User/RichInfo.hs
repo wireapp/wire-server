@@ -69,7 +69,7 @@ testDeleteEmptyFields brig galley = do
             ]
     putRichInfo brig member2 withEmpty !!! const 200 === statusCode
     withoutEmpty <- getRichInfo brig member1 member2
-    liftIO $ assertEqual "dangling rich info fields" (Right $ RichInfoAssocList []) withoutEmpty
+    liftIO $ assertEqual "dangling rich info fields" (Right emptyRichInfoAssocList) withoutEmpty
 
 testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
 testForbidDuplicateFieldNames brig galley = do

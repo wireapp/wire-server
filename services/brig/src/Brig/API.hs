@@ -1076,7 +1076,7 @@ getRichInfo (self ::: user ::: _) = do
         (Just t1, Just t2) | t1 == t2 -> pure ()
         _ -> throwStd insufficientTeamPermissions
     -- Query rich info
-    json . fromMaybe (RichInfoAssocList []) <$> lift (API.lookupRichInfo user)
+    json . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
