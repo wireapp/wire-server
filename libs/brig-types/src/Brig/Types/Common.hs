@@ -54,7 +54,7 @@ isValidHandle t = either (const False) (const True)
     -- be used so that "phone numbers", "emails", and "handles" remain
     -- disjoint sets.
     charsFirst = inClass "a-z0-9_"
-    charsSecond = inClass "a-z0-9_-."
+    charsSecond = inClass "a-z0-9_.-"
 
 --------------------------------------------------------------------------------
 -- Name
