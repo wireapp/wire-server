@@ -322,7 +322,7 @@ instance FromJSON RichInfo where
         case HM.lookup (CI.mk richInfoAssocListURN) o of
           Nothing -> pure []
           Just (Object innerObj) -> do
-            richInfo <- mLookup "richinfo" $ hmMapKeys CI.mk innerObj
+            richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
             case richInfo of
               Object richinfoObj -> do
                 fields <- richInfoAssocListFromObject richinfoObj
@@ -334,10 +334,10 @@ instance FromJSON RichInfo where
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
       hmMapKeys f = HashMap.fromList . (map (\(k,v) -> (f k, v))) . HashMap.toList
 
-      mLookup :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
-      mLookup key theMap = case HM.lookup key theMap of
-                             Nothing -> fail $ "key '" ++ show key ++ "' not found"
-                             Just v -> return v
+      lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
+      lookupOrFail key theMap = case HM.lookup key theMap of
+                                  Nothing -> fail $ "key '" ++ show key ++ "' not found"
+                                  Just v -> return v
 
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
