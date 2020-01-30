@@ -677,7 +677,6 @@ instance FromJSON RichInfoUpdate where
     parseJSON = withObject "rich-info-update" $ \o ->
         RichInfoUpdate <$> o .: "rich_info"
 
--- TODO(akshay): Maybe we need to support outputing assoc lists as well as hashmaps
 instance ToJSON RichInfoUpdate where
     toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
 
