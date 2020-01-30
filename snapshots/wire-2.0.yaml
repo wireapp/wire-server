@@ -29,7 +29,7 @@ packages:
 
 # https://github.com/hspec/hspec-wai/pull/49
 - git: https://github.com/wireapp/hspec-wai
-  commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3
+  commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 # amazonka-1.6.0 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # amazonka-HEAD is also buggy: https://github.com/brendanhay/amazonka/issues/490
