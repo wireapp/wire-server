@@ -70,6 +70,12 @@ module Util.Core
   , getSsoidViaSelf, getSsoidViaSelf'
   , getUserIdViaRef, getUserIdViaRef'
   , getScimUser
+  , callGetSSODefaultCode
+  , callGetSSODefaultCode'
+  , callSetSSODefaultCode
+  , callSetSSODefaultCode'
+  , callDeleteSSODefaultCode
+  , callDeleteSSODefaultCode'
   ) where
 
 import Imports hiding (head)
@@ -258,6 +264,7 @@ createUserWithTeamDisableSSO brg gly = do
           $ pure ()
     return (uid, tid)
 
+-- TODO this is in galley? should this not be in the same place as the default SSO code?
 getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
 getSSOEnabledInternal gly tid = do
     get $ gly
@@ -781,6 +788,50 @@ callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.Id
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
+callGetSSODefaultCode :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m (Maybe IdPId)
+callGetSSODefaultCode sparreq_ muid = do
+  resp <- callGetSSODefaultCode' (sparreq_ . expect2xx) muid
+  either (liftIO . throwIO . ErrorCall) pure $
+    flip (responseJsonParsing "SSOSettings") resp $
+      withObject "SSOSettings" $ \o -> do
+        ssoCode :: Maybe UUID <- o .: "default_sso_code"
+        pure (IdPId <$> ssoCode)
+
+callGetSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callGetSSODefaultCode' sparreq_ muid = do
+  get $ sparreq_
+    . maybe id zUser muid
+    . path "/sso/settings/"
+
+callSetSSODefaultCode :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
+callSetSSODefaultCode sparreq_ muid ssoCode =
+  void $ callSetSSODefaultCode' (sparreq_ . expect2xx) muid ssoCode
+
+callSetSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callSetSSODefaultCode' sparreq_ muid ssoCode = do
+  let settings = RequestBodyLBS . Aeson.encode $ object
+        [ "default_sso_code" .= (SAML.fromIdPId ssoCode :: UUID)
+        ]
+  put $ sparreq_
+    . maybe id zUser muid
+    . path "/i/sso/settings/"
+    . body settings
+    . header "Content-Type" "application/json"
+
+callDeleteSSODefaultCode :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ()
+callDeleteSSODefaultCode sparreq_ muid =
+  void $ callDeleteSSODefaultCode' (sparreq_ . expect2xx) muid
+
+callDeleteSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callDeleteSSODefaultCode' sparreq_ muid = do
+  let settings = RequestBodyLBS . Aeson.encode $ object
+        [ "default_sso_code" .= Aeson.Null
+        ]
+  put $ sparreq_
+    . maybe id zUser muid
+    . path "/i/sso/settings/"
+    . body settings
+    . header "Content-Type" "application/json"
 
 -- helpers talking to spar's cassandra directly
 
