@@ -104,8 +104,9 @@ instance Arbitrary TurnURI where
 
 instance Arbitrary Handle where
   arbitrary = Handle . ST.pack <$> do
-      let manyC n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'])
-      ((<>) <$> manyC 2 <*> (manyC =<< choose (0, 19)))
+      let manyFirst n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'])
+      let manySecond n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'] <> ['-'] <> ['.'])
+      ((<>) <$> manyFirst 2 <*> (manySecond =<< choose (0, 62)))
 
 instance Arbitrary Name where
   arbitrary = Name . ST.pack <$>
@@ -512,7 +513,7 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldServiceConfirm where
     arbitrary =
-        LegalHoldServiceConfirm 
+        LegalHoldServiceConfirm
           <$> arbitrary
           <*> arbitrary
           <*> arbitrary
