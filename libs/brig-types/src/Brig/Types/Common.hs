@@ -47,14 +47,17 @@ isValidHandle :: Text -> Bool
 isValidHandle t = either (const False) (const True)
                 $ parseOnly handle t
   where
-    handle = count 2 (satisfy charsFirst)
-          *> count 62 (optional (satisfy charsSecond))
+    handle = count 2 (satisfy chars)
+          *> count 254 (optional (satisfy chars))
           *> endOfInput
     -- NOTE: Ensure that characters such as `@` and `+` should _NOT_
     -- be used so that "phone numbers", "emails", and "handles" remain
     -- disjoint sets.
-    charsFirst = inClass "a-z0-9_"
-    charsSecond = inClass "a-z0-9_.-"
+    -- The rationale behind max size here relates to the max length of
+    -- an email address as defined here:
+    -- http://www.rfc-editor.org/errata_search.php?rfc=3696&eid=1690
+    -- with the intent that in the enterprise world handle =~ email address
+    chars = inClass "a-z0-9_.-"
 
 --------------------------------------------------------------------------------
 -- Name

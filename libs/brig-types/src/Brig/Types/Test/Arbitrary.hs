@@ -104,9 +104,8 @@ instance Arbitrary TurnURI where
 
 instance Arbitrary Handle where
   arbitrary = Handle . ST.pack <$> do
-      let manyFirst n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'])
-      let manySecond n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'] <> ['-'] <> ['.'])
-      ((<>) <$> manyFirst 2 <*> (manySecond =<< choose (0, 62)))
+      let many n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'] <> ['-'] <> ['.'])
+      ((<>) <$> many 2 <*> (many =<< choose (0, 254)))
 
 instance Arbitrary Name where
   arbitrary = Name . ST.pack <$>
