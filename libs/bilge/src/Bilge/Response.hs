@@ -17,6 +17,7 @@ module Bilge.Response
     , responseHeaders
     , responseVersion
     , responseBody
+    , responseJsonParsing
     , responseJsonEither
     , responseJsonMaybe
     , responseJsonThrow
@@ -29,7 +30,9 @@ import Imports
 import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens
 import Control.Monad.Catch
-import Data.Aeson (FromJSON, eitherDecode)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import Data.Aeson (FromJSON)
 import Data.CaseInsensitive (original)
 import Data.EitherR (fmapL)
 import Data.Typeable (typeRep)
@@ -73,17 +76,32 @@ getCookieValue cookieName resp =
 
 type ResponseLBS = Response (Maybe LByteString)
 
+-- TODO remove
+responseJsonParsing
+  :: HasCallStack
+  => String  -- ^ description of entity parsed
+  -> (Aeson.Value -> Aeson.Parser a)
+  -> ResponseLBS
+  -> Either String a
+responseJsonParsing description parser =
+  fmapL mkErrorMessage
+    . Aeson.parseEither parser
+    <=< Aeson.eitherDecode
+    <=< maybe (Left "Missing response body.") Right . responseBody
+
+  where
+    mkErrorMessage err =
+      "could not parse as " <> description <> ": " <> err
+
 {-# INLINE responseJsonEither #-}
 responseJsonEither
   :: forall a. (HasCallStack, Typeable a, FromJSON a)
   => ResponseLBS -> Either String a
-responseJsonEither = fmapL addTypeInfo . eitherDecode <=< maybe err pure . responseBody
-  where
-    err :: Either String void
-    err = Left "Missing response body."
+responseJsonEither = responseJsonParsing typeInfo Aeson.parseJSON
 
-    addTypeInfo :: String -> String
-    addTypeInfo = ((show (typeRep (Data.Proxy.Proxy @a)) <> " ") <>)
+  where
+    typeInfo :: String
+    typeInfo = (show (typeRep (Data.Proxy.Proxy @a)) <> " ")
 
 {-# INLINE responseJsonMaybe #-}
 responseJsonMaybe
