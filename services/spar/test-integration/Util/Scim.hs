@@ -82,9 +82,9 @@ randomScimUserWithSubject
 randomScimUserWithSubject = do
     fieldCount <- getRandomR (0, 3)
     fields <- replicateM fieldCount $
-              (,) <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
+              (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.mapKeys CI.mk $ Map.fromList fields) (map (uncurry RichField) fields)
+    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo

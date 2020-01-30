@@ -294,7 +294,7 @@ toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
     nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
 
     toal :: Map (CI Text) Text -> [RichField]
-    toal = map (\(k, v) -> RichField (CI.foldedCase k) v) . Map.toAscList
+    toal = map (\(k, v) -> RichField k v) . Map.toAscList
 
 richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
@@ -347,7 +347,7 @@ richInfoAssocListFromObject richinfoObj = do
   checkDuplicates (map richFieldType fields)
   pure fields
   where
-    checkDuplicates :: [Text] -> Aeson.Parser ()
+    checkDuplicates :: [CI Text] -> Aeson.Parser ()
     checkDuplicates xs =
       case filter ((> 1) . length) . group . sort $ xs of
         [] -> pure ()
@@ -372,7 +372,7 @@ instance ToJSON RichInfoAssocList where
                                         ]
 -- TODO: Make richFieldType @CI Text@
 data RichField = RichField
-    { richFieldType  :: !Text
+    { richFieldType  :: !(CI Text)
     , richFieldValue :: !Text
     }
     deriving (Eq, Show, Generic)
@@ -383,14 +383,14 @@ instance ToJSON RichField where
     -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
     -- that some provisioning agent would support "type" but not "name".
     toJSON u = object
-        [ "type" .= richFieldType u
+        [ "type" .= CI.original (richFieldType u)
         , "value" .= richFieldValue u
         ]
 
 instance FromJSON RichField where
     parseJSON = withObject "RichField" $ \o -> do
         RichField
-            <$> o .: "type"
+            <$> (CI.mk <$> o .: "type")
             <*> o .: "value"
 
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
@@ -401,7 +401,7 @@ instance FromJSON RichField where
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
 richInfoAssocListSize :: [RichField] -> Int
-richInfoAssocListSize fields = sum [Text.length t + Text.length v | RichField t v <- fields]
+richInfoAssocListSize fields = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
 
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
 -- 'setRichInfoLimit'

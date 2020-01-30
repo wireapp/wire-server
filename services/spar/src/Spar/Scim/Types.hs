@@ -133,32 +133,33 @@ instance ToJSON ScimUserExtra where
 instance Scim.Patchable ScimUserExtra where
   applyOperation (ScimUserExtra rinf) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName attrName) Nothing))) val)
     | schema == richInfoMapURN =
-        case o of
-          Scim.Remove ->
-            pure $ ScimUserExtra $ rinf{richInfoMap = Map.delete (CI.mk attrName) $ richInfoMap rinf}
-          _AddOrReplace ->
-            case val of
-              (Just (String textVal)) ->
-                pure $ ScimUserExtra $ rinf{richInfoMap = Map.insert (CI.mk attrName) textVal $ richInfoMap rinf}
-              _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+        let ciAttrName = CI.mk attrName
+            theMap = richInfoMap rinf
+        in case o of
+             Scim.Remove ->
+               pure $ ScimUserExtra $ rinf{ richInfoMap = Map.delete ciAttrName theMap }
+             _AddOrReplace ->
+               case val of
+                 (Just (String textVal)) ->
+                   pure $ ScimUserExtra $ rinf { richInfoMap = Map.insert ciAttrName textVal theMap }
+                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | schema == richInfoAssocListURN =
-        case o of
-          Scim.Remove ->
-            pure $ ScimUserExtra $ rinf{ richInfoAssocList =
-                                           filter (\(RichField key _) -> key /= attrName) $ richInfoAssocList rinf
-                                       }
-          _AddOrReplace ->
-            case val of
-              (Just (String textVal)) ->
-                let assocList = richInfoAssocList rinf
-                    newField = RichField attrName textVal
-                    matchesAttrName (RichField k _) = CI.foldCase k == CI.foldCase attrName
-                    replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
-                    newRichInfo = if not $ any matchesAttrName assocList
-                                  then rinf { richInfoAssocList = assocList ++ [newField]}
-                                  else rinf { richInfoAssocList = map replaceIfMatchesAttrName assocList }
-                in pure $ ScimUserExtra $ newRichInfo
-              _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+        let ciAttrName = CI.mk attrName
+            matchesAttrName (RichField k _) = k == ciAttrName
+            assocList = richInfoAssocList rinf
+        in case o of
+             Scim.Remove ->
+               pure $ ScimUserExtra $ rinf { richInfoAssocList = filter (not . matchesAttrName) assocList }
+             _AddOrReplace ->
+               case val of
+                 (Just (String textVal)) ->
+                   let newField = RichField ciAttrName textVal
+                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
+                       newRichInfo = if not $ any matchesAttrName assocList
+                                     then rinf { richInfoAssocList = assocList ++ [newField]}
+                                     else rinf { richInfoAssocList = map replaceIfMatchesAttrName assocList }
+                   in pure $ ScimUserExtra $ newRichInfo
+                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 

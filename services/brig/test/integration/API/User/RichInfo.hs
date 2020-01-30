@@ -13,6 +13,7 @@ import Test.Tasty.HUnit
 import Util
 
 import qualified Brig.Options                as Opt
+import qualified Data.CaseInsensitive        as CI
 import qualified Data.List1                  as List1
 import qualified Data.Text                   as Text
 import qualified Galley.Types.Teams          as Team
@@ -87,7 +88,7 @@ testRichInfoSizeLimit brig galley conf = do
             [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
             ]
         bad2 = RichInfoAssocList $ [0 .. ((maxSize `div` 2))] <&>
-            \i -> RichField (Text.pack $ show i) "#"
+            \i -> RichField (CI.mk $ Text.pack $ show i) "#"
     putRichInfo brig owner bad1 !!! const 413 === statusCode
     putRichInfo brig owner bad2 !!! const 413 === statusCode
 
