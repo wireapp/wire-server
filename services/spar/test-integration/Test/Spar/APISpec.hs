@@ -4,15 +4,14 @@ import Imports hiding (head)
 
 import Bilge
 import Brig.Types.User
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad.Random.Class (getRandomR)
-import Data.Aeson
+import Data.Aeson as Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions
-import Data.UUID as UUID hiding (null, fromByteString)
 import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
@@ -25,6 +24,8 @@ import Util.Types
 
 import qualified Data.ByteString.Builder as LB
 import qualified Data.Text as ST
+import qualified Data.UUID as UUID hiding (null, fromByteString)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
@@ -43,6 +44,7 @@ spec = do
   specDeleteCornerCases
   specScimAndSAML
   specAux
+  specSSOSettings
 
 
 specMisc :: SpecWith TestEnv
@@ -741,7 +743,7 @@ specCRUDIdentityProvider = do
           it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
             env <- ask
             (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            metadata <- Data.Aeson.encode . (IdPMetadataValue mempty) <$> makeTestIdPMetadata
+            metadata <- Aeson.encode . (IdPMetadataValue mempty) <$> makeTestIdPMetadata
             idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
             idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
             rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
@@ -751,6 +753,7 @@ specCRUDIdentityProvider = do
               ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
 
+-- TODO add checks about deleting default IdP
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
@@ -911,7 +914,94 @@ specAux = do
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
 
+specSSOSettings :: SpecWith TestEnv
+specSSOSettings = do
+    describe "SSO settings endpoint" $ do
 
+      it "returns no SSO code by default" $ do
+        env <- ask
+        (userid, _teamid, _idp) <- registerTestIdP
+        callGetSSODefaultCode'  (env ^. teSpar) (Just userid)
+          `shouldRespondWith` \resp -> and
+            [ statusCode resp == 200
+            , responseJsonEither resp == Right (ssoSettings Nothing)
+            ]
+
+      it "does not allow setting non-existing SSO code" $ do
+        env <- ask
+        (userid, _teamid, _idp) <- registerTestIdP
+        nonExisting <- IdPId <$> liftIO UUID.nextRandom
+        callSetSSODefaultCode'  (env ^. teSpar) (Just userid) nonExisting
+          `shouldRespondWith` \resp ->
+            statusCode resp == 400
+
+      it "allows setting a default SSO code" $ do
+        env <- ask
+        (userid1, _teamid, (^. idpId) -> idpid1) <- registerTestIdP
+        (userid2, _teamid, (^. idpId) -> idpid2) <- registerTestIdP
+        -- set 1
+        callSetSSODefaultCode'  (env ^. teSpar) (Just userid1) idpid1
+          `shouldRespondWith` \resp ->
+            statusCode resp == 200
+        -- check it is set
+        callGetSSODefaultCode'  (env ^. teSpar) (Just userid1)
+          `shouldRespondWith` \resp -> and
+            [ statusCode resp == 200
+            , responseJsonEither resp == Right (ssoSettings (Just idpid1))
+            ]
+        -- update to 2
+        callSetSSODefaultCode'  (env ^. teSpar) (Just userid2) idpid2
+          `shouldRespondWith` \resp ->
+            statusCode resp == 200
+        -- check it is set
+        callGetSSODefaultCode'  (env ^. teSpar) (Just userid2)
+          `shouldRespondWith` \resp -> and
+            [ statusCode resp == 200
+            , responseJsonEither resp == Right (ssoSettings (Just idpid2))
+            ]
+
+      it "allows removing the default SSO code" $ do
+        env <- ask
+        (userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
+        -- set
+        callSetSSODefaultCode'  (env ^. teSpar) (Just userid) idpid
+          `shouldRespondWith` \resp ->
+            statusCode resp == 200
+        -- remove
+        callDeleteSSODefaultCode'  (env ^. teSpar) (Just userid)
+          `shouldRespondWith` \resp ->
+            statusCode resp == 200
+        -- check it is not set anymore
+        callGetSSODefaultCode'  (env ^. teSpar) (Just userid)
+          `shouldRespondWith` \resp -> and
+            [ statusCode resp == 200
+            , responseJsonEither resp == Right (ssoSettings Nothing)
+            ]
+
+      it "removes the default SSO code if the IdP gets removed" $ do
+        env <- ask
+        (userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
+        -- set
+        callSetSSODefaultCode'  (env ^. teSpar) (Just userid) idpid
+          `shouldRespondWith` \resp ->
+            statusCode resp == 200
+        -- remove IdP
+        callIdpDelete' (env ^. teSpar) (Just userid) idpid
+          `shouldRespondWith` \resp -> statusCode resp < 300
+        -- check it is not set anymore
+        callGetSSODefaultCode'  (env ^. teSpar) (Just userid)
+          `shouldRespondWith` \resp -> and
+            [ statusCode resp == 200
+            , responseJsonEither resp == Right (ssoSettings Nothing)
+            ]
+
+  where
+    ssoSettings maybeCode =
+      object
+        [ "default_sso_code" .= case maybeCode of
+            Nothing -> Aeson.Null
+            Just code -> Aeson.toJSON (SAML.fromIdPId code)
+        ]
 
 
 -- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
