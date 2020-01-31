@@ -171,5 +171,5 @@ instance ToSchema SSOSettings where
       where
         properties_ :: InsOrdHashMap Text (Referenced Schema)
         properties_ = fromList
-          [ ("default_sso_code", Inline (toSchema (Proxy @(Maybe UUID))))
+          [ ("default_sso_code", Inline (toSchema (Proxy @(Maybe SAML.IdPId))))
           ]
