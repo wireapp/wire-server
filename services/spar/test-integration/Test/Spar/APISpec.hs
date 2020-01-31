@@ -753,7 +753,6 @@ specCRUDIdentityProvider = do
               ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
 
--- TODO add checks about deleting default IdP
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do

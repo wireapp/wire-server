@@ -299,7 +299,8 @@ internalPutSSOSettings SSOSettings{ssoDefaultCode} = do
       wrapMonadClient (Data.getIdPConfig code) >>= \case
         Nothing ->
           -- this will return a 404, which is not quite right,
-          -- but the message is clear and it's an internal endpoint.
+          -- but it's an internal endpoint and the message clearly says
+          -- "Could not find IdP".
           throwSpar SparNotFound
 
         Just _ -> do
