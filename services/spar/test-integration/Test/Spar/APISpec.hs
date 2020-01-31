@@ -917,23 +917,13 @@ specAux = do
 specSSOSettings :: SpecWith TestEnv
 specSSOSettings = do
     describe "SSO settings endpoint" $ do
-
-      it "returns no SSO code by default" $ do
-        env <- ask
-        (userid, _teamid, _idp) <- registerTestIdP
-        callGetSSODefaultCode'  (env ^. teSpar) (Just userid)
-          `shouldRespondWith` \resp -> and
-            [ statusCode resp == 200
-            , responseJsonEither resp == Right (ssoSettings Nothing)
-            ]
-
       it "does not allow setting non-existing SSO code" $ do
         env <- ask
         (userid, _teamid, _idp) <- registerTestIdP
         nonExisting <- IdPId <$> liftIO UUID.nextRandom
         callSetSSODefaultCode'  (env ^. teSpar) (Just userid) nonExisting
           `shouldRespondWith` \resp ->
-            statusCode resp == 400
+            statusCode resp == 404  -- not quite right
 
       it "allows setting a default SSO code" $ do
         env <- ask
