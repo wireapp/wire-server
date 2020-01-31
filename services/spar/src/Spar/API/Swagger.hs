@@ -162,14 +162,8 @@ instance ToSchema RawIdPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema SSOSettings where
-  declareNamedSchema _ = pure $
-    NamedSchema (Just "SSOSettings") $ mempty
-        & properties .~ properties_
-        & minProperties ?~ 1
-        & maxProperties ?~ 1
-        & type_ .~ SwaggerObject
-      where
-        properties_ :: InsOrdHashMap Text (Referenced Schema)
-        properties_ = fromList
-          [ ("default_sso_code", Inline (toSchema (Proxy @(Maybe SAML.IdPId))))
-          ]
+  declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions
+    { fieldLabelModifier = \case
+        "ssoDefaultCode" -> "default_sso_code"
+        other -> other
+    }
