@@ -158,7 +158,9 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
       throwError $ SAML.CustomServant result
 
 ssoSettings :: Spar SSOSettings
-ssoSettings = pure SSOSettings{ssoDefaultCode = Nothing}
+ssoSettings = do
+  mSSOCode <- wrapMonadClient Data.getDefaultSSOCode
+  pure SSOSettings{ssoDefaultCode = mSSOCode}
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -287,5 +289,19 @@ internalDeleteTeam team = do
   pure NoContent
 
 internalPutSSOSettings :: SSOSettings -> Spar NoContent
-internalPutSSOSettings _settings = do
-  pure NoContent
+internalPutSSOSettings SSOSettings{ssoDefaultCode} = do
+  case ssoDefaultCode of
+    Nothing -> do
+      wrapMonadClient $ Data.deleteDefaultSSOCode
+      pure NoContent
+
+    Just code -> do
+      wrapMonadClient (Data.getIdPConfig code) >>= \case
+        Nothing ->
+          -- this will return a 404, which is not quite right,
+          -- but the message is clear and it's an internal endpoint.
+          throwSpar SparNotFound
+
+        Just _ -> do
+          wrapMonadClient $ Data.storeDefaultSSOCode code
+          pure NoContent
