@@ -36,6 +36,11 @@ module Spar.Data
   , getIdPRawMetadata
   , deleteIdPRawMetadata
 
+  -- * SSO settings
+  , storeDefaultSSOCode
+  , getDefaultSSOCode
+  , deleteDefaultSSOCode
+
   -- * SCIM auth
   , insertScimToken
   , lookupScimToken
@@ -52,6 +57,7 @@ module Spar.Data
 
 import Imports
 import Cassandra as Cas
+import Control.Error (minimumMay)
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
@@ -366,10 +372,14 @@ deleteIdPConfig
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
+    addPrepQuery delDefaultIdp (Identity idp)
     addPrepQuery delIdp (Identity idp)
     addPrepQuery delIssuerIdp (Identity issuer)
     addPrepQuery delTeamIdp (team, idp)
   where
+    delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
+    delDefaultIdp = "DELETE FROM default_idp WHERE idp = ?"
+
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
 
@@ -418,6 +428,47 @@ deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
   where
     del :: PrepQuery W (Identity SAML.IdPId) ()
     del = "DELETE FROM idp_raw_metadata WHERE id = ?"
+
+----------------------------------------------------------------------
+-- SSO settings
+
+-- It's important to maintain two invariants:
+-- 1) whenever there is a default code, it must also exist in the idp table
+-- 2) there can always only be one default SSO code selected
+
+getDefaultSSOCode
+  :: (HasCallStack, MonadClient m)
+  => m (Maybe SAML.IdPId)
+getDefaultSSOCode = fmap runIdentity . minimumMay <$>
+  (retry x1 . query sel $ params Quorum ())
+  where
+    sel :: PrepQuery R () (Identity SAML.IdPId)
+    sel = "SELECT idp FROM default_idp"
+
+storeDefaultSSOCode
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> m ()
+storeDefaultSSOCode idpId = do
+  -- there is a race condition here which means there could potentially be more
+  -- than one entry (violating invariant 2).
+  -- However, the SELECT query will deterministally pick one of them and the
+  -- others will get removed by TRUNCATE the next time this function is called.
+  retry x5 . write trunc $ params Quorum ()
+  retry x5 . write ins $ params Quorum (Identity idpId)
+
+  where
+    trunc :: PrepQuery W () ()
+    trunc = "TRUNCATE default_idp"
+    ins :: PrepQuery W (Identity SAML.IdPId) ()
+    ins = "INSERT INTO default_idp (idp) VALUES (?)"
+
+deleteDefaultSSOCode
+  :: (HasCallStack, MonadClient m)
+  => m ()
+deleteDefaultSSOCode = retry x5 . write del $ params Quorum ()
+  where
+    del :: PrepQuery W () ()
+    del = "TRUNCATE default_idp"
 
 ----------------------------------------------------------------------
 -- SCIM auth
