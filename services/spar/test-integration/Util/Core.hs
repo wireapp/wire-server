@@ -261,7 +261,6 @@ createUserWithTeamDisableSSO brg gly = do
           $ pure ()
     return (uid, tid)
 
--- TODO this is in galley? should this not be in the same place as the default SSO code?
 getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
 getSSOEnabledInternal gly tid = do
     get $ gly
