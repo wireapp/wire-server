@@ -1,0 +1,40 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library"
+)
+
+haskell_library(
+    name = "bilge",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/imports",
+        "//libs/types-common",
+
+        "@stackage//:aeson",
+        "@stackage//:ansi-terminal",
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:case-insensitive",
+        "@stackage//:containers",
+        "@stackage//:cookie",
+        "@stackage//:data-default",
+        "@stackage//:errors",
+        "@stackage//:exceptions",
+        "@stackage//:http-client",
+        "@stackage//:http-types",
+        "@stackage//:lens",
+        "@stackage//:monad-control",
+        "@stackage//:mtl",
+        "@stackage//:text",
+        "@stackage//:time",
+        "@stackage//:tinylog",
+        "@stackage//:transformers",
+        "@stackage//:transformers-base",
+        "@stackage//:unliftio",
+        "@stackage//:uri-bytestring",
+        "@stackage//:wai",
+        "@stackage//:wai-extra",
+
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,40 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_binary",
+)
+
+haskell_binary(
+    name = "proxy",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/bilge",
+        "//libs/extended",
+        "//libs/imports",
+        "//libs/metrics-core",
+        "//libs/metrics-wai",
+        "//libs/types-common",
+        "//libs/wai-utilities",
+
+        "@stackage//:aeson",
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:case-insensitive",
+        "@stackage//:configurator",
+        "@stackage//:data-default",
+        "@stackage//:http-client",
+        "@stackage//:http-client-tls",
+        "@stackage//:http-reverse-proxy",
+        "@stackage//:http-types",
+        "@stackage//:exceptions",
+        "@stackage//:lens",
+        "@stackage//:retry",
+        "@stackage//:text",
+        "@stackage//:tinylog",
+        "@stackage//:unliftio-core",
+        "@stackage//:wai",
+        "@stackage//:wai-predicates",
+        "@stackage//:wai-routing",
+        "@stackage//:warp",
+    ],
+    linkstatic = True,
+)

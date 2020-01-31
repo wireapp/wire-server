@@ -1,0 +1,28 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library",
+)
+
+haskell_library(
+    name = "metrics-wai",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/imports",
+        "//libs/metrics-core",
+
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:clock",
+        "@stackage//:containers",
+        "@stackage//:exceptions",
+        "@stackage//:http-types",
+        "@stackage//:servant",
+        "@stackage//:string-conversions",
+        "@stackage//:text",
+        "@stackage//:wai",
+        "@stackage//:wai-middleware-prometheus",
+        "@stackage//:wai-route",
+        "@stackage//:wai-routing",
+    ],
+    visibility = ["//visibility:public"],
+)

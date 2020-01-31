@@ -1,0 +1,24 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library",
+)
+
+haskell_library(
+    name = "metrics-core",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/imports",
+
+        "@stackage//:aeson",
+        "@stackage//:base",
+        "@stackage//:containers",
+        "@stackage//:hashable",
+        "@stackage//:immortal",
+        "@stackage//:prometheus-client",
+        "@stackage//:unordered-containers",
+        "@stackage//:text",
+        "@stackage//:transformers",
+        "@stackage//:vector",
+    ],
+    visibility = ["//visibility:public"],
+)

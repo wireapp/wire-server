@@ -1,0 +1,43 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library",
+)
+
+haskell_library(
+    name = "wai-utilities",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/bilge",
+        "//libs/extended",
+        "//libs/imports",
+        "//libs/metrics-core",
+        "//libs/metrics-wai",
+        "//libs/types-common",
+
+        "@stackage//:aeson",
+        "@stackage//:async",
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:bytestring-conversion",
+        "@stackage//:containers",
+        "@stackage//:errors",
+        "@stackage//:exceptions",
+        "@stackage//:http-types",
+        "@stackage//:lens",
+        "@stackage//:pipes",
+        "@stackage//:prometheus-client",
+        "@stackage//:streaming-commons",
+        "@stackage//:stm",
+        "@stackage//:string-conversions",
+        "@stackage//:swagger",
+        "@stackage//:text",
+        "@stackage//:transformers",
+        "@stackage//:tinylog",
+        "@stackage//:unix",
+        "@stackage//:wai",
+        "@stackage//:wai-predicates",
+        "@stackage//:wai-routing",
+        "@stackage//:warp",
+    ],
+    visibility = ["//visibility:public"],
+)

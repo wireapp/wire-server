@@ -1,0 +1,31 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library"
+)
+
+haskell_library(
+    name = "extended",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "//libs/imports",
+
+        "@stackage//:aeson",
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:cql-io",
+        "@stackage//:errors",
+        "@stackage//:exceptions",
+        "@stackage//:extra",
+        "@stackage//:http-types",
+        "@stackage//:optparse-applicative",
+        "@stackage//:mtl",
+        "@stackage//:servant",
+        "@stackage//:servant-server",
+        "@stackage//:servant-swagger",
+        "@stackage//:string-conversions",
+        "@stackage//:tinylog",
+        "@stackage//:transformers",
+        "@stackage//:wai",
+    ],
+    visibility = ["//visibility:public"],
+)

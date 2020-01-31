@@ -74,3 +74,5 @@ deploy/dockerephemeral/build/smtp/
 
 # Ignore cabal files; use package.yaml instead
 *.cabal
+
+bazel-*

@@ -1,0 +1,29 @@
+load(
+    "@rules_haskell//haskell:defs.bzl",
+    "haskell_library"
+)
+
+haskell_library(
+    name = "imports",
+    srcs = glob(["src/**/*.hs"]),
+    deps = [
+        "@stackage//:base",
+        "@stackage//:bytestring",
+        "@stackage//:containers",
+        "@stackage//:deepseq",
+        "@stackage//:errors",
+        "@stackage//:extra",
+        "@stackage//:mtl",
+        "@stackage//:unliftio",
+        "@stackage//:unliftio-core",
+        "@stackage//:unordered-containers",
+        "@stackage//:servant",
+        "@stackage//:servant-client",
+        "@stackage//:servant-server",
+        "@stackage//:servant-swagger",
+        "@stackage//:text",
+        "@stackage//:tinylog",
+        "@stackage//:transformers",
+    ],
+    visibility = ["//visibility:public"],
+)
