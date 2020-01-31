@@ -241,7 +241,7 @@ maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 data SSOSettings = SSOSettings
     { ssoDefaultCode :: !(Maybe IdPId)
     }
-  deriving (Show)
+  deriving (Generic, Show)
 
 instance FromJSON SSOSettings where
   parseJSON = withObject "SSOSettings" $ \obj -> do
