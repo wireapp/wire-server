@@ -57,7 +57,6 @@ module Spar.Data
 
 import Imports
 import Cassandra as Cas
-import Control.Error (minimumMay)
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
@@ -440,11 +439,11 @@ deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
 getDefaultSSOCode
   :: (HasCallStack, MonadClient m)
   => m (Maybe SAML.IdPId)
-getDefaultSSOCode = fmap runIdentity . minimumMay <$>
-  (retry x1 . query sel $ params Quorum ())
+getDefaultSSOCode = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum ())
   where
     sel :: PrepQuery R () (Identity SAML.IdPId)
-    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp"
+    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp LIMIT 1"
 
 storeDefaultSSOCode
   :: (HasCallStack, MonadClient m)
