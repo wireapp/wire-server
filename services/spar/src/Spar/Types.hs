@@ -239,7 +239,7 @@ maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 
 data SsoSettings = SsoSettings
-    { ssoDefaultCode :: !(Maybe IdPId)
+    { defaultSsoCode :: !(Maybe IdPId)
     }
   deriving (Generic, Show)
 
@@ -249,5 +249,5 @@ instance FromJSON SsoSettings where
     SsoSettings <$> obj .: "default_sso_code"
 
 instance ToJSON SsoSettings where
-  toJSON SsoSettings{ssoDefaultCode} =
-    object [ "default_sso_code" .= ssoDefaultCode]
+  toJSON SsoSettings{defaultSsoCode} =
+    object [ "default_sso_code" .= defaultSsoCode]

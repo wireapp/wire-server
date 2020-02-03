@@ -164,6 +164,6 @@ instance ToSchema RawIdPMetadata where
 instance ToSchema SsoSettings where
   declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions
     { fieldLabelModifier = \case
-        "ssoDefaultCode" -> "default_sso_code"
+        "defaultSsoCode" -> "default_sso_code"
         other -> other
     }

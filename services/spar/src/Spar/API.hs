@@ -288,8 +288,8 @@ internalDeleteTeam team = do
   pure NoContent
 
 internalPutSsoSettings :: SsoSettings -> Spar NoContent
-internalPutSsoSettings SsoSettings{ssoDefaultCode} = do
-  case ssoDefaultCode of
+internalPutSsoSettings SsoSettings{defaultSsoCode} = do
+  case defaultSsoCode of
     Nothing -> do
       wrapMonadClient $ Data.deleteDefaultSSOCode
       pure NoContent
