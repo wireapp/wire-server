@@ -922,7 +922,7 @@ specSSOSettings = do
         nonExisting <- IdPId <$> liftIO UUID.nextRandom
         callSetSSODefaultCode'  (env ^. teSpar) (Just userid) nonExisting
           `shouldRespondWith` \resp ->
-            statusCode resp == 404  -- not quite right
+            statusCode resp == 404  -- not quite right, see 'internalPutSSOSettings'
 
       it "allows setting a default SSO code" $ do
         env <- ask
