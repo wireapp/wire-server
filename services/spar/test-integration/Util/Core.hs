@@ -70,9 +70,9 @@ module Util.Core
   , getSsoidViaSelf, getSsoidViaSelf'
   , getUserIdViaRef, getUserIdViaRef'
   , getScimUser
-  , callGetSSODefaultCode'
-  , callSetSSODefaultCode'
-  , callDeleteSSODefaultCode'
+  , callGetDefaultSsoCode'
+  , callSetDefaultSsoCode'
+  , callDeleteDefaultSsoCode'
   ) where
 
 import Imports hiding (head)
@@ -784,14 +784,14 @@ callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.Id
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
-callGetSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
-callGetSSODefaultCode' sparreq_ muid = do
+callGetDefaultSsoCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callGetDefaultSsoCode' sparreq_ muid = do
   get $ sparreq_
     . maybe id zUser muid
     . path "/sso/settings/"
 
-callSetSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
-callSetSSODefaultCode' sparreq_ muid ssoCode = do
+callSetDefaultSsoCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callSetDefaultSsoCode' sparreq_ muid ssoCode = do
   let settings = RequestBodyLBS . Aeson.encode $ object
         [ "default_sso_code" .= (SAML.fromIdPId ssoCode :: UUID)
         ]
@@ -801,8 +801,8 @@ callSetSSODefaultCode' sparreq_ muid ssoCode = do
     . body settings
     . header "Content-Type" "application/json"
 
-callDeleteSSODefaultCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
-callDeleteSSODefaultCode' sparreq_ muid = do
+callDeleteDefaultSsoCode' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callDeleteDefaultSsoCode' sparreq_ muid = do
   let settings = RequestBodyLBS . Aeson.encode $ object
         [ "default_sso_code" .= Aeson.Null
         ]

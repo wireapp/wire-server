@@ -159,7 +159,7 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
 
 ssoSettings :: Spar SsoSettings
 ssoSettings = do
-  SsoSettings <$> wrapMonadClient Data.getDefaultSSOCode
+  SsoSettings <$> wrapMonadClient Data.getDefaultSsoCode
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -289,7 +289,7 @@ internalDeleteTeam team = do
 
 internalPutSsoSettings :: SsoSettings -> Spar NoContent
 internalPutSsoSettings SsoSettings{defaultSsoCode = Nothing} = do
-  wrapMonadClient $ Data.deleteDefaultSSOCode
+  wrapMonadClient $ Data.deleteDefaultSsoCode
   pure NoContent
 
 internalPutSsoSettings SsoSettings{defaultSsoCode = Just code} = do
@@ -301,5 +301,5 @@ internalPutSsoSettings SsoSettings{defaultSsoCode = Just code} = do
       throwSpar SparNotFound
 
     Just _ -> do
-      wrapMonadClient $ Data.storeDefaultSSOCode code
+      wrapMonadClient $ Data.storeDefaultSsoCode code
       pure NoContent

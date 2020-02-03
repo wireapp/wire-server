@@ -37,9 +37,9 @@ module Spar.Data
   , deleteIdPRawMetadata
 
   -- * SSO settings
-  , storeDefaultSSOCode
-  , getDefaultSSOCode
-  , deleteDefaultSSOCode
+  , storeDefaultSsoCode
+  , getDefaultSsoCode
+  , deleteDefaultSsoCode
 
   -- * SCIM auth
   , insertScimToken
@@ -436,34 +436,34 @@ deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
 -- 1) whenever there is a default code, it must also exist in the idp table
 -- 2) there can always only be one default SSO code selected
 
-getDefaultSSOCode
+getDefaultSsoCode
   :: (HasCallStack, MonadClient m)
   => m (Maybe SAML.IdPId)
-getDefaultSSOCode = runIdentity <$$>
+getDefaultSsoCode = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum ())
   where
     sel :: PrepQuery R () (Identity SAML.IdPId)
     sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp LIMIT 1"
 
-storeDefaultSSOCode
+storeDefaultSsoCode
   :: (HasCallStack, MonadClient m)
   => SAML.IdPId -> m ()
-storeDefaultSSOCode idpId = do
+storeDefaultSsoCode idpId = do
   -- there is a race condition here which means there could potentially be more
   -- than one entry (violating invariant 2).
   -- However, the SELECT query will deterministally pick one of them due to the
-  -- `ORDER BY` clause. The others will get removed by `deleteDefaultSSOCode`
+  -- `ORDER BY` clause. The others will get removed by `deleteDefaultSsoCode`
   -- the next time this function is called (as it removes all entries).
-  deleteDefaultSSOCode
+  deleteDefaultSsoCode
   retry x5 . write ins $ params Quorum (Identity idpId)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "INSERT INTO default_idp (partition_key_always_default, idp) VALUES ('default', ?)"
 
-deleteDefaultSSOCode
+deleteDefaultSsoCode
   :: (HasCallStack, MonadClient m)
   => m ()
-deleteDefaultSSOCode = retry x5 . write del $ params Quorum ()
+deleteDefaultSsoCode = retry x5 . write del $ params Quorum ()
   where
     del :: PrepQuery W () ()
     del = "DELETE FROM default_idp WHERE partition_key_always_default = 'default'"
