@@ -135,6 +135,20 @@ spec = describe "toScimStoredUser'" $ do
         applyOperation (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "oldValue") mempty)) operation
           `shouldBe` (Right (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "newValue") mempty)))
 
+      it "treats rich info map case insensitively" $ do
+        let operationJSON = [aesonQQ|{
+                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                       "operations" : [{
+                                         "op" : "replace",
+                                         "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:OLDATTR",
+                                         "value" : "newValue"
+                                       }]
+                                     }|]
+        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
+        applyOperation (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "oldValue") mempty)) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "newValue") mempty)))
+
+
       it "can remove from rich info map" $ do
         let operationJSON = [aesonQQ|{
                                        "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
