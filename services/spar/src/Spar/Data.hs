@@ -369,32 +369,17 @@ getIdPConfigsByTeam team = do
 deleteIdPConfig
   :: (HasCallStack, MonadClient m)
   => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
-deleteIdPConfig idp issuer team = do
-    currentDefaultIdP <- runIdentity <$$> retry x1 (query1 selDefaultIdp $ params Quorum ())
-
-    if currentDefaultIdP == Just idp
-    then
-      retry x5 $ batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        addPrepQuery delDefaultIdp (Identity idp)
-        addPrepQuery delIdp (Identity idp)
-        addPrepQuery delIssuerIdp (Identity issuer)
-        addPrepQuery delTeamIdp (team, idp)
-    else
-      retry x5 $ batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        addPrepQuery delIdp (Identity idp)
-        addPrepQuery delIssuerIdp (Identity issuer)
-        addPrepQuery delTeamIdp (team, idp)
+deleteIdPConfig idp issuer team = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery delDefaultIdp (Identity idp)
+    addPrepQuery delIdp (Identity idp)
+    addPrepQuery delIssuerIdp (Identity issuer)
+    addPrepQuery delTeamIdp (team, idp)
 
   where
-    selDefaultIdp :: PrepQuery R () (Identity SAML.IdPId)
-    selDefaultIdp = "SELECT FROM default_idp WHERE primary_key_always_default = 'default'"
-
     delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
-    delDefaultIdp = "DELETE FROM default_idp WHERE primary_key_always_default = 'default' IF idp = ?"
+    delDefaultIdp = "DELETE FROM default_idp WHERE partition_key_always_default = 'default' AND idp = ?"
 
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
@@ -459,17 +444,24 @@ getDefaultSSOCode = fmap runIdentity . minimumMay <$>
   (retry x1 . query sel $ params Quorum ())
   where
     sel :: PrepQuery R () (Identity SAML.IdPId)
-    sel = "SELECT idp FROM default_idp WHERE primary_key_always_default = 'default'"
+    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default'"
 
 storeDefaultSSOCode
   :: (HasCallStack, MonadClient m)
   => SAML.IdPId -> m ()
 storeDefaultSSOCode idpId = do
+  -- there is a race condition here which means there could potentially be more
+  -- than one entry (violating invariant 2).
+  -- However, the SELECT query will deterministally pick one of them and the
+  -- others will get removed by TRUNCATE the next time this function is called.
+  deleteDefaultSSOCode
   retry x5 . write ins $ params Quorum (Identity idpId)
 
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
-    ins = "INSERT INTO default_idp (primary_key_always_default, idp) VALUES ('default', ?)"
+    ins = "INSERT INTO default_idp (partition_key_always_default, idp) VALUES ('default', ?)"
+
+
 
 deleteDefaultSSOCode
   :: (HasCallStack, MonadClient m)
@@ -477,7 +469,7 @@ deleteDefaultSSOCode
 deleteDefaultSSOCode = retry x5 . write del $ params Quorum ()
   where
     del :: PrepQuery W () ()
-    del = "DELETE FROM default_idp WHERE primary_key_always_default = 'default'"
+    del = "DELETE FROM default_idp WHERE partition_key_always_default = 'default'"
 
 ----------------------------------------------------------------------
 -- SCIM auth
