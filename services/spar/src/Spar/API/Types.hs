@@ -49,7 +49,7 @@ type APISSO
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
   :<|> APIAuthResp
-  :<|> "settings" :> APISsoSettings
+  :<|> "settings" :> SsoSettingsGet
 
 type CheckOK = Verb 'HEAD 200
 
@@ -148,7 +148,7 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServantErr . SAML.CustomError . SparNewIdPBadMetadata . cs
 
-type APISsoSettings
+type SsoSettingsGet
      = Get '[JSON] SsoSettings
 
 
