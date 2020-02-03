@@ -444,7 +444,7 @@ getDefaultSSOCode = fmap runIdentity . minimumMay <$>
   (retry x1 . query sel $ params Quorum ())
   where
     sel :: PrepQuery R () (Identity SAML.IdPId)
-    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default'"
+    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp"
 
 storeDefaultSSOCode
   :: (HasCallStack, MonadClient m)
@@ -452,9 +452,9 @@ storeDefaultSSOCode
 storeDefaultSSOCode idpId = do
   -- there is a race condition here which means there could potentially be more
   -- than one entry (violating invariant 2).
-  -- However, the SELECT query will deterministally pick one of them and the
-  -- others will get removed by `deleteDefaultSSOCode` the next time this
-  -- function is called (as it removes all entries)
+  -- However, the SELECT query will deterministally pick one of them due to the
+  -- `ORDER BY` clause. The others will get removed by `deleteDefaultSSOCode`
+  -- the next time this function is called (as it removes all entries).
   deleteDefaultSSOCode
   retry x5 . write ins $ params Quorum (Identity idpId)
   where
