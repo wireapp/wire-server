@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)

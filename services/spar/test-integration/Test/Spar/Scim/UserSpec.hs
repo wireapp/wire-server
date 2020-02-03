@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | Integration tests for the branch of SCIM API that deals with users (@\/scim\/v2\/Users@).
 module Test.Spar.Scim.UserSpec (spec) where

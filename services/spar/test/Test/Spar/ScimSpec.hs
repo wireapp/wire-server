@@ -9,7 +9,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports -Wno-incomplete-uni-patterns #-}
 
 module Test.Spar.ScimSpec where
 

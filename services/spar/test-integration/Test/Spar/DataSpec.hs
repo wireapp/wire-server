@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards     #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Spar.DataSpec (spec) where
 

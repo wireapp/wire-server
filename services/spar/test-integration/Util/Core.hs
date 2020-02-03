@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards     #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | Two (weak) reasons why I implemented the clients without the help of servant-client: (1) I
 -- wanted smooth integration in 'HttpMonad'; (2) I wanted the choice of receiving the unparsed
