@@ -26,12 +26,18 @@ import Data.Text.Ascii
 import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
+import Data.CaseInsensitive (CI)
+import Data.Hashable (Hashable)
+import Control.Monad.Fail (MonadFail)
 
-import qualified Brig.Types.Code     as Code
-import qualified Data.Aeson.Types    as Aeson
-import qualified Data.Currency       as Currency
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text           as Text
+import qualified Data.HashMap.Strict  as HM
+import qualified Brig.Types.Code      as Code
+import qualified Data.Aeson.Types     as Aeson
+import qualified Data.Currency        as Currency
+import qualified Data.HashMap.Strict  as HashMap
+import qualified Data.Text            as Text
+import qualified Data.Map             as Map
+import qualified Data.CaseInsensitive as CI
 
 -----------------------------------------------------------------------------
 -- User Attributes
@@ -273,36 +279,100 @@ instance ToJSON SelfProfile where
 
 ----------------------------------------------------------------------------
 -- Rich info
+data RichInfo = RichInfo { richInfoMap :: Map (CI Text) Text
+                         , richInfoAssocList :: [RichField]
+                         }
+  deriving (Eq, Show, Generic)
 
-data RichInfo = RichInfo
-    { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
-    }
-    deriving (Eq, Show, Generic)
+newtype RichInfoAssocList = RichInfoAssocList [RichField]
+  deriving (Eq, Show, Generic)
 
-instance ToJSON RichInfo where
-    toJSON u = object
-        [ "fields" .= richInfoFields u
-        , "version" .= (0 :: Int)
-        ]
+toRichInfoAssocList :: RichInfo -> RichInfoAssocList
+toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
+  where
+    nubrf :: [RichField] -> [RichField]
+    nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
+
+    toal :: Map (CI Text) Text -> [RichField]
+    toal = map (\(k, v) -> RichField k v) . Map.toAscList
+
+richInfoMapURN, richInfoAssocListURN :: Text
+richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
+richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
 instance FromJSON RichInfo where
-    parseJSON = withObject "RichInfo" $ \o -> do
-        version :: Int <- o .: "version"
-        case version of
-            0 -> do
-                fields <- o .: "fields"
-                checkDuplicates (map richFieldType fields)
-                pure (RichInfo fields)
-            _ -> fail ("unknown version: " <> show version)
-      where
-        checkDuplicates :: [Text] -> Aeson.Parser ()
-        checkDuplicates xs =
-            case filter ((> 1) . length) . group . sort $ xs of
-                [] -> pure ()
-                ds -> fail ("duplicate fields: " <> show (map head ds))
+  parseJSON =
+    withObject "RichInfo"
+    $ \o ->
+        let objWithCIKeys = hmMapKeys CI.mk o
+        in normalizeRichInfo
+           <$> (RichInfo
+                <$> extractMap objWithCIKeys
+                <*> extractAssocList objWithCIKeys)
+    where
+      extractMap :: HashMap (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
+      extractMap o =
+        case HM.lookup (CI.mk richInfoMapURN) o of
+          Nothing -> pure mempty
+          Just innerObj -> do
+            Map.mapKeys CI.mk <$> parseJSON innerObj
 
+      extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
+      extractAssocList o =
+        case HM.lookup (CI.mk richInfoAssocListURN) o of
+          Nothing -> pure []
+          Just (Object innerObj) -> do
+            richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
+            case richInfo of
+              Object richinfoObj -> do
+                fields <- richInfoAssocListFromObject richinfoObj
+                pure fields
+              Array fields -> parseJSON (Array fields)
+              v -> Aeson.typeMismatch "Object" v
+          Just v -> Aeson.typeMismatch "Object" v
+
+      hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
+      hmMapKeys f = HashMap.fromList . (map (\(k,v) -> (f k, v))) . HashMap.toList
+
+      lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
+      lookupOrFail key theMap = case HM.lookup key theMap of
+                                  Nothing -> fail $ "key '" ++ show key ++ "' not found"
+                                  Just v -> return v
+
+richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
+richInfoAssocListFromObject richinfoObj = do
+  version :: Int <- richinfoObj .: "version"
+  when (version /= 0) $ fail $ "unknown version: " <> show version
+  fields <- richinfoObj .: "fields"
+  checkDuplicates (map richFieldType fields)
+  pure fields
+  where
+    checkDuplicates :: [CI Text] -> Aeson.Parser ()
+    checkDuplicates xs =
+      case filter ((> 1) . length) . group . sort $ xs of
+        [] -> pure ()
+        ds -> fail ("duplicate fields: " <> show (map head ds))
+
+instance ToJSON RichInfo where
+  toJSON u =
+    object [ richInfoAssocListURN .=
+             object [ "richInfo" .= object [ "fields" .= richInfoAssocList u
+                                           , "version" .= (0 :: Int)
+                                           ]]
+           , richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
+           ]
+
+instance FromJSON RichInfoAssocList where
+  parseJSON v =
+    RichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
+
+instance ToJSON RichInfoAssocList where
+  toJSON (RichInfoAssocList l) = object [ "fields" .= l
+                                        , "version" .= (0 :: Int)
+                                        ]
+-- TODO: Make richFieldType @CI Text@
 data RichField = RichField
-    { richFieldType  :: !Text
+    { richFieldType  :: !(CI Text)
     , richFieldValue :: !Text
     }
     deriving (Eq, Show, Generic)
@@ -313,36 +383,45 @@ instance ToJSON RichField where
     -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
     -- that some provisioning agent would support "type" but not "name".
     toJSON u = object
-        [ "type" .= richFieldType u
+        [ "type" .= CI.original (richFieldType u)
         , "value" .= richFieldValue u
         ]
 
 instance FromJSON RichField where
     parseJSON = withObject "RichField" $ \o -> do
         RichField
-            <$> o .: "type"
+            <$> (CI.mk <$> o .: "type")
             <*> o .: "value"
-
--- | Empty rich info, returned for users who don't have rich info set.
-emptyRichInfo :: RichInfo
-emptyRichInfo = RichInfo
-    { richInfoFields = []
-    }
 
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
 -- 'setRichInfoLimit'
 --
+-- This works on @[RichField]@ so it can be reused by @RichInfoAssocList@
+--
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
-richInfoSize :: RichInfo -> Int
-richInfoSize (RichInfo fields) =
-    sum [Text.length t + Text.length v | RichField t v <- fields]
+richInfoAssocListSize :: [RichField] -> Int
+richInfoAssocListSize fields = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
+
+-- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
+-- 'setRichInfoLimit'
+richInfoMapSize :: RichInfo -> Int
+richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k,v) <- Map.toList $ richInfoMap rif]
 
 -- | Remove fields with @""@ values.
 normalizeRichInfo :: RichInfo -> RichInfo
-normalizeRichInfo RichInfo{..} = RichInfo
-    { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+normalizeRichInfo (RichInfo rifMap assocList) = RichInfo
+    { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList
+    , richInfoMap = rifMap
     }
+
+-- | Remove fields with @""@ values.
+normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
+normalizeRichInfoAssocList (RichInfoAssocList l) =
+  RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
+
+emptyRichInfoAssocList :: RichInfoAssocList
+emptyRichInfoAssocList = RichInfoAssocList []
 
 -----------------------------------------------------------------------------
 -- New Users
@@ -539,7 +618,7 @@ newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show, Gener
 newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show, Generic)
 newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show, Generic)
 newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show, Generic)
-newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show, Generic)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfoAssocList } deriving (Eq, Show, Generic)
 
 newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show, Generic)
 newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show, Generic)
@@ -602,7 +681,7 @@ instance FromJSON RichInfoUpdate where
         RichInfoUpdate <$> o .: "rich_info"
 
 instance ToJSON RichInfoUpdate where
-    toJSON m = object ["rich_info" .= riuRichInfo m]
+    toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

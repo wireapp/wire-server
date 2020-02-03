@@ -204,7 +204,7 @@ instance Cql ManagedBy where
     toCql ManagedByWire = CqlInt 0
     toCql ManagedByScim = CqlInt 1
 
-instance Cql RichInfo where
+instance Cql RichInfoAssocList where
     ctype = Tagged BlobColumn
     toCql = toCql . Blob . JSON.encode
     fromCql (CqlBlob v) = JSON.eitherDecode v

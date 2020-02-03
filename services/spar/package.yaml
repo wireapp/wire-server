@@ -127,6 +127,7 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
+      - aeson-qq
       - async
       - galley-types
       - hspec

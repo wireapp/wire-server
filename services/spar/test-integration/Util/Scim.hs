@@ -24,6 +24,7 @@ import Util.Types
 import Web.HttpApiData (toHeader)
 
 import qualified Data.Aeson                       as Aeson
+import qualified Data.Map                         as Map
 import qualified SAML2.WebSSO                     as SAML
 import qualified Spar.Intra.Brig                  as Intra
 import qualified Text.Email.Parser                as Email
@@ -36,7 +37,7 @@ import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Schema.User.Email       as Email
 import qualified Web.Scim.Schema.User.Phone       as Phone
-
+import qualified Data.CaseInsensitive             as CI
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -81,9 +82,9 @@ randomScimUserWithSubject
 randomScimUserWithSubject = do
     fieldCount <- getRandomR (0, 3)
     fields <- replicateM fieldCount $
-        RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
+              (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo (RichInfo fields)
+    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo
@@ -173,7 +174,7 @@ patchUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> Scim.PatchOp.PatchOp
+    -> Scim.PatchOp.PatchOp SparTag
     -> TestSpar (Scim.StoredUser SparTag)
 patchUser tok uid patchOp = do
     env <- ask
@@ -317,8 +318,8 @@ updateUser_ auth muid user spar_ = do
         )
 
 -- | Patch a user
-patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp -> SparReq -> TestSpar ResponseLBS
-patchUser_ auth muid patchop spar_ = 
+patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp SparTag -> SparReq -> TestSpar ResponseLBS
+patchUser_ auth muid patchop spar_ =
     call . patch $
         ( spar_
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 -- | Integration tests for the branch of SCIM API that deals with users (@\/scim\/v2\/Users@).
 module Test.Spar.Scim.UserSpec (spec) where
@@ -9,7 +10,8 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
-import Data.Aeson.Types (toJSON)
+import Data.Aeson.Types (toJSON, fromJSON)
+import Data.Aeson.QQ (aesonQQ)
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
 import Data.Id (UserId, randomId)
@@ -18,7 +20,8 @@ import Spar.Scim
 import Spar.Types (IdP)
 import Util
 
-
+import qualified Data.Aeson                       as Aeson
+import qualified Data.Map                         as Map
 import qualified SAML2.WebSSO.Types               as SAML
 import qualified SAML2.WebSSO.Test.MockResponse   as SAML
 import qualified Spar.Data                        as Data
@@ -64,7 +67,8 @@ specCreateUser = describe "POST /Users" $ do
     it "allows an occupied externalId when the IdP is different" $
         testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
-    it "handles rich info correctly (this also tests put, get)" $ testRichInfo
+    it "handles rich info assocList correctly (this also tests put, get)" $ testRichInfoAssocList
+    it "handles rich info map correctly (this also tests put, get)" $ testRichInfoMap
     it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -190,15 +194,13 @@ testLocation = do
     r <- call (get (const req)) <!! const 200 === statusCode
     liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
-testRichInfo :: TestSpar ()
-testRichInfo = do
+testRichInfo :: PatchOp.PatchOp SparTag -> RichInfo -> RichInfo -> RichInfo -> TestSpar ()
+testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
     brig <- asks (view teBrig)
 
     -- set things up
-    let richInfo  = RichInfo [RichField "Platforms" "OpenBSD; Plan9"]
-        richInfo' = RichInfo [RichField "Platforms" "Windows10"]
     (user, _)  <- randomScimUserWithSubjectAndRichInfo richInfo
-    (user', _) <- randomScimUserWithSubjectAndRichInfo richInfo'
+    (userOverwritten, _) <- randomScimUserWithSubjectAndRichInfo richInfoOverwritten
     (tok, (owner, _, _)) <- registerIdPAndScimToken
 
     let -- validate response
@@ -225,22 +227,63 @@ testRichInfo = do
                                )
             liftIO $ do
                 statusCode resp `shouldBe` 200
-                responseJsonEither resp `shouldBe` Right rinf
+                responseJsonEither resp `shouldBe` Right (toRichInfoAssocList rinf)
 
     -- post response contains correct rich info.
-    scimStoredUser <- createUser tok user
-    checkStoredUser scimStoredUser richInfo
+    postResp :: Scim.UserC.StoredUser SparTag <- createUser tok user
+    let postUid = scimUserId postResp
+    checkStoredUser postResp richInfo
 
     -- post updates the backend as expected.
-    probeUser (scimUserId scimStoredUser) richInfo
+    probeUser postUid richInfo
 
     -- put response contains correct rich info.
-    scimStoredUser' <- updateUser tok (scimUserId scimStoredUser) user'
-    checkStoredUser scimStoredUser' richInfo'
+    putResp :: Scim.UserC.StoredUser SparTag <- updateUser tok postUid userOverwritten
+    let putUid = scimUserId putResp
+    checkStoredUser putResp richInfoOverwritten
 
-    -- post updates the backend as expected.
-    liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
-    probeUser (scimUserId scimStoredUser) richInfo'
+    -- put updates the backend as expected.
+    liftIO $ putUid `shouldBe` postUid
+    probeUser putUid richInfoOverwritten
+
+    -- patch response contains correct rich info.
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOp
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfoPatched
+
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfoPatched
+
+testRichInfoMap :: TestSpar ()
+testRichInfoMap =
+    let richInfo  = RichInfo (Map.singleton "Platforms" "OpenBSD; Plan9") mempty
+        richInfoOverwritten = RichInfo (Map.singleton "Platforms" "Windows10") mempty
+        richInfoPatched = RichInfo (Map.singleton "Platforms" "Arch, BTW") mempty
+        (Aeson.Success patchOp) = fromJSON [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Platforms",
+                                                        "value" : "Arch, BTW"
+                                                      }]
+                                                    }|]
+    in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
+
+testRichInfoAssocList :: TestSpar ()
+testRichInfoAssocList =
+    let richInfo  = RichInfo mempty [RichField "Platforms" "OpenBSD; Plan9"]
+        richInfoOverwritten = RichInfo mempty [RichField "Platforms" "Windows10"]
+        richInfoPatched = RichInfo mempty [RichField "Platforms" "Arch, BTW"]
+        (Aeson.Success patchOp) = fromJSON [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:wire:scim:schemas:profile:1.0:Platforms",
+                                                        "value" : "Arch, BTW"
+                                                      }]
+                                                    }|]
+    in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
@@ -323,7 +366,7 @@ specListUsers = describe "GET /Users" $ do
 
     it "finds a SCIM-provisioned user" $ testFindProvisionedUser
     it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
-    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored 
+    it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored
     it "doesn't list deleted users" $ testListNoDeletedUsers
     it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
     it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
@@ -332,7 +375,7 @@ specListUsers = describe "GET /Users" $ do
 
 filterBy :: Text -> Text -> Filter.Filter
 filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
-  
+
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
@@ -380,7 +423,7 @@ testSsoUsersWithoutHandleSilentlyIgnored = do
     let Right externalId = Intra.toExternalId ssoIdentity'
     users <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
-  
+
 
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
@@ -405,15 +448,11 @@ testFindNonProvisionedUser = do
     -- a scim record should've been inserted too
     _ <- getUser tok member
 
-
-
     let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser'
     let Right externalId = Intra.toExternalId ssoIdentity'
 
     users' <- listUsers tok (Just (filterBy "externalId" externalId))
     liftIO $ (scimUserId <$> users') `shouldContain` [member]
-
-    
 
 
 -- | Test that deleted users are not listed.
@@ -585,7 +624,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
 testCannotRemoveDisplayName :: TestSpar ()
 testCannotRemoveDisplayName = do
     -- NOTE: This behaviour is in violation of SCIM.
-    -- We either: 
+    -- We either:
     --  - Treat Null and omission the same; by always removing
     --  - Or default on omissison, delete on null
     --  We have to choose between the two behaviours; in order
@@ -779,15 +818,15 @@ specPatchUser = do
     -- also describe the current limitations. (We only support three fields so
     -- far)
     describe  "PATCH /Users/:id" $ do
-        let replaceAttrib name value = 
+        let replaceAttrib name value =
                 PatchOp.Operation
                     PatchOp.Replace
-                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
                     (Just (toJSON value))
-        let removeAttrib name = 
+        let removeAttrib name =
                 PatchOp.Operation
                     PatchOp.Remove
-                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) 
+                    (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
                     Nothing
         it "doing nothing doesn't change the user" $ do
             (tok, _) <- registerIdPAndScimToken
@@ -923,10 +962,10 @@ specPatchUser = do
             let userid = scimUserId storedUser
             let patchOp = PatchOp.PatchOp [ removeAttrib "externalId" ]
             patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
-            
-            
-            
-            
+
+
+
+
 
 
 
@@ -1047,5 +1086,3 @@ specAzureQuirks = do
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users' `shouldBe` []
-      
-

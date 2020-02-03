@@ -24,10 +24,10 @@ import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..), ServiceKeyType(..),ServiceKey(..), ServiceKeyPEM(..))
-import Brig.Types.Team.Invitation
-import Brig.Types.Team.LegalHold
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
+import Brig.Types.Team.Invitation
+import Brig.Types.Team.LegalHold
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
@@ -43,11 +43,11 @@ import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import GHC.TypeLits
 import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
-import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
@@ -313,12 +313,19 @@ instance Arbitrary UserProfile where
         <*> arbitrary
 
 instance Arbitrary RichField where
-    arbitrary = RichField <$> arbitrary <*> arbitrary
+    arbitrary =
+      RichField
+      <$> arbitrary
+      <*> (arbitrary `suchThat` (/= "")) -- This is required because FromJSON calls @normalizeRichInfo@ and roundtrip tests fail
 
 instance Arbitrary RichInfo where
     arbitrary = do
-        richInfoFields <- nubOn richFieldType <$> arbitrary
+        richInfoAssocList <- nubOn richFieldType <$> arbitrary
+        richInfoMap <- arbitrary
         pure RichInfo{..}
+
+instance Arbitrary RichInfoAssocList where
+  arbitrary = RichInfoAssocList <$> nubOn richFieldType <$> arbitrary
 
 instance Arbitrary RichInfoUpdate where
     arbitrary = RichInfoUpdate <$> arbitrary
