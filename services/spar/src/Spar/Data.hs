@@ -52,11 +52,11 @@ module Spar.Data
 
 import Imports
 import Cassandra as Cas
-import Control.Lens
-import Control.Monad.Except
-import Data.Id
+import Control.Lens ((^.))
+import Control.Monad.Except (MonadError(throwError))
+import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Misc ((<$$>))
-import Data.String.Conversions
+import Data.String.Conversions (ST, cs)
 import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.TypeLits (KnownSymbol)
