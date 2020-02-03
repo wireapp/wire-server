@@ -84,7 +84,7 @@ apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
      = internalStatus
   :<|> internalDeleteTeam
-  :<|> internalPutSSOSettings
+  :<|> internalPutSsoSettings
 
 
 appName :: ST
@@ -157,10 +157,9 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
 
-ssoSettings :: Spar SSOSettings
+ssoSettings :: Spar SsoSettings
 ssoSettings = do
-  mSSOCode <- wrapMonadClient Data.getDefaultSSOCode
-  pure SSOSettings{ssoDefaultCode = mSSOCode}
+  SsoSettings <$> wrapMonadClient Data.getDefaultSSOCode
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -288,8 +287,8 @@ internalDeleteTeam team = do
   wrapMonadClient $ Data.deleteTeam team
   pure NoContent
 
-internalPutSSOSettings :: SSOSettings -> Spar NoContent
-internalPutSSOSettings SSOSettings{ssoDefaultCode} = do
+internalPutSsoSettings :: SsoSettings -> Spar NoContent
+internalPutSsoSettings SsoSettings{ssoDefaultCode} = do
   case ssoDefaultCode of
     Nothing -> do
       wrapMonadClient $ Data.deleteDefaultSSOCode

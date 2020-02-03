@@ -49,7 +49,7 @@ type APISSO
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
   :<|> APIAuthResp
-  :<|> "settings" :> APISSOSettings
+  :<|> "settings" :> APISsoSettings
 
 type CheckOK = Verb 'HEAD 200
 
@@ -148,14 +148,14 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServantErr . SAML.CustomError . SparNewIdPBadMetadata . cs
 
-type APISSOSettings
-     = Get '[JSON] SSOSettings
+type APISsoSettings
+     = Get '[JSON] SsoSettings
 
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent
   :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent '[JSON] NoContent
-  :<|> "sso" :> "settings" :> ReqBody '[JSON] SSOSettings :> Put '[JSON] NoContent
+  :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
 
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
