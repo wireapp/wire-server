@@ -238,16 +238,16 @@ ttlToNominalDiffTime (TTL i32) = fromIntegral i32
 maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 
-data SSOSettings = SSOSettings
+data SsoSettings = SsoSettings
     { ssoDefaultCode :: !(Maybe IdPId)
     }
   deriving (Generic, Show)
 
-instance FromJSON SSOSettings where
-  parseJSON = withObject "SSOSettings" $ \obj -> do
+instance FromJSON SsoSettings where
+  parseJSON = withObject "SsoSettings" $ \obj -> do
     -- key needs to be present, but can be null
-    SSOSettings <$> obj .: "default_sso_code"
+    SsoSettings <$> obj .: "default_sso_code"
 
-instance ToJSON SSOSettings where
-  toJSON SSOSettings{ssoDefaultCode} =
+instance ToJSON SsoSettings where
+  toJSON SsoSettings{ssoDefaultCode} =
     object [ "default_sso_code" .= ssoDefaultCode]

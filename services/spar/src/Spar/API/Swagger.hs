@@ -161,7 +161,7 @@ instance ToSchema Void where
 instance ToSchema RawIdPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
-instance ToSchema SSOSettings where
+instance ToSchema SsoSettings where
   declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions
     { fieldLabelModifier = \case
         "ssoDefaultCode" -> "default_sso_code"
