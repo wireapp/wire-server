@@ -288,20 +288,18 @@ internalDeleteTeam team = do
   pure NoContent
 
 internalPutSsoSettings :: SsoSettings -> Spar NoContent
-internalPutSsoSettings SsoSettings{defaultSsoCode} = do
-  case defaultSsoCode of
-    Nothing -> do
-      wrapMonadClient $ Data.deleteDefaultSSOCode
+internalPutSsoSettings SsoSettings{defaultSsoCode = Nothing} = do
+  wrapMonadClient $ Data.deleteDefaultSSOCode
+  pure NoContent
+
+internalPutSsoSettings SsoSettings{defaultSsoCode = Just code} = do
+  wrapMonadClient (Data.getIdPConfig code) >>= \case
+    Nothing ->
+      -- this will return a 404, which is not quite right,
+      -- but it's an internal endpoint and the message clearly says
+      -- "Could not find IdP".
+      throwSpar SparNotFound
+
+    Just _ -> do
+      wrapMonadClient $ Data.storeDefaultSSOCode code
       pure NoContent
-
-    Just code -> do
-      wrapMonadClient (Data.getIdPConfig code) >>= \case
-        Nothing ->
-          -- this will return a 404, which is not quite right,
-          -- but it's an internal endpoint and the message clearly says
-          -- "Could not find IdP".
-          throwSpar SparNotFound
-
-        Just _ -> do
-          wrapMonadClient $ Data.storeDefaultSSOCode code
-          pure NoContent
