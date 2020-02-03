@@ -453,7 +453,8 @@ storeDefaultSSOCode idpId = do
   -- there is a race condition here which means there could potentially be more
   -- than one entry (violating invariant 2).
   -- However, the SELECT query will deterministally pick one of them and the
-  -- others will get removed by TRUNCATE the next time this function is called.
+  -- others will get removed by `deleteDefaultSSOCode` the next time this
+  -- function is called (as it removes all entries)
   deleteDefaultSSOCode
   retry x5 . write ins $ params Quorum (Identity idpId)
   where
