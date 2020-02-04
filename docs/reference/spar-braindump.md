@@ -61,6 +61,21 @@ using this idp.  see
 [here](https://support.wire.com/hc/en-us/articles/360000954617-Login-with-SSO)
 on how to use the login code.
 
+### setting a default SSO code
+
+To avoid having to give users the login code, a backend can also provide a default code on the endpoint `/sso/settings`.
+This needs to be set explicitly, since this is not always wanted and there might even be multiple idps (each with their own login code):
+
+```
+curl ${API_URL}/i/sso/settings -H 'Content-Type: application/json' -d '{"default_sso_code":"e97fbe2e-eeb1-11e9-acf3-9ba77d8a04bf"}'
+```
+
+Note the lack of the `wire-` prefix.
+
+This entry gets removed automatically when the idp is deleted, or manually by setting `{"default_sso_code":null}` as shown above.
+
+Clients can then ask for the default SSO code on `/sso/settings` and use it to initiate single sign-on.
+
 
 ### troubleshooting
 
