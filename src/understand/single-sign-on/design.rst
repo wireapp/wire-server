@@ -1,6 +1,11 @@
 Single-sign-on background and design choices (fragment)
 =======================================================
 
+Overview
+--------
+
+.. image:: Wire_SAML_Flow.png
+
 IdP-initiated login and SP-initiated login
 ------------------------------------------
 
