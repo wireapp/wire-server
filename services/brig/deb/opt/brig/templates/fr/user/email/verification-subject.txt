@@ -1,1 +1,1 @@
-Votre code de vérification ${brand}
+Votre code de vérification ${brand} est ${code}

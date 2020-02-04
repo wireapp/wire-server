@@ -1,1 +1,1 @@
-Codice di attivazione Wire
+Codice di attivazione Wire: ${code}
