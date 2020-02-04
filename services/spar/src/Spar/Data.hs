@@ -36,6 +36,11 @@ module Spar.Data
   , getIdPRawMetadata
   , deleteIdPRawMetadata
 
+  -- * SSO settings
+  , storeDefaultSsoCode
+  , getDefaultSsoCode
+  , deleteDefaultSsoCode
+
   -- * SCIM auth
   , insertScimToken
   , lookupScimToken
@@ -74,7 +79,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 6
+schemaVersion = 7
 
 
 ----------------------------------------------------------------------
@@ -366,10 +371,15 @@ deleteIdPConfig
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
+    addPrepQuery delDefaultIdp (Identity idp)
     addPrepQuery delIdp (Identity idp)
     addPrepQuery delIssuerIdp (Identity issuer)
     addPrepQuery delTeamIdp (team, idp)
+
   where
+    delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
+    delDefaultIdp = "DELETE FROM default_idp WHERE partition_key_always_default = 'default' AND idp = ?"
+
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
 
@@ -418,6 +428,45 @@ deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
   where
     del :: PrepQuery W (Identity SAML.IdPId) ()
     del = "DELETE FROM idp_raw_metadata WHERE id = ?"
+
+----------------------------------------------------------------------
+-- SSO settings
+
+-- It's important to maintain two invariants:
+-- 1) whenever there is a default code, it must also exist in the idp table
+-- 2) there can always only be one default SSO code selected
+
+getDefaultSsoCode
+  :: (HasCallStack, MonadClient m)
+  => m (Maybe SAML.IdPId)
+getDefaultSsoCode = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum ())
+  where
+    sel :: PrepQuery R () (Identity SAML.IdPId)
+    sel = "SELECT idp FROM default_idp WHERE partition_key_always_default = 'default' ORDER BY idp LIMIT 1"
+
+storeDefaultSsoCode
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> m ()
+storeDefaultSsoCode idpId = do
+  -- there is a race condition here which means there could potentially be more
+  -- than one entry (violating invariant 2).
+  -- However, the SELECT query will deterministally pick one of them due to the
+  -- `ORDER BY` clause. The others will get removed by `deleteDefaultSsoCode`
+  -- the next time this function is called (as it removes all entries).
+  deleteDefaultSsoCode
+  retry x5 . write ins $ params Quorum (Identity idpId)
+  where
+    ins :: PrepQuery W (Identity SAML.IdPId) ()
+    ins = "INSERT INTO default_idp (partition_key_always_default, idp) VALUES ('default', ?)"
+
+deleteDefaultSsoCode
+  :: (HasCallStack, MonadClient m)
+  => m ()
+deleteDefaultSsoCode = retry x5 . write del $ params Quorum ()
+  where
+    del :: PrepQuery W () ()
+    del = "DELETE FROM default_idp WHERE partition_key_always_default = 'default'"
 
 ----------------------------------------------------------------------
 -- SCIM auth
