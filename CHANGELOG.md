@@ -1,5 +1,35 @@
 # 2020-01-08
 
+## API changes (relevant client developers)
+
+- Allow up to 256 characters as handle, dots and dashes too (#953)
+  - All handles related endpoints, namely:
+    - POST "/users/handles"
+    - HEAD "/users/handles/:handle"
+    - GET "/users/handles/:handle"
+  - now accept this new format of handles
+- Refuse to delete non-empty IdPs (412 precondition failed) (#875)
+  - DELETE "identity-providers/:idp" will now return 412 if there are users provisioned with that IDP
+- Linear onboarding feature: Provide information about custom backends (#946)
+  - New public endpoint:
+    - GET "/custom-backend/by-domain/:domain"
+  - New interal endpoints:
+    - PUT "/i/custom-backend/by-domain/:domain"
+    - DELETE "/i/custom-backend/by-domain/:domain"
+
+## Bug fixes
+
+- Make sure that someone is SSO user before setting ManagedBy (#947)
+- Misc SCIM bugfixes (#948)
+
+## Internal changes
+
+- Fix complexity issue in cassandra query. (#942)
+- Remove collectd metrics (finally!) (#940)
+- Update `cargoSha256` for cryptobox-c in stack-deps.nix (#949)
+
+# 2020-01-08
+
 ## Relevant for self-hosters
 
 - Handle search within team (#921)
