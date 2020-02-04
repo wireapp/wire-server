@@ -57,10 +57,10 @@ packages:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: e395cd1477630d6f8385c44b9010f68b8a1ede06   # PR: https://github.com/wireapp/hsaml2/pull/5
+  commit: 2d56f432464e9bf6be8ee214d7f5bb28639457ac    # master (Feb 4, 20202)
 
 - git: https://github.com/wireapp/http-client
-  commit: 3b82a6ad7dbccf80222313b6f4ece1692f6301cd
+  commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf    # master (Feb 4, 2020)
   subdirs:
   - http-client
   - http-client-openssl
