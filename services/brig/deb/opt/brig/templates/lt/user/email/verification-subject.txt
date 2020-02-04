@@ -1,1 +1,1 @@
-„${brand}“ patvirtinimo kodas yra ${code}
+„${brand}“ patvirtinimo kodas
