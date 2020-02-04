@@ -26,6 +26,12 @@ settings:
   maxConvSize: 128
   intraListing: false
   conversationCodeURI: https://127.0.0.1/join/
+  concurrentDeletionEvents: 1024
+  deleteConvThrottleMillis: 0
+
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: disabled-by-default
 
 logLevel: Info
 logNetStrings: false
