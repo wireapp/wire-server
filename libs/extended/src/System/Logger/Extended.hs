@@ -30,7 +30,7 @@ instance FromJSON LC.Level
 instance ToJSON LC.Level
 
 -- | The log formats supported
-data LogFormat = JSON | Plain | Netstring 
+data LogFormat = JSON | Plain | Netstring
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -51,7 +51,7 @@ collect = foldr go (Element' mempty [])
     go :: Element -> Element' -> Element'
     go (Bytes b) (Element' f m) =
       Element' f (b : m)
-    go (Field k v) (Element' f m) = 
+    go (Field k v) (Element' f m) =
       Element' (f <> pair (cs . eval $ k) (text . cs . eval $ v)) m
 
 jsonRenderer :: Renderer
@@ -77,7 +77,7 @@ mkLogger lvl useNetstrings logFormat = do
     case (fmap netStringsToLogFormat <$> useNetstrings) <> logFormat of
       Just x -> getLast x
       Nothing -> Plain
-   
+
 -- | Version of mkLogger that doesn't support the deprecated useNetstrings option
 mkLoggerNew :: Log.Level -> LogFormat -> IO Log.Logger
 mkLoggerNew lvl logFormat = Log.new

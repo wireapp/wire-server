@@ -218,7 +218,7 @@ instance AccessTokenLike Access where
 instance AccessTokenLike LegalHoldAccess where
     accessTokenOf = legalHoldAccessTokenOf
     renewAccessToken = renewLegalHoldAccessToken
-    settingsTTL _ = legalHoldAccessTokenTimeout . legalHoldAccessTokenTimeoutSeconds 
+    settingsTTL _ = legalHoldAccessTokenTimeout . legalHoldAccessTokenTimeoutSeconds
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
     userTokenOf :: Token u -> UserId
