@@ -1,1 +1,1 @@
-${brand} verification code is ${code}
+„${brand}“ patvirtinimo kodas yra ${code}

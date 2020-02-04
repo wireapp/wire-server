@@ -3,12 +3,12 @@
 ${brand_label_url} [${brand_url}]
 
 PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} was used to register on ${brand}. Norėdami patvirtinti savo el. paštą
-ir susikurti paskyrą, įveskite šį kodą.
+${email} buvo užregistruotas „${brand}“ sistemoje. Norėdami patvirtinti savo el.
+paštą ir susikurti paskyrą, įveskite šį kodą.
 
 ${code}
 
-If you have any questions, please contact us [${support}].
+Jei turite klausimų, susisiekite su mumis [${support}].
 
 
 --------------------------------------------------------------------------------

@@ -3,15 +3,15 @@
 ${brand_label_url} [${brand_url}]
 
 PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} was used to register on ${brand}.
-Click the button to verify your address.
+${email} buvo panaudotas, registruojantis „${brand}“.
+Norėdami patvirtinti savo adresą, spustelėkite mygtuką.
 
 Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Jei turite klausimų, susisiekite su mumis [${support}].
 
 
 --------------------------------------------------------------------------------
