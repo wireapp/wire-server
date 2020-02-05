@@ -6,7 +6,6 @@ import Control.Lens hiding ((.=))
 import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
-import Data.Metrics.Middleware hiding (path)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
@@ -60,12 +59,6 @@ sitemap e = do
 
     head "/i/status" (continue $ const (return empty)) true
     get  "/i/status" (continue $ const (return empty)) true
-
-    get "/i/monitoring" (continue monitoring) $
-        accept "application" "json"
-
-monitoring :: Media "application" "json" -> Proxy Response
-monitoring = const $ json <$> (render =<< view monitor)
 
 youtube, googleMaps, giphy :: ProxyDest
 youtube    = ProxyDest "www.googleapis.com" 443

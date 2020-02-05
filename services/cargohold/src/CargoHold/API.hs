@@ -7,7 +7,6 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Metrics.Middleware hiding (metrics)
 import Data.Predicate
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
@@ -36,9 +35,6 @@ sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
     get  "/i/status" (continue $ const $ return empty) true
     head "/i/status" (continue $ const $ return empty) true
-
-    get "/i/monitoring" (continue $ const $ view metrics >>= fmap json . render) $
-        accept "application" "json"
 
     get "/assets/api-docs"
         (\(_ ::: url) k ->

@@ -147,6 +147,20 @@ run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
 	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
+CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1')
+.PHONY: git-add-cassandra-schema
+git-add-cassandra-schema: db-reset
+	( echo '# automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.txt
+	git add ./docs/reference/cassandra-schema.txt
+
+.PHONY: db-reset
+db-reset:
+	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+	make -C services/brig db-reset
+	make -C services/galley db-reset
+	make -C services/gundeck db-reset
+	make -C services/spar db-reset
+
 #################################
 ## dependencies
 

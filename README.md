@@ -125,7 +125,8 @@ See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build
 
 ### How to run integration tests
 
-Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
+Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. The test for brig also starts nginz, so make sure it has been built before.
+These services require most of the deployment dependencies as seen in the architecture diagram to also be available:
 
 - Required internal dependencies:
     - cassandra (with the correct schema)

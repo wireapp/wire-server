@@ -20,7 +20,6 @@ module Spar.Scim.User
       validateScimUser'
     , toScimStoredUser'
     , mkUserRef
-    , validateHandle
     ) where
 
 import Imports
@@ -71,7 +70,7 @@ import qualified Web.Scim.Schema.User             as Scim.User (schemas)
 instance Scim.UserDB SparTag Spar where
   -- | Filters users based on some predicate.  We do not support this endpoint
   -- without an explicit predicate due to performance reasons.  The predicate
-  -- can currently look for users based on handle or SSO ID. 
+  -- can currently look for users based on handle or SSO ID.
   --
   -- This endpoint will look for users in Brig, and then synthesize the
   -- corresponding SCIM record.
@@ -88,7 +87,7 @@ instance Scim.UserDB SparTag Spar where
     -- TODO(arianvp): DEPRECATED
     -- Getting users without a filter is deprecated an must be
     -- removed in the next release. It is never what we want; and non of the
-    -- current SCIM implementations mandate its use. 
+    -- current SCIM implementations mandate its use.
     --
     -- The code is rather problematic as it does O(n) HTTP requests to Brig (as
     -- brig does not support getting users in bulk). Given that Azure would
@@ -102,9 +101,7 @@ instance Scim.UserDB SparTag Spar where
     -- but it would complicate this code a bit, instead of leaving it as is.
     members <- lift $ Galley.getTeamMembers stiTeam
     brigusers :: [User]
-      -- TODO userDeleted is redundant. `getBrigUsers` already calls userDeleted in intra
-      <- filter (not . userDeleted) <$>
-         lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
+      <- lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser SparTag]
       <- lift . wrapMonadClient . Data.getScimUsers $ BrigTypes.userId <$> brigusers
     pure $ Scim.fromList scimusers
@@ -119,12 +116,12 @@ instance Scim.UserDB SparTag Spar where
               "username" -> do
                 handle <- MaybeT . pure . parseHandle . Text.toLower $ val
                 brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
-                createOrGetScimUser stiTeam brigUser
+                getOrCreateScimUser stiTeam brigUser
               "externalid" -> do
                 uref <- mkUserRef idpConfig (pure val)
                 uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
                 brigUser  <- MaybeT . lift . Intra.Brig.getBrigUser $ uid
-                createOrGetScimUser stiTeam brigUser
+                getOrCreateScimUser stiTeam brigUser
               _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
             pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -176,16 +173,14 @@ validateScimUser
   -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
-    idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp) !? 
+    idpConfig <- (wrapMonadClient . Data.getIdPConfig $ idp) !?
       Scim.serverError "No IdP configured for the provisioning token"
     richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
     validateScimUser' idpConfig richInfoLimit user
 
 -- | Validate a handle (@userName@).
--- We should lowercase the wire handle here first, as SCIM says it's case insensitive.
--- TODO(arianvp): We should do this at the hscim level. but for now I do it here
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
-validateHandle txt = case parseHandle (Text.toLower txt) of
+validateHandle txt = case parseHandle txt of
     Just h -> pure h
     Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
         (Just (txt <> "is not a valid Wire handle"))
@@ -222,10 +217,12 @@ validateScimUser'
   -> m ValidScimUser
 validateScimUser' idp richInfoLimit user = do
     uref :: SAML.UserRef <- mkUserRef idp (Scim.externalId user)
-    handl <- validateHandle (Scim.userName user)
+    handl <- validateHandle . Text.toLower . Scim.userName $ user
+        -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
+        -- be a little less brittle.
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
-    pure $ ValidScimUser user uref handl mbName richInfo
+    pure $ ValidScimUser user uref idp handl mbName richInfo
   where
 
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
@@ -290,7 +287,14 @@ mkUserRef idp extid = case extid of
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser SparTag)
-createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
+createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = do
+    -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
+    -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
+    -- tenant and had the idp config already in context from an earlier lookup.)
+    () <- let inidp = idpConfig ^. SAML.idpMetadata . SAML.edIssuer
+              inuref = uref ^. SAML.uidTenant
+          in assert (inidp == inuref) $ pure ()
+
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- ensure uniqueness constraints of all affected identifiers.
@@ -299,11 +303,10 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     assertHandleUnused handl buid
     -- if we crash now, retry POST will just work, or user gets told the handle
     -- is already in use and stops POSTing
-   
-    -- TODO(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
+
+    -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
     -- This is the pain and the price you pay for the horribleness called MTL
     storedUser <- lift $ toScimStoredUser buid user
-    idpConfig <-  lift $ SAML.getIdPConfigByIssuer (uref ^. SAML.uidTenant)
     let teamid = view SAML.idpExtraInfo idpConfig
     buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
     assert (buid == buid') $ pure ()
@@ -313,14 +316,13 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- making it transactional.  If the user redoes the POST A new standalone
     -- user will be created
     lift $ Intra.Brig.setBrigUserHandle buid handl
-    -- If we crash now,  a POST retry will fail with 409 user already exists. 
+    -- If we crash now,  a POST retry will fail with 409 user already exists.
     -- Azure at some point will retry with GET /Users?filter=userName eq handle
     -- and then issue a PATCH containing the rich info and the externalId
-    -- TODO(arianvp): Implement PATCH (Part of Phase 1)
     lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
     -- If we crash now, same as above, but the PATCH will only contain externalId
-    
-    -- TODO(arianvp): these two actions we probably want to make transactional
+
+    -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     lift . wrapMonadClient $ Data.insertSAMLUser uref buid
     pure storedUser
@@ -328,7 +330,7 @@ createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo -> UserId -> ValidScimUser -> m (Scim.StoredUser SparTag)
-updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
+updateValidScimUser tokinfo uid newScimUser = do
     -- TODO: currently the types in @hscim@ are constructed in such a way that
     -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
     -- does. @fisx believes that this situation could be improved (see
@@ -356,18 +358,17 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
         -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef' if it exists and
         -- is different from the new one)
         let newuref = newScimUser ^. vsuSAMLUserRef
-        molduref <- do
-          let eid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
-          (lift . wrapMonadClient . Data.getIdPConfig) `mapM` stiIdP >>= \case
-            Just (Just idp) -> Just <$> mkUserRef idp eid
-            _               -> pure Nothing
-        case molduref of
-          Just olduref -> when (olduref /= newuref) $ do
+        olduref <- do
+          let extid :: Maybe Text
+              extid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
+
+              idp :: IdP
+              idp = newScimUser ^. vsuIdp
+
+          mkUserRef idp extid
+
+        when (olduref /= newuref) $ do
             lift . wrapMonadClient $ Data.deleteSAMLUser olduref
-            lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
-          Nothing -> do
-            -- if there was no uref before.  (can't currently happen because we require saml
-            -- for scim to work, but this would be the right way to handle the case.)
             lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
 
         -- update 'SAML.UserRef' on brig
@@ -377,11 +378,21 @@ updateValidScimUser tokinfo@ScimTokenInfo{stiIdP} uid newScimUser = do
             -- this can only happen if user is found in spar.scim_user, but missing on brig.
             -- (internal error?  race condition?)
 
-        -- TODO: rich info and/or user handle may not have changed.  in that case don't write
-        -- it.
-        maybe (pure ()) (lift . Intra.Brig.setBrigUserName uid) $ newScimUser ^. vsuName
-        lift . Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
-        lift . Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
+        oldScimUser :: ValidScimUser
+          <- validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
+              -- the old scim user from our db is already validated, but this also recovers
+              -- the extra details not stored in the DB that we need here.
+
+        lift $ do
+            case newScimUser ^. vsuName of
+                Just nm | oldScimUser ^. vsuName /= Just nm -> Intra.Brig.setBrigUserName uid nm
+                _ -> pure ()
+
+            when (oldScimUser ^. vsuHandle /= newScimUser ^. vsuHandle) $
+                Intra.Brig.setBrigUserHandle uid $ newScimUser ^. vsuHandle
+
+            when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo) $
+                Intra.Brig.setBrigUserRichInfo uid $ newScimUser ^. vsuRichInfo
 
         -- store new user value to scim_user table (spar). (this must happen last, so in case
         -- of crash the client can repeat the operation and it won't be considered a noop.)
@@ -550,7 +561,7 @@ data NeededInfo = NeededInfo
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
 synthesizeScimUser info =
-  let 
+  let
     Handle userName = neededHandle info
     Name displayName = neededName info
   in
@@ -561,21 +572,23 @@ synthesizeScimUser info =
 
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
--- an already existing scim user 
-createOrGetScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
-createOrGetScimUser stiTeam brigUser = do
+-- an already existing scim user
+getOrCreateScimUser :: TeamId -> BrigTypes.User -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser SparTag)
+getOrCreateScimUser stiTeam brigUser = do
   team <- getUserTeam' brigUser
   guard $ stiTeam == team
   getScimUser' (BrigTypes.userId brigUser) <|> createScimUser' brigUser
   where
     createScimUser' brigUser' = do
       let uid = BrigTypes.userId brigUser'
-      setManagedBy' uid ManagedByScim
       handle <- getUserHandle' brigUser'
       let name = userName brigUser'
       richInfo <- getRichInfo' uid
+      -- NOTE: If user is not an SSO User; this returns Nothing
+      -- Hence; we should only set managedByScim if this _succeeds_
       ssoIdentity' <- getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
+      setManagedBy' uid ManagedByScim
       let neededInfo = NeededInfo handle name externalId richInfo
       let user = synthesizeScimUser neededInfo
       storedUser <-  toScimStoredUser'' uid user

@@ -45,17 +45,14 @@ module Data.Metrics
     -- * Helper functions
     , path
     , metrics
-    , render
     ) where
 
 import Imports hiding (lookup, union)
-import Data.Aeson
 import Data.Hashable
 
 import qualified Data.Text            as T
 import qualified Data.HashMap.Strict  as HM
 import qualified Data.Map.Strict      as M
-import qualified Data.Metrics.GC      as GC
 import qualified Prometheus as P
 
 -- | Internal Counter type
@@ -230,6 +227,8 @@ gaugeValue (Gauge g) = liftIO $ P.getGauge g
 -- prefixed with @collectd@) then you can delete this middleware entirely since the prometheus
 -- middleware records request durations already. In fact it much of the `metrics-wai` package
 -- can likely be deleted at that point.
+--
+-- NOTE: this is also used in the smoketests (api-simulations library) which needs to be changed before this can be removed.
 deprecatedRequestDurationHistogram :: Path -> HistogramInfo
 deprecatedRequestDurationHistogram pth = customHistogram pth requestDurationBuckets
     where
@@ -303,59 +302,3 @@ histoTimeAction :: (P.MonadMonitor m, MonadIO m) => HistogramInfo -> Metrics -> 
 histoTimeAction hi m act = do
     Histogram h <- histoGet hi m
     P.observeDuration h act
-
------------------------------------------------------------------------------
--- JSON rendering
-
--- | This is used to serialize metrics into a JSON value for collectd
-class Jsonable a where
-    toJson :: a -> IO Value
-
-instance Jsonable Counter where
-    toJson c = toJSON <$> counterValue c
-
-instance Jsonable Gauge where
-    toJson g = toJSON <$> gaugeValue g
-
-instance Jsonable Histogram where
-    -- Note that we round the keys into integers here for back-compatibility because
-    -- some metrics are constructed using the keys of this map (as integers) and having Double
-    -- keys would break the dashboards. This will no longer matter once all dashboards using
-    -- collectd have been migrated to use prometheus-backed metrics instead.
-    toJson h = toJSON . M.mapKeys (round @Double @Integer) <$> histoValue h
-
--- | Render metrics into a JSON value
-render :: MonadIO m => Metrics -> m Value
-render m = liftIO $ do
-    c <- snapshot =<< readIORef (counters m)
-    g <- snapshot =<< readIORef (gauges m)
-    b <- snapshot =<< readIORef (histograms m)
-    gc <- GC.toJson
-    let result = c `union` g `union` b
-    return $ maybe result (union result) gc
-  where
-    snapshot :: Jsonable a => HashMap Path a -> IO Value
-    snapshot = fmap object . mapM (\(k, v) -> (_path k .=) <$> toJson v) . HM.toList
-
-    union :: Value -> Value -> Value
-    union (Object a) (Object b) = Object $ a `merge` b
-    union (Array  a) (Array  b) = Array  $ a <> b
-    union Null       b          = b
-    union a          _          = a
-
--- | Merge two 'Object's together
-merge :: Object -> Object -> Object
-merge a = expand (expand mempty a)
-  where
-    expand :: Object -> Object -> Object
-    expand = HM.foldrWithKey (\k v obj -> insert obj (T.splitOn "." k) v)
-
-    insert :: Object -> [Text] -> Value -> Object
-    insert obj [t]    v = HM.insert t v obj
-    insert obj (t:tt) v = HM.insert t (Object $ insert (subtree t obj) tt v) obj
-    insert obj []     _ = obj
-
-    subtree :: Text -> Object -> Object
-    subtree t o = case HM.lookup t o of
-        Just (Object x) -> x
-        _               -> mempty

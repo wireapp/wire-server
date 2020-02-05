@@ -167,6 +167,7 @@ data ValidScimUser = ValidScimUser
   , _vsuSAMLUserRef   :: SAML.UserRef
       -- ^ (In the future, we may make this a 'Maybe' and allow for
       -- SCIM users without a SAML SSO identity.)
+  , _vsuIdp           :: IdP
 
     -- mapping to 'Brig.User'
   , _vsuHandle        :: Handle

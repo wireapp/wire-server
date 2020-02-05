@@ -43,6 +43,7 @@ import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
+import Galley.Types
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
@@ -103,8 +104,8 @@ instance Arbitrary TurnURI where
 
 instance Arbitrary Handle where
   arbitrary = Handle . ST.pack <$> do
-      let manyC n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'])
-      ((<>) <$> manyC 2 <*> (manyC =<< choose (0, 19)))
+      let many n = replicateM n (elements $ ['a'..'z'] <> ['0'..'9'] <> ['_'] <> ['-'] <> ['.'])
+      ((<>) <$> many 2 <*> (many =<< choose (0, 254)))
 
 instance Arbitrary Name where
   arbitrary = Name . ST.pack <$>
@@ -511,7 +512,7 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldServiceConfirm where
     arbitrary =
-        LegalHoldServiceConfirm 
+        LegalHoldServiceConfirm
           <$> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -534,5 +535,11 @@ instance Arbitrary Prekey where
 
 instance Arbitrary PrekeyId where
     arbitrary = PrekeyId <$> arbitrary
+
+instance Arbitrary CustomBackend where
+    arbitrary =
+        CustomBackend
+            <$> arbitrary
+            <*> arbitrary
 
 #endif

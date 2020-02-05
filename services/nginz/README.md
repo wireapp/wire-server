@@ -20,9 +20,11 @@ _Note_: Debian packages are only used as part of wire's infrastructure, and as s
 
 _Note_: Debian stable does not contain a new enough version of libsodium. you must get it from backports, testing, or unstable.
 
+_Note_: On some Ubuntu versions, upstart is installed in addition to systemd, causing runit to fail with an error like "Unable to connect to Upstart: Failed to connect to socket". Luckily, there is [a simple fix](https://forum.peppermintos.com/index.php?topic=5210.0).
+
 #### Build Dependencies:
 ```bash
-sudo apt install libossp-uuid-dev libpcre3-dev libsodium23 runit
+sudo apt install libossp-uuid-dev libpcre3-dev libsodium23 runit gnupg
 ```
 
 #### Building
