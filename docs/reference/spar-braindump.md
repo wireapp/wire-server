@@ -67,7 +67,7 @@ To avoid having to give users the login code, a backend can also provide a defau
 This needs to be set explicitly, since this is not always wanted and there might even be multiple idps (each with their own login code):
 
 ```
-curl ${API_URL}/i/sso/settings -H 'Content-Type: application/json' -d '{"default_sso_code":"e97fbe2e-eeb1-11e9-acf3-9ba77d8a04bf"}'
+curl -XPUT ${API_URL}/i/sso/settings -H 'Content-Type: application/json' -d '{"default_sso_code":"e97fbe2e-eeb1-11e9-acf3-9ba77d8a04bf"}'
 ```
 
 Note the lack of the `wire-` prefix.
