@@ -1,4 +1,4 @@
-# 2020-01-08
+# 2020-01-30
 
 ## API changes (relevant client developers)
 
