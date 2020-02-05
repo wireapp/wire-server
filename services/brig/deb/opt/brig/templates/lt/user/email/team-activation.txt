@@ -2,15 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-YOUR NEW ACCOUNT ON ${brand}
-A new ${brand} team was created with ${email}. Patvirtinkite savo el. paštą.
+JŪSŲ NAUJA „${brand}“ PASKYRA
+Naudojant ${email}, buvo sukurta nauja „${brand}“ komanda. Patvirtinkite savo
+el. paštą.
 
 Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:
 
 ${url}
 
-If you have any questions, please contact us [${support}].
+Jei turite klausimų, susisiekite su mumis [${support}].
 
 
 --------------------------------------------------------------------------------

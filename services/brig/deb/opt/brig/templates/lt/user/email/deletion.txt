@@ -14,7 +14,7 @@ ${url}
 
 Jeigu jūs nebuvote to užklausę, atstatykite savo slaptažodį [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Jei turite klausimų, susisiekite su mumis [${support}].
 
 
 --------------------------------------------------------------------------------
