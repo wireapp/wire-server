@@ -72,7 +72,7 @@ curl -XPUT ${API_URL}/i/sso/settings -H 'Content-Type: application/json' -d '{"d
 
 Note the lack of the `wire-` prefix.
 
-This entry gets removed automatically when the idp is deleted, or manually by setting `{"default_sso_code":null}` as shown above.
+This entry gets removed automatically when the corresponding idp is deleted. You can manually delete the default by making a `PUT` request as shown above with payload `{"default_sso_code":null}`.
 
 Clients can then ask for the default SSO code on `/sso/settings` and use it to initiate single sign-on.
 
