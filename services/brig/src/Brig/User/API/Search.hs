@@ -81,12 +81,15 @@ routes = do
 -- Handlers
 
 search :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
-search (_ ::: u ::: q ::: s) = do
+search (_ ::: u ::: q ::: s) = json <$> searchTyped u q s
+
+searchTyped :: UserId -> Text -> Range 1 100 Int32 -> Handler (SearchResult Contact)
+searchTyped u q s = do
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
     contacts <- lift (searchIndex u q s)
     -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
     --             the extra work done here and greatly simplify the query.
-    return . json =<< if sameTeamSearchOnly
+    return =<< if sameTeamSearchOnly
         then maybeFilterTeamUsers contacts
         else pure contacts
   where
@@ -107,11 +110,19 @@ search (_ ::: u ::: q ::: s) = do
                          }
 
 isSearchable :: JSON ::: UserId -> Handler Response
-isSearchable (_ ::: u) = json <$> lift (checkIndex u)
+isSearchable (_ ::: u) = json <$> isSearchableTyped u
+
+isSearchableTyped :: UserId -> Handler SearchableStatus
+isSearchableTyped = lift . checkIndex
 
 setSearchable :: UserId ::: JsonRequest SearchableStatus -> Handler Response
 setSearchable (u ::: r) = do
     s <- parseJsonBody r
-    lift $ DB.updateSearchableStatus u s
-    lift $ Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
+    setSearchableTyped u s
     return (setStatus status200 empty)
+
+setSearchableTyped :: UserId -> SearchableStatus -> Handler ()
+setSearchableTyped u s = lift $ do
+    DB.updateSearchableStatus u s
+    Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
+    return ()
