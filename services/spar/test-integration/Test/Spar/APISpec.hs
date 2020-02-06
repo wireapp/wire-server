@@ -918,32 +918,33 @@ specSsoSettings = do
     describe "SSO settings endpoint" $ do
       it "does not allow setting non-existing SSO code" $ do
         env <- ask
-        (userid, _teamid, _idp) <- registerTestIdP
+        (_userid, _teamid, _idp) <- registerTestIdP
         nonExisting <- IdPId <$> liftIO UUID.nextRandom
-        callSetDefaultSsoCode'  (env ^. teSpar) (Just userid) nonExisting
+        callSetDefaultSsoCode  (env ^. teSpar) nonExisting
           `shouldRespondWith` \resp ->
             statusCode resp == 404  -- not quite right, see `internalPutSsoSettings`
 
       it "allows setting a default SSO code" $ do
         env <- ask
-        (userid1, _teamid, (^. idpId) -> idpid1) <- registerTestIdP
-        (userid2, _teamid, (^. idpId) -> idpid2) <- registerTestIdP
+        (_userid1, _teamid, (^. idpId) -> idpid1) <- registerTestIdP
+        (_userid2, _teamid, (^. idpId) -> idpid2) <- registerTestIdP
         -- set 1
-        callSetDefaultSsoCode'  (env ^. teSpar) (Just userid1) idpid1
+        -- TODO: authorization?
+        callSetDefaultSsoCode  (env ^. teSpar) idpid1
           `shouldRespondWith` \resp ->
             statusCode resp == 200
         -- check it is set
-        callGetDefaultSsoCode'  (env ^. teSpar) (Just userid1)
+        callGetDefaultSsoCode  (env ^. teSpar)
           `shouldRespondWith` \resp -> and
             [ statusCode resp == 200
             , responseJsonEither resp == Right (ssoSettings (Just idpid1))
             ]
         -- update to 2
-        callSetDefaultSsoCode'  (env ^. teSpar) (Just userid2) idpid2
+        callSetDefaultSsoCode  (env ^. teSpar) idpid2
           `shouldRespondWith` \resp ->
             statusCode resp == 200
         -- check it is set
-        callGetDefaultSsoCode'  (env ^. teSpar) (Just userid2)
+        callGetDefaultSsoCode  (env ^. teSpar)
           `shouldRespondWith` \resp -> and
             [ statusCode resp == 200
             , responseJsonEither resp == Right (ssoSettings (Just idpid2))
@@ -951,17 +952,17 @@ specSsoSettings = do
 
       it "allows removing the default SSO code" $ do
         env <- ask
-        (userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
+        (_userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
         -- set
-        callSetDefaultSsoCode'  (env ^. teSpar) (Just userid) idpid
+        callSetDefaultSsoCode  (env ^. teSpar) idpid
           `shouldRespondWith` \resp ->
             statusCode resp == 200
         -- remove
-        callDeleteDefaultSsoCode' (env ^. teSpar) (Just userid)
+        callDeleteDefaultSsoCode (env ^. teSpar)
           `shouldRespondWith` \resp ->
             statusCode resp == 200
         -- check it is not set anymore
-        callGetDefaultSsoCode'  (env ^. teSpar) (Just userid)
+        callGetDefaultSsoCode  (env ^. teSpar)
           `shouldRespondWith` \resp -> and
             [ statusCode resp == 200
             , responseJsonEither resp == Right (ssoSettings Nothing)
@@ -971,14 +972,14 @@ specSsoSettings = do
         env <- ask
         (userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
         -- set
-        callSetDefaultSsoCode'  (env ^. teSpar) (Just userid) idpid
+        callSetDefaultSsoCode  (env ^. teSpar) idpid
           `shouldRespondWith` \resp ->
             statusCode resp == 200
         -- remove IdP
         callIdpDelete' (env ^. teSpar) (Just userid) idpid
           `shouldRespondWith` \resp -> statusCode resp < 300
         -- check it is not set anymore
-        callGetDefaultSsoCode'  (env ^. teSpar) (Just userid)
+        callGetDefaultSsoCode  (env ^. teSpar)
           `shouldRespondWith` \resp -> and
             [ statusCode resp == 200
             , responseJsonEither resp == Right (ssoSettings Nothing)
