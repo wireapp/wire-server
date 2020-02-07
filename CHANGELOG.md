@@ -1,3 +1,29 @@
+# 2020-02-06
+
+## New features
+
+- SCIM top level extra attrs / rich info (#931)
+  - Added to all endpoints under "/scim/v2"
+- Create endpoint for default SSO code (#954)
+  - New public endpoint:
+    - GET "/sso/settings"
+  - New private endpoint:
+    - PUT "/i/sso/settings"
+
+## Relevant for client developers
+
+- add docs for default sso code (#960)
+- Add missing options to services-demo config files (#961)
+
+## Security fixes
+
+- Remove verifcation code from email subject line. (#950)
+
+## Internal changes
+
+- Whitespace (#957)
+
+
 # 2020-01-30
 
 ## API changes (relevant client developers)
