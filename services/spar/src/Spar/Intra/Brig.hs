@@ -259,7 +259,7 @@ setBrigUserRichInfo buid richInfo = do
   resp <- call
     $ method PUT
     . paths ["i", "users", toByteString' buid, "rich-info"]
-    . json (RichInfoUpdate richInfo)
+    . json (RichInfoUpdate $ toRichInfoAssocList richInfo)
   let sCode = statusCode resp
   if | sCode < 300
        -> pure ()
@@ -279,7 +279,6 @@ getBrigUserRichInfo buid = do
   case statusCode resp of
     200 -> parseResponse @RichInfo resp
     _   -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
-    
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
 -- anything but authorization.

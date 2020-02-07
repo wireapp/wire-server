@@ -235,13 +235,15 @@ validateScimUser' idp richInfoLimit user = do
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
-        let size = richInfoSize richInfo
-        when (size > richInfoLimit) $ throwError $
-            (Scim.badRequest Scim.InvalidValue
-                 (Just . cs $
-                      "richInfo exceeds the limit: max " <> show richInfoLimit <>
-                      " characters, but got " <> show size))
-            { Scim.status = Scim.Status 413 }
+        let errorIfTooBig s name =
+              when (s > richInfoLimit) $ throwError $
+              (Scim.badRequest Scim.InvalidValue
+                (Just . cs $
+                  cs name <> " exceeds the limit: max " <> show richInfoLimit <>
+                  " characters, but got " <> show s))
+              { Scim.status = Scim.Status 413 }
+        errorIfTooBig (richInfoAssocListSize $ richInfoAssocList richInfo) richInfoAssocListURN
+        errorIfTooBig (richInfoMapSize richInfo) richInfoMapURN
         pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.

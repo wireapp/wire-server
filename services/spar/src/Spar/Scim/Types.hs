@@ -27,16 +27,19 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict, (#))
 import Data.Aeson as Aeson
-import Data.Aeson.Types as Aeson
 import Data.Misc (PlainTextPassword)
 import Data.Id
 import Data.Json.Util ((#))
 import Servant
 import Spar.API.Util
 import Spar.Types
+import Web.Scim.Schema.PatchOp (Path(NormalPath), Operation(..))
+import Web.Scim.AttrName (AttrName(..))
+import Web.Scim.Filter (AttrPath(..))
+import Web.Scim.Schema.Schema (Schema(CustomSchema))
 
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.Text                        as T
+import qualified Data.Map                         as Map
+import qualified Data.CaseInsensitive             as CI
 import qualified SAML2.WebSSO                     as SAML
 import qualified Web.Scim.Class.Auth              as Scim.Auth
 import qualified Web.Scim.Class.Group             as Scim.Group
@@ -44,17 +47,17 @@ import qualified Web.Scim.Class.User              as Scim.User
 import qualified Web.Scim.Schema.Schema           as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Server                  as Scim
-
+import qualified Web.Scim.Schema.PatchOp          as Scim
+import qualified Web.Scim.Schema.Error            as Scim
 
 ----------------------------------------------------------------------------
 -- Schemas
 
 userSchemas :: [Scim.Schema]
-userSchemas = [Scim.User20, Scim.CustomSchema userExtraURN]
-
--- | Schema identifier for extra Wire data.
-userExtraURN :: Text
-userExtraURN = "urn:wire:scim:schemas:profile:1.0"
+userSchemas = [ Scim.User20
+              , Scim.CustomSchema richInfoAssocListURN
+              , Scim.CustomSchema richInfoMapURN
+              ]
 
 ----------------------------------------------------------------------------
 -- @hscim@ extensions and wrappers
@@ -64,6 +67,7 @@ data SparTag
 instance Scim.User.UserTypes SparTag where
   type UserId SparTag = UserId
   type UserExtra SparTag = ScimUserExtra
+  supportedSchemas = userSchemas
 
 instance Scim.Group.GroupTypes SparTag where
   type GroupId SparTag = ()
@@ -121,39 +125,43 @@ data ScimUserExtra = ScimUserExtra
 makeLenses ''ScimUserExtra
 
 instance FromJSON ScimUserExtra where
-  parseJSON = withObject "ScimUserExtra" $ \(lowercase -> o) -> do
-    o .:? T.toLower userExtraURN >>= \case
-      Nothing -> pure (ScimUserExtra emptyRichInfo)
-      Just (lowercase -> o2) -> do
-        _sueRichInfo <- parseRichInfo =<< o2 .: "richinfo"
-        pure ScimUserExtra{..}
-    where
-      lowercase = HM.fromList . map (over _1 T.toLower) . HM.toList
+  parseJSON v = ScimUserExtra <$> parseJSON v
 
 instance ToJSON ScimUserExtra where
-  toJSON v = object
-    [ userExtraURN .= object
-        [ "richInfo" .= _sueRichInfo v
-        ]
-    ]
+  toJSON (ScimUserExtra rif) = toJSON rif
 
--- | Parse 'RichInfo', trying several formats in a row. We have to know how to parse different
--- formats, because not all provisioning agents can send us information in the canonical
--- @ToJSON RichInfo@ format.
---
--- FUTUREWORK: allow more formats. In particular, something needs to be figured out for Okta,
--- which can not send objects or lists of objects (as of Feb 26, 2019).
-parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
-parseRichInfo v =
-  normalizeRichInfo <$>
-  asum [
-    -- Canonical format
-      parseJSON @RichInfo v
-    -- A list of {type, value} 'RichField's
-    , parseJSON @[RichField] v <&> \xs -> RichInfo { richInfoFields = xs }
-    -- Otherwise we fail
-    , fail "couldn't parse RichInfo"
-    ]
+instance Scim.Patchable ScimUserExtra where
+  applyOperation (ScimUserExtra rinf) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName attrName) Nothing))) val)
+    | schema == richInfoMapURN =
+        let ciAttrName = CI.mk attrName
+            theMap = richInfoMap rinf
+        in case o of
+             Scim.Remove ->
+               pure $ ScimUserExtra $ rinf{ richInfoMap = Map.delete ciAttrName theMap }
+             _AddOrReplace ->
+               case val of
+                 (Just (String textVal)) ->
+                   pure $ ScimUserExtra $ rinf { richInfoMap = Map.insert ciAttrName textVal theMap }
+                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+    | schema == richInfoAssocListURN =
+        let ciAttrName = CI.mk attrName
+            matchesAttrName (RichField k _) = k == ciAttrName
+            assocList = richInfoAssocList rinf
+        in case o of
+             Scim.Remove ->
+               pure $ ScimUserExtra $ rinf { richInfoAssocList = filter (not . matchesAttrName) assocList }
+             _AddOrReplace ->
+               case val of
+                 (Just (String textVal)) ->
+                   let newField = RichField ciAttrName textVal
+                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
+                       newRichInfo = if not $ any matchesAttrName assocList
+                                     then rinf { richInfoAssocList = assocList ++ [newField]}
+                                     else rinf { richInfoAssocList = map replaceIfMatchesAttrName assocList }
+                   in pure $ ScimUserExtra $ newRichInfo
+                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
+    | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
+  applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
 --

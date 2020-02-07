@@ -153,6 +153,7 @@ executables:
     - brig-types
     - bytestring >=0.9
     - cargohold-types
+    - case-insensitive
     - cassandra-util
     - data-timeout
     - extra

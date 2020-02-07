@@ -70,6 +70,7 @@ apiSSO opts
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
   :<|> authresp
+  :<|> ssoSettings
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
@@ -83,6 +84,7 @@ apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
      = internalStatus
   :<|> internalDeleteTeam
+  :<|> internalPutSsoSettings
 
 
 appName :: ST
@@ -155,6 +157,9 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
 
+ssoSettings :: Spar SsoSettings
+ssoSettings = do
+  SsoSettings <$> wrapMonadClient Data.getDefaultSsoCode
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -281,3 +286,20 @@ internalDeleteTeam :: TeamId -> Spar NoContent
 internalDeleteTeam team = do
   wrapMonadClient $ Data.deleteTeam team
   pure NoContent
+
+internalPutSsoSettings :: SsoSettings -> Spar NoContent
+internalPutSsoSettings SsoSettings{defaultSsoCode = Nothing} = do
+  wrapMonadClient $ Data.deleteDefaultSsoCode
+  pure NoContent
+
+internalPutSsoSettings SsoSettings{defaultSsoCode = Just code} = do
+  wrapMonadClient (Data.getIdPConfig code) >>= \case
+    Nothing ->
+      -- this will return a 404, which is not quite right,
+      -- but it's an internal endpoint and the message clearly says
+      -- "Could not find IdP".
+      throwSpar SparNotFound
+
+    Just _ -> do
+      wrapMonadClient $ Data.storeDefaultSsoCode code
+      pure NoContent

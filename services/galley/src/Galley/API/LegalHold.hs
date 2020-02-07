@@ -45,7 +45,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     let zothers = map (view userId) membs
     Log.debug $ Log.field "targets" (toByteString . show $ toByteString <$> zothers)
               . Log.field "action" (Log.val "LegalHold.createSettings")
-    
+
     void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
 
     newService :: NewLegalHoldService

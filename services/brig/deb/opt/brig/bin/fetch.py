@@ -52,6 +52,14 @@ def recursive_overwrite(src, dest):
   else:
     shutil.copyfile(src, dest)
 
+print ''
+print '-' * 32
+print 'this script clones github.com/wireapp/wire-emails and copies the changes to', dist
+print 'to list all versions, `cd wire-emails && git tag -l`.'
+print 'reading new version from', template_version_file, '...'
+print '-' * 32
+print ''
+
 with open(template_version_file) as f:
   new_version = f.readline().replace('\n', '').strip()
 
@@ -69,12 +77,9 @@ print 'Status:         ', 'Up to date' if new_version == current_version else 'F
 print '-' * 32
 
 if new_version != current_version:
-  # Clone the wire-emails project
-  os.system('git clone https://github.com/wireapp/wire-emails.git')
+  # Clone the wire-emails project at new version
+  os.system('git clone --depth=1 https://github.com/wireapp/wire-emails.git -b %s' % new_version)
   os.chdir(emails)
-
-  # Checkout the desired version
-  os.system('git checkout %s' % new_version)
 
   # Move wire-emails/dist to templates
   recursive_overwrite(dist, templates)

@@ -1076,7 +1076,7 @@ getRichInfo (self ::: user ::: _) = do
         (Just t1, Just t2) | t1 == t2 -> pure ()
         _ -> throwStd insufficientTeamPermissions
     -- Query rich info
-    json . fromMaybe emptyRichInfo <$> lift (API.lookupRichInfo user)
+    json . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
@@ -1480,10 +1480,10 @@ updateManagedBy (uid ::: _ ::: req) = do
 
 updateRichInfo :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
 updateRichInfo (uid ::: _ ::: req) = do
-    richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
+    (RichInfoAssocList richInfo) <- normalizeRichInfoAssocList . riuRichInfo <$> parseJsonBody req
     maxSize <- setRichInfoLimit <$> view settings
-    when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
-    lift $ Data.updateRichInfo uid richInfo
+    when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+    lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty

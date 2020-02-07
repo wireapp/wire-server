@@ -3,17 +3,17 @@
 ${brand_label_url} [${brand_url}]
 
 NAUJAS ĮRENGINYS
-Your ${brand} account was used on:
+Jūsų „${brand}“ paskyra buvo naudota:
 
 ${date}
 
 ${model}
 
-You may have installed ${brand} on a new device or installed it again on an
-existing one. If that was not the case, go to ${brand} Settings, remove the
-device and reset your password [${forgot}].
+Tikriausiai įdiegėte „${brand}“ naujame įrenginyje arba įdiegėte iš naujo
+esančiame įrenginyje. Jei to nedarėte, eikit į „${brand}“ nustatymus,
+pašalinkite įrenginį ir pakeiskite savo slaptažodį [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Jei turite klausimų, susisiekite su mumis [${support}].
 
 
 --------------------------------------------------------------------------------
