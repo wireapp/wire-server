@@ -71,125 +71,125 @@ sitemap o = do
     get  "/i/status" (continue $ const $ return empty) true
     head "/i/status" (continue $ const $ return empty) true
 
-    post "/i/users/:uid/auto-connect" (continue autoConnect) $
+    post "/i/users/:uid/auto-connect" (continue autoConnectH) $
         accept "application" "json"
         .&. capture "uid"
         .&. opt (header "Z-Connection")
         .&. jsonRequest @UserSet
 
-    post "/i/users" (continue createUserNoVerify) $
+    post "/i/users" (continue createUserNoVerifyH) $
         accept "application" "json"
         .&. jsonRequest @NewUser
 
-    put "/i/self/email" (continue changeSelfEmailNoSend) $
+    put "/i/self/email" (continue changeSelfEmailNoSendH) $
         header "Z-User"
         .&. jsonRequest @EmailUpdate
 
-    delete "/i/users/:uid" (continue deleteUserNoVerify) $
+    delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
         capture "uid"
 
-    get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
+    get "/i/users/connections-status" (continue deprecatedGetConnectionsStatusH) $
         query "users"
         .&. opt (query "filter")
 
-    post "/i/users/connections-status" (continue getConnectionsStatus) $
+    post "/i/users/connections-status" (continue getConnectionsStatusH) $
         accept "application" "json"
         .&. jsonRequest @ConnectionsStatusRequest
         .&. opt (query "filter")
 
-    get "/i/users" (continue listActivatedAccounts) $
+    get "/i/users" (continue listActivatedAccountsH) $
         accept "application" "json"
         .&. (param "ids" ||| param "handles")
 
-    get "/i/users" (continue listAccountsByIdentity) $
+    get "/i/users" (continue listAccountsByIdentityH) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    put "/i/users/:uid/status" (continue changeAccountStatus) $
+    put "/i/users/:uid/status" (continue changeAccountStatusH) $
         capture "uid"
         .&. jsonRequest @AccountStatusUpdate
 
-    get "/i/users/:uid/status" (continue getAccountStatus) $
+    get "/i/users/:uid/status" (continue getAccountStatusH) $
         accept "application" "json"
         .&. capture "uid"
 
-    get "/i/users/:uid/contacts" (continue getContactList) $
+    get "/i/users/:uid/contacts" (continue getContactListH) $
         accept "application" "json"
         .&. capture "uid"
 
-    get "/i/users/activation-code" (continue getActivationCode) $
+    get "/i/users/activation-code" (continue getActivationCodeH) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    get "/i/users/password-reset-code" (continue getPasswordResetCode) $
+    get "/i/users/password-reset-code" (continue getPasswordResetCodeH) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    post "/i/users/revoke-identity" (continue revokeIdentity) $
+    post "/i/users/revoke-identity" (continue revokeIdentityH) $
         param "email" ||| param "phone"
 
-    head "/i/users/blacklist" (continue checkBlacklist) $
+    head "/i/users/blacklist" (continue checkBlacklistH) $
         param "email" ||| param "phone"
 
-    delete "/i/users/blacklist" (continue deleteFromBlacklist) $
+    delete "/i/users/blacklist" (continue deleteFromBlacklistH) $
         param "email" ||| param "phone"
 
-    post "/i/users/blacklist" (continue addBlacklist) $
+    post "/i/users/blacklist" (continue addBlacklistH) $
         param "email" ||| param "phone"
 
     -- given a phone number (or phone number prefix), see whether
     -- it is blocked via a prefix (and if so, via which specific prefix)
-    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixes) $
+    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixesH) $
         capture "prefix"
 
-    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
+    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefixH) $
         capture "prefix"
 
-    post "/i/users/phone-prefixes" (continue addPhonePrefix) $
+    post "/i/users/phone-prefixes" (continue addPhonePrefixH) $
       accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
 
     -- is :uid not team owner, or there are other team owners?
-    get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+    get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeletedH) $
       capture "uid"
       .&. capture "tid"
 
     -- is :uid team owner (the only one or one of several)?
-    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
+    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwnerH) $
       capture "uid"
       .&. capture "tid"
 
-    put "/i/users/:uid/sso-id" (continue updateSSOId) $
+    put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
       capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @UserSSOId
 
-    put "/i/users/:uid/managed-by" (continue updateManagedBy) $
+    put "/i/users/:uid/managed-by" (continue updateManagedByH) $
       capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @ManagedByUpdate
 
-    put "/i/users/:uid/rich-info" (continue updateRichInfo) $
+    put "/i/users/:uid/rich-info" (continue updateRichInfoH) $
       capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @RichInfoUpdate
 
-    post "/i/clients" (continue internalListClients) $
+    post "/i/clients" (continue internalListClientsH) $
       accept "application" "json"
       .&. jsonRequest @UserSet
 
-    post "/i/clients/:uid" (continue addClientInternal) $
+    post "/i/clients/:uid" (continue addClientInternalH) $
       capture "uid"
       .&. jsonRequest @NewClient
       .&. opt (header "Z-Connection")
       .&. accept "application" "json"
 
-    post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequested) $
+    post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequestedH) $
       capture "uid"
       .&. jsonRequest @LegalHoldClientRequest
       .&. accept "application" "json"
 
-    delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClient) $
+    delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClientH) $
       capture "uid"
       .&. accept "application" "json"
 
@@ -204,7 +204,7 @@ sitemap o = do
 
     ---
 
-    head "/users/:uid" (continue checkUserExists) $
+    head "/users/:uid" (continue checkUserExistsH) $
         header "Z-User"
         .&. capture "uid"
 
@@ -217,7 +217,7 @@ sitemap o = do
 
     ---
 
-    get "/users/:uid" (continue getUser) $
+    get "/users/:uid" (continue getUserH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "uid"
@@ -232,7 +232,7 @@ sitemap o = do
 
     ---
 
-    post "/users/handles" (continue checkHandles) $
+    post "/users/handles" (continue checkHandlesH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. jsonRequest @CheckHandles
@@ -244,7 +244,7 @@ sitemap o = do
         Doc.returns (Doc.array Doc.string')
         Doc.response 200 "List of free handles" Doc.end
 
-    head "/users/handles/:handle" (continue checkHandle) $
+    head "/users/handles/:handle" (continue checkHandleH) $
         header "Z-User"
         .&. capture "handle"
 
@@ -256,7 +256,7 @@ sitemap o = do
         Doc.errorResponse invalidHandle
         Doc.errorResponse handleNotFound
 
-    get "/users/handles/:handle" (continue getHandleInfo) $
+    get "/users/handles/:handle" (continue getHandleInfoH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "handle"
@@ -271,7 +271,7 @@ sitemap o = do
 
     ---
 
-    get "/users" (continue listUsers) $
+    get "/users" (continue listUsersH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. (param "ids" ||| param "handles")
@@ -290,7 +290,7 @@ sitemap o = do
 
     ---
 
-    post "/users/prekeys" (continue getMultiPrekeyBundles) $
+    post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
         jsonRequest @UserClients
         .&. accept "application" "json"
 
@@ -307,7 +307,7 @@ sitemap o = do
 
     ---
 
-    get "/users/:uid/prekeys" (continue getPrekeyBundle) $
+    get "/users/:uid/prekeys" (continue getPrekeyBundleH) $
         capture "uid"
         .&. accept "application" "json"
 
@@ -320,7 +320,7 @@ sitemap o = do
 
     ---
 
-    get "/users/:uid/prekeys/:client" (continue getPrekey) $
+    get "/users/:uid/prekeys/:client" (continue getPrekeyH) $
         capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
@@ -336,7 +336,7 @@ sitemap o = do
 
     --
 
-    get "/users/:uid/clients" (continue getUserClients) $
+    get "/users/:uid/clients" (continue getUserClientsH) $
         capture "uid"
         .&. accept "application" "json"
 
@@ -349,7 +349,7 @@ sitemap o = do
 
     --
 
-    get "/users/:uid/clients/:client" (continue getUserClient) $
+    get "/users/:uid/clients/:client" (continue getUserClientH) $
         capture "uid"
         .&. capture "client"
         .&. accept "application" "json"
@@ -365,7 +365,7 @@ sitemap o = do
 
     --
 
-    get "/users/:uid/rich-info" (continue getRichInfo) $
+    get "/users/:uid/rich-info" (continue getRichInfoH) $
         header "Z-User"
         .&. capture "uid"
         .&. accept "application" "json"
@@ -382,7 +382,7 @@ sitemap o = do
 
     -- Profile
 
-    get "/self" (continue getSelf) $
+    get "/self" (continue getSelfH) $
         accept "application" "json"
         .&. header "Z-User"
 
@@ -393,7 +393,7 @@ sitemap o = do
 
     ---
 
-    put "/self" (continue updateUser) $
+    put "/self" (continue updateUserH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. jsonRequest @UserUpdate
@@ -406,7 +406,7 @@ sitemap o = do
 
     ---
 
-    get "/self/name" (continue getUserName) $
+    get "/self/name" (continue getUserNameH) $
         accept "application" "json"
         .&. header "Z-User"
 
@@ -417,7 +417,7 @@ sitemap o = do
 
     ---
 
-    put "/self/email" (continue changeSelfEmail) $
+    put "/self/email" (continue changeSelfEmailH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. jsonRequest @EmailUpdate
@@ -435,7 +435,7 @@ sitemap o = do
 
     ---
 
-    put "/self/phone" (continue changePhone) $
+    put "/self/phone" (continue changePhoneH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. jsonRequest @PhoneUpdate
@@ -449,7 +449,7 @@ sitemap o = do
 
     ---
 
-    head "/self/password" (continue checkPasswordExists) $
+    head "/self/password" (continue checkPasswordExistsH) $
         header "Z-User"
 
     document "HEAD" "checkPassword" $ do
@@ -459,7 +459,7 @@ sitemap o = do
 
     ---
 
-    put "/self/password" (continue changePassword) $
+    put "/self/password" (continue changePasswordH) $
         header "Z-User"
         .&. jsonRequest @PasswordChange
 
@@ -473,7 +473,7 @@ sitemap o = do
 
     --
 
-    put "/self/locale" (continue changeLocale) $
+    put "/self/locale" (continue changeLocaleH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. jsonRequest @LocaleUpdate
@@ -486,7 +486,7 @@ sitemap o = do
 
     --
 
-    put "/self/handle" (continue changeHandle) $
+    put "/self/handle" (continue changeHandleH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. jsonRequest @HandleUpdate
@@ -501,7 +501,7 @@ sitemap o = do
 
     ---
 
-    delete "/self/phone" (continue removePhone) $
+    delete "/self/phone" (continue removePhoneH) $
         header "Z-User"
         .&. header "Z-Connection"
 
@@ -515,7 +515,7 @@ sitemap o = do
 
     ---
 
-    delete "/self/email" (continue removeEmail) $
+    delete "/self/email" (continue removeEmailH) $
         header "Z-User"
         .&. header "Z-Connection"
 
@@ -530,7 +530,7 @@ sitemap o = do
     ---
     ---
 
-    delete "/self" (continue deleteUser) $
+    delete "/self" (continue deleteUserH) $
         header "Z-User"
         .&. jsonRequest @DeleteUser
         .&. accept "application" "json"
@@ -552,7 +552,7 @@ sitemap o = do
 
     ---
 
-    post "/delete" (continue verifyDeleteUser) $
+    post "/delete" (continue verifyDeleteUserH) $
         jsonRequest @VerifyDeleteUser
         .&. accept "application" "json"
 
@@ -565,7 +565,7 @@ sitemap o = do
 
     ---
 
-    post "/connections" (continue createConnection) $
+    post "/connections" (continue createConnectionH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -587,7 +587,7 @@ sitemap o = do
 
     ---
 
-    get "/connections" (continue listConnections) $
+    get "/connections" (continue listConnectionsH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. opt (query "start")
@@ -606,7 +606,7 @@ sitemap o = do
 
     ---
 
-    put "/connections/:id" (continue updateConnection) $
+    put "/connections/:id" (continue updateConnectionH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -629,7 +629,7 @@ sitemap o = do
 
     ---
 
-    get "/connections/:id" (continue getConnection) $
+    get "/connections/:id" (continue getConnectionH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "id"
@@ -643,7 +643,7 @@ sitemap o = do
 
     --- Clients
 
-    post "/clients" (continue addClient) $
+    post "/clients" (continue addClientH) $
         jsonRequest @NewClient
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -662,7 +662,7 @@ sitemap o = do
 
     ---
 
-    put "/clients/:client" (continue updateClient) $
+    put "/clients/:client" (continue updateClientH) $
         jsonRequest @UpdateClient
         .&. header "Z-User"
         .&. capture "client"
@@ -679,7 +679,7 @@ sitemap o = do
 
     ---
 
-    delete "/clients/:client" (continue rmClient) $
+    delete "/clients/:client" (continue rmClientH) $
         jsonRequest @RmClient
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -696,7 +696,7 @@ sitemap o = do
 
     ---
 
-    get "/clients" (continue listClients) $
+    get "/clients" (continue listClientsH) $
         header "Z-User"
         .&. accept "application" "json"
 
@@ -707,7 +707,7 @@ sitemap o = do
 
     ---
 
-    get "/clients/:client" (continue getClient) $
+    get "/clients/:client" (continue getClientH) $
         header "Z-User"
         .&. capture "client"
         .&. accept "application" "json"
@@ -721,7 +721,7 @@ sitemap o = do
 
     ---
 
-    get "/clients/:client/prekeys" (continue listPrekeyIds) $
+    get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
         header "Z-User"
         .&. capture "client"
         .&. accept "application" "json"
@@ -735,7 +735,7 @@ sitemap o = do
 
     --- Properties
 
-    put "/properties/:key" (continue setProperty) $
+    put "/properties/:key" (continue setPropertyH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. capture "key"
@@ -751,7 +751,7 @@ sitemap o = do
 
     ---
 
-    delete "/properties/:key" (continue deleteProperty) $
+    delete "/properties/:key" (continue deletePropertyH) $
         header "Z-User"
         .&. header "Z-Connection"
         .&. capture "key"
@@ -764,7 +764,7 @@ sitemap o = do
 
     ---
 
-    delete "/properties" (continue clearProperties) $
+    delete "/properties" (continue clearPropertiesH) $
         header "Z-User"
         .&. header "Z-Connection"
 
@@ -774,7 +774,7 @@ sitemap o = do
 
     ---
 
-    get "/properties/:key" (continue getProperty) $
+    get "/properties/:key" (continue getPropertyH) $
         header "Z-User"
         .&. capture "key"
         .&. accept "application" "json"
@@ -788,7 +788,7 @@ sitemap o = do
 
     ---
 
-    get "/properties" (continue listPropertyKeys) $
+    get "/properties" (continue listPropertyKeysH) $
         header "Z-User"
         .&. accept "application" "json"
 
@@ -799,7 +799,7 @@ sitemap o = do
 
     ---
 
-    get "/properties-values" (continue listPropertyKeysAndValues) $
+    get "/properties-values" (continue listPropertyKeysAndValuesH) $
         header "Z-User"
         .&. accept "application" "json"
 
@@ -811,7 +811,7 @@ sitemap o = do
     -- /register, /activate, /password-reset ----------------------------------
 
     -- docs/reference/user/registration.md {#RefRegistration}
-    post "/register" (continue createUser) $
+    post "/register" (continue createUserH) $
         accept "application" "json"
         .&. jsonRequest @NewUserPublic
 
@@ -834,7 +834,7 @@ sitemap o = do
 
     ---
 
-    get "/activate" (continue activate') $
+    get "/activate" (continue activateH) $
         query "key"
         .&. query "code"
 
@@ -853,7 +853,7 @@ sitemap o = do
     ---
 
     -- docs/reference/user/activation.md {#RefActivationSubmit}
-    post "/activate" (continue activateKey) $
+    post "/activate" (continue activateKeyH) $
         accept "application" "json"
         .&. jsonRequest @Activate
 
@@ -871,7 +871,7 @@ sitemap o = do
     ---
 
     -- docs/reference/user/activation.md {#RefActivationRequest}
-    post "/activate/send" (continue sendActivationCode) $
+    post "/activate/send" (continue sendActivationCodeH) $
         jsonRequest @SendActivationCode
 
     document "POST" "sendActivationCode" $ do
@@ -887,7 +887,7 @@ sitemap o = do
 
     ---
 
-    post "/password-reset" (continue beginPasswordReset) $
+    post "/password-reset" (continue beginPasswordResetH) $
         accept "application" "json"
         .&. jsonRequest @NewPasswordReset
 
@@ -901,7 +901,7 @@ sitemap o = do
 
     ---
 
-    post "/password-reset/complete" (continue completePasswordReset) $
+    post "/password-reset/complete" (continue completePasswordResetH) $
         accept "application" "json"
         .&. jsonRequest @CompletePasswordReset
 
@@ -914,7 +914,7 @@ sitemap o = do
 
     ---
 
-    post "/password-reset/:key" (continue deprecatedCompletePasswordReset) $
+    post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
         accept "application" "json"
         .&. capture "key"
         .&. jsonRequest @PasswordReset
@@ -926,7 +926,7 @@ sitemap o = do
 
     ---
 
-    post "/onboarding/v3" (continue onboarding) $
+    post "/onboarding/v3" (continue onboardingH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. jsonRequest @AddressBook
@@ -948,8 +948,8 @@ sitemap o = do
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
-setProperty (u ::: c ::: k ::: req) = do
+setPropertyH :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
+setPropertyH (u ::: c ::: k ::: req) = do
     maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
     maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
     unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
@@ -961,45 +961,45 @@ setProperty (u ::: c ::: k ::: req) = do
     API.setProperty u c k val !>> propDataError
     return empty
 
-deleteProperty :: UserId ::: ConnId ::: PropertyKey -> Handler Response
-deleteProperty (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
+deletePropertyH :: UserId ::: ConnId ::: PropertyKey -> Handler Response
+deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
 
-clearProperties :: UserId ::: ConnId -> Handler Response
-clearProperties (u ::: c) = lift (API.clearProperties u c) >> return empty
+clearPropertiesH :: UserId ::: ConnId -> Handler Response
+clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
 
-getProperty :: UserId ::: PropertyKey ::: JSON -> Handler Response
-getProperty (u ::: k ::: _) = do
+getPropertyH :: UserId ::: PropertyKey ::: JSON -> Handler Response
+getPropertyH (u ::: k ::: _) = do
     val <- lift $ API.lookupProperty u k
     return $ case val of
         Nothing -> setStatus status404 empty
         Just  v -> json v
 
-listPropertyKeys :: UserId ::: JSON -> Handler Response
-listPropertyKeys (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
+listPropertyKeysH :: UserId ::: JSON -> Handler Response
+listPropertyKeysH (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
 
-listPropertyKeysAndValues :: UserId ::: JSON -> Handler Response
-listPropertyKeysAndValues (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
+listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
+listPropertyKeysAndValuesH (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
 
-getPrekey :: UserId ::: ClientId ::: JSON -> Handler Response
-getPrekey (u ::: c ::: _) = do
+getPrekeyH :: UserId ::: ClientId ::: JSON -> Handler Response
+getPrekeyH (u ::: c ::: _) = do
     prekey <- lift $ API.claimPrekey u c
     return $ case prekey of
         Just pk -> json pk
         Nothing -> setStatus status404 empty
 
-getPrekeyBundle :: UserId ::: JSON -> Handler Response
-getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
+getPrekeyBundleH :: UserId ::: JSON -> Handler Response
+getPrekeyBundleH (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 
-getMultiPrekeyBundles :: JsonRequest UserClients ::: JSON -> Handler Response
-getMultiPrekeyBundles (req ::: _) = do
+getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
+getMultiPrekeyBundlesH (req ::: _) = do
     body <- parseJsonBody req
     maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
-addClient :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
-addClient (req ::: usr ::: con ::: ip ::: _) = do
+addClientH :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
+addClientH (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
     -- Users can't add legal hold clients
     when (newClientType new == LegalHoldClientType)
@@ -1010,64 +1010,64 @@ addClient (req ::: usr ::: con ::: ip ::: _) = do
            $ json clt
 
 -- | Add a client without authentication checks
-addClientInternal :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
-addClientInternal (usr ::: req ::: connId ::: _) = do
+addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
+addClientInternalH (usr ::: req ::: connId ::: _) = do
     new <- parseJsonBody req
     clt <- API.addClient usr connId Nothing new !>> clientError
     return . setStatus status201 $ json clt
 
-rmClient :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
-rmClient (req ::: usr ::: con ::: clt ::: _) = do
+rmClientH :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
+rmClientH (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
     API.rmClient usr con clt (rmPassword body) !>> clientError
     return empty
 
-legalHoldClientRequested :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
-legalHoldClientRequested (targetUser ::: req ::: _) = do
+legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
+legalHoldClientRequestedH (targetUser ::: req ::: _) = do
     clientRequest <- parseJsonBody req
     lift $ API.legalHoldClientRequested targetUser clientRequest
     return $ setStatus status200 empty
 
-removeLegalHoldClient :: UserId ::: JSON -> Handler Response
-removeLegalHoldClient (uid ::: _) = do
+removeLegalHoldClientH :: UserId ::: JSON -> Handler Response
+removeLegalHoldClientH (uid ::: _) = do
     lift $ API.removeLegalHoldClient uid
     return $ setStatus status200 empty
 
-updateClient :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
-updateClient (req ::: usr ::: clt ::: _) = do
+updateClientH :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
+updateClientH (req ::: usr ::: clt ::: _) = do
     body <- parseJsonBody req
     API.updateClient usr clt body !>> clientError
     return empty
 
-listClients :: UserId ::: JSON -> Handler Response
-listClients (usr ::: _) = json <$> lift (API.lookupClients usr)
+listClientsH :: UserId ::: JSON -> Handler Response
+listClientsH (usr ::: _) = json <$> lift (API.lookupClients usr)
 
-internalListClients :: JSON ::: JsonRequest UserSet -> Handler Response
-internalListClients (_ ::: req) = do
+internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListClientsH (_ ::: req) = do
     UserSet usrs <- parseJsonBody req
     ucs <- Map.fromList <$> lift (API.lookupUsersClientIds $ Set.toList usrs)
     return $ json (UserClients ucs)
 
-getClient :: UserId ::: ClientId ::: JSON -> Handler Response
-getClient (usr ::: clt ::: _) = lift $ do
+getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientH (usr ::: clt ::: _) = lift $ do
     client <- API.lookupClient usr clt
     return $ case client of
         Just c  -> json c
         Nothing -> setStatus status404 empty
 
-getUserClients :: UserId ::: JSON -> Handler Response
-getUserClients (user ::: _) =
+getUserClientsH :: UserId ::: JSON -> Handler Response
+getUserClientsH (user ::: _) =
     json <$> lift (fmap API.pubClient <$> API.lookupClients user)
 
-getUserClient :: UserId ::: ClientId ::: JSON -> Handler Response
-getUserClient (user ::: cid ::: _) = lift $ do
+getUserClientH :: UserId ::: ClientId ::: JSON -> Handler Response
+getUserClientH (user ::: cid ::: _) = lift $ do
     client <- fmap API.pubClient <$> API.lookupClient user cid
     return $ case client of
         Just c  -> json c
         Nothing -> setStatus status404 empty
 
-getRichInfo :: UserId ::: UserId ::: JSON -> Handler Response
-getRichInfo (self ::: user ::: _) = do
+getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
+getRichInfoH (self ::: user ::: _) = do
     -- Check that both users exist and the requesting user is allowed to see rich info of the
     -- other user
     selfUser  <- ifNothing userNotFound =<< lift (Data.lookupUser self)
@@ -1078,11 +1078,11 @@ getRichInfo (self ::: user ::: _) = do
     -- Query rich info
     json . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
-listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
-listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
+listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
+listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
-autoConnect :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
-autoConnect (_ ::: uid ::: conn ::: req) = do
+autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
+autoConnectH (_ ::: uid ::: conn ::: req) = do
     UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
@@ -1093,8 +1093,8 @@ autoConnect (_ ::: uid ::: conn ::: req) = do
     return $ json conns
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: JSON ::: JsonRequest NewUserPublic -> Handler Response
-createUser (_ ::: req) = do
+createUserH :: JSON ::: JsonRequest NewUserPublic -> Handler Response
+createUserH (_ ::: req) = do
     NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
@@ -1132,8 +1132,8 @@ createUser (_ ::: req) = do
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMemberSSO _) l = Team.sendMemberWelcomeMail e t n l
 
-createUserNoVerify :: JSON ::: JsonRequest NewUser -> Handler Response
-createUserNoVerify (_ ::: req) = do
+createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerifyH (_ ::: req) = do
     (uData :: NewUser)  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
@@ -1149,39 +1149,39 @@ createUserNoVerify (_ ::: req) = do
            . addHeader "Location" (toByteString' uid)
            $ json (SelfProfile usr)
 
-deleteUserNoVerify :: UserId -> Handler Response
-deleteUserNoVerify uid = do
+deleteUserNoVerifyH :: UserId -> Handler Response
+deleteUserNoVerifyH uid = do
     void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
     lift $ API.deleteUserNoVerify uid
     return $ setStatus status202 empty
 
-changeSelfEmailNoSend :: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmailNoSend (u ::: req) = changeEmail u req False
+changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
 
-checkUserExists :: UserId ::: UserId -> Handler Response
-checkUserExists (self ::: uid) = do
+checkUserExistsH :: UserId ::: UserId -> Handler Response
+checkUserExistsH (self ::: uid) = do
     exists <- lift $ isJust <$> API.lookupProfile self uid
     if exists then return empty else throwStd userNotFound
 
-getSelf :: JSON ::: UserId -> Handler Response
-getSelf (_ ::: self) = do
+getSelfH :: JSON ::: UserId -> Handler Response
+getSelfH (_ ::: self) = do
     p <- (lift $ API.lookupSelfProfile self) >>= ifNothing userNotFound
     return $ json p
 
-getUser :: JSON ::: UserId ::: UserId -> Handler Response
-getUser (_ ::: self ::: uid) = do
+getUserH :: JSON ::: UserId ::: UserId -> Handler Response
+getUserH (_ ::: self ::: uid) = do
     p <- (lift $ API.lookupProfile self uid) >>= ifNothing userNotFound
     return $ json p
 
-getUserName :: JSON ::: UserId -> Handler Response
-getUserName (_ ::: self) = do
+getUserNameH :: JSON ::: UserId -> Handler Response
+getUserNameH (_ ::: self) = do
     name <- lift $ API.lookupName self
     return $ case name of
         Just n  -> json $ object ["name" .= n]
         Nothing -> setStatus status404 empty
 
-listUsers :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
-listUsers (_ ::: self ::: qry) = case qry of
+listUsersH :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
+listUsersH (_ ::: self ::: qry) = case qry of
     Left  us -> toResponse =<< byIds (fromList us)
     Right hs -> do
         us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
@@ -1204,8 +1204,8 @@ listUsers (_ ::: self ::: qry) = case qry of
             [] -> setStatus status404 empty
             ps -> json ps
 
-listActivatedAccounts :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
-listActivatedAccounts (_ ::: qry) = case qry of
+listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
+listActivatedAccountsH (_ ::: qry) = case qry of
     Left  us -> byIds (fromList us)
     Right hs -> do
         us <- mapM (lift . API.lookupHandle) (fromList hs)
@@ -1215,45 +1215,45 @@ listActivatedAccounts (_ ::: qry) = case qry of
                . filter (isJust . userIdentity . accountUser)
               <$> (lift $ API.lookupAccounts uids)
 
-listAccountsByIdentity :: JSON ::: Either Email Phone -> Handler Response
-listAccountsByIdentity (_ ::: emailOrPhone) = lift $ json
+listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
+listAccountsByIdentityH (_ ::: emailOrPhone) = lift $ json
     <$> API.lookupAccountsByIdentity emailOrPhone
 
-getActivationCode :: JSON ::: Either Email Phone -> Handler Response
-getActivationCode (_ ::: emailOrPhone) = do
+getActivationCodeH :: JSON ::: Either Email Phone -> Handler Response
+getActivationCodeH (_ ::: emailOrPhone) = do
     apair <- lift $ API.lookupActivationCode emailOrPhone
     maybe (throwStd activationKeyNotFound) (return . found) apair
   where
     found (k, c) = json $ object [ "key" .= k, "code" .= c ]
 
-getPasswordResetCode :: JSON ::: Either Email Phone -> Handler Response
-getPasswordResetCode (_ ::: emailOrPhone) = do
+getPasswordResetCodeH :: JSON ::: Either Email Phone -> Handler Response
+getPasswordResetCodeH (_ ::: emailOrPhone) = do
     apair <- lift $ API.lookupPasswordResetCode emailOrPhone
     maybe (throwStd invalidPwResetKey) (return . found) apair
   where
     found (k, c) = json $ object [ "key" .= k, "code" .= c ]
 
-updateUser :: UserId ::: ConnId ::: JsonRequest UserUpdate -> Handler Response
-updateUser (uid ::: conn ::: req) = do
+updateUserH :: UserId ::: ConnId ::: JsonRequest UserUpdate -> Handler Response
+updateUserH (uid ::: conn ::: req) = do
     uu <- parseJsonBody req
     lift $ API.updateUser uid conn uu
     return empty
 
-changeAccountStatus :: UserId ::: JsonRequest AccountStatusUpdate -> Handler Response
-changeAccountStatus (usr ::: req) = do
+changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> Handler Response
+changeAccountStatusH (usr ::: req) = do
     status <- suStatus <$> parseJsonBody req
     API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
     return empty
 
-getAccountStatus :: JSON ::: UserId -> Handler Response
-getAccountStatus (_ ::: usr) = do
+getAccountStatusH :: JSON ::: UserId -> Handler Response
+getAccountStatusH (_ ::: usr) = do
     status <- lift $ API.lookupStatus usr
     return $ case status of
         Just s  -> json $ object ["status" .= s]
         Nothing -> setStatus status404 empty
 
-changePhone :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
-changePhone (u ::: _ ::: req) = do
+changePhoneH :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
+changePhoneH (u ::: _ ::: req) = do
     phone <- puPhone <$> parseJsonBody req
     (adata, pn) <- API.changePhone u phone !>> changePhoneError
     loc   <- lift $ API.lookupLocale u
@@ -1261,35 +1261,35 @@ changePhone (u ::: _ ::: req) = do
     lift $ sendActivationSms pn apair loc
     return $ setStatus status202 empty
 
-removePhone :: UserId ::: ConnId -> Handler Response
-removePhone (self ::: conn) = do
+removePhoneH :: UserId ::: ConnId -> Handler Response
+removePhoneH (self ::: conn) = do
     API.removePhone self conn !>> idtError
     return empty
 
-removeEmail :: UserId ::: ConnId -> Handler Response
-removeEmail (self ::: conn) = do
+removeEmailH :: UserId ::: ConnId -> Handler Response
+removeEmailH (self ::: conn) = do
     API.removeEmail self conn !>> idtError
     return empty
 
-checkPasswordExists :: UserId -> Handler Response
-checkPasswordExists self = do
+checkPasswordExistsH :: UserId -> Handler Response
+checkPasswordExistsH self = do
     exists <- lift $ isJust <$> API.lookupPassword self
     return $ if exists then empty else setStatus status404 empty
 
-changePassword :: UserId ::: JsonRequest PasswordChange -> Handler Response
-changePassword (u ::: req) = do
+changePasswordH :: UserId ::: JsonRequest PasswordChange -> Handler Response
+changePasswordH (u ::: req) = do
     cp <- parseJsonBody req
     API.changePassword u cp !>> changePwError
     return empty
 
-changeLocale :: UserId ::: ConnId ::: JsonRequest LocaleUpdate -> Handler Response
-changeLocale (u ::: conn ::: req) = do
+changeLocaleH :: UserId ::: ConnId ::: JsonRequest LocaleUpdate -> Handler Response
+changeLocaleH (u ::: conn ::: req) = do
     l <- parseJsonBody req
     lift $ API.changeLocale u conn l
     return empty
 
-checkHandle :: UserId ::: Text -> Handler Response
-checkHandle (_ ::: h) = do
+checkHandleH :: UserId ::: Text -> Handler Response
+checkHandleH (_ ::: h) = do
     handle <- validateHandle h
     owner <- lift $ API.lookupHandle handle
     if | isJust owner
@@ -1302,33 +1302,29 @@ checkHandle (_ ::: h) = do
         -- Handle is free and can be taken
         -> return $ setStatus status404 empty
 
-checkHandles :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
-checkHandles (_ ::: _ ::: req) = do
+checkHandlesH :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
+checkHandlesH (_ ::: _ ::: req) = do
     CheckHandles hs num <- parseJsonBody req
     let handles = mapMaybe parseHandle (fromRange hs)
     free <- lift $ API.checkHandles handles (fromRange num)
     return $ json free
 
-getHandleInfo :: JSON ::: UserId ::: Handle -> Handler Response
-getHandleInfo (_ ::: _ ::: h) = do
+getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
+getHandleInfoH (_ ::: _ ::: h) = do
     owner <- lift $ API.lookupHandle h
     return $ case owner of
         Just  u -> json (UserHandleInfo u)
         Nothing -> setStatus status404 empty
 
-changeHandle :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
-changeHandle (u ::: conn ::: req) = do
+changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
+changeHandleH (u ::: conn ::: req) = do
     HandleUpdate h <- parseJsonBody req
     handle <- validateHandle h
     API.changeHandle u conn handle !>> changeHandleError
     return empty
 
--- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKey :: JSON ::: JsonRequest Activate -> Handler Response
-activateKey (_ ::: req) = parseJsonBody req >>= activate
-
-beginPasswordReset :: JSON ::: JsonRequest NewPasswordReset -> Handler Response
-beginPasswordReset (_ ::: req) = do
+beginPasswordResetH :: JSON ::: JsonRequest NewPasswordReset -> Handler Response
+beginPasswordResetH (_ ::: req) = do
     NewPasswordReset target <- parseJsonBody req
     checkWhitelist target
     (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -1338,114 +1334,114 @@ beginPasswordReset (_ ::: req) = do
         Right phone -> sendPasswordResetSms  phone pair loc
     return $ setStatus status201 empty
 
-completePasswordReset :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
-completePasswordReset (_ ::: req) = do
+completePasswordResetH :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordResetH (_ ::: req) = do
     CompletePasswordReset{..} <- parseJsonBody req
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
     return empty
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: JsonRequest SendActivationCode -> Handler Response
-sendActivationCode req = do
+sendActivationCodeH :: JsonRequest SendActivationCode -> Handler Response
+sendActivationCodeH req = do
     SendActivationCode{..} <- parseJsonBody req
     checkWhitelist saUserKey
     API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
     return empty
 
-changeSelfEmail :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmail (u ::: _ ::: req) = changeEmail u req True
+changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
 
 -- Deprecated and to be removed after new versions of brig and galley are
 -- deployed. Reason for deprecation: it returns N^2 things (which is not
 -- needed), it doesn't scale, and it accepts everything in URL parameters,
 -- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatus :: List UserId ::: Maybe Relation -> Handler Response
-deprecatedGetConnectionsStatus (users ::: flt) = do
+deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatusH (users ::: flt) = do
     r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
-getConnectionsStatus
+getConnectionsStatusH
     :: JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation
     -> Handler Response
-getConnectionsStatus (_ ::: req ::: flt) = do
+getConnectionsStatusH (_ ::: req ::: flt) = do
     ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
     r <- lift $ API.lookupConnectionStatus csrFrom csrTo
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
-createConnection :: JSON ::: UserId ::: ConnId ::: JsonRequest ConnectionRequest -> Handler Response
-createConnection (_ ::: self ::: conn ::: req) = do
+createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest ConnectionRequest -> Handler Response
+createConnectionH (_ ::: self ::: conn ::: req) = do
     cr <- parseJsonBody req
     rs <- API.createConnection self cr conn !>> connError
     return $ case rs of
         ConnectionCreated c -> setStatus status201 $ json c
         ConnectionExists  c -> json c
 
-updateConnection :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest ConnectionUpdate -> Handler Response
-updateConnection (_ ::: self ::: conn ::: other ::: req) = do
+updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest ConnectionUpdate -> Handler Response
+updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
     newStatus <- cuStatus <$> parseJsonBody req
     mc <- API.updateConnection self other newStatus (Just conn) !>> connError
     return $ case mc of
         Just  c -> json c
         Nothing -> setStatus status204 empty
 
-listConnections :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
-listConnections (_ ::: uid ::: start ::: size) = json <$>
+listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
+listConnectionsH (_ ::: uid ::: start ::: size) = json <$>
     lift (API.lookupConnections uid start size)
 
-getConnection :: JSON ::: UserId ::: UserId -> Handler Response
-getConnection (_ ::: uid ::: uid') = lift $ do
+getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
+getConnectionH (_ ::: uid ::: uid') = lift $ do
     conn <- API.lookupConnection uid uid'
     return $ case conn of
         Just c  -> json c
         Nothing -> setStatus status404 empty
 
-revokeIdentity :: Either Email Phone -> Handler Response
-revokeIdentity emailOrPhone = do
+revokeIdentityH :: Either Email Phone -> Handler Response
+revokeIdentityH emailOrPhone = do
     lift $ API.revokeIdentity emailOrPhone
     return $ setStatus status200 empty
 
-checkBlacklist :: Either Email Phone -> Handler Response
-checkBlacklist emailOrPhone = do
+checkBlacklistH :: Either Email Phone -> Handler Response
+checkBlacklistH emailOrPhone = do
     bl <- lift $ API.isBlacklisted emailOrPhone
     return $ setStatus (bool status404 status200 bl) empty
 
-deleteFromBlacklist :: Either Email Phone -> Handler Response
-deleteFromBlacklist emailOrPhone = do
+deleteFromBlacklistH :: Either Email Phone -> Handler Response
+deleteFromBlacklistH emailOrPhone = do
     void . lift $ API.blacklistDelete emailOrPhone
     return empty
 
-addBlacklist :: Either Email Phone -> Handler Response
-addBlacklist emailOrPhone = do
+addBlacklistH :: Either Email Phone -> Handler Response
+addBlacklistH emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixes :: PhonePrefix -> Handler Response
-getPhonePrefixes prefix = do
+getPhonePrefixesH :: PhonePrefix -> Handler Response
+getPhonePrefixesH prefix = do
     results <- lift $ API.phonePrefixGet prefix
     return $ case results of
         []      -> setStatus status404 empty
         _       -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefix :: PhonePrefix -> Handler Response
-deleteFromPhonePrefix prefix = do
+deleteFromPhonePrefixH :: PhonePrefix -> Handler Response
+deleteFromPhonePrefixH prefix = do
     void . lift $ API.phonePrefixDelete prefix
     return empty
 
-addPhonePrefix :: JSON ::: JsonRequest ExcludedPrefix -> Handler Response
-addPhonePrefix (_ ::: req) = do
+addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> Handler Response
+addPhonePrefixH (_ ::: req) = do
     prefix :: ExcludedPrefix <- parseJsonBody req
     void . lift $ API.phonePrefixInsert prefix
     return empty
 
-canBeDeleted :: UserId ::: TeamId -> Handler Response
-canBeDeleted (uid ::: tid) = do
+canBeDeletedH :: UserId ::: TeamId -> Handler Response
+canBeDeletedH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwnerWithEmail       -> throwStd noOtherOwner
@@ -1454,8 +1450,8 @@ canBeDeleted (uid ::: tid) = do
        Team.IsNotTeamOwner                 -> pure ()
     return empty
 
-isTeamOwner :: UserId ::: TeamId -> Handler Response
-isTeamOwner (uid ::: tid) = do
+isTeamOwnerH :: UserId ::: TeamId -> Handler Response
+isTeamOwnerH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwnerWithEmail       -> pure ()
@@ -1464,22 +1460,22 @@ isTeamOwner (uid ::: tid) = do
        Team.IsNotTeamOwner                 -> throwStd insufficientTeamPermissions
     return empty
 
-updateSSOId :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
-updateSSOId (uid ::: _ ::: req) = do
+updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
+updateSSOIdH (uid ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
     success <- lift $ Data.updateSSOId uid ssoid
     if success
       then return empty
       else return . setStatus status404 $ plain "User does not exist or has no team."
 
-updateManagedBy :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
-updateManagedBy (uid ::: _ ::: req) = do
+updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
+updateManagedByH (uid ::: _ ::: req) = do
     ManagedByUpdate managedBy <- parseJsonBody req
     lift $ Data.updateManagedBy uid managedBy
     return empty
 
-updateRichInfo :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
-updateRichInfo (uid ::: _ ::: req) = do
+updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
+updateRichInfoH (uid ::: _ ::: req) = do
     (RichInfoAssocList richInfo) <- normalizeRichInfoAssocList . riuRichInfo <$> parseJsonBody req
     maxSize <- setRichInfoLimit <$> view settings
     when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
@@ -1488,56 +1484,73 @@ updateRichInfo (uid ::: _ ::: req) = do
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
-deleteUser :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
-deleteUser (u ::: r ::: _) = do
+deleteUserH :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
+deleteUserH (u ::: r ::: _) = do
     body <- parseJsonBody r
     res <- API.deleteUser u (deleteUserPassword body) !>> deleteUserError
     return $ case res of
         Nothing  -> setStatus status200 empty
         Just ttl -> setStatus status202 (json (DeletionCodeTimeout ttl))
 
-verifyDeleteUser :: JsonRequest VerifyDeleteUser ::: JSON -> Handler Response
-verifyDeleteUser (r ::: _) = do
+verifyDeleteUserH :: JsonRequest VerifyDeleteUser ::: JSON -> Handler Response
+verifyDeleteUserH (r ::: _) = do
     body <- parseJsonBody r
     API.verifyDeleteUser body !>> deleteUserError
     return (setStatus status200 empty)
 
-onboarding :: JSON ::: UserId ::: JsonRequest AddressBook -> Handler Response
-onboarding (_ ::: uid ::: r) = do
+onboardingH :: JSON ::: UserId ::: JsonRequest AddressBook -> Handler Response
+onboardingH (_ ::: uid ::: r) = do
     ab <- parseJsonBody r
     json <$> API.onboarding uid ab !>> connError
 
-getContactList :: JSON ::: UserId -> Handler Response
-getContactList (_ ::: uid) = do
+getContactListH :: JSON ::: UserId -> Handler Response
+getContactListH (_ ::: uid) = do
     contacts <- lift $ API.lookupContactList uid
     return $ json $ (UserIds contacts)
 
+-- activation
+
+-- docs/reference/user/activation.md {#RefActivationSubmit}
+activateKeyH :: JSON ::: JsonRequest Activate -> Handler Response
+activateKeyH (_ ::: req) = respFromActivationResponseWithStatus <$> (activate =<< parseJsonBody req)
+
+activateH :: ActivationKey ::: ActivationCode -> Handler Response
+activateH (k ::: c) = respFromActivationResponseWithStatus <$> (activate (Activate (ActivateKey k) c False))
+
+activate :: Activate -> Handler ActivationResponseWithStatus
+activate (Activate tgt code dryrun)
+    | dryrun = do
+        API.preverify tgt code !>> actError
+        return $ ActivationResponseNothing200
+    | otherwise = do
+        result <- API.activate tgt code Nothing !>> actError
+        return $ case result of
+            ActivationSuccess ident first -> respond ident first
+            ActivationPass                -> ActivationResponseNothing204
+  where
+    respond (Just ident) first = ActivationResponseJust $ ActivationResponse ident first
+    respond Nothing      _     = ActivationResponseNothing200
+
+data ActivationResponseWithStatus
+    = ActivationResponseJust ActivationResponse
+    | ActivationResponseNothing200
+    | ActivationResponseNothing204
+
+respFromActivationResponseWithStatus :: ActivationResponseWithStatus -> Response
+respFromActivationResponseWithStatus = \case
+    ActivationResponseJust aresp -> json aresp
+    ActivationResponseNothing200 -> empty
+    ActivationResponseNothing204 -> setStatus status204 empty
+
 -- Deprecated
 
-deprecatedCompletePasswordReset :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
-deprecatedCompletePasswordReset (_ ::: k ::: req) = do
+deprecatedCompletePasswordResetH :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
+deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
     pwr <- parseJsonBody req
     API.completePasswordReset (PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
     return empty
 
 -- Utilities
-
-activate' :: ActivationKey ::: ActivationCode -> Handler Response
-activate' (k ::: c) = activate $ Activate (ActivateKey k) c False
-
-activate :: Activate -> Handler Response
-activate (Activate tgt code dryrun)
-    | dryrun = do
-        API.preverify tgt code !>> actError
-        return empty
-    | otherwise = do
-        result <- API.activate tgt code Nothing !>> actError
-        return $ case result of
-            ActivationSuccess ident first -> respond ident first
-            ActivationPass                -> setStatus status204 empty
-  where
-    respond (Just ident) first = setStatus status200 $ json (ActivationResponse ident first)
-    respond Nothing      _     = setStatus status200 empty
 
 changeEmail :: UserId -> JsonRequest EmailUpdate -> Bool -> Handler Response
 changeEmail u req sendOutEmail = do
