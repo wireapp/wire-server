@@ -1340,13 +1340,15 @@ instance ToJSON AccountStatusResp where
     toJSON (AccountStatusResp s) = object ["status" .= s]
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
-changePhoneH (u ::: _ ::: req) = do
-    phone <- puPhone <$> parseJsonBody req
+changePhoneH (u ::: c ::: req) = do
+    setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
+
+changePhone :: UserId -> ConnId -> PhoneUpdate -> Handler ()
+changePhone u _ (puPhone -> phone) = do
     (adata, pn) <- API.changePhone u phone !>> changePhoneError
     loc   <- lift $ API.lookupLocale u
     let apair = (activationKey adata, activationCode adata)
     lift $ sendActivationSms pn apair loc
-    return $ setStatus status202 empty
 
 removePhoneH :: UserId ::: ConnId -> Handler Response
 removePhoneH (self ::: conn) = do
@@ -1376,18 +1378,21 @@ changeLocaleH (u ::: conn ::: req) = do
     return empty
 
 checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (_ ::: h) = do
-    handle <- validateHandle h
+checkHandleH (uid ::: hndl) = flip setStatus empty <$> checkHandle uid hndl
+
+checkHandle :: UserId -> Text -> Handler Status
+checkHandle _ uhandle = do
+    handle <- validateHandle uhandle
     owner <- lift $ API.lookupHandle handle
     if | isJust owner
         -- Handle is taken (=> getHandleInfo will return 200)
-        -> return $ setStatus status200 empty
+        -> return status200
        | API.isBlacklistedHandle handle
         -- Handle is free but cannot be taken
         -> throwE (StdError invalidHandle)
        | otherwise
         -- Handle is free and can be taken
-        -> return $ setStatus status404 empty
+        -> return status404
 
 checkHandlesH :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
@@ -1405,21 +1410,25 @@ getHandleInfoH (_ ::: _ ::: h) = do
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
-    HandleUpdate h <- parseJsonBody req
+    empty <$ (changeHandle u conn =<< parseJsonBody req)
+
+changeHandle :: UserId -> ConnId -> HandleUpdate -> Handler ()
+changeHandle u conn (HandleUpdate h) = do
     handle <- validateHandle h
     API.changeHandle u conn handle !>> changeHandleError
-    return empty
 
 beginPasswordResetH :: JSON ::: JsonRequest NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
-    NewPasswordReset target <- parseJsonBody req
+    setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
+
+beginPasswordReset :: NewPasswordReset -> Handler ()
+beginPasswordReset (NewPasswordReset target) = do
     checkWhitelist target
     (u, pair) <- API.beginPasswordReset target !>> pwResetError
     loc       <- lift $ API.lookupLocale u
     lift $ case target of
         Left  email -> sendPasswordResetMail email pair loc
         Right phone -> sendPasswordResetSms  phone pair loc
-    return $ setStatus status201 empty
 
 completePasswordResetH :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
 completePasswordResetH (_ ::: req) = do
@@ -1427,13 +1436,15 @@ completePasswordResetH (_ ::: req) = do
     API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
     return empty
 
--- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCodeH :: JsonRequest SendActivationCode -> Handler Response
 sendActivationCodeH req = do
-    SendActivationCode{..} <- parseJsonBody req
+    empty <$ (sendActivationCode =<< parseJsonBody req)
+
+-- docs/reference/user/activation.md {#RefActivationRequest}
+sendActivationCode :: SendActivationCode -> Handler ()
+sendActivationCode SendActivationCode{..} = do
     checkWhitelist saUserKey
     API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
-    return empty
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
@@ -1453,11 +1464,15 @@ getConnectionsStatusH
     :: JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation
     -> Handler Response
 getConnectionsStatusH (_ ::: req ::: flt) = do
-    ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
-    r <- lift $ API.lookupConnectionStatus csrFrom csrTo
-    return . json $ maybe r (filterByRelation r) flt
+    body <- parseJsonBody req
+    json <$> lift (getConnectionsStatus body flt)
+
+getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
+getConnectionsStatus ConnectionsStatusRequest{csrFrom, csrTo} flt = do
+    r <- API.lookupConnectionStatus csrFrom csrTo
+    return $ maybe r (filterByRelation r) flt
   where
-    filterByRelation l rel = filter ((==rel) . csStatus) l
+    filterByRelation l rel = filter ((== rel) . csStatus) l
 
 createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do
