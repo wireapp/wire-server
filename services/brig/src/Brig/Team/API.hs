@@ -40,7 +40,7 @@ import qualified Galley.Types.Teams.Intra      as Team
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
 
-    post "/teams/:tid/invitations" (continue createInvitation) $
+    post "/teams/:tid/invitations" (continue createInvitationH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "tid"
@@ -64,7 +64,7 @@ routes = do
 
     ---
 
-    get "/teams/:tid/invitations" (continue listInvitations) $
+    get "/teams/:tid/invitations" (continue listInvitationsH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "tid"
@@ -86,7 +86,7 @@ routes = do
 
     ---
 
-    get "/teams/:tid/invitations/:iid" (continue getInvitation) $
+    get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "tid"
@@ -103,7 +103,7 @@ routes = do
 
     ---
 
-    delete "/teams/:tid/invitations/:iid" (continue deleteInvitation) $
+    delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. capture "tid"
@@ -119,7 +119,7 @@ routes = do
 
     ---
 
-    get "/teams/invitations/info" (continue getInvitationByCode) $
+    get "/teams/invitations/info" (continue getInvitationByCodeH) $
         accept "application" "json"
         .&. query "code"
 
@@ -133,29 +133,45 @@ routes = do
 
     --- Internal
 
-    get "/i/teams/invitation-code" (continue getInvitationCode) $
+    get "/i/teams/invitation-code" (continue getInvitationCodeH) $
         accept "application" "json"
         .&. param "team"
         .&. param "invitation_id"
 
-    post "/i/teams/:tid/suspend" (continue suspendTeam) $
+    post "/i/teams/:tid/suspend" (continue suspendTeamH) $
         accept "application" "json"
         .&. capture "tid"
 
-    post "/i/teams/:tid/unsuspend" (continue unsuspendTeam) $
+    post "/i/teams/:tid/unsuspend" (continue unsuspendTeamH) $
         accept "application" "json"
         .&. capture "tid"
 
-getInvitationCode :: JSON ::: TeamId ::: InvitationId -> Handler Response
-getInvitationCode (_ ::: t ::: r) = do
+getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
+getInvitationCodeH (_ ::: t ::: r) = do
+    json <$> getInvitationCode t r
+
+getInvitationCode :: TeamId -> InvitationId -> Handler FoundInvitationCode
+getInvitationCode t r = do
     code <- lift $ DB.lookupInvitationCode t r
-    maybe (throwStd invalidInvitationCode) (return . found) code
-  where
-    found c = json $ object [ "code" .= c ]
+    maybe (throwStd invalidInvitationCode) (return . FoundInvitationCode) code
 
-createInvitation :: JSON ::: UserId ::: TeamId ::: JsonRequest InvitationRequest -> Handler Response
-createInvitation (_ ::: uid ::: tid ::: req) = do
-    body :: InvitationRequest <- parseJsonBody req
+data FoundInvitationCode = FoundInvitationCode InvitationCode
+  deriving (Eq, Show, Generic)
+
+instance ToJSON FoundInvitationCode where
+    toJSON c = object [ "code" .= c ]
+
+createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest InvitationRequest -> Handler Response
+createInvitationH (_ ::: uid ::: tid ::: req) = do
+    body   :: InvitationRequest <- parseJsonBody req
+    newInv :: Invitation        <- createInvitation uid tid body
+    pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
+  where
+    loc iid = addHeader "Location"
+            $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+
+createInvitation :: UserId -> TeamId -> InvitationRequest -> Handler Invitation
+createInvitation uid tid body = do
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     let inviteePerms = Team.rolePermissions inviteeRole
@@ -180,48 +196,66 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
         timeout <- setTeamInvitationTimeout <$> view settings
         (newInv, code) <- DB.insertInvitation tid role to now (Just uid) timeout
         void $ sendInvitationMail to tid from code lc
-        return . setStatus status201 . loc (inInvitation newInv) $ json newInv
+        return newInv
 
-    loc iid = addHeader "Location"
-            $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
+deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
+    empty <$ deleteInvitation uid tid iid
 
-deleteInvitation :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
-deleteInvitation (_ ::: uid ::: tid ::: iid) = do
+deleteInvitation :: UserId -> TeamId -> InvitationId -> Handler ()
+deleteInvitation uid tid iid = do
     ensurePermissions uid tid [Team.AddTeamMember]
     lift $ DB.deleteInvitation tid iid
-    return empty
 
-listInvitations :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
-listInvitations (_ ::: uid ::: tid ::: start ::: size) = do
+listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
+listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
+    json <$> listInvitations uid tid start size
+
+listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> Handler InvitationList
+listInvitations uid tid start size = do
     ensurePermissions uid tid [Team.AddTeamMember]
     rs <- lift $ DB.lookupInvitations tid start size
-    return . json $! InvitationList (DB.resultList rs) (DB.resultHasMore rs)
+    return $! InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitation :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
-getInvitation (_ ::: uid ::: tid ::: iid) = do
-    ensurePermissions uid tid [Team.AddTeamMember]
-    inv <- lift $ DB.lookupInvitation tid iid
+getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
+getInvitationH (_ ::: uid ::: tid ::: iid) = do
+    inv <- getInvitation uid tid iid
     return $ case inv of
         Just i  -> json i
         Nothing -> setStatus status404 empty
 
-getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
-getInvitationByCode (_ ::: c) = do
-    inv <- lift $ DB.lookupInvitationByCode c
-    maybe (throwStd invalidInvitationCode) (return . json) inv
+getInvitation :: UserId -> TeamId -> InvitationId -> Handler (Maybe Invitation)
+getInvitation uid tid iid = do
+    ensurePermissions uid tid [Team.AddTeamMember]
+    lift $ DB.lookupInvitation tid iid
 
-suspendTeam :: JSON ::: TeamId -> Handler Response
-suspendTeam (_ ::: tid) = do
+getInvitationByCodeH :: JSON ::: InvitationCode -> Handler Response
+getInvitationByCodeH (_ ::: c) = do
+    json <$> getInvitationByCode c
+
+getInvitationByCode :: InvitationCode -> Handler Invitation
+getInvitationByCode c = do
+    inv <- lift $ DB.lookupInvitationByCode c
+    maybe (throwStd invalidInvitationCode) return inv
+
+suspendTeamH :: JSON ::: TeamId -> Handler Response
+suspendTeamH (_ ::: tid) = do
+    empty <$ suspendTeam tid
+
+suspendTeam :: TeamId -> Handler ()
+suspendTeam tid = do
     changeTeamAccountStatuses tid Suspended
     lift $ DB.deleteInvitations tid
     lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
-    return empty
 
-unsuspendTeam :: JSON ::: TeamId -> Handler Response
-unsuspendTeam (_ ::: tid) = do
+unsuspendTeamH :: JSON ::: TeamId -> Handler Response
+unsuspendTeamH (_ ::: tid) = do
+    empty <$ unsuspendTeam tid
+
+unsuspendTeam :: TeamId -> Handler ()
+unsuspendTeam tid = do
     changeTeamAccountStatuses tid Active
     lift $ Intra.changeTeamStatus tid Team.Active Nothing
-    return empty
 
 -------------------------------------------------------------------------------
 -- Internal
