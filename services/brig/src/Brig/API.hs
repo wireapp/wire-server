@@ -1200,42 +1200,63 @@ createUserNoVerify uData = do
 
 deleteUserNoVerifyH :: UserId -> Handler Response
 deleteUserNoVerifyH uid = do
+    setStatus status202 empty <$ deleteUserNoVerify uid
+
+deleteUserNoVerify :: UserId -> Handler ()
+deleteUserNoVerify uid = do
     void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
     lift $ API.deleteUserNoVerify uid
-    return $ setStatus status202 empty
 
 changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
 
 checkUserExistsH :: UserId ::: UserId -> Handler Response
 checkUserExistsH (self ::: uid) = do
-    exists <- lift $ isJust <$> API.lookupProfile self uid
+    exists <- lift $ checkUserExists self uid
     if exists then return empty else throwStd userNotFound
+
+checkUserExists :: UserId -> UserId -> AppIO Bool
+checkUserExists self uid = do
+    isJust <$> API.lookupProfile self uid
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
-    p <- (lift $ API.lookupSelfProfile self) >>= ifNothing userNotFound
-    return $ json p
+    json <$> getSelf self
+
+getSelf :: UserId -> Handler SelfProfile
+getSelf self = do
+    lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
 getUserH :: JSON ::: UserId ::: UserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
-    p <- (lift $ API.lookupProfile self uid) >>= ifNothing userNotFound
-    return $ json p
+    json <$> getUser self uid
+
+getUser :: UserId -> UserId -> Handler UserProfile
+getUser self uid = do
+    lift (API.lookupProfile self uid) >>= ifNothing userNotFound
 
 getUserNameH :: JSON ::: UserId -> Handler Response
 getUserNameH (_ ::: self) = do
-    name <- lift $ API.lookupName self
+    name :: Maybe Name <- lift $ API.lookupName self
     return $ case name of
         Just n  -> json $ object ["name" .= n]
         Nothing -> setStatus status404 empty
 
 listUsersH :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
-listUsersH (_ ::: self ::: qry) = case qry of
-    Left  us -> toResponse =<< byIds (fromList us)
+listUsersH (_ ::: self ::: qry) =
+    toResponse <$> listUsers self qry
+  where
+    toResponse = \case
+        [] -> setStatus status404 empty
+        ps -> json ps
+
+listUsers :: UserId -> Either (List UserId) (List Handle) -> Handler [UserProfile]
+listUsers self = \case
+    Left  us -> byIds (fromList us)
     Right hs -> do
         us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
         sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-        toResponse =<< if sameTeamSearchOnly
+        if sameTeamSearchOnly
             then sameTeamOnly =<< byIds us
             else byIds us
   where
@@ -1247,11 +1268,6 @@ listUsersH (_ ::: self ::: qry) = case qry of
             Nothing   -> us
 
     byIds uids = lift $ API.lookupProfiles self uids
-
-    toResponse profiles = do
-        return $ case profiles of
-            [] -> setStatus status404 empty
-            ps -> json ps
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
 listActivatedAccountsH (_ ::: qry) = case qry of
