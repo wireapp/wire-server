@@ -1118,19 +1118,30 @@ listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
 autoConnectH (_ ::: uid ::: conn ::: req) = do
-    UserSet to <- parseJsonBody req
+    json <$> (autoConnect uid conn =<< parseJsonBody req)
+
+autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
+autoConnect uid conn (UserSet to) = do
     let num = Set.size to
     when (num < 1) $
         throwStd $ badRequest "No users given for auto-connect."
     when (num > 25) $
         throwStd $ badRequest "Too many users given for auto-connect (> 25)."
-    conns <- API.autoConnect uid to conn !>> connError
-    return $ json conns
+    API.autoConnect uid to conn !>> connError
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest NewUserPublic -> Handler Response
 createUserH (_ ::: req) = do
-    NewUserPublic new <- parseJsonBody req
+    CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
+    lift . Auth.setResponseCookie cok
+         . setStatus status201
+         . addHeader "Location" (toByteString' loc)
+         $ json prof
+
+data CreateUserResponse = CreateUserResponse (Cookie (ZAuth.Token ZAuth.User)) UserId SelfProfile
+
+createUser :: NewUserPublic -> Handler CreateUserResponse
+createUser (NewUserPublic new) = do
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1151,10 +1162,7 @@ createUserH (_ ::: req) = do
     cok <- case acc of
         UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User (userId usr) SessionCookie (newUserLabel new)
         UserAccount _ _         -> lift $ Auth.newCookie @ZAuth.User (userId usr) PersistentCookie (newUserLabel new)
-    lift $ Auth.setResponseCookie cok
-        $ setStatus status201
-        . addHeader "Location" (toByteString' (userId usr))
-        $ json (SelfProfile usr)
+    pure $ CreateUserResponse cok (userId usr) (SelfProfile usr)
   where
     sendActivationEmail e u p l (Just (NewTeamCreator (BindingNewTeamUser (Team.BindingNewTeam t) _))) =
         sendTeamActivationMail e u p l (fromRange $ t^.Team.newTeamName)
@@ -1169,7 +1177,15 @@ createUserH (_ ::: req) = do
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
 createUserNoVerifyH (_ ::: req) = do
-    (uData :: NewUser)  <- parseJsonBody req
+    CreateUserNoVerifyResponse uid prof <- createUserNoVerify =<< parseJsonBody req
+    return . setStatus status201
+           . addHeader "Location" (toByteString' uid)
+           $ json prof
+
+data CreateUserNoVerifyResponse = CreateUserNoVerifyResponse UserId SelfProfile
+
+createUserNoVerify :: NewUser -> Handler CreateUserNoVerifyResponse
+createUserNoVerify uData = do
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
     let usr = accountUser acc
@@ -1180,9 +1196,7 @@ createUserNoVerifyH (_ ::: req) = do
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
         in API.activate key code (Just uid) !>> actError
-    return . setStatus status201
-           . addHeader "Location" (toByteString' uid)
-           $ json (SelfProfile usr)
+    return $ CreateUserNoVerifyResponse uid (SelfProfile usr)
 
 deleteUserNoVerifyH :: UserId -> Handler Response
 deleteUserNoVerifyH uid = do
