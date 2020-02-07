@@ -1270,15 +1270,18 @@ listUsers self = \case
     byIds uids = lift $ API.lookupProfiles self uids
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
-listActivatedAccountsH (_ ::: qry) = case qry of
+listActivatedAccountsH (_ ::: qry) = do
+    json <$> lift (listActivatedAccounts qry)
+
+listActivatedAccounts :: Either (List UserId) (List Handle) -> AppIO [UserAccount]
+listActivatedAccounts = \case
     Left  us -> byIds (fromList us)
     Right hs -> do
-        us <- mapM (lift . API.lookupHandle) (fromList hs)
+        us <- mapM (API.lookupHandle) (fromList hs)
         byIds (catMaybes us)
   where
-    byIds uids = json
-               . filter (isJust . userIdentity . accountUser)
-              <$> (lift $ API.lookupAccounts uids)
+    byIds uids = filter (isJust . userIdentity . accountUser)
+             <$> API.lookupAccounts uids
 
 listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
 listAccountsByIdentityH (_ ::: emailOrPhone) = lift $ json
@@ -1286,17 +1289,31 @@ listAccountsByIdentityH (_ ::: emailOrPhone) = lift $ json
 
 getActivationCodeH :: JSON ::: Either Email Phone -> Handler Response
 getActivationCodeH (_ ::: emailOrPhone) = do
+    json <$> getActivationCode emailOrPhone
+
+getActivationCode :: Either Email Phone -> Handler GetActivationCodeResp
+getActivationCode emailOrPhone = do
     apair <- lift $ API.lookupActivationCode emailOrPhone
-    maybe (throwStd activationKeyNotFound) (return . found) apair
-  where
-    found (k, c) = json $ object [ "key" .= k, "code" .= c ]
+    maybe (throwStd activationKeyNotFound) (return . GetActivationCodeResp) apair
+
+data GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCode)
+
+instance ToJSON GetActivationCodeResp where
+    toJSON (GetActivationCodeResp (k, c)) = object [ "key" .= k, "code" .= c ]
 
 getPasswordResetCodeH :: JSON ::: Either Email Phone -> Handler Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
+    json <$> getPasswordResetCode emailOrPhone
+
+getPasswordResetCode :: Either Email Phone -> Handler GetPasswordResetCodeResp
+getPasswordResetCode emailOrPhone = do
     apair <- lift $ API.lookupPasswordResetCode emailOrPhone
-    maybe (throwStd invalidPwResetKey) (return . found) apair
-  where
-    found (k, c) = json $ object [ "key" .= k, "code" .= c ]
+    maybe (throwStd invalidPwResetKey) (return . GetPasswordResetCodeResp) apair
+
+data GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, PasswordResetCode)
+
+instance ToJSON GetPasswordResetCodeResp where
+    toJSON (GetPasswordResetCodeResp (k, c)) = object [ "key" .= k, "code" .= c ]
 
 updateUserH :: UserId ::: ConnId ::: JsonRequest UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
@@ -1314,8 +1331,13 @@ getAccountStatusH :: JSON ::: UserId -> Handler Response
 getAccountStatusH (_ ::: usr) = do
     status <- lift $ API.lookupStatus usr
     return $ case status of
-        Just s  -> json $ object ["status" .= s]
+        Just s  -> json $ AccountStatusResp s
         Nothing -> setStatus status404 empty
+
+data AccountStatusResp = AccountStatusResp AccountStatus
+
+instance ToJSON AccountStatusResp where
+    toJSON (AccountStatusResp s) = object ["status" .= s]
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
 changePhoneH (u ::: _ ::: req) = do
