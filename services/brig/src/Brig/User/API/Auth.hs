@@ -214,40 +214,52 @@ legalHoldLogin l = do
     let typ = PersistentCookie -- Session cookie isn't a supported use case here
     Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
--- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logoutH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
-logoutH (_ ::: Nothing ::: Nothing) = throwStd authMissingCookieAndToken
-logoutH (_ ::: Nothing ::: Just _ ) = throwStd authMissingCookie
-logoutH (_ ::: Just _  ::: Nothing) = throwStd authMissingToken
-logoutH (_ ::: Just (Left _) ::: Just (Right _)) = throwStd authTokenMismatch
-logoutH (_ ::: Just (Right _) ::: Just (Left _)) = throwStd authTokenMismatch
-logoutH (_ ::: Just (Left ut) ::: Just (Left at)) = do
-    Auth.logout ut at !>> zauthError
-    return empty
-logoutH (_ ::: Just (Right ut) ::: Just (Right at)) = do
-    Auth.logout ut at !>> zauthError
-    return empty
+logoutH (_ ::: ut ::: at) = empty <$ logout ut at
+
+-- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
+logout
+    :: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
+    -> Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
+    -> Handler ()
+logout Nothing           Nothing           = throwStd authMissingCookieAndToken
+logout Nothing           (Just _)          = throwStd authMissingCookie
+logout (Just _)          Nothing           = throwStd authMissingToken
+logout (Just (Left _))   (Just (Right _))  = throwStd authTokenMismatch
+logout (Just (Right _))  (Just (Left _))   = throwStd authTokenMismatch
+logout (Just (Left ut))  (Just (Left at))  = Auth.logout ut at !>> zauthError
+logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
 
 listCookiesH :: UserId ::: Maybe (List CookieLabel) ::: JSON -> Handler Response
-listCookiesH (u ::: ll ::: _) = do
-    cs <- lift $ Auth.listCookies u (maybe [] fromList ll)
-    return . json $ CookieList cs
+listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
+
+listCookies :: UserId -> Maybe (List CookieLabel) -> AppIO CookieList
+listCookies u ll = do
+    CookieList <$> Auth.listCookies u (maybe [] fromList ll)
 
 rmCookiesH :: UserId ::: JsonRequest RemoveCookies -> Handler Response
 rmCookiesH (uid ::: req) = do
-    RemoveCookies pw lls ids <- parseJsonBody req
+    empty <$ (rmCookies uid =<< parseJsonBody req)
+
+rmCookies :: UserId -> RemoveCookies -> Handler ()
+rmCookies uid (RemoveCookies pw lls ids) = do
     Auth.revokeAccess uid pw ids lls !>> authError
-    return empty
 
 renewH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
-renewH (_ ::: Nothing :::  _) = throwStd authMissingCookie
-renewH (_ ::: Just userToken ::: accessToken) = do
-    case (userToken, accessToken) of
-         (Left ut, Just (Left at)) -> (Auth.renewAccess ut (Just at) !>> zauthError) >>= lift . tokenResponse
-         (Left ut, Nothing) -> Auth.renewAccess @ZAuth.User @ZAuth.Access ut Nothing !>> zauthError >>= lift . tokenResponse
-         (Right lut, Just (Right lat)) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut (Just lat) !>> zauthError >>= lift . tokenResponse
-         (Right lut, Nothing) -> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut Nothing !>> zauthError >>= lift . tokenResponse
-         (_, _) -> throwStd authTokenMismatch
+renewH (_ ::: ut :::  at) = lift . either tokenResponse tokenResponse =<< renew ut at
+
+renew
+    :: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
+    -> Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
+    -> Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
+renew (Just (Left ut))   (Just (Left at))   = Left  <$> Auth.renewAccess ut (Just at) !>> zauthError
+renew (Just (Left ut))   Nothing            = Left  <$> Auth.renewAccess @ZAuth.User @ZAuth.Access ut Nothing !>> zauthError
+renew (Just (Right lut)) (Just (Right lat)) = Right <$> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut (Just lat) !>> zauthError
+renew (Just (Right lut)) Nothing            = Right <$> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut Nothing !>> zauthError
+renew (Just (Left _))    (Just (Right _))   = throwStd authTokenMismatch
+renew (Just (Right _))   (Just (Left _))    = throwStd authTokenMismatch
+renew Nothing            _                  = throwStd authMissingCookie
+
 
 -- Utilities
 --

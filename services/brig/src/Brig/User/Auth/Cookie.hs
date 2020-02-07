@@ -202,10 +202,10 @@ newCookieLimited u typ label = do
 -- HTTP
 
 setResponseCookie
-    :: (Monad m, ZAuth.UserTokenLike u)
+    :: (Monad m, MonadReader Env m, ZAuth.UserTokenLike u)
     => Cookie (ZAuth.Token u)
     -> Response
-    -> AppT m Response
+    -> m Response
 setResponseCookie c r = do
     s <- view settings
     let hdr = toByteString' (WebCookie.renderSetCookie (cookie s))
