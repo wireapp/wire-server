@@ -81,28 +81,28 @@ routes = do
 -- Handlers
 
 search :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
-search (_ ::: u ::: q ::: s) = json <$> searchTyped u q s
+search (_ ::: u ::: q ::: s) = json <$> lift (searchTyped u q s)
 
-searchTyped :: UserId -> Text -> Range 1 100 Int32 -> Handler (SearchResult Contact)
+searchTyped :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
 searchTyped u q s = do
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-    contacts <- lift (searchIndex u q s)
+    contacts <- searchIndex u q s
     -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
     --             the extra work done here and greatly simplify the query.
     return =<< if sameTeamSearchOnly
         then maybeFilterTeamUsers contacts
         else pure contacts
   where
-    maybeFilterTeamUsers :: SearchResult Contact -> Handler (SearchResult Contact)
+    maybeFilterTeamUsers :: SearchResult Contact -> AppIO (SearchResult Contact)
     maybeFilterTeamUsers sresult = do
-        selfTeam <- lift $ DB.lookupUserTeam u
+        selfTeam <- DB.lookupUserTeam u
         case selfTeam of
             Nothing   -> pure sresult
             Just team -> filterTeamUsers sresult team
 
     -- Filter the result set with users from the given team only
     filterTeamUsers sresult team = do
-        others <- lift $ DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
+        others <- DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
         let sameTeamMembers = fmap fst $ filter ((== Just team) . snd) others
         let searchResultsFiltered = filter ((`elem` sameTeamMembers) . contactUserId) (searchResults sresult)
         return $ sresult { searchReturned = length searchResultsFiltered
@@ -110,19 +110,19 @@ searchTyped u q s = do
                          }
 
 isSearchable :: JSON ::: UserId -> Handler Response
-isSearchable (_ ::: u) = json <$> isSearchableTyped u
+isSearchable (_ ::: u) = json <$> lift (isSearchableTyped u)
 
-isSearchableTyped :: UserId -> Handler SearchableStatus
-isSearchableTyped = lift . checkIndex
+isSearchableTyped :: UserId -> AppIO SearchableStatus
+isSearchableTyped = checkIndex
 
 setSearchable :: UserId ::: JsonRequest SearchableStatus -> Handler Response
 setSearchable (u ::: r) = do
     s <- parseJsonBody r
-    setSearchableTyped u s
+    lift (setSearchableTyped u s)
     return (setStatus status200 empty)
 
-setSearchableTyped :: UserId -> SearchableStatus -> Handler ()
-setSearchableTyped u s = lift $ do
+setSearchableTyped :: UserId -> SearchableStatus -> AppIO ()
+setSearchableTyped u s = do
     DB.updateSearchableStatus u s
     Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
     return ()
