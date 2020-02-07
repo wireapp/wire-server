@@ -1547,20 +1547,18 @@ canBeDeletedH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwnerWithEmail       -> throwStd noOtherOwner
-       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
-       Team.IsTeamOwnerWithoutEmail        -> pure ()
-       Team.IsNotTeamOwner                 -> pure ()
-    return empty
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure empty
+       Team.IsTeamOwnerWithoutEmail        -> pure empty
+       Team.IsNotTeamOwner                 -> pure empty
 
 isTeamOwnerH :: UserId ::: TeamId -> Handler Response
 isTeamOwnerH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
-       Team.IsOnlyTeamOwnerWithEmail       -> pure ()
-       Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
-       Team.IsTeamOwnerWithoutEmail        -> pure ()
+       Team.IsOnlyTeamOwnerWithEmail       -> pure empty
+       Team.IsOneOfManyTeamOwnersWithEmail -> pure empty
+       Team.IsTeamOwnerWithoutEmail        -> pure empty
        Team.IsNotTeamOwner                 -> throwStd insufficientTeamPermissions
-    return empty
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do
@@ -1578,13 +1576,16 @@ updateManagedByH (uid ::: _ ::: req) = do
 
 updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
 updateRichInfoH (uid ::: _ ::: req) = do
-    (RichInfoAssocList richInfo) <- normalizeRichInfoAssocList . riuRichInfo <$> parseJsonBody req
+    empty <$ (updateRichInfo uid =<< parseJsonBody req)
+
+updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
+updateRichInfo uid rup = do
+    let RichInfoAssocList richInfo = normalizeRichInfoAssocList . riuRichInfo $ rup
     maxSize <- setRichInfoLimit <$> view settings
     when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
     lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-    return empty
 
 deleteUserH :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
 deleteUserH (u ::: r ::: _) = do
