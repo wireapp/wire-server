@@ -198,17 +198,21 @@ login l persist = do
 
 ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> Handler Response
 ssoLoginH (req ::: persist ::: _) = do
-    l <- parseJsonBody req
+    lift . tokenResponse =<< flip ssoLogin persist =<< parseJsonBody req
+
+ssoLogin :: SsoLogin -> Bool -> Handler (Auth.Access ZAuth.User)
+ssoLogin l persist = do
     let typ = if persist then PersistentCookie else SessionCookie
-    _a <- Auth.ssoLogin l typ !>> loginError
-    undefined -- tokenResponse a
+    Auth.ssoLogin l typ !>> loginError
 
 legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> Handler Response
 legalHoldLoginH (req ::: _) = do
-    l <- parseJsonBody req
+    lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
+
+legalHoldLogin :: LegalHoldLogin -> Handler (Auth.Access ZAuth.LegalHoldUser)
+legalHoldLogin l = do
     let typ = PersistentCookie -- Session cookie isn't a supported use case here
-    _a <- Auth.legalHoldLogin l typ !>> legalHoldLoginError
-    undefined -- tokenResponse a
+    Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logoutH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
