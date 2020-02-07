@@ -950,16 +950,25 @@ sitemap o = do
 
 setPropertyH :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
 setPropertyH (u ::: c ::: k ::: req) = do
+    empty <$ (setProperty u c k =<< lazyParsePropertyValue (lazyRequestBody (fromJsonRequest req)))
+
+setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> Handler ()
+setProperty u c k propval = do
     maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-    maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
     unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
         throwStd propertyKeyTooLarge
-    lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody (fromJsonRequest req))
+    API.setProperty u c k propval !>> propDataError
+
+-- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
+-- checks the byte size of the input, and fails *without consuming all of it* if that size
+-- exceeds the settings.
+lazyParsePropertyValue :: IO Lazy.ByteString -> Handler PropertyValue
+lazyParsePropertyValue lreqbody = do
+    maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
+    lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
     unless (Lazy.length lbs <= maxValueLen) $
         throwStd propertyValueTooLarge
-    val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
-    API.setProperty u c k val !>> propDataError
-    return empty
+    hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
 
 deletePropertyH :: UserId ::: ConnId ::: PropertyKey -> Handler Response
 deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
