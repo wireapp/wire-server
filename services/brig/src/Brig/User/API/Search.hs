@@ -26,7 +26,7 @@ import qualified Brig.Types.Swagger     as Doc
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
-    get "/search/contacts" (continue search) $
+    get "/search/contacts" (continue searchH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. query "q"
@@ -44,7 +44,7 @@ routes = do
 
     --
 
-    get "/self/searchable" (continue isSearchable) $
+    get "/self/searchable" (continue isSearchableH) $
         accept "application" "json"
         .&. header "Z-User"
 
@@ -55,7 +55,7 @@ routes = do
 
     --
 
-    put "/self/searchable" (continue setSearchable) $
+    put "/self/searchable" (continue setSearchableH) $
         header "Z-User"
         .&. jsonRequest @SearchableStatus
 
@@ -80,11 +80,11 @@ routes = do
 
 -- Handlers
 
-search :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
-search (_ ::: u ::: q ::: s) = json <$> lift (searchTyped u q s)
+searchH :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
+searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
 
-searchTyped :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
-searchTyped u q s = do
+search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
+search u q s = do
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
     contacts <- searchIndex u q s
     -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
@@ -109,20 +109,20 @@ searchTyped u q s = do
                          , searchResults  = searchResultsFiltered
                          }
 
-isSearchable :: JSON ::: UserId -> Handler Response
-isSearchable (_ ::: u) = json <$> lift (isSearchableTyped u)
+isSearchableH :: JSON ::: UserId -> Handler Response
+isSearchableH (_ ::: u) = json <$> lift (isSearchable u)
 
-isSearchableTyped :: UserId -> AppIO SearchableStatus
-isSearchableTyped = checkIndex
+isSearchable :: UserId -> AppIO SearchableStatus
+isSearchable = checkIndex
 
-setSearchable :: UserId ::: JsonRequest SearchableStatus -> Handler Response
-setSearchable (u ::: r) = do
+setSearchableH :: UserId ::: JsonRequest SearchableStatus -> Handler Response
+setSearchableH (u ::: r) = do
     s <- parseJsonBody r
-    lift (setSearchableTyped u s)
+    lift (setSearchable u s)
     return (setStatus status200 empty)
 
-setSearchableTyped :: UserId -> SearchableStatus -> AppIO ()
-setSearchableTyped u s = do
+setSearchable :: UserId -> SearchableStatus -> AppIO ()
+setSearchable u s = do
     DB.updateSearchableStatus u s
     Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
     return ()
