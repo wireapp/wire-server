@@ -25,6 +25,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
+import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Hashable (hash)
 import Data.Id
@@ -82,94 +83,94 @@ routes = do
 
     -- Public API --------------------------------------------------------------
 
-    post "/provider/register" (continue newAccount) $
+    post "/provider/register" (continue newAccountH) $
         accept "application" "json"
         .&> jsonRequest @NewProvider
 
-    get "/provider/activate" (continue activateAccountKey) $
+    get "/provider/activate" (continue activateAccountKeyH) $
         accept "application" "json"
         .&> query "key"
         .&. query "code"
 
-    get "/provider/approve" (continue approveAccountKey) $
+    get "/provider/approve" (continue approveAccountKeyH) $
         accept "application" "json"
         .&> query "key"
         .&. query "code"
 
-    post "/provider/login" (continue login) $
+    post "/provider/login" (continue loginH) $
         jsonRequest @ProviderLogin
 
-    post "/provider/password-reset" (continue beginPasswordReset) $
+    post "/provider/password-reset" (continue beginPasswordResetH) $
         accept "application" "json"
         .&> jsonRequest @PasswordReset
 
-    post "/provider/password-reset/complete" (continue completePasswordReset) $
+    post "/provider/password-reset/complete" (continue completePasswordResetH) $
         accept "application" "json"
         .&> jsonRequest @CompletePasswordReset
 
     -- Provider API ------------------------------------------------------------
 
-    delete "/provider" (continue deleteAccount) $
+    delete "/provider" (continue deleteAccountH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. jsonRequest @DeleteProvider
 
-    put "/provider" (continue updateAccountProfile) $
+    put "/provider" (continue updateAccountProfileH) $
         accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
         .&. jsonRequest @UpdateProvider
 
-    put "/provider/email" (continue updateAccountEmail) $
+    put "/provider/email" (continue updateAccountEmailH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. jsonRequest @EmailUpdate
 
-    put "/provider/password" (continue updateAccountPassword) $
+    put "/provider/password" (continue updateAccountPasswordH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. jsonRequest @PasswordChange
 
-    get "/provider" (continue getAccount) $
+    get "/provider" (continue getAccountH) $
         accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
 
-    post "/provider/services" (continue addService) $
+    post "/provider/services" (continue addServiceH) $
         accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
         .&. jsonRequest @NewService
 
-    get "/provider/services" (continue listServices) $
+    get "/provider/services" (continue listServicesH) $
         accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
 
-    get "/provider/services/:sid" (continue getService) $
+    get "/provider/services/:sid" (continue getServiceH) $
         accept "application" "json"
         .&> zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
 
-    put "/provider/services/:sid" (continue updateService) $
+    put "/provider/services/:sid" (continue updateServiceH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
         .&. jsonRequest @UpdateService
 
-    put "/provider/services/:sid/connection" (continue updateServiceConn) $
+    put "/provider/services/:sid/connection" (continue updateServiceConnH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
         .&. jsonRequest @UpdateServiceConn
 
 -- TODO
---     post "/provider/services/:sid/token" (continue genServiceToken) $
+--     post "/provider/services/:sid/token" (continue genServiceTokenH) $
 --         accept "application" "json"
 --         .&. zauthProvider
 
-    delete "/provider/services/:sid" (continue deleteService) $
+    delete "/provider/services/:sid" (continue deleteServiceH) $
         zauth ZAuthProvider
         .&> zauthProviderId
         .&. capture "sid"
@@ -177,34 +178,34 @@ routes = do
 
     -- User API ----------------------------------------------------------------
 
-    get "/providers/:pid" (continue getProviderProfile) $
+    get "/providers/:pid" (continue getProviderProfileH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> capture "pid"
 
-    get "/providers/:pid/services" (continue listServiceProfiles) $
+    get "/providers/:pid/services" (continue listServiceProfilesH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> capture "pid"
 
-    get "/providers/:pid/services/:sid" (continue getServiceProfile) $
+    get "/providers/:pid/services/:sid" (continue getServiceProfileH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> capture "pid"
         .&. capture "sid"
 
-    get "/services" (continue searchServiceProfiles) $
+    get "/services" (continue searchServiceProfilesH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> opt (query "tags")
         .&. opt (query "start")
         .&. def (unsafeRange 20) (query "size")
 
-    get "/services/tags" (continue getServiceTagList) $
+    get "/services/tags" (continue getServiceTagListH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
 
-    get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfiles) $
+    get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
         accept "application" "json"
         .&> zauthUserId
         .&. capture "tid"
@@ -212,7 +213,7 @@ routes = do
         .&. def True (query "filter_disabled")
         .&. def (unsafeRange 20) (query "size")
 
-    post "/teams/:tid/services/whitelist" (continue updateServiceWhitelist) $
+    post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> zauthUserId
@@ -220,7 +221,7 @@ routes = do
         .&. capture "tid"
         .&. jsonRequest @UpdateServiceWhitelist
 
-    post "/conversations/:cnv/bots" (continue addBot) $
+    post "/conversations/:cnv/bots" (continue addBotH) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> zauthUserId
@@ -228,7 +229,7 @@ routes = do
         .&. capture "cnv"
         .&. jsonRequest @AddBot
 
-    delete "/conversations/:cnv/bots/:bot" (continue removeBot) $
+    delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
         zauth ZAuthAccess
         .&> zauthUserId
         .&. zauthConnId
@@ -237,59 +238,61 @@ routes = do
 
     -- Bot API -----------------------------------------------------------------
 
-    get "/bot/self" (continue botGetSelf) $
+    get "/bot/self" (continue botGetSelfH) $
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> zauthBotId
 
-    delete "/bot/self" (continue botDeleteSelf) $
+    delete "/bot/self" (continue botDeleteSelfH) $
         zauth ZAuthBot
         .&> zauthBotId
         .&. zauthConvId
 
-    get "/bot/client/prekeys" (continue botListPrekeys) $
+    get "/bot/client/prekeys" (continue botListPrekeysH) $
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> zauthBotId
 
-    post "/bot/client/prekeys" (continue botUpdatePrekeys) $
+    post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
         zauth ZAuthBot
         .&> zauthBotId
         .&. jsonRequest @UpdateBotPrekeys
 
-    get "/bot/client" (continue botGetClient) $
+    get "/bot/client" (continue botGetClientH) $
         contentType "application" "json"
         .&> zauth ZAuthBot
         .&> zauthBotId
 
-    post "/bot/users/prekeys" (continue botClaimUsersPrekeys) $
+    post "/bot/users/prekeys" (continue botClaimUsersPrekeysH) $
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> jsonRequest @UserClients
 
-    get "/bot/users" (continue botListUserProfiles) $
+    get "/bot/users" (continue botListUserProfilesH) $
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> query "ids"
 
-    get "/bot/users/:uid/clients" (continue botGetUserClients) $
+    get "/bot/users/:uid/clients" (continue botGetUserClientsH) $
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> capture "uid"
 
     -- Internal API ------------------------------------------------------------
 
-    get "/i/provider/activation-code" (continue getActivationCode) $
+    get "/i/provider/activation-code" (continue getActivationCodeH) $
         accept "application" "json"
         .&> param "email"
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: JsonRequest NewProvider -> Handler Response
-newAccount req = do
-    new <- parseJsonBody req
+newAccountH :: JsonRequest NewProvider -> Handler Response
+newAccountH req = do
+    setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
 
+newAccount :: NewProvider -> Handler NewProviderResponse
+newAccount new = do
     email <- case validateEmail (newProviderEmail new) of
         Right em -> return em
         Left _   -> throwStd invalidEmail
@@ -323,43 +326,55 @@ newAccount req = do
 
     lift $ sendActivationMail name email key val False
 
-    return $ setStatus status201 $ json (NewProviderResponse pid newPass)
+    return $ NewProviderResponse pid newPass
 
-activateAccountKey :: Code.Key ::: Code.Value -> Handler Response
-activateAccountKey (key ::: val) = do
+activateAccountKeyH :: Code.Key ::: Code.Value -> Handler Response
+activateAccountKeyH (key ::: val) = do
+     maybe (setStatus status204 empty) json <$> activateAccountKey key val
+
+activateAccountKey :: Code.Key -> Code.Value -> Handler (Maybe ProviderActivationResponse)
+activateAccountKey key val = do
     c <- Code.verify key Code.IdentityVerification val >>= maybeInvalidCode
     (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
         (Just p, Just e) -> return (Id p, e)
         _                -> throwStd invalidCode
     (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
     case memail of
-        Just email' | email == email' -> return $ setStatus status204 empty
+        Just email' | email == email' -> return Nothing
         Just email' -> do
             -- Ensure we remove any pending password reset
             gen <- Code.mkGen (Code.ForEmail email')
             lift $ Code.delete (Code.genKey gen) Code.PasswordReset
             -- Activate the new and remove the old key
             activate pid (Just email') email
-            return $ json (ProviderActivationResponse email)
+            return . Just $ ProviderActivationResponse email
         -- Immediate approval for everybody (for now).
         Nothing -> do
             activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
-            return $ json (ProviderActivationResponse email)
+            return . Just $ ProviderActivationResponse email
 
-getActivationCode :: Email -> Handler Response
+getActivationCodeH :: Email -> Handler Response
+getActivationCodeH e = do
+    json <$> getActivationCode e
+
+getActivationCode :: Email -> Handler FoundActivationCode
 getActivationCode e = do
     email <- case validateEmail e of
         Right em -> return em
         Left _   -> throwStd invalidEmail
     gen  <- Code.mkGen (Code.ForEmail email)
     code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
-    maybe (throwStd activationKeyNotFound) (return . found) code
-  where
-    found vcode = json $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
+    maybe (throwStd activationKeyNotFound) (return . FoundActivationCode) code
 
-approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
-approveAccountKey (key ::: val) = do
+data FoundActivationCode = FoundActivationCode Code.Code
+
+instance ToJSON FoundActivationCode where
+    toJSON (FoundActivationCode vcode) = toJSON $
+        Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
+
+approveAccountKeyH :: Code.Key ::: Code.Value -> Handler Response
+approveAccountKeyH (key ::: val) = do
     c <- Code.verify key Code.AccountApproval val >>= maybeInvalidCode
     case (Code.codeAccount c, Code.codeForEmail c) of
         (Just pid, Just email) -> do
@@ -369,8 +384,8 @@ approveAccountKey (key ::: val) = do
             return empty
         _ -> throwStd invalidCode
 
-login :: JsonRequest ProviderLogin -> Handler Response
-login req = do
+loginH :: JsonRequest ProviderLogin -> Handler Response
+loginH req = do
     l    <- parseJsonBody req
     pid  <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -379,8 +394,8 @@ login req = do
     tok <- ZAuth.newProviderToken pid
     setProviderCookie tok empty
 
-beginPasswordReset :: JsonRequest PasswordReset -> Handler Response
-beginPasswordReset req = do
+beginPasswordResetH :: JsonRequest PasswordReset -> Handler Response
+beginPasswordResetH req = do
     PasswordReset target <- parseJsonBody req
     pid <- DB.lookupKey (mkEmailKey target) >>= maybeBadCredentials
     gen <- Code.mkGen (Code.ForEmail target)
@@ -397,8 +412,8 @@ beginPasswordReset req = do
     lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
     return $ setStatus status201 empty
 
-completePasswordReset :: JsonRequest CompletePasswordReset -> Handler Response
-completePasswordReset req = do
+completePasswordResetH :: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordResetH req = do
     CompletePasswordReset key val newpwd <- parseJsonBody req
     code <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
     case Id <$> Code.codeAccount code of
@@ -414,15 +429,15 @@ completePasswordReset req = do
 --------------------------------------------------------------------------------
 -- Provider API
 
-getAccount :: ProviderId -> Handler Response
-getAccount pid = do
+getAccountH :: ProviderId -> Handler Response
+getAccountH pid = do
     mp <- DB.lookupAccount pid
     return $ case mp of
         Just  p -> json p
         Nothing -> setStatus status404 empty
 
-updateAccountProfile :: ProviderId ::: JsonRequest UpdateProvider -> Handler Response
-updateAccountProfile (pid ::: req) = do
+updateAccountProfileH :: ProviderId ::: JsonRequest UpdateProvider -> Handler Response
+updateAccountProfileH (pid ::: req) = do
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
     upd <- parseJsonBody req
     DB.updateAccountProfile pid
@@ -431,8 +446,8 @@ updateAccountProfile (pid ::: req) = do
         (updateProviderDescr upd)
     return empty
 
-updateAccountEmail :: ProviderId ::: JsonRequest EmailUpdate -> Handler Response
-updateAccountEmail (pid ::: req) = do
+updateAccountEmailH :: ProviderId ::: JsonRequest EmailUpdate -> Handler Response
+updateAccountEmailH (pid ::: req) = do
     EmailUpdate new <- parseJsonBody req
     email <- case validateEmail new of
         Right em -> return em
@@ -451,8 +466,8 @@ updateAccountEmail (pid ::: req) = do
     lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
     return $ setStatus status202 empty
 
-updateAccountPassword :: ProviderId ::: JsonRequest PasswordChange -> Handler Response
-updateAccountPassword (pid ::: req) = do
+updateAccountPasswordH :: ProviderId ::: JsonRequest PasswordChange -> Handler Response
+updateAccountPasswordH (pid ::: req) = do
     upd  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (cpOldPassword upd) pass) $
@@ -462,8 +477,8 @@ updateAccountPassword (pid ::: req) = do
     DB.updateAccountPassword pid (cpNewPassword upd)
     return empty
 
-addService :: ProviderId ::: JsonRequest NewService -> Handler Response
-addService (pid ::: req) = do
+addServiceH :: ProviderId ::: JsonRequest NewService -> Handler Response
+addServiceH (pid ::: req) = do
     new <- parseJsonBody req
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
 
@@ -483,16 +498,16 @@ addService (pid ::: req) = do
     return $ setStatus status201
            $ json (NewServiceResponse sid rstoken)
 
-listServices :: ProviderId -> Handler Response
-listServices pid = json <$> DB.listServices pid
+listServicesH :: ProviderId -> Handler Response
+listServicesH pid = json <$> DB.listServices pid
 
-getService :: ProviderId ::: ServiceId -> Handler Response
-getService (pid ::: sid) = do
+getServiceH :: ProviderId ::: ServiceId -> Handler Response
+getServiceH (pid ::: sid) = do
     s <- DB.lookupService pid sid >>= maybeServiceNotFound
     return (json s)
 
-updateService :: ProviderId ::: ServiceId ::: JsonRequest UpdateService -> Handler Response
-updateService (pid ::: sid ::: req) = do
+updateServiceH :: ProviderId ::: ServiceId ::: JsonRequest UpdateService -> Handler Response
+updateServiceH (pid ::: sid ::: req) = do
     upd <- parseJsonBody req
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
 
@@ -512,8 +527,8 @@ updateService (pid ::: sid ::: req) = do
 
     return empty
 
-updateServiceConn :: ProviderId ::: ServiceId ::: JsonRequest UpdateServiceConn -> Handler Response
-updateServiceConn (pid ::: sid ::: req) = do
+updateServiceConnH :: ProviderId ::: ServiceId ::: JsonRequest UpdateServiceConn -> Handler Response
+updateServiceConnH (pid ::: sid ::: req) = do
     upd <- parseJsonBody req
 
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -560,8 +575,8 @@ updateServiceConn (pid ::: sid ::: req) = do
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteService :: ProviderId ::: ServiceId ::: JsonRequest DeleteService -> Handler Response
-deleteService (pid ::: sid ::: req) = do
+deleteServiceH :: ProviderId ::: ServiceId ::: JsonRequest DeleteService -> Handler Response
+deleteServiceH (pid ::: sid ::: req) = do
     del  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (deleteServicePassword del) pass) $
@@ -587,8 +602,8 @@ finishDeleteService pid sid = do
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccount :: ProviderId ::: JsonRequest DeleteProvider -> Handler Response
-deleteAccount (pid ::: req) = do
+deleteAccountH :: ProviderId ::: JsonRequest DeleteProvider -> Handler Response
+deleteAccountH (pid ::: req) = do
     del  <- parseJsonBody req
     prov <- DB.lookupAccount pid >>= maybeInvalidProvider
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -608,18 +623,18 @@ deleteAccount (pid ::: req) = do
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfile :: ProviderId -> Handler Response
-getProviderProfile pid = do
+getProviderProfileH :: ProviderId -> Handler Response
+getProviderProfileH pid = do
     p <- DB.lookupAccountProfile pid >>= maybeProviderNotFound
     return (json p)
 
-listServiceProfiles :: ProviderId -> Handler Response
-listServiceProfiles pid = do
+listServiceProfilesH :: ProviderId -> Handler Response
+listServiceProfilesH pid = do
     ss <- DB.listServiceProfiles pid
     return (json ss)
 
-getServiceProfile :: ProviderId ::: ServiceId -> Handler Response
-getServiceProfile (pid ::: sid) = do
+getServiceProfileH :: ProviderId ::: ServiceId -> Handler Response
+getServiceProfileH (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
@@ -627,22 +642,22 @@ getServiceProfile (pid ::: sid) = do
 -- pagination here, we need both 'start' and 'prefix'.
 --
 -- Also see Note [buggy pagination].
-searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
-searchServiceProfiles (Nothing ::: Just start ::: size) = do
+searchServiceProfilesH :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
+searchServiceProfilesH (Nothing ::: Just start ::: size) = do
     prefix <- rangeChecked start :: Handler (Range 1 128 Text)
     ss <- DB.paginateServiceNames (Just prefix) (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
-searchServiceProfiles (Just tags ::: start ::: size) = do
+searchServiceProfilesH (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
-searchServiceProfiles (Nothing ::: Nothing ::: _) =
+searchServiceProfilesH (Nothing ::: Nothing ::: _) =
     throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
-searchTeamServiceProfiles
+searchTeamServiceProfilesH
     :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32
     -> Handler Response
-searchTeamServiceProfiles (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
+searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
     -- Check that the user actually belong to the team they claim they
     -- belong to. (Note: the 'tid' team might not even exist but we'll throw
     -- 'insufficientTeamPermissions' anyway)
@@ -652,13 +667,13 @@ searchTeamServiceProfiles (uid ::: tid ::: prefix ::: filterDisabled ::: size) =
     -- Get search results
     json <$> DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
-getServiceTagList :: () -> Handler Response
-getServiceTagList _ = return (json (ServiceTagList allTags))
+getServiceTagListH :: () -> Handler Response
+getServiceTagListH _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
 
-updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: JsonRequest UpdateServiceWhitelist -> Handler Response
-updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
+updateServiceWhitelistH :: UserId ::: ConnId ::: TeamId ::: JsonRequest UpdateServiceWhitelist -> Handler Response
+updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
     upd :: UpdateServiceWhitelist <- parseJsonBody req
     let pid = updateServiceWhitelistProvider upd
         sid = updateServiceWhitelistService upd
@@ -686,8 +701,8 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)
 
-addBot :: UserId ::: ConnId ::: ConvId ::: JsonRequest AddBot -> Handler Response
-addBot (zuid ::: zcon ::: cid ::: req) = do
+addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest AddBot -> Handler Response
+addBotH (zuid ::: zcon ::: cid ::: req) = do
     add  <- parseJsonBody req
     zusr <- lift (User.lookupUser zuid) >>= maybeInvalidUser
 
@@ -763,8 +778,8 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         , rsAddBotEvent  = ev
         }
 
-removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
-removeBot (zusr ::: zcon ::: cid ::: bid) = do
+removeBotH :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
+removeBotH (zusr ::: zcon ::: cid ::: bid) = do
     -- Get the conversation and check preconditions
     cnv <- lift (RPC.getConv zusr cid) >>= maybeConvNotFound
     let mems = cnvMembers cnv
@@ -785,25 +800,25 @@ removeBot (zusr ::: zcon ::: cid ::: bid) = do
 --------------------------------------------------------------------------------
 -- Bot API
 
-botGetSelf :: BotId -> Handler Response
-botGetSelf bot = do
+botGetSelfH :: BotId -> Handler Response
+botGetSelfH bot = do
     p <- lift $ User.lookupUser (botUserId bot)
     maybe (throwStd userNotFound) (return . json . publicProfile) p
 
-botGetClient :: BotId -> Handler Response
-botGetClient bot = do
+botGetClientH :: BotId -> Handler Response
+botGetClientH bot = do
     c <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
     maybe (throwStd clientNotFound) (return . json) c
 
-botListPrekeys :: BotId -> Handler Response
-botListPrekeys bot = do
+botListPrekeysH :: BotId -> Handler Response
+botListPrekeysH bot = do
     clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
     case clientId <$> clt of
         Nothing -> return $ json ([] :: [PrekeyId])
         Just ci -> json <$> lift (User.lookupPrekeyIds (botUserId bot) ci)
 
-botUpdatePrekeys :: BotId ::: JsonRequest UpdateBotPrekeys -> Handler Response
-botUpdatePrekeys (bot ::: req) = do
+botUpdatePrekeysH :: BotId ::: JsonRequest UpdateBotPrekeys -> Handler Response
+botUpdatePrekeysH (bot ::: req) = do
     upd <- parseJsonBody req
     clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
     case clt of
@@ -813,27 +828,27 @@ botUpdatePrekeys (bot ::: req) = do
             User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
     return empty
 
-botClaimUsersPrekeys :: JsonRequest UserClients -> Handler Response
-botClaimUsersPrekeys req = do
+botClaimUsersPrekeysH :: JsonRequest UserClients -> Handler Response
+botClaimUsersPrekeysH req = do
     body <- parseJsonBody req
     maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
 
-botListUserProfiles :: List UserId -> Handler Response
-botListUserProfiles uids = do
+botListUserProfilesH :: List UserId -> Handler Response
+botListUserProfilesH uids = do
     us <- lift $ User.lookupUsers (fromList uids)
     return (json (map mkBotUserView us))
 
-botGetUserClients :: UserId -> Handler Response
-botGetUserClients uid =
+botGetUserClientsH :: UserId -> Handler Response
+botGetUserClientsH uid =
     json <$> lift (fmap pubClient <$> User.lookupClients uid)
   where
     pubClient c = PubClient (clientId c) (clientClass c)
 
-botDeleteSelf :: BotId ::: ConvId -> Handler Response
-botDeleteSelf (bid ::: cid) = do
+botDeleteSelfH :: BotId ::: ConvId -> Handler Response
+botDeleteSelfH (bid ::: cid) = do
     bot <- lift $ User.lookupUser (botUserId bid)
     _   <- maybeInvalidBot (userService =<< bot)
     _   <- lift $ deleteBot (botUserId bid) Nothing bid cid
