@@ -20,7 +20,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (IpAddr (..))
+import Data.Misc (IpAddr (..), (<$$>))
 import Data.Range
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
@@ -1068,9 +1068,11 @@ listClientsH (usr ::: _) = json <$> lift (API.lookupClients usr)
 
 internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListClientsH (_ ::: req) = do
-    UserSet usrs <- parseJsonBody req
-    ucs <- Map.fromList <$> lift (API.lookupUsersClientIds $ Set.toList usrs)
-    return $ json (UserClients ucs)
+    json <$> (lift . internalListClients =<< parseJsonBody req)
+
+internalListClients :: UserSet -> AppIO UserClients
+internalListClients (UserSet usrs) = do
+    UserClients . Map.fromList <$> (API.lookupUsersClientIds $ Set.toList usrs)
 
 getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientH (usr ::: clt ::: _) = lift $ do
@@ -1081,17 +1083,26 @@ getClientH (usr ::: clt ::: _) = lift $ do
 
 getUserClientsH :: UserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
-    json <$> lift (fmap API.pubClient <$> API.lookupClients user)
+    json <$> lift (getUserClients user)
+
+getUserClients :: UserId -> AppIO [PubClient]
+getUserClients user =
+    API.pubClient <$$> API.lookupClients user
 
 getUserClientH :: UserId ::: ClientId ::: JSON -> Handler Response
-getUserClientH (user ::: cid ::: _) = lift $ do
-    client <- fmap API.pubClient <$> API.lookupClient user cid
-    return $ case client of
-        Just c  -> json c
-        Nothing -> setStatus status404 empty
+getUserClientH (user ::: cid ::: _) = do
+    maybe (setStatus status404 empty) json <$> lift (getUserClient user cid)
+
+getUserClient :: UserId -> ClientId -> AppIO (Maybe PubClient)
+getUserClient user cid = do
+    API.pubClient <$$> API.lookupClient user cid
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do
+    json <$> getRichInfo self user
+
+getRichInfo :: UserId -> UserId -> Handler RichInfoAssocList
+getRichInfo self user = do
     -- Check that both users exist and the requesting user is allowed to see rich info of the
     -- other user
     selfUser  <- ifNothing userNotFound =<< lift (Data.lookupUser self)
@@ -1100,7 +1111,7 @@ getRichInfoH (self ::: user ::: _) = do
         (Just t1, Just t2) | t1 == t2 -> pure ()
         _ -> throwStd insufficientTeamPermissions
     -- Query rich info
-    json . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
+    fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
