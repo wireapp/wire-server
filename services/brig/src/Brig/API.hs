@@ -24,7 +24,7 @@ import Data.Misc (IpAddr (..))
 import Data.Range
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
-import Galley.Types (UserClients (..))
+import Galley.Types (UserClients (..), UserClientMap(..))
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
@@ -1001,35 +1001,47 @@ getPrekeyBundleH (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 
 getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
-    body <- parseJsonBody req
+    json <$> (getMultiPrekeyBundles =<< parseJsonBody req)
+
+getMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+getMultiPrekeyBundles body = do
     maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
-    json <$> lift (API.claimMultiPrekeyBundles body)
+    lift (API.claimMultiPrekeyBundles body)
 
 addClientH :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
     new <- parseJsonBody req
+    clt <- addClient new usr con ip
+    let loc = toByteString' $ clientId clt
+    pure . setStatus status201 . addHeader "Location" loc . json $ clt
+
+addClient :: NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Client
+addClient new usr con ip = do
     -- Users can't add legal hold clients
     when (newClientType new == LegalHoldClientType)
         $ throwE (clientError ClientLegalHoldCannotBeAdded)
-    clt <- API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
-    return . setStatus status201
-           . addHeader "Location" (toByteString' $ clientId clt)
-           $ json clt
+    API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
 
 -- | Add a client without authentication checks
 addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> Handler Response
 addClientInternalH (usr ::: req ::: connId ::: _) = do
     new <- parseJsonBody req
-    clt <- API.addClient usr connId Nothing new !>> clientError
-    return . setStatus status201 $ json clt
+    setStatus status201 . json <$> addClientInternal usr new connId
+
+addClientInternal :: UserId -> NewClient -> Maybe ConnId -> Handler Client
+addClientInternal usr new connId = do
+    API.addClient usr connId Nothing new !>> clientError
 
 rmClientH :: JsonRequest RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClientH (req ::: usr ::: con ::: clt ::: _) = do
     body <- parseJsonBody req
+    empty <$ rmClient body usr con clt
+
+rmClient :: RmClient -> UserId -> ConnId -> ClientId -> Handler ()
+rmClient body usr con clt = do
     API.rmClient usr con clt (rmPassword body) !>> clientError
-    return empty
 
 legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> Handler Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
@@ -1045,8 +1057,11 @@ removeLegalHoldClientH (uid ::: _) = do
 updateClientH :: JsonRequest UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClientH (req ::: usr ::: clt ::: _) = do
     body <- parseJsonBody req
+    empty <$ updateClient body usr clt
+
+updateClient :: UpdateClient -> UserId -> ClientId -> Handler ()
+updateClient body usr clt = do
     API.updateClient usr clt body !>> clientError
-    return empty
 
 listClientsH :: UserId ::: JSON -> Handler Response
 listClientsH (usr ::: _) = json <$> lift (API.lookupClients usr)
