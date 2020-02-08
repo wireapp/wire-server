@@ -1378,21 +1378,28 @@ changeLocaleH (u ::: conn ::: req) = do
     return empty
 
 checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (uid ::: hndl) = flip setStatus empty <$> checkHandle uid hndl
+checkHandleH (uid ::: hndl) = do
+    checkHandle uid hndl >>= \case
+        CheckHandleInvalid  -> pure $ setStatus status200 empty
+        CheckHandleFound    -> throwE (StdError invalidHandle)
+        CheckHandleNotFound -> pure $ setStatus status404 empty
 
-checkHandle :: UserId -> Text -> Handler Status
+checkHandle :: UserId -> Text -> Handler CheckHandleResp
 checkHandle _ uhandle = do
     handle <- validateHandle uhandle
     owner <- lift $ API.lookupHandle handle
     if | isJust owner
         -- Handle is taken (=> getHandleInfo will return 200)
-        -> return status200
+        -> return CheckHandleFound
        | API.isBlacklistedHandle handle
         -- Handle is free but cannot be taken
-        -> throwE (StdError invalidHandle)
+        -> return CheckHandleInvalid
        | otherwise
         -- Handle is free and can be taken
-        -> return status404
+        -> return CheckHandleNotFound
+
+data CheckHandleResp = CheckHandleInvalid | CheckHandleFound | CheckHandleNotFound
+  deriving (Eq, Show, Bounded, Enum, Generic)
 
 checkHandlesH :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
@@ -1615,35 +1622,37 @@ getContactListH (_ ::: uid) = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKeyH :: JSON ::: JsonRequest Activate -> Handler Response
-activateKeyH (_ ::: req) = respFromActivationResponseWithStatus <$> (activate =<< parseJsonBody req)
+activateKeyH (_ ::: req) = respFromActivationRespWithStatus <$> (activate =<< parseJsonBody req)
 
 activateH :: ActivationKey ::: ActivationCode -> Handler Response
-activateH (k ::: c) = respFromActivationResponseWithStatus <$> (activate (Activate (ActivateKey k) c False))
+activateH (k ::: c) = respFromActivationRespWithStatus <$> (activate (Activate (ActivateKey k) c False))
 
-activate :: Activate -> Handler ActivationResponseWithStatus
+activate :: Activate -> Handler ActivationRespWithStatus
 activate (Activate tgt code dryrun)
     | dryrun = do
         API.preverify tgt code !>> actError
-        return $ ActivationResponseNothing200
+        return $ ActivationRespDryRun
     | otherwise = do
         result <- API.activate tgt code Nothing !>> actError
         return $ case result of
             ActivationSuccess ident first -> respond ident first
-            ActivationPass                -> ActivationResponseNothing204
+            ActivationPass                -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResponseJust $ ActivationResponse ident first
-    respond Nothing      _     = ActivationResponseNothing200
+    respond (Just ident) first = ActivationResp $ ActivationResponse ident first
+    respond Nothing      _     = ActivationRespSuccessNoIdent
 
-data ActivationResponseWithStatus
-    = ActivationResponseJust ActivationResponse
-    | ActivationResponseNothing200
-    | ActivationResponseNothing204
+data ActivationRespWithStatus
+    = ActivationResp ActivationResponse
+    | ActivationRespDryRun
+    | ActivationRespPass
+    | ActivationRespSuccessNoIdent
 
-respFromActivationResponseWithStatus :: ActivationResponseWithStatus -> Response
-respFromActivationResponseWithStatus = \case
-    ActivationResponseJust aresp -> json aresp
-    ActivationResponseNothing200 -> empty
-    ActivationResponseNothing204 -> setStatus status204 empty
+respFromActivationRespWithStatus :: ActivationRespWithStatus -> Response
+respFromActivationRespWithStatus = \case
+    ActivationResp aresp         -> json aresp
+    ActivationRespDryRun         -> empty
+    ActivationRespPass           -> setStatus status204 empty
+    ActivationRespSuccessNoIdent -> empty
 
 -- Deprecated
 
