@@ -730,9 +730,13 @@ getServiceTagList () = return (ServiceTagList allTags)
 
 updateServiceWhitelistH :: UserId ::: ConnId ::: TeamId ::: JsonRequest UpdateServiceWhitelist -> Handler Response
 updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
-    flip setStatus empty <$> (updateServiceWhitelist uid con tid =<< parseJsonBody req)
+    resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
+    let status = case resp of
+          UpdateServiceWhitelistRespChanged   -> status200
+          UpdateServiceWhitelistRespUnchanged -> status204
+    pure $ setStatus status empty
 
-updateServiceWhitelist :: UserId -> ConnId -> TeamId -> UpdateServiceWhitelist -> Handler Status
+updateServiceWhitelist :: UserId -> ConnId -> TeamId -> UpdateServiceWhitelist -> Handler UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
     let pid = updateServiceWhitelistProvider upd
         sid = updateServiceWhitelistService upd
@@ -745,11 +749,11 @@ updateServiceWhitelist uid con tid upd = do
     -- Add to various tables
     whitelisted <- DB.getServiceWhitelistStatus tid pid sid
     case (whitelisted, newWhitelisted) of
-        (False, False) -> return status204
-        (True,  True)  -> return status204
+        (False, False) -> return UpdateServiceWhitelistRespUnchanged
+        (True,  True)  -> return UpdateServiceWhitelistRespUnchanged
         (False, True)  -> do
             DB.insertServiceWhitelist tid pid sid
-            return status200
+            return UpdateServiceWhitelistRespChanged
         (True, False)  -> do
             -- When the service is de-whitelisted, remove its bots from team
             -- conversations
@@ -758,7 +762,11 @@ updateServiceWhitelist uid con tid upd = do
                   .| C.mapM_ (pooledMapConcurrentlyN_ 16 (\(bid, cid) ->
                                 deleteBot uid (Just con) bid cid))
             DB.deleteServiceWhitelist (Just tid) pid sid
-            return status200
+            return UpdateServiceWhitelistRespChanged
+
+data UpdateServiceWhitelistResp
+    = UpdateServiceWhitelistRespChanged
+    | UpdateServiceWhitelistRespUnchanged
 
 addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest AddBot -> Handler Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
