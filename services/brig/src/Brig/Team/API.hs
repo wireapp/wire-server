@@ -159,7 +159,7 @@ data FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
 
 instance ToJSON FoundInvitationCode where
-    toJSON c = object [ "code" .= c ]
+    toJSON (FoundInvitationCode c) = object [ "code" .= c ]
 
 createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest InvitationRequest -> Handler Response
 createInvitationH (_ ::: uid ::: tid ::: req) = do
