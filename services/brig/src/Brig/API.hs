@@ -1551,20 +1551,30 @@ addPhonePrefixH (_ ::: req) = do
 canBeDeletedH :: UserId ::: TeamId -> Handler Response
 canBeDeletedH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
-    case onlyOwner of
-       Team.IsOnlyTeamOwnerWithEmail       -> throwStd noOtherOwner
-       Team.IsOneOfManyTeamOwnersWithEmail -> pure empty
-       Team.IsTeamOwnerWithoutEmail        -> pure empty
-       Team.IsNotTeamOwner                 -> pure empty
+    if canBeDeleted onlyOwner
+        then pure empty
+        else throwStd noOtherOwner
+
+canBeDeleted :: Team.TeamOwnershipStatus -> Bool
+canBeDeleted = \case
+    Team.IsOnlyTeamOwnerWithEmail       -> False
+    Team.IsOneOfManyTeamOwnersWithEmail -> True
+    Team.IsTeamOwnerWithoutEmail        -> True
+    Team.IsNotTeamOwner                 -> True
 
 isTeamOwnerH :: UserId ::: TeamId -> Handler Response
 isTeamOwnerH (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
-    case onlyOwner of
-       Team.IsOnlyTeamOwnerWithEmail       -> pure empty
-       Team.IsOneOfManyTeamOwnersWithEmail -> pure empty
-       Team.IsTeamOwnerWithoutEmail        -> pure empty
-       Team.IsNotTeamOwner                 -> throwStd insufficientTeamPermissions
+    if isTeamOwner onlyOwner
+        then pure empty
+        else throwStd insufficientTeamPermissions
+
+isTeamOwner :: Team.TeamOwnershipStatus -> Bool
+isTeamOwner = \case
+    Team.IsOnlyTeamOwnerWithEmail       -> True
+    Team.IsOneOfManyTeamOwnersWithEmail -> True
+    Team.IsTeamOwnerWithoutEmail        -> True
+    Team.IsNotTeamOwner                 -> False
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do
