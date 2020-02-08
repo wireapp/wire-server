@@ -1303,12 +1303,11 @@ instance ToJSON GetActivationCodeResp where
 
 getPasswordResetCodeH :: JSON ::: Either Email Phone -> Handler Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
-    json <$> getPasswordResetCode emailOrPhone
+    maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
-getPasswordResetCode :: Either Email Phone -> Handler GetPasswordResetCodeResp
+getPasswordResetCode :: Either Email Phone -> AppIO (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone = do
-    apair <- lift $ API.lookupPasswordResetCode emailOrPhone
-    maybe (throwStd invalidPwResetKey) (return . GetPasswordResetCodeResp) apair
+    GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
 
 data GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, PasswordResetCode)
 
