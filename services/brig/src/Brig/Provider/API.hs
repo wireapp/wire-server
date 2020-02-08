@@ -933,11 +933,11 @@ botListUserProfiles uids = do
 
 botGetUserClientsH :: UserId -> Handler Response
 botGetUserClientsH uid = do
-    json <$> botGetUserClients uid
+    json <$> lift (botGetUserClients uid)
 
-botGetUserClients :: UserId -> Handler [PubClient]
+botGetUserClients :: UserId -> AppIO [PubClient]
 botGetUserClients uid = do
-    lift (pubClient <$$> User.lookupClients uid)
+    pubClient <$$> User.lookupClients uid
   where
     pubClient c = PubClient (clientId c) (clientClass c)
 
