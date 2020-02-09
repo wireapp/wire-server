@@ -950,20 +950,26 @@ sitemap o = do
 
 setPropertyH :: UserId ::: ConnId ::: PropertyKey ::: JsonRequest PropertyValue -> Handler Response
 setPropertyH (u ::: c ::: k ::: req) = do
-    empty <$ (setProperty u c k =<< lazyParsePropertyValue (lazyRequestBody (fromJsonRequest req)))
+    propkey <- safeParsePropertyKey k
+    propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
+    empty <$ setProperty u c propkey propval
 
 setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> Handler ()
-setProperty u c k propval = do
+setProperty u c propkey propval = do
+    API.setProperty u c propkey propval !>> propDataError
+
+safeParsePropertyKey :: PropertyKey -> Handler PropertyKey
+safeParsePropertyKey k = do
     maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
     unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
         throwStd propertyKeyTooLarge
-    API.setProperty u c k propval !>> propDataError
+    pure k
 
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-lazyParsePropertyValue :: IO Lazy.ByteString -> Handler PropertyValue
-lazyParsePropertyValue lreqbody = do
+safeParsePropertyValue :: IO Lazy.ByteString -> Handler PropertyValue
+safeParsePropertyValue lreqbody = do
     maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
     unless (Lazy.length lbs <= maxValueLen) $
