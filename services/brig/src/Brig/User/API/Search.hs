@@ -26,7 +26,7 @@ import qualified Brig.Types.Swagger     as Doc
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
-    get "/search/contacts" (continue search) $
+    get "/search/contacts" (continue searchH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. query "q"
@@ -44,7 +44,7 @@ routes = do
 
     --
 
-    get "/self/searchable" (continue isSearchable) $
+    get "/self/searchable" (continue isSearchableH) $
         accept "application" "json"
         .&. header "Z-User"
 
@@ -55,7 +55,7 @@ routes = do
 
     --
 
-    put "/self/searchable" (continue setSearchable) $
+    put "/self/searchable" (continue setSearchableH) $
         header "Z-User"
         .&. jsonRequest @SearchableStatus
 
@@ -80,38 +80,49 @@ routes = do
 
 -- Handlers
 
-search :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
-search (_ ::: u ::: q ::: s) = do
+searchH :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
+searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
+
+search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
+search u q s = do
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-    contacts <- lift (searchIndex u q s)
+    contacts <- searchIndex u q s
     -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
     --             the extra work done here and greatly simplify the query.
-    return . json =<< if sameTeamSearchOnly
+    return =<< if sameTeamSearchOnly
         then maybeFilterTeamUsers contacts
         else pure contacts
   where
-    maybeFilterTeamUsers :: SearchResult Contact -> Handler (SearchResult Contact)
+    maybeFilterTeamUsers :: SearchResult Contact -> AppIO (SearchResult Contact)
     maybeFilterTeamUsers sresult = do
-        selfTeam <- lift $ DB.lookupUserTeam u
+        selfTeam <- DB.lookupUserTeam u
         case selfTeam of
             Nothing   -> pure sresult
             Just team -> filterTeamUsers sresult team
 
     -- Filter the result set with users from the given team only
     filterTeamUsers sresult team = do
-        others <- lift $ DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
+        others <- DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
         let sameTeamMembers = fmap fst $ filter ((== Just team) . snd) others
         let searchResultsFiltered = filter ((`elem` sameTeamMembers) . contactUserId) (searchResults sresult)
         return $ sresult { searchReturned = length searchResultsFiltered
                          , searchResults  = searchResultsFiltered
                          }
 
-isSearchable :: JSON ::: UserId -> Handler Response
-isSearchable (_ ::: u) = json <$> lift (checkIndex u)
+isSearchableH :: JSON ::: UserId -> Handler Response
+isSearchableH (_ ::: u) = json <$> lift (isSearchable u)
 
-setSearchable :: UserId ::: JsonRequest SearchableStatus -> Handler Response
-setSearchable (u ::: r) = do
+isSearchable :: UserId -> AppIO SearchableStatus
+isSearchable = checkIndex
+
+setSearchableH :: UserId ::: JsonRequest SearchableStatus -> Handler Response
+setSearchableH (u ::: r) = do
     s <- parseJsonBody r
-    lift $ DB.updateSearchableStatus u s
-    lift $ Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
+    lift (setSearchable u s)
     return (setStatus status200 empty)
+
+setSearchable :: UserId -> SearchableStatus -> AppIO ()
+setSearchable u s = do
+    DB.updateSearchableStatus u s
+    Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
+    return ()

@@ -32,7 +32,7 @@ import qualified System.Random.MWC             as MWC
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
 
-    get "/calls/config" (continue getCallsConfig) $
+    get "/calls/config" (continue getCallsConfigH) $
         accept "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -43,7 +43,7 @@ routes = do
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
-    get "/calls/config/v2" (continue getCallsConfigV2) $
+    get "/calls/config/v2" (continue getCallsConfigV2H) $
         accept "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -59,15 +59,24 @@ routes = do
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
-getCallsConfigV2 :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> Handler Response
-getCallsConfigV2 (_ ::: _ ::: _ ::: limit ) = do
-    env <- liftIO =<< readIORef <$> view turnEnvV2
-    json <$> newConfig env limit
+getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> Handler Response
+getCallsConfigV2H (_ ::: uid ::: connid ::: limit) = do
+    json <$> getCallsConfigV2 uid connid limit
 
-getCallsConfig :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfig (_ ::: _ ::: _) = do
+-- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
+getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler RTCConfiguration
+getCallsConfigV2 _ _ limit = do
+    env <- liftIO =<< readIORef <$> view turnEnvV2
+    newConfig env limit
+
+getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
+getCallsConfigH (_ ::: uid ::: connid) = do
+    json <$> getCallsConfig uid connid
+
+getCallsConfig :: UserId -> ConnId -> Handler RTCConfiguration
+getCallsConfig _ _ = do
     env <- liftIO =<< readIORef <$> view turnEnv
-    json . dropTransport <$> newConfig env Nothing
+    dropTransport <$> newConfig env Nothing
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: RTCConfiguration -> RTCConfiguration
