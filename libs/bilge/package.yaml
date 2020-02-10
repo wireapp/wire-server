@@ -28,6 +28,7 @@ dependencies:
 - lens
 - monad-control >=1.0
 - mtl >=2.2
+- network
 - text >=0.11
 - time >=1.4
 - tinylog >=0.9
