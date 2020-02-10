@@ -14,7 +14,6 @@ extra-source-files:
 - proto/UserEvents.proto
 ghc-options:
 - -fno-warn-redundant-constraints
-- -ddump-splices
 dependencies:
 - base ==4.*
 - bytestring
