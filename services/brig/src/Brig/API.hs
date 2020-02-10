@@ -1385,8 +1385,8 @@ changeLocaleH (u ::: conn ::: req) = do
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (uid ::: hndl) = do
     checkHandle uid hndl >>= \case
-        CheckHandleInvalid  -> pure $ setStatus status200 empty
-        CheckHandleFound    -> throwE (StdError invalidHandle)
+        CheckHandleInvalid  -> throwE (StdError invalidHandle)
+        CheckHandleFound    -> pure $ setStatus status200 empty
         CheckHandleNotFound -> pure $ setStatus status404 empty
 
 checkHandle :: UserId -> Text -> Handler CheckHandleResp
