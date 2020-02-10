@@ -75,7 +75,6 @@ packages:
 - snappy-0.2.0.2
 - smtp-mail-0.2.0.0
 - stm-containers-1.1.0.4
-- wai-route-0.4.0 # Not latest as latst one breaks wai-routing
 - redis-io-1.0.0
 - redis-resp-1.0.0
 - hedgehog-quickcheck-0.1.1
@@ -99,3 +98,6 @@ packages:
 - base58-bytestring-0.1.0
 - stompl-0.5.0
 - pattern-trie-0.1.0
+
+# Not latest as latst one breaks wai-routing
+- wai-route-0.4.0 
