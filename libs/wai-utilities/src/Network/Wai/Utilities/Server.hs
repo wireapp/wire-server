@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
 module Network.Wai.Utilities.Server
     ( -- * Server Setup
@@ -258,7 +259,7 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
 emitLByteString :: LByteString -> IO (IO ByteString)
 emitLByteString lbs = do
     tvar <- newTVarIO (cs lbs)
-    -- | Emit the bytestring on the first read, then always return "" on subsequent reads
+    -- Emit the bytestring on the first read, then always return "" on subsequent reads
     return . atomically $ swapTVar tvar mempty
 
 -- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
@@ -350,6 +351,6 @@ restrict l u = fmap $ \x -> x >>= \v ->
 
 flushRequestBody :: Request -> IO ()
 flushRequestBody req = do
-    bs <- requestBody req
+    bs <- getRequestBodyChunk req
     unless (BS.null bs) $
         flushRequestBody req

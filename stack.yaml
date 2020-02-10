@@ -1,4 +1,4 @@
-resolver: snapshots/wire-1.4.yaml
+resolver: snapshots/wire-2.0.yaml
 
 packages:
 - libs/api-bot
@@ -38,8 +38,8 @@ packages:
 - tools/stern
 
 extra-deps:
-- servant-swagger-1.1.6
-- swagger2-2.3
+- servant-swagger-1.1.7.1
+- swagger2-2.5
 - git: https://github.com/fimad/prometheus-haskell
   commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
   subdirs:
@@ -48,10 +48,9 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: ff9b9f445475809d1fa31ef7f2932caa0ed31613    # master (Oct 9, 2019)
+  commit: 36f10c5a4e5795bb10a671b7a2987c76883688ca  # master (Feb 4, 2020)
 - git: https://github.com/wireapp/hscim
-  commit: 484e761e31506d4804844bd51a54ef8fd4f00c2f    # master (Jan 28, 2019)
-- quickcheck-state-machine-0.4.2
+  commit: af22d89e7723d0f1a264fb4dbd0b4bbb4097c7a1  # master (Feb 4, 2020)
 
 flags:
   types-common:

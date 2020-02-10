@@ -14,7 +14,9 @@ import Galley.Types.Teams
 import Data.Proto
 import Data.Proto.Id
 import Galley.App
-import Proto.TeamEvents
+import Proto.TeamEvents (TeamEvent'EventType(..), TeamEvent'EventData)
+import Data.ProtoLens (defMessage)
+import qualified Proto.TeamEvents_Fields as T
 
 import qualified Data.Currency as Currency
 import qualified Galley.Aws as Aws
@@ -39,14 +41,21 @@ journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Ma
 journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
     -- writetime is in microseconds in cassandra 3.11
     ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-    let ev = TeamEvent typ (toBytes tid) ts dat []
+    let ev = defMessage
+             & T.eventType .~ typ
+             & T.teamId .~ (toBytes tid)
+             & T.utcTime .~ ts
+             & T.maybe'eventData .~ dat
     Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
 -- utils
 
 evData :: [TeamMember] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur) []
+evData mems cur = defMessage
+                  & T.memberCount .~ count
+                  & T.billingUser .~ (toBytes <$> uids)
+                  & T.maybe'currency .~ (pack . show <$> cur)
   where
     uids  = view userId <$> filter (`hasPermission` SetBilling) mems
     count = fromIntegral $ length mems

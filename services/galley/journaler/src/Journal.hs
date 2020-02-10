@@ -6,17 +6,19 @@ import Control.Lens
 import Data.Id
 import Data.ByteString.Conversion
 import Data.Proto
+import Data.ProtoLens (defMessage)
 import Data.Proto.Id as Proto
-import Proto.TeamEvents
+import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType(..))
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
 import System.Logger.Class (Logger)
 import UnliftIO (mapConcurrently)
 
-import qualified System.Logger        as Log
-import qualified Galley.Data          as Data
-import qualified Galley.Intra.Journal as Journal
-import qualified Galley.Aws           as Aws
+import qualified System.Logger           as Log
+import qualified Galley.Data             as Data
+import qualified Galley.Intra.Journal    as Journal
+import qualified Galley.Aws              as Aws
+import qualified Proto.TeamEvents_Fields as T
 
 runCommand :: Logger -> Aws.Env -> ClientState -> Maybe TeamId -> IO ()
 runCommand l env c start = void $ C.runClient c $ do
@@ -61,7 +63,11 @@ runCommand l env c start = void $ C.runClient c $ do
     publish tid typ time dat = do
         -- writetime is in microseconds in cassandra 3.11
         creationTimeSeconds <- maybe now (return . (`div` 1000000) . view tcTime) time
-        let event = TeamEvent typ (Proto.toBytes tid) creationTimeSeconds dat []
+        let event = defMessage
+                    & T.eventType .~ typ
+                    & T.teamId .~ (Proto.toBytes tid)
+                    & T.utcTime .~ creationTimeSeconds
+                    & T.maybe'eventData .~ dat
         Aws.execute env (Aws.enqueue event)
 
 -- CQL queries

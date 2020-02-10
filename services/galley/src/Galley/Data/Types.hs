@@ -113,5 +113,5 @@ generate cnv s t = do
 
 mkKey :: MonadIO m => ConvId -> m Key
 mkKey cnv = do
-    Just sha256 <- liftIO $ getDigestByName "SHA256"
+    sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
     return $ Key . unsafeRange. Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)

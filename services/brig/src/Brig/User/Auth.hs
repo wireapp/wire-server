@@ -261,8 +261,8 @@ legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError Ap
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
     -- legalhold login is only possible if
-    -- * the user is a team user
-    -- * and the team has legalhold enabled
+    -- the user is a team user
+    -- and the team has legalhold enabled
     mteam <- lift $ Intra.getTeamId uid
     case mteam of
          Nothing -> throwE LegalHoldLoginNoBindingTeam

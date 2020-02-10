@@ -192,7 +192,7 @@ data Command r
   | Run (State r) NumberOfThreads MilliSeconds
   | Wait (State r) MilliSeconds
   | Measure (State r)
-  deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
+  deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable, CommandNames)
 
 data Response r
   = InitResponse (State r)
@@ -202,19 +202,19 @@ data Response r
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 
-generator :: HasCallStack => Model Symbolic -> Gen (Command Symbolic)
-generator (Model Nothing) = Init <$> arbitrary
+generator :: HasCallStack => Model Symbolic -> Maybe (Gen (Command Symbolic))
+generator (Model Nothing) = Just $ Init <$> arbitrary
 generator (Model (Just st)) =
-  oneof [ Run st <$> arbitrary <*> arbitrary
-        , Wait st <$> arbitrary
-        , pure $ Measure st
+  Just $ oneof [ Run st <$> arbitrary <*> arbitrary
+               , Wait st <$> arbitrary
+               , pure $ Measure st
         ]
 
-shrinker :: HasCallStack => Command Symbolic -> [Command Symbolic]
-shrinker (Init _)     = []
-shrinker (Run st n m) = Wait st (MilliSeconds 1) : (Run st <$> shrink n <*> shrink m)
-shrinker (Wait st n)  = Wait st <$> shrink n
-shrinker (Measure _)  = []
+shrinker :: HasCallStack => Model Symbolic -> Command Symbolic -> [Command Symbolic]
+shrinker _ (Init _)     = []
+shrinker _ (Run st n m) = Wait st (MilliSeconds 1) : (Run st <$> shrink n <*> shrink m)
+shrinker _ (Wait st n)  = Wait st <$> shrink n
+shrinker _ (Measure _)  = []
 
 
 initModel :: HasCallStack => Model r

@@ -21,6 +21,7 @@ import Test.Tasty          (TestName, TestTree)
 import Test.Tasty.HUnit    (Assertion, testCase)
 import Control.Lens        ((^.), makeLenses)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Fail  (MonadFail)
 import Bilge (HttpT(..), Manager, MonadHttp, Request, runHttpT)
 
 import qualified Cassandra           as Cql
@@ -39,6 +40,7 @@ newtype TestM a =
              , MonadMask
              , MonadHttp
              , MonadUnliftIO
+             , MonadFail
              )
 
 newtype BrigR    = BrigR    { runBrigR    :: Request -> Request }

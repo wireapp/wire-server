@@ -380,7 +380,7 @@ testInvitationPaging brig galley = do
         email <- randomEmail
         postInvitation brig tid uid (invite email) !!! const 201 === statusCode
         pure email
-    after <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
+    after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
 
     let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
         next step (count, start) actualPageLen = do
@@ -400,7 +400,7 @@ testInvitationPaging brig galley = do
             assertBool  "email" (inIdentity inv `elem` emails)
                 -- (the output list is not ordered chronologically and emails are unique, so we just
                 -- check whether the email is one of the valid ones.)
-            assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after)
+            assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after1ms)
             assertEqual "uid" (Just uid) (inCreatedBy inv)
             -- not checked: @inInvitation inv :: InvitationId@
 

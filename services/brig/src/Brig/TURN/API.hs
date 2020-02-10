@@ -6,6 +6,7 @@ import Brig.TURN hiding (Env)
 import Brig.Types.TURN
 import Brig.API.Handler
 import Control.Lens
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
@@ -99,7 +100,7 @@ newConfig env limit = do
   where
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-    randomize :: MonadRandom m => List1 TurnURI -> m (List1 TurnURI)
+    randomize :: (MonadRandom m, MonadFail m) => List1 TurnURI -> m (List1 TurnURI)
     randomize xs = do
         (f:fs) <- shuffleM (toList xs)
         return $ List1.list1 f fs

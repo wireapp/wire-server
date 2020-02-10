@@ -51,6 +51,7 @@ module Bilge.IO
 import Imports hiding (head)
 import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans.Control
 import Network.HTTP.Client as Client hiding (method, httpLbs)
 import qualified Network.HTTP.Client as Client (method)
@@ -87,6 +88,7 @@ newtype HttpT m a = HttpT
                , MonadMask
                , MonadTrans
                , MonadReader Manager
+               , MonadFail
                )
 
 class MonadHttp m where
