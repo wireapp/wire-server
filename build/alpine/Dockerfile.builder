@@ -13,7 +13,7 @@ WORKDIR /
 # a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
 ARG wire_server_branch=develop
-RUN set -x && apk add --no-cache && \
+RUN set -x && \
     echo ${wire_server_branch} && \
     git clone -b ${wire_server_branch} https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
