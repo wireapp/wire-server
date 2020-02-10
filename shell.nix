@@ -1,9 +1,14 @@
 { pkgs ? import <nixpkgs> {}}:
 with pkgs; mkShell {
   name = "shell";
-  buildInputs = [ 
+  buildInputs = [
     docker-compose
     gnumake
     stack
+    cargo
+    libsodium
+    pcre
+    openssl
+    zlib
   ];
 }

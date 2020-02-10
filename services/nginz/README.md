@@ -73,3 +73,15 @@ If you are using macOS and you used `brew` to install openssl, the `Makefile` al
 ## How to run it
 
 Have a look at our demo config in [services demo](../../deploy/services-demo/conf/nginz)
+
+
+
+
+## build on nixos
+
+be in this directory
+nix-shell ../../shell.nix
+. ./env.sh
+make -C ../../libs/libzauth install
+make
+
