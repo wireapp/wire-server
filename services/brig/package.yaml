@@ -177,6 +177,7 @@ executables:
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2
+    - tasty-expected-failure
     - temporary >=1.2.1
     - time >=1.5
     - tinylog
