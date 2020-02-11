@@ -25,7 +25,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean makedeb
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: install

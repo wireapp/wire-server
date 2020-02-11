@@ -22,7 +22,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean bonanza
-	-rm -rf dist
 
 .PHONY: install
 install: init

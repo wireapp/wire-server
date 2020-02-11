@@ -23,7 +23,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean api-simulations
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: fast
