@@ -308,7 +308,6 @@ putHandle brig usr h = put $ brig
   where
     payload = RequestBodyLBS . encode $ object [ "handle" .= h ]
 
--- addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClient :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> NewClient -> m ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 

@@ -55,8 +55,6 @@ import qualified Network.AWS.DynamoDB   as AWS
 import qualified System.CryptoBox       as CryptoBox
 import qualified System.Logger.Class    as Log
 
--- maxPermClients :: Int
--- maxPermClients = 7
 
 data ClientDataError
     = TooManyClients
