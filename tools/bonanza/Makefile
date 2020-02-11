@@ -16,7 +16,6 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
 	mkdir -p ../../dist
 
 .PHONY: clean
