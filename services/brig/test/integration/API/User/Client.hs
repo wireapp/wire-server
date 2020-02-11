@@ -163,7 +163,7 @@ testTooManyClients opts brig = do
 
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
-    forM_ [0..(9 :: Int)] $ \i ->
+    forM_ [0..(3 :: Int)] $ \i ->
         let pk = somePrekeys !! i
             lk = someLastPrekeys !! i
         in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
