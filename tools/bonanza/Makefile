@@ -16,13 +16,11 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
 	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
 	stack clean bonanza
-	-rm -rf dist
 
 .PHONY: install
 install: init

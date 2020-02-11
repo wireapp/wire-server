@@ -18,12 +18,11 @@ default: fast
 all: clean install
 
 init:
-	mkdir -p dist ../../dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
 	stack clean api-simulations
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: fast

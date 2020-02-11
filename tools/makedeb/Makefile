@@ -19,13 +19,11 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
 	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
 	stack clean makedeb
-	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: install
