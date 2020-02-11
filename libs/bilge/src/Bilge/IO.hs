@@ -54,7 +54,6 @@ import Control.Monad.Catch
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans.Control
 import Network.HTTP.Client as Client hiding (method, httpLbs)
-import Network.Socket (SockAddr(..), tupleToHostAddress)
 import qualified Network.HTTP.Client as Client (method)
 import qualified Data.ByteString.Lazy as LB
 
@@ -136,7 +135,7 @@ instance MonadHttp Wai.Session where
           , Wai.httpVersion = Client.requestVersion req
           , Wai.requestHeaders = Client.requestHeaders req
           , Wai.isSecure = Client.secure req
-          , Wai.remoteHost = SockAddrInet 8080 (tupleToHostAddress (127, 0, 0, 1))  -- (this is fabricated, but leaving this undefined doesn't work.)
+          , Wai.remoteHost = error "no remote host"
           , Wai.requestHeaderHost = lookupHeader "HOST" req
           , Wai.requestHeaderRange = lookupHeader "RANGE" req
           , Wai.requestHeaderReferer = lookupHeader "REFERER" req
