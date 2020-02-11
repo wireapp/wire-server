@@ -161,16 +161,18 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
     uid <- userId <$> randomUser brig
 
-    -- There is only one temporary client, adding a new one
-    -- replaces the previous one.
-    forM_ [0..(3 :: Int)] $ \i ->
-        let pk = somePrekeys !! i
-            lk = someLastPrekeys !! i
-        in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
-
     -- We can always change the permanent client limit
     let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients .~ Just 1
     withSettingsOverrides newOpts $ do
+
+        -- There is only one temporary client, adding a new one
+        -- replaces the previous one.
+        forM_ [0..(3 :: Int)] $ \i ->
+            let pk = somePrekeys !! i
+                lk = someLastPrekeys !! i
+            in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
+
+        -- We can't add more permanent clients than configured
         addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10)) !!! do
             const 201 === statusCode
         addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
