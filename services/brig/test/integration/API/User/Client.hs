@@ -173,19 +173,9 @@ testTooManyClients opts brig = do
     withSettingsOverrides newOpts $ do
         addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10)) !!! do
             const 201 === statusCode
-        -- addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
-        --     const 403 === statusCode
-        --     const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
-
-    -- By default, there can be only up to 7 permanent clients
-    -- forM_ [10..(16 :: Int)] $ \i ->
-    --     let pk = somePrekeys !! i
-    --         lk = someLastPrekeys !! i
-    --     in addClient brig uid (defNewClient PermanentClientType [pk] lk) !!! const 201 === statusCode
-
-    -- addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
-    --     const 403 === statusCode
-    --     const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
+        addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
+            const 403 === statusCode
+            const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
