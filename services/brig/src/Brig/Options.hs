@@ -283,6 +283,8 @@ data Settings = Settings
     , setWhitelist             :: !(Maybe Whitelist) -- ^ Whitelist of allowed emails/phones
     , setUserMaxConnections    :: !Int64    -- ^ Max. number of sent/accepted
                                             --   connections per user
+    , setUserMaxPermClients    :: !(Maybe Int)
+                                            -- ^ Max. number of permanent clients per user
     , setCookieDomain          :: !Text     -- ^ The domain to restrict cookies to
     , setCookieInsecure        :: !Bool     -- ^ Whether to allow plain HTTP transmission
                                             --   of cookies (for testing purposes only)
@@ -328,6 +330,9 @@ defMaxValueLen = 512
 defDeleteThrottleMillis :: Int
 defDeleteThrottleMillis = 100
 
+defUserMaxPermClients :: Int
+defUserMaxPermClients = 7
+
 instance FromJSON Timeout where
     parseJSON (Y.Number n) =
         let defaultV = 3600
@@ -341,8 +346,10 @@ instance FromJSON Settings
 
 instance FromJSON Opts
 
+-- TODO: Does it make sense to generate lens'es for all?
 Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
 Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
 Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings
 Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
+Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings

@@ -29,6 +29,7 @@ import Brig.User.Email
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
+import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId, ConnId)
 import Data.IP (IP)
@@ -41,6 +42,7 @@ import System.Logger.Class (msg, val, field, (~~))
 import qualified Brig.Data.Client    as Data
 import qualified Brig.Data.User      as Data
 import qualified Brig.IO.Intra       as Intra
+import qualified Brig.Options        as Opt
 import qualified Data.Map.Strict     as Map
 import qualified System.Logger.Class as Log
 
@@ -52,7 +54,8 @@ addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientEr
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
-    (clt, old, count) <- Data.addClient u clientId' new loc !>> ClientDataError
+    maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
+    (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
         for_ old $ execDelete u con

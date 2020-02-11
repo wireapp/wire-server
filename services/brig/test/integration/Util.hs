@@ -13,6 +13,8 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral, _JSON)
@@ -306,7 +308,7 @@ putHandle brig usr h = put $ brig
   where
     payload = RequestBodyLBS . encode $ object [ "handle" .= h ]
 
-addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
+addClient :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> NewClient -> m ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
 addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS

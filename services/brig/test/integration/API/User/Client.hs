@@ -6,7 +6,7 @@ import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Lens ((^?), preview)
+import Control.Lens hiding ((#))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -25,7 +25,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley-> TestTree
-tests _cl _at _conf p b c g = testGroup "client"
+tests _cl _at opts p b c g = testGroup "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients"
                $ testCan'tDeleteLegalHoldClient b
     , test p "post /clients 400 - can't add legalhold clients manually"
@@ -37,7 +37,7 @@ tests _cl _at _conf p b c g = testGroup "client"
     , test p "post /clients - 403"                    $ testClientReauthentication b
     , test p "get /clients - 200"                     $ testListClients b
     , test p "get /clients/:client/prekeys - 200"     $ testListPrekeyIds b
-    , test p "post /clients - 400"                    $ testTooManyClients b
+    , test p "post /clients - 400"                    $ testTooManyClients opts b
     , test p "delete /clients/:client - 200 (pwd)"    $ testRemoveClient True b c
     , test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c
     , test p "put /clients/:client - 200"             $ testUpdateClient b
@@ -157,26 +157,27 @@ testGetClientPrekey brig = do
         const 200 === statusCode
         const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
-testTooManyClients :: Brig -> Http ()
-testTooManyClients brig = do
+testTooManyClients :: Opt.Opts -> Brig -> Http ()
+testTooManyClients opts brig = do
     uid <- userId <$> randomUser brig
 
-    -- There is only one temporary client, adding a new one
-    -- replaces the previous one.
-    forM_ [0..(9 :: Int)] $ \i ->
-        let pk = somePrekeys !! i
-            lk = someLastPrekeys !! i
-        in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
+    -- We can always change the permanent client limit
+    let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients .~ Just 1
+    withSettingsOverrides newOpts $ do
 
-    -- But there can be only up to 7 permanent clients
-    forM_ [10..(16 :: Int)] $ \i ->
-        let pk = somePrekeys !! i
-            lk = someLastPrekeys !! i
-        in addClient brig uid (defNewClient PermanentClientType [pk] lk) !!! const 201 === statusCode
+        -- There is only one temporary client, adding a new one
+        -- replaces the previous one.
+        forM_ [0..(3 :: Int)] $ \i ->
+            let pk = somePrekeys !! i
+                lk = someLastPrekeys !! i
+            in addClient brig uid (defNewClient TemporaryClientType [pk] lk) !!! const 201 === statusCode
 
-    addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 17] (someLastPrekeys !! 17)) !!! do
-        const 403 === statusCode
-        const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
+        -- We can't add more permanent clients than configured
+        addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10)) !!! do
+            const 201 === statusCode
+        addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
+            const 403 === statusCode
+            const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do

@@ -119,7 +119,9 @@ trivialBodyReader bodyBytes = do
 
 instance MonadHttp Wai.Session where
   handleRequestWithCont req cont = do
-      wResponse :: Wai.SResponse <- Wai.request wRequest
+      reqBody <- liftIO $ getHttpClientRequestBody (Client.requestBody req)
+      -- `srequest` sets the requestBody for us
+      wResponse :: Wai.SResponse <- Wai.srequest (Wai.SRequest wRequest reqBody)
       bodyReader <- liftIO $ trivialBodyReader $ LB.toStrict $ Wai.simpleBody wResponse
       let bilgeResponse :: Response BodyReader
           bilgeResponse = toBilgeResponse bodyReader wResponse
@@ -152,6 +154,20 @@ instance MonadHttp Wai.Session where
           }
       lookupHeader :: CI ByteString -> Client.Request -> Maybe ByteString
       lookupHeader headerName r = lookup headerName (Client.requestHeaders r)
+
+-- | Does not support all constructors, but so far we only use 'RequestBodyLBS'.
+-- The other ones are slightly less straight-forward, so we can implement them later if needed.
+getHttpClientRequestBody :: HasCallStack => Client.RequestBody -> IO LByteString
+getHttpClientRequestBody = \case
+    Client.RequestBodyLBS lbs -> pure lbs
+    Client.RequestBodyBS bs -> pure (Lazy.fromStrict bs)
+    Client.RequestBodyBuilder _ _ -> notImplemented "RequestBodyBuilder"
+    Client.RequestBodyStream _ _ -> notImplemented "RequestBodyStream"
+    Client.RequestBodyStreamChunked _ -> notImplemented "RequestBodyStreamChunked"
+    Client.RequestBodyIO _ -> notImplemented "RequestBodyIO"
+  where
+    notImplemented x = error ("getHttpClientRequestBody: not implemented: " <> x)
+
 
 instance {-# OVERLAPPABLE #-} (MonadTrans t, MonadHttp m, Monad m) => MonadHttp (t m) where
   handleRequestWithCont req cont = lift $ handleRequestWithCont req cont

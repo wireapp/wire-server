@@ -56,6 +56,7 @@ import qualified Web.Cookie                   as Cookie
 import qualified Brig.Data.User               as User
 import qualified Brig.Data.Client             as User
 import qualified Brig.IO.Intra                as RPC
+import qualified Brig.Options                 as Opt
 import qualified Brig.Provider.DB             as DB
 import qualified Brig.Provider.RPC            as RPC
 import qualified Brig.Types.Provider.External as Ext
@@ -833,7 +834,8 @@ addBot zuid zcon cid add = do
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
     lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)
-    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
+    maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
+    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt maxPermClients Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
     -- Add the bot to the conversation

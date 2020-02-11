@@ -55,8 +55,6 @@ import qualified Network.AWS.DynamoDB   as AWS
 import qualified System.CryptoBox       as CryptoBox
 import qualified System.Logger.Class    as Log
 
-maxPermClients :: Int
-maxPermClients = 7
 
 data ClientDataError
     = TooManyClients
@@ -67,9 +65,10 @@ data ClientDataError
 addClient :: UserId
           -> ClientId
           -> NewClient
+          -> Int
           -> Maybe Location
           -> ExceptT ClientDataError AppIO (Client, [Client], Word)
-addClient u newId c loc = do
+addClient u newId c maxPermClients loc = do
     clients <- lookupClients u
     let typed  = filter ((== newClientType c) . clientType) clients
     let count  = length typed
