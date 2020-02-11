@@ -151,11 +151,14 @@ optSettings:
   setPropertyMaxKeyLen: 1024
   setPropertyMaxValueLen: 4096
   setDeleteThrottleMillis: 0
-  # NOTE: this filters out search results for team users,
-  # i.e., if you are a team user the search endpoints will
-  # return only users part of the same team. For name search,
-  # this is slightly more inefficient as it requires 2 extra DB lookups
   # setSearchSameTeamOnly: false
+  # ^ NOTE: this filters out search results for team users,
+  #   i.e., if you are a team user the search endpoints will
+  #   return only users part of the same team. For name search,
+  #   this is slightly more inefficient as it requires 2 extra DB lookups
+  # setUserMaxPermClients: 7
+  # ^ You can limit the max number of permanent clients that a user is allowed
+  #   to register, per account. The default value is '7' if the option is unset.
 
 logLevel: Warn
 logNetStrings: false
