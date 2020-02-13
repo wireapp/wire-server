@@ -1,14 +1,16 @@
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Miscellaneous orphan instances needed for Spar.
-module Spar.Orphans () where
+module Spar.Orphans
+  (
+  )
+where
 
-import Imports
 import Data.Id
-import Servant (FromHttpApiData(..), ToHttpApiData(..), MimeRender(..), PlainText)
+import Imports
+import Servant (FromHttpApiData (..), MimeRender (..), PlainText, ToHttpApiData (..))
 
 instance FromHttpApiData (Id a) where
   parseUrlPiece = fmap Id . parseUrlPiece

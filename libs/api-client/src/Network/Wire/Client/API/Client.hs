@@ -1,21 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wire.Client.API.Client
-    ( registerClient
-    , removeClient
-    , updateClient
-    , getUserPrekeys
-    , getPrekey
-    , getClients
-    , module M
-    ) where
+  ( registerClient,
+    removeClient,
+    updateClient,
+    getUserPrekeys,
+    getPrekey,
+    getClients,
+    module M,
+  )
+where
 
-import Imports
 import Bilge
 import Brig.Types.Client as M
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty
+import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
@@ -24,7 +25,8 @@ import Network.Wire.Client.Session
 registerClient :: MonadSession m => NewClient -> m M.Client
 registerClient a = sessionRequest req rsc readBody
   where
-    req = method POST
+    req =
+      method POST
         . path "/clients"
         . acceptJson
         . json a
@@ -34,7 +36,8 @@ registerClient a = sessionRequest req rsc readBody
 removeClient :: MonadSession m => ClientId -> RmClient -> m ()
 removeClient cid r = sessionRequest req rsc (const $ return ())
   where
-    req = method DELETE
+    req =
+      method DELETE
         . paths ["clients", toByteString' cid]
         . acceptJson
         . json r
@@ -44,7 +47,8 @@ removeClient cid r = sessionRequest req rsc (const $ return ())
 getClients :: MonadSession m => m [M.Client]
 getClients = sessionRequest req rsc readBody
   where
-    req = method GET
+    req =
+      method GET
         . path "/clients"
         . acceptJson
         $ empty
@@ -53,7 +57,8 @@ getClients = sessionRequest req rsc readBody
 updateClient :: MonadSession m => ClientId -> UpdateClient -> m ()
 updateClient cid r = sessionRequest req rsc (const $ return ())
   where
-    req = method PUT
+    req =
+      method PUT
         . paths ["clients", toByteString' cid]
         . acceptJson
         . json r
@@ -63,7 +68,8 @@ updateClient cid r = sessionRequest req rsc (const $ return ())
 getUserPrekeys :: MonadSession m => UserId -> m PrekeyBundle
 getUserPrekeys u = sessionRequest req rsc readBody
   where
-    req = method GET
+    req =
+      method GET
         . paths ["users", toByteString' u, "prekeys"]
         . acceptJson
         $ empty
@@ -72,7 +78,8 @@ getUserPrekeys u = sessionRequest req rsc readBody
 getPrekey :: MonadSession m => UserId -> ClientId -> m ClientPrekey
 getPrekey u c = sessionRequest req rsc readBody
   where
-    req = method GET
+    req =
+      method GET
         . paths ["users", toByteString' u, "prekeys", toByteString' c]
         . acceptJson
         $ empty

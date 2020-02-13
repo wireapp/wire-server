@@ -9,14 +9,15 @@ import Servant.Swagger
 data OmitDocs
 
 instance HasSwagger (OmitDocs :> a) where
-    toSwagger _ = mempty
+  toSwagger _ = mempty
 
 instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
-    type ServerT (OmitDocs :> api) m = ServerT api m
+  type ServerT (OmitDocs :> api) m = ServerT api m
 
-    route _ = route (Proxy :: Proxy api)
-    hoistServerWithContext _ pc nt s =
-        hoistServerWithContext (Proxy :: Proxy api) pc nt s
+  route _ = route (Proxy :: Proxy api)
+
+  hoistServerWithContext _ pc nt s =
+    hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
 -- | A type family that prepares our API for docs generation.
 --
@@ -32,10 +33,10 @@ instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
 --   * The endpoint that serves Swagger docs.
 --   * Internal endpoints.
 type family OutsideWorld (api :: k) :: k where
-    -- special cases
-    OutsideWorld (Header "Z-User" a :> b) = OutsideWorld b
-    OutsideWorld (OmitDocs :> b) = EmptyAPI
-    -- recursion
-    OutsideWorld (a :<|> b) = OutsideWorld a :<|> OutsideWorld b
-    OutsideWorld (a :> b) = a :> OutsideWorld b
-    OutsideWorld x = x
+-- special cases
+  OutsideWorld (Header "Z-User" a :> b) = OutsideWorld b
+  OutsideWorld (OmitDocs :> b) = EmptyAPI
+-- recursion
+  OutsideWorld (a :<|> b) = OutsideWorld a :<|> OutsideWorld b
+  OutsideWorld (a :> b) = a :> OutsideWorld b
+  OutsideWorld x = x

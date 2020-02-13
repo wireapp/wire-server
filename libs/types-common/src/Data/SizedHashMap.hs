@@ -1,22 +1,20 @@
 module Data.SizedHashMap
-    ( SizedHashMap
-    , fromSizedHashMap
-    , size
-    , empty
-    , insert
-    , keys
-    , elems
-    , toList
-    , lookup
-    , delete
-    )
+  ( SizedHashMap,
+    fromSizedHashMap,
+    size,
+    empty,
+    insert,
+    keys,
+    elems,
+    toList,
+    lookup,
+    delete,
+  )
 where
 
-import Imports hiding (lookup, toList)
-import Data.Hashable (Hashable)
-
 import qualified Data.HashMap.Strict as M
-
+import Data.Hashable (Hashable)
+import Imports hiding (lookup, toList)
 
 data SizedHashMap k v = SizedHashMap !Int !(HashMap k v)
 

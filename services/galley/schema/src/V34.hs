@@ -1,12 +1,13 @@
 module V34 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 34 "Add team features table" $ do
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE team_features (
             team_id          uuid,
             legalhold_status int,

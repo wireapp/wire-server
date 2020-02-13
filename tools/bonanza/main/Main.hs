@@ -1,7 +1,7 @@
 module Main (main) where
 
-import Imports
 import Bonanza.App
+import Imports
 
 main :: IO ()
 main = runBonanza

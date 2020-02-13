@@ -1,43 +1,38 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE PackageImports     #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Data.ETag
-    ( Digest (..)
-    , Opaque
-
-    , opaqueMD5
-    , opaqueSHA1
-
-    , _OpaqueDigest
-    , opaqueDigest
-
-    , ETag
-    , _StrictETag
-    , _WeakETag
-
-    , strictETag
-    , weakETag
-    )
+  ( Digest (..),
+    Opaque,
+    opaqueMD5,
+    opaqueSHA1,
+    _OpaqueDigest,
+    opaqueDigest,
+    ETag,
+    _StrictETag,
+    _WeakETag,
+    strictETag,
+    weakETag,
+  )
 where
 
-import           Imports                          hiding (takeWhile)
-import           Control.Applicative              (optional)
-import           Control.Lens
+import Control.Applicative (optional)
+import Control.Lens
 -- TODO: These package imports are only needed due to the
 -- use of GHCI. They should be removed by moving everything
 -- from cryptohash (which is deprecated) to cryptonite
-import qualified "cryptohash-md5"  Crypto.Hash.MD5  as MD5
+import qualified "cryptohash-md5" Crypto.Hash.MD5 as MD5
 import qualified "cryptohash-sha1" Crypto.Hash.SHA1 as SHA1
-import           Data.Attoparsec.ByteString.Char8
-import qualified Data.ByteString.Base16           as Hex
-import           Data.ByteString.Builder          (byteString)
-import           Data.ByteString.Conversion
-
+import Data.Attoparsec.ByteString.Char8
+import qualified Data.ByteString.Base16 as Hex
+import Data.ByteString.Builder (byteString)
+import Data.ByteString.Conversion
+import Imports hiding (takeWhile)
 
 data Digest = MD5 | SHA1
 
@@ -53,20 +48,19 @@ data Digest = MD5 | SHA1
 -- Ie. concatenating two 'Opaque d' values is the same as converting two values
 -- of arbitrary types to a 'Builder', concatenating them, and applying the hash
 -- function on the result.
---
 data Opaque (d :: Digest) where
-    Opaque :: ToByteString a => a -> Opaque d
+  Opaque :: ToByteString a => a -> Opaque d
 
 instance ToByteString (Opaque 'MD5) where
-    builder (Opaque x)
-        = byteString . Hex.encode . MD5.hashlazy . toByteString $ x
+  builder (Opaque x) =
+    byteString . Hex.encode . MD5.hashlazy . toByteString $ x
 
 instance ToByteString (Opaque 'SHA1) where
-    builder (Opaque x)
-        = byteString . Hex.encode . SHA1.hashlazy . toByteString $ x
+  builder (Opaque x) =
+    byteString . Hex.encode . SHA1.hashlazy . toByteString $ x
 
 instance Semigroup (Opaque d) where
-    Opaque a <> Opaque b = Opaque (builder a <> builder b)
+  Opaque a <> Opaque b = Opaque (builder a <> builder b)
 
 opaqueMD5 :: ToByteString a => a -> Opaque 'MD5
 opaqueMD5 = Opaque
@@ -87,27 +81,27 @@ opaqueDigest (Opaque x) = Opaque x
 {-# INLINE opaqueDigest #-}
 
 data ETag a
-    = StrictETag !a
-    | WeakETag   !a
-    deriving (Eq, Show)
+  = StrictETag !a
+  | WeakETag !a
+  deriving (Eq, Show)
 
 instance ToByteString a => ToByteString (ETag a) where
-    builder (StrictETag v) = byteString "\""   <> builder v <> byteString "\""
-    builder (WeakETag   v) = byteString "W/\"" <> builder v <> byteString "\""
+  builder (StrictETag v) = byteString "\"" <> builder v <> byteString "\""
+  builder (WeakETag v) = byteString "W/\"" <> builder v <> byteString "\""
 
 instance FromByteString a => FromByteString (ETag a) where
-    parser = do
-        w <- optional (string "W/")
-        v <- char '"' *> takeWhile (/= '"') <* char '"'
-        case runParser parser v of
-            Left  e -> fail e
-            Right a -> pure $ maybe (StrictETag a) (const $ WeakETag a) w
+  parser = do
+    w <- optional (string "W/")
+    v <- char '"' *> takeWhile (/= '"') <* char '"'
+    case runParser parser v of
+      Left e -> fail e
+      Right a -> pure $ maybe (StrictETag a) (const $ WeakETag a) w
 
 instance Semigroup a => Semigroup (ETag a) where
-    StrictETag a <> StrictETag b = StrictETag (a <> b)
-    StrictETag a <> WeakETag   b = WeakETag   (a <> b)
-    WeakETag   a <> StrictETag b = WeakETag   (a <> b)
-    WeakETag   a <> WeakETag   b = WeakETag   (a <> b)
+  StrictETag a <> StrictETag b = StrictETag (a <> b)
+  StrictETag a <> WeakETag b = WeakETag (a <> b)
+  WeakETag a <> StrictETag b = WeakETag (a <> b)
+  WeakETag a <> WeakETag b = WeakETag (a <> b)
 
 makePrisms ''ETag
 
@@ -117,4 +111,4 @@ strictETag = StrictETag
 
 weakETag :: a -> ETag a
 weakETag = WeakETag
-{-# INLINABLE weakETag #-}
+{-# INLINEABLE weakETag #-}

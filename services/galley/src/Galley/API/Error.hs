@@ -1,11 +1,11 @@
 module Galley.API.Error where
 
-import Imports
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
-import Galley.Types (EmailDomain(..))
-import Galley.Types.Teams (IsPerm)
+import Galley.Types (EmailDomain (..))
 import Galley.Types.Conversations.Roles (Action)
+import Galley.Types.Teams (IsPerm)
+import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
@@ -73,13 +73,15 @@ invalidRange :: LText -> Error
 invalidRange = Error status400 "client-error"
 
 operationDenied :: (IsPerm perm, Show perm) => perm -> Error
-operationDenied p = Error
+operationDenied p =
+  Error
     status403
     "operation-denied"
     ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
 
 actionDenied :: Action -> Error
-actionDenied a = Error
+actionDenied a =
+  Error
     status403
     "action-denied"
     ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
@@ -88,8 +90,12 @@ noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
 noOtherOwner :: Error
-noOtherOwner = Error status403 "no-other-owner" "You are trying to remove or downgrade\
-                            \ an owner. Promote another team member before proceeding."
+noOtherOwner =
+  Error
+    status403
+    "no-other-owner"
+    "You are trying to remove or downgrade\
+    \ an owner. Promote another team member before proceeding."
 
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
@@ -161,7 +167,10 @@ noLegalHoldDeviceAllocated :: Error
 noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
 disableSsoNotImplemented :: Error
-disableSsoNotImplemented = Error status403 "not-implemented"
+disableSsoNotImplemented =
+  Error
+    status403
+    "not-implemented"
     "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
     \\n\
     \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
@@ -175,5 +184,7 @@ disableSsoNotImplemented = Error status403 "not-implemented"
 
 customBackendNotFound :: EmailDomain -> Error
 customBackendNotFound domain =
-    Error status404 "custom-backend-not-found"
-        ("custom backend not found for domain: " <> cs (emailDomainText domain))
+  Error
+    status404
+    "custom-backend-not-found"
+    ("custom backend not found for domain: " <> cs (emailDomainText domain))

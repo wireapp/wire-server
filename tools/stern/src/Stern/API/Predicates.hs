@@ -1,20 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Stern.API.Predicates
-    ( phoneParam
-    ) where
+  ( phoneParam,
+  )
+where
 
-import           Brig.Types
-import           Data.ByteString                  (ByteString)
-import           Data.ByteString.Conversion
-import           Imports
-import           Network.Wai.Predicate
-import           Network.Wai.Predicate.Request
-import           Network.Wai.Routing              (param)
-import           Network.Wai.Routing.Request
-
-import qualified Data.ByteString.Char8            as Char8
-import qualified Data.Char                        as Char
+import Brig.Types
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as Char8
+import Data.ByteString.Conversion
+import qualified Data.Char as Char
+import Imports
+import Network.Wai.Predicate
+import Network.Wai.Predicate.Request
+import Network.Wai.Routing (param)
+import Network.Wai.Routing.Request
 
 phoneParam :: (HasCaptures r, HasQuery r) => Predicate r Error Phone
 phoneParam = (>>= maybe (Fail invalidPhone) pure . fromByteString) <$> trimParam "phone"

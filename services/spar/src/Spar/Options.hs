@@ -1,29 +1,28 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | Reading the Spar config.
 --
 -- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
-  ( getOpts
-  , deriveOpts
-  , readOptsFile
-  ) where
+  ( getOpts,
+    deriveOpts,
+    readOptsFile,
+  )
+where
 
-import Imports
-import Control.Lens
 import Control.Exception
+import Control.Lens
 import Control.Monad.Catch
+import qualified Data.ByteString as SBS
+import qualified Data.Yaml as Yaml
+import Imports
 import Options.Applicative
+import qualified SAML2.WebSSO as SAML
 import Spar.API.Types
 import Spar.Types
 import Text.Ascii (ascii)
 import URI.ByteString as URI
-
-import qualified Data.ByteString as SBS
-import qualified Data.Yaml as Yaml
-import qualified SAML2.WebSSO as SAML
-
 
 type OptsRaw = Opts' (Maybe ())
 
@@ -42,20 +41,17 @@ deriveOpts raw = do
         derivedOptsBindCookiePath = URI.uriPath respuri
         unwrap = maybe (throwM $ ErrorCall "Bad server config: no domain in response URI") pure
     derivedOptsBindCookieDomain <- URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
-
     -- We could also make this selectable in the config file, but it seems easier to derive it from
     -- the SAML base uri.
     let derivedOptsScimBaseURI = (saml raw ^. SAML.cfgSPSsoURI) & pathL %~ derive
           where
-            derive path = case reverse .
-                               filter (not . SBS.null) .
-                               SBS.split (ascii '/') $
-                               path of
+            derive path = case reverse
+              . filter (not . SBS.null)
+              . SBS.split (ascii '/')
+              $ path of
               ("sso" : path') -> compile path'
-              path'           -> compile path'
-
+              path' -> compile path'
             compile path = "/" <> SBS.intercalate "/" (reverse ("v2" : "scim" : path))
-
     pure DerivedOpts {..}
   pure $ derived <$ raw
 
@@ -70,18 +66,18 @@ instance SAML.HasConfig WithConfig where
 runWithConfig :: OptsRaw -> WithConfig a -> a
 runWithConfig opts (WithConfig act) = act `runReader` opts
 
-
 -- | Accept config file location as cli option.
 --
 -- FUTUREWORK: it would be nicer for the Parser to return the contents of the file, and return an
 -- error that explains the cli options if it doesn't succeed.
 cliOptsParser :: Parser FilePath
-cliOptsParser = strOption $
+cliOptsParser =
+  strOption $
     long "config-file"
-    <> short 'c'
-    <> help "Spar application config to load"
-    <> showDefault
-    <> value defaultSparPath
+      <> short 'c'
+      <> help "Spar application config to load"
+      <> showDefault
+      <> value defaultSparPath
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 

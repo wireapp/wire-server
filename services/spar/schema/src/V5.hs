@@ -1,16 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE QuasiQuotes #-}
 
-module V5 (migration) where
+module V5
+  ( migration,
+  )
+where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 5 "Store SCIM user blobs" $ do
-    -- docs/developer/scim/storage.md {#DevScimStorageUsers}
-    void $ schema' [r|
+  -- docs/developer/scim/storage.md {#DevScimStorageUsers}
+  void $
+    schema'
+      [r|
         CREATE TABLE if not exists scim_user
             ( id     uuid
             , json   blob

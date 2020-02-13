@@ -1,20 +1,21 @@
 module Brig.Data.Blacklist
-    ( -- * UserKey blacklisting
-      insert
-    , exists
-    , delete
+  ( -- * UserKey blacklisting
+    insert,
+    exists,
+    delete,
 
-      -- * PhonePrefix excluding
-    , insertPrefix
-    , deletePrefix
-    , existsAnyPrefix
-    , getAllPrefixes
-    ) where
+    -- * PhonePrefix excluding
+    insertPrefix,
+    deletePrefix,
+    existsAnyPrefix,
+    getAllPrefixes,
+  )
+where
 
-import Imports
 import Brig.Data.UserKey
 import Brig.Types.Common
 import Cassandra
+import Imports
 
 --------------------------------------------------------------------------------
 -- UserKey blacklisting
@@ -23,8 +24,9 @@ insert :: MonadClient m => UserKey -> m ()
 insert uk = retry x5 $ write keyInsert (params Quorum (Identity $ keyText uk))
 
 exists :: MonadClient m => UserKey -> m Bool
-exists uk = return . isJust =<< fmap runIdentity <$>
-    retry x1 (query1 keySelect (params Quorum (Identity $ keyText uk)))
+exists uk =
+  return . isJust =<< fmap runIdentity
+    <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText uk)))
 
 delete :: MonadClient m => UserKey -> m ()
 delete uk = retry x5 $ write keyDelete (params Quorum (Identity $ keyText uk))
@@ -55,18 +57,18 @@ deletePrefix prefix = retry x5 $ write del (params Quorum (Identity prefix))
 
 getAllPrefixes :: MonadClient m => PhonePrefix -> m [ExcludedPrefix]
 getAllPrefixes prefix = do
-    let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
-    selectPrefixes prefixes
+  let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
+  selectPrefixes prefixes
 
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
-    let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
-    (not . null) <$> selectPrefixes prefixes
+  let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
+  (not . null) <$> selectPrefixes prefixes
 
 selectPrefixes :: MonadClient m => [Text] -> m [ExcludedPrefix]
 selectPrefixes prefixes = do
-    results <- retry x1 (query sel (params Quorum (Identity $ prefixes)))
-    return $ (\(p, c) -> ExcludedPrefix p c) <$> results
+  results <- retry x1 (query sel (params Quorum (Identity $ prefixes)))
+  return $ (\(p, c) -> ExcludedPrefix p c) <$> results
   where
     sel :: PrepQuery R (Identity [Text]) (PhonePrefix, Text)
     sel = "SELECT prefix, comment FROM excluded_phones WHERE prefix IN ?"

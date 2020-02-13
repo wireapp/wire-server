@@ -1,12 +1,13 @@
 module V21 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 21 "Add teams" $ do
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE team (
             team     uuid PRIMARY KEY,
             creator  uuid,
@@ -17,8 +18,8 @@ migration = Migration 21 "Add teams" $ do
         ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE team_conv (
             team    uuid,
             conv    uuid,
@@ -28,10 +29,9 @@ migration = Migration 21 "Add teams" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r| CREATE TYPE permissions (self bigint, copy bigint); |]
-
-    schema' [r|
+  schema' [r| CREATE TYPE permissions (self bigint, copy bigint); |]
+  schema'
+    [r|
         CREATE TABLE team_member (
             team  uuid,
             user  uuid,
@@ -41,8 +41,8 @@ migration = Migration 21 "Add teams" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE user_team (
             user  uuid,
             team  uuid,
@@ -51,6 +51,5 @@ migration = Migration 21 "Add teams" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r| ALTER TABLE conversation ADD team uuid; |]
-    schema' [r| ALTER TABLE conversation ADD deleted boolean; |]
+  schema' [r| ALTER TABLE conversation ADD team uuid; |]
+  schema' [r| ALTER TABLE conversation ADD deleted boolean; |]

@@ -1,13 +1,14 @@
 module V13 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 13 "Introduce reverse push CF (user_push) and remove index from push" $ do
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
             create columnfamily if not exists user_push
                 ( usr       uuid -- user id
                 , ptoken    text -- token
@@ -16,7 +17,8 @@ migration = Migration 13 "Introduce reverse push CF (user_push) and remove index
                 , primary key (usr, ptoken, app, transport)
                 );
             |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         drop index if exists push_usr_key;
         |]

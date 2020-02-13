@@ -1,81 +1,87 @@
 module Brig.Team.Template
-    ( TeamTemplates              (..)
-    , InvitationEmailTemplate    (..)
-    , CreatorWelcomeEmailTemplate(..)
-    , MemberWelcomeEmailTemplate (..)
+  ( TeamTemplates (..),
+    InvitationEmailTemplate (..),
+    CreatorWelcomeEmailTemplate (..),
+    MemberWelcomeEmailTemplate (..),
+    loadTeamTemplates,
 
-    , loadTeamTemplates
+    -- * Re-exports
+    Template,
+    renderText,
+    renderHtml,
+  )
+where
 
-      -- * Re-exports
-    , Template
-    , renderText
-    , renderHtml
-    ) where
-
-import Imports
 import Brig.Options
 import Brig.Template
 import Brig.Types
+import Imports
 
-data InvitationEmailTemplate = InvitationEmailTemplate
-    { invitationEmailUrl        :: !Template
-    , invitationEmailSubject    :: !Template
-    , invitationEmailBodyText   :: !Template
-    , invitationEmailBodyHtml   :: !Template
-    , invitationEmailSender     :: !Email
-    , invitationEmailSenderName :: !Text
-    }
+data InvitationEmailTemplate
+  = InvitationEmailTemplate
+      { invitationEmailUrl :: !Template,
+        invitationEmailSubject :: !Template,
+        invitationEmailBodyText :: !Template,
+        invitationEmailBodyHtml :: !Template,
+        invitationEmailSender :: !Email,
+        invitationEmailSenderName :: !Text
+      }
 
-data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
-    { creatorWelcomeEmailUrl        :: !Text
-    , creatorWelcomeEmailSubject    :: !Template
-    , creatorWelcomeEmailBodyText   :: !Template
-    , creatorWelcomeEmailBodyHtml   :: !Template
-    , creatorWelcomeEmailSender     :: !Email
-    , creatorWelcomeEmailSenderName :: !Text
-    }
+data CreatorWelcomeEmailTemplate
+  = CreatorWelcomeEmailTemplate
+      { creatorWelcomeEmailUrl :: !Text,
+        creatorWelcomeEmailSubject :: !Template,
+        creatorWelcomeEmailBodyText :: !Template,
+        creatorWelcomeEmailBodyHtml :: !Template,
+        creatorWelcomeEmailSender :: !Email,
+        creatorWelcomeEmailSenderName :: !Text
+      }
 
-data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
-    { memberWelcomeEmailUrl        :: !Text
-    , memberWelcomeEmailSubject    :: !Template
-    , memberWelcomeEmailBodyText   :: !Template
-    , memberWelcomeEmailBodyHtml   :: !Template
-    , memberWelcomeEmailSender     :: !Email
-    , memberWelcomeEmailSenderName :: !Text
-    }
+data MemberWelcomeEmailTemplate
+  = MemberWelcomeEmailTemplate
+      { memberWelcomeEmailUrl :: !Text,
+        memberWelcomeEmailSubject :: !Template,
+        memberWelcomeEmailBodyText :: !Template,
+        memberWelcomeEmailBodyHtml :: !Template,
+        memberWelcomeEmailSender :: !Email,
+        memberWelcomeEmailSenderName :: !Text
+      }
 
-data TeamTemplates = TeamTemplates
-    { invitationEmail     :: !InvitationEmailTemplate
-    , creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate
-    , memberWelcomeEmail  :: !MemberWelcomeEmailTemplate
-    }
+data TeamTemplates
+  = TeamTemplates
+      { invitationEmail :: !InvitationEmailTemplate,
+        creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
+        memberWelcomeEmail :: !MemberWelcomeEmailTemplate
+      }
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
-    TeamTemplates
-        <$> (InvitationEmailTemplate tUrl
-                <$> readTemplate fp "email/invitation-subject.txt"
-                <*> readTemplate fp "email/invitation.txt"
-                <*> readTemplate fp "email/invitation.html"
-                <*> pure (emailSender gOptions)
-                <*> readText fp "email/sender.txt")
-        <*> (CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-                <$> readTemplate fp "email/new-creator-welcome-subject.txt"
-                <*> readTemplate fp "email/new-creator-welcome.txt"
-                <*> readTemplate fp "email/new-creator-welcome.html"
-                <*> pure (emailSender gOptions)
-                <*> readText fp "email/sender.txt")
-        <*> (MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
-                <$> readTemplate fp "email/new-member-welcome-subject.txt"
-                <*> readTemplate fp "email/new-member-welcome.txt"
-                <*> readTemplate fp "email/new-member-welcome.html"
-                <*> pure (emailSender gOptions)
-                <*> readText fp "email/sender.txt")
+  TeamTemplates
+    <$> ( InvitationEmailTemplate tUrl
+            <$> readTemplate fp "email/invitation-subject.txt"
+            <*> readTemplate fp "email/invitation.txt"
+            <*> readTemplate fp "email/invitation.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
+            <$> readTemplate fp "email/new-creator-welcome-subject.txt"
+            <*> readTemplate fp "email/new-creator-welcome.txt"
+            <*> readTemplate fp "email/new-creator-welcome.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
+            <$> readTemplate fp "email/new-member-welcome-subject.txt"
+            <*> readTemplate fp "email/new-member-welcome.txt"
+            <*> readTemplate fp "email/new-member-welcome.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
   where
     gOptions = general (emailSMS o)
     tOptions = team (emailSMS o)
-    tUrl     = template $ tInvitationUrl tOptions
-
+    tUrl = template $ tInvitationUrl tOptions
     defLocale = setDefaultLocale (optSettings o)
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
     readText = readTextWithDefault (templateDir gOptions) defLocale "team"

@@ -1,7 +1,7 @@
 module Main (main) where
 
-import Imports
 import Cannon.Run (run)
+import Imports
 import Util.Options
 
 main :: IO ()

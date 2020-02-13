@@ -1,40 +1,40 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bonanza.Parser.Time
-    ( tai64N
-    , iso8601UTC
-    , isoDay
-    , isoTime
-    , commonLogDate
-    )
+  ( tai64N,
+    iso8601UTC,
+    isoDay,
+    isoTime,
+    commonLogDate,
+  )
 where
 
-import Imports hiding (take)
 import Control.Applicative (optional)
+import Data.Attoparsec.ByteString.Char8
+import qualified Data.List as List
 import Data.Time
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.TAI
-
-import Data.Attoparsec.ByteString.Char8
-import qualified Data.List as List
+import Imports hiding (take)
 
 tai64N :: Parser UTCTime
 tai64N = do
-    secs <- take 16 >>= int >>= return . subtract taiBase
-    nano <- take  8 >>= int
-    let t = posixSecondsToUTCTime $ posix secs nano
-        l = (-1) * fromIntegral (leapSeconds t)
-    return $ addUTCTime l t
+  secs <- take 16 >>= int >>= return . subtract taiBase
+  nano <- take 8 >>= int
+  let t = posixSecondsToUTCTime $ posix secs nano
+      l = (-1) * fromIntegral (leapSeconds t)
+  return $ addUTCTime l t
   where
     int :: ByteString -> Parser Integer
-    int bs = either (const $ fail "not a hexadecimal number")
-                    (return . id)
-                    (parseOnly hexadecimal bs)
-
+    int bs =
+      either
+        (const $ fail "not a hexadecimal number")
+        (return . id)
+        (parseOnly hexadecimal bs)
     posix :: Integer -> Integer -> POSIXTime
-    posix secs nano = let picos = toPico secs fSecond + toPico nano fNano
-                       in realToFrac picos / 10^(12 :: Int)
-
+    posix secs nano =
+      let picos = toPico secs fSecond + toPico nano fNano
+       in realToFrac picos / 10 ^ (12 :: Int)
     taiBase :: Integer
     taiBase = 4611686018427387904
 
@@ -46,32 +46,32 @@ isoDay = fromGregorian <$> decimal <* char '-' <*> decimal <* char '-' <*> decim
 
 isoTime :: Parser DiffTime
 isoTime = do
-    h <- decimal <* char ':'
-    m <- decimal <* char ':'
-    s <- decimal
-    u <- option 0 (char '.' *> decimal)
-    _ <- optional (string "Z" <|> string "+0000")
-    return . picosecondsToDiffTime
-           $ toPico h fHour
-           + toPico m fMinute
-           + toPico s fSecond
-           + toPico u fMicro
+  h <- decimal <* char ':'
+  m <- decimal <* char ':'
+  s <- decimal
+  u <- option 0 (char '.' *> decimal)
+  _ <- optional (string "Z" <|> string "+0000")
+  return . picosecondsToDiffTime $
+    toPico h fHour
+      + toPico m fMinute
+      + toPico s fSecond
+      + toPico u fMicro
 
 commonLogDate :: Parser UTCTime
 commonLogDate = do
-    _ <- char '['
-    d <- decimal <* char '/'
-    m <- (month =<< take 3) <* char '/'
-    y <- decimal <* char ':'
-    h <- decimal <* char ':'
-    m' <- decimal <* char ':'
-    s <- decimal <* char ' '
-    z <- signed decimal
-    _ <- char ']'
-    let ld = fromGregorian y m d
-        lt = TimeOfDay h m' (fromInteger s)
-        tz = hoursToTimeZone z
-     in return $ localTimeToUTC tz (LocalTime ld lt)
+  _ <- char '['
+  d <- decimal <* char '/'
+  m <- (month =<< take 3) <* char '/'
+  y <- decimal <* char ':'
+  h <- decimal <* char ':'
+  m' <- decimal <* char ':'
+  s <- decimal <* char ' '
+  z <- signed decimal
+  _ <- char ']'
+  let ld = fromGregorian y m d
+      lt = TimeOfDay h m' (fromInteger s)
+      tz = hoursToTimeZone z
+   in return $ localTimeToUTC tz (LocalTime ld lt)
   where
     month "Jan" = return 1
     month "Feb" = return 2
@@ -85,7 +85,7 @@ commonLogDate = do
     month "Oct" = return 10
     month "Nov" = return 11
     month "Dec" = return 12
-    month x     = fail $ "not a valid month name: " ++ show x
+    month x = fail $ "not a valid month name: " ++ show x
 
 --------------------------------------------------------------------------------
 -- Internal
@@ -94,16 +94,16 @@ toPico :: Integer -> Integer -> Integer
 toPico i factor = i * factor
 
 fHour :: Integer
-fHour = round $ (3.6 :: Double) * 10^(15 :: Int)
+fHour = round $ (3.6 :: Double) * 10 ^ (15 :: Int)
 
 fMinute :: Integer
-fMinute = round $ (6.0 :: Double) * 10^(13 :: Int)
+fMinute = round $ (6.0 :: Double) * 10 ^ (13 :: Int)
 
 fSecond :: Integer
-fSecond = 10^(12 :: Int)
+fSecond = 10 ^ (12 :: Int)
 
 fMicro :: Integer
-fMicro = 10^(7 :: Int)
+fMicro = 10 ^ (7 :: Int)
 
 fNano :: Integer
 fNano = 1000
@@ -117,32 +117,33 @@ leapSeconds = fromMaybe def . leapSecondsMap . utctDay
 leapSecondsMap :: LeapSecondMap
 leapSecondsMap v = List.lookup v $ map (\(x, y) -> (read x, y)) leap
   where
-    leap =  [ ("1972-01-01", 10)
-            , ("1972-07-01", 11)
-            , ("1973-01-01", 12)
-            , ("1974-01-01", 13)
-            , ("1975-01-01", 14)
-            , ("1976-01-01", 15)
-            , ("1977-01-01", 16)
-            , ("1978-01-01", 17)
-            , ("1979-01-01", 18)
-            , ("1980-01-01", 19)
-            , ("1981-07-01", 20)
-            , ("1982-07-01", 21)
-            , ("1983-07-01", 22)
-            , ("1985-07-01", 23)
-            , ("1988-01-01", 24)
-            , ("1990-01-01", 25)
-            , ("1991-01-01", 26)
-            , ("1992-07-01", 27)
-            , ("1993-07-01", 28)
-            , ("1994-07-01", 29)
-            , ("1996-01-01", 30)
-            , ("1997-07-01", 31)
-            , ("1999-01-01", 32)
-            , ("2006-01-01", 33)
-            , ("2009-01-01", 34)
-            , ("2012-07-01", 35)
-            , ("2015-07-01", 36)
-            , ("2017-01-01", 37)
-            ]
+    leap =
+      [ ("1972-01-01", 10),
+        ("1972-07-01", 11),
+        ("1973-01-01", 12),
+        ("1974-01-01", 13),
+        ("1975-01-01", 14),
+        ("1976-01-01", 15),
+        ("1977-01-01", 16),
+        ("1978-01-01", 17),
+        ("1979-01-01", 18),
+        ("1980-01-01", 19),
+        ("1981-07-01", 20),
+        ("1982-07-01", 21),
+        ("1983-07-01", 22),
+        ("1985-07-01", 23),
+        ("1988-01-01", 24),
+        ("1990-01-01", 25),
+        ("1991-01-01", 26),
+        ("1992-07-01", 27),
+        ("1993-07-01", 28),
+        ("1994-07-01", 29),
+        ("1996-01-01", 30),
+        ("1997-07-01", 31),
+        ("1999-01-01", 32),
+        ("2006-01-01", 33),
+        ("2009-01-01", 34),
+        ("2012-07-01", 35),
+        ("2015-07-01", 36),
+        ("2017-01-01", 37)
+      ]

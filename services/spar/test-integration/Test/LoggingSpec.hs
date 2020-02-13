@@ -1,19 +1,17 @@
 module Test.LoggingSpec (spec) where
 
-import Imports
 import Control.Lens
 import Data.String.Conversions (cs)
+import Imports
 import Network.HTTP.Types.Status (statusCode)
+import qualified Network.Wai.Test as HW
 import Spar.App
 import Spar.Run (mkApp)
 import System.IO.Silently (capture)
 import System.Logger as Log
-import Util
-
-import qualified Network.Wai.Test as HW
 import qualified Test.Hspec.Wai as HW
 import qualified Test.Hspec.Wai.Internal as HW
-
+import Util
 
 spec :: SpecWith TestEnv
 spec = describe "logging" $ do
@@ -25,7 +23,6 @@ spec = describe "logging" $ do
         Log.flush logger
       out `shouldContain` "hrgh  woaa"
       out `shouldNotContain` "hrgh\n\nwoaa"
-
   context "loglevel == debug" $ do
     it "400 on finalize-login causes log of entire request" $ do
       pendingWith "TODO: We don't log this any more.  See /libs/extended/src/Servant/API/Extended.hs for details."

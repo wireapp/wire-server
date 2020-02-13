@@ -1,14 +1,15 @@
 module Brig.Data.Types
-    ( ResultPage
-    , resultList
-    , resultHasMore
+  ( ResultPage,
+    resultList,
+    resultHasMore,
 
-      -- * Constructors
-    , cassandraResultPage
-    ) where
+    -- * Constructors
+    cassandraResultPage,
+  )
+where
 
-import Imports
 import qualified Cassandra
+import Imports
 
 -- | An opaque page of results with an indication of whether
 -- more data than contained in the page is available.

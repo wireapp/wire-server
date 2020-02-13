@@ -1,13 +1,14 @@
 module V1 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 1 "Add verdict table" $ do
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         CREATE TABLE if not exists verdict
             ( req                   text
             , format_con            int

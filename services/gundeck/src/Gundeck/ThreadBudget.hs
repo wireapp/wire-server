@@ -23,11 +23,12 @@
 -- quite some digging: https://github.com/snoyberg/http-client/issues/394.  So if you ever
 -- want to figure this out properly, plan in some time for it.
 module Gundeck.ThreadBudget
-  ( ThreadBudgetState
-  , mkThreadBudgetState
-  , runWithBudget
-  , runWithBudget'
-  , watchThreadBudgetState
-  ) where
+  ( ThreadBudgetState,
+    mkThreadBudgetState,
+    runWithBudget,
+    runWithBudget',
+    watchThreadBudgetState,
+  )
+where
 
 import Gundeck.ThreadBudget.Internal

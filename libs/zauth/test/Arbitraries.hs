@@ -1,75 +1,77 @@
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Arbitraries where
 
-import Imports
 import Control.Lens ((.~))
 import Data.UUID hiding (fromString)
 import Data.ZAuth.Token
+import Imports
 import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
 instance Arbitrary (Token Access) where
-    arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token User) where
-    arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token Bot) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary (Token Provider) where
-    arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary (Token LegalHoldAccess) where
-    arbitrary = mkToken <$> arbitrary <*> ((typ .~ LA) <$> arbitrary) <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LA) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token LegalHoldUser) where
-    arbitrary = mkToken <$> arbitrary <*> ((typ .~ LU) <$> arbitrary) <*> arbitrary
+  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LU) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary Header where
-    arbitrary = mkHeader
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
+  arbitrary =
+    mkHeader
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 instance Arbitrary Access where
-    arbitrary = mkAccess <$> arbitrary <*> arbitrary
+  arbitrary = mkAccess <$> arbitrary <*> arbitrary
 
 instance Arbitrary User where
-    arbitrary = mkUser <$> arbitrary <*> arbitrary
+  arbitrary = mkUser <$> arbitrary <*> arbitrary
 
 instance Arbitrary Bot where
-    arbitrary = mkBot <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = mkBot <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Provider where
-    arbitrary = mkProvider <$> arbitrary
+  arbitrary = mkProvider <$> arbitrary
 
 instance Arbitrary LegalHoldAccess where
-    arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitrary
+  arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldUser where
-    arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitrary
+  arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitrary
 
 instance Arbitrary ByteString where
-    arbitrary = fromString <$> arbitrary `suchThat` (not . any (== '.'))
+  arbitrary = fromString <$> arbitrary `suchThat` (not . any (== '.'))
 
 instance Arbitrary Signature where
-    arbitrary = Signature <$> arbitrary
+  arbitrary = Signature <$> arbitrary
 
 instance Arbitrary Type where
-    arbitrary = elements [A, U, LA, LU]
+  arbitrary = elements [A, U, LA, LU]
 
 instance Arbitrary Tag where
-    arbitrary = return S
+  arbitrary = return S
 
 instance Bounded UUID where
-    minBound = nil
-    maxBound = fromJust $ fromASCIIBytes "ffffffff-ffff-4fff-ffff-ffffffffffff"
+  minBound = nil
+
+  maxBound = fromJust $ fromASCIIBytes "ffffffff-ffff-4fff-ffff-ffffffffffff"
 
 instance Arbitrary UUID where
-    arbitrary = arbitraryBoundedRandom
+  arbitrary = arbitraryBoundedRandom

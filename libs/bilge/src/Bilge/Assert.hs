@@ -2,55 +2,57 @@
 
 -- | 'Assert' provides ways to maintain claims over 'Response's.
 module Bilge.Assert
-    ( Assertions
-    , Contains (..)
-    , (!!!)
-    , (<!!)
-    , (===)
-    , (=/=)
-    , (=~=)
-    , assertTrue
-    , assertTrue_
-    , assert
-    , assert_
-    ) where
+  ( Assertions,
+    Contains (..),
+    (!!!),
+    (<!!),
+    (===),
+    (=/=),
+    (=~=),
+    assertTrue,
+    assertTrue_,
+    assert,
+    assert_,
+  )
+where
 
-import Imports
 import Control.Monad.Catch
 import Control.Monad.Writer.Class
 import Control.Monad.Writer.Strict
-import Data.List                    (intersperse, isInfixOf)
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as Lazy
+import Data.List (intersperse, isInfixOf)
+import Imports
 import Network.HTTP.Client
 import System.Console.ANSI
 import Text.Printf
 
-import qualified Data.ByteString      as S
-import qualified Data.ByteString.Lazy as Lazy
-
 -- | Type-class the denote a containment relation.
 class Contains a where
-    -- | If 'True', the first argument is contained in the second.
-    contains :: a -> a -> Bool
+  -- | If 'True', the first argument is contained in the second.
+  contains :: a -> a -> Bool
 
 instance Contains ByteString where
-    contains a b = not . S.null . snd $ S.breakSubstring a b
+  contains a b = not . S.null . snd $ S.breakSubstring a b
 
 instance Contains Lazy.ByteString where
-    contains a b = contains (Lazy.toStrict a) (Lazy.toStrict b)
+  contains a b = contains (Lazy.toStrict a) (Lazy.toStrict b)
 
 instance Eq a => Contains [a] where
-    contains = isInfixOf
+  contains = isInfixOf
 
 instance Contains a => Contains (Maybe a) where
-    contains (Just a) (Just b) = contains a b
-    contains Nothing  _        = True
-    contains _        Nothing  = False
+  contains (Just a) (Just b) = contains a b
+  contains Nothing _ = True
+  contains _ Nothing = False
 
 -- | A 'Writer' monad containing the list of assertions as predicate
 -- functions of a 'Response'.
-newtype Assertions a = Assertions
-    { _assertions :: Writer [Response (Maybe Lazy.ByteString) -> Maybe String] a
-    } deriving (Functor, Applicative, Monad)
+newtype Assertions a
+  = Assertions
+      { _assertions :: Writer [Response (Maybe Lazy.ByteString) -> Maybe String] a
+      }
+  deriving (Functor, Applicative, Monad)
 
 -- | Given an IO action to get a 'Response' and a set of assertions,
 -- evaluate all assertions against the response.
@@ -58,60 +60,67 @@ newtype Assertions a = Assertions
 -- (N.B. assertions are enumerated, i.e. you will see the index of the
 -- assertion that failed). It will also return the response,
 -- so it can be used for further inspection.
-(<!!) :: (HasCallStack, Functor m, MonadIO m, MonadCatch m)
-      => m (Response (Maybe Lazy.ByteString))
-      -> Assertions ()
-      -> m (Response (Maybe Lazy.ByteString))
+(<!!) ::
+  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  m (Response (Maybe Lazy.ByteString)) ->
+  Assertions () ->
+  m (Response (Maybe Lazy.ByteString))
 io <!! aa = do
-    r <- io `catch` printErr
-    let results  = map ($ r) (execWriter . _assertions $ aa)
-    let failures = filter (isJust . snd) $ zip [1 ..] results
-    unless (null failures) $ error . concat $
-        title "Assertions failed:\n" : intersperse "\n" (map msg failures)
-        ++ ["\n\nResponse was:\n\n" ++ show r]
-    return r
+  r <- io `catch` printErr
+  let results = map ($ r) (execWriter . _assertions $ aa)
+  let failures = filter (isJust . snd) $ zip [1 ..] results
+  unless (null failures) $ error . concat $
+    title "Assertions failed:\n" : intersperse "\n" (map msg failures)
+      ++ ["\n\nResponse was:\n\n" ++ show r]
+  return r
   where
     msg :: (Int, Maybe String) -> String
     msg (i, Just m) = printf "%2d: " i ++ err m
-    msg _           = ""
-
+    msg _ = ""
     printErr :: MonadIO m => SomeException -> m a
     printErr e = error $ title "Error executing request: " ++ err (show e)
 
 -- | Like '<!!' but discards the 'Response'.
-(!!!) :: (HasCallStack, Functor m, MonadIO m, MonadCatch m)
-      => m (Response (Maybe Lazy.ByteString))
-      -> Assertions ()
-      -> m ()
+(!!!) ::
+  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  m (Response (Maybe Lazy.ByteString)) ->
+  Assertions () ->
+  m ()
 (!!!) io = void . (<!!) io
 
-infix  4 ===
-infix  4 =/=
+infix 4 ===
+
+infix 4 =/=
+
 infixr 3 !!!
+
 infixr 3 <!!
 
 -- | Tests the assertion that the left-hand side and the right-hand side
 -- are equal. If not, actual values will be printed.
-(===) :: (HasCallStack, Eq a, Show a)
-      => (Response (Maybe Lazy.ByteString) -> a)
-      -> (Response (Maybe Lazy.ByteString) -> a)
-      -> Assertions ()
+(===) ::
+  (HasCallStack, Eq a, Show a) =>
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  Assertions ()
 f === g = Assertions $ tell [\r -> test " =/= " (==) (f r) (g r)]
 
 -- | Tests the assertion that the left-hand side and the right-hand side
 -- are not equal. If not, actual values will be printed.
-(=/=) :: (HasCallStack, Eq a, Show a)
-      => (Response (Maybe Lazy.ByteString) -> a)
-      -> (Response (Maybe Lazy.ByteString) -> a)
-      -> Assertions ()
+(=/=) ::
+  (HasCallStack, Eq a, Show a) =>
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  Assertions ()
 f =/= g = Assertions $ tell [\r -> test " === " (/=) (f r) (g r)]
 
 -- | Tests the assertion that the left-hand side is contained in the right-hand side.
 -- If not, actual values will be printed.
-(=~=) :: (HasCallStack, Show a, Contains a)
-      => (Response (Maybe Lazy.ByteString) -> a)
-      -> (Response (Maybe Lazy.ByteString) -> a)
-      -> Assertions ()
+(=~=) ::
+  (HasCallStack, Show a, Contains a) =>
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  (Response (Maybe Lazy.ByteString) -> a) ->
+  Assertions ()
 f =~= g = Assertions $ tell [\r -> test " not in " contains (f r) (g r)]
 
 -- | Generic assertion on a request. The 'String' argument will be printed
@@ -136,13 +145,13 @@ assert_ = assertTrue_ . const
 
 test :: (HasCallStack, Show a) => String -> (a -> a -> Bool) -> a -> a -> Maybe String
 test s o a b
-    | o a b     = Nothing
-    | otherwise = Just $ show a ++ s ++ show b
+  | o a b = Nothing
+  | otherwise = Just $ show a ++ s ++ show b
 
 title, err :: String -> String
 title = with Yellow
-err   = with Red
+err = with Red
 
 with :: Color -> String -> String
 with c a =
-    setSGRCode [SetColor Foreground Vivid c] ++ a ++ setSGRCode []
+  setSGRCode [SetColor Foreground Vivid c] ++ a ++ setSGRCode []

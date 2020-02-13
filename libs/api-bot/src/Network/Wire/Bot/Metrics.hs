@@ -2,8 +2,8 @@
 
 module Network.Wire.Bot.Metrics where
 
-import Imports
 import Data.Metrics
+import Imports
 import Network.Wire.Client.API.Push (EventType, eventTypeText)
 
 assertionsTotal :: Path

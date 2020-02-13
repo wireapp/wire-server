@@ -1,12 +1,14 @@
 module V7 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 7 "Add notifications column family" $
-    schema' [r|
+migration =
+  Migration 7 "Add notifications column family" $
+    schema'
+      [r|
         create columnfamily if not exists notifications
             ( user    uuid      -- user id
             , id      timeuuid  -- notification id

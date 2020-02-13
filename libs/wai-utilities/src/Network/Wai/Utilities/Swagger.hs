@@ -2,35 +2,34 @@
 
 module Network.Wai.Utilities.Swagger where
 
-import Imports
 import Data.Swagger
 import Data.Swagger.Build.Api
+import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
-import Data.Text.Encoding (decodeUtf8)
+import Imports
 import Network.HTTP.Types.Status (statusCode)
-import Network.Wai.Routing (Routes, Meta (..), attach, examine)
+import Network.Wai.Routing (Meta (..), Routes, attach, examine)
 import Network.Wai.Utilities.Error
-
-import qualified Data.Text as Text
 
 mkSwaggerApi :: Text -> [Model] -> Routes ApiBuilder m a -> ApiDecl
 mkSwaggerApi base models sitemap =
-    let routes = groupBy ((==) `on` routePath) (examine sitemap) in
-    declare base "1.2" $ do
+  let routes = groupBy ((==) `on` routePath) (examine sitemap)
+   in declare base "1.2" $ do
         resourcePath "/"
         produces "application/json"
         authorisation ApiKey
         mapM_ model models
         forM_ routes $ \r ->
-            api (fixVars . decodeUtf8 $ routePath (head r)) $
-                mapM_ routeMeta r
+          api (fixVars . decodeUtf8 $ routePath (head r)) $
+            mapM_ routeMeta r
   where
     fixVars = Text.intercalate "/" . map var . Text.splitOn "/"
-
-    var t | Text.null t        = t
-          | Text.head t == ':' = "{" <> Text.tail t <> "}"
-          | otherwise          = t
+    var t
+      | Text.null t = t
+      | Text.head t == ':' = "{" <> Text.tail t <> "}"
+      | otherwise = t
 
 document :: Text -> Text -> OperationBuilder -> Routes ApiBuilder m ()
 document x y = attach . operation x y

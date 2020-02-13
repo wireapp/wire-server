@@ -1,50 +1,50 @@
 {-# LANGUAGE RecordWildCards #-}
+
 module Util.Scim where
 
-import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
 import Cassandra
 import Control.Lens
 import Control.Monad.Random
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import Data.Id
+import qualified Data.Map as Map
 import Data.String.Conversions (cs)
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
+import Imports
+import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
-import Spar.Scim (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import qualified Spar.Intra.Brig as Intra
+import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenList (..))
 import Spar.Scim.Types
-import Spar.Types (ScimToken(..), ScimTokenInfo(..), IdP)
+import Spar.Types (IdP, ScimToken (..), ScimTokenInfo (..))
+import qualified Text.Email.Parser as Email
 import Util.Core
 import Util.Types
 import Web.HttpApiData (toHeader)
-
-import qualified Data.Aeson                       as Aeson
-import qualified Data.Map                         as Map
-import qualified SAML2.WebSSO                     as SAML
-import qualified Spar.Intra.Brig                  as Intra
-import qualified Text.Email.Parser                as Email
-import qualified Web.Scim.Class.User              as Scim
-import qualified Web.Scim.Filter                  as Scim
-import qualified Web.Scim.Schema.Common           as Scim
-import qualified Web.Scim.Schema.PatchOp          as Scim.PatchOp
-import qualified Web.Scim.Schema.ListResponse     as Scim
-import qualified Web.Scim.Schema.Meta             as Scim
-import qualified Web.Scim.Schema.User             as Scim.User
-import qualified Web.Scim.Schema.User.Email       as Email
-import qualified Web.Scim.Schema.User.Phone       as Phone
-import qualified Data.CaseInsensitive             as CI
+import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Filter as Scim
+import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.ListResponse as Scim
+import qualified Web.Scim.Schema.Meta as Scim
+import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
+import qualified Web.Scim.Schema.User as Scim.User
+import qualified Web.Scim.Schema.User.Email as Email
+import qualified Web.Scim.Schema.User.Phone as Phone
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
   team@(_owner, teamid, idp) <- registerTestIdP
-  (, team) <$> registerScimToken teamid (Just (idp ^. idpId))
+  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
@@ -55,15 +55,16 @@ registerScimToken teamid midpid = do
     pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runClient (env ^. teCql) $ Data.insertScimToken
+  runClient (env ^. teCql) $
+    Data.insertScimToken
       tok
       ScimTokenInfo
-          { stiTeam      = teamid
-          , stiId        = scimTokenId
-          , stiCreatedAt = now
-          , stiIdP       = midpid
-          , stiDescr     = "test token"
-          }
+        { stiTeam = teamid,
+          stiId = scimTokenId,
+          stiCreatedAt = now,
+          stiIdP = midpid,
+          stiDescr = "test token"
+        }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered
@@ -76,344 +77,382 @@ randomScimUser = fst <$> randomScimUserWithSubject
 
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
-randomScimUserWithSubject
-    :: (HasCallStack, MonadRandom m)
-    => m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+randomScimUserWithSubject ::
+  (HasCallStack, MonadRandom m) =>
+  m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
-    fieldCount <- getRandomR (0, 3)
-    fields <- replicateM fieldCount $
-              (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
-                  <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-    randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
+  fieldCount <- getRandomR (0, 3)
+  fields <-
+    replicateM fieldCount $
+      (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
+        <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
+  randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
-randomScimUserWithSubjectAndRichInfo
-    :: MonadRandom m
-    => RichInfo -> m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
+randomScimUserWithSubjectAndRichInfo ::
+  MonadRandom m =>
+  RichInfo ->
+  m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
-    suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-    emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
-    phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
-    -- Related, but non-trivial to re-use here: 'nextSubject'
-    (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
-        0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
-             , either (error . show) id $
-               SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
-             )
-        1 -> ( "scimuser_extid_" <> suffix
-             , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
-             )
-        _ -> error "randomScimUserWithSubject: impossible"
-    pure ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
-               { Scim.User.displayName  = Just ("Scim User #" <> suffix)
-               , Scim.User.externalId   = Just externalId
-               , Scim.User.emails       = emails
-               , Scim.User.phoneNumbers = phones
-               }
-         , subj
-         )
+  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
+  phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
+  -- Related, but non-trivial to re-use here: 'nextSubject'
+  (externalId, subj) <- getRandomR (0, 1 :: Int) <&> \case
+    0 ->
+      ( "scimuser_extid_" <> suffix <> "@example.com",
+        either (error . show) id $
+          SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+      )
+    1 ->
+      ( "scimuser_extid_" <> suffix,
+        SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
+      )
+    _ -> error "randomScimUserWithSubject: impossible"
+  pure
+    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
+        { Scim.User.displayName = Just ("Scim User #" <> suffix),
+          Scim.User.externalId = Just externalId,
+          Scim.User.emails = emails,
+          Scim.User.phoneNumbers = phones
+        },
+      subj
+    )
 
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
-    let typ     :: Maybe Text = Nothing
-        primary :: Maybe Bool = Nothing  -- TODO: where should we catch users with more than one
-                                         -- primary email?
-    value :: Email.EmailAddress2 <- do
-      localpart  <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
-      domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-      pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
-    pure Email.Email{..}
+  let typ :: Maybe Text = Nothing
+      primary :: Maybe Bool = Nothing -- TODO: where should we catch users with more than one
+        -- primary email?
+  value :: Email.EmailAddress2 <- do
+    localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
+    domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
+    pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
+  pure Email.Email {..}
 
 randomScimPhone :: MonadRandom m => m Phone.Phone
 randomScimPhone = do
-    let typ :: Maybe Text = Nothing
-    value :: Maybe Text <- do
-      let mkdigits n = replicateM n (getRandomR ('0', '9'))
-      mini <- mkdigits 8
-      maxi <- mkdigits =<< getRandomR (0, 7)
-      pure $ Just (cs ('+' : mini <> maxi))
-    pure Phone.Phone{..}
+  let typ :: Maybe Text = Nothing
+  value :: Maybe Text <- do
+    let mkdigits n = replicateM n (getRandomR ('0', '9'))
+    mini <- mkdigits 8
+    maxi <- mkdigits =<< getRandomR (0, 7)
+    pure $ Just (cs ('+' : mini <> maxi))
+  pure Phone.Phone {..}
 
 ----------------------------------------------------------------------------
 -- API wrappers
 
 -- | Create a user.
-createUser
-    :: HasCallStack
-    => ScimToken
-    -> Scim.User.User SparTag
-    -> TestSpar (Scim.StoredUser SparTag)
+createUser ::
+  HasCallStack =>
+  ScimToken ->
+  Scim.User.User SparTag ->
+  TestSpar (Scim.StoredUser SparTag)
 createUser tok user = do
-    env <- ask
-    r <- createUser_
-             (Just tok)
-             user
-             (env ^. teSpar)
-         <!! const 201 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    createUser_
+      (Just tok)
+      user
+      (env ^. teSpar)
+      <!! const 201 === statusCode
+  pure (responseJsonUnsafe r)
 
 -- | Update a user.
-updateUser
-    :: HasCallStack
-    => ScimToken
-    -> UserId
-    -> Scim.User.User SparTag
-    -> TestSpar (Scim.StoredUser SparTag)
+updateUser ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  Scim.User.User SparTag ->
+  TestSpar (Scim.StoredUser SparTag)
 updateUser tok userid user = do
-    env <- ask
-    r <- updateUser_
-             (Just tok)
-             (Just userid)
-             user
-             (env ^. teSpar)
-         <!! const 200 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    updateUser_
+      (Just tok)
+      (Just userid)
+      user
+      (env ^. teSpar)
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
 
 -- | Patch a user
-patchUser
-    :: HasCallStack
-    => ScimToken
-    -> UserId
-    -> Scim.PatchOp.PatchOp SparTag
-    -> TestSpar (Scim.StoredUser SparTag)
+patchUser ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  Scim.PatchOp.PatchOp SparTag ->
+  TestSpar (Scim.StoredUser SparTag)
 patchUser tok uid patchOp = do
-    env <- ask
-    r <- patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
-         <!! const 200 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
 
 -- | Delete a user.
-deleteUser
-    :: HasCallStack
-    => ScimToken
-    -> UserId
-    -> TestSpar (Scim.StoredUser SparTag)
+deleteUser ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  TestSpar (Scim.StoredUser SparTag)
 deleteUser tok userid = do
-    env <- ask
-    r <- deleteUser_
-             (Just tok)
-             (Just userid)
-             (env ^. teSpar)
-         <!! const 200 === statusCode  -- status code maybe some other 2xx?
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    deleteUser_
+      (Just tok)
+      (Just userid)
+      (env ^. teSpar)
+      <!! const 200 === statusCode -- status code maybe some other 2xx?
+  pure (responseJsonUnsafe r)
 
 -- | List all users.
-listUsers
-    :: HasCallStack
-    => ScimToken
-    -> Maybe Scim.Filter
-    -> TestSpar [(Scim.StoredUser SparTag)]
+listUsers ::
+  HasCallStack =>
+  ScimToken ->
+  Maybe Scim.Filter ->
+  TestSpar [(Scim.StoredUser SparTag)]
 listUsers tok mbFilter = do
-    env <- ask
-    r <- listUsers_
-             (Just tok)
-             mbFilter
-             (env ^. teSpar)
-         <!! const 200 === statusCode
-    let r' = responseJsonUnsafe r
-    when (Scim.totalResults r' /= length (Scim.resources r')) $
-        error "listUsers: got a paginated result, but pagination \
-              \is not supported yet"
-    pure (Scim.resources r')
+  env <- ask
+  r <-
+    listUsers_
+      (Just tok)
+      mbFilter
+      (env ^. teSpar)
+      <!! const 200 === statusCode
+  let r' = responseJsonUnsafe r
+  when (Scim.totalResults r' /= length (Scim.resources r')) $
+    error
+      "listUsers: got a paginated result, but pagination \
+      \is not supported yet"
+  pure (Scim.resources r')
 
 -- | Get a user.
-getUser
-    :: HasCallStack
-    => ScimToken
-    -> UserId
-    -> TestSpar (Scim.StoredUser SparTag)
+getUser ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  TestSpar (Scim.StoredUser SparTag)
 getUser tok userid = do
-    env <- ask
-    r <- getUser_
-             (Just tok)
-             userid
-             (env ^. teSpar)
-         <!! const 200 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    getUser_
+      (Just tok)
+      userid
+      (env ^. teSpar)
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
 
 -- | Create a SCIM token.
-createToken
-    :: HasCallStack
-    => UserId
-    -> CreateScimToken
-    -> TestSpar CreateScimTokenResponse
+createToken ::
+  HasCallStack =>
+  UserId ->
+  CreateScimToken ->
+  TestSpar CreateScimTokenResponse
 createToken zusr payload = do
-    env <- ask
-    r <- createToken_
-             zusr
-             payload
-             (env ^. teSpar)
-         <!! const 200 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    createToken_
+      zusr
+      payload
+      (env ^. teSpar)
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
 
 -- | Delete a SCIM token.
-deleteToken
-    :: HasCallStack
-    => UserId
-    -> ScimTokenId                -- ^ Token to delete
-    -> TestSpar ()
+deleteToken ::
+  HasCallStack =>
+  UserId ->
+  -- | Token to delete
+  ScimTokenId ->
+  TestSpar ()
 deleteToken zusr tokenid = do
-    env <- ask
-    deleteToken_
-        zusr
-        tokenid
-        (env ^. teSpar)
-        !!! const 204 === statusCode
+  env <- ask
+  deleteToken_
+    zusr
+    tokenid
+    (env ^. teSpar)
+    !!! const 204 === statusCode
 
 -- | List SCIM tokens.
-listTokens
-    :: HasCallStack
-    => UserId
-    -> TestSpar ScimTokenList
+listTokens ::
+  HasCallStack =>
+  UserId ->
+  TestSpar ScimTokenList
 listTokens zusr = do
-    env <- ask
-    r <- listTokens_
-             zusr
-             (env ^. teSpar)
-         <!! const 200 === statusCode
-    pure (responseJsonUnsafe r)
+  env <- ask
+  r <-
+    listTokens_
+      zusr
+      (env ^. teSpar)
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
 
 ----------------------------------------------------------------------------
 -- "Raw" API requests
 
 -- | Create a user.
-createUser_
-    :: Maybe ScimToken               -- ^ Authentication
-    -> Scim.User.User SparTag        -- ^ User data
-    -> SparReq                       -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+createUser_ ::
+  -- | Authentication
+  Maybe ScimToken ->
+  -- | User data
+  Scim.User.User SparTag ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 createUser_ auth user spar_ = do
-    -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
-    -- shouldn't be submitted via SCIM anyway.
-    -- TODO: what's the consequence of this?  why not update emails via
-    -- SCIM?  how else should they be submitted?  i think this there is
-    -- still some confusion here about the distinction between *validated*
-    -- emails and *scim-provided* emails, which are two entirely
-    -- different things.
-    call . post $
-        ( spar_
+  -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
+  -- shouldn't be submitted via SCIM anyway.
+  -- TODO: what's the consequence of this?  why not update emails via
+  -- SCIM?  how else should they be submitted?  i think this there is
+  -- still some confusion here about the distinction between *validated*
+  -- emails and *scim-provided* emails, which are two entirely
+  -- different things.
+  call . post $
+    ( spar_
         . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
         . acceptScim
-        )
+    )
 
 -- | Update a user.
-updateUser_
-    :: Maybe ScimToken               -- ^ Authentication
-    -> Maybe UserId                  -- ^ User to update; when not provided, the request will
-                                     --   return 4xx
-    -> Scim.User.User SparTag        -- ^ User data
-    -> SparReq                       -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+updateUser_ ::
+  -- | Authentication
+  Maybe ScimToken ->
+  -- | User to update; when not provided, the request will
+  --   return 4xx
+  Maybe UserId ->
+  -- | User data
+  Scim.User.User SparTag ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 updateUser_ auth muid user spar_ = do
-    call . put $
-        ( spar_
+  call . put $
+    ( spar_
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
         . acceptScim
-        )
+    )
 
 -- | Patch a user
 patchUser_ :: Maybe ScimToken -> Maybe UserId -> Scim.PatchOp.PatchOp SparTag -> SparReq -> TestSpar ResponseLBS
 patchUser_ auth muid patchop spar_ =
-    call . patch $
-        ( spar_
+  call . patch $
+    ( spar_
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ patchop)
         . acceptScim
-        )
+    )
 
 -- | Update a user.
-deleteUser_
-    :: Maybe ScimToken          -- ^ Authentication
-    -> Maybe UserId             -- ^ User to update; when not provided, the request will return 4xx
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+deleteUser_ ::
+  -- | Authentication
+  Maybe ScimToken ->
+  -- | User to update; when not provided, the request will return 4xx
+  Maybe UserId ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 deleteUser_ auth uid spar_ = do
-    call . delete $
-        ( spar_
+  call . delete $
+    ( spar_
         . paths (["scim", "v2", "Users"] <> (toByteString' <$> maybeToList uid))
         . scimAuth auth
         . contentScim
         . acceptScim
-        )
+    )
 
 -- | List all users.
-listUsers_
-    :: Maybe ScimToken          -- ^ Authentication
-    -> Maybe Scim.Filter        -- ^ Predicate to filter the results
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+listUsers_ ::
+  -- | Authentication
+  Maybe ScimToken ->
+  -- | Predicate to filter the results
+  Maybe Scim.Filter ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 listUsers_ auth mbFilter spar_ = do
-    call . get $
-        ( spar_
+  call . get $
+    ( spar_
         . paths ["scim", "v2", "Users"]
         . queryItem' "filter" (toByteString' . Scim.renderFilter <$> mbFilter)
         . scimAuth auth
         . acceptScim
-        )
+    )
 
 -- | Get one user.
-getUser_
-    :: Maybe ScimToken          -- ^ Authentication
-    -> UserId                   -- ^ User
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+getUser_ ::
+  -- | Authentication
+  Maybe ScimToken ->
+  -- | User
+  UserId ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 getUser_ auth userid spar_ = do
-    call . get $
-        ( spar_
+  call . get $
+    ( spar_
         . paths ["scim", "v2", "Users", toByteString' userid]
         . scimAuth auth
         . acceptScim
-        )
+    )
 
 -- | Create a SCIM token.
-createToken_
-    :: UserId                   -- ^ User
-    -> CreateScimToken
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+createToken_ ::
+  -- | User
+  UserId ->
+  CreateScimToken ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 createToken_ userid payload spar_ = do
-    call . post $
-        ( spar_
+  call . post $
+    ( spar_
         . paths ["scim", "auth-tokens"]
         . zUser userid
         . contentJson
         . body (RequestBodyLBS . Aeson.encode $ payload)
         . acceptJson
-        )
+    )
 
 -- | Delete a SCIM token.
-deleteToken_
-    :: UserId                   -- ^ User
-    -> ScimTokenId              -- ^ Token to delete
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+deleteToken_ ::
+  -- | User
+  UserId ->
+  -- | Token to delete
+  ScimTokenId ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 deleteToken_ userid tokenid spar_ = do
-    call . delete $
-        ( spar_
+  call . delete $
+    ( spar_
         . paths ["scim", "auth-tokens"]
         . queryItem "id" (toByteString' tokenid)
         . zUser userid
-        )
+    )
 
 -- | List SCIM tokens.
-listTokens_
-    :: UserId                   -- ^ User
-    -> SparReq                  -- ^ Spar endpoint
-    -> TestSpar ResponseLBS
+listTokens_ ::
+  -- | User
+  UserId ->
+  -- | Spar endpoint
+  SparReq ->
+  TestSpar ResponseLBS
 listTokens_ userid spar_ = do
-    call . get $
-        ( spar_
+  call . get $
+    ( spar_
         . paths ["scim", "auth-tokens"]
         . zUser userid
-        )
+    )
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -448,53 +487,78 @@ scimUserId = Scim.id . Scim.thing
 -- Note: we don't compare rich info here, because 'User' doesn't contain it. However, we have
 -- separate tests for rich info that cover that.
 class IsUser u where
-    maybeUserId :: Maybe (u -> UserId)
-    maybeHandle :: Maybe (u -> Maybe Handle)
-    maybeName :: Maybe (u -> Maybe Name)
-    maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
-    maybeSubject :: Maybe (u -> Maybe SAML.NameID)
-    -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
-    -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
-    -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
-    -- different way.
-    maybeSubjectRaw :: Maybe (u -> Maybe Text)
+  maybeUserId :: Maybe (u -> UserId)
+
+  maybeHandle :: Maybe (u -> Maybe Handle)
+
+  maybeName :: Maybe (u -> Maybe Name)
+
+  maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
+
+  maybeSubject :: Maybe (u -> Maybe SAML.NameID)
+
+  -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
+  -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
+  -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
+  -- different way.
+  maybeSubjectRaw :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
 instance IsUser ValidScimUser where
-    maybeUserId = Nothing
-    maybeHandle = Just (Just . view vsuHandle)
-    maybeName = Just (view vsuName)
-    maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
-    maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
-    maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
+  maybeUserId = Nothing
+
+  maybeHandle = Just (Just . view vsuHandle)
+
+  maybeName = Just (view vsuName)
+
+  maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
+
+  maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
+
+  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
 
 instance IsUser (WrappedScimStoredUser SparTag) where
-    maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
-    maybeHandle = maybeHandle <&> _wrappedStoredUserToWrappedUser
-    maybeName = maybeName <&> _wrappedStoredUserToWrappedUser
-    maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
-    maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
-    maybeSubjectRaw = maybeSubjectRaw <&> _wrappedStoredUserToWrappedUser
+  maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
+
+  maybeHandle = maybeHandle <&> _wrappedStoredUserToWrappedUser
+
+  maybeName = maybeName <&> _wrappedStoredUserToWrappedUser
+
+  maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
+
+  maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
+
+  maybeSubjectRaw = maybeSubjectRaw <&> _wrappedStoredUserToWrappedUser
 
 _wrappedStoredUserToWrappedUser :: (WrappedScimUser tag -> a) -> (WrappedScimStoredUser tag -> a)
 _wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thing . fromWrappedScimStoredUser
 
 instance IsUser (WrappedScimUser SparTag) where
-    maybeUserId = Nothing
-    maybeHandle = Just (Just . Handle . Scim.User.userName . fromWrappedScimUser)
-    maybeName = Just (fmap Name . Scim.User.displayName. fromWrappedScimUser)
-    maybeTenant = Nothing
-    maybeSubject = Nothing
-    maybeSubjectRaw = Just $ Scim.User.externalId . fromWrappedScimUser
+  maybeUserId = Nothing
+
+  maybeHandle = Just (Just . Handle . Scim.User.userName . fromWrappedScimUser)
+
+  maybeName = Just (fmap Name . Scim.User.displayName . fromWrappedScimUser)
+
+  maybeTenant = Nothing
+
+  maybeSubject = Nothing
+
+  maybeSubjectRaw = Just $ Scim.User.externalId . fromWrappedScimUser
 
 instance IsUser User where
-    maybeUserId = Just userId
-    maybeHandle = Just userHandle
-    maybeName = Just (Just . userName)
-    maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
-    maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
-    maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
+  maybeUserId = Just userId
+
+  maybeHandle = Just userHandle
+
+  maybeName = Just (Just . userName)
+
+  maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
+
+  maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
+
+  maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -504,30 +568,37 @@ instance IsUser User where
 --
 --   * 'maybeHandle' is @Just ...@ for both types, but one user has a handle and the other
 --     doesn't (or the handles are different) -> fail.
-userShouldMatch
-    :: (HasCallStack, MonadIO m, IsUser u1, IsUser u2)
-    => u1 -> u2 -> m ()
+userShouldMatch ::
+  (HasCallStack, MonadIO m, IsUser u1, IsUser u2) =>
+  u1 ->
+  u2 ->
+  m ()
 userShouldMatch u1 u2 = liftIO $ do
-    check "userId" maybeUserId
-    check "handle" maybeHandle
-    check "name" maybeName
-    check "tenant" maybeTenant
-    check "subject" maybeSubject
-    check "subject (raw)" maybeSubjectRaw
+  check "userId" maybeUserId
+  check "handle" maybeHandle
+  check "name" maybeName
+  check "tenant" maybeTenant
+  check "subject" maybeSubject
+  check "subject (raw)" maybeSubjectRaw
   where
-    check :: (Eq a, Show a)
-          => Text                                    -- field name
-          -> (forall u. IsUser u => Maybe (u -> a))  -- accessor (polymorphic)
-          -> IO ()
+    check ::
+      (Eq a, Show a) =>
+      Text -> -- field name
+      (forall u. IsUser u => Maybe (u -> a)) -> -- accessor (polymorphic)
+      IO ()
     check field getField = case (getField <&> ($ u1), getField <&> ($ u2)) of
-        (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
-        _ -> pure ()
+      (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
+      _ -> pure ()
 
 urefFromBrig :: User -> Maybe SAML.UserRef
 urefFromBrig brigUser = case userIdentity brigUser of
-    Just (SSOIdentity ssoid _ _) -> case Intra.fromUserSSOId ssoid of
-        Right uref -> Just uref
-        Left e     -> error $
-            "urefFromBrig: bad SSO id: " <>
-            "UserSSOId = " <> show ssoid <> ", error = " <> e
-    _ -> Nothing
+  Just (SSOIdentity ssoid _ _) -> case Intra.fromUserSSOId ssoid of
+    Right uref -> Just uref
+    Left e ->
+      error $
+        "urefFromBrig: bad SSO id: "
+          <> "UserSSOId = "
+          <> show ssoid
+          <> ", error = "
+          <> e
+  _ -> Nothing

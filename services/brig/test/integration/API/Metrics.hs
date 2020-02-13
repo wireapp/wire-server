@@ -1,69 +1,66 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | See also: services/spar/test-integration/Test/Spar/APISpec.hs
-module API.Metrics (tests) where
+module API.Metrics
+  ( tests,
+  )
+where
 
-import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
-import Data.ByteString.Conversion
 import Data.Attoparsec.Text
+import Data.ByteString.Conversion
+import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 
-
 tests :: Manager -> Brig -> IO TestTree
 tests manager brig = do
-    return $ testGroup "metrics"
-        [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig)
-        , testCase "work" . void $ runHttpT manager (testMetricsEndpoint brig)
-        ]
+  return $
+    testGroup
+      "metrics"
+      [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig),
+        testCase "work" . void $ runHttpT manager (testMetricsEndpoint brig)
+      ]
 
 testPrometheusMetrics :: Brig -> Http ()
 testPrometheusMetrics brig = do
-    get (brig . path "/i/metrics") !!! do
-        const 200 === statusCode
-        -- Should contain the request duration metric in its output
-        const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+  get (brig . path "/i/metrics") !!! do
+    const 200 === statusCode
+    -- Should contain the request duration metric in its output
+    const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
 testMetricsEndpoint :: Brig -> Http ()
 testMetricsEndpoint brig = do
-    let p1 = "/self"
-        p2 uid = "/users/" <> uid <> "/clients"
-
-    beforeSelf <- getCount "/self"
-    beforeClients <- getCount "/users/:uid/clients"
-
-    uid <- userId <$> randomUser brig
-    uid' <- userId <$> randomUser brig
-    _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
-    _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
-    _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
-
-    countSelf <- getCount "/self"
-    liftIO $ assertEqual "/self was called once" (beforeSelf + 1) countSelf
-
-    countClients <- getCount "/users/:uid/clients"
-    liftIO $ assertEqual "/users/:uid/clients was called twice" (beforeClients + 2) countClients
-
+  let p1 = "/self"
+      p2 uid = "/users/" <> uid <> "/clients"
+  beforeSelf <- getCount "/self"
+  beforeClients <- getCount "/users/:uid/clients"
+  uid <- userId <$> randomUser brig
+  uid' <- userId <$> randomUser brig
+  _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
+  _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
+  _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
+  countSelf <- getCount "/self"
+  liftIO $ assertEqual "/self was called once" (beforeSelf + 1) countSelf
+  countClients <- getCount "/users/:uid/clients"
+  liftIO $ assertEqual "/users/:uid/clients was called twice" (beforeClients + 2) countClients
   where
     getCount endpoint = do
-        rsp <- responseBody <$> get (brig . path "i/metrics")
-        -- is there some responseBodyAsText function used elsewhere?
-        let asText = fromMaybe "" (fromByteString' (fromMaybe "" rsp))
-        return $ fromRight 0 (parseOnly (parseCount endpoint) asText)
-
+      rsp <- responseBody <$> get (brig . path "i/metrics")
+      -- is there some responseBodyAsText function used elsewhere?
+      let asText = fromMaybe "" (fromByteString' (fromMaybe "" rsp))
+      return $ fromRight 0 (parseOnly (parseCount endpoint) asText)
     parseCount :: Text -> Parser Integer
-    parseCount endpoint = manyTill anyChar (string ("http_request_duration_seconds_count{handler=\"" <> endpoint <> "\",method=\"GET\",status_code=\"200\"} "))
-               *> decimal
-
-
+    parseCount endpoint =
+      manyTill anyChar (string ("http_request_duration_seconds_count{handler=\"" <> endpoint <> "\",method=\"GET\",status_code=\"200\"} "))
+        *> decimal
 -- FUTUREWORK: check whether prometheus metrics are correct regarding timings:
 
 -- Do we have a bug here?
@@ -86,7 +83,6 @@ testMetricsEndpoint brig = do
 -- http_request_duration_seconds_count{handler="/i/users",method="POST",status_code="201"} 2
 
 -- i.e. all the "buckets" above "le 0.5 seconds" contain 2 elements, which seems incorrect? (or am I misunderstanding prometheus here?)
-
 
 {- FUTUREWORK:
 

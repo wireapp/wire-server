@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Network.Wire.Client.API.Conversation
-    ( postOtrMessage
-    , createConv
-    , getConv
-    , addMembers
-    , removeMember
-    , memberUpdate
-    , module M
-    ) where
+  ( postOtrMessage,
+    createConv,
+    getConv,
+    addMembers,
+    removeMember,
+    memberUpdate,
+    module M,
+  )
+where
 
-import Imports
 import Bilge
 import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion
@@ -19,19 +19,21 @@ import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (pack)
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Galley.Types as M hiding (Event, EventType, memberUpdate)
+import Galley.Types.Conversations.Roles (roleNameWireAdmin)
+import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
-import Network.Wire.Client.HTTP
-import Network.Wire.Client.Session
 import Network.Wire.Client.API.Push (ConvEvent)
-import Network.Wire.Client.Monad (ClientException(ParseError))
+import Network.Wire.Client.HTTP
+import Network.Wire.Client.Monad (ClientException (ParseError))
+import Network.Wire.Client.Session
 
 postOtrMessage :: MonadSession m => ConvId -> NewOtrMessage -> m ClientMismatch
 postOtrMessage cnv msg = sessionRequest req rsc readBody
   where
-    req = method POST
+    req =
+      method POST
         . paths ["conversations", toByteString' cnv, "otr", "messages"]
         . acceptJson
         . json msg
@@ -46,13 +48,14 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
 -- others will not.
 addMembers :: (MonadSession m, MonadThrow m) => ConvId -> List1 UserId -> m (Maybe (ConvEvent SimpleMembers))
 addMembers cnv mems = do
-    rs <- sessionRequest req rsc consumeBody
-    case statusCode rs of
-        200 -> Just <$> responseJsonThrow (ParseError . pack) rs
-        204 -> return Nothing
-        _   -> unexpected rs "addMembers: status code"
+  rs <- sessionRequest req rsc consumeBody
+  case statusCode rs of
+    200 -> Just <$> responseJsonThrow (ParseError . pack) rs
+    204 -> return Nothing
+    _ -> unexpected rs "addMembers: status code"
   where
-    req = method POST
+    req =
+      method POST
         . paths ["conversations", toByteString' cnv, "members"]
         . acceptJson
         . json (newInvite mems)
@@ -63,13 +66,14 @@ addMembers cnv mems = do
 -- to the user removal.
 removeMember :: (MonadSession m, MonadThrow m) => ConvId -> UserId -> m (Maybe (ConvEvent UserIdList))
 removeMember cnv mem = do
-    rs <- sessionRequest req rsc consumeBody
-    case statusCode rs of
-        200 -> Just <$> responseJsonThrow (ParseError . pack) rs
-        204 -> return Nothing
-        _   -> unexpected rs "removeMember: status code"
+  rs <- sessionRequest req rsc consumeBody
+  case statusCode rs of
+    200 -> Just <$> responseJsonThrow (ParseError . pack) rs
+    204 -> return Nothing
+    _ -> unexpected rs "removeMember: status code"
   where
-    req = method DELETE
+    req =
+      method DELETE
         . paths ["conversations", toByteString' cnv, "members", toByteString' mem]
         . acceptJson
         $ empty
@@ -78,7 +82,8 @@ removeMember cnv mem = do
 memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
 memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
   where
-    req = method PUT
+    req =
+      method PUT
         . paths ["conversations", toByteString' cnv, "self"]
         . acceptJson
         . json updt
@@ -87,13 +92,14 @@ memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
 
 getConv :: (MonadSession m, MonadThrow m) => ConvId -> m (Maybe Conversation)
 getConv cnv = do
-    rs <- sessionRequest req rsc consumeBody
-    case statusCode rs of
-        200 -> responseJsonThrow (ParseError . pack) rs
-        404 -> return Nothing
-        _   -> unexpected rs "getConv: status code"
+  rs <- sessionRequest req rsc consumeBody
+  case statusCode rs of
+    200 -> responseJsonThrow (ParseError . pack) rs
+    404 -> return Nothing
+    _ -> unexpected rs "getConv: status code"
   where
-    req = method GET
+    req =
+      method GET
         . paths ["conversations", toByteString' cnv]
         . acceptJson
         $ empty
@@ -101,13 +107,17 @@ getConv cnv = do
 
 -- | Create a conversation with the session user in it and any number of
 -- other users (possibly zero).
-createConv :: MonadSession m
-           => [UserId]            -- ^ Other users to add to the conversation
-           -> Maybe Text          -- ^ Conversation name
-           -> m Conversation
+createConv ::
+  MonadSession m =>
+  -- | Other users to add to the conversation
+  [UserId] ->
+  -- | Conversation name
+  Maybe Text ->
+  m Conversation
 createConv users name = sessionRequest req rsc readBody
   where
-    req = method POST
+    req =
+      method POST
         . path "conversations"
         . acceptJson
         . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing Nothing roleNameWireAdmin))

@@ -1,112 +1,123 @@
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Brig.Data.Connection
-    ( module T
-    , connectUsers
-    , insertConnection
-    , updateConnection
-    , lookupConnection
-    , lookupConnections
-    , lookupConnectionStatus
-    , lookupContactList
-    , countConnections
-    , deleteConnections
-    ) where
+  ( module T,
+    connectUsers,
+    insertConnection,
+    updateConnection,
+    lookupConnection,
+    lookupConnections,
+    lookupConnectionStatus,
+    lookupContactList,
+    countConnections,
+    deleteConnections,
+  )
+where
 
-import Imports
 import Brig.App (AppIO)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Conduit ((.|), runConduit)
+import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
 import Data.Time (getCurrentTime)
-
-import qualified Data.Conduit.List as C
+import Imports
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do
-    now <- toUTCTimeMillis <$> liftIO getCurrentTime
-    retry x5 $ batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        forM_ to $ \(u, c) -> do
-            addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
-            addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
-    return $ concat $ (`map` to) $ \(u, c) ->
-        [ UserConnection from u Accepted now Nothing (Just c)
-        , UserConnection u from Accepted now Nothing (Just c)
-        ]
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    forM_ to $ \(u, c) -> do
+      addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
+      addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
+  return $ concat $ (`map` to) $ \(u, c) ->
+    [ UserConnection from u Accepted now Nothing (Just c),
+      UserConnection u from Accepted now Nothing (Just c)
+    ]
 
-insertConnection :: UserId -- ^ From
-                 -> UserId -- ^ To
-                 -> Relation
-                 -> Maybe Message
-                 -> ConvId
-                 -> AppIO UserConnection
+insertConnection ::
+  -- | From
+  UserId ->
+  -- | To
+  UserId ->
+  Relation ->
+  Maybe Message ->
+  ConvId ->
+  AppIO UserConnection
 insertConnection from to status msg cid = do
-    now <- toUTCTimeMillis <$> liftIO getCurrentTime
-    retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
-    return $ toUserConnection (from, to, status, now, msg, Just cid)
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
+  return $ toUserConnection (from, to, status, now, msg, Just cid)
 
 updateConnection :: UserConnection -> Relation -> AppIO UserConnection
-updateConnection c@UserConnection{..} status = do
-    now <- toUTCTimeMillis <$> liftIO getCurrentTime
-    retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
-    return $ c { ucStatus     = status
-               , ucLastUpdate = now
-               }
+updateConnection c@UserConnection {..} status = do
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
+  return $
+    c
+      { ucStatus = status,
+        ucLastUpdate = now
+      }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupConnection :: UserId -- ^ User 'A'
-                 -> UserId -- ^ User 'B'
-                 -> AppIO (Maybe UserConnection)
-lookupConnection from to = liftM toUserConnection <$>
-    retry x1 (query1 connectionSelect (params Quorum (from, to)))
+lookupConnection ::
+  -- | User 'A'
+  UserId ->
+  -- | User 'B'
+  UserId ->
+  AppIO (Maybe UserConnection)
+lookupConnection from to =
+  liftM toUserConnection
+    <$> retry x1 (query1 connectionSelect (params Quorum (from, to)))
 
 -- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
 lookupConnections from start (fromRange -> size) = toResult <$> case start of
-    Just  u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
-    Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
+  Just u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
+  Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
   where
     toResult = cassandraResultPage . fmap toUserConnection . trim
-    trim   p = p { result = take (fromIntegral size) (result p) }
+    trim p = p {result = take (fromIntegral size) (result p)}
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]
-lookupConnectionStatus from to = map toConnectionStatus <$>
-    retry x1 (query connectionStatusSelect (params Quorum (from, to)))
+lookupConnectionStatus from to =
+  map toConnectionStatus
+    <$> retry x1 (query connectionStatusSelect (params Quorum (from, to)))
 
 -- | For a given user 'A', lookup the list of users that form his contact list,
 -- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
 lookupContactList :: UserId -> AppIO [UserId]
-lookupContactList u = map fst . filter ((== Accepted) . snd) <$>
-    retry x1 (query contactsSelect (params Quorum (Identity u)))
+lookupContactList u =
+  map fst . filter ((== Accepted) . snd)
+    <$> retry x1 (query contactsSelect (params Quorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- Note: The count is eventually consistent.
 countConnections :: UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
-    rels <- retry x1 . query selectStatus $ params One (Identity u)
-    return $ foldl' count 0 rels
+  rels <- retry x1 . query selectStatus $ params One (Identity u)
+  return $ foldl' count 0 rels
   where
     selectStatus :: QueryString R (Identity UserId) (Identity Relation)
     selectStatus = "SELECT status FROM connection WHERE left = ?"
-
     count n (Identity s) | s `elem` r = n + 1
-    count n _                         = n
+    count n _ = n
 
 deleteConnections :: UserId -> AppIO ()
 deleteConnections u = do
-    runConduit $ paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
-              .| C.mapM_ (pooledMapConcurrentlyN_ 16 delete)
-    retry x1 . write connectionClear $ params Quorum (Identity u)
+  runConduit $
+    paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
+      .| C.mapM_ (pooledMapConcurrentlyN_ 16 delete)
+  retry x1 . write connectionClear $ params Quorum (Identity u)
   where
     delete (other, _status) = write connectionDelete $ params Quorum (other, u)
 

@@ -1,12 +1,13 @@
 module V38 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 38 "Add user handles" $ do
-    schema' [r|
+  schema'
+    [r|
         create table if not exists unique_claims
             ( value  text
             , claims set<uuid>
@@ -14,15 +15,15 @@ migration = Migration 38 "Add user handles" $ do
             ) with compaction = {'class': 'LeveledCompactionStrategy'}
               and gc_grace_seconds = 0;
     |]
-
-    schema' [r|
+  schema'
+    [r|
         create table if not exists user_handle
             ( handle text
             , user   uuid
             , primary key (handle)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-    schema' [r|
+  schema'
+    [r|
         alter table user add handle text;
     |]

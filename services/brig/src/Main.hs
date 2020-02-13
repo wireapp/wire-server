@@ -1,9 +1,8 @@
 module Main (main) where
 
-import Imports
 import Brig.Run (run)
+import Imports
 import OpenSSL (withOpenSSL)
-
 import Util.Options
 
 main :: IO ()

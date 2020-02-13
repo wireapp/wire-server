@@ -1,13 +1,10 @@
 module Main where
 
-import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import Util.Options
-
+import Imports
 import qualified System.Logger.Extended as Log
-
-import qualified V9
+import Util.Options
 import qualified V10
 import qualified V11
 import qualified V12
@@ -54,59 +51,63 @@ import qualified V55
 import qualified V56
 import qualified V57
 import qualified V58
+import qualified V9
 
 main :: IO ()
 main = do
-    let desc = "Brig Cassandra Schema Migrations"
-        defaultPath = "/etc/wire/brig/conf/brig-schema.yaml"
-    o <- getOptions desc (Just migrationOptsParser) defaultPath
-    l <- Log.mkLogger'
-    migrateSchema l o
-        [ V9.migration
-        , V10.migration
-        , V11.migration
-        , V12.migration
-        , V13.migration
-        , V14.migration
-        , V15.migration
-        , V16.migration
-        , V17.migration
-        , V18.migration
-        , V19.migration
-        , V20.migration
-        , V21.migration
-        , V22.migration
-        , V23.migration
-        , V24.migration
-        , V28.migration
-        , V29.migration
-        , V30.migration
-        , V31.migration
-        , V32.migration
-        , V33.migration
-        , V34.migration
-        , V35.migration
-        , V36.migration
-        , V37.migration
-        , V38.migration
-        , V39.migration
-        , V40.migration
-        , V41.migration
-        , V42.migration
-        , V43.migration
-        , V44.migration
-        , V45.migration
-        , V46.migration
-        , V47.migration
-        , V48.migration
-        , V49.migration
-        , V50.migration
-        , V51.migration
-        , V52.migration
-        , V53.migration
-        , V54.migration
-        , V55.migration
-        , V56.migration
-        , V57.migration
-        , V58.migration
-        ] `finally` Log.close l
+  let desc = "Brig Cassandra Schema Migrations"
+      defaultPath = "/etc/wire/brig/conf/brig-schema.yaml"
+  o <- getOptions desc (Just migrationOptsParser) defaultPath
+  l <- Log.mkLogger'
+  migrateSchema
+    l
+    o
+    [ V9.migration,
+      V10.migration,
+      V11.migration,
+      V12.migration,
+      V13.migration,
+      V14.migration,
+      V15.migration,
+      V16.migration,
+      V17.migration,
+      V18.migration,
+      V19.migration,
+      V20.migration,
+      V21.migration,
+      V22.migration,
+      V23.migration,
+      V24.migration,
+      V28.migration,
+      V29.migration,
+      V30.migration,
+      V31.migration,
+      V32.migration,
+      V33.migration,
+      V34.migration,
+      V35.migration,
+      V36.migration,
+      V37.migration,
+      V38.migration,
+      V39.migration,
+      V40.migration,
+      V41.migration,
+      V42.migration,
+      V43.migration,
+      V44.migration,
+      V45.migration,
+      V46.migration,
+      V47.migration,
+      V48.migration,
+      V49.migration,
+      V50.migration,
+      V51.migration,
+      V52.migration,
+      V53.migration,
+      V54.migration,
+      V55.migration,
+      V56.migration,
+      V57.migration,
+      V58.migration
+    ]
+    `finally` Log.close l

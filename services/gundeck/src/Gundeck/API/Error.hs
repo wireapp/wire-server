@@ -2,7 +2,7 @@ module Gundeck.API.Error where
 
 import Data.Text.Lazy (Text)
 import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error (Error(..))
+import Network.Wai.Utilities.Error (Error (..))
 
 notificationNotFound :: Error
 notificationNotFound = Error status404 "not-found" "Some notifications not found."

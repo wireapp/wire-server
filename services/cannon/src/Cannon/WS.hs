@@ -1,69 +1,68 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Cannon.WS
-    ( Env
-    , WS
-    , env
-    , runWS
-    , close
-    , mkWebSocket
-    , setRequestId
-    , registerLocal
-    , unregisterLocal
-    , isRemoteRegistered
-    , registerRemote
-    , sendMsg
-    , sendMsgIO
-
-    , Clock
-    , mkClock
-    , getClock
-    , getTime
-
-    , Websocket
-    , connection
-    , connIdent
-    , Key
-    , mkKey
-    , key2bytes
-    , client
-    )
+  ( Env,
+    WS,
+    env,
+    runWS,
+    close,
+    mkWebSocket,
+    setRequestId,
+    registerLocal,
+    unregisterLocal,
+    isRemoteRegistered,
+    registerRemote,
+    sendMsg,
+    sendMsgIO,
+    Clock,
+    mkClock,
+    getClock,
+    getTime,
+    Websocket,
+    connection,
+    connIdent,
+    Key,
+    mkKey,
+    key2bytes,
+    client,
+  )
 where
 
-import Imports hiding (threadDelay)
 import Bilge hiding (trace)
-import Bilge.Retry
 import Bilge.RPC
+import Bilge.Retry
 import Cannon.Dict (Dict)
+import qualified Cannon.Dict as D
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.Hashable
-import Data.Id (ClientId, UserId, ConnId (..))
+import Data.Id (ClientId, ConnId (..), UserId)
 import Data.Text.Encoding (decodeUtf8)
-import Data.Timeout (TimeoutUnit (..), (#))
+import Data.Timeout ((#), TimeoutUnit (..))
 import Gundeck.Types
+import Imports hiding (threadDelay)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import Network.WebSockets hiding (Request)
 import Network.Wai.Utilities.Error
-import System.Logger.Class hiding (Error, Settings, (.=), close)
+import Network.WebSockets hiding (Request)
+import qualified System.Logger as Logger
+import System.Logger.Class hiding ((.=), Error, Settings, close)
 import System.Random.MWC (GenIO, uniform)
-
-import qualified Cannon.Dict          as D
-import qualified Data.ByteString.Lazy as L
-import qualified System.Logger        as Logger
 
 -----------------------------------------------------------------------------
 -- Key
 
-newtype Key = Key
-    { _key :: (ByteString, ByteString)
-    } deriving (Eq, Show, Hashable)
+newtype Key
+  = Key
+      { _key :: (ByteString, ByteString)
+      }
+  deriving (Eq, Show, Hashable)
 
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
@@ -80,15 +79,16 @@ keyConnBytes = snd . _key
 -----------------------------------------------------------------------------
 -- Websocket
 
-data Websocket = Websocket
-    { connection :: Connection
-    , connIdent  :: !Word
-    }
+data Websocket
+  = Websocket
+      { connection :: Connection,
+        connIdent :: !Word
+      }
 
 mkWebSocket :: Connection -> WS Websocket
 mkWebSocket c = do
-    g <- WS $ asks rand
-    Websocket c <$> liftIO (uniform g)
+  g <- WS $ asks rand
+  Websocket c <$> liftIO (uniform g)
 
 -----------------------------------------------------------------------------
 -- Clock
@@ -99,11 +99,11 @@ newtype Clock = Clock (IORef Word64)
 
 mkClock :: IO Clock
 mkClock = do
-    r <- newIORef 0
-    void . forkIO $ forever $ do
-        threadDelay (1 # Second)
-        modifyIORef' r (+1)
-    return $ Clock r
+  r <- newIORef 0
+  void . forkIO $ forever $ do
+    threadDelay (1 # Second)
+    modifyIORef' r (+ 1)
+  return $ Clock r
 
 getClock :: WS Clock
 getClock = WS $ asks clock
@@ -115,58 +115,63 @@ getTime (Clock r) = readIORef r
 -----------------------------------------------------------------------------
 -- WS Monad
 
-data Env = Env
-    { externalHostname :: !ByteString
-    , portnum          :: !Word16
-    , upstream         :: !Request
-    , reqId            :: !RequestId
-    , logg             :: !Logger
-    , manager          :: !Manager
-    , dict             :: !(Dict Key Websocket)
-    , rand             :: !GenIO
-    , clock            :: !Clock
-    }
+data Env
+  = Env
+      { externalHostname :: !ByteString,
+        portnum :: !Word16,
+        upstream :: !Request,
+        reqId :: !RequestId,
+        logg :: !Logger,
+        manager :: !Manager,
+        dict :: !(Dict Key Websocket),
+        rand :: !GenIO,
+        clock :: !Clock
+      }
 
 setRequestId :: RequestId -> Env -> Env
-setRequestId rid e = e { reqId = rid }
+setRequestId rid e = e {reqId = rid}
 
-newtype WS a = WS
-    { _conn :: ReaderT Env IO a
-    } deriving ( Functor
-               , Applicative
-               , Monad
-               , MonadIO
-               , MonadThrow
-               , MonadCatch
-               , MonadMask
-               , MonadReader Env
-               , MonadUnliftIO
-               )
+newtype WS a
+  = WS
+      { _conn :: ReaderT Env IO a
+      }
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadReader Env,
+      MonadUnliftIO
+    )
 
 instance MonadLogger WS where
-    log l m = WS $ do
-        g <- asks logg
-        r <- field "request" . unRequestId <$> asks reqId
-        liftIO $ Logger.log g l (r . m)
+  log l m = WS $ do
+    g <- asks logg
+    r <- field "request" . unRequestId <$> asks reqId
+    liftIO $ Logger.log g l (r . m)
 
 instance MonadHttp WS where
-    handleRequestWithCont req handler = do
-        manager <- asks manager
-        liftIO $ withResponse req manager handler
+  handleRequestWithCont req handler = do
+    manager <- asks manager
+    liftIO $ withResponse req manager handler
 
 instance HasRequestId WS where
-    getRequestId = WS $ asks reqId
+  getRequestId = WS $ asks reqId
 
-env :: ByteString
-    -> Word16
-    -> ByteString
-    -> Word16
-    -> Logger
-    -> Manager
-    -> Dict Key Websocket
-    -> GenIO
-    -> Clock
-    -> Env
+env ::
+  ByteString ->
+  Word16 ->
+  ByteString ->
+  Word16 ->
+  Logger ->
+  Manager ->
+  Dict Key Websocket ->
+  GenIO ->
+  Clock ->
+  Env
 env leh lp gh gp = Env leh lp (host gh . port gp $ empty) def
 
 runWS :: MonadIO m => Env -> WS a -> m a
@@ -174,62 +179,63 @@ runWS e m = liftIO $ runReaderT (_conn m) e
 
 registerLocal :: Key -> Websocket -> WS ()
 registerLocal k c = do
-    trace $ client (key2bytes k) . msg (val "register")
-    d <- WS $ asks dict
-    D.insert k c d
+  trace $ client (key2bytes k) . msg (val "register")
+  d <- WS $ asks dict
+  D.insert k c d
 
 unregisterLocal :: Key -> Websocket -> WS Bool
 unregisterLocal k c = do
-    trace $ client (key2bytes k) . msg (val "unregister")
-    d <- WS $ asks dict
-    D.removeIf (maybe False ((connIdent c ==) . connIdent)) k d
+  trace $ client (key2bytes k) . msg (val "unregister")
+  d <- WS $ asks dict
+  D.removeIf (maybe False ((connIdent c ==) . connIdent)) k d
 
 registerRemote :: Key -> Maybe ClientId -> WS ()
 registerRemote k c = do
-    let kb = key2bytes k
-    debug $ client kb . msg (val "register-remote")
-    e <- WS ask
-    i <- regInfo k c
-    void $ recovering retry3x rpcHandlers $ const $
-        rpc' "gundeck" (upstream e) (method POST . path "/i/presences" . i . expect2xx)
-    debug $ client kb . msg (val "registered")
+  let kb = key2bytes k
+  debug $ client kb . msg (val "register-remote")
+  e <- WS ask
+  i <- regInfo k c
+  void $ recovering retry3x rpcHandlers $ const $
+    rpc' "gundeck" (upstream e) (method POST . path "/i/presences" . i . expect2xx)
+  debug $ client kb . msg (val "registered")
 
 isRemoteRegistered :: UserId -> ConnId -> WS Bool
 isRemoteRegistered u c = do
-    e  <- WS ask
-    rs <- recovering retry3x rpcHandlers $ const $
-            rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
-    cs <- map connId <$> parseResponse (Error status502 "server-error") rs
-    return $ c `elem` cs
+  e <- WS ask
+  rs <-
+    recovering retry3x rpcHandlers $ const $
+      rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
+  cs <- map connId <$> parseResponse (Error status502 "server-error") rs
+  return $ c `elem` cs
 
 sendMsg :: L.ByteString -> Key -> Websocket -> WS ()
 sendMsg m k c = do
-    let kb = key2bytes k
-    trace  $ client kb . msg (val "sendMsg: \"" +++ L.take 128 m +++ val "...\"")
-    liftIO $ sendMsgIO m c
+  let kb = key2bytes k
+  trace $ client kb . msg (val "sendMsg: \"" +++ L.take 128 m +++ val "...\"")
+  liftIO $ sendMsgIO m c
 
 sendMsgIO :: L.ByteString -> Websocket -> IO ()
 sendMsgIO m c = do
-    recoverAll retry3x $ const $ sendBinaryData (connection c) m
+  recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
 close :: Key -> Websocket -> WS ()
 close k c = do
-    let kb = key2bytes k
-    debug $ client kb . msg (val "close websocket")
-    liftIO $ sendClose (connection c) ("close" :: ByteString)
+  let kb = key2bytes k
+  debug $ client kb . msg (val "close websocket")
+  liftIO $ sendClose (connection c) ("close" :: ByteString)
 
 regInfo :: Key -> Maybe ClientId -> WS (Request -> Request)
 regInfo k c = do
-    e <- WS ask
-    let h = externalHostname e
-        p = portnum e
-        r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
-    return . lbytes . encode . object $
-        [ "user_id"   .= decodeUtf8 (keyUserBytes k)
-        , "device_id" .= decodeUtf8 (keyConnBytes k)
-        , "resource"  .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k)
-        , "client_id" .= c
-        ]
+  e <- WS ask
+  let h = externalHostname e
+      p = portnum e
+      r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
+  return . lbytes . encode . object $
+    [ "user_id" .= decodeUtf8 (keyUserBytes k),
+      "device_id" .= decodeUtf8 (keyConnBytes k),
+      "resource" .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k),
+      "client_id" .= c
+    ]
 
 client :: ByteString -> Msg -> Msg
 client = field "client"

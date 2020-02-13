@@ -1,20 +1,24 @@
+module V33
+  ( migration,
+  )
+where
 
-module V33 (migration) where
-
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 33 "Add storage for pubkey for LH services" $ do
-    schema' [r|
+  schema'
+    [r|
         create type if not exists pubkey
             ( typ  int
             , size int
             , pem  blob
             );
     |]
-    schema' [r|
+  schema'
+    [r|
         ALTER TABLE legalhold_service
           ADD
         (

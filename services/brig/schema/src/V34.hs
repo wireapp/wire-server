@@ -1,16 +1,18 @@
 module V34 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 34 "Add vcodes table" $
+migration =
+  Migration 34 "Add vcodes table" $
     -- Supposed to cover all existing use-cases for short-lived
     -- verification codes sent either by e-mail, sms or voice call,
     -- eventually superseding the 'activation_keys', 'login_codes',
     -- 'password_reset' and 'codes' tables.
-    schema' [r|
+    schema'
+      [r|
         create table if not exists vcodes
             ( key       ascii -- opaque 'email' or 'phone'
             , scope     int

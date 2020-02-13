@@ -1,62 +1,60 @@
 module Brig.Email
-    ( -- * Validation
-      validateEmail
+  ( -- * Validation
+    validateEmail,
 
-      -- * Unique Keys
-    , EmailKey
-    , mkEmailKey
-    , emailKeyUniq
-    , emailKeyOrig
+    -- * Unique Keys
+    EmailKey,
+    mkEmailKey,
+    emailKeyUniq,
+    emailKeyOrig,
 
-      -- * Re-exports
-    , Email (..)
+    -- * Re-exports
+    Email (..),
 
-      -- * MIME Re-exports
-    , Mail (..)
-    , emptyMail
-    , plainPart
-    , htmlPart
-    , Address (..)
-    , mkMimeAddress
+    -- * MIME Re-exports
+    Mail (..),
+    emptyMail,
+    plainPart,
+    htmlPart,
+    Address (..),
+    mkMimeAddress,
+    sendMail,
+  )
+where
 
-    , sendMail
-    ) where
-
-import Imports
-import Brig.App (awsEnv, smtpEnv, AppIO)
+import qualified Brig.AWS as AWS
+import Brig.App (AppIO, awsEnv, smtpEnv)
+import qualified Brig.SMTP as SMTP
 import Brig.Types
 import Control.Applicative (optional)
 import Control.Lens (view)
 import Data.Attoparsec.ByteString.Char8
+import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Imports
 import Network.Mail.Mime
-
-import qualified Brig.AWS            as AWS
-import qualified Brig.SMTP           as SMTP
-import qualified Data.Text           as Text
 import qualified Text.Email.Validate as Email
 
 -------------------------------------------------------------------------------
 sendMail :: Mail -> AppIO ()
 sendMail m = view smtpEnv >>= \case
-    Just smtp -> SMTP.sendMail smtp m
-    Nothing   -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
+  Just smtp -> SMTP.sendMail smtp m
+  Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
 
 -- Validation
 
 -- | (Check out 'mkEmailKey' if you wonder about equality of emails with @+@ in their local part.)
 validateEmail :: Email -> Either String Email
 validateEmail (fromEmail -> e) =
-    validateLength  >>=
-    Email.validate  >>=
-    validateDomain  >>=
-        pure . mkEmail
+  validateLength
+    >>= Email.validate
+    >>= validateDomain
+    >>= pure . mkEmail
   where
     len = Text.length e
     validateLength
-        | len <= 100 = Right $ encodeUtf8 e
-        | otherwise  = Left  $ "length " <> show len <> " exceeds 100"
-
+      | len <= 100 = Right $ encodeUtf8 e
+      | otherwise = Left $ "length " <> show len <> " exceeds 100"
     -- cf. https://en.wikipedia.org/wiki/Email_address#Domain
     -- n.b. We do not allow IP address literals, comments or non-ASCII
     --      characters, mostly because SES (and probably many other mail
@@ -64,28 +62,29 @@ validateEmail (fromEmail -> e) =
     validateDomain e' = parseOnly parser (Email.domainPart e')
       where
         parser = label *> many1 (char '.' *> label) *> endOfInput *> pure e'
-        label  = satisfy (inClass "a-zA-Z0-9")
-              *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
-              *> optional (satisfy (inClass "a-zA-Z0-9"))
-
+        label =
+          satisfy (inClass "a-zA-Z0-9")
+            *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
+            *> optional (satisfy (inClass "a-zA-Z0-9"))
     mkEmail v = Email (mkLocal v) (mkDomain v)
-    mkLocal   = decodeUtf8 . Email.localPart
-    mkDomain  = decodeUtf8 . Email.domainPart
+    mkLocal = decodeUtf8 . Email.localPart
+    mkDomain = decodeUtf8 . Email.domainPart
 
 -------------------------------------------------------------------------------
 -- Unique Keys
 
 -- | An 'EmailKey' is an 'Email' in a form that serves as a unique lookup key.
-data EmailKey = EmailKey
-    { emailKeyUniq :: !Text
-    , emailKeyOrig :: !Email
-    }
+data EmailKey
+  = EmailKey
+      { emailKeyUniq :: !Text,
+        emailKeyOrig :: !Email
+      }
 
 instance Show EmailKey where
-    showsPrec _ = shows . emailKeyUniq
+  showsPrec _ = shows . emailKeyUniq
 
 instance Eq EmailKey where
-    (EmailKey k _) == (EmailKey k' _) = k == k'
+  (EmailKey k _) == (EmailKey k' _) = k == k'
 
 -- | Turn an 'Email' into an 'EmailKey'.
 --
@@ -95,16 +94,14 @@ instance Eq EmailKey where
 --     e-mail addresses fully case-insensitive.
 --   * "+" suffixes on the local part are stripped unless the domain
 --     part is contained in a trusted whitelist.
---
 mkEmailKey :: Email -> EmailKey
 mkEmailKey orig@(Email localPart domain) =
-    let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
-    in EmailKey uniq orig
+  let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
+   in EmailKey uniq orig
   where
     localPart'
-        | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
-        | otherwise                = localPart
-
+      | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
+      | otherwise = localPart
     trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
 
 -------------------------------------------------------------------------------
@@ -117,7 +114,7 @@ mkEmailKey orig@(Email localPart domain) =
 -- limit, otherwise it is dropped.
 mkMimeAddress :: Name -> Email -> Address
 mkMimeAddress name email =
-    let addr = Address (Just (fromName name)) (fromEmail email)
-    in if Text.compareLength (renderAddress addr) 320 == GT
+  let addr = Address (Just (fromName name)) (fromEmail email)
+   in if Text.compareLength (renderAddress addr) 320 == GT
         then Address Nothing (fromEmail email)
         else addr

@@ -1,99 +1,112 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | 'Cql' instances for Spar types, as well as conversion functions used in "Spar.Data"
 -- (which does the actual database work).
 module Spar.Data.Instances
-    (
-      -- * Raw database types
-      VerdictFormatRow
-    , VerdictFormatCon(..)
-      -- ** Conversions
-    , fromVerdictFormat
-    , toVerdictFormat
-    ) where
+  ( -- * Raw database types
+    VerdictFormatRow,
+    VerdictFormatCon (..),
 
-import Imports
+    -- ** Conversions
+    fromVerdictFormat,
+    toVerdictFormat,
+  )
+where
+
 import Cassandra as Cas
 import Data.Aeson (FromJSON, ToJSON)
+import qualified Data.Aeson as Aeson
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
+import Imports
 import SAML2.Util (parseURI')
-import Spar.Types
-import Spar.Scim.Types
-import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
-import URI.ByteString
-
-import qualified Data.Aeson as Aeson
 import qualified SAML2.WebSSO as SAML
+import Spar.Scim.Types
+import Spar.Types
+import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
+import URI.ByteString
 import qualified Web.Scim.Schema.User as Scim
 
-
 instance Cql SAML.XmlText where
-    ctype = Tagged TextColumn
-    toCql = CqlText . SAML.unsafeFromXmlText
+  ctype = Tagged TextColumn
 
-    fromCql (CqlText t) = pure $ SAML.mkXmlText t
-    fromCql _           = fail "XmlText: expected CqlText"
+  toCql = CqlText . SAML.unsafeFromXmlText
+
+  fromCql (CqlText t) = pure $ SAML.mkXmlText t
+  fromCql _ = fail "XmlText: expected CqlText"
 
 instance Cql (SignedCertificate) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . cs . renderKeyInfo
+  ctype = Tagged BlobColumn
 
-    fromCql (CqlBlob t) = parseKeyInfo False (cs t)
-    fromCql _           = fail "SignedCertificate: expected CqlBlob"
+  toCql = CqlBlob . cs . renderKeyInfo
+
+  fromCql (CqlBlob t) = parseKeyInfo False (cs t)
+  fromCql _ = fail "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
-    ctype = Tagged TextColumn
-    toCql = CqlText . SAML.renderURI
+  ctype = Tagged TextColumn
 
-    fromCql (CqlText t) = parseURI' t
-    fromCql _           = fail "URI: expected CqlText"
+  toCql = CqlText . SAML.renderURI
+
+  fromCql (CqlText t) = parseURI' t
+  fromCql _ = fail "URI: expected CqlText"
 
 instance Cql SAML.NameID where
-    ctype = Tagged TextColumn
-    toCql = CqlText . cs . SAML.encodeElem
+  ctype = Tagged TextColumn
 
-    fromCql (CqlText t) = SAML.decodeElem (cs t)
-    fromCql _           = fail "NameID: expected CqlText"
+  toCql = CqlText . cs . SAML.encodeElem
+
+  fromCql (CqlText t) = SAML.decodeElem (cs t)
+  fromCql _ = fail "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
+
 deriving instance Cql SAML.IdPId
+
 deriving instance Cql (SAML.ID SAML.AuthnRequest)
 
 type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI)
+
 data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
 
 instance Cql VerdictFormatCon where
-    ctype = Tagged IntColumn
+  ctype = Tagged IntColumn
 
-    toCql VerdictFormatConWeb    = CqlInt 0
-    toCql VerdictFormatConMobile = CqlInt 1
+  toCql VerdictFormatConWeb = CqlInt 0
+  toCql VerdictFormatConMobile = CqlInt 1
 
-    fromCql (CqlInt i) = case i of
-        0 -> return VerdictFormatConWeb
-        1 -> return VerdictFormatConMobile
-        n -> fail $ "unexpected VerdictFormatCon: " ++ show n
-    fromCql _ = fail "member-status: int expected"
+  fromCql (CqlInt i) = case i of
+    0 -> return VerdictFormatConWeb
+    1 -> return VerdictFormatConMobile
+    n -> fail $ "unexpected VerdictFormatCon: " ++ show n
+  fromCql _ = fail "member-status: int expected"
 
 fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
-fromVerdictFormat VerdictFormatWeb                         = (VerdictFormatConWeb, Nothing, Nothing)
+fromVerdictFormat VerdictFormatWeb = (VerdictFormatConWeb, Nothing, Nothing)
 fromVerdictFormat (VerdictFormatMobile succredir errredir) = (VerdictFormatConMobile, Just succredir, Just errredir)
 
 toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
-toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing)                 = Just VerdictFormatWeb
+toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing) = Just VerdictFormatWeb
 toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
-toVerdictFormat _                                                       = Nothing
+toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken
 
-instance ( Scim.UserTypes tag, uid ~ Scim.UserId tag, extra ~ Scim.UserExtra tag
-         , FromJSON extra, ToJSON extra
-         , FromJSON uid, ToJSON uid
-         ) => Cql (WrappedScimStoredUser tag) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . Aeson.encode . fromWrappedScimStoredUser
+instance
+  ( Scim.UserTypes tag,
+    uid ~ Scim.UserId tag,
+    extra ~ Scim.UserExtra tag,
+    FromJSON extra,
+    ToJSON extra,
+    FromJSON uid,
+    ToJSON uid
+  ) =>
+  Cql (WrappedScimStoredUser tag)
+  where
+  ctype = Tagged BlobColumn
 
-    fromCql (CqlBlob t) = WrappedScimStoredUser <$> Aeson.eitherDecode t
-    fromCql _           = fail "Scim.StoredUser: expected CqlBlob"
+  toCql = CqlBlob . Aeson.encode . fromWrappedScimStoredUser
+
+  fromCql (CqlBlob t) = WrappedScimStoredUser <$> Aeson.eitherDecode t
+  fromCql _ = fail "Scim.StoredUser: expected CqlBlob"

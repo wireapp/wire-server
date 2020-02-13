@@ -1,12 +1,14 @@
 module V18 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 18 "Add prekeys" $ do
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists clients
             ( user   uuid
             , client text
@@ -16,8 +18,9 @@ migration = Migration 18 "Add prekeys" $ do
             , primary key (user, client)
             );
        |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists prekeys
             ( user   uuid
             , client text
