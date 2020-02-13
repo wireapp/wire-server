@@ -22,4 +22,4 @@ srvLookup :: Text -> ResolvSeed -> IO (Maybe [(Domain, Word16)])
 srvLookup = srvLookup' srvDefaultPrefix
 
 srvDefaultPrefix :: Text
-srvDefaultPrefix = "_wire" -- TODO: _wire-server? _xmpps?
+srvDefaultPrefix = "_wire-server"

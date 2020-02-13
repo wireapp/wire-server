@@ -25,7 +25,7 @@ srvLookup' prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
         -- The service is not available at this domain.
         Left _ -> return Nothing
 
--- FUTUREWORK: maybe improve sorting algorithm here?
+-- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)
 --
 -- This function orders the SRV result in accordance with RFC
 -- 2782. It sorts the SRV results in order of priority, and then
