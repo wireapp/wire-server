@@ -2,6 +2,7 @@ module Test.DNSSpec where
 
 import Imports
 import Test.Hspec
+import Network.DNS
 import Network.Federation.Util.Internal
 
 spec :: Spec
@@ -33,14 +34,40 @@ spec = do
             -- the server with weight 20 first in the list 30 times,
             -- the server with weight 10 15 times
             -- and the server with weight 0 5 times.
-            -- We only check that there is *some* distribution that is not 50 times one order
+            -- We only check that there is *some* distribution
             length x `shouldSatisfy` (> 0)
             length x `shouldSatisfy` (< 49)
             length y `shouldSatisfy` (> 0)
             length y `shouldSatisfy` (< 49)
+    describe "srvLookup" $ do
+        it "returns the expected result for wire.com" $ do
+            rs <- makeResolvSeed defaultResolvConf
+            wire <- srvLookup'' mockLookupSRV "_wire-server" "wire.com" rs
+            wire `shouldBe` Just [("wire.com", 443)]
+        it "filters out single '.' results" $ do
+            rs <- makeResolvSeed defaultResolvConf
+            exampleDotCom <- srvLookup'' mockLookupSRV "_wire-server" "example.com" rs
+            exampleDotCom `shouldBe` Nothing
+        it "can return multiple results" $ do
+            rs <- makeResolvSeed defaultResolvConf
+            zinfra <- srvLookup'' mockLookupSRV "_wire-server" "zinfra.io" rs
+            (length <$> zinfra) `shouldBe` Just 2
+        it "returns Nothing if there is no DNS record" $ do
+            rs <- makeResolvSeed defaultResolvConf
+            noRecord <- srvLookup'' mockLookupSRV "_wire-server" "no-record-here" rs
+            noRecord `shouldBe` Nothing
 
 fst4 :: (a,b,c,d) -> a
 fst4 (a,_,_,_) = a
 
 snd4 :: (a,b,c,d) -> b
 snd4 (_,b,_,_) = b
+
+-- mock function matching Network.DNS's 'lookupSRV' types
+mockLookupSRV :: Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)])
+mockLookupSRV _ domain = do
+    case domain of
+         "_wire-server._tcp.wire.com." -> return $ Right [(0, 0, 443, "wire.com")]
+         "_wire-server._tcp.zinfra.io." -> return $ Right [(0, 0, 443, "server1.zinfra.io"), (0, 0, 443, "server2.zinfra.io")]
+         "_wire-server._tcp.example.com." -> return $ Right [(0,0,443, ".")]
+         _ -> return $ Right []

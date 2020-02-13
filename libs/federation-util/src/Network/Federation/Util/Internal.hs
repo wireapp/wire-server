@@ -12,11 +12,20 @@ import Data.Text.Encoding (encodeUtf8)
 -- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
 -- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp
 srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [(Domain, Word16)])
-srvLookup' prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
-    srvResult <- lookupSRV resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
+srvLookup' = srvLookup'' lookupSRV
+
+-- internal version for testing
+srvLookup'' ::
+    (Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)]))
+    -> Text
+    -> Text
+    -> ResolvSeed
+    -> IO (Maybe [(Domain, Word16)])
+srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
+    srvResult <- lookupF resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
     case srvResult of
         Right [] -> return Nothing
-        Right [(_, _, _, ".")] -> return Nothing -- explicit "not available"
+        Right [(_, _, _, ".")] -> return Nothing -- "not available" as in RFC2782
         Right srvResult' -> do
             -- Get [(Domain, PortNumber)] of SRV request, if any.
             -- Sorts the records based on the priority value.
@@ -32,7 +41,7 @@ srvLookup' prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
 -- uses a random process to order the records with the same
 -- priority based on their weight.
 --
--- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD licence)
+-- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence)
 orderSrvResult :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
 orderSrvResult srvResult = do
     -- Order the result set by priority.
