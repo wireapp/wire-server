@@ -1,8 +1,6 @@
 module Network.Federation.Util.Internal where
 
 import Imports
-import Network.DNS.Resolver
-import Network.DNS.Types
 import Network.DNS
 import System.Random
 import Data.Text.Encoding (encodeUtf8)
