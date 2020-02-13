@@ -1,0 +1,45 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: federation-util
+version: '0.1.0'
+synopsis: Various helpers for federation
+description: Small helper functions useful when federating.
+category: Web
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+dependencies:
+- async >=2.0
+- base >=4.6 && <5.0
+- bytestring >=0.10
+- bytestring-conversion >=0.3
+- containers >=0.5
+- errors >=2.0
+- exceptions >=0.6
+- http-types >=0.8
+- imports
+- dns
+- random
+- streaming-commons >=0.1
+- string-conversions
+- stm
+- text >=0.11
+- transformers >=0.3
+- tinylog >=0.8
+library:
+  source-dirs: src
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - hspec
+      - hspec-discover
+      - QuickCheck
+      - federation-util
+      - uri-bytestring
+

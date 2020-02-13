@@ -1,0 +1,1 @@
+--command "stack ghci federation-util --test"
