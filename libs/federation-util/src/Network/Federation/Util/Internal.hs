@@ -7,7 +7,7 @@ import Network.DNS
 import System.Random
 import Data.Text.Encoding (encodeUtf8)
 
--- Given a prefix (e.g. _wire) and a domain (e.g. wire.com),
+-- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
 -- provides a list of A(AAA) names and port numbers upon a successful
 -- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
 -- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp

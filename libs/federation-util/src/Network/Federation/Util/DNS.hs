@@ -7,7 +7,8 @@ import Network.DNS
 import Network.Federation.Util.Internal
 
 -- | Looks up a SRV record given a domain, returning A(AAA) records with their
--- ports (ordered by priority and weight according to RFC 2782).
+-- ports (ordered by priority and weight according to RFC 2782). Connection
+-- attempts should be made to the returned result list in order.
 --
 -- Example:
 --
