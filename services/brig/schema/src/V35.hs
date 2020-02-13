@@ -1,12 +1,13 @@
 module V35 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 35 "Add service provider tables" $ do
-    schema' [r|
+  schema'
+    [r|
         create table if not exists provider
             ( id       uuid
             , name     text
@@ -17,24 +18,24 @@ migration = Migration 35 "Add service provider tables" $ do
             , primary key (id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-    schema' [r|
+  schema'
+    [r|
         create table if not exists provider_keys
             ( key      text
             , provider uuid
             , primary key (key)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-    schema' [r|
+  schema'
+    [r|
         create type if not exists pubkey
             ( typ  int
             , size int
             , pem  blob
             );
     |]
-
-    schema' [r|
+  schema'
+    [r|
         create table if not exists service
             ( provider     uuid
             , id           uuid
@@ -50,8 +51,8 @@ migration = Migration 35 "Add service provider tables" $ do
             , primary key (provider, id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-    schema' [r|
+  schema'
+    [r|
         create table if not exists service_tag
             ( bucket   int
             , tag      bigint
@@ -62,11 +63,11 @@ migration = Migration 35 "Add service provider tables" $ do
             ) with clustering order by (name asc, service asc)
               and compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-    schema' [r|
+  schema'
+    [r|
         alter table user add provider uuid;
     |]
-
-    schema' [r|
+  schema'
+    [r|
         alter table user add service uuid;
     |]

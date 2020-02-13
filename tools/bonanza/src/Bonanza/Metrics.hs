@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Bonanza.Metrics
-    ( Stats (..)
-    , dumpStderr
-    , formatStderr
-    )
+  ( Stats (..),
+    dumpStderr,
+    formatStderr,
+  )
 where
 
 -- FUTUREWORK: In case bonanza is to be used in the future (big 'if'!)
@@ -14,27 +14,29 @@ where
 -- This library used to support collectd metrics,
 -- which were removed as part of https://github.com/wireapp/wire-server/pull/940
 
-import Imports
 import Data.Time
+import Imports
 import System.IO
 
-data Stats = Stats
-    { sBytesIn  :: !Int64
-    , sBytesOut :: !Int64
-    , sCPUTime  :: !DiffTime
-    , sWallTime :: !NominalDiffTime
-    , sEventsIn :: !Int64
-    } deriving (Eq, Show)
-
+data Stats
+  = Stats
+      { sBytesIn :: !Int64,
+        sBytesOut :: !Int64,
+        sCPUTime :: !DiffTime,
+        sWallTime :: !NominalDiffTime,
+        sEventsIn :: !Int64
+      }
+  deriving (Eq, Show)
 
 dumpStderr :: Stats -> IO ()
-dumpStderr = hPutStrLn stderr . ('\n':) . formatStderr
+dumpStderr = hPutStrLn stderr . ('\n' :) . formatStderr
 
 formatStderr :: Stats -> String
-formatStderr Stats{..} = unlines . map (intercalate "\t") $
-    [ ["Events parsed:", show sEventsIn]
-    , ["Bytes read:",    show sBytesIn ]
-    , ["Bytes written:", show sBytesOut]
-    , ["CPU time:",      show sCPUTime ]
-    , ["Wall time:",     show sWallTime]
+formatStderr Stats {..} =
+  unlines . map (intercalate "\t") $
+    [ ["Events parsed:", show sEventsIn],
+      ["Bytes read:", show sBytesIn],
+      ["Bytes written:", show sBytesOut],
+      ["CPU time:", show sCPUTime],
+      ["Wall time:", show sWallTime]
     ]

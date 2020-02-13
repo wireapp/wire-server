@@ -1,12 +1,14 @@
 module V47 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 47 "Create and populate prefix table" $
-    schema' [r|
+migration =
+  Migration 47 "Create and populate prefix table" $
+    schema'
+      [r|
         create table if not exists service_prefix
         ( prefix text
         , name text

@@ -1,249 +1,264 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Galley.Types.Proto
-    ( UserId
-    , userId
-    , fromUserId
+  ( UserId,
+    userId,
+    fromUserId,
+    ClientId,
+    clientId,
+    newClientId,
+    fromClientId,
+    toClientId,
+    ClientEntry,
+    clientEntry,
+    clientEntryId,
+    clientEntryMessage,
+    UserEntry,
+    userEntry,
+    userEntryId,
+    userEntryClients,
+    toOtrRecipients,
+    fromOtrRecipients,
+    Priority (..),
+    toPriority,
+    fromPriority,
+    NewOtrMessage,
+    newOtrMessage,
+    newOtrMessageSender,
+    newOtrMessageRecipients,
+    newOtrMessageNativePush,
+    newOtrMessageNativePriority,
+    newOtrMessageData,
+    newOtrMessageTransient,
+    toNewOtrMessage,
+  )
+where
 
-    , ClientId
-    , clientId
-    , newClientId
-    , fromClientId
-    , toClientId
-
-    , ClientEntry
-    , clientEntry
-    , clientEntryId
-    , clientEntryMessage
-
-    , UserEntry
-    , userEntry
-    , userEntryId
-    , userEntryClients
-    , toOtrRecipients
-    , fromOtrRecipients
-
-    , Priority (..)
-    , toPriority
-    , fromPriority
-
-    , NewOtrMessage
-    , newOtrMessage
-    , newOtrMessageSender
-    , newOtrMessageRecipients
-    , newOtrMessageNativePush
-    , newOtrMessageNativePriority
-    , newOtrMessageData
-    , newOtrMessageTransient
-    , toNewOtrMessage
-    ) where
-
-import Imports
 import Control.Lens (view)
-import Data.ProtocolBuffers
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Text.Lazy.Read (hexadecimal)
-
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.Id                as Id
-import qualified Data.Map.Strict        as Map
-import qualified Data.Text.Lazy         as Text
-import qualified Galley.Types           as Galley
-import qualified Gundeck.Types.Push     as Gundeck
+import qualified Data.Id as Id
+import qualified Data.Map.Strict as Map
+import Data.ProtocolBuffers
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy as Text
+import Data.Text.Lazy.Read (hexadecimal)
+import qualified Galley.Types as Galley
+import qualified Gundeck.Types.Push as Gundeck
+import Imports
 
 -- UserId -------------------------------------------------------------------
 
-newtype UserId = UserId
-    { _user :: Required 1 (Value Id.UserId)
-    } deriving (Eq, Show, Generic)
+newtype UserId
+  = UserId
+      { _user :: Required 1 (Value Id.UserId)
+      }
+  deriving (Eq, Show, Generic)
 
 instance Encode UserId
+
 instance Decode UserId
 
 fromUserId :: Id.UserId -> UserId
-fromUserId u = UserId { _user = putField u }
+fromUserId u = UserId {_user = putField u}
 
 userId :: Functor f => (Id.UserId -> f Id.UserId) -> UserId -> f UserId
-userId f c = (\x -> c { _user = x }) <$> field f (_user c)
+userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
 -- ClientId ------------------------------------------------------------------
 
-newtype ClientId = ClientId
-    { _client :: Required 1 (Value Word64)
-    } deriving (Eq, Show, Generic)
+newtype ClientId
+  = ClientId
+      { _client :: Required 1 (Value Word64)
+      }
+  deriving (Eq, Show, Generic)
 
 instance Encode ClientId
+
 instance Decode ClientId
 
 newClientId :: Word64 -> ClientId
-newClientId c = ClientId { _client = putField c }
+newClientId c = ClientId {_client = putField c}
 
 clientId :: Functor f => (Word64 -> f Word64) -> ClientId -> f ClientId
-clientId f c = (\x -> c { _client = x }) <$> field f (_client c)
+clientId f c = (\x -> c {_client = x}) <$> field f (_client c)
 
 toClientId :: ClientId -> Id.ClientId
 toClientId c = Id.newClientId $ getField (_client c)
 
 fromClientId :: Id.ClientId -> ClientId
 fromClientId c =
-    either (error "Invalid client ID")
-           (newClientId . fst)
-           (hexadecimal (Text.fromStrict $ Id.client c))
+  either
+    (error "Invalid client ID")
+    (newClientId . fst)
+    (hexadecimal (Text.fromStrict $ Id.client c))
 
 -- ClientEntry --------------------------------------------------------------
 
-data ClientEntry = ClientEntry
-    { _clientId  :: !(Required 1 (Message ClientId))
-    , _clientVal :: !(Required 2 (Value ByteString))
-    } deriving (Eq, Show, Generic)
+data ClientEntry
+  = ClientEntry
+      { _clientId :: !(Required 1 (Message ClientId)),
+        _clientVal :: !(Required 2 (Value ByteString))
+      }
+  deriving (Eq, Show, Generic)
 
 instance Encode ClientEntry
+
 instance Decode ClientEntry
 
 clientEntry :: ClientId -> ByteString -> ClientEntry
-clientEntry c t = ClientEntry
-    { _clientId  = putField c
-    , _clientVal = putField t
+clientEntry c t =
+  ClientEntry
+    { _clientId = putField c,
+      _clientVal = putField t
     }
 
 clientEntryId :: Functor f => (ClientId -> f ClientId) -> ClientEntry -> f ClientEntry
-clientEntryId f c = (\x -> c { _clientId = x }) <$> field f (_clientId c)
+clientEntryId f c = (\x -> c {_clientId = x}) <$> field f (_clientId c)
 
 clientEntryMessage :: Functor f => (ByteString -> f ByteString) -> ClientEntry -> f ClientEntry
-clientEntryMessage f c = (\x -> c { _clientVal = x }) <$> field f (_clientVal c)
+clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 
 -- UserEntry ----------------------------------------------------------------
 
-data UserEntry = UserEntry
-    { _userId  :: !(Required 1 (Message UserId))
-    , _userVal :: !(Repeated 2 (Message ClientEntry))
-    } deriving (Eq, Show, Generic)
+data UserEntry
+  = UserEntry
+      { _userId :: !(Required 1 (Message UserId)),
+        _userVal :: !(Repeated 2 (Message ClientEntry))
+      }
+  deriving (Eq, Show, Generic)
 
 instance Encode UserEntry
+
 instance Decode UserEntry
 
 userEntry :: UserId -> [ClientEntry] -> UserEntry
-userEntry u c = UserEntry
-    { _userId  = putField u
-    , _userVal = putField c
+userEntry u c =
+  UserEntry
+    { _userId = putField u,
+      _userVal = putField c
     }
 
 userEntryId :: Functor f => (UserId -> f UserId) -> UserEntry -> f UserEntry
-userEntryId f c = (\x -> c { _userId = x }) <$> field f (_userId c)
+userEntryId f c = (\x -> c {_userId = x}) <$> field f (_userId c)
 
 userEntryClients :: Functor f => ([ClientEntry] -> f [ClientEntry]) -> UserEntry -> f UserEntry
-userEntryClients f c = (\x -> c { _userVal = x }) <$> field f (_userVal c)
+userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 
 toOtrRecipients :: [UserEntry] -> Galley.OtrRecipients
-toOtrRecipients = Galley.OtrRecipients . Galley.UserClientMap .
-    foldl' userEntries mempty
+toOtrRecipients =
+  Galley.OtrRecipients . Galley.UserClientMap
+    . foldl' userEntries mempty
   where
     userEntries acc x =
-        let u = view userEntryId x
-            c = view userEntryClients x
-            m = foldl' clientEntries mempty c
-        in Map.insert (view userId u) m acc
-
+      let u = view userEntryId x
+          c = view userEntryClients x
+          m = foldl' clientEntries mempty c
+       in Map.insert (view userId u) m acc
     clientEntries acc x =
-        let c = toClientId $ view clientEntryId x
-            t = toBase64Text $ view clientEntryMessage x
-        in Map.insert c t acc
+      let c = toClientId $ view clientEntryId x
+          t = toBase64Text $ view clientEntryMessage x
+       in Map.insert c t acc
 
 fromOtrRecipients :: Galley.OtrRecipients -> [UserEntry]
 fromOtrRecipients rcps =
-    let m = Galley.userClientMap (Galley.otrRecipientsMap rcps)
-    in map mkProtoRecipient (Map.toList m)
+  let m = Galley.userClientMap (Galley.otrRecipientsMap rcps)
+   in map mkProtoRecipient (Map.toList m)
   where
     mkProtoRecipient (usr, clts) =
-        let xs = map mkClientEntry (Map.toList clts)
-        in UserEntry (putField (fromUserId usr)) (putField xs)
-
+      let xs = map mkClientEntry (Map.toList clts)
+       in UserEntry (putField (fromUserId usr)) (putField xs)
     mkClientEntry (clt, t) = clientEntry (fromClientId clt) (fromBase64Text t)
 
 -- Priority -----------------------------------------------------------------
 
 data Priority = LowPriority | HighPriority
-    deriving (Eq, Show, Ord, Generic)
+  deriving (Eq, Show, Ord, Generic)
 
 instance Encode Priority
+
 instance Decode Priority
 
 instance Enum Priority where
-    toEnum 1 = LowPriority
-    toEnum 2 = HighPriority
-    toEnum x = error $ "Galley.Types.Proto.Priority: invalid enum value: " ++ show x
+  toEnum 1 = LowPriority
+  toEnum 2 = HighPriority
+  toEnum x = error $ "Galley.Types.Proto.Priority: invalid enum value: " ++ show x
 
-    fromEnum LowPriority  = 1
-    fromEnum HighPriority = 2
+  fromEnum LowPriority = 1
+  fromEnum HighPriority = 2
 
 instance Bounded Priority where
-    minBound = LowPriority
-    maxBound = HighPriority
+  minBound = LowPriority
+  maxBound = HighPriority
 
 toPriority :: Priority -> Gundeck.Priority
-toPriority LowPriority  = Gundeck.LowPriority
+toPriority LowPriority = Gundeck.LowPriority
 toPriority HighPriority = Gundeck.HighPriority
 
 fromPriority :: Gundeck.Priority -> Priority
-fromPriority Gundeck.LowPriority  = LowPriority
+fromPriority Gundeck.LowPriority = LowPriority
 fromPriority Gundeck.HighPriority = HighPriority
 
 -- NewOtrMessage ------------------------------------------------------------
 
-data NewOtrMessage = NewOtrMessage
-    { _newOtrSender         :: !(Required 1 (Message ClientId))
-    , _newOtrRecipients     :: !(Repeated 2 (Message UserEntry))
-    , _newOtrNativePush     :: !(Optional 3 (Value Bool))
-    , _newOtrData           :: !(Optional 4 (Value ByteString))
-    , _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)) -- See note [orphans]
-    , _newOtrTransient      :: !(Optional 6 (Value Bool))
-    } deriving (Eq, Show, Generic)
+data NewOtrMessage
+  = NewOtrMessage
+      { _newOtrSender :: !(Required 1 (Message ClientId)),
+        _newOtrRecipients :: !(Repeated 2 (Message UserEntry)),
+        _newOtrNativePush :: !(Optional 3 (Value Bool)),
+        _newOtrData :: !(Optional 4 (Value ByteString)),
+        _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
+        _newOtrTransient :: !(Optional 6 (Value Bool))
+      }
+  deriving (Eq, Show, Generic)
 
 instance Encode NewOtrMessage
+
 instance Decode NewOtrMessage
 
 newOtrMessage :: ClientId -> [UserEntry] -> NewOtrMessage
-newOtrMessage c us = NewOtrMessage
-    { _newOtrSender         = putField c
-    , _newOtrRecipients     = putField us
-    , _newOtrNativePush     = putField Nothing
-    , _newOtrData           = putField Nothing
-    , _newOtrNativePriority = putField Nothing
-    , _newOtrTransient      = putField Nothing
+newOtrMessage c us =
+  NewOtrMessage
+    { _newOtrSender = putField c,
+      _newOtrRecipients = putField us,
+      _newOtrNativePush = putField Nothing,
+      _newOtrData = putField Nothing,
+      _newOtrNativePriority = putField Nothing,
+      _newOtrTransient = putField Nothing
     }
 
 newOtrMessageSender :: Functor f => (ClientId -> f ClientId) -> NewOtrMessage -> f NewOtrMessage
-newOtrMessageSender f c = (\x -> c { _newOtrSender = x }) <$> field f (_newOtrSender c)
+newOtrMessageSender f c = (\x -> c {_newOtrSender = x}) <$> field f (_newOtrSender c)
 
 newOtrMessageRecipients :: Functor f => ([UserEntry] -> f [UserEntry]) -> NewOtrMessage -> f NewOtrMessage
-newOtrMessageRecipients f c = (\x -> c { _newOtrRecipients = x }) <$> field f (_newOtrRecipients c)
+newOtrMessageRecipients f c = (\x -> c {_newOtrRecipients = x}) <$> field f (_newOtrRecipients c)
 
 newOtrMessageNativePush :: Functor f => (Bool -> f Bool) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageNativePush f c =
-    let g x = Just <$> f (fromMaybe True x) in
-    (\x -> c { _newOtrNativePush = x }) <$> field g (_newOtrNativePush c)
+  let g x = Just <$> f (fromMaybe True x)
+   in (\x -> c {_newOtrNativePush = x}) <$> field g (_newOtrNativePush c)
 
 newOtrMessageTransient :: Functor f => (Bool -> f Bool) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageTransient f c =
-    let g x = Just <$> f (fromMaybe False x) in
-    (\x -> c { _newOtrTransient = x }) <$> field g (_newOtrTransient c)
+  let g x = Just <$> f (fromMaybe False x)
+   in (\x -> c {_newOtrTransient = x}) <$> field g (_newOtrTransient c)
 
 newOtrMessageData :: Functor f => (Maybe ByteString -> f (Maybe ByteString)) -> NewOtrMessage -> f NewOtrMessage
-newOtrMessageData f c = (\x -> c { _newOtrData = x }) <$> field f (_newOtrData c)
+newOtrMessageData f c = (\x -> c {_newOtrData = x}) <$> field f (_newOtrData c)
 
 newOtrMessageNativePriority :: Functor f => (Maybe Priority -> f (Maybe Priority)) -> NewOtrMessage -> f NewOtrMessage
-newOtrMessageNativePriority f c = (\x -> c { _newOtrNativePriority = x }) <$> field f (_newOtrNativePriority c)
+newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> field f (_newOtrNativePriority c)
 
 toNewOtrMessage :: NewOtrMessage -> Galley.NewOtrMessage
-toNewOtrMessage msg = Galley.NewOtrMessage
-    { Galley.newOtrSender         = toClientId (view newOtrMessageSender msg)
-    , Galley.newOtrRecipients     = toOtrRecipients (view newOtrMessageRecipients msg)
-    , Galley.newOtrNativePush     = view newOtrMessageNativePush msg
-    , Galley.newOtrTransient      = view newOtrMessageTransient msg
-    , Galley.newOtrData           = toBase64Text <$> view newOtrMessageData msg
-    , Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg
+toNewOtrMessage msg =
+  Galley.NewOtrMessage
+    { Galley.newOtrSender = toClientId (view newOtrMessageSender msg),
+      Galley.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
+      Galley.newOtrNativePush = view newOtrMessageNativePush msg,
+      Galley.newOtrTransient = view newOtrMessageTransient msg,
+      Galley.newOtrData = toBase64Text <$> view newOtrMessageData msg,
+      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg
     }
 
 -- Utilities ----------------------------------------------------------------

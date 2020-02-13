@@ -1,25 +1,25 @@
 module Gundeck.Presence.Data
-    ( add
-    , list
-    , listAll
-    , deleteAll
-    ) where
+  ( add,
+    list,
+    listAll,
+    deleteAll,
+  )
+where
 
-import Imports
 import Control.Monad.Catch
 import Data.Aeson
+import qualified Data.ByteString as Strict
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion hiding (fromList)
+import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Lazy.Char8 as LazyChars
 import Data.Id
 import Data.Misc (Milliseconds)
 import Database.Redis.IO hiding (Milliseconds)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis
-
-import qualified Data.ByteString as Strict
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.Char8 as LazyChars
+import Imports
 
 -- Note [Migration] ---------------------------------------------------------
 --
@@ -39,36 +39,36 @@ import qualified Data.ByteString.Lazy.Char8 as LazyChars
 
 add :: Presence -> Gundeck ()
 add p = do
-    now <- posixTime
-    let k = toKey (userId p)
-    let v = toField (connId p)
-    let d = encode $ PresenceData (resource p) (clientId p) now
-    retry x3 $ commands $ do
-        multi
-        void $ hset k v d
-        -- nb. All presences of a user are expired 'maxIdleTime' after the
-        -- last presence was registered. A client who keeps a presence
-        -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
-        -- silently dropped and receives no more notifications.
-        void $ expire k maxIdleTime
-        exec
+  now <- posixTime
+  let k = toKey (userId p)
+  let v = toField (connId p)
+  let d = encode $ PresenceData (resource p) (clientId p) now
+  retry x3 $ commands $ do
+    multi
+    void $ hset k v d
+    -- nb. All presences of a user are expired 'maxIdleTime' after the
+    -- last presence was registered. A client who keeps a presence
+    -- (i.e. websocket) connected for longer than 'maxIdleTime' will be
+    -- silently dropped and receives no more notifications.
+    void $ expire k maxIdleTime
+    exec
   where
     maxIdleTime = Seconds (7 * 24 * 60 * 60) -- 7 days
 
 deleteAll :: (MonadClient m, MonadMask m) => [Presence] -> m ()
 deleteAll [] = return ()
 deleteAll pp = for_ pp $ \p -> do
-    let k = toKey (userId p)
-    let f = __field p
-    retry x3 $ commands $ do
-        watch (pure k)
-        value <- hget k f
-        multi
-        for_ value $ \v -> do
-            let p' = readPresence (userId p) (f, Lazy.toStrict v)
-            when (Just p == p') $
-                void (hdel k (pure f))
-        exec
+  let k = toKey (userId p)
+  let f = __field p
+  retry x3 $ commands $ do
+    watch (pure k)
+    value <- hget k f
+    multi
+    for_ value $ \v -> do
+      let p' = readPresence (userId p) (f, Lazy.toStrict v)
+      when (Just p == p') $
+        void (hdel k (pure f))
+    exec
 
 list :: MonadClient m => UserId -> m [Presence]
 list u = mapMaybe (readPresence u) <$> commands (hgetall (toKey u))
@@ -76,27 +76,28 @@ list u = mapMaybe (readPresence u) <$> commands (hgetall (toKey u))
 listAll :: MonadClient m => [UserId] -> m [[Presence]]
 listAll [] = return []
 listAll uu =
-    zipWith fn uu <$> commands (mapM (hgetall . toKey) uu)
+  zipWith fn uu <$> commands (mapM (hgetall . toKey) uu)
   where
     fn u = mapMaybe (readPresence u)
 
 -- Helpers -------------------------------------------------------------------
 
 data PresenceData = PresenceData !URI !(Maybe ClientId) !Milliseconds
-    deriving Eq
+  deriving (Eq)
 
 instance ToJSON PresenceData where
-    toJSON (PresenceData r c t) = object
-        [ "r" .= r
-        , "c" .= c
-        , "t" .= t
-        ]
+  toJSON (PresenceData r c t) =
+    object
+      [ "r" .= r,
+        "c" .= c,
+        "t" .= t
+      ]
 
 instance FromJSON PresenceData where
-    parseJSON = withObject "PresenceData" $ \o ->
-        PresenceData <$> o .:  "r"
-                     <*> o .:? "c"
-                     <*> o .:? "t" .!= 0
+  parseJSON = withObject "PresenceData" $ \o ->
+    PresenceData <$> o .: "r"
+      <*> o .:? "c"
+      <*> o .:? "t" .!= 0
 
 toKey :: UserId -> Key
 toKey u = Key $ runBuilder (byteString "user:" <> builder u)
@@ -109,7 +110,8 @@ fromField = ConnId . Lazy.toStrict . LazyChars.takeWhile (/= '@')
 
 readPresence :: UserId -> (Field, ByteString) -> Maybe Presence
 readPresence u (f, b) = do
-    PresenceData uri clt tme <- if "http" `Strict.isPrefixOf` b
-        then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
-        else decodeStrict' b
-    return (Presence u (fromField f) uri clt tme f)
+  PresenceData uri clt tme <-
+    if "http" `Strict.isPrefixOf` b
+      then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
+      else decodeStrict' b
+  return (Presence u (fromField f) uri clt tme f)

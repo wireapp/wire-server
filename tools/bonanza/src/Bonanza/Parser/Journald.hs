@@ -1,36 +1,39 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Bonanza.Parser.Journald
-    ( JournaldLogRecord (..)
-    , journaldLogRecordWith
-    )
+  ( JournaldLogRecord (..),
+    journaldLogRecordWith,
+  )
 where
 
-import Imports
 import Bonanza.Parser.Internal
 import Bonanza.Parser.Svlogd
 import Bonanza.Types
-import Control.Applicative              (optional)
-import Control.Lens                     ((.~))
+import Control.Applicative (optional)
+import Control.Lens ((.~))
 import Data.Attoparsec.ByteString.Char8
-import Data.Time                        (UTCTime (..))
+import Data.Time (UTCTime (..))
+import Imports
 
 -- <timestamp> <syslog_identifier>[<pid>]: <... message ...>
 
-data JournaldLogRecord a = JournaldLogRecord
-    { jdTime    :: !(Maybe UTCTime)
-    , jdProcess :: Text
-    , jdPid     :: Int
-    , jdMessage :: !a
-    } deriving (Eq, Show)
+data JournaldLogRecord a
+  = JournaldLogRecord
+      { jdTime :: !(Maybe UTCTime),
+        jdProcess :: Text,
+        jdPid :: Int,
+        jdMessage :: !a
+      }
+  deriving (Eq, Show)
 
 instance ToLogEvent a => ToLogEvent (JournaldLogRecord a) where
-    toLogEvent JournaldLogRecord{..} =
-           (mempty & logTime .~ jdTime)
-        <> toLogEvent jdMessage
+  toLogEvent JournaldLogRecord {..} =
+    (mempty & logTime .~ jdTime)
+      <> toLogEvent jdMessage
 
 journaldLogRecordWith :: Parser a -> Parser (JournaldLogRecord a)
-journaldLogRecordWith p = JournaldLogRecord
+journaldLogRecordWith p =
+  JournaldLogRecord
     <$> optional (skipSpace *> svTimestamp <* skipSpace)
     <*> (toText <$> takeTill (== '['))
     <*> (char '[' *> decimal <* char ']' <* char ':' <* skipSpace)

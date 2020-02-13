@@ -1,7 +1,7 @@
 module Main (main) where
 
-import Imports
 import Galley.Run (run)
+import Imports
 import OpenSSL (withOpenSSL)
 import Util.Options
 

@@ -13,8 +13,6 @@ module Main where
 import Imports
 import System.Environment (withArgs)
 import Test.Hspec
-import Util
-
 import qualified Test.LoggingSpec
 import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
@@ -23,7 +21,7 @@ import qualified Test.Spar.DataSpec
 import qualified Test.Spar.Intra.BrigSpec
 import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
-
+import Util
 
 main :: IO ()
 main = do
@@ -36,16 +34,16 @@ partitionArgs = go [] []
   where
     go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
     go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
-    go wireArgs hspecArgs (x : xs)        = go wireArgs (hspecArgs <> [x]) xs
-    go wireArgs hspecArgs []              = (wireArgs, hspecArgs)
+    go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
+    go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
 mkspec :: SpecWith TestEnv
 mkspec = do
-    describe "Logging" Test.LoggingSpec.spec
-    describe "Metrics" Test.MetricsSpec.spec
-    describe "Spar.API" Test.Spar.APISpec.spec
-    describe "Spar.App" Test.Spar.AppSpec.spec
-    describe "Spar.Data" Test.Spar.DataSpec.spec
-    describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
-    describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
-    describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
+  describe "Logging" Test.LoggingSpec.spec
+  describe "Metrics" Test.MetricsSpec.spec
+  describe "Spar.API" Test.Spar.APISpec.spec
+  describe "Spar.App" Test.Spar.AppSpec.spec
+  describe "Spar.Data" Test.Spar.DataSpec.spec
+  describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
+  describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
+  describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec

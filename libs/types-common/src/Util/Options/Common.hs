@@ -1,16 +1,15 @@
-{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Util.Options.Common where
 
-import Imports hiding (reader)
 import Data.Aeson.TH
-import Options.Applicative
-
 import qualified Data.ByteString.Char8 as C
-import qualified Data.Text             as T
-import qualified System.Posix.Env      as Posix
+import qualified Data.Text as T
+import Imports hiding (reader)
+import Options.Applicative
+import qualified System.Posix.Env as Posix
 
 -- | Convenient helper to convert record field names to use as YAML fields.
 -- NOTE: We typically use this for options in the configuration files!
@@ -26,24 +25,23 @@ import qualified System.Posix.Env      as Posix
 -- would generate {To/From}JSON instances where
 -- the field name is "teamName"
 toOptionFieldName :: Options
-toOptionFieldName = defaultOptions{ fieldLabelModifier = lowerFirst . dropPrefix }
+toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
   where
     lowerFirst :: String -> String
-    lowerFirst (x:xs) = toLower x : xs
-    lowerFirst []     = ""
-
+    lowerFirst (x : xs) = toLower x : xs
+    lowerFirst [] = ""
     dropPrefix :: String -> String
     dropPrefix = dropWhile (not . isUpper)
 
 optOrEnv :: (a -> b) -> (Maybe a) -> (String -> b) -> String -> IO b
 optOrEnv getter conf reader var = case conf of
-    Nothing -> reader <$> getEnv var
-    Just c  -> pure $ getter c
+  Nothing -> reader <$> getEnv var
+  Just c -> pure $ getter c
 
 optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
 optOrEnvSafe getter conf reader var = case conf of
-    Nothing -> fmap reader <$> Posix.getEnv var
-    Just c  -> pure $ Just (getter c)
+  Nothing -> fmap reader <$> Posix.getEnv var
+  Just c -> pure $ Just (getter c)
 
 bytesOption :: Mod OptionFields String -> Parser ByteString
 bytesOption = fmap C.pack . strOption

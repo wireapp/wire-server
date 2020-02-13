@@ -1,21 +1,20 @@
 -- | http://cr.yp.to/proto/netstrings.txt
 module Bonanza.Parser.Netstrings
-    ( netstring
-    , tagged
-    )
+  ( netstring,
+    tagged,
+  )
 where
 
-import           Imports
-import           Data.Attoparsec.ByteString.Char8
+import Data.Attoparsec.ByteString.Char8
 import qualified Data.Attoparsec.ByteString.Char8 as A
-import qualified Data.ByteString.Char8            as B
-
+import qualified Data.ByteString.Char8 as B
+import Imports
 
 netstring :: Parser ByteString
 netstring = do
-    len <- decimal    <* char ':'
-    str <- A.take len <* char ',' <* skipWhile (==' ')
-    pure str
+  len <- decimal <* char ':'
+  str <- A.take len <* char ',' <* skipWhile (== ' ')
+  pure str
 
 -- | Find pairs in a stream of netstrings.
 --
@@ -32,16 +31,14 @@ netstring = do
 --
 -- >>> parseOnly (tagged '=') "1:a,1:=,1:b,1:=,1:=,1:=,"
 -- Right [(Just "b","=")]
---
 tagged :: Char -> Parser [(Maybe ByteString, ByteString)]
 tagged sep = do
-    strs <- many' netstring
-    pure . reverse . fst $ foldl' go ([], False) strs
+  strs <- many' netstring
+  pure . reverse . fst $ foldl' go ([], False) strs
   where
-    go ((h:t), True)  e = ((Just (snd h), e) : t , False)
-    go ([]   , _   )  e = ((Nothing,      e) : [], False)
-    go (acc  , False) e
-      | is_sep e  = (acc, True)
+    go ((h : t), True) e = ((Just (snd h), e) : t, False)
+    go ([], _) e = ((Nothing, e) : [], False)
+    go (acc, False) e
+      | is_sep e = (acc, True)
       | otherwise = ((Nothing, e) : acc, False)
-
     is_sep = liftA2 (&&) ((1 ==) . B.length) ((sep ==) . B.head)

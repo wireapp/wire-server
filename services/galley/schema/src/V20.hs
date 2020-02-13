@@ -1,12 +1,13 @@
 module V20 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 20 "Initial schema" $ do
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE conversation (
             conv    uuid PRIMARY KEY,
             access  set<int>,
@@ -16,8 +17,8 @@ migration = Migration 20 "Initial schema" $ do
         ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE member (
             conv             uuid,
             user             uuid,
@@ -35,8 +36,8 @@ migration = Migration 20 "Initial schema" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE user (
             user uuid,
             conv uuid,
@@ -45,16 +46,16 @@ migration = Migration 20 "Initial schema" $ do
             AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE clients (
             user uuid PRIMARY KEY,
             clients set<text>
         ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'}
             AND gc_grace_seconds = 864000;
         |]
-
-    schema' [r|
+  schema'
+    [r|
         CREATE TABLE service (
             provider     uuid,
             id           uuid,

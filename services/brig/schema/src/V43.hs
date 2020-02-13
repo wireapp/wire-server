@@ -1,12 +1,13 @@
 module V43 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 43 "Add team invitations" $ do
-    schema' [r|
+  schema'
+    [r|
         create columnfamily if not exists team_invitation
             ( team         uuid      -- team id that owns the invitation
             , id           uuid      -- invitation id reference (relevant for the team)
@@ -16,8 +17,8 @@ migration = Migration 43 "Add team invitations" $ do
             , primary key (team, id)
             );
         |]
-
-    schema' [r|
+  schema'
+    [r|
         create columnfamily if not exists team_invitation_info
             ( code        ascii -- code of the invitation (known only by invitee)
             , team        uuid  -- team id that created the invitation

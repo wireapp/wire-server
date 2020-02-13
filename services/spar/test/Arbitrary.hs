@@ -1,23 +1,21 @@
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Arbitrary where
 
-import Imports
-import Data.Proxy
-import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson
 import Data.Id ()
+import Data.Proxy
 import Data.String.Conversions (cs)
+import "swagger2" Data.Swagger hiding (Header (..))
+import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
-import Spar.Types
 import Spar.Scim
+import Spar.Types
 import Test.QuickCheck
-
 
 instance Arbitrary IdPList where
   arbitrary = do
@@ -27,7 +25,8 @@ instance Arbitrary IdPList where
 deriving instance Arbitrary ScimToken
 
 instance Arbitrary ScimTokenInfo where
-  arbitrary = ScimTokenInfo
+  arbitrary =
+    ScimTokenInfo
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary

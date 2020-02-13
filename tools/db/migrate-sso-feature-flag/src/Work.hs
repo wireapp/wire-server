@@ -1,40 +1,40 @@
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
 
 module Work where
-
-import Imports
 
 import Brig.Types hiding (Client)
 import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
+import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Misc
-import Galley.Types.Teams.SSO
 import Galley.Data.Instances ()
+import Galley.Types.Teams.SSO
+import Imports
 import System.Logger (Logger)
-import UnliftIO.Async (pooledMapConcurrentlyN)
-
-import qualified Data.Conduit.List as C
 import qualified System.Logger as Log
+import UnliftIO.Async (pooledMapConcurrentlyN)
 
 deriving instance Cql Name
 
 runCommand :: Logger -> ClientState -> ClientState -> IO ()
 runCommand l spar galley = do
-    runConduit
-        $ zipSources (C.sourceList [(1::Int32) ..])
-                     (transPipe (runClient spar) getSsoTeams)
-       .| C.mapM (\(i, tids) -> do
-                     Log.info l (Log.field "number of idps processed: " (show (i * pageSize)))
-                     pure (runIdentity <$> tids))
-       .| C.mapM_ (\tids -> runClient galley (writeSsoFlags tids))
+  runConduit $
+    zipSources
+      (C.sourceList [(1 :: Int32) ..])
+      (transPipe (runClient spar) getSsoTeams)
+      .| C.mapM
+        ( \(i, tids) -> do
+            Log.info l (Log.field "number of idps processed: " (show (i * pageSize)))
+            pure (runIdentity <$> tids)
+        )
+      .| C.mapM_ (\tids -> runClient galley (writeSsoFlags tids))
 
 pageSize :: Int32
 pageSize = 1000
@@ -49,8 +49,7 @@ writeSsoFlags :: [TeamId] -> Client ()
 writeSsoFlags = mapM_ (`setSSOTeamConfig` (SSOTeamConfig SSOEnabled))
   where
     setSSOTeamConfig :: MonadClient m => TeamId -> SSOTeamConfig -> m ()
-    setSSOTeamConfig tid SSOTeamConfig{ssoTeamConfigStatus} = do
-        retry x5 $ write updateSSOTeamConfig (params Quorum (ssoTeamConfigStatus, tid))
-
+    setSSOTeamConfig tid SSOTeamConfig {ssoTeamConfigStatus} = do
+      retry x5 $ write updateSSOTeamConfig (params Quorum (ssoTeamConfigStatus, tid))
     updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
     updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ?"

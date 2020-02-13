@@ -1,32 +1,34 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Brig.Budget
-    ( Budget (..)
-    , BudgetKey (..)
-    , Budgeted (..)
-    , withBudget
-    , checkBudget
-    , lookupBudget
-    , insertBudget
-    ) where
+  ( Budget (..),
+    BudgetKey (..),
+    Budgeted (..),
+    withBudget,
+    checkBudget,
+    lookupBudget,
+    insertBudget,
+  )
+where
 
-import Imports
 import Cassandra
 import Data.Time.Clock
+import Imports
 
-data Budget = Budget
-    { budgetTimeout :: !NominalDiffTime
-    , budgetValue   :: !Int32
-    }
+data Budget
+  = Budget
+      { budgetTimeout :: !NominalDiffTime,
+        budgetValue :: !Int32
+      }
   deriving (Eq, Show, Generic)
 
 data Budgeted a
-    = BudgetExhausted NominalDiffTime
-    | BudgetedValue a Int32
+  = BudgetExhausted NominalDiffTime
+  | BudgetedValue a Int32
   deriving (Eq, Show, Generic)
 
 newtype BudgetKey = BudgetKey Text
-    deriving (Eq, Show, Cql)
+  deriving (Eq, Show, Cql)
 
 -- | @withBudget (BudgetKey "k") (Budget 30 5) action@ runs @action@ at most 5 times every 30
 -- seconds.  @"k"@ is used for keeping different calls to 'withBudget' apart; use something
@@ -42,23 +44,24 @@ newtype BudgetKey = BudgetKey Text
 -- to improve this.
 withBudget :: MonadClient m => BudgetKey -> Budget -> m a -> m (Budgeted a)
 withBudget k b ma = do
-    Budget ttl val <- fromMaybe b <$> lookupBudget k
-    let remaining = val - 1
-    if remaining < 0
-        then return (BudgetExhausted ttl)
-        else do
-            a <- ma
-            insertBudget k (Budget ttl remaining)
-            return (BudgetedValue a remaining)
+  Budget ttl val <- fromMaybe b <$> lookupBudget k
+  let remaining = val - 1
+  if remaining < 0
+    then return (BudgetExhausted ttl)
+    else do
+      a <- ma
+      insertBudget k (Budget ttl remaining)
+      return (BudgetedValue a remaining)
 
 -- | Like 'withBudget', but does not decrease budget, only takes a look.
 checkBudget :: MonadClient m => BudgetKey -> Budget -> m (Budgeted ())
 checkBudget k b = do
-    Budget ttl val <- fromMaybe b <$> lookupBudget k
-    let remaining = val - 1
-    return $ if remaining < 0
-        then BudgetExhausted ttl
-        else BudgetedValue () remaining
+  Budget ttl val <- fromMaybe b <$> lookupBudget k
+  let remaining = val - 1
+  return $
+    if remaining < 0
+      then BudgetExhausted ttl
+      else BudgetedValue () remaining
 
 lookupBudget :: MonadClient m => BudgetKey -> m (Maybe Budget)
 lookupBudget k = fmap mk <$> query1 budgetSelect (params One (Identity k))
@@ -67,7 +70,7 @@ lookupBudget k = fmap mk <$> query1 budgetSelect (params One (Identity k))
 
 insertBudget :: MonadClient m => BudgetKey -> Budget -> m ()
 insertBudget k (Budget ttl val) =
-    retry x5 $ write budgetInsert (params One (k, val, round ttl))
+  retry x5 $ write budgetInsert (params One (k, val, round ttl))
 
 -------------------------------------------------------------------------------
 -- Queries

@@ -1,40 +1,40 @@
 module Brig.API.Handler
-    ( -- * Handler Monad
-      Handler
-    , runHandler
+  ( -- * Handler Monad
+    Handler,
+    runHandler,
 
-      -- * Utilities
-    , JSON
-    , parseJsonBody
-    , checkWhitelist
-    ) where
+    -- * Utilities
+    JSON,
+    parseJsonBody,
+    checkWhitelist,
+  )
+where
 
-import Imports
 import Bilge (RequestId (..))
-import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
-import Brig.Options (setWhitelist)
 import Brig.API.Error
+import qualified Brig.AWS as AWS
+import Brig.App (AppIO, Env, applog, requestId, runAppT, settings)
 import Brig.Email (Email)
+import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
+import qualified Brig.Whitelist as Whitelist
 import Control.Error
 import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
+import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON)
 import Data.Default (def)
-import Network.Wai.Predicate (Media)
+import qualified Data.ZAuth.Validation as ZV
+import Imports
 import Network.Wai (Request, ResponseReceived)
+import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
+import qualified Network.Wai.Utilities.Error as WaiError
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
-import Network.Wai.Utilities.Response (setStatus, json, addHeader)
-import System.Logger.Class (Logger)
-
-import qualified Brig.AWS                     as AWS
-import qualified Brig.Whitelist               as Whitelist
-import qualified Control.Monad.Catch          as Catch
-import qualified Network.Wai.Utilities.Error  as WaiError
+import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
-import qualified Data.ZAuth.Validation        as ZV
+import System.Logger.Class (Logger)
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -43,32 +43,33 @@ type Handler = ExceptT Error AppIO
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
-    let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-    a <- runAppT e' (runExceptT h) `catches` errors
-    either (onError (view applog e') r k) return a
+  let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
+  a <- runAppT e' (runExceptT h) `catches` errors
+  either (onError (view applog e') r k) return a
   where
     errors =
-        [ Catch.Handler $ \(ex :: PhoneException) ->
-            pure (Left (phoneError ex))
-        , Catch.Handler $ \(ex :: ZV.Failure) ->
-            pure (Left (zauthError ex))
-        , Catch.Handler $ \(ex :: AWS.Error) ->
-            case ex of
-                AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-                _                    -> throwM ex
-        ]
+      [ Catch.Handler $ \(ex :: PhoneException) ->
+          pure (Left (phoneError ex)),
+        Catch.Handler $ \(ex :: ZV.Failure) ->
+          pure (Left (zauthError ex)),
+        Catch.Handler $ \(ex :: AWS.Error) ->
+          case ex of
+            AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
+            _ -> throwM ex
+      ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
 onError g r k e = do
-    Server.logError g (Just r) we
-    Server.flushRequestBody r
-    k $ setStatus (WaiError.code we)
+  Server.logError g (Just r) we
+  Server.flushRequestBody r
+  k
+    $ setStatus (WaiError.code we)
       . appEndo (foldMap (Endo . uncurry addHeader) hs)
-      $ json e
+    $ json e
   where
     (we, hs) = case e of
-        StdError  x     -> (x, [])
-        RichError x _ h -> (x, h)
+      StdError x -> (x, [])
+      RichError x _ h -> (x, h)
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -85,9 +86,9 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> Handler ()
 checkWhitelist key = do
-    eb <- setWhitelist <$> view settings
-    case eb of
-        Nothing -> return ()
-        Just  b -> do
-            ok <- lift $ Whitelist.verify b key
-            unless ok (throwStd whitelistError)
+  eb <- setWhitelist <$> view settings
+  case eb of
+    Nothing -> return ()
+    Just b -> do
+      ok <- lift $ Whitelist.verify b key
+      unless ok (throwStd whitelistError)
