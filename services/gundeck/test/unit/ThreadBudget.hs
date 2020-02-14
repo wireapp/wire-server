@@ -134,29 +134,33 @@ tests =
 
 testThreadBudgets :: Assertion
 testThreadBudgets = do
+  let timeUnits n = MilliSeconds $ lengthOfTimeUnit * n
+      lengthOfTimeUnit = 5 -- if you make this larger, the test will run more slowly, and be
+        -- less likely to have timing issues.  if you make it too small, some of the calls to
+        -- 'delayms' may return too fast and some things may not be ready yet.
   tbs <- mkThreadBudgetState (MaxConcurrentNativePushes (Just 5) (Just 5))
   logHistory :: LogHistory <- newMVar []
   watcher <- mkWatcher tbs logHistory
   flip runReaderT logHistory $ do
-    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 5)
-    delayms (MilliSeconds 10)
+    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 5)
+    delayms (timeUnits 20)
     expectLogHistory null
     liftIO $ budgetSpent tbs >>= (@=? 5)
-    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
-    delayms (MilliSeconds 10)
+    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
+    delayms (timeUnits 20)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
     liftIO $ budgetSpent tbs >>= (@=? 5)
-    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
-    delayms (MilliSeconds 10)
+    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
+    delayms (timeUnits 20)
     expectLogHistory (== [NoBudget, NoBudget, NoBudget])
     liftIO $ budgetSpent tbs >>= (@=? 5)
-    delayms (MilliSeconds 80)
-    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
-    delayms (MilliSeconds 10)
+    delayms (timeUnits 50)
+    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
+    delayms (timeUnits 20)
     expectLogHistory null
     liftIO $ budgetSpent tbs >>= (@=? 3)
-    burstActions tbs logHistory (MilliSeconds 100) (NumberOfThreads 3)
-    delayms (MilliSeconds 10)
+    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
+    delayms (timeUnits 20)
     expectLogHistory (== [NoBudget])
     liftIO $ budgetSpent tbs >>= (@=? 5)
   cancel watcher
