@@ -33,6 +33,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import Data.Either.Combinators (leftToMaybe, rightToMaybe)
 import Data.Id
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
@@ -53,7 +54,8 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   post "/access" (continue renewH) $
-    accept "application" "json" .&. tokenRequest
+    accept "application" "json"
+      .&. tokenRequest
   document "POST" "newAccessToken" $ do
     Doc.summary "Obtain an access tokens for a cookie."
     Doc.notes
@@ -260,13 +262,18 @@ renew ::
   Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
-renew (Just (Left ut)) (Just (Left at)) = Left <$> Auth.renewAccess ut (Just at) !>> zauthError
-renew (Just (Left ut)) Nothing = Left <$> Auth.renewAccess @ZAuth.User @ZAuth.Access ut Nothing !>> zauthError
-renew (Just (Right lut)) (Just (Right lat)) = Right <$> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut (Just lat) !>> zauthError
-renew (Just (Right lut)) Nothing = Right <$> Auth.renewAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess lut Nothing !>> zauthError
-renew (Just (Left _)) (Just (Right _)) = throwStd authTokenMismatch
-renew (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
-renew Nothing _ = throwStd authMissingCookie
+renew = \case
+  Nothing -> const $ throwStd authMissingCookie
+  (Just (Right ut)) -> fmap Right . renewAccess ut <=< matchingOrNone rightToMaybe
+  (Just (Left ut)) -> fmap Left . renewAccess ut <=< matchingOrNone leftToMaybe
+  where
+    renewAccess ut mat =
+      Auth.renewAccess ut mat !>> zauthError
+    matchingOrNone :: (a -> Maybe b) -> Maybe a -> Handler (Maybe b)
+    matchingOrNone matching = traverse $ \accessToken ->
+      case matching accessToken of
+        Just m -> pure m
+        Nothing -> throwStd authTokenMismatch
 
 -- Utilities
 --
