@@ -1,13 +1,55 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 stack exec -- which ormolu >/dev/null || ( echo "please run stack install ormolu."; exit 1 )
 
-if [ "`git status -s src/ test/ | grep -v \?\?`" != "" ]; then
+ARG_ALLOW_DIRTY_WC="0"
+ARG_ORMOLU_MODE="inplace"
+
+USAGE="
+This bash script can either (a) apply ormolu formatting in-place to
+all haskell modules in your working copy, or (b) check all modules for
+formatting and fail if ormolu needs to be applied.
+
+(a) is mostly for migrating from manually-formatted projects to
+ormolu-formatted ones; (b) can be run in by a continuous integration
+service to make sure no branches with non-ormolu formatting make get
+merged.
+
+For every-day dev work, consider using one of the ormolu editor
+integrations (see https://github.com/tweag/ormolu#editor-integration).
+
+USAGE: $0
+    -h: show this help.
+    -f: run even if working copy is dirty.  default: ${ARG_ALLOW_DIRTY_WC}
+    -c: set ormolu mode to 'check'.  default: 'inplace'
+
+"
+
+# Option parsing:
+# https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
+while getopts ":fch" opt; do
+  case ${opt} in
+    f ) ARG_ALLOW_DIRTY_WC="1"
+      ;;
+    c ) ARG_ORMOLU_MODE="check"
+      ;;
+    h ) echo "$USAGE" 1>&2
+         exit 0
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+
+if [ "$#" -ne 0 ]; then
+  echo "$USAGE" 1>&2
+  exit 1
+fi
+
+if [ "$(git status -s | grep -v \?\?)" != "" ]; then
     echo "working copy not clean."
-    if [ "$1" == "-f" ]; then
+    if [ "$ARG_ALLOW_DIRTY_WC" == "1" ]; then
         echo "running with -f.  this will mix ormolu and other changes."
     else
         echo "run with -f if you want to force mixing ormolu and other changes."
@@ -15,23 +57,26 @@ if [ "`git status -s src/ test/ | grep -v \?\?`" != "" ]; then
     fi
 fi
 
-export LANGUAGE_EXTS=$(perl -ne '$x=1 if /default-extensions:/?1:(/^[^-]/?0:$x); print "--ghc-opt -X$1 " if ($x && /^- (.+)/);' package-defaults.yaml)
+LANGUAGE_EXTS=$(perl -ne '$x=1 if /default-extensions:/?1:(/^[^-]/?0:$x); print "--ghc-opt -X$1 " if ($x && /^- (.+)/);' package-defaults.yaml)
+echo "ormolu mode: $ARG_ORMOLU_MODE"
 
-for i in `git ls-files | grep '\.hs$'`; do
-    echo -n $i
-    if grep -q '{-#\s*LANGUAGE CPP\s*#-}' $i; then
+FAILURES=0
+
+for hsfile in $(git ls-files | grep '\.hs$'); do
+    echo -n "$hsfile"
+    if grep -q '{-#\s*LANGUAGE CPP\s*#-}' "$hsfile"; then
         echo "  *** ignored: -XCPP"
     else
         echo
-        stack exec -- ormolu --mode inplace --check-idempotency ${LANGUAGE_EXTS} $i || echo -e "*** ormolu failed on $i\n"
+        stack exec -- ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || ((FAILURES++))
     fi
 done
 
+if [ "$FAILURES" != 0 ]; then
+    echo "ormolu failed on $FAILURES files."
+    exit 1
+fi
 
 
-
-# TODO: use getopts and avoid dirty-working-copy test if not needed.
-
-# TODO: have test param that makes the script pass if idempotency is reached, and fail if ormolu made changes.  (--mode check?)
 
 # TODO: isolate or remove CPP flag; consider going for the module name matching /CPP$/ and enforcing this as a convention.
