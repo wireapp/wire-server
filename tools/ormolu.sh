@@ -62,21 +62,12 @@ echo "ormolu mode: $ARG_ORMOLU_MODE"
 
 FAILURES=0
 
-for hsfile in $(git ls-files | grep '\.hs$'); do
-    echo -n "$hsfile"
-    if grep -q '{-#\s*LANGUAGE CPP\s*#-}' "$hsfile"; then
-        echo "  *** ignored: -XCPP"
-    else
-        echo
-        stack exec -- ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || ((FAILURES++))
-    fi
+for hsfile in $(git ls-files | grep '\.hs$' | grep -v 'CPP\.hs'); do
+    echo "$hsfile"
+    stack exec -- ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || ((FAILURES++))
 done
 
 if [ "$FAILURES" != 0 ]; then
     echo "ormolu failed on $FAILURES files."
     exit 1
 fi
-
-
-
-# TODO: isolate or remove CPP flag; consider going for the module name matching /CPP$/ and enforcing this as a convention.
