@@ -351,7 +351,7 @@ verdictHandlerWeb = pure . \case
                           "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
                           "   </script>" <>
                           "</head>"
-      , errHeaders      = []
+      , errHeaders      = [("Content-Type", "text/html")]
       }
       where
         errval = object [ "type" .= ("AUTH_ERROR" :: ST)
