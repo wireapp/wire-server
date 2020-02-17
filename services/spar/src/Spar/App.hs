@@ -1,73 +1,76 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
 module Spar.App
-  ( Spar (..),
-    Env (..),
-    toLevel,
-    wrapMonadClientWithEnv,
-    wrapMonadClient,
-    verdictHandler,
-    getUser,
-    insertUser,
-    autoprovisionSamlUser,
-    autoprovisionSamlUserWithId,
-  )
-where
+  ( Spar(..)
+  , Env(..)
+  , toLevel
+  , wrapMonadClientWithEnv
+  , wrapMonadClient
+  , verdictHandler
+  , getUser
+  , insertUser
+  , autoprovisionSamlUser
+  , autoprovisionSamlUserWithId
+  , errorPage
+  ) where
 
+import Imports hiding (log)
 import Bilge
-import Brig.Types (ManagedBy (..), Name)
+import Brig.Types (Name, ManagedBy(..))
 import Cassandra
-import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
-import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
-import Data.Aeson as Aeson ((.=), encode, object)
-import qualified Data.ByteString.Builder as Builder
+import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Id
 import Data.String.Conversions
-import qualified Data.UUID.V4 as UUID
-import Imports hiding (log)
-import qualified Network.Wai.Utilities.Error as Wai
 import SAML2.Util (renderURI)
-import SAML2.WebSSO hiding (UserRef (..))
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO hiding (UserRef(..))
 import Servant
-import Servant.Server (errBody, errReasonPhrase)
-import Spar.API.Swagger ()
-import qualified Spar.Data as Data
-import Spar.Error
-import qualified Spar.Intra.Brig as Intra
-import qualified Spar.Intra.Galley as Intra
+import Servant.Server (errReasonPhrase, errBody)
 import Spar.Orphans ()
+import Spar.API.Swagger ()
+import Spar.Error
 import Spar.Types
-import qualified System.Logger as Log
-import System.Logger.Class (MonadLogger (log))
+import System.Logger.Class (MonadLogger(log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 
-newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
+import qualified Cassandra as Cas
+import qualified Control.Monad.Catch as Catch
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.UUID.V4 as UUID
+import qualified Network.HTTP.Types.Status as Http
+import qualified Network.Wai.Utilities.Error as Wai
+import qualified SAML2.WebSSO as SAML
+import qualified Servant.Multipart as Multipart
+import qualified Spar.Data as Data
+import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Galley as Intra
+import qualified System.Logger as Log
+
+
+newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
 
-data Env
-  = Env
-      { sparCtxOpts :: Opts,
-        sparCtxLogger :: Log.Logger,
-        sparCtxCas :: Cas.ClientState,
-        sparCtxHttpManager :: Bilge.Manager,
-        sparCtxHttpBrig :: Bilge.Request,
-        sparCtxHttpGalley :: Bilge.Request,
-        sparCtxRequestId :: RequestId
-      }
+data Env = Env
+  { sparCtxOpts         :: Opts
+  , sparCtxLogger       :: Log.Logger
+  , sparCtxCas          :: Cas.ClientState
+  , sparCtxHttpManager  :: Bilge.Manager
+  , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxHttpGalley   :: Bilge.Request
+  , sparCtxRequestId    :: RequestId
+  }
 
 instance HasConfig Spar where
   getConfig = asks (saml . sparCtxOpts)
 
-instance HasNow Spar
-
-instance HasCreateUUID Spar
-
+instance HasNow Spar where
+instance HasCreateUUID Spar where
 instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
   logger lv = log (toLevel lv) . Log.msg
@@ -83,20 +86,20 @@ toLevel :: SAML.Level -> Log.Level
 toLevel = \case
   SAML.Fatal -> Log.Fatal
   SAML.Error -> Log.Error
-  SAML.Warn -> Log.Warn
-  SAML.Info -> Log.Info
+  SAML.Warn  -> Log.Warn
+  SAML.Info  -> Log.Info
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
 instance SPStoreID AuthnRequest Spar where
   storeID i r = wrapMonadClientWithEnv $ Data.storeAReqID i r
-  unStoreID r = wrapMonadClient $ Data.unStoreAReqID r
-  isAliveID r = wrapMonadClient $ Data.isAliveAReqID r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAReqID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAReqID r
 
 instance SPStoreID Assertion Spar where
   storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
-  unStoreID r = wrapMonadClient $ Data.unStoreAssID r
-  isAliveID r = wrapMonadClient $ Data.isAliveAssID r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAssID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAssID r
 
 instance SPStoreIdP SparError Spar where
   type IdPConfigExtra Spar = TeamId
@@ -123,8 +126,8 @@ wrapMonadClient :: Cas.Client a -> Spar a
 wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
-    runClient ctx action
-      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
+    runClient ctx action `Catch.catch`
+      (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
@@ -189,10 +192,9 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy
-    else
-      throwError . SAML.Forbidden $
-        "bad credentials (note that your team uses SCIM, "
-          <> "which disables saml auto-provisioning)"
+    else throwError . SAML.Forbidden $
+            "bad credentials (note that your team uses SCIM, " <>
+            "which disables saml auto-provisioning)"
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
@@ -200,28 +202,29 @@ bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
   uteamid <- Intra.getBrigUserTeam buid
-  unless
-    (uteamid == Just teamid)
+  unless (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
   Intra.bindBrigUser buid userref >>= \case
-    True -> pure buid
+    True  -> pure buid
     False -> do
       SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
       throwSpar SparBindUserDisappearedFromBrig
+
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
   nt :: forall a. Env -> Spar a -> Handler a
   nt ctx (Spar action) = do
-    err <- actionHandler
-    throwErrorAsHandlerException err
+      err <- actionHandler
+      throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
       actionHandler = liftIO $ runExceptT $ runReaderT action ctx
+
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
-        sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
+          sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
 instance MonadHttp Spar where
@@ -238,6 +241,7 @@ instance Intra.MonadSparToGalley Spar where
   call modreq = do
     req <- asks sparCtxHttpGalley
     httpLbs req modreq
+
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we
@@ -256,19 +260,18 @@ verdictHandler cky aresp verdict = do
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
-    Just (VerdictFormatWeb) ->
-      verdictHandlerResult cky verdict >>= verdictHandlerWeb
-    Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
+    Just (VerdictFormatWeb)
+      -> verdictHandlerResult cky verdict >>= verdictHandlerWeb
+    Just (VerdictFormatMobile granted denied)
+      -> verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
     Nothing -> throwSpar SparNoSuchRequest
-
--- (this shouldn't happen too often, see 'storeVerdictFormat')
+               -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerGranted {_vhrCookie :: SetCookie, _vhrUserId :: UserId}
-  | VerifyHandlerDenied {_vhrReasons :: [SAML.DeniedReason]}
-  | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
-  deriving (Eq, Show)
+  = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
+  | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
+  | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
+    deriving (Eq, Show)
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult bindCky verdict = do
@@ -291,34 +294,37 @@ verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdi
 verdictHandlerResultCore bindCky = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
+
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCass <- getUser userref
-      -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
-      -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
-      -- idempotent.
+      viaSparCass   <- getUser userref
+        -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
+        -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
+        -- idempotent.
 
       case (viaBindCookie, viaSparCass) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        (Nothing,  Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
         -- SSO reauthentication
-        (Nothing, Just uid) -> pure uid
+        (Nothing,  Just uid)  -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
-        (Just uid, Nothing) -> bindUser uid userref
+        (Just uid, Nothing)   -> bindUser uid userref
         (Just uid, Just uid')
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
           -- Attempt to use ssoid for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
+
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
     mcky :: Maybe SetCookie <- Intra.ssoLogin uid
-    -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
+      -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
     case mcky of
       Just cky -> pure $ VerifyHandlerGranted cky uid
       Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
@@ -329,102 +335,109 @@ verdictHandlerResultCore bindCky = \case
 -- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
-  VerifyHandlerGranted cky _uid -> successPage cky
-  VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
-  VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
+    VerifyHandlerGranted cky _uid -> successPage cky
+    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
-    forbiddenPage errlbl reasons =
-      ServerError
-        { errHTTPCode = 200,
-          errReasonPhrase = cs errlbl, -- (not sure what this is used for)
-          errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:error:"
-                <> cs errlbl
-                <> "</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage("
-                <> Aeson.encode errval
-                <> ", receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
-          errHeaders = []
-        }
+    forbiddenPage errlbl reasons = ServerError
+      { errHTTPCode     = 200
+      , errReasonPhrase = cs errlbl  -- (not sure what this is used for)
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:error:" <> cs errlbl <> "</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
+      , errHeaders      = [("Content-Type", "text/html")]
+      }
       where
-        errval =
-          object
-            [ "type" .= ("AUTH_ERROR" :: ST),
-              "payload"
-                .= object
-                  [ "label" .= ("forbidden" :: ST),
-                    "errors" .= reasons
-                  ]
-            ]
+        errval = object [ "type" .= ("AUTH_ERROR" :: ST)
+                        , "payload" .= object [ "label" .= ("forbidden" :: ST)
+                                              , "errors" .= reasons
+                                              ]
+                        ]
+
     successPage :: SetCookie -> SAML.ResponseVerdict
-    successPage cky =
-      ServerError
-        { errHTTPCode = 200,
-          errReasonPhrase = "success",
-          errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:success</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
-          errHeaders = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
-        }
+    successPage cky = ServerError
+      { errHTTPCode     = 200
+      , errReasonPhrase = "success"
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:success</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
+      , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+      }
 
 easyHtml :: LBS -> LBS
 easyHtml doc =
-  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-    <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-    <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-    <> doc
-    <> "</html>"
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
+  "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
+  "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
 
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
 -- substituted and the client is redirected accordingly.
 verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerMobile granted denied = \case
-  VerifyHandlerGranted cky uid ->
-    mkVerdictGrantedFormatMobile granted cky uid
-      & either
-        (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
-        (pure . successPage cky)
-  VerifyHandlerDenied reasons ->
-    mkVerdictDeniedFormatMobile denied "forbidden"
-      & either
-        (throwSpar . SparCouldNotSubstituteFailureURI . cs)
-        (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
-  VerifyHandlerError lbl msg ->
-    mkVerdictDeniedFormatMobile denied lbl
-      & either
-        (throwSpar . SparCouldNotSubstituteFailureURI . cs)
-        (pure . forbiddenPage lbl [msg])
+    VerifyHandlerGranted cky uid
+      -> mkVerdictGrantedFormatMobile granted cky uid &
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
+                (pure . successPage cky)
+    VerifyHandlerDenied reasons
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
+    VerifyHandlerError lbl msg
+      -> mkVerdictDeniedFormatMobile denied lbl &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage lbl [msg])
   where
     forbiddenPage :: ST -> [ST] -> URI.URI -> SAML.ResponseVerdict
-    forbiddenPage errlbl errs uri =
-      err303
-        { errReasonPhrase = cs errlbl,
-          errHeaders =
-            [ ("Location", cs $ renderURI uri),
-              ("Content-Type", "application/json")
-            ],
-          errBody = Aeson.encode errs
-        }
+    forbiddenPage errlbl errs uri = err303
+      { errReasonPhrase = cs errlbl
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Content-Type", "application/json")
+                     ]
+      , errBody = Aeson.encode errs
+      }
+
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
-    successPage cky uri =
-      err303
-        { errReasonPhrase = "success",
-          errHeaders =
-            [ ("Location", cs $ renderURI uri),
-              ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
-            ]
-        }
+    successPage cky uri = err303
+      { errReasonPhrase = "success"
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+                     ]
+      }
+
+
+-- | When getting stuck during login finalization, show a nice HTML error rather than the json
+-- blob.  Show lots of debugging info for the customer to paste in any issue they might open.
+errorPage :: SparError -> [Multipart.Input] -> Maybe Text -> ServerError
+errorPage err inputs mcky = ServerError
+  { errHTTPCode     = Http.statusCode $ Wai.code werr
+  , errReasonPhrase = cs $ Wai.label werr
+  , errBody         = easyHtml $ LBS.intercalate "\n" errbody
+  , errHeaders      = [("Content-Type", "text/html")]
+  }
+  where
+    werr = either forceWai id $ renderSparError err
+    forceWai ServerError{..} = Wai.Error (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
+
+    errbody :: [LByteString]
+    errbody =
+      [ "<head>"
+      , "  <title>wire:sso:error:" <> cs (Wai.label werr) <> "</title>"
+      , "</head>"
+      , "</body>"
+      , "  sorry, something went wrong :(<br>"
+      , "  please copy this page to your clipboard and provide it when opening an issue in our customer support.<br><br>"
+      , "  <pre>" <> cs (show (err, inputs, mcky)) <> "</pre>"
+      , "</body>"
+      ]
