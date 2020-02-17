@@ -33,6 +33,11 @@ haddock:
 haddock-shallow:
 	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
 
+# formats all Haskell files (which don't contain CPP)
+.PHONY: format
+format:
+	./tools/ormolu.sh
+
 # Clean
 .PHONY: clean
 clean:

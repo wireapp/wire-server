@@ -2,7 +2,7 @@
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-stack exec -- which ormolu >/dev/null || ( echo "please run stack install ormolu."; exit 1 )
+which ormolu >/dev/null || ( echo "please run 'stack install ormolu' and ensure ormolu is on your PATH."; exit 1 )
 
 ARG_ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
