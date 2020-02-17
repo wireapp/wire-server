@@ -1,12 +1,14 @@
 module V25 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 25 "Add conversation_codes table" $
-    schema' [r|
+migration =
+  Migration 25 "Add conversation_codes table" $
+    schema'
+      [r|
         CREATE TABLE conversation_codes (
             key           ascii, -- opaque conversation ID
             conversation  uuid,

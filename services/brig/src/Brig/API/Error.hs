@@ -1,27 +1,25 @@
 module Brig.API.Error where
 
-import Imports
-import Control.Monad.Error.Class hiding (Error)
-import Data.Aeson
-import Data.ByteString.Conversion
-import Network.HTTP.Types.Header
-import Network.HTTP.Types.Status
-
 import Brig.API.Types
 import Brig.Phone (PhoneException (..))
 import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
-
-import qualified Data.HashMap.Strict         as HashMap
-import qualified Data.ZAuth.Validation       as ZAuth
+import Control.Monad.Error.Class hiding (Error)
+import Data.Aeson
+import Data.ByteString.Conversion
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.ZAuth.Validation as ZAuth
+import Imports
+import Network.HTTP.Types.Header
+import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 
 data Error where
-    StdError  :: !Wai.Error -> Error
-    RichError :: ToJSON a => !Wai.Error -> !a -> [Header] -> Error
+  StdError :: !Wai.Error -> Error
+  RichError :: ToJSON a => !Wai.Error -> !a -> [Header] -> Error
 
 waiError :: Error -> Wai.Error
-waiError (StdError  e    ) = e
+waiError (StdError e) = e
 waiError (RichError e _ _) = e
 
 throwStd :: MonadError Error m => Wai.Error -> m a
@@ -31,144 +29,153 @@ throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
 throwRich e x h = throwError (RichError e x h)
 
 instance ToJSON Error where
-    toJSON (StdError  e    ) = toJSON e
-    toJSON (RichError e x _) = case (toJSON e, toJSON x) of
-        (Object o1, Object o2) -> Object (HashMap.union o1 o2)
-        (        j,         _) -> j
+  toJSON (StdError e) = toJSON e
+  toJSON (RichError e x _) = case (toJSON e, toJSON x) of
+    (Object o1, Object o2) -> Object (HashMap.union o1 o2)
+    (j, _) -> j
 
 -- Error Mapping ----------------------------------------------------------
 
 connError :: ConnectionError -> Error
-connError TooManyConnections{}          = StdError connectionLimitReached
-connError InvalidTransition{}           = StdError invalidTransition
-connError NotConnected{}                = StdError notConnected
-connError InvalidUser{}                 = StdError invalidUser
-connError ConnectNoIdentity{}           = StdError noIdentity
+connError TooManyConnections {} = StdError connectionLimitReached
+connError InvalidTransition {} = StdError invalidTransition
+connError NotConnected {} = StdError notConnected
+connError InvalidUser {} = StdError invalidUser
+connError ConnectNoIdentity {} = StdError noIdentity
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
-connError (ConnectInvalidEmail _ _)     = StdError invalidEmail
-connError ConnectInvalidPhone{}         = StdError invalidPhone
-connError ConnectSameBindingTeamUsers   = StdError sameBindingTeamUsers
+connError (ConnectInvalidEmail _ _) = StdError invalidEmail
+connError ConnectInvalidPhone {} = StdError invalidPhone
+connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
 
 actError :: ActivationError -> Error
-actError (UserKeyExists          _)   = StdError userKeyExists
-actError (InvalidActivationCode  e)   = StdError (invalidActivationCode e)
+actError (UserKeyExists _) = StdError userKeyExists
+actError (InvalidActivationCode e) = StdError (invalidActivationCode e)
 actError (InvalidActivationEmail _ _) = StdError invalidEmail
-actError (InvalidActivationPhone _)   = StdError invalidPhone
+actError (InvalidActivationPhone _) = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
-pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
-pwResetError InvalidPasswordResetCode           = StdError invalidPwResetCode
-pwResetError (PasswordResetInProgress Nothing)  = StdError duplicatePwResetCode
-pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode ()
+pwResetError InvalidPasswordResetKey = StdError invalidPwResetKey
+pwResetError InvalidPasswordResetCode = StdError invalidPwResetCode
+pwResetError (PasswordResetInProgress Nothing) = StdError duplicatePwResetCode
+pwResetError (PasswordResetInProgress (Just t)) =
+  RichError
+    duplicatePwResetCode
+    ()
     [("Retry-After", toByteString' t)]
-pwResetError ResetPasswordMustDiffer            = StdError resetPasswordMustDiffer
+pwResetError ResetPasswordMustDiffer = StdError resetPasswordMustDiffer
 
 newUserError :: CreateUserError -> Error
-newUserError InvalidInvitationCode    = StdError invalidInvitationCode
-newUserError MissingIdentity          = StdError missingIdentity
-newUserError (InvalidEmail _ _)       = StdError invalidEmail
-newUserError (InvalidPhone _)         = StdError invalidPhone
-newUserError (DuplicateUserKey _)     = StdError userKeyExists
+newUserError InvalidInvitationCode = StdError invalidInvitationCode
+newUserError MissingIdentity = StdError missingIdentity
+newUserError (InvalidEmail _ _) = StdError invalidEmail
+newUserError (InvalidPhone _) = StdError invalidPhone
+newUserError (DuplicateUserKey _) = StdError userKeyExists
 newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
-newUserError (BlacklistedUserKey k)   = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
-newUserError TooManyTeamMembers       = StdError tooManyTeamMembers
+newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+newUserError TooManyTeamMembers = StdError tooManyTeamMembers
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError invalidPhone
-sendLoginCodeError SendLoginPasswordExists   = StdError passwordExists
+sendLoginCodeError SendLoginPasswordExists = StdError passwordExists
 
 sendActCodeError :: SendActivationCodeError -> Error
-sendActCodeError (InvalidRecipient k)             = StdError $ foldKey (const invalidEmail) (const invalidPhone) k
-sendActCodeError (UserKeyInUse     _)             = StdError userKeyExists
+sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const invalidEmail) (const invalidPhone) k
+sendActCodeError (UserKeyInUse _) = StdError userKeyExists
 sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 
 changeEmailError :: ChangeEmailError -> Error
-changeEmailError (InvalidNewEmail      _ _) = StdError invalidEmail
-changeEmailError (EmailExists            _) = StdError userKeyExists
+changeEmailError (InvalidNewEmail _ _) = StdError invalidEmail
+changeEmailError (EmailExists _) = StdError userKeyExists
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 
 changePhoneError :: ChangePhoneError -> Error
 changePhoneError (InvalidNewPhone _) = StdError invalidPhone
-changePhoneError (PhoneExists     _) = StdError userKeyExists
+changePhoneError (PhoneExists _) = StdError userKeyExists
 
 changePwError :: ChangePasswordError -> Error
-changePwError InvalidCurrentPassword   = StdError badCredentials
+changePwError InvalidCurrentPassword = StdError badCredentials
 changePwError ChangePasswordNoIdentity = StdError noIdentity
 changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
 
 changeHandleError :: ChangeHandleError -> Error
-changeHandleError ChangeHandleNoIdentity  = StdError noIdentity
-changeHandleError ChangeHandleExists      = StdError handleExists
-changeHandleError ChangeHandleInvalid     = StdError invalidHandle
+changeHandleError ChangeHandleNoIdentity = StdError noIdentity
+changeHandleError ChangeHandleExists = StdError handleExists
+changeHandleError ChangeHandleInvalid = StdError invalidHandle
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
-legalHoldLoginError LegalHoldLoginNoBindingTeam       = StdError noBindingTeam
+legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
-legalHoldLoginError (LegalHoldLoginError e)           = loginError e
-legalHoldLoginError (LegalHoldReAuthError e)          = reauthError e
+legalHoldLoginError (LegalHoldLoginError e) = loginError e
+legalHoldLoginError (LegalHoldReAuthError e) = reauthError e
 
 loginError :: LoginError -> Error
-loginError LoginFailed            = StdError badCredentials
-loginError LoginSuspended         = StdError accountSuspended
-loginError LoginEphemeral         = StdError accountEphemeral
+loginError LoginFailed = StdError badCredentials
+loginError LoginSuspended = StdError accountSuspended
+loginError LoginEphemeral = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
-loginError (LoginThrottled wait)  = RichError loginsTooFrequent ()
+loginError (LoginThrottled wait) =
+  RichError
+    loginsTooFrequent
+    ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
-loginError (LoginBlocked wait)    = RichError tooManyFailedLogins ()
+loginError (LoginBlocked wait) =
+  RichError
+    tooManyFailedLogins
+    ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
 
 authError :: AuthError -> Error
-authError AuthInvalidUser        = StdError badCredentials
+authError AuthInvalidUser = StdError badCredentials
 authError AuthInvalidCredentials = StdError badCredentials
-authError AuthSuspended          = StdError accountSuspended
-authError AuthEphemeral          = StdError accountEphemeral
+authError AuthSuspended = StdError accountSuspended
+authError AuthEphemeral = StdError accountEphemeral
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError missingAuthError
-reauthError (ReAuthError e)       = authError e
+reauthError (ReAuthError e) = authError e
 
 zauthError :: ZAuth.Failure -> Error
-zauthError ZAuth.Expired     = StdError authTokenExpired
-zauthError ZAuth.Falsified   = StdError authTokenInvalid
-zauthError ZAuth.Invalid     = StdError authTokenInvalid
+zauthError ZAuth.Expired = StdError authTokenExpired
+zauthError ZAuth.Falsified = StdError authTokenInvalid
+zauthError ZAuth.Invalid = StdError authTokenInvalid
 zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
-clientError ClientNotFound         = StdError clientNotFound
-clientError (ClientDataError e)    = clientDataError e
+clientError ClientNotFound = StdError clientNotFound
+clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
-idtError NoPassword   = StdError noPassword
-idtError NoIdentity   = StdError noIdentity
+idtError NoPassword = StdError noPassword
+idtError NoIdentity = StdError noIdentity
 
 propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
 clientDataError :: ClientDataError -> Error
-clientDataError TooManyClients        = StdError tooManyClients
+clientDataError TooManyClients = StdError tooManyClients
 clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth     = StdError missingAuthError
-clientDataError MalformedPrekeys      = StdError malformedPrekeys
+clientDataError ClientMissingAuth = StdError missingAuthError
+clientDataError MalformedPrekeys = StdError malformedPrekeys
 
 deleteUserError :: DeleteUserError -> Error
-deleteUserError DeleteUserInvalid         = StdError invalidUser
-deleteUserError DeleteUserInvalidCode     = StdError invalidCode
+deleteUserError DeleteUserInvalid = StdError invalidUser
+deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
 deleteUserError DeleteUserMissingPassword = StdError missingAuthError
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
-deleteUserError DeleteUserOnlyOwner       = StdError noOtherOwner
+deleteUserError DeleteUserOnlyOwner = StdError noOtherOwner
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 
 phoneError :: PhoneException -> Error
-phoneError PhoneNumberUnreachable   = StdError invalidPhone
-phoneError PhoneNumberBarred        = StdError blacklistedPhone
+phoneError PhoneNumberUnreachable = StdError invalidPhone
+phoneError PhoneNumberBarred = StdError blacklistedPhone
 phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
 
 -- WAI Errors -----------------------------------------------------------------
@@ -312,21 +319,33 @@ whitelistError :: Wai.Error
 whitelistError = Wai.Error status403 "unauthorized" "Unauthorized e-mail address or phone number."
 
 blacklistedEmail :: Wai.Error
-blacklistedEmail = Wai.Error status403 "blacklisted-email"
+blacklistedEmail =
+  Wai.Error
+    status403
+    "blacklisted-email"
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
 blacklistedPhone :: Wai.Error
-blacklistedPhone = Wai.Error status403 "blacklisted-phone"
+blacklistedPhone =
+  Wai.Error
+    status403
+    "blacklisted-phone"
     "The given phone number has been blacklisted due to suspected abuse \
     \or a complaint."
 
 passwordExists :: Wai.Error
-passwordExists = Wai.Error status403 "password-exists"
+passwordExists =
+  Wai.Error
+    status403
+    "password-exists"
     "The operation is not permitted because the user has a password set."
 
 phoneBudgetExhausted :: Wai.Error
-phoneBudgetExhausted = Wai.Error status403 "phone-budget-exhausted"
+phoneBudgetExhausted =
+  Wai.Error
+    status403
+    "phone-budget-exhausted"
     "The SMS or voice call budget for the given phone number has been \
     \exhausted. Please try again later. Repeated exhaustion of the SMS or \
     \voice call budget is considered abuse of the API and may result in \
@@ -380,8 +399,12 @@ sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
 
 noOtherOwner :: Wai.Error
-noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
-                                \ an owner. Promote another team member before proceeding."
+noOtherOwner =
+  Wai.Error
+    status403
+    "no-other-owner"
+    "You are trying to remove or downgrade\
+    \ an owner. Promote another team member before proceeding."
 
 tooManyTeamInvitations :: Wai.Error
 tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too many team invitations for this team."
@@ -408,16 +431,17 @@ invalidRange = Wai.Error status400 "client-error"
 --- Legalhold
 can'tDeleteLegalHoldClient :: Wai.Error
 can'tDeleteLegalHoldClient =
-    Wai.Error status400
-              "client-error"
-              "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
+  Wai.Error
+    status400
+    "client-error"
+    "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
 
 can'tAddLegalHoldClient :: Wai.Error
 can'tAddLegalHoldClient =
-    Wai.Error status400
-              "client-error"
-              "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
+  Wai.Error
+    status400
+    "client-error"
+    "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
 
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
-

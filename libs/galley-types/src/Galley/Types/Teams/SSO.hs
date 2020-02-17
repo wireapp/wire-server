@@ -1,37 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Galley.Types.Teams.SSO where
 
-import Imports
 import Data.Aeson
 import Data.Json.Util
-
 import qualified Data.Text as T
+import Imports
 
 data SSOStatus = SSODisabled | SSOEnabled
-   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
 instance ToJSON SSOStatus where
-    toJSON SSOEnabled  = "enabled"
-    toJSON SSODisabled = "disabled"
+  toJSON SSOEnabled = "enabled"
+  toJSON SSODisabled = "disabled"
 
 instance FromJSON SSOStatus where
-    parseJSON = withText "SSOStatus" $ \case
-      "enabled"  -> pure SSOEnabled
-      "disabled" -> pure SSODisabled
-      x -> fail $ "unexpected status type: " <> T.unpack x
+  parseJSON = withText "SSOStatus" $ \case
+    "enabled" -> pure SSOEnabled
+    "disabled" -> pure SSODisabled
+    x -> fail $ "unexpected status type: " <> T.unpack x
 
-data SSOTeamConfig = SSOTeamConfig
-    { ssoTeamConfigStatus :: !SSOStatus
-    }
+data SSOTeamConfig
+  = SSOTeamConfig
+      { ssoTeamConfigStatus :: !SSOStatus
+      }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON SSOTeamConfig where
-    toJSON s = object
-        $ "status" .= ssoTeamConfigStatus s
+  toJSON s =
+    object $
+      "status" .= ssoTeamConfigStatus s
         # []
 
 instance FromJSON SSOTeamConfig where
-    parseJSON = withObject "SSOTeamConfig" $ \o ->
-        SSOTeamConfig <$> o .: "status"
+  parseJSON = withObject "SSOTeamConfig" $ \o ->
+    SSOTeamConfig <$> o .: "status"

@@ -1,40 +1,42 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Galley.Types.Clients
-    ( Clients
-    , userIds
-    , clientIds
-    , toList
-    , fromList
-    , fromUserClients
-    , toMap
-    , fromMap
-    , singleton
-    , insert
-    , diff
-    , filter
-    , contains
-    , Galley.Types.Clients.null
-    , Galley.Types.Clients.nil
-    , rmClient
-    ) where
+  ( Clients,
+    userIds,
+    clientIds,
+    toList,
+    fromList,
+    fromUserClients,
+    toMap,
+    fromMap,
+    singleton,
+    insert,
+    diff,
+    filter,
+    contains,
+    Galley.Types.Clients.null,
+    Galley.Types.Clients.nil,
+    rmClient,
+  )
+where
 
-import Imports hiding (filter, toList)
 import Data.Id
-import Data.Range
-import Galley.Types (UserClients (..))
-
 import qualified Data.Map.Strict as Map
-import qualified Data.Set        as Set
+import Data.Range
+import qualified Data.Set as Set
+import Galley.Types (UserClients (..))
+import Imports hiding (filter, toList)
 
-newtype Clients = Clients
-    { clients :: UserClients
-    } deriving (Eq, Show, Semigroup, Monoid)
+newtype Clients
+  = Clients
+      { clients :: UserClients
+      }
+  deriving (Eq, Show, Semigroup, Monoid)
 
 instance Bounds Clients where
-    within c x y =
-        let n = Map.size ((userClients . clients) c) in
-        n >= fromIntegral x && n <= fromIntegral y
+  within c x y =
+    let n = Map.size ((userClients . clients) c)
+     in n >= fromIntegral x && n <= fromIntegral y
 
 null :: Clients -> Bool
 null = Map.null . (userClients . clients)
@@ -72,24 +74,28 @@ singleton u c =
   Clients . UserClients $ Map.singleton u (Set.fromList c)
 
 filter :: (UserId -> Bool) -> Clients -> Clients
-filter p = Clients . UserClients .
-  Map.filterWithKey (\u _ -> p u) . (userClients . clients)
+filter p =
+  Clients . UserClients
+    . Map.filterWithKey (\u _ -> p u)
+    . (userClients . clients)
 
 contains :: UserId -> ClientId -> Clients -> Bool
 contains u c =
   maybe False (Set.member c) . Map.lookup u . (userClients . clients)
 
 insert :: UserId -> ClientId -> Clients -> Clients
-insert u c = Clients . UserClients .
-  Map.insertWith Set.union u (Set.singleton c) . (userClients . clients)
+insert u c =
+  Clients . UserClients
+    . Map.insertWith Set.union u (Set.singleton c)
+    . (userClients . clients)
 
 diff :: Clients -> Clients -> Clients
 diff (Clients (UserClients ca)) (Clients (UserClients cb)) =
   Clients . UserClients $ Map.differenceWith fn ca cb
   where
     fn a b =
-        let d = a `Set.difference` b in
-        if Set.null d then Nothing else Just d
+      let d = a `Set.difference` b
+       in if Set.null d then Nothing else Just d
 
 rmClient :: UserId -> ClientId -> Clients -> Clients
 rmClient u c (Clients (UserClients m)) =

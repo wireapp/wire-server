@@ -1,15 +1,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedLists            #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE RecordWildCards            #-}
-
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Swagger instances for Spar types (as well as some types that are used in Spar but not
 -- defined in Spar).
-module Spar.API.Swagger () where
-
-import Imports
+module Spar.API.Swagger
+  (
+  )
+where
 
 import Control.Lens
 import Data.HashMap.Strict.InsOrd
@@ -17,31 +17,33 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
+import "swagger2" Data.Swagger hiding (Header (..))
+-- NB: this package depends on both types-common, swagger2, so there is no away around this name
+-- clash other than -XPackageImports.
+
+import qualified Data.Swagger.SchemaOptions as Swagger
 import Data.UUID (UUID)
+import qualified Data.X509 as X509
+import Imports
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.TH as SAML
 import Servant
+import qualified Servant.Multipart as SM
 import Servant.Swagger
 import Spar.Orphans ()
 import Spar.Types
-
-import "swagger2" Data.Swagger hiding (Header(..))
-  -- NB: this package depends on both types-common, swagger2, so there is no away around this name
-  -- clash other than -XPackageImports.
-
-import qualified Data.Swagger.SchemaOptions as Swagger
-import qualified Data.X509 as X509
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.TH as SAML
-import qualified Servant.Multipart as SM
 import qualified URI.ByteString as URI
-
 
 -- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
 
 instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
-  toSwagger _proxy = toSwagger (Proxy @route)
-    & info . description ?~ cs [QQ.i|
+  toSwagger _proxy =
+    toSwagger (Proxy @route)
+      & info . description
+        ?~ cs
+          [QQ.i|
 
 # Overview
 
@@ -105,7 +107,8 @@ instance ToSchema SAML.NameIDFormat where
 
 instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-  -- TODO: would be nice to add an example here, but that only works for json?
+
+-- TODO: would be nice to add an example here, but that only works for json?
 
 instance ToSchema a => ToSchema (SAML.IdPConfig a) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
@@ -114,14 +117,17 @@ instance ToSchema SAML.IdPMetadata where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema IdPMetadataInfo where
-  declareNamedSchema _ = pure $ NamedSchema (Just "IdPMetadataInfo") $ mempty
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "IdPMetadataInfo") $
+      mempty
         & properties .~ properties_
         & minProperties ?~ 1
         & maxProperties ?~ 1
         & type_ .~ Just SwaggerObject
-      where
-        properties_ :: InsOrdHashMap Text (Referenced Schema)
-        properties_ = fromList
+    where
+      properties_ :: InsOrdHashMap Text (Referenced Schema)
+      properties_ =
+        fromList
           [ ("value", Inline (toSchema (Proxy @String)))
           ]
 
@@ -162,8 +168,10 @@ instance ToSchema RawIdPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema SsoSettings where
-  declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions
-    { fieldLabelModifier = \case
-        "defaultSsoCode" -> "default_sso_code"
-        other -> other
-    }
+  declareNamedSchema =
+    genericDeclareNamedSchema
+      defaultSchemaOptions
+        { fieldLabelModifier = \case
+            "defaultSsoCode" -> "default_sso_code"
+            other -> other
+        }

@@ -1,32 +1,35 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+
 -- | Tinylog convenience things.
 module System.Logger.Extended
-    ( module Log
-    , LogFormat(..)
-    , mkLogger
-    , mkLogger'
-    , LoggerT(..)
-    , runWithLogger
-    , netStringsToLogFormat
-    ) where
+  ( module Log,
+    LogFormat (..),
+    mkLogger,
+    mkLogger',
+    LoggerT (..),
+    runWithLogger,
+    netStringsToLogFormat,
+  )
+where
 
 import Control.Monad.Catch
 import Data.Aeson
-import Data.Aeson.Encoding (pair, list, text)
+import Data.Aeson.Encoding (list, pair, text)
+import qualified Data.ByteString.Lazy.Builder as B
+import qualified Data.ByteString.Lazy.Char8 as L
+import Data.String.Conversions (cs)
 import Database.CQL.IO
 import GHC.Generics
 import Imports
 import System.Logger as Log
-import Data.String.Conversions (cs)
-import qualified Data.ByteString.Lazy.Builder as B
-import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.Logger.Class as LC
 
-
 deriving instance Generic LC.Level
+
 instance FromJSON LC.Level
+
 instance ToJSON LC.Level
 
 -- | The log formats supported
@@ -41,9 +44,9 @@ data Element' = Element' Series [Builder]
 
 elementToEncoding :: Element' -> Encoding
 elementToEncoding (Element' fields msgs) = pairs $ fields <> msgsToSeries msgs
-    where
-      msgsToSeries :: [Builder] -> Series
-      msgsToSeries  = pair "msgs" . list (text . cs . eval)
+  where
+    msgsToSeries :: [Builder] -> Series
+    msgsToSeries = pair "msgs" . list (text . cs . eval)
 
 collect :: [Element] -> Element'
 collect = foldr go (Element' mempty [])
@@ -55,7 +58,7 @@ collect = foldr go (Element' mempty [])
       Element' (f <> pair (cs . eval $ k) (text . cs . eval $ v)) m
 
 jsonRenderer :: Renderer
-jsonRenderer _sep _dateFormat _logLevel = fromEncoding  . elementToEncoding . collect
+jsonRenderer _sep _dateFormat _logLevel = fromEncoding . elementToEncoding . collect
 
 -- | Here for backwards-compatibility reasons
 netStringsToLogFormat :: Bool -> LogFormat
@@ -71,7 +74,7 @@ netStringsToLogFormat False = Plain
 --
 -- FUTUREWORK: Once we get rid of the useNetstrings in our config files, we can
 -- remove this function and rename 'mkLoggerNew' to 'mkLogger'
-mkLogger :: Log.Level -> Maybe (Last Bool) -> Maybe (Last LogFormat) -> IO  Log.Logger
+mkLogger :: Log.Level -> Maybe (Last Bool) -> Maybe (Last LogFormat) -> IO Log.Logger
 mkLogger lvl useNetstrings logFormat = do
   mkLoggerNew lvl $
     case (fmap netStringsToLogFormat <$> useNetstrings) <> logFormat of
@@ -80,7 +83,8 @@ mkLogger lvl useNetstrings logFormat = do
 
 -- | Version of mkLogger that doesn't support the deprecated useNetstrings option
 mkLoggerNew :: Log.Level -> LogFormat -> IO Log.Logger
-mkLoggerNew lvl logFormat = Log.new
+mkLoggerNew lvl logFormat =
+  Log.new
     . Log.setReadEnvironment False
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
@@ -93,16 +97,15 @@ mkLoggerNew lvl logFormat = Log.new
 --   * pick renderNetstr or renderDefault according to 2nd arg (iff isJust).
 --
 --   * use 'canonicalizeWhitespace'.
---
 simpleSettings :: Log.Level -> LogFormat -> Log.Settings
-simpleSettings lvl logFormat
-  = Log.setLogLevel lvl
-  . Log.setRenderer (canonicalizeWhitespace rndr)
-  $ Log.defSettings
+simpleSettings lvl logFormat =
+  Log.setLogLevel lvl
+    . Log.setRenderer (canonicalizeWhitespace rndr)
+    $ Log.defSettings
   where
     rndr = case logFormat of
-      Netstring  -> \_separator _dateFormat _level -> Log.renderNetstr
-      Plain -> \ separator _dateFormat _level -> Log.renderDefault separator
+      Netstring -> \_separator _dateFormat _level -> Log.renderNetstr
+      Plain -> \separator _dateFormat _level -> Log.renderDefault separator
       JSON -> jsonRenderer
 
 -- | Replace all whitespace characters in the output of a renderer by @' '@.
@@ -113,21 +116,23 @@ simpleSettings lvl logFormat
 -- into your log messages, you can choose to call 'canonicalizeWhitespace' on
 -- your renderer.)
 canonicalizeWhitespace :: Log.Renderer -> Log.Renderer
-canonicalizeWhitespace rndrRaw delim df lvl
-  = B.lazyByteString . nl2sp . B.toLazyByteString . rndrRaw delim df lvl
+canonicalizeWhitespace rndrRaw delim df lvl =
+  B.lazyByteString . nl2sp . B.toLazyByteString . rndrRaw delim df lvl
   where
     nl2sp :: L.ByteString -> L.ByteString
     nl2sp = L.concatMap $
-      \c -> if isSpace c
-            then " "
-            else L.singleton c
+      \c ->
+        if isSpace c
+          then " "
+          else L.singleton c
 
 -- | Like 'mkLogger', but uses Log.new which reads in LOG_* env variables.
 --
 -- TODO: DEPRECATED!  Use 'mkLogger' instead and get all settings from config files, not from
 -- environment!
 mkLogger' :: IO Log.Logger
-mkLogger' = Log.new
+mkLogger' =
+  Log.new
     . Log.setOutput Log.StdOut
     . Log.setFormat Nothing
     $ Log.defSettings
@@ -137,22 +142,22 @@ mkLogger' = Log.new
 -- integration tests, which is the only place in the world where it is currently used, but we
 -- may need it elsewhere in the future and here it's easier to find.
 newtype LoggerT m a = LoggerT {runLoggerT :: ReaderT Log.Logger m a}
-    deriving newtype
-        ( Functor
-        , Applicative
-        , Monad
-        , MonadIO
-        , MonadThrow
-        , MonadCatch
-        , MonadMask
-        , MonadClient
-        )
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadClient
+    )
 
 instance (MonadIO m) => LC.MonadLogger (LoggerT m) where
-    log :: LC.Level -> (LC.Msg -> LC.Msg) -> LoggerT m ()
-    log l m = LoggerT $ do
-        logger <- ask
-        Log.log logger l m
+  log :: LC.Level -> (LC.Msg -> LC.Msg) -> LoggerT m ()
+  log l m = LoggerT $ do
+    logger <- ask
+    Log.log logger l m
 
 runWithLogger :: Log.Logger -> LoggerT m a -> m a
 runWithLogger logger = flip runReaderT logger . runLoggerT

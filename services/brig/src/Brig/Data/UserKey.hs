@@ -2,75 +2,76 @@
 
 -- | Natural, addressable external identifiers of users.
 module Brig.Data.UserKey
-    ( UserKey
-    , userEmailKey
-    , userPhoneKey
-    , forEmailKey
-    , forPhoneKey
-    , foldKey
-    , keyText
-    , keyTextOriginal
-    , claimKey
-    , keyAvailable
-    , lookupKey
-    , deleteKey
-    , lookupPhoneHashes
-    ) where
+  ( UserKey,
+    userEmailKey,
+    userPhoneKey,
+    forEmailKey,
+    forPhoneKey,
+    foldKey,
+    keyText,
+    keyTextOriginal,
+    claimKey,
+    keyAvailable,
+    lookupKey,
+    deleteKey,
+    lookupPhoneHashes,
+  )
+where
 
-import Imports
 import Brig.App (AppIO, digestSHA256)
 import Brig.Data.Instances ()
+import qualified Brig.Data.User as User
 import Brig.Email
 import Brig.Phone
 import Brig.Types
 import Cassandra
 import Control.Lens (view)
+import qualified Data.ByteString as B
 import Data.ByteString.Lazy (toStrict)
 import Data.Id
+import qualified Data.Multihash.Digest as MH
+import qualified Data.Text.Encoding as T
+import Imports
 import OpenSSL.EVP.Digest (digestBS)
-
-import qualified Brig.Data.User         as User
-import qualified Data.ByteString        as B
-import qualified Data.Multihash.Digest  as MH
-import qualified Data.Text.Encoding     as T
 
 -- | A natural identifier (i.e. unique key) of a user.
 data UserKey
-    = UserEmailKey !EmailKey
-    | UserPhoneKey !PhoneKey
+  = UserEmailKey !EmailKey
+  | UserPhoneKey !PhoneKey
 
 instance Eq UserKey where
-    (UserEmailKey k) == (UserEmailKey k') = k == k'
-    (UserPhoneKey k) == (UserPhoneKey k') = k == k'
-    _                ==                 _ = False
+  (UserEmailKey k) == (UserEmailKey k') = k == k'
+  (UserPhoneKey k) == (UserPhoneKey k') = k == k'
+  _ == _ = False
 
-data UKHashType = UKHashPhone
-                | UKHashEmail
-                deriving Eq
+data UKHashType
+  = UKHashPhone
+  | UKHashEmail
+  deriving (Eq)
 
 instance Cql UKHashType where
-    ctype = Tagged IntColumn
+  ctype = Tagged IntColumn
 
-    fromCql (CqlInt i) = case i of
-        0 -> return UKHashPhone
-        1 -> return UKHashEmail
-        n -> fail $ "unexpected hashtype: " ++ show n
-    fromCql _ = fail "userkeyhashtype: int expected"
+  fromCql (CqlInt i) = case i of
+    0 -> return UKHashPhone
+    1 -> return UKHashEmail
+    n -> fail $ "unexpected hashtype: " ++ show n
+  fromCql _ = fail "userkeyhashtype: int expected"
 
-    toCql UKHashPhone = CqlInt 0
-    toCql UKHashEmail = CqlInt 1
+  toCql UKHashPhone = CqlInt 0
+  toCql UKHashEmail = CqlInt 1
 
 newtype UserKeyHash = UserKeyHash MH.MultihashDigest
 
 instance Cql UserKeyHash where
-    ctype = Tagged BlobColumn
+  ctype = Tagged BlobColumn
 
-    fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
-                                Left  e -> fail ("userkeyhash: " ++ e)
-                                Right h -> return $ UserKeyHash h
-    fromCql _             = fail "userkeyhash: expected blob"
+  fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
+    Left e -> fail ("userkeyhash: " ++ e)
+    Right h -> return $ UserKeyHash h
+  fromCql _ = fail "userkeyhash: expected blob"
 
-    toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
+  toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
 
 userEmailKey :: Email -> UserKey
 userEmailKey = UserEmailKey . mkEmailKey
@@ -80,8 +81,8 @@ userPhoneKey = UserPhoneKey . mkPhoneKey
 
 foldKey :: (Email -> a) -> (Phone -> a) -> UserKey -> a
 foldKey f g k = case k of
-    UserEmailKey ek -> f (emailKeyOrig ek)
-    UserPhoneKey pk -> g (phoneKeyOrig pk)
+  UserEmailKey ek -> f (emailKeyOrig ek)
+  UserPhoneKey pk -> g (phoneKeyOrig pk)
 
 forEmailKey :: Applicative f => UserKey -> (Email -> f a) -> f (Maybe a)
 forEmailKey k f = foldKey (fmap Just . f) (const (pure Nothing)) k
@@ -101,59 +102,65 @@ keyTextOriginal (UserEmailKey k) = fromEmail (emailKeyOrig k)
 keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
-claimKey :: UserKey  -- ^ The key to claim.
-         -> UserId   -- ^ The user claiming the key.
-         -> AppIO Bool
+claimKey ::
+  -- | The key to claim.
+  UserKey ->
+  -- | The user claiming the key.
+  UserId ->
+  AppIO Bool
 claimKey k u = do
-    free <- keyAvailable k (Just u)
-    when free (insertKey u k)
-    return free
+  free <- keyAvailable k (Just u)
+  when free (insertKey u k)
+  return free
 
 -- | Check whether a 'UserKey' is available.
 -- A key is available if it is not already actived for another user or
 -- if the other user and the user looking to claim the key are the same.
-keyAvailable :: UserKey      -- ^ The key to check.
-             -> Maybe UserId -- ^ The user looking to claim the key, if any.
-             -> AppIO Bool
+keyAvailable ::
+  -- | The key to check.
+  UserKey ->
+  -- | The user looking to claim the key, if any.
+  Maybe UserId ->
+  AppIO Bool
 keyAvailable k u = do
-    o <- lookupKey k
-    case (o, u) of
-        (Nothing,      _)          -> return True
-        (Just  x, Just y) | x == y -> return True
-        (Just  x,      _)          -> not <$> User.isActivated x
+  o <- lookupKey k
+  case (o, u) of
+    (Nothing, _) -> return True
+    (Just x, Just y) | x == y -> return True
+    (Just x, _) -> not <$> User.isActivated x
 
 lookupKey :: UserKey -> AppIO (Maybe UserId)
-lookupKey k = fmap runIdentity <$>
-    retry x1 (query1 keySelect (params Quorum (Identity $ keyText k)))
+lookupKey k =
+  fmap runIdentity
+    <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText k)))
 
 insertKey :: UserId -> UserKey -> AppIO ()
 insertKey u k = do
-    hk <- hashKey k
-    let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
-    retry x5 $ write insertHashed (params Quorum (hk, kt, u))
-    retry x5 $ write keyInsert (params Quorum (keyText k, u))
+  hk <- hashKey k
+  let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
+  retry x5 $ write insertHashed (params Quorum (hk, kt, u))
+  retry x5 $ write keyInsert (params Quorum (keyText k, u))
 
 deleteKey :: UserKey -> AppIO ()
 deleteKey k = do
-    hk <- hashKey k
-    retry x5 $ write deleteHashed (params Quorum (Identity hk))
-    retry x5 $ write keyDelete (params Quorum (Identity $ keyText k))
+  hk <- hashKey k
+  retry x5 $ write deleteHashed (params Quorum (Identity hk))
+  retry x5 $ write keyDelete (params Quorum (Identity $ keyText k))
 
 hashKey :: UserKey -> AppIO UserKeyHash
 hashKey uk = do
-    d  <- view digestSHA256
-    let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-    return . UserKeyHash
-           $ MH.MultihashDigest MH.SHA256 (B.length d') d'
+  d <- view digestSHA256
+  let d' = digestBS d $ T.encodeUtf8 (keyText uk)
+  return . UserKeyHash $
+    MH.MultihashDigest MH.SHA256 (B.length d') d'
 
 lookupPhoneHashes :: [ByteString] -> AppIO [(ByteString, UserId)]
 lookupPhoneHashes hp =
-    mapMaybe mk <$> retry x1 (query selectHashed (params One (Identity hashed)))
+  mapMaybe mk <$> retry x1 (query selectHashed (params One (Identity hashed)))
   where
     hashed = fmap (\h -> UserKeyHash $ MH.MultihashDigest MH.SHA256 (B.length h) h) hp
-
     mk (UserKeyHash d, UKHashPhone, u) = Just (MH.digest d, u)
-    mk (_,                       _, _) = Nothing
+    mk (_, _, _) = Nothing
 
 --------------------------------------------------------------------------------
 -- Queries

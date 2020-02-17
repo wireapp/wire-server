@@ -1,6 +1,7 @@
 module Network.Federation.Util.DNS
-    ( srvLookup
-    ) where
+  ( srvLookup,
+  )
+where
 
 import Imports
 import Network.DNS

@@ -1,12 +1,14 @@
 module V9 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 9 "Initial schema" $ do
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists user
             ( id        uuid
             , accent    list<float> -- accent colour RGBA
@@ -20,8 +22,9 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (id)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         -- verified, 'unique' user attributes
         create columnfamily if not exists user_keys
             ( key  text           -- email or phone number
@@ -29,8 +32,9 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (key)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         -- (temporary) activation keys
         create columnfamily if not exists activation_keys
             ( key      ascii -- opaque version of key_text
@@ -42,8 +46,9 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (key)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         -- (temporary) password reset codes
         create columnfamily if not exists password_reset
             ( key      ascii -- opaque version of the user ID
@@ -53,8 +58,9 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (key)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists push
             ( ptoken    text -- token
             , app       text -- application
@@ -63,13 +69,15 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (ptoken, app, transport)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         -- TODO: usr is a really bad secondary index!
         create index if not exists push_usr_key on push (usr);
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists connection
             ( left        uuid      -- user id "from" in the relation
             , right       uuid      -- user id "to"   in the relation
@@ -80,12 +88,14 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (left, right)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create index if not exists conn_status on connection (status);
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists invitation
             ( inviter     uuid      -- user id that created the invitation
             , invitee     uuid      -- user id generated with the invitation
@@ -94,8 +104,9 @@ migration = Migration 9 "Initial schema" $ do
             , primary key (inviter, email)
             );
         |]
-
-    void $ schema' [r|
+  void $
+    schema'
+      [r|
         create columnfamily if not exists invitee_info
             ( invitee uuid  -- user id generated with the invitation
             , inviter uuid  -- user id that created the invitation

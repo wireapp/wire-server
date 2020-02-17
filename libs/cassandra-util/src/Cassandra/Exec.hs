@@ -1,29 +1,27 @@
-{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | This module exports components from Cassandra's Database.CQL.IO, adding a few functions we find useful, that are built on top of it.
-
 module Cassandra.Exec
-    ( params
-    , paramsP
-    , x5
-    , x1
-    , syncCassandra
-    , paginateC
-    , module C
-    ) where
+  ( params,
+    paramsP,
+    x5,
+    x1,
+    syncCassandra,
+    paginateC,
+    module C,
+  )
+where
 
-import Imports hiding (init)
-import Cassandra.CQL (R, Consistency)
+import Cassandra.CQL (Consistency, R)
 import Control.Monad.Catch
 import Data.Conduit
-
 -- Things we just import and re-export.
-import Database.CQL.IO as C (MonadClient, Client, ClientState, BatchM, PrepQuery, Page(hasMore, result, nextPage), Row, adjustResponseTimeout, adjustSendTimeout, adjustConsistency, batch, setSerialConsistency, setConsistency, setType, addPrepQuery, addQuery, queryString, prepared, schema, write, trans, query1, query, emptyPage, shutdown, runClient, retry, localState, liftClient, paginate, init)
+import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (hasMore, nextPage, result), PrepQuery, Row, addPrepQuery, addQuery, adjustConsistency, adjustResponseTimeout, adjustSendTimeout, batch, emptyPage, init, liftClient, localState, paginate, prepared, query, query1, queryString, retry, runClient, schema, setConsistency, setSerialConsistency, setType, shutdown, trans, write)
 -- We only use these locally.
-import Database.CQL.IO (RetrySettings, RunQ, eagerRetrySettings, defRetrySettings)
-
-import Database.CQL.Protocol (QueryParams(QueryParams), Error, Tuple)
+import Database.CQL.IO (RetrySettings, RunQ, defRetrySettings, eagerRetrySettings)
+import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple)
+import Imports hiding (init)
 
 params :: Tuple a => Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing
@@ -54,28 +52,34 @@ x1 = defRetrySettings
 {-# INLINE x1 #-}
 
 data CassandraError
-    = Cassandra   !Error
-    | Comm        !IOException
-    | InvalidData !Text
-    | Other       !SomeException
-    deriving Show
+  = Cassandra !Error
+  | Comm !IOException
+  | InvalidData !Text
+  | Other !SomeException
+  deriving (Show)
 
 syncCassandra :: (Functor m, MonadIO m, MonadCatch m) => m a -> m (Either CassandraError a)
-syncCassandra m = catches (Right <$> m)
-    [ Handler $ \(e :: Error)         -> return . Left . Cassandra $ e
-    , Handler $ \(e :: IOException)   -> return . Left . Comm $ e
-    , Handler $ \(e :: SomeException) -> return . Left . Other $ e
+syncCassandra m =
+  catches
+    (Right <$> m)
+    [ Handler $ \(e :: Error) -> return . Left . Cassandra $ e,
+      Handler $ \(e :: IOException) -> return . Left . Comm $ e,
+      Handler $ \(e :: SomeException) -> return . Left . Other $ e
     ]
 
 -- | Stream results of a query.
 --
 -- You can execute this conduit by doing @transPipe (runClient ...)@.
-paginateC :: (Tuple a, Tuple b, RunQ q, MonadClient m)
-          => q R a b -> QueryParams a -> RetrySettings -> ConduitM () [b] m ()
+paginateC ::
+  (Tuple a, Tuple b, RunQ q, MonadClient m) =>
+  q R a b ->
+  QueryParams a ->
+  RetrySettings ->
+  ConduitM () [b] m ()
 paginateC q p r = go =<< lift (retry r (paginate q p))
   where
     go page = do
-        unless (null (result page)) $
-            yield (result page)
-        when (hasMore page) $
-            go =<< lift (retry r (liftClient (nextPage page)))
+      unless (null (result page)) $
+        yield (result page)
+      when (hasMore page) $
+        go =<< lift (retry r (liftClient (nextPage page)))

@@ -1,12 +1,13 @@
 module V1 (migration) where
 
-import Imports
 import Cassandra.Schema
+import Imports
 import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 1 "Initial schema" $ do
-    schema' [r|
+  schema'
+    [r|
         create columnfamily if not exists push
             ( ptoken    text -- token
             , app       text -- application
@@ -15,8 +16,8 @@ migration = Migration 1 "Initial schema" $ do
             , primary key (ptoken, app, transport)
             ) with compaction = { 'class' : 'LeveledCompactionStrategy' };
         |]
-
-    schema' [r|
+  schema'
+    [r|
         create columnfamily if not exists user_push
             ( usr       uuid -- user id
             , ptoken    text -- token
