@@ -4,7 +4,7 @@
 module Brig.Types.Search where
 
 import Data.Aeson
-import Data.Id (UserId)
+import Data.Id (TeamId, UserId)
 import Data.Json.Util
 import Imports
 
@@ -22,7 +22,8 @@ data Contact
       { contactUserId :: UserId,
         contactName :: Text,
         contactColorId :: Maybe Int,
-        contactHandle :: Maybe Text
+        contactHandle :: Maybe Text,
+        contactTeamId :: Maybe TeamId
       }
   deriving (Show)
 
@@ -49,11 +50,15 @@ instance ToJSON Contact where
         # "name" .= contactName c
         # "accent_id" .= contactColorId c
         # "handle" .= contactHandle c
+        # "team_id" .= contactTeamId c
         # []
 
 instance FromJSON Contact where
-  parseJSON = withObject "Contact" $ \o ->
-    Contact <$> o .: "id"
-      <*> o .: "name"
-      <*> o .:? "accent_id"
-      <*> o .:? "handle"
+  parseJSON =
+    withObject "Contact" $ \o ->
+      Contact
+        <$> o .: "id"
+        <*> o .: "name"
+        <*> o .:? "accent_id"
+        <*> o .:? "handle"
+        <*> o .:? "team_id"
