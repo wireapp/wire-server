@@ -267,7 +267,10 @@ specFinalizeLogin = do
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
-            (cs . fromJust . responseBody $ sparresp) `shouldContain` "wire:sso:error:not-found"
+            -- body should contain the error label in the title, the verbatim haskell error, and the request:
+            (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
+            (cs . fromJust . responseBody $ sparresp) `shouldContain` "CustomError SparNotFound"
+            (cs . fromJust . responseBody $ sparresp) `shouldContain` "Input {iName = \"SAMLResponse\""
 
       -- TODO(arianvp): Ask Matthias what this even means
       context "AuthnResponse does not match any request" $ do
