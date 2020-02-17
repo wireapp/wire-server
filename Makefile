@@ -38,6 +38,11 @@ haddock-shallow:
 format:
 	./tools/ormolu.sh
 
+# formats all Haskell files even if local changes are not committed to git
+.PHONY: formatf
+formatf:
+	./tools/ormolu.sh -f
+
 # Clean
 .PHONY: clean
 clean:
