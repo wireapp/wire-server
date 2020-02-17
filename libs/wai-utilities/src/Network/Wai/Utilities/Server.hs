@@ -216,7 +216,7 @@ heavyDebugLogging
     :: ((Request, LByteString) -> Maybe (Request, LByteString))
     -> Level -> Logger -> Middleware
 heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
-    (bdy, req') <- if lvl <= Debug  -- or (`elem` [Trace, Debug])
+    (bdy, req') <- if lvl `elem` [Trace, Debug]
         then cloneBody req
         else pure ("body omitted because log level was less sensitive than Debug", req)
     app req' $ \resp -> do
