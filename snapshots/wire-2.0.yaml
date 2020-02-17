@@ -45,6 +45,8 @@ packages:
 #
 # The archive corresponds to commit 52896fd46ef6812708e9e4d7456becc692698f6b.
 - archive: https://github.com/wireapp/amazonka/archive/wire-2019-01-25.tar.gz
+  sha256: b1cecd0e5e17cd41395ec56e4f6926e0c8bbeef493ff3a575bf7561b72db0525
+  size: 11128501
   subdirs:
   - amazonka
   - core
