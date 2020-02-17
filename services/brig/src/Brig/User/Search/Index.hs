@@ -163,29 +163,38 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
 defaultUserQuery :: UserId -> Maybe TeamId -> Text -> IndexQuery Contact
-defaultUserQuery u t (normalized -> term') = mkUserQuery u t $ ES.QueryBoolQuery boolQuery
-    { ES.boolQueryMustMatch =
-        [ ES.QueryBoolQuery boolQuery
-            { ES.boolQueryShouldMatch =
-                [ ES.QueryMultiMatchQuery $
+defaultUserQuery u t (normalized -> term') =
+  let matchPrefix = ES.QueryMultiMatchQuery $
                       (ES.mkMultiMatchQuery
                           [ ES.FieldName "handle^2"
                           , ES.FieldName "normalized"
                           ]
                           (ES.QueryString term')
                       ) { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix }
-                , ES.QueryMultiMatchQuery $
+      matchPhrase = ES.QueryMultiMatchQuery $
                       (ES.mkMultiMatchQuery
                           [ ES.FieldName "handle^3"
                           , ES.FieldName "normalized^2"
                           ]
                           (ES.QueryString term')
                       ) { ES.multiMatchQueryType = Just ES.MultiMatchPhrase }
+      query = ES.QueryBoolQuery boolQuery
+              { ES.boolQueryMustMatch =
+                [ ES.QueryBoolQuery boolQuery
+                  { ES.boolQueryShouldMatch = matchPrefix : matchPhrase : [] }
                 ]
-            }
-        ]
-    , ES.boolQueryShouldMatch = [ ES.QueryExistsQuery (ES.FieldName "handle") ]
-    }
+              , ES.boolQueryShouldMatch = [ ES.QueryExistsQuery (ES.FieldName "handle") ]
+              }
+      -- This reduces relevance on non-team users by 90%, there was no science
+      -- put behind the negative boost value.
+      -- It is applied regardless of a teamId being present as users without a
+      -- team anyways don't see any users with team.
+      queryWithBoost = ES.QueryBoostingQuery ES.BoostingQuery
+                       { ES.positiveQuery = query
+                       , ES.negativeQuery = matchNonTeamMemberUsers
+                       , ES.negativeBoost = ES.Boost 0.1
+                       }
+  in mkUserQuery u t queryWithBoost
 
 mkUserQuery :: UserId -> Maybe TeamId -> ES.Query -> IndexQuery Contact
 mkUserQuery (review _TextId -> self) t q = IndexQuery q $
@@ -205,11 +214,13 @@ mkUserQuery (review _TextId -> self) t q = IndexQuery q $
           }
         Nothing
 
-    matchNonTeamMemberUsers = ES.QueryBoolQuery boolQuery
-                              { ES.boolQueryMustNotMatch =  [ES.QueryExistsQuery $ ES.FieldName "team_id"] }
-
     matchTeamMembersOf team = ES.TermQuery (ES.Term "team_id" $ idToText team) Nothing
 
+
+    -- This query will make sure that:
+    -- if teamId is absent,  only users without a teamId are returned.
+    -- if teamId is present, only users with the *same* teamId or users without a
+    --                       teamId are returned.
     optionallySearchWithinTeam =
       maybe matchNonTeamMemberUsers
       (\teamId ->
@@ -217,6 +228,11 @@ mkUserQuery (review _TextId -> self) t q = IndexQuery q $
                                                                   , matchNonTeamMemberUsers
                                                                   ] }
       )
+
+matchNonTeamMemberUsers :: ES.Query
+matchNonTeamMemberUsers = ES.QueryBoolQuery boolQuery
+                          { ES.boolQueryMustNotMatch =  [ES.QueryExistsQuery $ ES.FieldName "team_id"] }
+
 
 
 --------------------------------------------------------------------------------

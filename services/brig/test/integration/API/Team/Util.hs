@@ -28,15 +28,20 @@ import Web.Cookie (parseSetCookie, setCookieName)
 
 createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
 createPopulatedBindingTeam brig galley numMembers = do
+    names <- forM [1..numMembers] $ \_ -> randomName
+    createPopulatedBindingTeamWithNames brig galley names
+
+createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeamWithNames brig galley names = do
     (inviter, tid) <- createUserWithTeam brig galley
-    invitees <- forM [1..numMembers] $ \_ -> do
+    invitees <- forM names $ \name -> do
         inviteeEmail <- randomEmail
-        let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+        let invite = InvitationRequest inviteeEmail name Nothing Nothing
         inv <- responseJsonError =<< postInvitation brig tid inviter invite
         Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
         rsp2 <- post (brig . path "/register"
                            . contentJson
-                           . body (accept inviteeEmail inviteeCode))
+                           . body (acceptWithName name inviteeEmail inviteeCode))
                       <!! const 201 === statusCode
         let invitee :: User = responseJsonUnsafe rsp2
         do
@@ -225,10 +230,13 @@ putLegalHoldEnabled tid enabled g = do
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
-accept email code =
+accept email code = acceptWithName (Name "Bob") email code
+
+acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
+acceptWithName name email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= ("Bob" :: Text),
+      [ "name" .= fromName name,
         "email" .= fromEmail email,
         "password" .= defPassword,
         "team_code" .= code

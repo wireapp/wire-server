@@ -1,9 +1,10 @@
 module API.Search (tests) where
 
 import API.Search.Util
-import API.Team.Util (createPopulatedBindingTeam)
+import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWithNames)
 import Bilge
 import Brig.Types
+import Data.List (elemIndex)
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty
@@ -17,11 +18,13 @@ tests mgr galley brig =
         [ test mgr "by-name"    $ testSearchByName brig
         , test mgr "by-handle"  $ testSearchByHandle brig
         , test mgr "reindex"    $ testReindex brig
-
-        , test mgr "team member cannot be found by non-team user"        $ testSearchTeamMemberAsNonMember galley brig
-        , test mgr "team A member cannot be found by team B member"      $ testSearchTeamMemberAsOtherMember galley brig
-        , test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig
-        , test mgr "non team user can be found by a team member"         $ testSeachNonMemberAsTeamMember galley brig
+        , testGroup "team-members"
+          [ test mgr "team member cannot be found by non-team user"        $ testSearchTeamMemberAsNonMember galley brig
+          , test mgr "team A member cannot be found by team B member"      $ testSearchTeamMemberAsOtherMember galley brig
+          , test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig
+          , test mgr "non team user can be found by a team member"         $ testSeachNonMemberAsTeamMember galley brig
+          , test mgr "teammates should be ordered before non team members" $ testSearchOrderingAsTeamMemeber galley brig
+          ]
         ]
 
 testSearchByName :: Brig -> Http ()
@@ -77,6 +80,7 @@ testSearchTeamMemberAsNonMember galley brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
+
   assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromName (userName teamMember))
 
 testSearchTeamMemberAsOtherMember :: Galley -> Brig -> Http ()
@@ -84,12 +88,14 @@ testSearchTeamMemberAsOtherMember galley brig = do
   (_, _, [teamAMember]) <- createPopulatedBindingTeam brig galley 1
   (_, _, [teamBMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
+
   assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userName teamBMember))
 
 testSearchTeamMemberAsSameMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsSameMember galley brig = do
   (_, _, [teamAMember, teamAMember']) <- createPopulatedBindingTeam brig galley 2
   refreshIndex brig
+
   assertCanFind brig (userId teamAMember) (userId teamAMember') (fromName (userName teamAMember'))
 
 testSeachNonMemberAsTeamMember :: Galley -> Brig -> Http ()
@@ -97,4 +103,19 @@ testSeachNonMemberAsTeamMember galley brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
+
   assertCanFind brig (userId teamMember) (userId nonTeamMember) (fromName (userName nonTeamMember))
+
+testSearchOrderingAsTeamMemeber :: Galley -> Brig -> Http ()
+testSearchOrderingAsTeamMemeber galley brig = do
+  searchedName <- randomName
+  nonTeamSearchee <- createUser' True (fromName searchedName) brig
+  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", searchedName]
+  refreshIndex brig
+
+  (Just result) <- executeSearch brig (userId searcher) (fromName searchedName)
+  let resultUserIds = contactUserId <$> searchResults result
+      (Just nonTeamSearcheeIndex) = elemIndex (userId nonTeamSearchee) resultUserIds
+      (Just teamSearcheeIndex) = elemIndex (userId teamSearchee) resultUserIds
+
+  liftIO $ assertBool "teammate is not ordered before non teammate" (nonTeamSearcheeIndex > teamSearcheeIndex)
