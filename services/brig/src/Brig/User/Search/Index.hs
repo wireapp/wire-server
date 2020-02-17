@@ -10,7 +10,6 @@ module Brig.User.Search.Index
 
     -- * Queries
     searchIndex,
-    checkIndex,
 
     -- * Updates
     reindex,
@@ -128,23 +127,6 @@ searchIndex ::
   m (SearchResult Contact)
 searchIndex u t q = queryIndex (defaultUserQuery u t q)
 
-checkIndex :: MonadIndexIO m => UserId -> m SearchableStatus
-checkIndex u = liftIndexIO $ fmap SearchableStatus $ do
-  idx <- asks idxName
-  r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
-  case statusCode (responseStatus r) of
-    404 -> pure False
-    _ ->
-      ES.parseEsResponse r
-        >>= either
-          (throwM . IndexLookupError)
-          (pure . maybe False searchable . fmap ES._source . ES.foundResult)
-  where
-    -- NOTE: This only holds when using 'defaultUserQuery'.
-    -- TODO(akshay/fisx): Maybe ignore this as users opting out is not really a feature
-    searchable (UserDoc _ _ _ Nothing Nothing _) = False
-    searchable _                                 = True
-
 -- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
 -- ~~~~~~~~~~~~~~~~~
 --
@@ -180,9 +162,6 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
--- Note, however, that the result of 'isSearchableUser' depends on which fields
--- are queried, and thus can only be correct for the canonical query.
---
 defaultUserQuery :: UserId -> Maybe TeamId -> Text -> IndexQuery Contact
 defaultUserQuery u t (normalized -> term') = mkUserQuery u t $ ES.QueryBoolQuery boolQuery
     { ES.boolQueryMustMatch =

@@ -26,10 +26,6 @@ data Contact
       }
   deriving (Show)
 
--- | Encodes whether the (current) user has opted in/out of search
-newtype SearchableStatus = SearchableStatus {isSearchable :: Bool}
-  deriving (Show)
-
 instance ToJSON a => ToJSON (SearchResult a) where
   toJSON r =
     object
@@ -61,11 +57,3 @@ instance FromJSON Contact where
       <*> o .: "name"
       <*> o .:? "accent_id"
       <*> o .:? "handle"
-
-instance ToJSON SearchableStatus where
-  toJSON (SearchableStatus onoff) = object ["searchable" .= onoff]
-
-instance FromJSON SearchableStatus where
-  parseJSON =
-    withObject "SearchableStatus" $
-      fmap SearchableStatus . (.: "searchable")

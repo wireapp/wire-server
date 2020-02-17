@@ -1,6 +1,5 @@
 module API.User.Account (tests) where
 
-import API.Search.Util (assertSearchable)
 import qualified API.Search.Util as Search
 import API.Team.Util (createTeamMember, createUserWithTeam)
 import API.User.Util
@@ -485,7 +484,6 @@ testUserUpdate brig cannon aws = do
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  assertSearchable "alice should be searchable" brig alice True
   Search.assertCanFind brig suid alice "dogbert"
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()

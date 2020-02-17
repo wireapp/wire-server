@@ -31,7 +31,6 @@ import Brig.Types.Client
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.Provider
 import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.Search
 import Brig.Types.User (Pict (..), User (..), UserProfile, publicProfile)
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (throwE)
@@ -792,7 +791,7 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)
+  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <-
     User.addClient (botUserId bid) bcl newClt maxPermClients Nothing

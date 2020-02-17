@@ -74,7 +74,6 @@ brigModels =
     -- Search
     searchResult,
     searchContact,
-    searchableStatus,
     -- Team invitations
     teamInvitation,
     teamInvitationList,
@@ -871,12 +870,6 @@ searchContact = defineModel "Contact" $ do
   property "accent_id" int32' $ do
     description "Accent color"
     optional
-
-searchableStatus :: Model
-searchableStatus = defineModel "SearchableStatus" $ do
-  description "Whether the user is discoverable via search"
-  property "searchable" bool' $
-    description "'true' if discoverable, 'false' otherwise"
 
 --------------------------------------------------------------------------------
 -- TURN

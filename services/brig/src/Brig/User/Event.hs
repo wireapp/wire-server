@@ -34,8 +34,7 @@ data UserEvent
         eupAssets :: !(Maybe [Asset]),
         eupHandle :: !(Maybe Handle),
         eupLocale :: !(Maybe Locale),
-        eupManagedBy :: !(Maybe ManagedBy),
-        eupSearchable :: !(Maybe SearchableStatus)
+        eupManagedBy :: !(Maybe ManagedBy)
       }
   | UserIdentityUpdated
       { eiuId :: !UserId,
@@ -90,9 +89,6 @@ phoneUpdated u p = UserIdentityUpdated u Nothing (Just p)
 handleUpdated :: UserId -> Handle -> UserEvent
 handleUpdated u h = (emptyUpdate u) {eupHandle = Just h}
 
-searchableStatusUpdated :: UserId -> SearchableStatus -> UserEvent
-searchableStatusUpdated u s = (emptyUpdate u) {eupSearchable = Just s}
-
 localeUpdate :: UserId -> Locale -> UserEvent
 localeUpdate u loc = (emptyUpdate u) {eupLocale = Just loc}
 
@@ -100,10 +96,26 @@ managedByUpdate :: UserId -> ManagedBy -> UserEvent
 managedByUpdate u mb = (emptyUpdate u) {eupManagedBy = Just mb}
 
 profileUpdated :: UserId -> UserUpdate -> UserEvent
-profileUpdated u UserUpdate {..} = UserUpdated u uupName uupPict uupAccentId uupAssets Nothing Nothing Nothing Nothing
+profileUpdated u UserUpdate {..} =
+  (emptyUpdate u)
+    { eupName = uupName,
+      eupPict = uupPict,
+      eupAccentId = uupAccentId,
+      eupAssets = uupAssets
+    }
 
 emptyUpdate :: UserId -> UserEvent
-emptyUpdate u = UserUpdated u Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+emptyUpdate u =
+  UserUpdated
+    { eupId = u,
+      eupName = Nothing,
+      eupPict = Nothing,
+      eupAccentId = Nothing,
+      eupAssets = Nothing,
+      eupHandle = Nothing,
+      eupLocale = Nothing,
+      eupManagedBy = Nothing
+    }
 
 connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated {..} = ucFrom ucConn

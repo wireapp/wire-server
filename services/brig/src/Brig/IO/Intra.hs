@@ -156,8 +156,7 @@ updateSearchIndex orig e = case e of
           or
             [ isJust eupName,
               isJust eupAccentId,
-              isJust eupHandle,
-              isJust eupSearchable
+              isJust eupHandle
             ]
     when (interesting) $ Search.reindex orig
 
@@ -333,7 +332,7 @@ toPushFormat (UserEvent (UserActivated (UserAccount u _))) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb _)) =
+toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb)) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),

@@ -3,22 +3,18 @@ module Brig.User.API.Search (routes) where
 import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
-import qualified Brig.IO.Intra as Intra
+import Brig.Types.Search
 import qualified Brig.Types.Swagger as Doc
-import Brig.User.Event
 import Brig.User.Search.Index
-import Brig.Types.Search hiding (isSearchable)
 import Data.Id
 import Data.Predicate
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing
-import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
-import Network.Wai.Utilities.Response (empty, json, setStatus)
+import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 
 routes :: Routes Doc.ApiBuilder Handler ()
@@ -37,25 +33,6 @@ routes = do
       Doc.optional
     Doc.returns (Doc.ref Doc.searchResult)
     Doc.response 200 "The search result." Doc.end
-  --
-
-  get "/self/searchable" (continue isSearchableH) $
-    accept "application" "json"
-      .&. header "Z-User"
-  document "GET" "getSearchableStatus" $ do
-    Doc.summary "Determine whether you are disoverable via /search/contacts."
-    Doc.returns (Doc.ref Doc.searchableStatus)
-    Doc.response 200 "Searchable status." Doc.end
-  --
-
-  put "/self/searchable" (continue setSearchableH) $
-    header "Z-User"
-      .&. jsonRequest @SearchableStatus
-  document "PUT" "updateSearchableStatus" $ do
-    Doc.summary "Opt in or out of being included in search results."
-    Doc.body (Doc.ref Doc.searchableStatus) $
-      Doc.description "JSON body"
-    Doc.response 200 "Searchable status updated." Doc.end
   --
 
   -- make index updates visible (e.g. for integration testing)
@@ -79,21 +56,3 @@ search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
 search searcherId searchTerm maxResults = do
   searcherTeamId <- DB.lookupUserTeam searcherId
   searchIndex searcherId searcherTeamId searchTerm maxResults
-
-isSearchableH :: JSON ::: UserId -> Handler Response
-isSearchableH (_ ::: u) = json <$> lift (isSearchable u)
-
-isSearchable :: UserId -> AppIO SearchableStatus
-isSearchable = checkIndex
-
-setSearchableH :: UserId ::: JsonRequest SearchableStatus -> Handler Response
-setSearchableH (u ::: r) = do
-  s <- parseJsonBody r
-  lift (setSearchable u s)
-  return (setStatus status200 empty)
-
-setSearchable :: UserId -> SearchableStatus -> AppIO ()
-setSearchable u s = do
-  DB.updateSearchableStatus u s
-  Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
-  return ()

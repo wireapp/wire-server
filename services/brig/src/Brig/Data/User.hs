@@ -40,7 +40,6 @@ module Brig.Data.User
     updateLocale,
     updatePassword,
     updateStatus,
-    updateSearchableStatus,
     updateHandle,
     updateRichInfo,
 
@@ -158,9 +157,8 @@ insertAccount ::
   Maybe Password ->
   -- | Whether the user is activated
   Bool ->
-  SearchableStatus ->
   AppIO ()
-insertAccount (UserAccount u status) mbConv password activated searchable = retry x5 $ batch $ do
+insertAccount (UserAccount u status) mbConv password activated = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
   let Locale l c = userLocale u
@@ -183,7 +181,6 @@ insertAccount (UserAccount u status) mbConv password activated searchable = retr
       view serviceRefProvider <$> userService u,
       view serviceRefId <$> userService u,
       userHandle u,
-      searchable,
       userTeam u,
       userManagedBy u
     )
@@ -272,10 +269,6 @@ deleteServiceUser pid sid bid = do
 
 updateStatus :: UserId -> AccountStatus -> AppIO ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params Quorum (s, u))
-
-updateSearchableStatus :: UserId -> SearchableStatus -> AppIO ()
-updateSearchableStatus u s =
-  retry x5 $ write userSearchableStatusUpdate (params Quorum (s, u))
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
@@ -439,7 +432,6 @@ type UserRowInsert =
     Maybe ProviderId,
     Maybe ServiceId,
     Maybe Handle,
-    SearchableStatus,
     Maybe TeamId,
     ManagedBy
   )
@@ -516,8 +508,8 @@ userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, searchable, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, handle, team, managed_by) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -551,9 +543,6 @@ userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
 userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
-
-userSearchableStatusUpdate :: PrepQuery W (SearchableStatus, UserId) ()
-userSearchableStatusUpdate = "UPDATE user SET searchable = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
