@@ -267,7 +267,7 @@ specFinalizeLogin = do
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
-            responseJsonEither sparresp `shouldBe` Right (TestErrorLabel "not-found")
+            (cs . fromJust . responseBody $ sparresp) `shouldContain` "wire:sso:error:not-found"
 
       -- TODO(arianvp): Ask Matthias what this even means
       context "AuthnResponse does not match any request" $ do
