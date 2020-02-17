@@ -1,4 +1,4 @@
-resolver: snapshots/wire-2.0.yaml
+resolver: snapshots/wire-2.1.yaml
 
 packages:
 - libs/api-bot
