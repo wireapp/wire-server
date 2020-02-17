@@ -17,6 +17,7 @@ module Spar.Error
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
   , sparToServerError
+  , renderSparError
   ) where
 
 import Imports
@@ -31,7 +32,6 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import qualified SAML2.WebSSO as SAML
-import qualified Servant.Multipart as Multipart
 import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
 
@@ -83,9 +83,6 @@ data SparCustomError
 
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
-
-  -- | When login fails with a real error, return extra info.
-  | SparFinalizeLoginError SparError [Multipart.Input] (Maybe ST)
 
   -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
   | SparScimError Scim.ScimError
@@ -171,7 +168,6 @@ renderSparError (SAML.CustomError SparIdPHasBoundUsers)                    = Rig
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg))       = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached)       = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
-renderSparError (SAML.CustomError (SparFinalizeLoginError err inps mcky))  = renderSparError err <&> \werr -> werr { Wai.message = Wai.message werr <> "  request details: " <> cs (show (inps, mcky)) }
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err))                     = Left $ Scim.scimToServerError err
 -- Other

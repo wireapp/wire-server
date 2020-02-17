@@ -162,7 +162,7 @@ authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI 
     logErrors = flip catchError $ \case
       e@(SAML.CustomServant _) -> throwError e
       e -> do
-        throwError . SAML.CustomError $ SparFinalizeLoginError
+        throwError . SAML.CustomServant $ errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
             ckyraw
