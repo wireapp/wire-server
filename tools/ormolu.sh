@@ -62,7 +62,7 @@ echo "ormolu mode: $ARG_ORMOLU_MODE"
 
 FAILURES=0
 
-for hsfile in $(git ls-files | grep '\.hs$' | grep -v 'CPP\.hs'); do
+for hsfile in $(git grep -L "LANGUAGE CPP" | grep '\.hs$'); do
     echo -n "$hsfile..."
     FAILED=0
     stack exec -- ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || FAILED=1
