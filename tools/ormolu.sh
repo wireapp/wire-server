@@ -2,7 +2,8 @@
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-which ormolu >/dev/null || ( echo "please run 'stack install ormolu' and ensure ormolu is on your PATH."; exit 1 )
+ORMOLU_VERSION=$(perl -ne '/^- ormolu-([^\s]+)(\s|$)/ && print $1' stack.yaml)
+ormolu -v >/dev/null 2>&1 | grep -q $ORMOLU_VERSION || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
 
 ARG_ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
