@@ -43,6 +43,7 @@ import Spar.Types
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
+import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Galley
@@ -147,7 +148,7 @@ validateRedirectURL uri = do
 
 
 authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
-authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
+authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
@@ -156,6 +157,15 @@ authresp ckyraw = SAML.authresp sparSPIssuer sparResponseURI go
     go resp verdict = do
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
+
+    logErrors :: Spar Void -> Spar Void
+    logErrors = flip catchError $ \case
+      e@(SAML.CustomServant _) -> throwError e
+      e -> do
+        throwError . SAML.CustomServant $ errorPage
+            e
+            (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
+            ckyraw
 
 ssoSettings :: Spar SsoSettings
 ssoSettings = do

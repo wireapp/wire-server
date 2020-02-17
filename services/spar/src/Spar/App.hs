@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
 module Spar.App
@@ -12,6 +13,7 @@ module Spar.App
   , insertUser
   , autoprovisionSamlUser
   , autoprovisionSamlUserWithId
+  , errorPage
   ) where
 
 import Imports hiding (log)
@@ -32,20 +34,23 @@ import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Types
+import System.Logger.Class (MonadLogger(log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.UUID.V4 as UUID
+import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
+import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
-import System.Logger.Class (MonadLogger(log))
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
@@ -346,7 +351,7 @@ verdictHandlerWeb = pure . \case
                           "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
                           "   </script>" <>
                           "</head>"
-      , errHeaders      = []
+      , errHeaders      = [("Content-Type", "text/html")]
       }
       where
         errval = object [ "type" .= ("AUTH_ERROR" :: ST)
@@ -410,3 +415,29 @@ verdictHandlerMobile granted denied = \case
                      , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
                      ]
       }
+
+
+-- | When getting stuck during login finalization, show a nice HTML error rather than the json
+-- blob.  Show lots of debugging info for the customer to paste in any issue they might open.
+errorPage :: SparError -> [Multipart.Input] -> Maybe Text -> ServerError
+errorPage err inputs mcky = ServerError
+  { errHTTPCode     = Http.statusCode $ Wai.code werr
+  , errReasonPhrase = cs $ Wai.label werr
+  , errBody         = easyHtml $ LBS.intercalate "\n" errbody
+  , errHeaders      = [("Content-Type", "text/html")]
+  }
+  where
+    werr = either forceWai id $ renderSparError err
+    forceWai ServerError{..} = Wai.Error (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
+
+    errbody :: [LByteString]
+    errbody =
+      [ "<head>"
+      , "  <title>wire:sso:error:" <> cs (Wai.label werr) <> "</title>"
+      , "</head>"
+      , "</body>"
+      , "  sorry, something went wrong :(<br>"
+      , "  please copy this page to your clipboard and provide it when opening an issue in our customer support.<br><br>"
+      , "  <pre>" <> cs (show (err, inputs, mcky)) <> "</pre>"
+      , "</body>"
+      ]
