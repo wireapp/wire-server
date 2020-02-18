@@ -70,6 +70,9 @@ in { system, compiler, flags, pkgs, hsPkgs, pkgconfPkgs, ... }:
           (hsPkgs."types-common" or (buildDepError "types-common"))
           (hsPkgs."uuid" or (buildDepError "uuid"))
           ];
+        build-tools = [
+          (hsPkgs.buildPackages.proto-lens-protoc or (pkgs.buildPackages.proto-lens-protoc or (buildToolDepError "proto-lens-protoc")))
+          ];
         buildable = true;
         };
       };
