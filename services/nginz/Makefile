@@ -1,7 +1,7 @@
 LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.14.2
+NGINX_VERSION   = 1.16.1
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
@@ -129,3 +129,10 @@ docker:
 .PHONY: libzauth
 libzauth:
 	$(MAKE) -C ../../libs/libzauth install
+
+# a target to start the locally-compiled docker image (tagged 'local')
+# using the configuration in wire-server/deploy/services-demo
+# can aid when updating nginx versions and configuration
+.PHONY: docker-run-demo-local
+docker-run-demo:
+	docker run --network=host -it -v $$(pwd)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
