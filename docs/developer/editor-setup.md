@@ -59,7 +59,7 @@ TODO.
 
 ### ormolu integration
 
-There is are make rules `format`, `formatf`, `formatc` to re-format
+There are make targets `format`, `formatf`, `formatc` to re-format
 or check the entire repository.  This takes about 10 seconds.
 
 Vim integration is [linked
