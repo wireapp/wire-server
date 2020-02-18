@@ -102,4 +102,4 @@ packages:
 - pattern-trie-0.1.0
 
 # Not latest as latst one breaks wai-routing
-- wai-route-0.4.0 
+- wai-route-0.4.0
