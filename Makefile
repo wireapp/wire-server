@@ -43,6 +43,11 @@ format:
 formatf:
 	./tools/ormolu.sh -f
 
+# checks that all Haskell files are formatted; fail if a `make format` run is needed.
+.PHONY: formatc
+formatc:
+	./tools/ormolu.sh -c
+
 # Clean
 .PHONY: clean
 clean:
