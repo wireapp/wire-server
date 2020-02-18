@@ -209,6 +209,7 @@ executables:
     - mtl
     - optparse-applicative >=0.13
     - text
+    - time
     - types-common
     - uri-bytestring
   brig:
