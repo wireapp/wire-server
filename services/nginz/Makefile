@@ -130,6 +130,9 @@ docker:
 libzauth:
 	$(MAKE) -C ../../libs/libzauth install
 
-.PHONY: docker-run-demo
+# a target to start the locally-compiled docker image (tagged 'local')
+# using the configuration in wire-server/deploy/services-demo
+# can aid when updating nginx versions and configuration
+.PHONY: docker-run-demo-local
 docker-run-demo:
-	docker run --network=host -it -v $(PWD)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
+	docker run --network=host -it -v $$(pwd)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
