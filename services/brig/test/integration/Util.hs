@@ -30,16 +30,16 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword(..))
+import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Galley.Types (Member (..))
-import Galley.Types.Teams (TeamMember, BindingNewTeam(..), newNewTeam, newNewTeamMember)
+import Galley.Types.Teams (BindingNewTeam (..), TeamMember, newNewTeam, newNewTeamMember)
 import qualified Galley.Types.Teams as Team
-import Galley.Types.Teams.Intra (TeamStatus(..), TeamStatusUpdate(..))
+import Galley.Types.Teams.Intra (TeamStatus (..), TeamStatusUpdate (..))
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
@@ -95,36 +95,41 @@ randomUser = randomUser' True
 
 createTeamInternal :: HasCallStack => Galley -> Text -> UserId -> Http TeamId
 createTeamInternal galley name owner = do
-    tid <- createTeamInternalNoActivate galley name owner
-    changeTeamStatus galley tid Galley.Types.Teams.Intra.Active
-    return tid
+  tid <- createTeamInternalNoActivate galley name owner
+  changeTeamStatus galley tid Galley.Types.Teams.Intra.Active
+  return tid
 
 createTeamInternalNoActivate :: HasCallStack => Galley -> Text -> UserId -> Http TeamId
 createTeamInternalNoActivate galley name owner = do
-    tid <- randomId
-    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-    _ <- put (galley .
-              paths ["/i/teams", toByteString' tid] .
-              zUser owner .
-              zConn "conn" .
-              header "Z-Type" "access" .
-              Bilge.json nt) <!! do
-        const 201  === statusCode
-        const True === isJust . getHeader "Location"
-    return tid
+  tid <- randomId
+  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+  _ <- put
+    ( galley
+        . paths ["/i/teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . header "Z-Type" "access"
+        . Bilge.json nt
+    )
+    <!! do
+      const 201 === statusCode
+      const True === isJust . getHeader "Location"
+  return tid
 
 changeTeamStatus :: HasCallStack => Galley -> TeamId -> TeamStatus -> Http ()
 changeTeamStatus galley tid s = do
-      put
-        ( galley . paths ["i", "teams", toByteString' tid, "status"]
+  put
+    ( galley . paths ["i", "teams", toByteString' tid, "status"]
         . Bilge.json (TeamStatusUpdate s Nothing)
-        ) !!! const 200 === statusCode
+    )
+    !!! const 200
+    === statusCode
 
 addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
 addTeamMember galley usr tid mem = do
-    let payload = Bilge.json (newNewTeamMember mem)
-    post (galley . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload) !!!
-        const 200 === statusCode
+  let payload = Bilge.json (newNewTeamMember mem)
+  post (galley . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
+    !!! const 200 === statusCode
 
 randomUser' :: HasCallStack => Bool -> Brig -> Http User
 randomUser' hasPwd brig = do
@@ -651,9 +656,11 @@ randomName = liftIO $ do
         else randLetter
 
 retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
-retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
-                             (const (return . f))
-                             (const m)
+retryWhileN n f m =
+  retrying
+    (constantDelay 1000000 <> limitRetries n)
+    (const (return . f))
+    (const m)
 
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other

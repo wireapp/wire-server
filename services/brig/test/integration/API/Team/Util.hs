@@ -7,7 +7,7 @@ import Brig.Types.Connection
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
-import Control.Lens (view, (^?), (^.))
+import Control.Lens ((^.), (^?), view)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -28,31 +28,34 @@ import Web.Cookie (parseSetCookie, setCookieName)
 
 createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
 createPopulatedBindingTeam brig galley numMembers = do
-    names <- forM [1..numMembers] $ \_ -> randomName
-    createPopulatedBindingTeamWithNames brig galley names
+  names <- forM [1 .. numMembers] $ \_ -> randomName
+  createPopulatedBindingTeamWithNames brig galley names
 
 createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, UserId, [User])
 createPopulatedBindingTeamWithNames brig galley names = do
-    (inviter, tid) <- createUserWithTeam brig galley
-    invitees <- forM names $ \name -> do
-        inviteeEmail <- randomEmail
-        let invite = InvitationRequest inviteeEmail name Nothing Nothing
-        inv <- responseJsonError =<< postInvitation brig tid inviter invite
-        Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-        rsp2 <- post (brig . path "/register"
-                           . contentJson
-                           . body (acceptWithName name inviteeEmail inviteeCode))
-                      <!! const 201 === statusCode
-        let invitee :: User = responseJsonUnsafe rsp2
-        do
-            let invmeta = Just (inviter, inCreatedAt inv)
-            mem <- getTeamMember (userId invitee) tid galley
-            liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
-        do
-            let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
-            liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
-        pure invitee
-    pure (tid, inviter, invitees)
+  (inviter, tid) <- createUserWithTeam brig galley
+  invitees <- forM names $ \name -> do
+    inviteeEmail <- randomEmail
+    let invite = InvitationRequest inviteeEmail name Nothing Nothing
+    inv <- responseJsonError =<< postInvitation brig tid inviter invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <-
+      post
+        ( brig . path "/register"
+            . contentJson
+            . body (acceptWithName name inviteeEmail inviteeCode)
+        )
+        <!! const 201 === statusCode
+    let invitee :: User = responseJsonUnsafe rsp2
+    do
+      let invmeta = Just (inviter, inCreatedAt inv)
+      mem <- getTeamMember (userId invitee) tid galley
+      liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+    do
+      let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
+      liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
+    pure invitee
+  pure (tid, inviter, invitees)
 
 createTeam :: UserId -> Galley -> Http TeamId
 createTeam u galley = do

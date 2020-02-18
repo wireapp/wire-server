@@ -14,18 +14,21 @@ import Util
 
 tests :: Manager -> Galley -> Brig -> IO TestTree
 tests mgr galley brig =
-    return $ testGroup "search"
-        [ test mgr "by-name"    $ testSearchByName brig
-        , test mgr "by-handle"  $ testSearchByHandle brig
-        , test mgr "reindex"    $ testReindex brig
-        , testGroup "team-members"
-          [ test mgr "team member cannot be found by non-team user"        $ testSearchTeamMemberAsNonMember galley brig
-          , test mgr "team A member cannot be found by team B member"      $ testSearchTeamMemberAsOtherMember galley brig
-          , test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig
-          , test mgr "non team user can be found by a team member"         $ testSeachNonMemberAsTeamMember galley brig
-          , test mgr "teammates should be ordered before non team members" $ testSearchOrderingAsTeamMemeber galley brig
+  return $
+    testGroup
+      "search"
+      [ test mgr "by-name" $ testSearchByName brig,
+        test mgr "by-handle" $ testSearchByHandle brig,
+        test mgr "reindex" $ testReindex brig,
+        testGroup
+          "team-members"
+          [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
+            test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
+            test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
+            test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
+            test mgr "teammates should be ordered before non team members" $ testSearchOrderingAsTeamMemeber galley brig
           ]
-        ]
+      ]
 
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do
@@ -52,23 +55,22 @@ testSearchByHandle brig = do
 
 testReindex :: Brig -> Http ()
 testReindex brig = do
-    u <- randomUser brig
-
-    ((), regular) <- runConcurrently $ (,)
+  u <- randomUser brig
+  ((), regular) <-
+    runConcurrently $
+      (,)
         <$> Concurrently (reindex brig)
         <*> Concurrently (replicateM 5 $ delayed *> mkRegularUser)
-
-    refreshIndex brig
-
-    for_ regular $ \u' -> do
-        let Just h = fromHandle <$> userHandle u'
-        assertCanFind brig (userId u) (userId u') h
-        Just (found:_) <- fmap searchResults <$> executeSearch brig (userId u) h
-        liftIO $ do
-            assertEqual "Unexpected UserId" (contactUserId  found) (userId u')
-            assertEqual "Unexpected Name"   (contactName    found) (fromName $ userName u')
-            assertEqual "Unexpected Colour" (contactColorId found) (Just . fromIntegral . fromColourId  $ userAccentId u')
-            assertEqual "Unexpected Handle" (contactHandle  found) (fromHandle <$> userHandle u')
+  refreshIndex brig
+  for_ regular $ \u' -> do
+    let Just h = fromHandle <$> userHandle u'
+    assertCanFind brig (userId u) (userId u') h
+    Just (found : _) <- fmap searchResults <$> executeSearch brig (userId u) h
+    liftIO $ do
+      assertEqual "Unexpected UserId" (contactUserId found) (userId u')
+      assertEqual "Unexpected Name" (contactName found) (fromName $ userName u')
+      assertEqual "Unexpected Colour" (contactColorId found) (Just . fromIntegral . fromColourId $ userAccentId u')
+      assertEqual "Unexpected Handle" (contactHandle found) (fromHandle <$> userHandle u')
   where
     -- note: delaying user creation a bit to increase the chance of actually
     -- happen concurrently to the reindex on a small test database
@@ -80,7 +82,6 @@ testSearchTeamMemberAsNonMember galley brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
-
   assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromName (userName teamMember))
 
 testSearchTeamMemberAsOtherMember :: Galley -> Brig -> Http ()
@@ -88,14 +89,12 @@ testSearchTeamMemberAsOtherMember galley brig = do
   (_, _, [teamAMember]) <- createPopulatedBindingTeam brig galley 1
   (_, _, [teamBMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
-
   assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userName teamBMember))
 
 testSearchTeamMemberAsSameMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsSameMember galley brig = do
   (_, _, [teamAMember, teamAMember']) <- createPopulatedBindingTeam brig galley 2
   refreshIndex brig
-
   assertCanFind brig (userId teamAMember) (userId teamAMember') (fromName (userName teamAMember'))
 
 testSeachNonMemberAsTeamMember :: Galley -> Brig -> Http ()
@@ -103,7 +102,6 @@ testSeachNonMemberAsTeamMember galley brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
   refreshIndex brig
-
   assertCanFind brig (userId teamMember) (userId nonTeamMember) (fromName (userName nonTeamMember))
 
 testSearchOrderingAsTeamMemeber :: Galley -> Brig -> Http ()
@@ -112,10 +110,8 @@ testSearchOrderingAsTeamMemeber galley brig = do
   nonTeamSearchee <- createUser' True (fromName searchedName) brig
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", searchedName]
   refreshIndex brig
-
   (Just result) <- executeSearch brig (userId searcher) (fromName searchedName)
   let resultUserIds = contactUserId <$> searchResults result
       (Just nonTeamSearcheeIndex) = elemIndex (userId nonTeamSearchee) resultUserIds
       (Just teamSearcheeIndex) = elemIndex (userId teamSearchee) resultUserIds
-
   liftIO $ assertBool "teammate is not ordered before non teammate" (nonTeamSearcheeIndex > teamSearcheeIndex)

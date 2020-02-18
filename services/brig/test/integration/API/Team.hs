@@ -26,46 +26,50 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
-import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
 tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
-    let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
-    let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
-    return $ testGroup "team"
-        [ testGroup "invitation"
-            [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
-            , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
-            , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
-            , test m "post /teams/:tid/invitations - roles"                $ testInvitationRoles b g
-            , test' aws m "post /register - 201 accepted"                  $ testInvitationEmailAccepted b g
-            , test' aws m "post /register user & team - 201 accepted"      $ testCreateTeam b g aws
-            , test' aws m "post /register user & team - 201 preverified"   $ testCreateTeamPreverified b g aws
-            , test m "post /register - 400 no passwordless"                $ testTeamNoPassword b
-            , test m "post /register - 400 code already used"              $ testInvitationCodeExists b g
-            , test m "post /register - 400 bad code"                       $ testInvitationInvalidCode b
-            , test m "post /register - 400 no wireless"                    $ testInvitationCodeNoIdentity b
-            , test m "post /register - 400 mutually exclusive"             $ testInvitationMutuallyExclusive b
-            , test m "post /register - 403 too many members"               $ testInvitationTooManyMembers b g tl
-            , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
-            , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
-            , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
-            , test m "get /teams/:tid/invitations/info - 400 expired"      $ testInvitationInfoExpired b g it
-            , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
-            , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
-            , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
-            , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
-            ]
-        , testGroup "sso"
-            [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
-            , test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
-            , test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
-            ]
-        ]
+  let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
+  let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
+  return $
+    testGroup
+      "team"
+      [ testGroup
+          "invitation"
+          [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b g,
+            test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b g,
+            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl,
+            test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
+            test' aws m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
+            test' aws m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
+            test' aws m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
+            test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
+            test m "post /register - 400 code already used" $ testInvitationCodeExists b g,
+            test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
+            test m "post /register - 400 no wireless" $ testInvitationCodeNoIdentity b,
+            test m "post /register - 400 mutually exclusive" $ testInvitationMutuallyExclusive b,
+            test m "post /register - 403 too many members" $ testInvitationTooManyMembers b g tl,
+            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging b g,
+            test m "get /teams/:tid/invitations/info - 200" $ testInvitationInfo b g,
+            test m "get /teams/:tid/invitations/info - 400" $ testInvitationInfoBadCode b,
+            test m "get /teams/:tid/invitations/info - 400 expired" $ testInvitationInfoExpired b g it,
+            test m "post /i/teams/:tid/suspend - 200" $ testSuspendTeam b g,
+            test m "put /self - 200 update events" $ testUpdateEvents b g c,
+            test m "delete /self - 200 (ensure no orphan teams)" $ testDeleteTeamUser b g,
+            test m "post /connections - 403 (same binding team)" $ testConnectionSameTeam b g
+          ],
+        testGroup
+          "sso"
+          [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
+            test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
+            test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
+          ]
+      ]
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
@@ -170,13 +174,13 @@ testInvitationRoles brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
-    -- 'createPopulatedBindingTeam' also runs some tests.  Go read it!
-    (_tid, _inviter, [invitee]) <- createPopulatedBindingTeam brig galley 1
-    -- Verify that the invited user is active
-    login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
-    -- Verify that the user is part of the team
-    conns <- listConnections (userId invitee) brig
-    liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
+  -- 'createPopulatedBindingTeam' also runs some tests.  Go read it!
+  (_tid, _inviter, [invitee]) <- createPopulatedBindingTeam brig galley 1
+  -- Verify that the invited user is active
+  login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
+  -- Verify that the user is part of the team
+  conns <- listConnections (userId invitee) brig
+  liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
 testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeam brig galley aws = do

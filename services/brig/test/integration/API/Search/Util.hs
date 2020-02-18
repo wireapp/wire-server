@@ -66,6 +66,7 @@ assertCanFind brig self expected q = do
 
 assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
-    Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
-    liftIO .  assertBool ("User shouldn't be present in results for query: " <> show q) $
-        notElem expected . map contactUserId $ r
+  Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
+  liftIO . assertBool ("User shouldn't be present in results for query: " <> show q)
+    $ notElem expected . map contactUserId
+    $ r
