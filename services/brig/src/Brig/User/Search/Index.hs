@@ -28,19 +28,19 @@ module Brig.User.Search.Index
   )
 where
 
-import Brig.Data.Instances ()
-import Brig.Types.Intra
-import Brig.Types.Search
-import Brig.Types.User
-import Brig.User.Search.Index.Types as Types
-import qualified Cassandra as C
-import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
-import Control.Monad.Except
-import Data.Aeson
-import Data.Aeson.Encoding
-import Data.Aeson.Lens
-import Data.ByteString.Builder (Builder, toLazyByteString)
+import           Brig.Data.Instances ()
+import           Brig.User.Search.Index.Types as Types
+import           Brig.Types.Search
+import           Brig.Types.User
+import           Brig.Types.Intra
+import qualified Cassandra                  as C
+import           Control.Lens               hiding (( # ), (.=))
+import           Control.Monad.Catch        (MonadThrow, MonadCatch, MonadMask, throwM)
+import           Control.Monad.Except
+import           Data.Aeson                 as Aeson
+import           Data.Aeson.Encoding
+import           Data.Aeson.Lens
+import           Data.ByteString.Builder    (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
 import Data.Id
 import qualified Data.Map as Map
@@ -119,12 +119,14 @@ searchIndex ::
   MonadIndexIO m =>
   -- | The user performing the search.
   UserId ->
+  -- | The teamId of the user performing the search.
+  Maybe TeamId ->
   -- | The search query
   Text ->
   -- | The maximum number of results.
   Range 1 100 Int32 ->
   m (SearchResult Contact)
-searchIndex u q = queryIndex (defaultUserQuery u q)
+searchIndex u t q = queryIndex (defaultUserQuery u t q)
 
 checkIndex :: MonadIndexIO m => UserId -> m SearchableStatus
 checkIndex u = liftIndexIO $ fmap SearchableStatus $ do
@@ -139,10 +141,11 @@ checkIndex u = liftIndexIO $ fmap SearchableStatus $ do
           (pure . maybe False searchable . fmap ES._source . ES.foundResult)
   where
     -- NOTE: This only holds when using 'defaultUserQuery'.
-    searchable (UserDoc _ _ Nothing Nothing _) = False
-    searchable _ = True
+    -- TODO(akshay/fisx): Maybe ignore this as users opting out is not really a feature
+    searchable (UserDoc _ _ _ Nothing Nothing _) = False
+    searchable _                                 = True
 
--- [Note: suspended]
+-- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
 -- ~~~~~~~~~~~~~~~~~
 --
 -- The suspended field in the ES index is an artifact of the legacy system,
@@ -158,12 +161,9 @@ queryIndex ::
   m (SearchResult r)
 queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
   idx <- asks idxName
-  r <-
-    ES.searchByType
-      idx
-      mappingName
-      ((ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)})
-      >>= ES.parseEsResponse
+  let search = (ES.mkSearch (Just q) (Just f)) { ES.size = ES.Size (fromIntegral s) }
+  r <- ES.searchByType idx mappingName search
+          >>= ES.parseEsResponse
   either (throwM . IndexLookupError) (pure . mkResult) r
   where
     mkResult es =
@@ -175,55 +175,48 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
               searchResults = results
             }
 
+
 -- | The default or canonical 'IndexQuery'.
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
 -- Note, however, that the result of 'isSearchableUser' depends on which fields
 -- are queried, and thus can only be correct for the canonical query.
-defaultUserQuery :: UserId -> Text -> IndexQuery Contact
-defaultUserQuery u (normalized -> term') =
-  mkUserQuery u $
-    ES.QueryBoolQuery
-      boolQuery
-        { ES.boolQueryMustMatch =
-            [ ES.QueryBoolQuery
-                boolQuery
-                  { ES.boolQueryShouldMatch =
-                      [ ES.QueryMultiMatchQuery $
-                          ( ES.mkMultiMatchQuery
-                              [ ES.FieldName "handle^2",
-                                ES.FieldName "normalized"
-                              ]
-                              (ES.QueryString term')
-                          )
-                            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix
-                            },
-                        ES.QueryMultiMatchQuery $
-                          ( ES.mkMultiMatchQuery
-                              [ ES.FieldName "handle^3",
-                                ES.FieldName "normalized^2"
-                              ]
-                              (ES.QueryString term')
-                          )
-                            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase
-                            }
-                      ]
-                  }
-            ],
-          ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
-        }
+--
+defaultUserQuery :: UserId -> Maybe TeamId -> Text -> IndexQuery Contact
+defaultUserQuery u t (normalized -> term') = mkUserQuery u t $ ES.QueryBoolQuery boolQuery
+    { ES.boolQueryMustMatch =
+        [ ES.QueryBoolQuery boolQuery
+            { ES.boolQueryShouldMatch =
+                [ ES.QueryMultiMatchQuery $
+                      (ES.mkMultiMatchQuery
+                          [ ES.FieldName "handle^2"
+                          , ES.FieldName "normalized"
+                          ]
+                          (ES.QueryString term')
+                      ) { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix }
+                , ES.QueryMultiMatchQuery $
+                      (ES.mkMultiMatchQuery
+                          [ ES.FieldName "handle^3"
+                          , ES.FieldName "normalized^2"
+                          ]
+                          (ES.QueryString term')
+                      ) { ES.multiMatchQueryType = Just ES.MultiMatchPhrase }
+                ]
+            }
+        ]
+    , ES.boolQueryShouldMatch = [ ES.QueryExistsQuery (ES.FieldName "handle") ]
+    }
 
-mkUserQuery :: UserId -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) q =
-  IndexQuery q
-    $ ES.Filter . ES.QueryBoolQuery
-    $ boolQuery
-      { ES.boolQueryMustNotMatch =
-          [ termQ "suspended" "1", -- [Note: suspended]
-            termQ "_id" self
-          ]
-      }
+mkUserQuery :: UserId -> Maybe TeamId -> ES.Query -> IndexQuery Contact
+mkUserQuery (review _TextId -> self) t q = IndexQuery q $
+    ES.Filter . ES.QueryBoolQuery $ boolQuery
+        { ES.boolQueryMustNotMatch =
+            [ termQ "suspended" "1" -- [Note: suspended]
+            , termQ "_id" self
+            ]
+        , ES.boolQueryMustMatch = [optionallySearchWithinTeam t]
+        }
   where
     termQ f v =
       ES.TermQuery
@@ -232,6 +225,20 @@ mkUserQuery (review _TextId -> self) q =
             ES.termValue = v
           }
         Nothing
+
+    matchNonTeamMemberUsers = ES.QueryBoolQuery boolQuery
+                              { ES.boolQueryMustNotMatch =  [ES.QueryExistsQuery $ ES.FieldName "team_id"] }
+
+    matchTeamMembersOf team = ES.TermQuery (ES.Term "team_id" $ idToText team) Nothing
+
+    optionallySearchWithinTeam =
+      maybe matchNonTeamMemberUsers
+      (\teamId ->
+          ES.QueryBoolQuery boolQuery { ES.boolQueryShouldMatch = [ matchTeamMembersOf teamId
+                                                                  , matchNonTeamMemberUsers
+                                                                  ] }
+      )
+
 
 --------------------------------------------------------------------------------
 -- Updates
@@ -292,11 +299,15 @@ updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
       (path ("user.index.update.bulk.status." <> review builder (decimal s)))
       m
   where
-    bulkEncode iu =
-      bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
-        <> "\n"
-        <> fromEncoding (toEncoding (userDoc iu))
-        <> "\n"
+    encodeJSONToString :: ToJSON a => a -> Builder
+    encodeJSONToString = fromEncoding . toEncoding
+
+    bulkEncode iu
+        = bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
+       <> "\n"
+       <> encodeJSONToString (userDoc iu)
+       <> "\n"
+
     bulkMeta :: Text -> ES.DocVersion -> Builder
     bulkMeta docId v =
       fromEncoding . pairs . pair "index" . pairs $
@@ -311,20 +322,19 @@ updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
         . toListOf (key "items" . values . key "index" . key "status" . _Integral)
         . responseBody
 updateIndex (IndexDeleteUser u) = liftIndexIO $ do
-  counterIncr (path "user.index.delete.count") =<< asks idxMetrics
-  info $
-    field "user" (Bytes.toByteString u)
-      . msg (val "(Soft) deleting user from index")
-  idx <- asks idxName
-  r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
-  case statusCode (responseStatus r) of
-    200 -> case preview (key "_version" . _Integer) (responseBody r) of
-      Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
-      Just v ->
-        updateIndex . IndexUpdateUser $
-          mkIndexUser u (mkIndexVersion (v + 1))
-    404 -> pure ()
-    _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+    counterIncr (path "user.index.delete.count") =<< asks idxMetrics
+    info $ field "user" (Bytes.toByteString u)
+         . msg (val "(Soft) deleting user from index")
+
+    idx <- asks idxName
+    r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
+    case statusCode (responseStatus r) of
+        200 -> case preview (key "_version" . _Integer) (responseBody r) of
+            Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
+            Just v  -> updateIndex . IndexUpdateUser
+                       =<< (mkIndexUser u <$> mkIndexVersion (v + 1))
+        404 -> pure ()
+        _   -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
 --------------------------------------------------------------------------------
 -- Administrative
@@ -384,26 +394,37 @@ traceES descr act = liftIndexIO $ do
   return r
 
 userDoc :: IndexUser -> UserDoc
-userDoc iu =
-  UserDoc
-    { udId = _iuUserId iu,
-      udName = fromName <$> _iuName iu,
-      udNormalized = normalized . fromName <$> _iuName iu,
-      udHandle = fromHandle <$> _iuHandle iu,
-      udColourId = _iuColourId iu
+userDoc iu  = UserDoc
+    { udId         = _iuUserId iu
+    , udTeamId     = _iuTeamId iu
+    , udName       = _iuName iu
+    , udNormalized = normalized . fromName <$> _iuName iu
+    , udHandle     = _iuHandle iu
+    , udColourId   = _iuColourId iu
     }
 
+-- | Name is set to not be indexed, as the search is meant to happen on the normalized name.
 indexMapping :: Value
-indexMapping =
-  object
-    [ "properties"
-        .= object
-          [ "normalized" .= object ["type" .= ("text" :: Text), "store" .= False],
-            "name" .= object ["type" .= ("keyword" :: Text), "index" .= False],
-            "handle" .= object ["type" .= ("text" :: Text)],
-            "accent_id" .= object ["type" .= ("byte" :: Text), "index" .= False]
-          ]
+indexMapping = object
+    [ "properties" .= object
+        [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True} -- normalized user name
+        , "name"       .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False}
+        , "handle"     .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True}
+        , "team_id"    .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True}
+        , "accent_id"  .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False}
+        ]
     ]
+
+data MappingProperty = MappingProperty { mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool }
+data MappingPropertyType = MPText | MPKeyword | MPByte  -- | ...
+
+instance ToJSON MappingProperty where
+    toJSON mp = object [ "type" .= mpType mp, "store" .= mpStore mp, "index" .= mpIndex mp]
+
+instance ToJSON MappingPropertyType where
+    toJSON MPText = Aeson.String "text"
+    toJSON MPKeyword = Aeson.String "keyword"
+    toJSON MPByte = Aeson.String "byte"
 
 -- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
 --       yet this will require a data migration.
@@ -419,98 +440,99 @@ _TextId = prism' (UUID.toText . toUUID) (fmap Id . UUID.fromText)
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
 
-lookupForIndex :: C.MonadClient m => UserId -> m (Maybe IndexUser)
-lookupForIndex u =
-  fmap reindexRowToIndexUser
-    <$> C.retry C.x1 (C.query1 cql (C.params C.Quorum (Identity u)))
+lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
+lookupForIndex u = do
+    result <- C.retry C.x1 (C.query1 cql (C.params C.Quorum (Identity u)))
+    sequence $ reindexRowToIndexUser <$> result
   where
     cql :: C.PrepQuery C.R (Identity UserId) ReindexRow
-    cql =
-      "SELECT \
-      \id, \
-      \name, \
-      \writetime(name), \
-      \status, \
-      \writetime(status), \
-      \handle, \
-      \writetime(handle), \
-      \searchable, \
-      \writetime(searchable), \
-      \accent_id, \
-      \writetime(accent_id), \
-      \activated, \
-      \writetime(activated), \
-      \service, \
-      \writetime(service) \
-      \FROM user \
-      \WHERE id = ?"
+    cql = "SELECT \
+          \id, \
+          \team, \
+          \name, \
+          \writetime(name), \
+          \status, \
+          \writetime(status), \
+          \handle, \
+          \writetime(handle), \
+          \accent_id, \
+          \writetime(accent_id), \
+          \activated, \
+          \writetime(activated), \
+          \service, \
+          \writetime(service) \
+          \FROM user \
+          \WHERE id = ?"
 
-scanForIndex :: C.MonadClient m => Int32 -> m (C.Page IndexUser)
-scanForIndex num =
-  fmap reindexRowToIndexUser
-    <$> C.paginate cql (C.paramsP C.One () (num + 1))
+-- | FUTUREWORK: make a PR to cql-io with a 'Traversable' instance.
+traversePage :: forall a. C.Page (C.Client a) -> C.Client (C.Page a)
+traversePage (C.Page hasmore result nextpage) = do
+    C.Page hasmore <$> sequence result <*> (traversePage <$> nextpage)
+
+scanForIndex :: Int32 -> C.Client (C.Page IndexUser)
+scanForIndex num = do
+    result :: C.Page ReindexRow <- C.paginate cql (C.paramsP C.One () (num + 1))
+    traversePage $ reindexRowToIndexUser <$> result
   where
     cql :: C.PrepQuery C.R () ReindexRow
-    cql =
-      "SELECT \
-      \id, \
-      \name, \
-      \writetime(name), \
-      \status, \
-      \writetime(status), \
-      \handle, \
-      \writetime(handle), \
-      \searchable, \
-      \writetime(searchable), \
-      \accent_id, \
-      \writetime(accent_id), \
-      \activated, \
-      \writetime(activated), \
-      \service, \
-      \writetime(service) \
-      \FROM user"
+    cql = "SELECT \
+          \id, \
+          \team, \
+          \name, \
+          \writetime(name), \
+          \status, \
+          \writetime(status), \
+          \handle, \
+          \writetime(handle), \
+          \accent_id, \
+          \writetime(accent_id), \
+          \activated, \
+          \writetime(activated), \
+          \service, \
+          \writetime(service) \
+          \FROM user"
 
-type Activated = Bool
-
+type Activated   = Bool
 type Writetime a = Int64
+type ReindexRow  =
+    ( UserId
+    , Maybe TeamId
+    , Name
+    , Writetime Name
+    , Maybe AccountStatus
+    , Maybe (Writetime AccountStatus)
+    , Maybe Handle
+    , Maybe (Writetime Handle)
+    , ColourId
+    , Writetime ColourId
+    , Activated
+    , Writetime Activated
+    , Maybe ServiceId
+    , Maybe (Writetime ServiceId)
+    )
 
-type ReindexRow =
-  ( UserId,
-    Name,
-    Writetime Name,
-    Maybe AccountStatus,
-    Maybe (Writetime AccountStatus),
-    Maybe Handle,
-    Maybe (Writetime Handle),
-    Maybe SearchableStatus,
-    Maybe (Writetime SearchableStatus),
-    ColourId,
-    Writetime ColourId,
-    Activated,
-    Writetime Activated,
-    Maybe ServiceId,
-    Maybe (Writetime ServiceId)
-  )
-
-reindexRowToIndexUser :: ReindexRow -> IndexUser
-reindexRowToIndexUser (u, name, t0, status, t1, handle, t2, searchable, t3, colour, t4, activated, t5, service, t6) =
-  let iu = mkIndexUser u (version [Just t0, t1, t2, t3, Just t4, Just t5, t6])
-   in if shouldIndex
-        then
-          iu & set iuName (Just name)
-            . set iuHandle handle
-            . set iuColourId (Just colour)
-        else iu
+reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
+reindexRowToIndexUser
+    (u, mteam, name, t0, status, t1, handle, t2, colour, t4, activated, t5, service, t6)
+    = do
+        iu <- mkIndexUser u <$> version [Just t0, t1, t2, Just t4, Just t5, t6]
+        pure $ if shouldIndex then
+              iu & set iuTeamId     mteam
+                 . set iuName       (Just name)
+                 . set iuHandle     handle
+                 . set iuColourId   (Just colour)
+          else iu
   where
+    version :: [Maybe (Writetime Name)] -> m IndexVersion
     version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
-    shouldIndex =
-      and
-        [ fromMaybe True (isSearchable <$> searchable), -- implicit opt-in
-          not suspended,
-          activated,
-          isNothing service
+
+    shouldIndex = and
+        [ case status of
+            Just Active    -> True
+            Nothing        -> True
+            Just Suspended -> False
+            Just Deleted   -> False
+            Just Ephemeral -> False
+        , activated          -- FUTUREWORK: how is this adding to the first case?
+        , isNothing service  -- FUTUREWORK: how is this adding to the first case?
         ]
-    suspended = case status of
-      Just Active -> False
-      Nothing -> False
-      _ -> True

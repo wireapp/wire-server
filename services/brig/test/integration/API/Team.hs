@@ -1,6 +1,5 @@
 module API.Team (tests) where
 
-import API.Search.Util
 import API.Team.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
@@ -27,56 +26,46 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
-import Web.Cookie (parseSetCookie, setCookieName)
+import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
 tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
-  let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
-  let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
-  return $
-    testGroup
-      "team"
-      [ testGroup
-          "invitation"
-          [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b g,
-            test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b g,
-            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl,
-            test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
-            test' aws m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
-            test' aws m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
-            test' aws m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
-            test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
-            test m "post /register - 400 code already used" $ testInvitationCodeExists b g,
-            test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
-            test m "post /register - 400 no wireless" $ testInvitationCodeNoIdentity b,
-            test m "post /register - 400 mutually exclusive" $ testInvitationMutuallyExclusive b,
-            test m "post /register - 403 too many members" $ testInvitationTooManyMembers b g tl,
-            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging b g,
-            test m "get /teams/:tid/invitations/info - 200" $ testInvitationInfo b g,
-            test m "get /teams/:tid/invitations/info - 400" $ testInvitationInfoBadCode b,
-            test m "get /teams/:tid/invitations/info - 400 expired" $ testInvitationInfoExpired b g it,
-            test m "post /i/teams/:tid/suspend - 200" $ testSuspendTeam b g,
-            test m "put /self - 200 update events" $ testUpdateEvents b g c,
-            test m "delete /self - 200 (ensure no orphan teams)" $ testDeleteTeamUser b g,
-            test m "post /connections - 403 (same binding team)" $ testConnectionSameTeam b g
-          ],
-        testGroup
-          "search"
-          [ test m "post /register members are unsearchable" $ testNonSearchableDefault b g,
-            test m "team members may only search within team if set" $ testNonSearchableAcrossTeam conf b g
-          ],
-        testGroup
-          "sso"
-          [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
-            test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
-            test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
-          ]
-      ]
+    let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
+    let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
+    return $ testGroup "team"
+        [ testGroup "invitation"
+            [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
+            , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
+            , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
+            , test m "post /teams/:tid/invitations - roles"                $ testInvitationRoles b g
+            , test' aws m "post /register - 201 accepted"                  $ testInvitationEmailAccepted b g
+            , test' aws m "post /register user & team - 201 accepted"      $ testCreateTeam b g aws
+            , test' aws m "post /register user & team - 201 preverified"   $ testCreateTeamPreverified b g aws
+            , test m "post /register - 400 no passwordless"                $ testTeamNoPassword b
+            , test m "post /register - 400 code already used"              $ testInvitationCodeExists b g
+            , test m "post /register - 400 bad code"                       $ testInvitationInvalidCode b
+            , test m "post /register - 400 no wireless"                    $ testInvitationCodeNoIdentity b
+            , test m "post /register - 400 mutually exclusive"             $ testInvitationMutuallyExclusive b
+            , test m "post /register - 403 too many members"               $ testInvitationTooManyMembers b g tl
+            , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
+            , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
+            , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
+            , test m "get /teams/:tid/invitations/info - 400 expired"      $ testInvitationInfoExpired b g it
+            , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
+            , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
+            , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
+            , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
+            ]
+        , testGroup "sso"
+            [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
+            , test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
+            , test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
+            ]
+        ]
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
@@ -181,30 +170,13 @@ testInvitationRoles brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
-  (inviter, tid) <- createUserWithTeam brig galley
-  inviteeEmail <- randomEmail
-  let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-  inv <- responseJsonError =<< postInvitation brig tid inviter invite
-  let invmeta = Just (inviter, inCreatedAt inv)
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-  rsp2 <-
-    post
-      ( brig . path "/register"
-          . contentJson
-          . body (accept inviteeEmail inviteeCode)
-      )
-      <!! const 201 === statusCode
-  let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
-  let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
-  liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
-  -- Verify that the invited user is active
-  login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
-  -- Verify that the user is part of the team
-  mem <- getTeamMember invitee tid galley
-  liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
-  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
-  conns <- listConnections invitee brig
-  liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
+    -- 'createPopulatedBindingTeam' also runs some tests.  Go read it!
+    (_tid, _inviter, [invitee]) <- createPopulatedBindingTeam brig galley 1
+    -- Verify that the invited user is active
+    login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
+    -- Verify that the user is part of the team
+    conns <- listConnections (userId invitee) brig
+    liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
 testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeam brig galley aws = do
@@ -575,116 +547,6 @@ testConnectionSameTeam brig galley = do
   -- Externals are also ok
   postConnection brig creatorA external !!! const 201 === statusCode
   postConnection brig creatorB external !!! const 201 === statusCode
-
--------------------------------------------------------------------------------
--- Search
-
-testNonSearchableDefault :: Brig -> Galley -> Http ()
-testNonSearchableDefault brig galley = do
-  nonMember <- randomUserWithHandle brig
-  email <- randomEmail
-  rsp <- register email newTeam brig
-  act <- getActivationCode brig (Left email)
-  case act of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creator = responseJsonMaybe rsp
-  [team] <- view Team.teamListTeams <$> getTeams (userId creator) galley
-  let tid = view Team.teamId team
-  invitee <- inviteAndRegisterUser (userId creator) tid brig
-  creatorWithHandle <- setRandomHandle brig creator
-  inviteeWithHandle <- setRandomHandle brig invitee
-  refreshIndex brig
-  let uid1 = userId nonMember
-      uid2 = userId creatorWithHandle
-      uid3 = userId inviteeWithHandle
-      Just uHandle = fromHandle <$> userHandle nonMember
-      Just cHandle = fromHandle <$> userHandle creatorWithHandle
-      Just iHandle = fromHandle <$> userHandle inviteeWithHandle
-  -- users are searchable by default
-  assertSearchable "user is searchable" brig uid1 True
-  assertCanFind brig uid2 uid1 uHandle
-  -- team owners are not searchable by default
-  assertSearchable "owner isn't searchable" brig uid2 False
-  assertCan'tFind brig uid1 uid2 cHandle
-  -- team members are not searchable by default
-  assertSearchable "member isn't searchable" brig uid3 False
-  assertCan'tFind brig uid1 uid3 iHandle
-
-testNonSearchableAcrossTeam :: Opt.Opts -> Brig -> Galley -> Http ()
-testNonSearchableAcrossTeam opts brig galley = do
-  nonMember <- randomUserWithHandle brig
-  email <- randomEmail
-  rsp <- register email newTeam brig
-  act <- getActivationCode brig (Left email)
-  case act of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creator = responseJsonMaybe rsp
-  [team] <- view Team.teamListTeams <$> getTeams (userId creator) galley
-  let tid = view Team.teamId team
-  invitee <- inviteAndRegisterUser (userId creator) tid brig
-  creatorWithHandle <- setRandomHandle brig creator
-  inviteeWithHandle <- setRandomHandle brig invitee
-  -- Separate team creator
-  emailOther <- randomEmail
-  rspOther <- register emailOther newTeam brig
-  actOther <- getActivationCode brig (Left emailOther)
-  case actOther of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creatorOther = responseJsonMaybe rspOther
-  creatorOtherWithHandle <- setRandomHandle brig creatorOther
-  refreshIndex brig
-  let uid1 = userId nonMember
-      uid2 = userId creatorWithHandle
-      uid3 = userId inviteeWithHandle
-      uid4 = userId creatorOtherWithHandle
-      Just uHandle = fromHandle <$> userHandle nonMember
-      uName = fromName $ userName nonMember
-      Just cHandle = fromHandle <$> userHandle creatorWithHandle
-      cName = fromName $ userName creatorWithHandle
-      Just iHandle = fromHandle <$> userHandle inviteeWithHandle
-      Just oHandle = fromHandle <$> userHandle creatorOtherWithHandle
-      oName = fromName $ userName creatorOtherWithHandle
-  -- users are searchable by default
-  assertSearchable "user is searchable" brig uid1 True
-  assertCanFind brig uid2 uid1 uHandle
-  -- users are also searcheable by name
-  assertCanFind brig uid3 uid1 uName
-  -- team users can also be made searchable
-  updateSearchableStatus brig uid4 optIn
-  assertSearchable "user is searchable" brig uid4 True
-  refreshIndex brig
-  assertCanFind brig uid2 uid4 oHandle
-  assertCanFind brig uid3 uid4 oName
-  -- team owners are not searchable by default
-  assertSearchable "owner isn't searchable" brig uid2 False
-  assertCan'tFind brig uid1 uid2 cHandle
-  -- team members are not searchable by default
-  assertSearchable "member isn't searchable" brig uid3 False
-  assertCan'tFind brig uid1 uid3 iHandle
-  -- make the creator searchable
-  updateSearchableStatus brig uid2 optIn
-  refreshIndex brig
-  -- uid2 is searchable for uid1, uid3 and uid4 now
-  assertCanFind brig uid1 uid2 cHandle
-  assertCanFind brig uid1 uid2 cName
-  assertCanFind brig uid3 uid2 cHandle
-  assertCanFind brig uid3 uid2 cName
-  assertCanFind brig uid4 uid2 cHandle
-  assertCanFind brig uid4 uid2 cName
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
-  withSettingsOverrides newOpts $ do
-    -- team users cannot search by name nor handle if not a team user
-    assertCan'tFind brig uid2 uid1 uHandle
-    assertCan'tFind brig uid2 uid1 uName
-    -- and also not across
-    assertCan'tFind brig uid3 uid4 oHandle
-    assertCan'tFind brig uid3 uid4 oName
-    -- uid3 can find uid2 because uid2 is visible and they are on the same team
-    assertCanFind brig uid3 uid2 cHandle
-    assertCanFind brig uid3 uid2 cName
 
 ----------------------------------------------------------------------
 -- SSO

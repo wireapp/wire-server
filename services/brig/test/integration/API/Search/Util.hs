@@ -41,6 +41,7 @@ executeSearch brig self q = do
       === statusCode
   return . decode . fromMaybe "" $ responseBody r
 
+-- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 refreshIndex brig =
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
@@ -81,10 +82,9 @@ assertCanFind brig self expected q = do
 
 assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
-  Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
-  liftIO . assertBool ("User unexpectedly in results for query: " <> show q)
-    $ notElem expected . map contactUserId
-    $ r
+    Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
+    liftIO .  assertBool ("User shouldn't be present in results for query: " <> show q) $
+        notElem expected . map contactUserId $ r
 
 assertSearchable :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => String -> (Request -> Request) -> UserId -> Bool -> m ()
 assertSearchable label brig uid status = do

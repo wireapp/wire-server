@@ -65,6 +65,8 @@ changeTeamStatus tid s = do
     !!! const 200
     === statusCode
 
+-- | This creates a binding team.
+-- TODO: Rename to createBindingTeamInternal
 createTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
 createTeamInternal name owner = do
   tid <- createTeamInternalNoActivate name owner

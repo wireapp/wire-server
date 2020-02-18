@@ -51,40 +51,39 @@ instance FromJSON Config
 
 runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
 runTests iConf bConf otherArgs = do
-  -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
-  -- for config.
-  -- Involves removing a bunch of 'optOrEnv' calls
-  brigOpts <- maybe (fail "failed to parse options file") pure bConf
-  let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
-  b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-  c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-  ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
-  g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-  n <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
-  turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
-  turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
-  casHost <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) bConf pack "BRIG_CASSANDRA_HOST"
-  casPort <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) bConf read "BRIG_CASSANDRA_PORT"
-  casKey <- optOrEnv (\v -> (Opts.cassandra v) ^. casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
-  awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
-  lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  db <- defInitCassandra casKey casHost casPort lg
-  mg <- newManager tlsManagerSettings
-  emailAWSOpts <- parseEmailAWSOpts
-  awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  userApi <- User.tests brigOpts mg b c ch g n awsEnv
-  providerApi <- Provider.tests (provider <$> iConf) mg db b c g
-  searchApis <- Search.tests mg b
-  teamApis <- Team.tests brigOpts mg b c g awsEnv
-  turnApi <- TURN.tests mg b turnFile turnFileV2
-  metricsApi <- Metrics.tests mg b
-  settingsApi <- Settings.tests brigOpts mg b g
-  withArgs otherArgs . defaultMain $
-    testGroup
-      "Brig API Integration"
-      [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
+    -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
+    -- for config.
+    -- Involves removing a bunch of 'optOrEnv' calls
+    brigOpts <- maybe (fail "failed to parse options file") pure bConf
+    let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
+    b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+    c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+    ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
+    g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+    n  <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
+    turnFile   <- optOrEnv (Opts.servers   . Opts.turn) bConf id "TURN_SERVERS"
+    turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
+    casHost <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
+    casPort <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
+    casKey  <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
+    awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
+
+    lg <- Logger.new Logger.defSettings  -- TODO: use mkLogger'?
+    db <- defInitCassandra casKey casHost casPort lg
+    mg <- newManager tlsManagerSettings
+    emailAWSOpts <- parseEmailAWSOpts
+    awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
+
+    userApi     <- User.tests brigOpts mg b c ch g n awsEnv
+    providerApi <- Provider.tests (provider <$> iConf) mg db b c g
+    searchApis  <- Search.tests mg g b
+    teamApis    <- Team.tests brigOpts mg b c g awsEnv
+    turnApi     <- TURN.tests mg b turnFile turnFileV2
+    metricsApi  <- Metrics.tests mg b
+    settingsApi <- Settings.tests brigOpts mg b g
+
+    withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
+        [ testCase "sitemap" $ assertEqual "inconcistent sitemap"
             mempty
             (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
         userApi,

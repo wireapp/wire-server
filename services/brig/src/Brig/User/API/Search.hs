@@ -4,12 +4,10 @@ import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
 import qualified Brig.IO.Intra as Intra
-import Brig.Options
-import Brig.Types.Search hiding (isSearchable)
 import qualified Brig.Types.Swagger as Doc
 import Brig.User.Event
 import Brig.User.Search.Index
-import Control.Lens
+import Brig.Types.Search hiding (isSearchable)
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -78,32 +76,9 @@ searchH :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
 searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
 
 search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
-search u q s = do
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-  contacts <- searchIndex u q s
-  -- FUTUREWORK: Store the team id on elasticsearch as well. This would avoid
-  --             the extra work done here and greatly simplify the query.
-  return
-    =<< if sameTeamSearchOnly
-      then maybeFilterTeamUsers contacts
-      else pure contacts
-  where
-    maybeFilterTeamUsers :: SearchResult Contact -> AppIO (SearchResult Contact)
-    maybeFilterTeamUsers sresult = do
-      selfTeam <- DB.lookupUserTeam u
-      case selfTeam of
-        Nothing -> pure sresult
-        Just team -> filterTeamUsers sresult team
-    -- Filter the result set with users from the given team only
-    filterTeamUsers sresult team = do
-      others <- DB.lookupUsersTeam $ fmap contactUserId (searchResults sresult)
-      let sameTeamMembers = fmap fst $ filter ((== Just team) . snd) others
-      let searchResultsFiltered = filter ((`elem` sameTeamMembers) . contactUserId) (searchResults sresult)
-      return $
-        sresult
-          { searchReturned = length searchResultsFiltered,
-            searchResults = searchResultsFiltered
-          }
+search searcherId searchTerm maxResults = do
+  searcherTeamId <- DB.lookupUserTeam searcherId
+  searchIndex searcherId searcherTeamId searchTerm maxResults
 
 isSearchableH :: JSON ::: UserId -> Handler Response
 isSearchableH (_ ::: u) = json <$> lift (isSearchable u)

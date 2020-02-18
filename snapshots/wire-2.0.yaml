@@ -15,10 +15,6 @@ packages:
 - git: https://gitlab.com/twittner/wai-routing
   commit: 7e996a93fec5901767f845a50316b3c18e51a61d
 
-# Includes the changes from <https://gitlab.com/twittner/cql-io/merge_requests/14>
-# - git: https://gitlab.com/twittner/cql-io.git
-#   commit: 8b91d053c469887a427e8c075cef43139fa189c4
-
 #  Our fork of multihash with relaxed upper bounds
 - git: https://github.com/wireapp/haskell-multihash.git
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
@@ -102,4 +98,4 @@ packages:
 - pattern-trie-0.1.0
 
 # Not latest as latst one breaks wai-routing
-- wai-route-0.4.0 
+- wai-route-0.4.0
