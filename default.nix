@@ -16,11 +16,11 @@ let
             let
               pkg-names = lib.attrNames (stack-pkgs.extras {}).packages;
               patch = name: {
-
                 # Final hack, workaround for  https://github.com/input-output-hk/haskell.nix/issues/298
                 # we know that local packages sure dont have postUnpack. We find out that they're local based
                 # on their source beign local
                 ${name} = { config, ... }: lib.mkIf (builtins.typeOf config.src == "path") {
+                  package.cleanHpack = true;
                   postUnpack = ''
                     if [[ -e $sourceRoot/package.yaml ]]; then
                       substituteInPlace $sourceRoot/package.yaml --replace '../../package-defaults.yaml' "${./package-defaults.yaml}"
@@ -42,4 +42,5 @@ in
 
     # doesn't compile yet because of cryptobox!
     brig  = pkgSet.config.hsPkgs.brig.components.exes;
+    inherit pkgSet;
   }

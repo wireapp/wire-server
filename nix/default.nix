@@ -5,7 +5,6 @@ let
     overlays = [
       # the tool we use for versioning (The thing that generates sources.json)
       (_: _: { niv = (import sources.niv {}).niv; })
-      (import ./overlays/server.nix)
       (import ./overlays/wire-server.nix)
 
     ]
