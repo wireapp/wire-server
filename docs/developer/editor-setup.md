@@ -63,7 +63,7 @@ There are make targets `format`, `formatf`, `formatc` to re-format
 or check the entire repository.  This takes about 10 seconds.
 
 Vim integration is [linked
-here](https://github.com/tweag/ormolu/pull/515/files).
+here](https://github.com/tweag/ormolu#editor-integration).
 
 If you use sdiehl's module, you you need to collect the language extensions from `package-defaults.yaml`:
 
