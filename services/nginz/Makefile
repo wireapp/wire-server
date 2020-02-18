@@ -129,3 +129,7 @@ docker:
 .PHONY: libzauth
 libzauth:
 	$(MAKE) -C ../../libs/libzauth install
+
+.PHONY: docker-run-demo
+docker-run-demo:
+	docker run --network=host -it -v $(PWD)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
