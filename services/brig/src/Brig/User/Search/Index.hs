@@ -16,6 +16,7 @@ module Brig.User.Search.Index
 
     -- * Administrative
     createIndex,
+    createIndexIfNotPresent,
     resetIndex,
     reindexAll,
     refreshIndex,
@@ -355,20 +356,27 @@ refreshIndex = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
 
+createIndexIfNotPresent :: MonadIndexIO m => ES.IndexSettings -> m ()
+createIndexIfNotPresent = createIndex' False
+
 createIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
-createIndex s = liftIndexIO $ do
+createIndex = createIndex' True
+
+createIndex' :: MonadIndexIO m => Bool -> ES.IndexSettings -> m ()
+createIndex' failIfExists s = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
-  when ex $
+  when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
-  cr <- traceES "Create index" $ ES.createIndex s idx
-  unless (ES.isSuccess cr) $
-    throwM (IndexError "Index creation failed.")
-  mr <-
-    traceES "Put mapping" $
-      ES.putMapping idx (ES.MappingName "user") indexMapping
-  unless (ES.isSuccess mr) $
-    throwM (IndexError "Put Mapping failed.")
+  unless ex $ do
+    cr <- traceES "Create index" $ ES.createIndex s idx
+    unless (ES.isSuccess cr) $
+      throwM (IndexError "Index creation failed.")
+    mr <-
+      traceES "Put mapping" $
+        ES.putMapping idx (ES.MappingName "user") indexMapping
+    unless (ES.isSuccess mr) $
+      throwM (IndexError "Put Mapping failed.")
 
 resetIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
 resetIndex s = liftIndexIO $ do

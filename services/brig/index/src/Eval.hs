@@ -24,7 +24,7 @@ runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es -> do
     e <- initIndex es
-    runIndexIO e (createIndex (es ^. esIndexSettings))
+    runIndexIO e (createIndexIfNotPresent (es ^. esIndexSettings))
   Reset es -> do
     e <- initIndex es
     runIndexIO e (resetIndex (es ^. esIndexSettings))

@@ -167,14 +167,14 @@ commandParser =
     ( command
         "create"
         ( info
-            (Create <$> restrictedElasticSettingsParser)
-            (progDesc ("Create the ES user index, if it doesn't already exist. " <> lo))
+            (Create <$> elasticSettingsParser)
+            (progDesc ("Create the ES user index, if it doesn't already exist. "))
         )
         <> command
           "reset"
           ( info
               (Reset <$> restrictedElasticSettingsParser)
-              (progDesc ("Delete and re-create the ES user index. " <> lo))
+              (progDesc ("Delete and re-create the ES user index. Only works on a test index (directory_test)."))
           )
         <> command
           "reindex"
@@ -183,8 +183,6 @@ commandParser =
               (progDesc "Reindex all users from Cassandra.")
           )
     )
-  where
-    lo = "Only works on a test index (directory_test)."
 
 _IndexName :: Iso' ES.IndexName Text
 _IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
