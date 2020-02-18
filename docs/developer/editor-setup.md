@@ -47,7 +47,7 @@ Install the [projectile][] package for Emacs and do `M-x projectile-add-known-pr
 
 ### Ormolu integration
 
-There is are make rules `format`, `formatf`, `formatc` to re-format
+There are make targets `format`, `formatf`, `formatc` to re-format
 or check the entire repository.  This takes about 10 seconds.
 
 Emacs integration is [linked
