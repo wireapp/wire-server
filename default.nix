@@ -42,5 +42,7 @@ in
 
     # doesn't compile yet because of cryptobox!
     brig  = pkgSet.config.hsPkgs.brig.components.exes;
+    cannon  = pkgSet.config.hsPkgs.cannon.components.exes;
+    gundeck  = pkgSet.config.hsPkgs.gundeck.components.exes;
     inherit pkgSet;
   }
