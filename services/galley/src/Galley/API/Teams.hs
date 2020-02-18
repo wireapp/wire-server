@@ -1,6 +1,6 @@
 module Galley.API.Teams
-  ( createBindingTeam,
-    createNonBindingTeam,
+  ( createBindingTeamH,
+    createNonBindingTeamH,
     updateTeam,
     updateTeamStatus,
     getTeam,
@@ -64,7 +64,7 @@ import Galley.Options
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
-import Galley.Types.Teams
+import Galley.Types.Teams hiding (newTeam)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Imports
@@ -105,9 +105,14 @@ lookupTeam zusr tid = do
       pure (tdTeam <$> t)
     else pure Nothing
 
-createNonBindingTeam :: UserId ::: ConnId ::: JsonRequest NonBindingNewTeam ::: JSON -> Galley Response
-createNonBindingTeam (zusr ::: zcon ::: req ::: _) = do
-  NonBindingNewTeam body <- fromJsonBody req
+createNonBindingTeamH :: UserId ::: ConnId ::: JsonRequest NonBindingNewTeam ::: JSON -> Galley Response
+createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
+  newTeam <- fromJsonBody req
+  newTeamId <- createNonBindingTeam zusr zcon newTeam
+  pure (empty & setStatus status201 . location newTeamId)
+
+createNonBindingTeam :: UserId -> ConnId -> NonBindingNewTeam -> Galley TeamId
+createNonBindingTeam zusr zcon (NonBindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   let others =
         filter ((zusr /=) . view userId)
@@ -122,9 +127,14 @@ createNonBindingTeam (zusr ::: zcon ::: req ::: _) = do
   team <- Data.createTeam Nothing zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) NonBinding
   finishCreateTeam team owner others (Just zcon)
 
-createBindingTeam :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley Response
-createBindingTeam (zusr ::: tid ::: req ::: _) = do
-  BindingNewTeam body <- fromJsonBody req
+createBindingTeamH :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley Response
+createBindingTeamH (zusr ::: tid ::: req ::: _) = do
+  newTeam <- fromJsonBody req
+  newTeamId <- createBindingTeam zusr tid newTeam
+  pure (empty & setStatus status201 . location newTeamId)
+
+createBindingTeam :: UserId -> TeamId -> BindingNewTeam -> Galley TeamId
+createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
@@ -508,7 +518,7 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
     r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
 
-finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley Response
+finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $
@@ -517,7 +527,7 @@ finishCreateTeam team owner others zcon = do
   let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
   let r = membersToRecipients Nothing others
   push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
-  pure (empty & setStatus status201 . location (team ^. teamId))
+  pure (team ^. teamId)
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
 withBindingTeam zusr callback = do

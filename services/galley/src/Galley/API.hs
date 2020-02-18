@@ -43,7 +43,7 @@ import Network.Wai.Utilities.ZAuth
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
-  post "/teams" (continue createNonBindingTeam) $
+  post "/teams" (continue createNonBindingTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NonBindingNewTeam
@@ -878,7 +878,7 @@ sitemap = do
   get "/i/teams/:tid/name" (continue getTeamNameInternal) $
     capture "tid"
       .&. accept "application" "json"
-  put "/i/teams/:tid" (continue createBindingTeam) $
+  put "/i/teams/:tid" (continue createBindingTeamH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @BindingNewTeam
