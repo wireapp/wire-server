@@ -3,12 +3,12 @@ module Galley.API.Teams
     createNonBindingTeamH,
     updateTeam,
     updateTeamStatus,
-    getTeam,
-    getTeamInternal,
-    getTeamNameInternal,
+    getTeamH,
+    getTeamInternalH,
+    getTeamNameInternalH,
     getBindingTeamId,
     getBindingTeamMembers,
-    getManyTeams,
+    getManyTeamsH,
     deleteTeam,
     uncheckedDeleteTeam,
     addTeamMember,
@@ -75,23 +75,33 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 
-getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeam (zusr ::: tid ::: _) =
+getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamH (zusr ::: tid ::: _) =
   maybe (throwM teamNotFound) (pure . json) =<< lookupTeam zusr tid
 
-getTeamInternal :: TeamId ::: JSON -> Galley Response
-getTeamInternal (tid ::: _) =
-  maybe (throwM teamNotFound) (pure . json) =<< Data.team tid
+getTeamInternalH :: TeamId ::: JSON -> Galley Response
+getTeamInternalH (tid ::: _) =
+  maybe (throwM teamNotFound) (pure . json) =<< getTeamInternal tid
 
-getTeamNameInternal :: TeamId ::: JSON -> Galley Response
-getTeamNameInternal (tid ::: _) =
-  maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
+getTeamInternal :: TeamId -> Galley (Maybe TeamData)
+getTeamInternal = Data.team
 
-getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
-getManyTeams (zusr ::: range ::: size ::: _) =
+getTeamNameInternalH :: TeamId ::: JSON -> Galley Response
+getTeamNameInternalH (tid ::: _) =
+  maybe (throwM teamNotFound) (pure . json) =<< getTeamNameInternal tid
+
+getTeamNameInternal :: TeamId -> Galley (Maybe TeamName)
+getTeamNameInternal = fmap (fmap TeamName) . Data.teamName
+
+getManyTeamsH :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
+getManyTeamsH (zusr ::: range ::: size ::: _) =
+  json <$> getManyTeams zusr range size
+
+getManyTeams :: UserId -> Maybe (Either (Range 1 32 (List TeamId)) TeamId) -> Range 1 100 Int32 -> Galley TeamList
+getManyTeams zusr range size =
   withTeamIds zusr range size $ \more ids -> do
     teams <- mapM (lookupTeam zusr) ids
-    pure (json $ newTeamList (catMaybes teams) more)
+    pure (newTeamList (catMaybes teams) more)
 
 lookupTeam :: UserId -> TeamId -> Galley (Maybe Team)
 lookupTeam zusr tid = do
@@ -456,8 +466,8 @@ withTeamIds ::
   UserId ->
   Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
-  (Bool -> [TeamId] -> Galley Response) ->
-  Galley Response
+  (Bool -> [TeamId] -> Galley a) ->
+  Galley a
 withTeamIds usr range size k = case range of
   Nothing -> do
     Data.ResultSet r <- Data.teamIdsFrom usr Nothing (rcast size)

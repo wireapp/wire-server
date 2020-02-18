@@ -70,7 +70,7 @@ sitemap = do
     errorResponse (Error.operationDenied SetTeamData)
   --
 
-  get "/teams" (continue getManyTeams) $
+  get "/teams" (continue getManyTeamsH) $
     zauthUserId
       .&. opt (query "ids" ||| query "start")
       .&. def (unsafeRange 100) (query "size")
@@ -81,7 +81,7 @@ sitemap = do
     response 200 "Teams list" end
   --
 
-  get "/teams/:tid" (continue getTeam) $
+  get "/teams/:tid" (continue getTeamH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -872,10 +872,10 @@ sitemap = do
       .&. capture "cnv"
   get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
     capture "cnv"
-  get "/i/teams/:tid" (continue getTeamInternal) $
+  get "/i/teams/:tid" (continue getTeamInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  get "/i/teams/:tid/name" (continue getTeamNameInternal) $
+  get "/i/teams/:tid/name" (continue getTeamNameInternalH) $
     capture "tid"
       .&. accept "application" "json"
   put "/i/teams/:tid" (continue createBindingTeamH) $
