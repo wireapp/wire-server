@@ -1,8 +1,8 @@
 module Galley.API.Teams
   ( createBindingTeamH,
     createNonBindingTeamH,
-    updateTeam,
-    updateTeamStatus,
+    updateTeamH,
+    updateTeamStatusH,
     getTeamH,
     getTeamInternalH,
     getTeamNameInternalH,
@@ -149,15 +149,19 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
 
-updateTeamStatus :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
-updateTeamStatus (tid ::: req ::: _) = do
-  TeamStatusUpdate to cur <- fromJsonBody req
-  from <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
-  valid <- validateTransition from to
-  when valid $ do
-    journal to cur
-    Data.updateTeamStatus tid to
+updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
+updateTeamStatusH (tid ::: req ::: _) = do
+  teamStatusUpdate <- fromJsonBody req
+  updateTeamStatus tid teamStatusUpdate
   return empty
+
+updateTeamStatus :: TeamId -> TeamStatusUpdate -> Galley ()
+updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
+  oldStatus <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
+  valid <- validateTransition oldStatus newStatus
+  when valid $ do
+    journal newStatus cur
+    Data.updateTeamStatus tid newStatus
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = Data.teamMembers tid >>= \mems ->
@@ -171,21 +175,25 @@ updateTeamStatus (tid ::: req ::: _) = do
       (Suspended, Suspended) -> return False
       (_, _) -> throwM invalidTeamStatusUpdate
 
-updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
-updateTeam (zusr ::: zcon ::: tid ::: req ::: _) = do
-  body <- fromJsonBody req
+updateTeamH :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
+updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
+  updateData <- fromJsonBody req
+  updateTeam zusr zcon tid updateData
+  pure empty
+
+updateTeam :: UserId -> ConnId -> TeamId -> TeamUpdateData -> Galley ()
+updateTeam zusr zcon tid updateData = do
   membs <- Data.teamMembers tid
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "Teams.updateTeam")
   void $ permissionCheck zusr SetTeamData membs
-  Data.updateTeam tid body
+  Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate body)
+  let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
   push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
-  pure empty
 
 deleteTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeam (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do

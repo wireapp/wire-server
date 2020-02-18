@@ -54,7 +54,7 @@ sitemap = do
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
     errorResponse Error.notConnected
-  put "/teams/:tid" (continue updateTeam) $
+  put "/teams/:tid" (continue updateTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -883,7 +883,7 @@ sitemap = do
       .&. capture "tid"
       .&. jsonRequest @BindingNewTeam
       .&. accept "application" "json"
-  put "/i/teams/:tid/status" (continue updateTeamStatus) $
+  put "/i/teams/:tid/status" (continue updateTeamStatusH) $
     capture "tid"
       .&. jsonRequest @TeamStatusUpdate
       .&. accept "application" "json"
