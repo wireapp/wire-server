@@ -1,131 +1,140 @@
-{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Ropes.Twilio
-    ( -- * Types
-      SID (..)
-    , AccessToken (..)
-    , Credentials
-    , Message (..)
-    , MessageId
-    , LookupDetail (..)
-    , CarrierInfo (..)
-    , PhoneType (..)
-    , LookupResult (..)
-    , ErrorResponse (..)
-    , ParseError (..)
+  ( -- * Types
+    SID (..),
+    AccessToken (..),
+    Credentials,
+    Message (..),
+    MessageId,
+    LookupDetail (..),
+    CarrierInfo (..),
+    PhoneType (..),
+    LookupResult (..),
+    ErrorResponse (..),
+    ParseError (..),
 
-      -- * Functions
-    , sendMessage
-    , sendMessages
-    , lookupPhone
-    , tryTwilio
-    ) where
+    -- * Functions
+    sendMessage,
+    sendMessages,
+    lookupPhone,
+    tryTwilio,
+  )
+where
 
-import Imports hiding (head, length)
 import Control.Error (ExceptT (..))
 import Control.Exception
 import Data.Aeson
+import qualified Data.ByteString.Char8 as C
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as N
 import Data.Text.Encoding (encodeUtf8)
+import Imports hiding (head, length)
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.URI
 
-import qualified Data.ByteString.Char8 as C
-import qualified Data.List.NonEmpty as N
-
 -- * Types
 
 newtype MessageId = MessageId ByteString
+
 newtype SID = SID ByteString
+
 newtype AccessToken = AccessToken ByteString
 
-data Credentials = Credentials
-    { sid   :: SID
-    , token :: AccessToken
-    }
+data Credentials
+  = Credentials
+      { sid :: SID,
+        token :: AccessToken
+      }
 
 instance FromJSON Credentials where
-    parseJSON = withObject "credentials" $ \o ->
-        Credentials <$> (SID . encodeUtf8         <$> o .: "sid")
-                    <*> (AccessToken . encodeUtf8 <$> o .: "token")
+  parseJSON = withObject "credentials" $ \o ->
+    Credentials <$> (SID . encodeUtf8 <$> o .: "sid")
+      <*> (AccessToken . encodeUtf8 <$> o .: "token")
 
-data Message = Message
-    { msgFrom :: !Text
-    , msgTo   :: !Text
-    , msgText :: !Text
-    } deriving (Eq, Show)
+data Message
+  = Message
+      { msgFrom :: !Text,
+        msgTo :: !Text,
+        msgText :: !Text
+      }
+  deriving (Eq, Show)
 
-data ErrorResponse = ErrorResponse
-    { errStatus   :: !Int
-    , errMessage  :: !Text
-    , errCode     :: !(Maybe Int)
-    , errMoreInfo :: !(Maybe Text)
-    } deriving (Eq, Show, Typeable)
+data ErrorResponse
+  = ErrorResponse
+      { errStatus :: !Int,
+        errMessage :: !Text,
+        errCode :: !(Maybe Int),
+        errMoreInfo :: !(Maybe Text)
+      }
+  deriving (Eq, Show, Typeable)
 
 instance Exception ErrorResponse
 
 instance FromJSON ErrorResponse where
-    parseJSON = withObject "error-response" $ \o ->
-        ErrorResponse <$> o .:  "status"
-                      <*> o .:  "message"
-                      <*> o .:? "code"
-                      <*> o .:? "more_info"
+  parseJSON = withObject "error-response" $ \o ->
+    ErrorResponse <$> o .: "status"
+      <*> o .: "message"
+      <*> o .:? "code"
+      <*> o .:? "more_info"
 
 newtype ParseError = ParseError String
-    deriving (Eq, Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 instance Exception ParseError
 
-data MessageResponse = MessageResponse
-    { msgId :: !MessageId
-    }
+data MessageResponse
+  = MessageResponse
+      { msgId :: !MessageId
+      }
 
 instance FromJSON MessageResponse where
-    parseJSON = withObject "MessageResponse" $ \o ->
-        MessageResponse . MessageId . encodeUtf8 <$> o .: "sid"
+  parseJSON = withObject "MessageResponse" $ \o ->
+    MessageResponse . MessageId . encodeUtf8 <$> o .: "sid"
 
 data LookupDetail
-    = LookupNoDetail
-    | LookupCarrier
-    deriving (Eq, Show)
+  = LookupNoDetail
+  | LookupCarrier
+  deriving (Eq, Show)
 
-data LookupResult = LookupResult
-    { lookupE164    :: !Text
-    , lookupCarrier :: !(Maybe CarrierInfo)
-    }
+data LookupResult
+  = LookupResult
+      { lookupE164 :: !Text,
+        lookupCarrier :: !(Maybe CarrierInfo)
+      }
 
-data CarrierInfo = CarrierInfo
-    { carrierName :: !(Maybe Text)
-    , carrierType :: !(Maybe PhoneType)
-    }
+data CarrierInfo
+  = CarrierInfo
+      { carrierName :: !(Maybe Text),
+        carrierType :: !(Maybe PhoneType)
+      }
 
 data PhoneType
-    = Landline
-    | Mobile
-    | VoIp
-    deriving (Eq, Show)
+  = Landline
+  | Mobile
+  | VoIp
+  deriving (Eq, Show)
 
 instance FromJSON LookupResult where
-    parseJSON = withObject "LookupResult" $ \o ->
-        LookupResult <$> o .:  "phone_number"
-                     <*> o .:? "carrier"
+  parseJSON = withObject "LookupResult" $ \o ->
+    LookupResult <$> o .: "phone_number"
+      <*> o .:? "carrier"
 
 instance FromJSON CarrierInfo where
-    parseJSON = withObject "CarrierInfo" $ \o ->
-        CarrierInfo <$> o .:? "name"
-                    <*> o .:? "type"
+  parseJSON = withObject "CarrierInfo" $ \o ->
+    CarrierInfo <$> o .:? "name"
+      <*> o .:? "type"
 
 instance FromJSON PhoneType where
-    parseJSON = withText "PhoneType" $ \t ->
-        case t of
-            "mobile"   -> return Mobile
-            "landline" -> return Landline
-            "voip"     -> return VoIp
-            x          -> fail $ "Unexpected phone type: " ++ show x
+  parseJSON = withText "PhoneType" $ \t ->
+    case t of
+      "mobile" -> return Mobile
+      "landline" -> return Landline
+      "voip" -> return VoIp
+      x -> fail $ "Unexpected phone type: " ++ show x
 
 -- * Functions
 
@@ -137,64 +146,64 @@ sendMessage cr mgr msg = N.head <$> sendMessages cr mgr (msg :| [])
 
 sendMessages :: Credentials -> Manager -> NonEmpty Message -> IO (NonEmpty MessageId)
 sendMessages cr mgr msgs = forM msgs $ \m -> do
-    let req = urlEncodedBody (form m) . applyBasicAuth tSid tToken $ apiReq
-    rsp <- httpLbs req mgr
-    if responseStatus rsp == status201
-        then case eitherDecode (responseBody rsp) of
-            Right r -> return $ msgId r
-            Left  e -> throwIO $ ParseError e
-        else case eitherDecode (responseBody rsp) of
-            Right e -> throwIO (e :: ErrorResponse)
-            Left  e -> throwIO $ ParseError e
+  let req = urlEncodedBody (form m) . applyBasicAuth tSid tToken $ apiReq
+  rsp <- httpLbs req mgr
+  if responseStatus rsp == status201
+    then case eitherDecode (responseBody rsp) of
+      Right r -> return $ msgId r
+      Left e -> throwIO $ ParseError e
+    else case eitherDecode (responseBody rsp) of
+      Right e -> throwIO (e :: ErrorResponse)
+      Left e -> throwIO $ ParseError e
   where
-    apiReq = defaultRequest
-        { method = "POST"
-        , host   = "api.twilio.com"
-        , secure = True
-        , port   = 443
-        , path   = "/2010-04-01/Accounts/" <> tSid <> "/Messages.json"
+    apiReq =
+      defaultRequest
+        { method = "POST",
+          host = "api.twilio.com",
+          secure = True,
+          port = 443,
+          path = "/2010-04-01/Accounts/" <> tSid <> "/Messages.json"
         }
-
     (SID tSid, AccessToken tToken) = (sid cr, token cr)
+    form m =
+      [ ("From", encodeUtf8 . msgFrom $ m),
+        ("To", encodeUtf8 . msgTo $ m),
+        ("Body", encodeUtf8 . msgText $ m)
+      ]
 
-    form m = [ ("From", encodeUtf8 . msgFrom $ m)
-             , ("To"  , encodeUtf8 . msgTo   $ m)
-             , ("Body", encodeUtf8 . msgText $ m)
-             ]
-
-lookupPhone :: Credentials
-            -> Manager
-            -> Text
-            -> LookupDetail
-            -> Maybe CountryCode
-            -> IO LookupResult
+lookupPhone ::
+  Credentials ->
+  Manager ->
+  Text ->
+  LookupDetail ->
+  Maybe CountryCode ->
+  IO LookupResult
 lookupPhone cr mgr phone detail country = do
-    let req = applyBasicAuth tSid tToken apiReq
-    rsp <- httpLbs req mgr
-    if responseStatus rsp == status200
-        then case eitherDecode (responseBody rsp) of
-            Right r -> return r
-            Left  e -> throwIO $ ParseError e
-        else case eitherDecode (responseBody rsp) of
-            Right e -> throwIO (e :: ErrorResponse)
-            Left  e -> throwIO $ ParseError e
+  let req = applyBasicAuth tSid tToken apiReq
+  rsp <- httpLbs req mgr
+  if responseStatus rsp == status200
+    then case eitherDecode (responseBody rsp) of
+      Right r -> return r
+      Left e -> throwIO $ ParseError e
+    else case eitherDecode (responseBody rsp) of
+      Right e -> throwIO (e :: ErrorResponse)
+      Left e -> throwIO $ ParseError e
   where
     (SID tSid, AccessToken tToken) = (sid cr, token cr)
-
-    apiReq = defaultRequest
-        { method      = "GET"
-        , host        = "lookups.twilio.com"
-        , secure      = True
-        , port        = 443
-        , path        = "/v1/PhoneNumbers/" <> encodeUtf8 phone
-        , queryString = renderSimpleQuery False queryItems
+    apiReq =
+      defaultRequest
+        { method = "GET",
+          host = "lookups.twilio.com",
+          secure = True,
+          port = 443,
+          path = "/v1/PhoneNumbers/" <> encodeUtf8 phone,
+          queryString = renderSimpleQuery False queryItems
         }
-
-    queryItems = catMaybes [ countryCode <$> country
-                           , lookupType detail
-                           ]
-
+    queryItems =
+      catMaybes
+        [ countryCode <$> country,
+          lookupType detail
+        ]
     countryCode c = ("CountryCode", C.pack (show c))
-
     lookupType LookupNoDetail = Nothing
-    lookupType LookupCarrier  = Just ("Type", "carrier")
+    lookupType LookupCarrier = Just ("Type", "carrier")
