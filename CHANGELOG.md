@@ -7,7 +7,6 @@
 
 ## Significant internal changes
 
-* Update nginx to latest stable 1.16.1, alpine 3.11 (#725)
 * Better docs on brig integration yaml (#973)
 
 ## Internal changes
