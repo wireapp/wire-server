@@ -12,6 +12,7 @@ DEB            := $(NAME)_$(NGINZ_VERSION)_$(ARCH).deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
+DOCKER_REGISTRY ?= quay.io
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 
@@ -124,7 +125,7 @@ docker:
 	git submodule update --init
 	docker build -t $(DOCKER_USER)/nginz:$(DOCKER_TAG) -f Dockerfile ../..
 	docker tag $(DOCKER_USER)/nginz:$(DOCKER_TAG) $(DOCKER_USER)/nginz:latest
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
+	if test -n "$$DOCKER_PUSH"; then docker login $(DOCKER_REGISTRY); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
 
 .PHONY: libzauth
 libzauth:
