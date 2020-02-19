@@ -137,6 +137,9 @@ RUN set -x \
 
 ################# wire/nginz specific ######################
 
+# Fix file permissions
+RUN mkdir -p /var/cache/nginx/client_temp && chown -R nginx:nginx /var/cache/nginx
+
 RUN apk add --no-cache inotify-tools dumb-init bash curl && \
     # add libzauth runtime dependencies back in
     apk add --no-cache libsodium llvm-libunwind libgcc
