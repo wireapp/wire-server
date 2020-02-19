@@ -9,9 +9,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
-ghc-prof-options:
-- -prof
-- -fprof-auto
 dependencies:
 - base >=4.6 && <5
 - base64-bytestring >=1.0
