@@ -102,6 +102,7 @@ run cannon "" ${orange}
 run cannon "2" ${orange}
 run cargohold "" ${purpleish}
 run spar "" ${orange}
+run federator "" ${blue}
 
 function run_nginz() {
     colour=$1
