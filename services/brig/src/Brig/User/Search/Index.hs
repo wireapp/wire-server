@@ -356,20 +356,37 @@ refreshIndex = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
 
-createIndexIfNotPresent :: MonadIndexIO m => ES.IndexSettings -> m ()
+createIndexIfNotPresent ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
 createIndexIfNotPresent = createIndex' False
 
-createIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
+createIndex ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
 createIndex = createIndex' True
 
-createIndex' :: MonadIndexIO m => Bool -> ES.IndexSettings -> m ()
-createIndex' failIfExists s = liftIndexIO $ do
+createIndex' ::
+  MonadIndexIO m =>
+  -- | Fail if index alredy exists
+  Bool ->
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+createIndex' failIfExists settings shardCount = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
-    cr <- traceES "Create index" $ ES.createIndex s idx
+    cr <- traceES "Create index" $ ES.createIndexWith settings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
     mr <-
@@ -378,14 +395,19 @@ createIndex' failIfExists s = liftIndexIO $ do
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
 
-resetIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
-resetIndex s = liftIndexIO $ do
+resetIndex ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+resetIndex settings shardCount = liftIndexIO $ do
   idx <- asks idxName
   gone <- ES.indexExists idx >>= \case
     True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
     False -> return True
   if gone
-    then createIndex s
+    then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
 
 reindexAll :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
