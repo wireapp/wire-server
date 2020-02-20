@@ -9,7 +9,7 @@ module Galley.API.Teams
     getBindingTeamIdH,
     getBindingTeamMembersH,
     getManyTeamsH,
-    deleteTeam,
+    deleteTeamH,
     uncheckedDeleteTeam,
     addTeamMember,
     getTeamMembers,
@@ -195,24 +195,35 @@ updateTeam zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
   push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
-deleteTeam (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
-  team <- Data.team tid >>= ifNothing teamNotFound
-  case tdStatus team of
-    Deleted -> throwM teamNotFound
-    PendingDelete -> queueDelete
-    _ -> do
+deleteTeamH :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
+deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
+  body <- fromJsonBody (JsonRequest req)
+  deleteTeam zusr zcon tid body
+  pure (empty & setStatus status202)
+
+deleteTeam :: UserId -> ConnId -> TeamId -> TeamDeleteData -> Galley ()
+deleteTeam zusr zcon tid body =
+  Data.team tid >>= \case
+    Nothing -> throwM teamNotFound
+    Just team ->
+      case tdStatus team of
+        Deleted ->
+          throwM teamNotFound
+        PendingDelete ->
+          queueDelete
+        _ -> do
+          checkPermissions team
+          queueDelete
+  where
+    checkPermissions team = do
       void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        body <- fromJsonBody (JsonRequest req)
         ensureReAuthorised zusr (body ^. tdAuthPassword)
-      queueDelete
-  where
     queueDelete = do
       q <- view deleteQueue
       ok <- Q.tryPush q (TeamItem tid zusr (Just zcon))
       if ok
-        then pure (empty & setStatus status202)
+        then pure ()
         else throwM deleteQueueFull
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.

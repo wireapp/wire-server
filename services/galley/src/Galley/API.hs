@@ -94,7 +94,7 @@ sitemap = do
     errorResponse Error.teamNotFound
   --
 
-  delete "/teams/:tid" (continue deleteTeam) $
+  delete "/teams/:tid" (continue deleteTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
