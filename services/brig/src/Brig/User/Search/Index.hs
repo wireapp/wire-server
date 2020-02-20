@@ -190,9 +190,7 @@ defaultUserQuery u t (normalized -> term') =
           boolQuery
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
-                    boolQuery
-                      { ES.boolQueryShouldMatch = matchPrefix : matchPhrase : []
-                      }
+                    boolQuery {ES.boolQueryShouldMatch = [matchPrefix, matchPhrase]}
                 ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
