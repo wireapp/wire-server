@@ -197,7 +197,8 @@ defaultUserQuery u t (normalized -> term') =
       -- This reduces relevance on non-team users by 90%, there was no science
       -- put behind the negative boost value.
       -- It is applied regardless of a teamId being present as users without a
-      -- team anyways don't see any users with team.
+      -- team anyways don't see any users with team and hence it won't affect
+      -- results if a non team user does the search.
       queryWithBoost =
         ES.QueryBoostingQuery
           ES.BoostingQuery
