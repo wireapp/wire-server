@@ -821,7 +821,7 @@ sitemap = do
       description "Team ID"
     returns (ref Model.legalHoldTeamConfig)
     response 200 "LegalHold status" end
-  get "/teams/:tid/features/sso" (continue Teams.getSSOStatus) $
+  get "/teams/:tid/features/sso" (continue Teams.getSSOStatusH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -913,10 +913,10 @@ sitemap = do
     capture "tid"
       .&. jsonRequest @LegalHoldTeamConfig
       .&. accept "application" "json"
-  get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternal) $
+  get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternal) $
+  put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternalH) $
     capture "tid"
       .&. jsonRequest @SSOTeamConfig
       .&. accept "application" "json"

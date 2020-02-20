@@ -20,9 +20,9 @@ module Galley.API.Teams
     getTeamConversationH,
     getTeamConversationRolesH,
     deleteTeamConversationH,
-    getSSOStatus,
-    getSSOStatusInternal,
-    setSSOStatusInternal,
+    getSSOStatusH,
+    getSSOStatusInternalH,
+    setSSOStatusInternalH,
     getLegalholdStatus,
     getLegalholdStatusInternal,
     setLegalholdStatusInternal,
@@ -623,11 +623,15 @@ getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
 
 -- Public endpoints for feature checks
 
-getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
-getSSOStatus (uid ::: tid ::: ct) = do
+getSSOStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
+getSSOStatusH (uid ::: tid ::: _) = do
+  json <$> getSSOStatus uid tid
+
+getSSOStatus :: UserId -> TeamId -> Galley SSOTeamConfig
+getSSOStatus uid tid = do
   membs <- Data.teamMembers tid
   void $ permissionCheck uid ViewSSOTeamSettings membs
-  getSSOStatusInternal (tid ::: ct)
+  getSSOStatusInternal tid
 
 getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getLegalholdStatus (uid ::: tid ::: ct) = do
@@ -640,25 +644,33 @@ getLegalholdStatus (uid ::: tid ::: ct) = do
 -- only from authorized personnel (e.g., from a backoffice tool)
 
 -- | Get SSO status for a team.
-getSSOStatusInternal :: TeamId ::: JSON -> Galley Response
-getSSOStatusInternal (tid ::: _) = do
-  defConfig :: SSOTeamConfig <- do
+getSSOStatusInternalH :: TeamId ::: JSON -> Galley Response
+getSSOStatusInternalH (tid ::: _) = do
+  json <$> getSSOStatusInternal tid
+
+getSSOStatusInternal :: TeamId -> Galley SSOTeamConfig
+getSSOStatusInternal tid = do
+  defConfig <- do
     featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
     pure . SSOTeamConfig $ case featureSSO of
       FeatureSSOEnabledByDefault -> SSOEnabled
       FeatureSSODisabledByDefault -> SSODisabled
-  ssoTeamConfig :: Maybe SSOTeamConfig <- SSOData.getSSOTeamConfig tid
-  pure . json . fromMaybe defConfig $ ssoTeamConfig
+  ssoTeamConfig <- SSOData.getSSOTeamConfig tid
+  pure . fromMaybe defConfig $ ssoTeamConfig
 
 -- | Enable or disable SSO for a team.
-setSSOStatusInternal :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
-setSSOStatusInternal (tid ::: req ::: _) = do
-  ssoTeamConfig :: SSOTeamConfig <- fromJsonBody req
+setSSOStatusInternalH :: TeamId ::: JsonRequest SSOTeamConfig ::: JSON -> Galley Response
+setSSOStatusInternalH (tid ::: req ::: _) = do
+  ssoTeamConfig <- fromJsonBody req
+  setSSOStatusInternal tid ssoTeamConfig
+  pure noContent
+
+setSSOStatusInternal :: TeamId -> SSOTeamConfig -> Galley ()
+setSSOStatusInternal tid ssoTeamConfig = do
   case ssoTeamConfigStatus ssoTeamConfig of
     SSODisabled -> throwM disableSsoNotImplemented
     SSOEnabled -> pure () -- this one is easy to implement :)
   SSOData.setSSOTeamConfig tid ssoTeamConfig
-  pure noContent
 
 -- | Get legal hold status for a team.
 getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
