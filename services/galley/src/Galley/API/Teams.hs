@@ -26,9 +26,9 @@ module Galley.API.Teams
     getLegalholdStatusH,
     getLegalholdStatusInternalH,
     setLegalholdStatusInternalH,
-    uncheckedAddTeamMember,
-    uncheckedGetTeamMember,
-    uncheckedGetTeamMembers,
+    uncheckedAddTeamMemberH,
+    uncheckedGetTeamMemberH,
+    uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
   )
@@ -326,15 +326,22 @@ getTeamMember zusr tid uid = do
         Nothing -> throwM teamMemberNotFound
         Just member -> pure (member, withPerms)
 
-uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
-uncheckedGetTeamMember (tid ::: uid ::: _) = do
-  mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
-  return $ json mem
+uncheckedGetTeamMemberH :: TeamId ::: UserId ::: JSON -> Galley Response
+uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
+  json <$> uncheckedGetTeamMember tid uid
 
-uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
-uncheckedGetTeamMembers (tid ::: _) = do
+uncheckedGetTeamMember :: TeamId -> UserId -> Galley TeamMember
+uncheckedGetTeamMember tid uid = do
+  Data.teamMember tid uid >>= ifNothing teamMemberNotFound
+
+uncheckedGetTeamMembersH :: TeamId ::: JSON -> Galley Response
+uncheckedGetTeamMembersH (tid ::: _) = do
+  json <$> uncheckedGetTeamMembers tid
+
+uncheckedGetTeamMembers :: TeamId -> Galley TeamMemberList
+uncheckedGetTeamMembers tid = do
   mems <- Data.teamMembers tid
-  return . json $ newTeamMemberList mems
+  pure $ newTeamMemberList mems
 
 addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -359,13 +366,17 @@ addTeamMember zusr zcon tid nmem = do
   addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
-uncheckedAddTeamMember :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
-uncheckedAddTeamMember (tid ::: req ::: _) = do
+uncheckedAddTeamMemberH :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
+uncheckedAddTeamMemberH (tid ::: req ::: _) = do
   nmem <- fromJsonBody req
+  uncheckedAddTeamMember tid nmem
+  return empty
+
+uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
+uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembers tid
   addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
-  return empty
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do

@@ -887,14 +887,14 @@ sitemap = do
     capture "tid"
       .&. jsonRequest @TeamStatusUpdate
       .&. accept "application" "json"
-  post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
+  post "/i/teams/:tid/members" (continue uncheckedAddTeamMemberH) $
     capture "tid"
       .&. jsonRequest @NewTeamMember
       .&. accept "application" "json"
-  get "/i/teams/:tid/members" (continue uncheckedGetTeamMembers) $
+  get "/i/teams/:tid/members" (continue uncheckedGetTeamMembersH) $
     capture "tid"
       .&. accept "application" "json"
-  get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMember) $
+  get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMemberH) $
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
