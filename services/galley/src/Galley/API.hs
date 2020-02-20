@@ -898,9 +898,9 @@ sitemap = do
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  get "/i/users/:uid/team/members" (continue getBindingTeamMembers) $
+  get "/i/users/:uid/team/members" (continue getBindingTeamMembersH) $
     capture "uid"
-  get "/i/users/:uid/team" (continue getBindingTeamId) $
+  get "/i/users/:uid/team" (continue getBindingTeamIdH) $
     capture "uid"
   -- Start of team features (internal); enabling this should only be
   -- possible internally. Viewing the status should be allowed

@@ -6,8 +6,8 @@ module Galley.API.Teams
     getTeamH,
     getTeamInternalH,
     getTeamNameInternalH,
-    getBindingTeamId,
-    getBindingTeamMembers,
+    getBindingTeamIdH,
+    getBindingTeamMembersH,
     getManyTeamsH,
     deleteTeam,
     uncheckedDeleteTeam,
@@ -555,13 +555,19 @@ withBindingTeam zusr callback = do
     Binding -> callback tid
     NonBinding -> throwM nonBindingTeam
 
-getBindingTeamId :: UserId -> Galley Response
-getBindingTeamId zusr = withBindingTeam zusr $ pure . json
+getBindingTeamIdH :: UserId -> Galley Response
+getBindingTeamIdH = fmap json . getBindingTeamId
 
-getBindingTeamMembers :: UserId -> Galley Response
+getBindingTeamId :: UserId -> Galley TeamId
+getBindingTeamId zusr = withBindingTeam zusr pure
+
+getBindingTeamMembersH :: UserId -> Galley Response
+getBindingTeamMembersH = fmap json . getBindingTeamMembers
+
+getBindingTeamMembers :: UserId -> Galley TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
   members <- Data.teamMembers tid
-  pure . json $ newTeamMemberList members
+  pure $ newTeamMemberList members
 
 -- Public endpoints for feature checks
 
