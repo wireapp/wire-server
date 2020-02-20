@@ -117,8 +117,12 @@ removeSettings' tid mMembers = do
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
-getUserStatus :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-getUserStatus (_zusr ::: tid ::: uid ::: _) = do
+getUserStatusH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
+getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
+  json <$> getUserStatus tid uid
+
+getUserStatus :: TeamId -> UserId -> Galley UserLegalHoldStatusResponse
+getUserStatus tid uid = do
   mTeamMember <- Data.teamMember tid uid
   teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
   statusResponse <- case view legalHoldStatus teamMember of
@@ -126,7 +130,7 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
       pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
     status@UserLegalHoldPending -> makeResponse status
     status@UserLegalHoldEnabled -> makeResponse status
-  pure . json $ statusResponse
+  pure $ statusResponse
   where
     makeResponse status = do
       mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
@@ -142,8 +146,18 @@ getUserStatus (_zusr ::: tid ::: uid ::: _) = do
       pure $ UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
 
 -- | Request to provision a device on the legal hold service for a user
-requestDevice :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-requestDevice (zusr ::: tid ::: uid ::: _) = do
+requestDeviceH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
+requestDeviceH (zusr ::: tid ::: uid ::: _) = do
+  requestDevice zusr tid uid <&> \case
+    RequestDeviceSuccess -> empty & setStatus status201
+    RequestDeviceAlreadyPending -> empty & setStatus status204
+
+data RequestDeviceResult
+  = RequestDeviceSuccess
+  | RequestDeviceAlreadyPending
+
+requestDevice :: UserId -> TeamId -> UserId -> Galley RequestDeviceResult
+requestDevice zusr tid uid = do
   assertLegalHoldEnabled tid
   Log.debug $
     Log.field "targets" (toByteString uid)
@@ -153,18 +167,17 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
   userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
   case userLHStatus of
     Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-    Just UserLegalHoldPending -> provisionLHDevice <&> setStatus status204
-    Just UserLegalHoldDisabled -> provisionLHDevice <&> setStatus status201
+    Just UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice
+    Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
     Nothing -> throwM teamMemberNotFound
   where
-    provisionLHDevice :: Galley Response
+    provisionLHDevice :: Galley ()
     provisionLHDevice = do
       (lastPrekey', prekeys) <- requestDeviceFromService
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
       LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
       Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
-      pure empty
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
       LegalHoldData.dropPendingPrekeys uid
@@ -176,17 +189,22 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
 -- we don't delete pending prekeys during this flow just in case
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
-approveDevice ::
+approveDeviceH ::
   UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest ApproveLegalHoldForUserRequest ::: JSON ->
   Galley Response
-approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
+approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
+  approve <- fromJsonBody req
+  approveDevice zusr tid uid connId approve
+  pure empty
+
+approveDevice :: UserId -> TeamId -> UserId -> ConnId -> ApproveLegalHoldForUserRequest -> Galley ()
+approveDevice zusr tid uid connId (ApproveLegalHoldForUserRequest mPassword) = do
   assertLegalHoldEnabled tid
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   unless (zusr == uid) (throwM accessDenied)
   assertOnTeam uid tid
-  ApproveLegalHoldForUserRequest mPassword <- fromJsonBody req
   ensureReAuthorised zusr mPassword
   assertUserLHPending
   mPreKeys <- LegalHoldData.selectPendingPrekeys uid
@@ -204,10 +222,10 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
   legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
   LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
-  -- TODO: send event at this point (see also:
-  -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  pure empty
   where
+    -- TODO: send event at this point (see also:
+    -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
+
     assertUserLHPending :: Galley ()
     assertUserLHPending = do
       userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
@@ -216,18 +234,29 @@ approveDevice (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
         Just UserLegalHoldPending -> pure ()
         _ -> throwM userLegalHoldNotPending
 
-disableForUser ::
+disableForUserH ::
   UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON ->
   Galley Response
-disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
+disableForUserH (zusr ::: tid ::: uid ::: req ::: _) = do
+  disable <- fromJsonBody req
+  disableForUser zusr tid uid disable <&> \case
+    DisableLegalHoldSuccess -> empty
+    DisableLegalHoldWasNotEnabled -> noContent
+
+data DisableLegalHoldForUserResponse
+  = DisableLegalHoldSuccess
+  | DisableLegalHoldWasNotEnabled
+
+disableForUser :: UserId -> TeamId -> UserId -> DisableLegalHoldForUserRequest -> Galley DisableLegalHoldForUserResponse
+disableForUser zusr tid uid (DisableLegalHoldForUserRequest mPassword) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   membs <- Data.teamMembers tid
   void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
   if userLHNotDisabled membs
-    then disableLH >> pure empty
-    else pure noContent
+    then disableLH >> pure DisableLegalHoldSuccess
+    else pure DisableLegalHoldWasNotEnabled
   where
     -- If not enabled nor pending, then it's disabled
     userLHNotDisabled mems = do
@@ -238,7 +267,6 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
         Just UserLegalHoldDisabled -> False
         Nothing -> False -- Never been set
     disableLH = do
-      DisableLegalHoldForUserRequest mPassword <- fromJsonBody req
       ensureReAuthorised zusr mPassword
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid

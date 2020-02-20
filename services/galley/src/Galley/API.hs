@@ -287,23 +287,23 @@ sitemap = do
       .&. capture "tid"
       .&. jsonRequest @RemoveLegalHoldSettingsRequest
       .&. accept "application" "json"
-  get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatus) $
+  get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatusH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDevice) $
+  post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDeviceH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUser) $
+  delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUserH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. jsonRequest @DisableLegalHoldForUserRequest
       .&. accept "application" "json"
-  put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDevice) $
+  put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDeviceH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
