@@ -11,15 +11,15 @@ module Galley.API.Teams
     getManyTeamsH,
     deleteTeamH,
     uncheckedDeleteTeam,
-    addTeamMember,
-    getTeamMembers,
-    getTeamMember,
-    deleteTeamMember,
+    addTeamMemberH,
+    getTeamMembersH,
+    getTeamMemberH,
+    deleteTeamMemberH,
+    updateTeamMemberH,
     getTeamConversations,
     getTeamConversation,
     getTeamConversationRoles,
     deleteTeamConversation,
-    updateTeamMember,
     getSSOStatus,
     getSSOStatusInternal,
     setSSOStatusInternal,
@@ -292,27 +292,35 @@ getTeamConversationRoles (zusr ::: tid ::: _) = do
       --       be merged with the team roles (if they exist)
       return . json $ ConversationRolesList wireConvRoles
 
-getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembers (zusr ::: tid ::: _) = do
-  mems <- Data.teamMembers tid
-  case findTeamMember zusr mems of
-    Nothing -> throwM noTeamMember
-    Just m -> do
-      let withPerms = (m `canSeePermsOf`)
-      pure (json $ teamMemberListJson withPerms (newTeamMemberList mems))
+getTeamMembersH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamMembersH (zusr ::: tid ::: _) = do
+  (memberList, withPerms) <- getTeamMembers zusr tid
+  pure . json $ teamMemberListJson withPerms memberList
 
-getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-getTeamMember (zusr ::: tid ::: uid ::: _) = do
+getTeamMembers :: UserId -> TeamId -> Galley (TeamMemberList, TeamMember -> Bool)
+getTeamMembers zusr tid = do
   mems <- Data.teamMembers tid
   case findTeamMember zusr mems of
     Nothing -> throwM noTeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
-      let member = findTeamMember uid mems
-      maybe
-        (throwM teamMemberNotFound)
-        (pure . json . teamMemberJson withPerms)
-        member
+      pure (newTeamMemberList mems, withPerms)
+
+getTeamMemberH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
+getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
+  (member, withPerms) <- getTeamMember zusr tid uid
+  pure . json $ teamMemberJson withPerms member
+
+getTeamMember :: UserId -> TeamId -> UserId -> Galley (TeamMember, TeamMember -> Bool)
+getTeamMember zusr tid uid = do
+  mems <- Data.teamMembers tid
+  case findTeamMember zusr mems of
+    Nothing -> throwM noTeamMember
+    Just m -> do
+      let withPerms = (m `canSeePermsOf`)
+      case findTeamMember uid mems of
+        Nothing -> throwM teamMemberNotFound
+        Just member -> pure (member, withPerms)
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
@@ -324,9 +332,14 @@ uncheckedGetTeamMembers (tid ::: _) = do
   mems <- Data.teamMembers tid
   return . json $ newTeamMemberList mems
 
-addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
-addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
+addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
+addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   nmem <- fromJsonBody req
+  addTeamMember zusr zcon tid nmem
+  pure empty
+
+addTeamMember :: UserId -> ConnId -> TeamId -> NewTeamMember -> Galley ()
+addTeamMember zusr zcon tid nmem = do
   let uid = nmem ^. ntmNewTeamMember . userId
   Log.debug $
     Log.field "targets" (toByteString uid)
@@ -346,16 +359,19 @@ uncheckedAddTeamMember :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galle
 uncheckedAddTeamMember (tid ::: req ::: _) = do
   nmem <- fromJsonBody req
   mems <- Data.teamMembers tid
-  rsp <- addTeamMemberInternal tid Nothing Nothing nmem mems
+  addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
-  return rsp
+  return empty
 
-updateTeamMember ::
-  UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON ->
-  Galley Response
-updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
+updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
+updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
   targetMember <- view ntmNewTeamMember <$> fromJsonBody req
+  updateTeamMember zusr zcon tid targetMember
+  pure empty
+
+updateTeamMember :: UserId -> ConnId -> TeamId -> TeamMember -> Galley ()
+updateTeamMember zusr zcon tid targetMember = do
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
   Log.debug $
@@ -391,10 +407,20 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- push to all members (user is privileged)
   let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
   for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
-  pure empty
 
-deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
-deleteTeamMember (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
+deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
+deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
+  body <- fromJsonBody (JsonRequest req) -- TODO: can we demand it here?
+  deleteTeamMember zusr zcon tid remove body >>= \case
+    TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
+    TeamMemberDeleteCompleted -> pure empty
+
+data TeamMemberDeleteResult
+  = TeamMemberDeleteAccepted
+  | TeamMemberDeleteCompleted
+
+deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> TeamMemberDeleteData -> Galley TeamMemberDeleteResult
+deleteTeamMember zusr zcon tid remove body = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
@@ -405,14 +431,13 @@ deleteTeamMember (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   if team ^. teamBinding == Binding && isTeamMember remove mems
     then do
-      body <- fromJsonBody (JsonRequest req)
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
       deleteUser remove
       Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
-      pure (empty & setStatus status202)
+      pure TeamMemberDeleteAccepted
     else do
       uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
-      pure empty
+      pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
@@ -526,7 +551,7 @@ ensureNotElevated targetPermissions member =
     )
     $ throwM invalidPermissions
 
-addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
+addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley ()
 addTeamMemberInternal tid origin originConn newMem mems = do
   let new = newMem ^. ntmNewTeamMember
   Log.debug $
@@ -542,7 +567,7 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
   push1 $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
-  pure empty
+  pure ()
   where
     r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
     r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))

@@ -130,7 +130,7 @@ sitemap = do
     errorResponse Error.noTeamMember
   --
 
-  get "/teams/:tid/members" (continue getTeamMembers) $
+  get "/teams/:tid/members" (continue getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -143,7 +143,7 @@ sitemap = do
     errorResponse Error.noTeamMember
   --
 
-  get "/teams/:tid/members/:uid" (continue getTeamMember) $
+  get "/teams/:tid/members/:uid" (continue getTeamMemberH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
@@ -160,7 +160,7 @@ sitemap = do
     errorResponse Error.teamMemberNotFound
   --
 
-  post "/teams/:tid/members" (continue addTeamMember) $
+  post "/teams/:tid/members" (continue addTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -179,7 +179,7 @@ sitemap = do
     errorResponse Error.tooManyTeamMembers
   --
 
-  delete "/teams/:tid/members/:uid" (continue deleteTeamMember) $
+  delete "/teams/:tid/members/:uid" (continue deleteTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -202,7 +202,7 @@ sitemap = do
     errorResponse Error.reAuthFailed
   --
 
-  put "/teams/:tid/members" (continue updateTeamMember) $
+  put "/teams/:tid/members" (continue updateTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
