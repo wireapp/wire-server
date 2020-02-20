@@ -116,7 +116,7 @@ sitemap = do
     errorResponse Error.teamNotFound
   --
 
-  get "/teams/:tid/conversations/roles" (continue getTeamConversationRoles) $
+  get "/teams/:tid/conversations/roles" (continue getTeamConversationRolesH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -219,7 +219,7 @@ sitemap = do
     errorResponse (Error.operationDenied SetMemberPermissions)
   --
 
-  get "/teams/:tid/conversations" (continue getTeamConversations) $
+  get "/teams/:tid/conversations" (continue getTeamConversationsH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -233,7 +233,7 @@ sitemap = do
     errorResponse (Error.operationDenied GetTeamConversations)
   --
 
-  get "/teams/:tid/conversations/:cid" (continue getTeamConversation) $
+  get "/teams/:tid/conversations/:cid" (continue getTeamConversationH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "cid"
@@ -251,7 +251,7 @@ sitemap = do
     errorResponse (Error.operationDenied GetTeamConversations)
   --
 
-  delete "/teams/:tid/conversations/:cid" (continue deleteTeamConversation) $
+  delete "/teams/:tid/conversations/:cid" (continue deleteTeamConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"

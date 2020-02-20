@@ -16,10 +16,10 @@ module Galley.API.Teams
     getTeamMemberH,
     deleteTeamMemberH,
     updateTeamMemberH,
-    getTeamConversations,
-    getTeamConversation,
-    getTeamConversationRoles,
-    deleteTeamConversation,
+    getTeamConversationsH,
+    getTeamConversationH,
+    getTeamConversationRolesH,
+    deleteTeamConversationH,
     getSSOStatus,
     getSSOStatusInternal,
     setSSOStatusInternal,
@@ -282,15 +282,19 @@ uncheckedDeleteTeam zusr zcon tid = do
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
 
-getTeamConversationRoles :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversationRoles (zusr ::: tid ::: _) = do
+getTeamConversationRolesH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamConversationRolesH (zusr ::: tid ::: _) = do
+  json <$> getTeamConversationRoles zusr tid
+
+getTeamConversationRoles :: UserId -> TeamId -> Galley ConversationRolesList
+getTeamConversationRoles zusr tid = do
   mem <- Data.teamMember tid zusr
   case mem of
     Nothing -> throwM noTeamMember
     Just _ -> do
       -- NOTE: If/when custom roles are added, these roles should
       --       be merged with the team roles (if they exist)
-      return . json $ ConversationRolesList wireConvRoles
+      pure $ ConversationRolesList wireConvRoles
 
 getTeamMembersH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembersH (zusr ::: tid ::: _) = do
@@ -464,22 +468,35 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
-getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversations (zusr ::: tid ::: _) = do
+getTeamConversationsH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamConversationsH (zusr ::: tid ::: _) = do
+  json <$> getTeamConversations zusr tid
+
+getTeamConversations :: UserId -> TeamId -> Galley TeamConversationList
+getTeamConversations zusr tid = do
   tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
-  json . newTeamConversationList <$> Data.teamConversations tid
+  newTeamConversationList <$> Data.teamConversations tid
 
-getTeamConversation :: UserId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-getTeamConversation (zusr ::: tid ::: cid ::: _) = do
+getTeamConversationH :: UserId ::: TeamId ::: ConvId ::: JSON -> Galley Response
+getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
+  json <$> getTeamConversation zusr tid cid
+
+getTeamConversation :: UserId -> TeamId -> ConvId -> Galley TeamConversation
+getTeamConversation zusr tid cid = do
   tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
-  Data.teamConversation tid cid >>= maybe (throwM convNotFound) (pure . json)
+  Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
 
-deleteTeamConversation :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-deleteTeamConversation (zusr ::: zcon ::: tid ::: cid ::: _) = do
+deleteTeamConversationH :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
+deleteTeamConversationH (zusr ::: zcon ::: tid ::: cid ::: _) = do
+  deleteTeamConversation zusr zcon tid cid
+  pure empty
+
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
+deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode ReusableCode =<< mkKey cid
@@ -492,7 +509,6 @@ deleteTeamConversation (zusr ::: zcon ::: tid ::: cid ::: _) = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
-  pure empty
 
 -- Internal -----------------------------------------------------------------
 
