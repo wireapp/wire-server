@@ -811,7 +811,7 @@ sitemap = do
       .&. query "base_url"
   --- team feature flags (public)
 
-  get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatus) $
+  get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -906,10 +906,10 @@ sitemap = do
   -- possible internally. Viewing the status should be allowed
   -- for any admin
 
-  get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternal) $
+  get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternal) $
+  put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternalH) $
     capture "tid"
       .&. jsonRequest @LegalHoldTeamConfig
       .&. accept "application" "json"

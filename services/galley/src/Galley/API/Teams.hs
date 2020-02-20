@@ -23,9 +23,9 @@ module Galley.API.Teams
     getSSOStatusH,
     getSSOStatusInternalH,
     setSSOStatusInternalH,
-    getLegalholdStatus,
-    getLegalholdStatusInternal,
-    setLegalholdStatusInternal,
+    getLegalholdStatusH,
+    getLegalholdStatusInternalH,
+    setLegalholdStatusInternalH,
     uncheckedAddTeamMember,
     uncheckedGetTeamMember,
     uncheckedGetTeamMembers,
@@ -633,11 +633,15 @@ getSSOStatus uid tid = do
   void $ permissionCheck uid ViewSSOTeamSettings membs
   getSSOStatusInternal tid
 
-getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
-getLegalholdStatus (uid ::: tid ::: ct) = do
+getLegalholdStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
+getLegalholdStatusH (uid ::: tid ::: _) = do
+  json <$> getLegalholdStatus uid tid
+
+getLegalholdStatus :: UserId -> TeamId -> Galley LegalHoldTeamConfig
+getLegalholdStatus uid tid = do
   membs <- Data.teamMembers tid
   void $ permissionCheck uid ViewLegalHoldTeamSettings membs
-  getLegalholdStatusInternal (tid ::: ct)
+  getLegalholdStatusInternal tid
 
 -- Enable / Disable team features
 -- These endpoints are internal only and  meant to be called
@@ -673,21 +677,31 @@ setSSOStatusInternal tid ssoTeamConfig = do
   SSOData.setSSOTeamConfig tid ssoTeamConfig
 
 -- | Get legal hold status for a team.
-getLegalholdStatusInternal :: TeamId ::: JSON -> Galley Response
-getLegalholdStatusInternal (tid ::: _) = do
+getLegalholdStatusInternalH :: TeamId ::: JSON -> Galley Response
+getLegalholdStatusInternalH (tid ::: _) = do
+  json <$> getLegalholdStatusInternal tid
+
+getLegalholdStatusInternal :: TeamId -> Galley LegalHoldTeamConfig
+getLegalholdStatusInternal tid = do
   featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
       legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-      pure . json . fromMaybe disabledConfig $ legalHoldTeamConfig
+      pure (fromMaybe disabledConfig legalHoldTeamConfig)
     FeatureLegalHoldDisabledPermanently -> do
-      pure . json $ disabledConfig
+      pure disabledConfig
   where
     disabledConfig = LegalHoldTeamConfig LegalHoldDisabled
 
 -- | Enable or disable legal hold for a team.
-setLegalholdStatusInternal :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
-setLegalholdStatusInternal (tid ::: req ::: _) = do
+setLegalholdStatusInternalH :: TeamId ::: JsonRequest LegalHoldTeamConfig ::: JSON -> Galley Response
+setLegalholdStatusInternalH (tid ::: req ::: _) = do
+  legalHoldTeamConfig <- fromJsonBody req
+  setLegalholdStatusInternal tid legalHoldTeamConfig
+  pure noContent
+
+setLegalholdStatusInternal :: TeamId -> LegalHoldTeamConfig -> Galley ()
+setLegalholdStatusInternal tid legalHoldTeamConfig = do
   do
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
@@ -695,9 +709,7 @@ setLegalholdStatusInternal (tid ::: req ::: _) = do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
-  legalHoldTeamConfig <- fromJsonBody req
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
     LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-  pure noContent
