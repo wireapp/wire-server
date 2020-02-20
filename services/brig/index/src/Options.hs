@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE StrictData #-}
 
 module Options
@@ -100,8 +101,9 @@ elasticServerParser =
         (over _Left show . parseURI strictURIParserOptions . view packedChars)
 
 restrictedElasticSettingsParser :: Parser ElasticSettings
-restrictedElasticSettingsParser =
-  set esServer <$> elasticServerParser <*> pure localElasticSettings
+restrictedElasticSettingsParser = do
+  server <- elasticServerParser
+  pure $ localElasticSettings & esServer .~ server
 
 elasticSettingsParser :: Parser ElasticSettings
 elasticSettingsParser =
