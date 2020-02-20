@@ -273,16 +273,16 @@ sitemap = do
   -- abandon it entirely.
   get "/teams/api-docs" (continue . const . pure . json $ swagger) $
     accept "application" "json"
-  post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettings) $
+  post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettingsH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @NewLegalHoldService
       .&. accept "application" "json"
-  get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettings) $
+  get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettingsH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
-  delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettings) $
+  delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettingsH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @RemoveLegalHoldSettingsRequest

@@ -36,8 +36,13 @@ isLegalHoldEnabled tid = do
     Just LegalHoldDisabled -> False
     Nothing -> False
 
-createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
-createSettings (zusr ::: tid ::: req ::: _) = do
+createSettingsH :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
+createSettingsH (zusr ::: tid ::: req ::: _) = do
+  newService :: NewLegalHoldService <- fromJsonBody req
+  setStatus status201 . json <$> createSettings zusr tid newService
+
+createSettings :: UserId -> TeamId -> NewLegalHoldService -> Galley ViewLegalHoldService
+createSettings zusr tid newService = do
   assertLegalHoldEnabled tid
   membs <- Data.teamMembers tid
   let zothers = map (view userId) membs
@@ -45,29 +50,37 @@ createSettings (zusr ::: tid ::: req ::: _) = do
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "LegalHold.createSettings")
   void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
-  newService :: NewLegalHoldService <-
-    fromJsonBody req
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
     LHService.validateServiceKey (newLegalHoldServiceKey newService)
       >>= maybe (throwM legalHoldServiceInvalidKey) pure
   LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
   let service = legalHoldService tid fpr newService key
   LegalHoldData.createSettings service
-  pure . setStatus status201 . json . viewLegalHoldService $ service
+  pure . viewLegalHoldService $ service
 
-getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
-getSettings (zusr ::: tid ::: _) = do
+getSettingsH :: UserId ::: TeamId ::: JSON -> Galley Response
+getSettingsH (zusr ::: tid ::: _) = do
+  json <$> getSettings zusr tid
+
+getSettings :: UserId -> TeamId -> Galley ViewLegalHoldService
+getSettings zusr tid = do
   membs <- Data.teamMembers tid
   void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
-  pure . json $ case (isenabled, mresult) of
+  pure $ case (isenabled, mresult) of
     (False, _) -> ViewLegalHoldServiceDisabled
     (True, Nothing) -> ViewLegalHoldServiceNotConfigured
     (True, Just result) -> viewLegalHoldService result
 
-removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
-removeSettings (zusr ::: tid ::: req ::: _) = do
+removeSettingsH :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
+removeSettingsH (zusr ::: tid ::: req ::: _) = do
+  removeSettingsRequest <- fromJsonBody req
+  removeSettings zusr tid removeSettingsRequest
+  pure noContent
+
+removeSettings :: UserId -> TeamId -> RemoveLegalHoldSettingsRequest -> Galley ()
+removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
   assertLegalHoldEnabled tid
   membs <- Data.teamMembers tid
   let zothers = map (view userId) membs
@@ -75,10 +88,8 @@ removeSettings (zusr ::: tid ::: req ::: _) = do
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
-  RemoveLegalHoldSettingsRequest mPassword <- fromJsonBody req
   ensureReAuthorised zusr mPassword
   removeSettings' tid (Just membs)
-  pure noContent
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
