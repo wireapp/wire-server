@@ -9,11 +9,11 @@ module Galley.API.Update
     addCode,
     rmCode,
     getCode,
-    updateConversationDeprecated,
-    updateConversationName,
-    updateConversationAccess,
-    updateConversationReceiptMode,
-    updateConversationMessageTimer,
+    updateConversationDeprecatedH,
+    updateConversationNameH,
+    updateConversationAccessH,
+    updateConversationReceiptModeH,
+    updateConversationMessageTimerH,
 
     -- * Managing Members
     Galley.API.Update.addMembers,
@@ -112,11 +112,21 @@ unblockConv usr conn cnv = do
   conv' <- acceptOne2One usr conv conn
   conversationView usr conv'
 
-updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
-updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
-  body <- fromJsonBody req
-  let targetAccess = Set.fromList (toList (cupAccess body))
-      targetRole = cupAccessRole body
+updateConversationAccessH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
+updateConversationAccessH (usr ::: zcon ::: cnv ::: req) = do
+  update <- fromJsonBody req
+  updateConversationAccess usr zcon cnv update <&> \case
+    Updated ev -> json ev & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+data UpdateResult
+  = Updated Event
+  | Unchanged
+
+updateConversationAccess :: UserId -> ConnId -> ConvId -> ConversationAccessUpdate -> Galley UpdateResult
+updateConversationAccess usr zcon cnv update = do
+  let targetAccess = Set.fromList (toList (cupAccess update))
+      targetRole = cupAccessRole update
   -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
   -- so on; users are not supposed to be able to make other conversations
   -- have 'PrivateAccessRole'
@@ -140,17 +150,18 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
   let currentAccess = Set.fromList (toList $ Data.convAccess conv)
       currentRole = Data.convAccessRole conv
   if currentAccess == targetAccess && currentRole == targetRole
-    then return $ empty & setStatus status204
+    then pure Unchanged
     else
-      uncheckedUpdateConversationAccess
-        body
-        usr
-        zcon
-        conv
-        (currentAccess, targetAccess)
-        (currentRole, targetRole)
-        users
-        bots
+      Updated
+        <$> uncheckedUpdateConversationAccess
+          update
+          usr
+          zcon
+          conv
+          (currentAccess, targetAccess)
+          (currentRole, targetRole)
+          users
+          bots
   where
     checkTeamConv tid self = do
       -- Access mode change for managed conversation is not allowed
@@ -170,7 +181,7 @@ uncheckedUpdateConversationAccess ::
   (AccessRole, AccessRole) ->
   [Member] ->
   [BotMember] ->
-  Galley Response
+  Galley Event
 uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAccess) (currentRole, targetRole) users bots = do
   let cnv = convId conv
   -- Remove conversation codes if CodeAccess is revoked
@@ -210,50 +221,63 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
-  return $ json accessEvent & setStatus status200
+  pure accessEvent
   where
     usersL :: Lens' ([Member], [BotMember]) [Member]
     usersL = _1
     botsL :: Lens' ([Member], [BotMember]) [BotMember]
     botsL = _2
 
-updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
-updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _) = do
-  ConversationReceiptModeUpdate target <- fromJsonBody req
+updateConversationReceiptModeH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
+updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
+  update <- fromJsonBody req
+  updateConversationReceiptMode usr zcon cnv update <&> \case
+    Updated ev -> json ev & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> ConversationReceiptModeUpdate -> Galley UpdateResult
+updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceiptModeUpdate target) = do
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
-    then return $ empty & setStatus status204
-    else update users bots target
+    then pure Unchanged
+    else Updated <$> update users bots
   where
-    update users bots mode = do
+    update users bots = do
       -- Update Cassandra & send an event
-      Data.updateConversationReceiptMode cnv mode
+      Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
-      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate (ConversationReceiptModeUpdate mode))
+      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
       pushEvent receiptEvent users bots zcon
-      return $ json receiptEvent & setStatus status200
+      pure receiptEvent
 
-updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
-updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req) = do
-  body <- fromJsonBody req
-  let messageTimer = cupMessageTimer body
+updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
+updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
+  timerUpdate <- fromJsonBody req
+  updateConversationMessageTimer usr zcon cnv timerUpdate <&> \case
+    Updated ev -> json ev & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> ConversationMessageTimerUpdate -> Galley UpdateResult
+updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTimerUpdate target) = do
   -- checks and balances
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureGroupConv conv
   let currentTimer = Data.convMessageTimer conv
-  if currentTimer == messageTimer
-    then return $ empty & setStatus status204
-    else do
+  if currentTimer == target
+    then pure Unchanged
+    else Updated <$> update users bots
+  where
+    update users bots = do
       -- update cassandra & send event
       now <- liftIO getCurrentTime
-      let e = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate body)
-      Data.updateConversationMessageTimer cnv messageTimer
-      pushEvent e users bots zcon
-      return $ json e & setStatus status200
+      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate timerUpdate)
+      Data.updateConversationMessageTimer cnv target
+      pushEvent timerEvent users bots zcon
+      pure timerEvent
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -505,12 +529,18 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)
 
-updateConversationDeprecated :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
-updateConversationDeprecated (zusr ::: zcon ::: cnv ::: req) = updateConversationName (zusr ::: zcon ::: cnv ::: req)
+updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
+  convRename <- fromJsonBody req
+  updateConversationName zusr zcon cnv convRename
 
-updateConversationName :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
-updateConversationName (zusr ::: zcon ::: cnv ::: req) = do
-  body <- fromJsonBody req
+updateConversationNameH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
+updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
+  convRename <- fromJsonBody req
+  updateConversationName zusr zcon cnv convRename
+
+updateConversationName :: UserId -> ConnId -> ConvId -> ConversationRename -> Galley Response
+updateConversationName zusr zcon cnv convRename = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
@@ -518,9 +548,9 @@ updateConversationName (zusr ::: zcon ::: cnv ::: req) = do
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
   now <- liftIO getCurrentTime
-  cn <- rangeChecked (cupName body)
+  cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
-  let e = Event ConvRename cnv zusr now (Just $ EdConvRename body)
+  let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)

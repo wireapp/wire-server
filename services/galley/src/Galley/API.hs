@@ -429,7 +429,7 @@ sitemap = do
     errorResponse Error.noManagedTeamConv
   ---
 
-  put "/conversations/:cnv/name" (continue updateConversationName) $
+  put "/conversations/:cnv/name" (continue updateConversationNameH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -444,7 +444,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv" (continue updateConversationDeprecated) $
+  put "/conversations/:cnv" (continue updateConversationDeprecatedH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -539,7 +539,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  put "/conversations/:cnv/access" (continue updateConversationAccess) $
+  put "/conversations/:cnv/access" (continue updateConversationAccessH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -561,7 +561,7 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  put "/conversations/:cnv/receipt-mode" (continue updateConversationReceiptMode) $
+  put "/conversations/:cnv/receipt-mode" (continue updateConversationReceiptModeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -580,7 +580,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
-  put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
+  put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimerH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
