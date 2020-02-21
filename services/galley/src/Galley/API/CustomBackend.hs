@@ -1,7 +1,7 @@
 module Galley.API.CustomBackend
-  ( getCustomBackendByDomain,
-    internalPutCustomBackendByDomain,
-    internalDeleteCustomBackendByDomain,
+  ( getCustomBackendByDomainH,
+    internalPutCustomBackendByDomainH,
+    internalDeleteCustomBackendByDomainH,
   )
 where
 
@@ -19,21 +19,27 @@ import Network.Wai.Utilities
 
 -- PUBLIC ---------------------------------------------------------------------
 
-getCustomBackendByDomain :: EmailDomain ::: JSON -> Galley Response
-getCustomBackendByDomain (domain ::: _) =
+getCustomBackendByDomainH :: EmailDomain ::: JSON -> Galley Response
+getCustomBackendByDomainH (domain ::: _) =
+  json <$> getCustomBackendByDomain domain
+
+getCustomBackendByDomain :: EmailDomain -> Galley CustomBackend
+getCustomBackendByDomain domain =
   Data.getCustomBackend domain >>= \case
     Nothing -> throwM (customBackendNotFound domain)
-    Just customBackend -> pure (json customBackend)
+    Just customBackend -> pure customBackend
 
 -- INTERNAL -------------------------------------------------------------------
 
-internalPutCustomBackendByDomain :: EmailDomain ::: JsonRequest CustomBackend -> Galley Response
-internalPutCustomBackendByDomain (domain ::: req) = do
+internalPutCustomBackendByDomainH :: EmailDomain ::: JsonRequest CustomBackend -> Galley Response
+internalPutCustomBackendByDomainH (domain ::: req) = do
   customBackend <- fromJsonBody req
+  -- simple enough to not need a separate function
   Data.setCustomBackend domain customBackend
   pure (empty & setStatus status201)
 
-internalDeleteCustomBackendByDomain :: EmailDomain ::: JSON -> Galley Response
-internalDeleteCustomBackendByDomain (domain ::: _) = do
+internalDeleteCustomBackendByDomainH :: EmailDomain ::: JSON -> Galley Response
+internalDeleteCustomBackendByDomainH (domain ::: _) = do
+  -- simple enough to not need a separate function
   Data.deleteCustomBackend domain
   pure (empty & setStatus status200)

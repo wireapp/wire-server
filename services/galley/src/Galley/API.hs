@@ -829,7 +829,7 @@ sitemap = do
       description "Team ID"
     returns (ref Model.ssoTeamConfig)
     response 200 "SSO status" end
-  get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomain) $
+  get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
   document "GET" "getCustomBackendByDomain" $ do
@@ -946,10 +946,10 @@ sitemap = do
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @RemoveBot
-  put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomain) $
+  put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomainH) $
     capture "domain"
       .&. jsonRequest @CustomBackend
-  delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomain) $
+  delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
 
