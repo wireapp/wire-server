@@ -45,7 +45,8 @@ module Galley.Types
     ConversationMessageTimerUpdate (..),
     ConvType (..),
     CustomBackend (..),
-    EmailDomain (emailDomainText),
+    EmailDomain,
+    emailDomainText,
     mkEmailDomain,
     Invite (..),
     NewConv (..),
@@ -581,11 +582,15 @@ data CustomBackend
       }
   deriving (Eq, Show)
 
+-- | FUTUREWORK: move this type upstream into the email-validate package.
 newtype EmailDomain
   = EmailDomain
-      { emailDomainText :: Text
+      { _emailDomainText :: Text
       }
   deriving (Eq, Generic, Show)
+
+emailDomainText :: EmailDomain -> Text
+emailDomainText = _emailDomainText
 
 mkEmailDomain :: ByteString -> Either String EmailDomain
 mkEmailDomain = bimap show EmailDomain . T.decodeUtf8' <=< validateDomain

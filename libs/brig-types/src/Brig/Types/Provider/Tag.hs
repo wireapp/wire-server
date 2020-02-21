@@ -1,149 +1,148 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BinaryLiterals             #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Brig.Types.Provider.Tag where
 
-import Imports
-import Data.Aeson
-import Data.ByteString.Conversion
-#ifdef WITH_CQL
 import Cassandra.CQL (Cql)
-#endif
-import Data.Range
+import Data.Aeson
 import Data.Bits
+import Data.ByteString.Conversion
 import Data.List (foldl')
-
-import qualified Data.Set           as Set
+import Data.Range
+import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
+import Imports
 
 --------------------------------------------------------------------------------
 -- ServiceTag
 
 -- | A fixed enumeration of tags for services.
 data ServiceTag
-    = AudioTag
-    | BooksTag
-    | BusinessTag
-    | DesignTag
-    | EducationTag
-    | EntertainmentTag
-    | FinanceTag
-    | FitnessTag
-    | FoodDrinkTag
-    | GamesTag
-    | GraphicsTag
-    | HealthTag
-    | IntegrationTag
-    | LifestyleTag
-    | MediaTag
-    | MedicalTag
-    | MoviesTag
-    | MusicTag
-    | NewsTag
-    | PhotographyTag
-    | PollTag
-    | ProductivityTag
-    | QuizTag
-    | RatingTag
-    | ShoppingTag
-    | SocialTag
-    | SportsTag
-    | TravelTag
-    | TutorialTag
-    | VideoTag
-    | WeatherTag
-    deriving (Eq, Show, Ord, Enum, Bounded)
+  = AudioTag
+  | BooksTag
+  | BusinessTag
+  | DesignTag
+  | EducationTag
+  | EntertainmentTag
+  | FinanceTag
+  | FitnessTag
+  | FoodDrinkTag
+  | GamesTag
+  | GraphicsTag
+  | HealthTag
+  | IntegrationTag
+  | LifestyleTag
+  | MediaTag
+  | MedicalTag
+  | MoviesTag
+  | MusicTag
+  | NewsTag
+  | PhotographyTag
+  | PollTag
+  | ProductivityTag
+  | QuizTag
+  | RatingTag
+  | ShoppingTag
+  | SocialTag
+  | SportsTag
+  | TravelTag
+  | TutorialTag
+  | VideoTag
+  | WeatherTag
+  deriving (Eq, Show, Ord, Enum, Bounded)
 
 instance FromByteString ServiceTag where
-    parser = parser >>= \t -> case (t :: ByteString) of
-        "audio"         -> pure AudioTag
-        "books"         -> pure BooksTag
-        "business"      -> pure BusinessTag
-        "design"        -> pure DesignTag
-        "education"     -> pure EducationTag
-        "entertainment" -> pure EntertainmentTag
-        "finance"       -> pure FinanceTag
-        "fitness"       -> pure FitnessTag
-        "food-drink"    -> pure FoodDrinkTag
-        "games"         -> pure GamesTag
-        "graphics"      -> pure GraphicsTag
-        "health"        -> pure HealthTag
-        "integration"   -> pure IntegrationTag
-        "lifestyle"     -> pure LifestyleTag
-        "media"         -> pure MediaTag
-        "medical"       -> pure MedicalTag
-        "movies"        -> pure MoviesTag
-        "music"         -> pure MusicTag
-        "news"          -> pure NewsTag
-        "photography"   -> pure PhotographyTag
-        "poll"          -> pure PollTag
-        "productivity"  -> pure ProductivityTag
-        "quiz"          -> pure QuizTag
-        "rating"        -> pure RatingTag
-        "shopping"      -> pure ShoppingTag
-        "social"        -> pure SocialTag
-        "sports"        -> pure SportsTag
-        "travel"        -> pure TravelTag
-        "tutorial"      -> pure TutorialTag
-        "video"         -> pure VideoTag
-        "weather"       -> pure WeatherTag
-        _               -> fail $ "Invalid tag: " ++ show t
+  parser = parser >>= \t -> case (t :: ByteString) of
+    "audio" -> pure AudioTag
+    "books" -> pure BooksTag
+    "business" -> pure BusinessTag
+    "design" -> pure DesignTag
+    "education" -> pure EducationTag
+    "entertainment" -> pure EntertainmentTag
+    "finance" -> pure FinanceTag
+    "fitness" -> pure FitnessTag
+    "food-drink" -> pure FoodDrinkTag
+    "games" -> pure GamesTag
+    "graphics" -> pure GraphicsTag
+    "health" -> pure HealthTag
+    "integration" -> pure IntegrationTag
+    "lifestyle" -> pure LifestyleTag
+    "media" -> pure MediaTag
+    "medical" -> pure MedicalTag
+    "movies" -> pure MoviesTag
+    "music" -> pure MusicTag
+    "news" -> pure NewsTag
+    "photography" -> pure PhotographyTag
+    "poll" -> pure PollTag
+    "productivity" -> pure ProductivityTag
+    "quiz" -> pure QuizTag
+    "rating" -> pure RatingTag
+    "shopping" -> pure ShoppingTag
+    "social" -> pure SocialTag
+    "sports" -> pure SportsTag
+    "travel" -> pure TravelTag
+    "tutorial" -> pure TutorialTag
+    "video" -> pure VideoTag
+    "weather" -> pure WeatherTag
+    _ -> fail $ "Invalid tag: " ++ show t
 
 instance ToByteString ServiceTag where
-    builder AudioTag         = "audio"
-    builder BooksTag         = "books"
-    builder BusinessTag      = "business"
-    builder DesignTag        = "design"
-    builder EducationTag     = "education"
-    builder EntertainmentTag = "entertainment"
-    builder FinanceTag       = "finance"
-    builder FitnessTag       = "fitness"
-    builder FoodDrinkTag     = "food-drink"
-    builder GamesTag         = "games"
-    builder GraphicsTag      = "graphics"
-    builder HealthTag        = "health"
-    builder IntegrationTag   = "integration"
-    builder LifestyleTag     = "lifestyle"
-    builder MediaTag         = "media"
-    builder MedicalTag       = "medical"
-    builder MoviesTag        = "movies"
-    builder MusicTag         = "music"
-    builder NewsTag          = "news"
-    builder PhotographyTag   = "photography"
-    builder PollTag          = "poll"
-    builder ProductivityTag  = "productivity"
-    builder QuizTag          = "quiz"
-    builder RatingTag        = "rating"
-    builder ShoppingTag      = "shopping"
-    builder SocialTag        = "social"
-    builder SportsTag        = "sports"
-    builder TravelTag        = "travel"
-    builder TutorialTag      = "tutorial"
-    builder VideoTag         = "video"
-    builder WeatherTag       = "weather"
+  builder AudioTag = "audio"
+  builder BooksTag = "books"
+  builder BusinessTag = "business"
+  builder DesignTag = "design"
+  builder EducationTag = "education"
+  builder EntertainmentTag = "entertainment"
+  builder FinanceTag = "finance"
+  builder FitnessTag = "fitness"
+  builder FoodDrinkTag = "food-drink"
+  builder GamesTag = "games"
+  builder GraphicsTag = "graphics"
+  builder HealthTag = "health"
+  builder IntegrationTag = "integration"
+  builder LifestyleTag = "lifestyle"
+  builder MediaTag = "media"
+  builder MedicalTag = "medical"
+  builder MoviesTag = "movies"
+  builder MusicTag = "music"
+  builder NewsTag = "news"
+  builder PhotographyTag = "photography"
+  builder PollTag = "poll"
+  builder ProductivityTag = "productivity"
+  builder QuizTag = "quiz"
+  builder RatingTag = "rating"
+  builder ShoppingTag = "shopping"
+  builder SocialTag = "social"
+  builder SportsTag = "sports"
+  builder TravelTag = "travel"
+  builder TutorialTag = "tutorial"
+  builder VideoTag = "video"
+  builder WeatherTag = "weather"
 
 instance FromJSON ServiceTag where
-    parseJSON = withText "ServiceTag" $
-        either fail pure . runParser parser . Text.encodeUtf8
+  parseJSON =
+    withText "ServiceTag" $
+      either fail pure . runParser parser . Text.encodeUtf8
 
 instance ToJSON ServiceTag where
-    toJSON = String . Text.decodeUtf8 . toByteString'
+  toJSON = String . Text.decodeUtf8 . toByteString'
 
 --------------------------------------------------------------------------------
 -- ServiceTag Matchers
 
 -- | Logical disjunction of 'MatchAllTags' to match.
-newtype MatchAny = MatchAny
-    { matchAnySet :: Set MatchAll }
-    deriving (Eq, Show, Ord)
+newtype MatchAny
+  = MatchAny
+      {matchAnySet :: Set MatchAll}
+  deriving (Eq, Show, Ord)
 
 -- | Logical conjunction of 'ServiceTag's to match.
-newtype MatchAll = MatchAll
-    { matchAllSet :: Set ServiceTag }
-    deriving (Eq, Show, Ord)
+newtype MatchAll
+  = MatchAll
+      {matchAllSet :: Set ServiceTag}
+  deriving (Eq, Show, Ord)
 
 (.||.) :: MatchAny -> MatchAny -> MatchAny
 (.||.) (MatchAny a) (MatchAny b) = MatchAny (Set.union a b)
@@ -160,13 +159,8 @@ match1 = matchAll . match
 match :: ServiceTag -> MatchAll
 match = MatchAll . Set.singleton
 
-
 newtype Bucket = Bucket Int32
-#ifdef WITH_CQL
-    deriving newtype (Cql, Show)
-#else
-    deriving newtype (Show)
-#endif
+  deriving newtype (Cql, Show)
 
 -- | Bucketing allows us to distribute individual tag bitmasks
 -- across multiple wide rows, if it should become necessary.
@@ -182,59 +176,60 @@ foldTags = foldl' (.|.) 0 . map tagToInt . Set.toList . fromRange
 
 unfoldTags :: Range 0 3 (Set ServiceTag) -> [Int64]
 unfoldTags s = case map tagToInt (Set.toList (fromRange s)) of
-    []         -> []
-    [t]        -> [t]
-    ts@[t,u]   -> (t .|. u) : ts
-    ts@[t,u,v] -> (t .|. u) : (t .|. v) : (u .|. v) : (t .|. u .|. v) : ts
-    _          -> error "Brig.Provider.DB.Tag: unfoldTags: Too many tags."
+  [] -> []
+  [t] -> [t]
+  ts@[t, u] -> (t .|. u) : ts
+  ts@[t, u, v] -> (t .|. u) : (t .|. v) : (u .|. v) : (t .|. u .|. v) : ts
+  _ -> error "Brig.Provider.DB.Tag: unfoldTags: Too many tags."
 
 unfoldTagsInto :: Range 1 3 (Set ServiceTag) -> [Int64] -> [Int64]
 unfoldTagsInto xs ys =
-    let xs' = unfoldTags (rcast xs)
-    in xs' ++ concatMap (\x -> map (.|. x) ys) xs'
+  let xs' = unfoldTags (rcast xs)
+   in xs' ++ concatMap (\x -> map (.|. x) ys) xs'
 
-diffTags :: Range 0 3 (Set ServiceTag)
-         -> Range 0 3 (Set ServiceTag)
-         -> Range 0 3 (Set ServiceTag)
+diffTags ::
+  Range 0 3 (Set ServiceTag) ->
+  Range 0 3 (Set ServiceTag) ->
+  Range 0 3 (Set ServiceTag)
 diffTags a b = unsafeRange $ Set.difference (fromRange a) (fromRange b)
 
 nonEmptyTags :: Range m 3 (Set ServiceTag) -> Maybe (Range 1 3 (Set ServiceTag))
 nonEmptyTags r
-    | Set.null (fromRange r) = Nothing
-    | otherwise              = Just (unsafeRange (fromRange r))
+  | Set.null (fromRange r) = Nothing
+  | otherwise = Just (unsafeRange (fromRange r))
 
 tagToInt :: ServiceTag -> Int64
-tagToInt AudioTag         = 0b1
-tagToInt BooksTag         = 0b10
-tagToInt BusinessTag      = 0b100
-tagToInt DesignTag        = 0b1000
-tagToInt EducationTag     = 0b10000
+tagToInt AudioTag = 0b1
+tagToInt BooksTag = 0b10
+tagToInt BusinessTag = 0b100
+tagToInt DesignTag = 0b1000
+tagToInt EducationTag = 0b10000
 tagToInt EntertainmentTag = 0b100000
-tagToInt FinanceTag       = 0b1000000
-tagToInt FitnessTag       = 0b10000000
-tagToInt FoodDrinkTag     = 0b100000000
-tagToInt GamesTag         = 0b1000000000
-tagToInt GraphicsTag      = 0b10000000000
-tagToInt HealthTag        = 0b100000000000
-tagToInt IntegrationTag   = 0b1000000000000
-tagToInt LifestyleTag     = 0b10000000000000
-tagToInt MediaTag         = 0b100000000000000
-tagToInt MedicalTag       = 0b1000000000000000
-tagToInt MoviesTag        = 0b10000000000000000
-tagToInt MusicTag         = 0b100000000000000000
-tagToInt NewsTag          = 0b1000000000000000000
-tagToInt PhotographyTag   = 0b10000000000000000000
-tagToInt PollTag          = 0b100000000000000000000
-tagToInt ProductivityTag  = 0b1000000000000000000000
-tagToInt QuizTag          = 0b10000000000000000000000
-tagToInt RatingTag        = 0b100000000000000000000000
-tagToInt ShoppingTag      = 0b1000000000000000000000000
-tagToInt SocialTag        = 0b10000000000000000000000000
-tagToInt SportsTag        = 0b100000000000000000000000000
-tagToInt TravelTag        = 0b1000000000000000000000000000
-tagToInt TutorialTag      = 0b10000000000000000000000000000
-tagToInt VideoTag         = 0b100000000000000000000000000000
-tagToInt WeatherTag       = 0b1000000000000000000000000000000
+tagToInt FinanceTag = 0b1000000
+tagToInt FitnessTag = 0b10000000
+tagToInt FoodDrinkTag = 0b100000000
+tagToInt GamesTag = 0b1000000000
+tagToInt GraphicsTag = 0b10000000000
+tagToInt HealthTag = 0b100000000000
+tagToInt IntegrationTag = 0b1000000000000
+tagToInt LifestyleTag = 0b10000000000000
+tagToInt MediaTag = 0b100000000000000
+tagToInt MedicalTag = 0b1000000000000000
+tagToInt MoviesTag = 0b10000000000000000
+tagToInt MusicTag = 0b100000000000000000
+tagToInt NewsTag = 0b1000000000000000000
+tagToInt PhotographyTag = 0b10000000000000000000
+tagToInt PollTag = 0b100000000000000000000
+tagToInt ProductivityTag = 0b1000000000000000000000
+tagToInt QuizTag = 0b10000000000000000000000
+tagToInt RatingTag = 0b100000000000000000000000
+tagToInt ShoppingTag = 0b1000000000000000000000000
+tagToInt SocialTag = 0b10000000000000000000000000
+tagToInt SportsTag = 0b100000000000000000000000000
+tagToInt TravelTag = 0b1000000000000000000000000000
+tagToInt TutorialTag = 0b10000000000000000000000000000
+tagToInt VideoTag = 0b100000000000000000000000000000
+tagToInt WeatherTag = 0b1000000000000000000000000000000
 
 intToTag :: Int64 -> Maybe ServiceTag
 intToTag 0b1 = pure AudioTag
