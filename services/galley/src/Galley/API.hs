@@ -859,14 +859,14 @@ sitemap = do
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @Connect
-  put "/i/conversations/:cnv/accept/v2" (continue acceptConv) $
+  put "/i/conversations/:cnv/accept/v2" (continue acceptConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
-  put "/i/conversations/:cnv/block" (continue blockConv) $
+  put "/i/conversations/:cnv/block" (continue blockConvH) $
     zauthUserId
       .&. capture "cnv"
-  put "/i/conversations/:cnv/unblock" (continue unblockConv) $
+  put "/i/conversations/:cnv/unblock" (continue unblockConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"

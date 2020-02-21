@@ -1,8 +1,8 @@
 module Galley.API.Update
   ( -- * Managing Conversations
-    acceptConv,
-    blockConv,
-    unblockConv,
+    acceptConvH,
+    blockConvH,
+    unblockConvH,
     checkReusableCode,
     joinConversationById,
     joinConversationByReusableCode,
@@ -55,7 +55,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
-import Galley.Data.Types
+import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
@@ -76,30 +76,41 @@ import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, failure, setStatus)
 import Network.Wai.Utilities
 
-acceptConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
-acceptConv (usr ::: conn ::: cnv) = do
+acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
+acceptConvH (usr ::: conn ::: cnv) = do
+  setStatus status200 . json <$> acceptConv usr conn cnv
+
+acceptConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
+acceptConv usr conn cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   conv' <- acceptOne2One usr conv conn
-  setStatus status200 . json <$> conversationView usr conv'
+  conversationView usr conv'
 
-blockConv :: UserId ::: ConvId -> Galley Response
-blockConv (usr ::: cnv) = do
+blockConvH :: UserId ::: ConvId -> Galley Response
+blockConvH (usr ::: cnv) = do
+  empty <$ blockConv usr cnv
+
+blockConv :: UserId -> ConvId -> Galley ()
+blockConv usr cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv])
     $ throwM
     $ invalidOp "block: invalid conversation type"
   let mems = Data.convMembers conv
   when (usr `isMember` mems) $ Data.removeMember usr cnv
-  return empty
 
-unblockConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
-unblockConv (usr ::: conn ::: cnv) = do
+unblockConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
+unblockConvH (usr ::: conn ::: cnv) = do
+  setStatus status200 . json <$> unblockConv usr conn cnv
+
+unblockConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
+unblockConv usr conn cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv])
     $ throwM
     $ invalidOp "unblock: invalid conversation type"
   conv' <- acceptOne2One usr conv conn
-  setStatus status200 . json <$> conversationView usr conv'
+  conversationView usr conv'
 
 updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
 updateConversationAccess (usr ::: zcon ::: cnv ::: req) = do
