@@ -112,16 +112,21 @@ unblockConv usr conn cnv = do
   conv' <- acceptOne2One usr conv conn
   conversationView usr conv'
 
-updateConversationAccessH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
-updateConversationAccessH (usr ::: zcon ::: cnv ::: req) = do
-  update <- fromJsonBody req
-  updateConversationAccess usr zcon cnv update <&> \case
-    Updated ev -> json ev & setStatus status200
-    Unchanged -> empty & setStatus status204
+-- conversation updates
 
 data UpdateResult
   = Updated Event
   | Unchanged
+
+handleUpdateResult :: UpdateResult -> Response
+handleUpdateResult = \case
+  Updated ev -> json ev & setStatus status200
+  Unchanged -> empty & setStatus status204
+
+updateConversationAccessH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationAccessUpdate -> Galley Response
+updateConversationAccessH (usr ::: zcon ::: cnv ::: req) = do
+  update <- fromJsonBody req
+  handleUpdateResult <$> updateConversationAccess usr zcon cnv update
 
 updateConversationAccess :: UserId -> ConnId -> ConvId -> ConversationAccessUpdate -> Galley UpdateResult
 updateConversationAccess usr zcon cnv update = do
@@ -231,9 +236,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptModeH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
 updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
   update <- fromJsonBody req
-  updateConversationReceiptMode usr zcon cnv update <&> \case
-    Updated ev -> json ev & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> updateConversationReceiptMode usr zcon cnv update
 
 updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> ConversationReceiptModeUpdate -> Galley UpdateResult
 updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceiptModeUpdate target) = do
@@ -255,9 +258,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceip
 updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
 updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
   timerUpdate <- fromJsonBody req
-  updateConversationMessageTimer usr zcon cnv timerUpdate <&> \case
-    Updated ev -> json ev & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> updateConversationMessageTimer usr zcon cnv timerUpdate
 
 updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> ConversationMessageTimerUpdate -> Galley UpdateResult
 updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTimerUpdate target) = do
@@ -278,6 +279,8 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
       Data.updateConversationMessageTimer cnv target
       pushEvent timerEvent users bots zcon
       pure timerEvent
+
+--
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -376,9 +379,7 @@ verifyReusableCode convCode = do
 joinConversationByReusableCodeH :: UserId ::: ConnId ::: JsonRequest ConversationCode -> Galley Response
 joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
   convCode <- fromJsonBody req
-  joinConversationByReusableCode zusr zcon convCode <&> \case
-    Updated event -> json event & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> joinConversationByReusableCode zusr zcon convCode
 
 joinConversationByReusableCode :: UserId -> ConnId -> ConversationCode -> Galley UpdateResult
 joinConversationByReusableCode zusr zcon convCode = do
@@ -387,9 +388,7 @@ joinConversationByReusableCode zusr zcon convCode = do
 
 joinConversationByIdH :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
-  joinConversationById zusr zcon cnv <&> \case
-    Updated event -> json event & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> joinConversationById zusr zcon cnv
 
 joinConversationById :: UserId -> ConnId -> ConvId -> Galley UpdateResult
 joinConversationById zusr zcon cnv =
@@ -411,9 +410,7 @@ joinConversation zusr zcon cnv access = do
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
   invite <- fromJsonBody req
-  addMembers zusr zcon cid invite <&> \case
-    Updated ev -> json ev & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> addMembers zusr zcon cid invite
 
 addMembers :: UserId -> ConnId -> ConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
@@ -474,9 +471,7 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  removeMember zusr zcon cid victim <&> \case
-    Updated event -> json event & setStatus status200
-    Unchanged -> empty & setStatus status204
+  handleUpdateResult <$> removeMember zusr zcon cid victim
 
 removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
