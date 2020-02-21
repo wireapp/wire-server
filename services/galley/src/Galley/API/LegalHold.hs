@@ -1,4 +1,14 @@
-module Galley.API.LegalHold where
+module Galley.API.LegalHold
+  ( createSettingsH,
+    getSettingsH,
+    removeSettingsH,
+    removeSettings',
+    getUserStatusH,
+    requestDeviceH,
+    approveDeviceH,
+    disableForUserH,
+  )
+where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
