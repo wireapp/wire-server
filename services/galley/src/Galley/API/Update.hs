@@ -16,10 +16,10 @@ module Galley.API.Update
     updateConversationMessageTimerH,
 
     -- * Managing Members
-    Galley.API.Update.addMembers,
-    updateSelfMember,
-    updateOtherMember,
-    removeMember,
+    Galley.API.Update.addMembersH,
+    updateSelfMemberH,
+    updateOtherMemberH,
+    removeMemberH,
 
     -- * Talking
     postOtrMessage,
@@ -408,26 +408,30 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
 
-addMembers :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
-addMembers (zusr ::: zcon ::: cid ::: req) = do
-  body <- fromJsonBody req
+addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
+addMembersH (zusr ::: zcon ::: cid ::: req) = do
+  invite <- fromJsonBody req
+  addMembers zusr zcon cid invite <&> \case
+    Updated ev -> json ev & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+addMembers :: UserId -> ConnId -> ConvId -> Invite -> Galley UpdateResult
+addMembers zusr zcon cid invite = do
   conv <- Data.conversation cid >>= ifNothing convNotFound
   let mems = botsAndUsers (Data.convMembers conv)
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
-  toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
+  toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
   let newUsers = filter (notIsMember conv) (toList toAdd)
   ensureMemberLimit (toList $ Data.convMembers conv) newUsers
   ensureAccess conv InviteAccess
-  ensureConvRoleNotElevated self (invRoleName body)
+  ensureConvRoleNotElevated self (invRoleName invite)
   case Data.convTeam conv of
     Nothing -> do
       ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
       ensureConnectedOrSameTeam zusr newUsers
     Just ti -> teamConvChecks ti newUsers conv
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName body) <$> newUsers) conv <&> \case
-    Updated ev -> json ev & setStatus status200
-    Unchanged -> empty & setStatus status204
+  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
   where
     teamConvChecks tid newUsers conv = do
       tms <- Data.teamMembersLimited tid newUsers
@@ -437,31 +441,45 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
         throwM noAddToManaged
       ensureConnectedOrSameTeam zusr newUsers
 
-updateSelfMember :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
-updateSelfMember (zusr ::: zcon ::: cid ::: req) = do
-  conv <- getConversationAndCheckMembership zusr cid
-  body <- fromJsonBody req
-  m <- getSelfMember zusr (Data.convMembers conv)
-  -- Ensure no self role upgrades
-  for_ (mupConvRoleName body) $ ensureConvRoleNotElevated m
-  void $ processUpdateMemberEvent zusr zcon cid [m] m body
+updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
+updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
+  update <- fromJsonBody req
+  updateSelfMember zusr zcon cid update
   return empty
 
-updateOtherMember :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
-updateOtherMember (zusr ::: zcon ::: cid ::: victim ::: req) = do
+updateSelfMember :: UserId -> ConnId -> ConvId -> MemberUpdate -> Galley ()
+updateSelfMember zusr zcon cid update = do
+  conv <- getConversationAndCheckMembership zusr cid
+  m <- getSelfMember zusr (Data.convMembers conv)
+  -- Ensure no self role upgrades
+  for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
+  void $ processUpdateMemberEvent zusr zcon cid [m] m update
+
+updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest OtherMemberUpdate -> Galley Response
+updateOtherMemberH (zusr ::: zcon ::: cid ::: victim ::: req) = do
+  update <- fromJsonBody req
+  updateOtherMember zusr zcon cid victim update
+  return empty
+
+updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> OtherMemberUpdate -> Galley ()
+updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr cid
   let (bots, users) = botsAndUsers (Data.convMembers conv)
-  body <- fromJsonBody req
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
-  e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName body})
+  e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  return empty
 
-removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
-removeMember (zusr ::: zcon ::: cid ::: victim) = do
+removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
+removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
+  removeMember zusr zcon cid victim <&> \case
+    Updated event -> json event & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember zusr zcon cid victim = do
   conv <- Data.conversation cid >>= ifNothing convNotFound
   let (bots, users) = botsAndUsers (Data.convMembers conv)
   genConvChecks conv users
@@ -470,12 +488,12 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
     Just ti -> teamConvChecks ti
   if victim `isMember` users
     then do
-      e <- Data.removeMembers conv zusr (singleton victim)
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      event <- Data.removeMembers conv zusr (singleton victim)
+      for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon
-      void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-      return $ json e & setStatus status200
-    else return $ empty & setStatus status204
+      void . forkIO $ void $ External.deliver (bots `zip` repeat event)
+      pure $ Updated event
+    else pure Unchanged
   where
     genConvChecks conv usrs = do
       ensureGroupConv conv

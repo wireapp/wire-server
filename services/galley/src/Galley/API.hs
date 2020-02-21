@@ -601,7 +601,7 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  post "/conversations/:cnv/members" (continue addMembers) $
+  post "/conversations/:cnv/members" (continue addMembersH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -632,7 +632,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/self" (continue updateSelfMember) $
+  put "/conversations/:cnv/self" (continue updateSelfMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -647,7 +647,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/members/:usr" (continue updateOtherMember) $
+  put "/conversations/:cnv/members/:usr" (continue updateOtherMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -681,7 +681,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  delete "/conversations/:cnv/members/:usr" (continue removeMember) $
+  delete "/conversations/:cnv/members/:usr" (continue removeMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
