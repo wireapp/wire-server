@@ -391,7 +391,7 @@ sitemap = do
       description "Max. number of conversations to return"
   ---
 
-  post "/conversations" (continue createGroupConversation) $
+  post "/conversations" (continue createGroupConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -406,9 +406,7 @@ sitemap = do
     errorResponse (Error.operationDenied CreateConversation)
   ---
 
-  post
-    "/conversations/self"
-    (continue createSelfConversation)
+  post "/conversations/self" (continue createSelfConversationH) $
     zauthUserId
   document "POST" "createSelfConversation" $ do
     summary "Create a self-conversation"
@@ -416,7 +414,7 @@ sitemap = do
     response 201 "Conversation created" end
   ---
 
-  post "/conversations/one2one" (continue createOne2OneConversation) $
+  post "/conversations/one2one" (continue createOne2OneConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -851,11 +849,11 @@ sitemap = do
   get "/i/conversations/:cnv/members/:usr" (continue internalGetMemberH) $
     capture "cnv"
       .&. capture "usr"
-  post "/i/conversations/managed" (continue internalCreateManagedConversation) $
+  post "/i/conversations/managed" (continue internalCreateManagedConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-  post "/i/conversations/connect" (continue createConnectConversation) $
+  post "/i/conversations/connect" (continue createConnectConversationH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @Connect
