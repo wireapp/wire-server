@@ -225,9 +225,8 @@ conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  -- TODO location
-  ConversationCreated cnv -> json cnv & setStatus status201
-  ConversationExisted cnv -> json cnv & setStatus status204
+  ConversationCreated cnv -> json cnv & setStatus status201 . location (cnvId cnv)
+  ConversationExisted cnv -> json cnv & setStatus status200 . location (cnvId cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do
