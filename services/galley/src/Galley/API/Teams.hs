@@ -197,12 +197,13 @@ updateTeam zusr zcon tid updateData = do
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
-  body <- fromJsonBody (JsonRequest req)
-  deleteTeam zusr zcon tid body
+  let demandBody = fromJsonBody (JsonRequest req)
+  deleteTeam zusr zcon tid demandBody
   pure (empty & setStatus status202)
 
-deleteTeam :: UserId -> ConnId -> TeamId -> TeamDeleteData -> Galley ()
-deleteTeam zusr zcon tid body =
+-- | 'TeamDeleteData' is only required for binding teams, so it gets accessed on demand
+deleteTeam :: UserId -> ConnId -> TeamId -> Galley TeamDeleteData -> Galley ()
+deleteTeam zusr zcon tid demandBody =
   Data.team tid >>= \case
     Nothing -> throwM teamNotFound
     Just team ->
@@ -218,6 +219,7 @@ deleteTeam zusr zcon tid body =
     checkPermissions team = do
       void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
       when ((tdTeam team) ^. teamBinding == Binding) $ do
+        body <- demandBody
         ensureReAuthorised zusr (body ^. tdAuthPassword)
     queueDelete = do
       q <- view deleteQueue
@@ -425,8 +427,9 @@ updateTeamMember zusr zcon tid targetMember = do
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
-  body <- fromJsonBody (JsonRequest req) -- TODO: can we demand it here?
-  deleteTeamMember zusr zcon tid remove body >>= \case
+  -- the body is not always required, so we cannot demand it here
+  let demandBody = fromJsonBody (JsonRequest req)
+  deleteTeamMember zusr zcon tid remove demandBody >>= \case
     TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
     TeamMemberDeleteCompleted -> pure empty
 
@@ -434,8 +437,9 @@ data TeamMemberDeleteResult
   = TeamMemberDeleteAccepted
   | TeamMemberDeleteCompleted
 
-deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> TeamMemberDeleteData -> Galley TeamMemberDeleteResult
-deleteTeamMember zusr zcon tid remove body = do
+-- | 'TeamMemberDeleteData' is only required for binding teams, so it gets accessed on demand
+deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Galley TeamMemberDeleteData -> Galley TeamMemberDeleteResult
+deleteTeamMember zusr zcon tid remove demandBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
@@ -446,6 +450,7 @@ deleteTeamMember zusr zcon tid remove body = do
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   if team ^. teamBinding == Binding && isTeamMember remove mems
     then do
+      body <- demandBody
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
       deleteUser remove
       Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
