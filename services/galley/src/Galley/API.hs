@@ -317,7 +317,7 @@ sitemap = do
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
-  post "/bot/messages" (continue postBotMessage) $
+  post "/bot/messages" (continue postBotMessageH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
@@ -936,15 +936,15 @@ sitemap = do
       .&. capture "client"
   delete "/i/user" (continue Internal.rmUser) $
     zauthUserId .&. opt zauthConnId
-  post "/i/services" (continue addService) $
+  post "/i/services" (continue addServiceH) $
     jsonRequest @Service
-  delete "/i/services" (continue rmService) $
+  delete "/i/services" (continue rmServiceH) $
     jsonRequest @ServiceRef
-  post "/i/bots" (continue addBot) $
+  post "/i/bots" (continue addBotH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @AddBot
-  delete "/i/bots" (continue rmBot) $
+  delete "/i/bots" (continue rmBotH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @RemoveBot

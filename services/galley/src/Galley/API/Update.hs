@@ -29,11 +29,11 @@ module Galley.API.Update
     isTypingH,
 
     -- * External Services
-    addService,
-    rmService,
-    Galley.API.Update.addBot,
-    rmBot,
-    postBotMessage,
+    addServiceH,
+    rmServiceH,
+    Galley.API.Update.addBotH,
+    rmBotH,
+    postBotMessageH,
   )
 where
 
@@ -62,7 +62,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
 import Galley.Types
-import Galley.Types.Bot
+import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
@@ -511,10 +511,14 @@ handleOtrResult = \case
   OtrSent m -> json m & setStatus status201
   OtrMissingRecipients m -> json m & setStatus status412
 
-postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
-postBotMessage (zbot ::: zcnv ::: val ::: req ::: _) = do
-  msg <- fromJsonBody req
-  handleOtrResult <$> postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
+postBotMessageH :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
+postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
+  message <- fromJsonBody req
+  handleOtrResult <$> postBotMessage zbot zcnv val message
+
+postBotMessage :: BotId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postBotMessage zbot zcnv val message = do
+  postNewOtrMessage (botUserId zbot) Nothing zcnv val message
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
@@ -649,32 +653,38 @@ isTyping zusr zcon cnv typingData = do
         & pushRoute .~ RouteDirect
         & pushTransient .~ True
 
-addService :: JsonRequest Service -> Galley Response
-addService req = do
+addServiceH :: JsonRequest Service -> Galley Response
+addServiceH req = do
+  -- simple enough to not need a separate function
   Data.insertService =<< fromJsonBody req
   return empty
 
-rmService :: JsonRequest ServiceRef -> Galley Response
-rmService req = do
+rmServiceH :: JsonRequest ServiceRef -> Galley Response
+rmServiceH req = do
+  -- simple enough to not need a separate function
   Data.deleteService =<< fromJsonBody req
   return empty
 
-addBot :: UserId ::: ConnId ::: JsonRequest AddBot -> Galley Response
-addBot (zusr ::: zcon ::: req) = do
-  b <- fromJsonBody req
+addBotH :: UserId ::: ConnId ::: JsonRequest AddBot -> Galley Response
+addBotH (zusr ::: zcon ::: req) = do
+  bot <- fromJsonBody req
+  json <$> addBot zusr zcon bot
+
+addBot :: UserId -> ConnId -> AddBot -> Galley Event
+addBot zusr zcon b = do
   c <- Data.conversation (b ^. addBotConv) >>= ifNothing convNotFound
   -- Check some preconditions on adding bots to a conversation
   for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
-  (bots, users) <- regularConvChecks b c
+  (bots, users) <- regularConvChecks c
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
-  return (json e)
+  pure e
   where
-    regularConvChecks b c = do
+    regularConvChecks c = do
       let (bots, users) = botsAndUsers (Data.convMembers c)
       unless (zusr `isMember` users) $
         throwM convNotFound
@@ -688,15 +698,19 @@ addBot (zusr ::: zcon ::: req) = do
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
 
-rmBot :: UserId ::: Maybe ConnId ::: JsonRequest RemoveBot -> Galley Response
-rmBot (zusr ::: zcon ::: req) = do
-  b <- fromJsonBody req
+rmBotH :: UserId ::: Maybe ConnId ::: JsonRequest RemoveBot -> Galley Response
+rmBotH (zusr ::: zcon ::: req) = do
+  bot <- fromJsonBody req
+  handleUpdateResult <$> rmBot zusr zcon bot
+
+rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley UpdateResult
+rmBot zusr zcon b = do
   c <- Data.conversation (b ^. rmBotConv) >>= ifNothing convNotFound
   unless (zusr `isMember` Data.convMembers c) $
     throwM convNotFound
   let (bots, users) = botsAndUsers (Data.convMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
-    then return $ setStatus status204 empty
+    then pure Unchanged
     else do
       t <- liftIO getCurrentTime
       let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
@@ -706,7 +720,7 @@ rmBot (zusr ::: zcon ::: req) = do
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
       void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-      return (json e)
+      pure $ Updated e
 
 -------------------------------------------------------------------------------
 -- Helpers
