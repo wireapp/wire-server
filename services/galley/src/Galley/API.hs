@@ -98,8 +98,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
-      .&. request
-      .&. opt (contentType "application" "json")
+      .&. optionalJsonRequest @TeamDeleteData
       .&. accept "application" "json"
   document "DELETE" "deleteTeam" $ do
     summary "Delete a team"
@@ -184,8 +183,7 @@ sitemap = do
       .&. zauthConnId
       .&. capture "tid"
       .&. capture "uid"
-      .&. request
-      .&. opt (contentType "application" "json")
+      .&. optionalJsonRequest @TeamMemberDeleteData
       .&. accept "application" "json"
   document "DELETE" "deleteTeamMember" $ do
     summary "Remove an existing team member"

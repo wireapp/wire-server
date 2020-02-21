@@ -195,15 +195,15 @@ updateTeam zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
   push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteTeamH :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
-deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
-  let demandBody = fromJsonBody (JsonRequest req)
-  deleteTeam zusr zcon tid demandBody
+deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
+deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
+  mBody <- fromOptionalJsonBody req
+  deleteTeam zusr zcon tid mBody
   pure (empty & setStatus status202)
 
--- | 'TeamDeleteData' is only required for binding teams, so it gets accessed on demand
-deleteTeam :: UserId -> ConnId -> TeamId -> Galley TeamDeleteData -> Galley ()
-deleteTeam zusr zcon tid demandBody =
+-- | 'TeamDeleteData' is only required for binding teams
+deleteTeam :: UserId -> ConnId -> TeamId -> Maybe TeamDeleteData -> Galley ()
+deleteTeam zusr zcon tid mBody =
   Data.team tid >>= \case
     Nothing -> throwM teamNotFound
     Just team ->
@@ -219,7 +219,7 @@ deleteTeam zusr zcon tid demandBody =
     checkPermissions team = do
       void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        body <- demandBody
+        body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
     queueDelete = do
       q <- view deleteQueue
@@ -425,11 +425,10 @@ updateTeamMember zusr zcon tid targetMember = do
   let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
   for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
-deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
-deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
-  -- the body is not always required, so we cannot demand it here
-  let demandBody = fromJsonBody (JsonRequest req)
-  deleteTeamMember zusr zcon tid remove demandBody >>= \case
+deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
+deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
+  mBody <- fromOptionalJsonBody req
+  deleteTeamMember zusr zcon tid remove mBody >>= \case
     TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
     TeamMemberDeleteCompleted -> pure empty
 
@@ -437,9 +436,9 @@ data TeamMemberDeleteResult
   = TeamMemberDeleteAccepted
   | TeamMemberDeleteCompleted
 
--- | 'TeamMemberDeleteData' is only required for binding teams, so it gets accessed on demand
-deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Galley TeamMemberDeleteData -> Galley TeamMemberDeleteResult
-deleteTeamMember zusr zcon tid remove demandBody = do
+-- | 'TeamMemberDeleteData' is only required for binding teams
+deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Maybe TeamMemberDeleteData -> Galley TeamMemberDeleteResult
+deleteTeamMember zusr zcon tid remove mBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
@@ -450,7 +449,7 @@ deleteTeamMember zusr zcon tid remove demandBody = do
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   if team ^. teamBinding == Binding && isTeamMember remove mems
     then do
-      body <- demandBody
+      body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
       deleteUser remove
       Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
