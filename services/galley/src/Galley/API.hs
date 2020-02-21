@@ -312,7 +312,7 @@ sitemap = do
       .&. accept "application" "json"
   ---
 
-  get "/bot/conversation" (continue getBotConversation) $
+  get "/bot/conversation" (continue getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
@@ -326,7 +326,7 @@ sitemap = do
       .&. accept "application" "json"
   --
 
-  get "/conversations/:cnv" (continue getConversation) $
+  get "/conversations/:cnv" (continue getConversationH) $
     zauthUserId
       .&. capture "cnv"
       .&. accept "application" "json"
@@ -339,7 +339,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   --
 
-  get "/conversations/:cnv/roles" (continue getConversationRoles) $
+  get "/conversations/:cnv/roles" (continue getConversationRolesH) $
     zauthUserId
       .&. capture "cnv"
       .&. accept "application" "json"
@@ -352,7 +352,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  get "/conversations/ids" (continue getConversationIds) $
+  get "/conversations/ids" (continue getConversationIdsH) $
     zauthUserId
       .&. opt (query "start")
       .&. def (unsafeRange 1000) (query "size")
@@ -369,7 +369,7 @@ sitemap = do
     returns (ref Model.conversationIds)
   ---
 
-  get "/conversations" (continue getConversations) $
+  get "/conversations" (continue getConversationsH) $
     zauthUserId
       .&. opt (query "ids" ||| query "start")
       .&. def (unsafeRange 100) (query "size")
@@ -621,7 +621,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
-  get "/conversations/:cnv/self" (continue getMember) $
+  get "/conversations/:cnv/self" (continue getSelfH) $
     zauthUserId
       .&. capture "cnv"
   document "GET" "getSelf" $ do
@@ -848,7 +848,7 @@ sitemap = do
       .&. request
   head "/i/status" (continue $ const (return empty)) true
   get "/i/status" (continue $ const (return empty)) true
-  get "/i/conversations/:cnv/members/:usr" (continue internalGetMember) $
+  get "/i/conversations/:cnv/members/:usr" (continue internalGetMemberH) $
     capture "cnv"
       .&. capture "usr"
   post "/i/conversations/managed" (continue internalCreateManagedConversation) $
@@ -870,7 +870,7 @@ sitemap = do
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
-  get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
+  get "/i/conversations/:cnv/meta" (continue getConversationMetaH) $
     capture "cnv"
   get "/i/teams/:tid" (continue getTeamInternalH) $
     capture "tid"
