@@ -459,7 +459,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/join" (continue joinConversationById) $
+  post "/conversations/:cnv/join" (continue joinConversationByIdH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -473,7 +473,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/code-check" (continue checkReusableCode) $
+  post "/conversations/code-check" (continue checkReusableCodeH) $
     jsonRequest @ConversationCode
   document "POST" "checkConversationCode" $ do
     summary "Check validity of a conversation code"
@@ -481,7 +481,7 @@ sitemap = do
     body (ref Model.conversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
-  post "/conversations/join" (continue joinConversationByReusableCode) $
+  post "/conversations/join" (continue joinConversationByReusableCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @ConversationCode
@@ -496,7 +496,7 @@ sitemap = do
     errorResponse Error.tooManyMembers
   ---
 
-  post "/conversations/:cnv/code" (continue addCode) $
+  post "/conversations/:cnv/code" (continue addCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -512,7 +512,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  delete "/conversations/:cnv/code" (continue rmCode) $
+  delete "/conversations/:cnv/code" (continue rmCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -526,7 +526,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  get "/conversations/:cnv/code" (continue getCode) $
+  get "/conversations/:cnv/code" (continue getCodeH) $
     zauthUserId
       .&. capture "cnv"
   document "GET" "getConversationCode" $ do

@@ -3,12 +3,12 @@ module Galley.API.Update
     acceptConvH,
     blockConvH,
     unblockConvH,
-    checkReusableCode,
-    joinConversationById,
-    joinConversationByReusableCode,
-    addCode,
-    rmCode,
-    getCode,
+    checkReusableCodeH,
+    joinConversationByIdH,
+    joinConversationByReusableCodeH,
+    addCodeH,
+    rmCodeH,
+    getCodeH,
     updateConversationDeprecatedH,
     updateConversationNameH,
     updateConversationAccessH,
@@ -285,8 +285,18 @@ pushEvent e users bots zcon = do
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
-addCode (usr ::: zcon ::: cnv) = do
+addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
+addCodeH (usr ::: zcon ::: cnv) = do
+  addCode usr zcon cnv <&> \case
+    CodeAdded event -> json event & setStatus status201
+    CodeAlreadyExisted conversationCode -> json conversationCode & setStatus status200
+
+data AddCodeResult
+  = CodeAdded Event
+  | CodeAlreadyExisted ConversationCode
+
+addCode :: UserId -> ConnId -> ConvId -> Galley AddCodeResult
+addCode usr zcon cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
@@ -295,24 +305,28 @@ addCode (usr ::: zcon ::: cnv) = do
   mCode <- Data.lookupCode key ReusableCode
   case mCode of
     Nothing -> do
-      c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
-      Data.insertCode c
+      code <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
+      Data.insertCode code
       now <- liftIO getCurrentTime
-      res <- createCode c
-      let e = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate res)
-      pushEvent e users bots zcon
-      return $ json e & setStatus status201
-    Just c -> do
-      res <- createCode c
-      return $ json res & setStatus status200
+      conversationCode <- createCode code
+      let event = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate conversationCode)
+      pushEvent event users bots zcon
+      pure $ CodeAdded event
+    Just code -> do
+      conversationCode <- createCode code
+      pure $ CodeAlreadyExisted conversationCode
   where
     createCode :: Code -> Galley ConversationCode
-    createCode c = do
+    createCode code = do
       urlPrefix <- view $ options . optSettings . setConversationCodeURI
-      return $ mkConversationCode (codeKey c) (codeValue c) urlPrefix
+      return $ mkConversationCode (codeKey code) (codeValue code) urlPrefix
 
-rmCode :: UserId ::: ConnId ::: ConvId -> Galley Response
-rmCode (usr ::: zcon ::: cnv) = do
+rmCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
+rmCodeH (usr ::: zcon ::: cnv) = do
+  setStatus status200 . json <$> rmCode usr zcon cnv
+
+rmCode :: UserId -> ConnId -> ConvId -> Galley Event
+rmCode usr zcon cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
@@ -320,12 +334,16 @@ rmCode (usr ::: zcon ::: cnv) = do
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
-  let e = Event ConvCodeDelete cnv usr now Nothing
-  pushEvent e users bots zcon
-  return $ json e & setStatus status200
+  let event = Event ConvCodeDelete cnv usr now Nothing
+  pushEvent event users bots zcon
+  pure event
 
-getCode :: UserId ::: ConvId -> Galley Response
-getCode (usr ::: cnv) = do
+getCodeH :: UserId ::: ConvId -> Galley Response
+getCodeH (usr ::: cnv) = do
+  setStatus status200 . json <$> getCode usr cnv
+
+getCode :: UserId -> ConvId -> Galley ConversationCode
+getCode usr cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convMembers conv) usr
@@ -333,23 +351,20 @@ getCode (usr ::: cnv) = do
   c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
   returnCode c
 
-returnCode :: Code -> Galley Response
+returnCode :: Code -> Galley ConversationCode
 returnCode c = do
   urlPrefix <- view $ options . optSettings . setConversationCodeURI
-  let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
-  return $ setStatus status200 . json $ res
+  pure $ mkConversationCode (codeKey c) (codeValue c) urlPrefix
 
-checkReusableCode :: JsonRequest ConversationCode -> Galley Response
-checkReusableCode req = do
+checkReusableCodeH :: JsonRequest ConversationCode -> Galley Response
+checkReusableCodeH req = do
   convCode <- fromJsonBody req
+  checkReusableCode convCode
+  pure empty
+
+checkReusableCode :: ConversationCode -> Galley ()
+checkReusableCode convCode = do
   void $ verifyReusableCode convCode
-  return empty
-
-joinConversationByReusableCode :: UserId ::: ConnId ::: JsonRequest ConversationCode -> Galley Response
-joinConversationByReusableCode (zusr ::: zcon ::: req) = do
-  convCode <- fromJsonBody req
-  c <- verifyReusableCode convCode
-  joinConversation zusr zcon (codeConversation c) CodeAccess
 
 verifyReusableCode :: ConversationCode -> Galley Code
 verifyReusableCode convCode = do
@@ -358,10 +373,29 @@ verifyReusableCode convCode = do
     throwM codeNotFound
   return c
 
-joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
-joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
+joinConversationByReusableCodeH :: UserId ::: ConnId ::: JsonRequest ConversationCode -> Galley Response
+joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
+  convCode <- fromJsonBody req
+  joinConversationByReusableCode zusr zcon convCode <&> \case
+    Updated event -> json event & setStatus status200
+    Unchanged -> empty & setStatus status204
 
-joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
+joinConversationByReusableCode :: UserId -> ConnId -> ConversationCode -> Galley UpdateResult
+joinConversationByReusableCode zusr zcon convCode = do
+  c <- verifyReusableCode convCode
+  joinConversation zusr zcon (codeConversation c) CodeAccess
+
+joinConversationByIdH :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
+joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
+  joinConversationById zusr zcon cnv <&> \case
+    Updated event -> json event & setStatus status200
+    Unchanged -> empty & setStatus status204
+
+joinConversationById :: UserId -> ConnId -> ConvId -> Galley UpdateResult
+joinConversationById zusr zcon cnv =
+  joinConversation zusr zcon cnv LinkAccess
+
+joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
@@ -391,7 +425,9 @@ addMembers (zusr ::: zcon ::: cid ::: req) = do
       ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
       ensureConnectedOrSameTeam zusr newUsers
     Just ti -> teamConvChecks ti newUsers conv
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName body) <$> newUsers) conv
+  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName body) <$> newUsers) conv <&> \case
+    Updated ev -> json ev & setStatus status200
+    Unchanged -> empty & setStatus status204
   where
     teamConvChecks tid newUsers conv = do
       tms <- Data.teamMembersLimited tid newUsers
@@ -634,8 +670,8 @@ rmBot (zusr ::: zcon ::: req) = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [Member]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> Data.Conversation -> Galley Response
-addToConversation _ _ _ [] _ = return $ empty & setStatus status204
+addToConversation :: ([BotMember], [Member]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
+addToConversation _ _ _ [] _ = pure Unchanged
 addToConversation (bots, others) (usr, usrRole) conn xs c = do
   ensureGroupConv c
   mems <- checkedMemberAddSize xs
@@ -644,7 +680,7 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  return $ json e & setStatus status200
+  pure $ Updated e
   where
     allMembers new = foldl' fn new others
       where
