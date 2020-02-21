@@ -506,25 +506,25 @@ data OtrResult
   = OtrSent !ClientMismatch
   | OtrMissingRecipients !ClientMismatch
 
-otrResultToResponse :: OtrResult -> Response
-otrResultToResponse = \case
+handleOtrResult :: OtrResult -> Response
+handleOtrResult = \case
   OtrSent m -> json m & setStatus status201
   OtrMissingRecipients m -> json m & setStatus status412
 
 postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessage (zbot ::: zcnv ::: val ::: req ::: _) = do
   msg <- fromJsonBody req
-  otrResultToResponse <$> postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
+  handleOtrResult <$> postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  otrResultToResponse <$> postOtrMessage zusr zcon cnv val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
 
 postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
   message <- fromJsonBody req
-  otrResultToResponse <$> postOtrMessage zusr zcon cnv val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
 
 postOtrMessage :: UserId -> ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
@@ -533,12 +533,12 @@ postOtrMessage zusr zcon cnv val message =
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  otrResultToResponse <$> postOtrBroadcast zusr zcon val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val message
 
 postOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   message <- fromJsonBody req
-  otrResultToResponse <$> postOtrBroadcast zusr zcon val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val message
 
 postOtrBroadcast :: UserId -> ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrBroadcast zusr zcon val message =
