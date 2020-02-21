@@ -15,13 +15,14 @@ library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported
   dependencies:
-  - attoparsec >=0.11
   - aeson >=1.0
-  - base ==4.*
+  - attoparsec >=0.11
   - base16-bytestring >=0.1
+  - base ==4.*
   - base64-bytestring >=1.0
   - bytestring >=0.10
   - bytestring-conversion >=0.2
+  - cassandra-util
   - containers >=0.5
   - cryptohash-md5 >=0.11.7.2
   - cryptohash-sha1 >=0.11.7.2
@@ -32,12 +33,15 @@ library:
   - ghc-prim
   - hashable >=1.2
   - iproute >=1.5
-  - optparse-applicative >=0.10
   - lens >=4.10
   - lens-datetime >=0.3
-  - semigroups >=0.12
+  - optparse-applicative >=0.10
+  - protobuf >=0.2
+  - QuickCheck >=2.9
+  - quickcheck-instances >=0.3.16
   - safe >=0.3
   - scientific >=0.3.4
+  - semigroups >=0.12
   - singletons >=2.0
   - string-conversions
   - swagger >=0.3
@@ -47,28 +51,15 @@ library:
   - time >=1.6
   - time-locale-compat >=0.1
   - transformers >=0.3
+  - unix
   - unordered-containers >=0.2
   - uri-bytestring >=0.2
   - uuid >=1.3.11
-  - unix
   - vector >=0.11
   - yaml >=0.8.22
   when:
   - condition: impl(ghc >=8)
-    ghc-options: -fno-warn-redundant-constraints
-  - condition: flag(cql)
-    cpp-options: -DWITH_CQL
-    dependencies:
-    - cassandra-util
-  - condition: flag(protobuf)
-    cpp-options: -DWITH_PROTOBUF
-    dependencies:
-    - protobuf >=0.2
-  - condition: flag(arbitrary)
-    cpp-options: -DWITH_ARBITRARY
-    dependencies:
-    - QuickCheck >=2.9
-    - quickcheck-instances >=0.3.16
+    ghc-options: -fno-warn-redundant-constraints  # TODO: move this to package-defaults?  what is this about?
 tests:
   tests:
     main: Main.hs
@@ -93,16 +84,3 @@ tests:
     - types-common
     - unordered-containers
     - uuid
-flags:
-  arbitrary:
-    description: Enable quickcheck's arbitrary instances
-    manual: true
-    default: false
-  protobuf:
-    description: Enable protocol buffers instances
-    manual: true
-    default: false
-  cql:
-    description: Enable cql instances
-    manual: true
-    default: false
