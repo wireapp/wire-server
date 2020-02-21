@@ -2,7 +2,7 @@ module Galley.API.Error where
 
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
-import Galley.Types (EmailDomain (..))
+import Galley.Types (EmailDomain, emailDomainText)
 import Galley.Types.Conversations.Roles (Action)
 import Galley.Types.Teams (IsPerm)
 import Imports

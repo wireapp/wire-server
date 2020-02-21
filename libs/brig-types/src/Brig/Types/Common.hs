@@ -87,6 +87,7 @@ defaultAccentId = ColourId 0
 -----------------------------------------------------------------------------
 -- Email
 
+-- FUTUREWORK: replace this type with 'EmailAddress'
 data Email
   = Email
       { emailLocal :: !Text,
