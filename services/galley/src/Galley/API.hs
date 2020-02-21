@@ -667,7 +667,7 @@ sitemap = do
     errorResponse Error.invalidTargetUserOp
   ---
 
-  post "/conversations/:cnv/typing" (continue isTyping) $
+  post "/conversations/:cnv/typing" (continue isTypingH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -699,7 +699,7 @@ sitemap = do
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
   ---
 
-  post "/broadcast/otr/messages" (continue postOtrBroadcast) $
+  post "/broadcast/otr/messages" (continue postOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -718,7 +718,7 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/broadcast/otr/messages" (continue postProtoOtrBroadcast) $
+  post "/broadcast/otr/messages" (continue postProtoOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -750,7 +750,7 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue postOtrMessage) $
+  post "/conversations/:cnv/otr/messages" (continue postOtrMessageH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -783,7 +783,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue postProtoOtrMessage) $
+  post "/conversations/:cnv/otr/messages" (continue postProtoOtrMessageH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"

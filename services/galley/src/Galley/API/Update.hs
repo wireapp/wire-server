@@ -22,11 +22,11 @@ module Galley.API.Update
     removeMemberH,
 
     -- * Talking
-    postOtrMessage,
-    postProtoOtrMessage,
-    postOtrBroadcast,
-    postProtoOtrBroadcast,
-    isTyping,
+    postOtrMessageH,
+    postProtoOtrMessageH,
+    postOtrBroadcastH,
+    postProtoOtrBroadcastH,
+    isTypingH,
 
     -- * External Services
     addService,
@@ -500,30 +500,54 @@ removeMember zusr zcon cid victim = do
       when (maybe False (view managedConversation) tcv) $
         throwM (invalidOp "Users can not be removed from managed conversations.")
 
+-- OTR
+
+data OtrResult
+  = OtrSent !ClientMismatch
+  | OtrMissingRecipients !ClientMismatch
+
+otrResultToResponse :: OtrResult -> Response
+otrResultToResponse = \case
+  OtrSent m -> json m & setStatus status201
+  OtrMissingRecipients m -> json m & setStatus status412
+
 postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessage (zbot ::: zcnv ::: val ::: req ::: _) = do
   msg <- fromJsonBody req
-  postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
+  otrResultToResponse <$> postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
 
-postProtoOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
-postProtoOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
-  Proto.toNewOtrMessage <$> fromProtoBody req
-    >>= postNewOtrMessage zusr (Just zcon) cnv val
+postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
+postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
+  message <- Proto.toNewOtrMessage <$> fromProtoBody req
+  otrResultToResponse <$> postOtrMessage zusr zcon cnv val message
 
-postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
-postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req) =
-  postNewOtrMessage zusr (Just zcon) cnv val =<< fromJsonBody req
+postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
+postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
+  message <- fromJsonBody req
+  otrResultToResponse <$> postOtrMessage zusr zcon cnv val message
 
-postOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
-postOtrBroadcast (zusr ::: zcon ::: val ::: req) =
-  postNewOtrBroadcast zusr (Just zcon) val =<< fromJsonBody req
+postOtrMessage :: UserId -> ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postOtrMessage zusr zcon cnv val message =
+  postNewOtrMessage zusr (Just zcon) cnv val message
 
-postProtoOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
-postProtoOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
-  Proto.toNewOtrMessage <$> fromProtoBody req
-    >>= postNewOtrBroadcast zusr (Just zcon) val
+postProtoOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
+  message <- Proto.toNewOtrMessage <$> fromProtoBody req
+  otrResultToResponse <$> postOtrBroadcast zusr zcon val message
 
-postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
+postOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
+postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
+  message <- fromJsonBody req
+  otrResultToResponse <$> postOtrBroadcast zusr zcon val message
+
+postOtrBroadcast :: UserId -> ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postOtrBroadcast zusr zcon val message =
+  postNewOtrBroadcast zusr (Just zcon) val message
+
+-- internal OTR helpers
+
+-- | bots are not supported on broadcast
+postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrBroadcast usr con val msg = do
   let sender = newOtrSender msg
   let recvrs = newOtrRecipients msg
@@ -532,9 +556,7 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
--- bots are not supported on broadcast
-
-postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
+postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
   let sender = newOtrSender msg
   let recvrs = newOtrRecipients msg
@@ -578,6 +600,8 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)
 
+--
+
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
 updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
@@ -605,21 +629,25 @@ updateConversationName zusr zcon cnv convRename = do
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return $ json e & setStatus status200
 
-isTyping :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
-isTyping (zusr ::: zcon ::: cnv ::: req) = do
-  body <- fromJsonBody req
+isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
+isTypingH (zusr ::: zcon ::: cnv ::: req) = do
+  typingData <- fromJsonBody req
+  isTyping zusr zcon cnv typingData
+  pure empty
+
+isTyping :: UserId -> ConnId -> ConvId -> TypingData -> Galley ()
+isTyping zusr zcon cnv typingData = do
   mm <- Data.members cnv
   unless (zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
-  let e = Event Typing cnv zusr now (Just $ EdTyping body)
+  let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
         & pushRoute .~ RouteDirect
         & pushTransient .~ True
-  return empty
 
 addService :: JsonRequest Service -> Galley Response
 addService req = do
@@ -781,7 +809,7 @@ withValidOtrBroadcastRecipients ::
   OtrFilterMissing ->
   UTCTime ->
   ([(Member, ClientId, Text)] -> Galley ()) ->
-  Galley Response
+  Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
   tMembers <- fmap (view userId) <$> Data.teamMembers tid
   contacts <- getContactList usr
@@ -802,7 +830,7 @@ withValidOtrRecipients ::
   OtrFilterMissing ->
   UTCTime ->
   ([(Member, ClientId, Text)] -> Galley ()) ->
-  Galley Response
+  Galley OtrResult
 withValidOtrRecipients usr clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
@@ -834,10 +862,10 @@ handleOtrResponse ::
   UTCTime ->
   -- | Callback if OtrRecipients are valid
   ([(Member, ClientId, Text)] -> Galley ()) ->
-  Galley Response
+  Galley OtrResult
 handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
-  ValidOtrRecipients m r -> go r >> return (json m & setStatus status201)
-  MissingOtrRecipients m -> return (json m & setStatus status412)
+  ValidOtrRecipients m r -> go r >> pure (OtrSent m)
+  MissingOtrRecipients m -> pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
 
