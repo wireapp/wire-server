@@ -920,19 +920,17 @@ sitemap = do
       .&. accept "application" "json"
   -- End of team features
 
-  get
-    "/i/test/clients"
-    (continue getClients)
+  get "/i/test/clients" (continue getClientsH) $
     zauthUserId
   -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
-  post "/i/clients/:client" (continue addClient) $
+  post "/i/clients/:client" (continue addClientH) $
     zauthUserId
       .&. capture "client"
-  delete "/i/clients/:client" (continue rmClient) $
+  delete "/i/clients/:client" (continue rmClientH) $
     zauthUserId
       .&. capture "client"
-  delete "/i/user" (continue Internal.rmUser) $
+  delete "/i/user" (continue Internal.rmUserH) $
     zauthUserId .&. opt zauthConnId
   post "/i/services" (continue addServiceH) $
     jsonRequest @Service
