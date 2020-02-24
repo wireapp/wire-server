@@ -3,11 +3,14 @@ module Gundeck.API (sitemap) where
 import Control.Lens ((^.))
 import Data.ByteString.Conversion (List)
 import Data.Id
+import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
-import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeLatin1)
+import qualified Data.Text.Encoding as Text
+import Data.UUID as UUID
+import qualified Data.UUID.Util as UUID
 import Gundeck.API.Error
 import qualified Gundeck.Client as Client
 import Gundeck.Monad
@@ -16,7 +19,7 @@ import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Push as Push
 import Gundeck.Types
 import qualified Gundeck.Types.Swagger as Model
-import Imports hiding (head)
+import Imports hiding (getLast, head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
@@ -195,7 +198,26 @@ pushH (req ::: _) = do
   empty <$ Push.push ps
 
 paginateH :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 -> Gundeck Response
-paginateH = Notification.paginate
+paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
+  Notification.PaginateResult gap page <- Notification.paginate uid (join since) clt size
+  pure . updStatus gap . json $ page
+  where
+    since :: Maybe (Maybe NotificationId)
+    since = parseUUID <$> sinceRaw
+    --
+    parseUUID :: ByteString -> Maybe NotificationId
+    parseUUID = UUID.fromASCIIBytes >=> isV1UUID >=> return . Id
+    --
+    isV1UUID :: UUID -> Maybe UUID
+    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
+    --
+    -- the motivation of updStatus is far from clear to me, but this is how it's always been done.
+    updStatus :: Bool -> Response -> Response
+    updStatus True = setStatus status404
+    updStatus False = case since of
+      Just (Just _) -> id
+      Nothing -> id
+      Just Nothing -> setStatus status404
 
 getByIdH :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
 getByIdH = Notification.getById
