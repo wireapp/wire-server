@@ -39,6 +39,8 @@ data I
 
 data U
 
+data MU
+
 data P
 
 data S
@@ -54,6 +56,8 @@ type ConvId = Id C
 type InvitationId = Id I
 
 type UserId = Id U
+
+type MappedUserId = Id MU
 
 type ProviderId = Id P
 
