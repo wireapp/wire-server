@@ -6,6 +6,7 @@ What you need from us to set up your IdP
 
 - The SP Metadata URL: https://prod-nginz-https.wire.com/sso/metadata
 - The SSO Login URL: https://prod-nginz-https.wire.com/sso/finalize-login
+- SP Entity ID (aka Request Issuer ID): https://prod-nginz-https.wire.com/sso/finalize-login
 
 How you need to use this information during setting up your IdP
 depends on the vendor.  Let us know if you run into any trouble!
