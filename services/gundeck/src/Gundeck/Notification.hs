@@ -9,17 +9,13 @@ where
 import Control.Monad.Catch (throwM)
 import Data.Id
 import Data.Misc (Milliseconds (..))
-import Data.Predicate
 import Data.Range
 import Data.Time.Clock.POSIX
 import Gundeck.API.Error
 import Gundeck.Monad
 import qualified Gundeck.Notification.Data as Data
 import Gundeck.Types.Notification
-import Gundeck.Util
 import Imports hiding (getLast)
-import Network.Wai (Response)
-import Network.Wai.Utilities
 
 data PaginateResult
   = PaginateResult
@@ -40,14 +36,12 @@ paginate uid since clt size = do
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
 
-getById :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
-getById (_ ::: uid ::: nid ::: clt) = do
+getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck QueuedNotification
+getById uid nid clt = do
   mn <- Data.fetchId uid nid clt
-  case mn of
-    Nothing -> throwM notificationNotFound
-    Just n -> return $ json n
+  maybe (throwM notificationNotFound) return mn
 
-getLast :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
-getLast (_ ::: uid ::: clt) = do
-  n <- Data.fetchLast uid clt
-  maybe (throwM notificationNotFound) (return . json) n
+getLast :: UserId -> Maybe ClientId -> Gundeck QueuedNotification
+getLast uid clt = do
+  mn <- Data.fetchLast uid clt
+  maybe (throwM notificationNotFound) return mn

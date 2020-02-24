@@ -3,7 +3,6 @@ module Gundeck.API (sitemap) where
 import Control.Lens ((^.))
 import Data.ByteString.Conversion (List)
 import Data.Id
-import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
@@ -220,10 +219,10 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
       Just Nothing -> setStatus status404
 
 getByIdH :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
-getByIdH = Notification.getById
+getByIdH (_ ::: uid ::: nid ::: cid) = json <$> Notification.getById uid nid cid
 
 getLastH :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
-getLastH = Notification.getLast
+getLastH (_ ::: uid ::: cid) = json <$> Notification.getLast uid cid
 
 listPresencesH :: UserId ::: JSON -> Gundeck Response
 listPresencesH = Presence.list
