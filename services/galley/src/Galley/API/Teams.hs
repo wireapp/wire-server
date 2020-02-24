@@ -203,18 +203,16 @@ deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 -- | 'TeamDeleteData' is only required for binding teams
 deleteTeam :: UserId -> ConnId -> TeamId -> Maybe TeamDeleteData -> Galley ()
-deleteTeam zusr zcon tid mBody =
-  Data.team tid >>= \case
-    Nothing -> throwM teamNotFound
-    Just team ->
-      case tdStatus team of
-        Deleted ->
-          throwM teamNotFound
-        PendingDelete ->
-          queueDelete
-        _ -> do
-          checkPermissions team
-          queueDelete
+deleteTeam zusr zcon tid mBody = do
+  team <- Data.team tid >>= ifNothing teamNotFound
+  case tdStatus team of
+    Deleted ->
+      throwM teamNotFound
+    PendingDelete ->
+      queueDelete
+    _ -> do
+      checkPermissions team
+      queueDelete
   where
     checkPermissions team = do
       void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
