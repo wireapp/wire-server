@@ -373,6 +373,11 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
           return (success new)
       )
   where
+    matching ::
+      PushToken ->
+      (Maybe Address, [Address]) ->
+      Address ->
+      (Maybe Address, [Address])
     matching t (x, old) a
       | a ^. addrTransport == t ^. tokenTransport
           && a ^. addrApp == t ^. tokenApp
@@ -381,9 +386,16 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
           then (Just a, old)
           else (x, a : old)
       | otherwise = (x, old)
+    continue ::
+      PushToken ->
+      Maybe Address ->
+      Gundeck (Either Response Address)
     continue t Nothing = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a ^. addrEndpoint)
-    create :: Int -> PushToken -> Gundeck (Either Response Address)
+    create ::
+      Int ->
+      PushToken ->
+      Gundeck (Either Response Address)
     create n t = do
       let trp = t ^. tokenTransport
       let app = t ^. tokenApp
@@ -409,7 +421,11 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
           return (Right (mkAddr t arn))
-    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response Address)
+    update ::
+      Int ->
+      PushToken ->
+      SnsArn EndpointTopic ->
+      Gundeck (Either Response Address)
     update n t arn = do
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
@@ -439,6 +455,10 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
             Aws.EndpointNotFound {} -> create (n + 1) t
             Aws.InvalidCustomData {} -> return (Left metadataTooLong)
             ex -> throwM ex
+    mkAddr ::
+      PushToken ->
+      EndpointArn ->
+      Address
     mkAddr t arn =
       Address
         uid
