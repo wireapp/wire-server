@@ -616,7 +616,7 @@ updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
   updateConversationName zusr zcon cnv convRename
 
-updateConversationName :: UserId -> ConnId -> ConvId -> ConversationRename -> Galley Response
+updateConversationName :: UserId -> ConnId -> ConvId -> ConversationRename -> Galley ()
 updateConversationName zusr zcon cnv convRename = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
@@ -655,13 +655,11 @@ isTyping zusr zcon cnv typingData = do
 
 addServiceH :: JsonRequest Service -> Galley Response
 addServiceH req = do
-  -- simple enough to not need a separate function
   Data.insertService =<< fromJsonBody req
   return empty
 
 rmServiceH :: JsonRequest ServiceRef -> Galley Response
 rmServiceH req = do
-  -- simple enough to not need a separate function
   Data.deleteService =<< fromJsonBody req
   return empty
 

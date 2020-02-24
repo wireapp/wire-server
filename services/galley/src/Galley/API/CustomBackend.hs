@@ -40,6 +40,5 @@ internalPutCustomBackendByDomainH (domain ::: req) = do
 
 internalDeleteCustomBackendByDomainH :: EmailDomain ::: JSON -> Galley Response
 internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  -- simple enough to not need a separate function
   Data.deleteCustomBackend domain
   pure (empty & setStatus status200)
