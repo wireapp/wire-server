@@ -26,7 +26,7 @@ self: super: {
         name = "libzauth-${version}";
         version = "3.0.0";
         buildInputs = [ libsodium pkgconfig ];
-        src = ../../libs/libzauth;
+        src = self.nix-gitignore.gitignoreSource [] ../../libs/libzauth;
 
         sourceRoot = "libzauth/libzauth-c";
 
