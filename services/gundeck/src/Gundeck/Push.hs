@@ -24,7 +24,6 @@ import Data.Id
 import qualified Data.List.Extra as List
 import Data.List1 (List1, list1)
 import qualified Data.Map as Map
-import Data.Predicate ((:::) (..))
 import Data.Range
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -48,22 +47,20 @@ import qualified Gundeck.Types.Presence as Presence
 import Gundeck.Util
 import Imports
 import Network.HTTP.Types
-import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 import System.Logger.Class ((+++), (.=), msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Concurrent (forkIO)
 
-push :: Request ::: JSON -> Gundeck Response
-push (req ::: _) = do
-  ps :: [Push] <- fromJsonBody (JsonRequest req)
+push :: [Push] -> Gundeck ()
+push ps = do
   bulk :: Bool <- view (options . optSettings . setBulkPush)
   rs <-
     if bulk
       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
       else pushAny ps
   case rs of
-    Right () -> return empty
+    Right () -> return ()
     Left exs -> do
       forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
       throwM (Error status500 "server-error" "Server Error")
@@ -496,14 +493,12 @@ updateEndpoint uid t arn e = do
         ~~ "arn" .= toText r
         ~~ msg (val m)
 
-deleteToken :: UserId ::: Token ::: JSON -> Gundeck Response
-deleteToken (uid ::: tok ::: _) = do
+deleteToken :: UserId -> Token -> Gundeck ()
+deleteToken uid tok = do
   as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.Quorum
   when (null as) $
     throwM (Error status404 "not-found" "Push token not found")
   Native.deleteTokens as Nothing
-  return $ empty & setStatus status204
 
-listTokens :: UserId ::: JSON -> Gundeck Response
-listTokens (uid ::: _) =
-  setStatus status200 . json . PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.Quorum
+listTokens :: UserId -> Gundeck PushTokenList
+listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.Quorum

@@ -184,13 +184,15 @@ notFound :: Response
 notFound = empty & setStatus status404
 
 deleteTokenH :: UserId ::: Token ::: JSON -> Gundeck Response
-deleteTokenH = Push.deleteToken
+deleteTokenH (uid ::: tok ::: _) = setStatus status204 empty <$ Push.deleteToken uid tok
 
 listTokensH :: UserId ::: JSON -> Gundeck Response
-listTokensH = Push.listTokens
+listTokensH (uid ::: _) = setStatus status200 . json <$> Push.listTokens uid
 
 pushH :: Request ::: JSON -> Gundeck Response
-pushH = Push.push
+pushH (req ::: _) = do
+  ps <- fromJsonBody (JsonRequest req)
+  empty <$ Push.push ps
 
 paginateH :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 -> Gundeck Response
 paginateH = Notification.paginate
