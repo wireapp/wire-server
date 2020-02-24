@@ -279,7 +279,7 @@ disableForUser zusr tid uid (DisableLegalHoldForUserRequest mPassword) = do
       ensureReAuthorised zusr mPassword
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
+      -- TODO: send event at this point (see also: related TODO in this module in
+      -- 'approveDevice' and
+      -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
       LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
--- TODO: send event at this point (see also: related TODO in this module in
--- 'approveDevice' and
--- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
