@@ -105,7 +105,7 @@ instance FromHttpApiData FQU where
   parseUrlPiece raw = do
     email <- parseUrlPiece raw
     _fquDomain <- (_Left %~ cs) . mkEmailDomain . cs . Email.domainPart $ email
-    _fquUUID <- maybe (fail "FQU: local part not a UUID") pure . fromText . cs . Email.localPart $ email
+    _fquUUID <- maybe (Left "FQU: local part not a UUID") pure . fromText . cs . Email.localPart $ email
     pure FQU {..}
 
 instance Arbitrary PrekeyBundle where
