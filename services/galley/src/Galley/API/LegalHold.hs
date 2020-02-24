@@ -231,11 +231,10 @@ approveDevice zusr tid uid connId (ApproveLegalHoldForUserRequest mPassword) = d
   -- FUTUREWORK: reduce double checks
   legalHoldAuthToken <- Client.getLegalHoldAuthToken uid mPassword
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
+  -- TODO: send event at this point (see also:
+  -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
   LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
   where
-    -- TODO: send event at this point (see also:
-    -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-
     assertUserLHPending :: Galley ()
     assertUserLHPending = do
       userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
