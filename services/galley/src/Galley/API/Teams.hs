@@ -598,7 +598,6 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
   push1 $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
-  pure ()
   where
     r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
     r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
