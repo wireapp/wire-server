@@ -26,6 +26,7 @@ packages:
 - services/brig
 - services/cannon
 - services/cargohold
+- services/federator
 - services/galley
 - services/gundeck
 - services/proxy

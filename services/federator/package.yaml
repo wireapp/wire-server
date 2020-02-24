@@ -1,0 +1,53 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: federator
+version: '1.0.0'
+synopsis: Federation Service
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+dependencies:
+- aeson
+- base
+- bilge
+- brig-types
+- data-default
+- email-validate
+- errors
+- exceptions
+- extended
+- galley-types
+- imports
+- lens
+- metrics-core
+- metrics-wai
+- QuickCheck
+- resourcet
+- servant
+- servant-mock
+- servant-server
+- servant-swagger
+- string-conversions
+- text
+- tinylog
+- types-common
+- uuid
+- wai
+- wai-utilities
+- warp
+library:
+  source-dirs: src
+executables:
+  federator:
+    main: Main.hs
+    source-dirs: exec
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N1
+    - -with-rtsopts=-T
+    - -rtsopts
+    dependencies:
+    - base
+    - federator
