@@ -1,10 +1,12 @@
 module Gundeck.API (sitemap) where
 
+import Control.Lens ((^.))
 import Data.ByteString.Conversion (List)
 import Data.Id
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
+import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeLatin1)
 import Gundeck.API.Error
 import qualified Gundeck.Client as Client
@@ -15,11 +17,12 @@ import qualified Gundeck.Push as Push
 import Gundeck.Types
 import qualified Gundeck.Types.Swagger as Model
 import Imports hiding (head)
+import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Response (json)
+import Network.Wai.Utilities.Response (json, setStatus)
 import Network.Wai.Utilities.Swagger
 
 sitemap :: Routes ApiBuilder Gundeck ()
@@ -139,7 +142,46 @@ docsH (url ::: _) =
    in return $ json doc
 
 addTokenH :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addTokenH = Push.addToken
+addTokenH (uid ::: cid ::: req ::: _) = do
+  newtok <- fromJsonBody req
+  handleAddTokenResponse <$> Push.addToken uid cid newtok
+
+handleAddTokenResponse :: Push.AddTokenResponse -> Response
+handleAddTokenResponse = \case
+  Push.AddTokenSuccess newtok -> success newtok
+  Push.AddTokenNoBudget -> snsThreadBudgetReached
+  Push.AddTokenNotFound -> notFound
+  Push.AddTokenInvalid -> invalidToken
+  Push.AddTokenTooLong -> tokenTooLong
+  Push.AddTokenMetadataTooLong -> metadataTooLong
+
+success :: PushToken -> Response
+success t =
+  let loc = Text.encodeUtf8 . tokenText $ t ^. token
+   in json t & setStatus status201 & addHeader hLocation loc
+
+invalidToken :: Response
+invalidToken =
+  json (Error status400 "invalid-token" "Invalid push token")
+    & setStatus status404
+
+snsThreadBudgetReached :: Response
+snsThreadBudgetReached =
+  json (Error status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
+    & setStatus status413
+
+tokenTooLong :: Response
+tokenTooLong =
+  json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
+    & setStatus status413
+
+metadataTooLong :: Response
+metadataTooLong =
+  json (Error status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
+    & setStatus status413
+
+notFound :: Response
+notFound = empty & setStatus status404
 
 deleteTokenH :: UserId ::: Token ::: JSON -> Gundeck Response
 deleteTokenH = Push.deleteToken

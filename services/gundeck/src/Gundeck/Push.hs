@@ -1,5 +1,6 @@
 module Gundeck.Push
   ( push,
+    AddTokenResponse (..),
     addToken,
     listTokens,
     deleteToken,
@@ -28,7 +29,6 @@ import Data.Range
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Gundeck.Aws (endpointUsers)
 import qualified Gundeck.Aws as Aws
@@ -357,20 +357,27 @@ nativeTargets psh rcps' alreadySent =
     check (Left e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
-addToken :: UserId ::: ConnId ::: JsonRequest PushToken ::: JSON -> Gundeck Response
-addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached $ do
-  new <- fromJsonBody req
-  (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
+data AddTokenResponse
+  = AddTokenSuccess PushToken
+  | AddTokenNoBudget
+  | AddTokenNotFound
+  | AddTokenInvalid
+  | AddTokenTooLong
+  | AddTokenMetadataTooLong
+
+addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
+addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
+  (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.Quorum
   Log.info $
     "user" .= UUID.toASCIIBytes (toUUID uid)
-      ~~ "token" .= Text.take 16 (tokenText (new ^. token))
+      ~~ "token" .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
-  continue new cur
+  continue newtok cur
     >>= either
       return
       ( \a -> do
           Native.deleteTokens old (Just a)
-          return (success new)
+          return (AddTokenSuccess newtok)
       )
   where
     matching ::
@@ -390,14 +397,14 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
     continue ::
       PushToken ->
       Maybe Address ->
-      Gundeck (Either Response Address)
+      Gundeck (Either AddTokenResponse Address)
     continue t Nothing = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a ^. addrEndpoint)
     --
     create ::
       Int ->
       PushToken ->
-      Gundeck (Either Response Address)
+      Gundeck (Either AddTokenResponse Address)
     create n t = do
       let trp = t ^. tokenTransport
       let app = t ^. tokenApp
@@ -411,15 +418,15 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
           update (n + 1) t arn
         Left (Aws.AppNotFound app') -> do
           Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-          return (Left notFound)
+          return (Left AddTokenNotFound)
         Left (Aws.InvalidToken _) -> do
           Log.info $
             "token" .= tokenText tok
               ~~ msg (val "Invalid push token.")
-          return (Left invalidToken)
+          return (Left AddTokenInvalid)
         Left (Aws.TokenTooLong l) -> do
           Log.info $ msg ("Push token is too long: token length = " ++ show l)
-          return (Left tokenTooLong)
+          return (Left AddTokenTooLong)
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
           return (Right (mkAddr t arn))
@@ -428,7 +435,7 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
       Int ->
       PushToken ->
       SnsArn EndpointTopic ->
-      Gundeck (Either Response Address)
+      Gundeck (Either AddTokenResponse Address)
     update n t arn = do
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
@@ -456,7 +463,7 @@ addToken (uid ::: cid ::: req ::: _) = mpaRunWithBudget 1 snsThreadBudgetReached
             -- possibly updates in general). We make another attempt to (re-)create
             -- the endpoint in these cases instead of failing immediately.
             Aws.EndpointNotFound {} -> create (n + 1) t
-            Aws.InvalidCustomData {} -> return (Left metadataTooLong)
+            Aws.InvalidCustomData {} -> return (Left AddTokenMetadataTooLong)
             ex -> throwM ex
     --
     mkAddr ::
@@ -496,34 +503,6 @@ deleteToken (uid ::: tok ::: _) = do
     throwM (Error status404 "not-found" "Push token not found")
   Native.deleteTokens as Nothing
   return $ empty & setStatus status204
-
-success :: PushToken -> Response
-success t =
-  let loc = Text.encodeUtf8 . tokenText $ t ^. token
-   in json t & setStatus status201 & addHeader hLocation loc
-
-invalidToken :: Response
-invalidToken =
-  json (Error status400 "invalid-token" "Invalid push token")
-    & setStatus status404
-
-snsThreadBudgetReached :: Response
-snsThreadBudgetReached =
-  json (Error status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
-    & setStatus status413
-
-tokenTooLong :: Response
-tokenTooLong =
-  json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
-    & setStatus status413
-
-metadataTooLong :: Response
-metadataTooLong =
-  json (Error status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
-    & setStatus status413
-
-notFound :: Response
-notFound = empty & setStatus status404
 
 listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
