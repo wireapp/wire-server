@@ -1,7 +1,6 @@
 module Gundeck.API (sitemap) where
 
 import Control.Lens ((^.))
-import Data.ByteString.Conversion (List)
 import Data.Id
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min)
@@ -113,13 +112,13 @@ sitemap = do
     errorResponse notificationNotFound
   -- Presence API ----------------------------------------------------------
 
-  get "/i/presences/:uid" (continue listPresencesH) $
+  get "/i/presences/:uid" (continue Presence.list) $
     param "uid" .&. accept "application" "json"
-  get "/i/presences" (continue listAllPresencesH) $
+  get "/i/presences" (continue Presence.listAll) $
     param "ids" .&. accept "application" "json"
-  post "/i/presences" (continue addPresenceH) $
+  post "/i/presences" (continue Presence.add) $
     request .&. accept "application" "json"
-  delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue removePresenceH) $
+  delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
     param "uid" .&. param "did" .&. param "cannon"
   -- User-Client API -------------------------------------------------------
 
@@ -224,20 +223,8 @@ getByIdH (_ ::: uid ::: nid ::: cid) = json <$> Notification.getById uid nid cid
 getLastH :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
 getLastH (_ ::: uid ::: cid) = json <$> Notification.getLast uid cid
 
-listPresencesH :: UserId ::: JSON -> Gundeck Response
-listPresencesH = Presence.list
-
-listAllPresencesH :: List UserId ::: JSON -> Gundeck Response
-listAllPresencesH = Presence.listAll
-
-addPresenceH :: Request ::: JSON -> Gundeck Response
-addPresenceH = Presence.add
-
-removePresenceH :: UserId ::: ConnId ::: CannonId -> Gundeck Response
-removePresenceH = Presence.remove
-
 unregisterClientH :: UserId ::: ClientId -> Gundeck Response
-unregisterClientH = Client.unregister
+unregisterClientH (uid ::: cid) = empty <$ Client.unregister uid cid
 
 removeUserH :: UserId -> Gundeck Response
-removeUserH = Client.removeUser
+removeUserH uid = empty <$ Client.removeUser uid
