@@ -609,14 +609,14 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
 updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
-  updateConversationName zusr zcon cnv convRename
+  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
 
 updateConversationNameH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
 updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
-  updateConversationName zusr zcon cnv convRename
+  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
 
-updateConversationName :: UserId -> ConnId -> ConvId -> ConversationRename -> Galley ()
+updateConversationName :: UserId -> ConnId -> ConvId -> ConversationRename -> Galley Event
 updateConversationName zusr zcon cnv convRename = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
@@ -631,7 +631,7 @@ updateConversationName zusr zcon cnv convRename = do
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  return $ json e & setStatus status200
+  return e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
