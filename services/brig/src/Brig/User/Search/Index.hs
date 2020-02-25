@@ -220,7 +220,7 @@ mkUserQuery (review _TextId -> self) t q =
           [ termQ "suspended" "1", -- [Note: suspended]
             termQ "_id" self
           ],
-        ES.boolQueryMustMatch = [optionallySearchWithinOwnTeam t]
+        ES.boolQueryMustMatch = [optionallySearchWithinTeam t]
       }
   where
     termQ f v =
@@ -234,8 +234,8 @@ mkUserQuery (review _TextId -> self) t q =
 -- | This query will make sure that: if teamId is absent, only users without a teamId are
 -- returned.  if teamId is present, only users with the *same* teamId or users without a
 -- teamId are returned.
-optionallySearchWithinOwnTeam :: Maybe TeamId -> ES.Query
-optionallySearchWithinOwnTeam =
+optionallySearchWithinTeam :: Maybe TeamId -> ES.Query
+optionallySearchWithinTeam =
   maybe
     matchNonTeamMemberUsers
     ( \teamId ->
