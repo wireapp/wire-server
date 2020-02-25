@@ -24,6 +24,7 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Currency as Currency
+import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)

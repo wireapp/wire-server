@@ -36,6 +36,7 @@ import Control.Lens ((^.), view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Handle (Handle, parseHandle)
 import Data.Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map

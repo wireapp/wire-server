@@ -10,10 +10,10 @@ where
 import Brig.App
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
-import Brig.Types.Common
 import Brig.Types.User
 import Brig.Unique
 import Cassandra
+import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
 

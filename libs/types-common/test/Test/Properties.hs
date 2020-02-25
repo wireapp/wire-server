@@ -8,10 +8,13 @@ module Test.Properties
   )
 where
 
-import Data.Aeson as Aeson
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy as L
+import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Json.Util as Util
 import Data.ProtocolBuffers.Internal
@@ -20,6 +23,7 @@ import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
 import Data.Time.Clock.POSIX
+import Data.Typeable (typeOf)
 import Data.UUID
 import Imports
 import Test.Tasty
@@ -139,6 +143,10 @@ tests =
                       ]
         ],
       testGroup
+        "Handle"
+        [ jsonRoundtrip @Handle
+        ],
+      testGroup
         "UUID"
         [ testProperty "decode . encode = id" $
             \t (x :: UUID) -> roundtrip t x === Right x
@@ -177,6 +185,17 @@ tests =
 
 roundtrip :: (EncodeWire a, DecodeWire a) => Tag' -> a -> Either String a
 roundtrip (Tag' t) = runGet (getWireField >>= decodeWire) . runPut . encodeWire t
+
+jsonRoundtrip ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
+  TestTree
+jsonRoundtrip = testProperty msg trip
+  where
+    msg = show $ typeOf (undefined :: a)
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (Aeson.parseEither parseJSON . toJSON) v
 
 newtype Tag' = Tag' Tag
   deriving (Eq, Show)

@@ -3,6 +3,7 @@ module API.Search (tests) where
 import API.Search.Util
 import Bilge
 import Brig.Types
+import Data.Handle (fromHandle)
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty

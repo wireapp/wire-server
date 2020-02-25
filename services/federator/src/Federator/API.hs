@@ -3,10 +3,10 @@
 
 module Federator.API where
 
-import Brig.Types (Handle (..))
 import Brig.Types.Client.Prekey
 import Brig.Types.Test.Arbitrary ()
 import Data.Aeson.TH (deriveJSON)
+import Data.Handle (Handle (..))
 import Data.Id (UserId)
 import Federator.Types.FullyQualified
 import Federator.Util

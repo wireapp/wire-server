@@ -10,6 +10,7 @@ import Brig.Types.Common
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
+import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)

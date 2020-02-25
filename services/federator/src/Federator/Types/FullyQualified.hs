@@ -1,10 +1,10 @@
 module Federator.Types.FullyQualified where
 
-import Brig.Types (Handle (..))
 import Data.Aeson (FromJSON, ToJSON, withText)
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor (bimap, first)
 import qualified Data.ByteString.Conversion as BS.C
+import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID), UserId)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
