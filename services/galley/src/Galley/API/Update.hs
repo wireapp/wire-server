@@ -280,8 +280,6 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
       pushEvent timerEvent users bots zcon
       pure timerEvent
 
---
-
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
   for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
@@ -603,8 +601,6 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
                   . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)
-
---
 
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationRename -> Galley Response
 updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
