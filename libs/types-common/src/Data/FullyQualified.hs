@@ -1,4 +1,4 @@
-module Federator.Types.FullyQualified where
+module Data.FullyQualified where
 
 import Data.Aeson (FromJSON, ToJSON, withText)
 import qualified Data.Aeson as Aeson
@@ -55,8 +55,6 @@ instance FromJSON (FullyQualified Handle) where
 instance FromHttpApiData (FullyQualified Handle) where
   parseUrlPiece _raw = do
     error "TODO"
-
---
 
 ----------------------------------------------------------------------
 -- ARBITRARY
