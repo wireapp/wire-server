@@ -45,9 +45,6 @@ module Galley.Types
     ConversationMessageTimerUpdate (..),
     ConvType (..),
     CustomBackend (..),
-    EmailDomain,
-    emailDomainText,
-    mkEmailDomain,
     Invite (..),
     NewConv (..),
     NewConvManaged (..),
@@ -68,8 +65,6 @@ where
 import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
-import qualified Data.Attoparsec.ByteString as Atto
-import Data.Bifunctor (bimap)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.HashMap.Strict as HashMap
@@ -85,7 +80,6 @@ import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
 import Imports
-import qualified Text.Email.Validate as Email
 import URI.ByteString
 
 -- Conversations ------------------------------------------------------------
@@ -581,30 +575,6 @@ data CustomBackend
         backendWebappWelcomeUrl :: !HttpsUrl
       }
   deriving (Eq, Show)
-
--- | FUTUREWORK: move this type upstream into the email-validate package.
-newtype EmailDomain
-  = EmailDomain
-      { _emailDomainText :: Text
-      }
-  deriving (Eq, Generic, Show)
-
-emailDomainText :: EmailDomain -> Text
-emailDomainText = _emailDomainText
-
-mkEmailDomain :: ByteString -> Either String EmailDomain
-mkEmailDomain = bimap show EmailDomain . T.decodeUtf8' <=< validateDomain
-  where
-    -- this is a slightly hacky way of validating an email domain,
-    -- but Text.Email.Validate doesn't expose the parser for the domain.
-    validateDomain = fmap Email.domainPart . Email.validate . ("local-part@" <>)
-
-instance FromByteString EmailDomain where
-  parser = do
-    bs <- Atto.takeByteString
-    case mkEmailDomain bs of
-      Left err -> fail ("Failed parsing ByteString as EmailDomain: " <> err)
-      Right domain -> pure domain
 
 -- Instances ----------------------------------------------------------------
 

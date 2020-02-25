@@ -8,6 +8,7 @@ where
 
 import Cassandra.CQL
 import Control.Error (note)
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Text.Encoding (encodeUtf8)
 import Galley.Types
 import Galley.Types.Bot ()
@@ -119,8 +120,8 @@ instance Cql SSOStatus where
   toCql SSODisabled = CqlInt 0
   toCql SSOEnabled = CqlInt 1
 
-instance Cql EmailDomain where
+instance Cql Domain where
   ctype = Tagged TextColumn
-  toCql = CqlText . emailDomainText
-  fromCql (CqlText txt) = either fail pure . mkEmailDomain $ encodeUtf8 txt
-  fromCql _ = fail "EmailDomain: Text expected"
+  toCql = CqlText . domainText
+  fromCql (CqlText txt) = either fail pure . mkDomain $ encodeUtf8 txt
+  fromCql _ = fail "Domain: Text expected"
