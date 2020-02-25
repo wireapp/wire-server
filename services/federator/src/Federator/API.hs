@@ -44,8 +44,8 @@ data API route
 
 data FUser
   = FUser
-      { _fuGlobalHandle :: FullyQualified Handle,
-        _fuFQU :: FullyQualified UserId
+      { _fuGlobalHandle :: !(FullyQualified Handle),
+        _fuFQU :: !(FullyQualified UserId)
       }
   deriving (Eq, Show, Generic)
 

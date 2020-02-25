@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 module Data.FullyQualified where
 
 import Data.Aeson (FromJSON, ToJSON, withText)
