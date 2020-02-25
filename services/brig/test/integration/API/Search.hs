@@ -26,7 +26,7 @@ tests mgr galley brig =
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
             test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
             test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
-            test mgr "teammates should be ordered before non team members" $ testSearchOrderingAsTeamMemeber galley brig
+            test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMemeber galley brig
           ]
       ]
 
