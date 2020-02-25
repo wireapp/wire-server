@@ -109,5 +109,7 @@ main = do
       V56.migration,
       V57.migration,
       V58.migration
+      -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
+      -- https://github.com/wireapp/wire-server/pull/964
     ]
     `finally` Log.close l
