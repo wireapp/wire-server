@@ -45,13 +45,13 @@ instance FromJSON a => FromJSON (SearchResult a) where
 
 instance ToJSON Contact where
   toJSON c =
-    object $
-      "id" .= contactUserId c
-        # "name" .= contactName c
-        # "accent_id" .= contactColorId c
-        # "handle" .= contactHandle c
-        # "team_id" .= contactTeamId c
-        # []
+    object
+      [ "id" .= contactUserId c,
+        "name" .= contactName c,
+        "accent_id" .= contactColorId c,
+        "handle" .= contactHandle c,
+        "team_id" .= contactTeamId c
+      ]
 
 instance FromJSON Contact where
   parseJSON =
