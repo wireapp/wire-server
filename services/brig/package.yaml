@@ -129,6 +129,17 @@ dependencies:
 - zauth >=0.10.3
 library:
   source-dirs: src
+tests:
+  brig-types-tests:
+    main: Main.hs
+    source-dirs: test/unit
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    dependencies:
+    - brig
+    - tasty
+    - tasty-hunit
 executables:
   brig-schema:
     main: Main.hs

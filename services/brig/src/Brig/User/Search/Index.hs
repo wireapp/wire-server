@@ -21,6 +21,9 @@ module Brig.User.Search.Index
     reindexAll,
     refreshIndex,
 
+    -- * exported for testin gonly
+    userDoc,
+
     -- * Re-exports
     module Types,
     ES.IndexSettings (..),

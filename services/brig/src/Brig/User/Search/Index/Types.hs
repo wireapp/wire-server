@@ -54,6 +54,7 @@ data UserDoc
         udHandle :: Maybe Handle,
         udColourId :: Maybe ColourId
       }
+  deriving (Eq, Show)
 
 instance ToJSON UserDoc where
   toJSON ud =
