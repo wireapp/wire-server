@@ -1,5 +1,5 @@
 module Galley.API.Internal
-  ( rmUser,
+  ( rmUserH,
     deleteLoop,
     refreshMetrics,
   )
@@ -29,8 +29,12 @@ import Network.Wai.Predicate hiding (err, result)
 import Network.Wai.Utilities
 import System.Logger.Class
 
-rmUser :: UserId ::: Maybe ConnId -> Galley Response
-rmUser (user ::: conn) = do
+rmUserH :: UserId ::: Maybe ConnId -> Galley Response
+rmUserH (user ::: conn) = do
+  empty <$ rmUser user conn
+
+rmUser :: UserId -> Maybe ConnId -> Galley ()
+rmUser user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
   Data.ResultSet tids <- Data.teamIdsFrom user Nothing (rcast n)
   leaveTeams tids
@@ -38,7 +42,6 @@ rmUser (user ::: conn) = do
   let u = list1 user []
   leaveConversations u cids
   Data.eraseClients user
-  return empty
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
       Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
