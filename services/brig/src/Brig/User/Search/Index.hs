@@ -343,9 +343,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
   case statusCode (responseStatus r) of
     200 -> case preview (key "_version" . _Integer) (responseBody r) of
       Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
-      Just v ->
-        updateIndex . IndexUpdateUser
-          =<< (mkIndexUser u <$> mkIndexVersion (v + 1))
+      Just v -> updateIndex . IndexUpdateUser . mkIndexUser u =<< mkIndexVersion (v + 1)
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
