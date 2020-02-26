@@ -209,6 +209,8 @@ pushH (req ::: _) = do
 -- returned but the status code is set to 404.
 -- FUTUREWORK: We should change this behaviour as it's extremely confusing. We
 -- could kindly reject with a 400, and not event hit the database at all.
+-- This was introduced in
+-- https://github.com/zinfra/orlop/pull/30/commits/a358dfc1cb225c92066ea79db28c8824531ae231
 --
 -- If the 'since' parameter is present, and a notification 'since' is actually
 -- found in the database, this returns all the notifications since 'since'
