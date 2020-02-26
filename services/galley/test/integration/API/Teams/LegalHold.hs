@@ -7,8 +7,7 @@ module API.Teams.LegalHold
 where
 
 import API.SQS
-import API.Util hiding (createTeam)
-import qualified API.Util as Util
+import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Client
@@ -556,14 +555,6 @@ testGetTeamMembersIncludesLHStatus = do
 
 ----------------------------------------------------------------------
 -- API helpers
-
-createTeam :: HasCallStack => TestM (UserId, TeamId)
-createTeam = do
-  ownerid <- Util.randomUser
-  let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
-  teamid <- Util.createTeamInternal tname ownerid
-  assertQueue "create team" tActivate
-  pure (ownerid, teamid)
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do

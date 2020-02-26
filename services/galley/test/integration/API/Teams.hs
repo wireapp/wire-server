@@ -89,7 +89,7 @@ testCreateTeam = do
   c <- view tsCannon
   owner <- Util.randomUser
   WS.bracketR c owner $ \wsOwner -> do
-    tid <- Util.createTeam "foo" owner []
+    tid <- Util.createNonBindingTeam "foo" owner []
     team <- Util.getTeam owner tid
     assertQueueEmpty
     liftIO $ do
@@ -114,8 +114,8 @@ testCreateMulitpleBindingTeams = do
     !!! const 403 === statusCode
   -- If never used the internal API, can create multiple teams
   owner' <- Util.randomUser
-  void $ Util.createTeam "foo" owner' []
-  void $ Util.createTeam "foo" owner' []
+  void $ Util.createNonBindingTeam "foo" owner' []
+  void $ Util.createNonBindingTeam "foo" owner' []
 
 testCreateBindingTeamWithCurrency :: TestM ()
 testCreateBindingTeamWithCurrency = do
@@ -139,7 +139,7 @@ testCreateTeamWithMembers = do
   let m2 = newTeamMember' pp user2
   Util.connectUsers owner (list1 user1 [user2])
   WS.bracketR3 c owner user1 user2 $ \(wsOwner, wsUser1, wsUser2) -> do
-    tid <- Util.createTeam "foo" owner [m1, m2]
+    tid <- Util.createNonBindingTeam "foo" owner [m1, m2]
     team <- Util.getTeam owner tid
     mem <- Util.getTeamMembers owner tid
     liftIO $ do
@@ -194,7 +194,7 @@ testCreateOne2OneFailNonBindingTeamMembers = do
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   mem2 <- newTeamMember' p2 <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId])
-  tid <- Util.createTeam "foo" owner [mem1, mem2]
+  tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
   Util.createOne2OneTeamConv (mem1 ^. userId) (mem2 ^. userId) Nothing tid !!! do
     const 404 === statusCode
@@ -243,7 +243,7 @@ testAddTeamMember = do
   mem2 <- newTeamMember' p2 <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId])
   Util.connectUsers (mem1 ^. userId) (list1 (mem2 ^. userId) [])
-  tid <- Util.createTeam "foo" owner [mem1, mem2]
+  tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   mem3 <- newTeamMember' p1 <$> Util.randomUser
   let payload = json (newNewTeamMember mem3)
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
@@ -267,7 +267,7 @@ testAddTeamMemberCheckBound = do
   post (g . paths ["teams", toByteString' tidBound, "members"] . zUser ownerBound . zConn "conn" . json (newNewTeamMember rndMem))
     !!! const 403 === statusCode
   owner <- Util.randomUser
-  tid <- Util.createTeam "foo" owner []
+  tid <- Util.createNonBindingTeam "foo" owner []
   -- Cannot add bound users to any teams
   let boundMem = newTeamMember' (Util.symmPermissions []) ownerBound
   post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem))
@@ -277,7 +277,7 @@ testAddTeamMemberInternal :: TestM ()
 testAddTeamMemberInternal = do
   c <- view tsCannon
   owner <- Util.randomUser
-  tid <- Util.createTeam "foo" owner []
+  tid <- Util.createNonBindingTeam "foo" owner []
   let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   WS.bracketRN c [owner, mem1 ^. userId] $ \[wsOwner, wsMem1] -> do
@@ -306,7 +306,7 @@ testRemoveTeamMember = do
   mext2 <- Util.randomUser
   mext3 <- Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId, mext1, mext2, mext3])
-  tid <- Util.createTeam "foo" owner [mem1, mem2]
+  tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   -- Managed conversation:
   void $ Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
   -- Regular conversation:
@@ -428,7 +428,7 @@ testAddTeamConvLegacy = do
   mem1 <- newTeamMember' p <$> Util.randomUser
   mem2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
-  tid <- Util.createTeam "foo" owner [mem2]
+  tid <- Util.createNonBindingTeam "foo" owner [mem2]
   let allUserIds = [owner, extern, mem1 ^. userId, mem2 ^. userId]
   WS.bracketRN c allUserIds $ \wss -> do
     cid <- Util.createTeamConvLegacy owner tid allUserIds (Just "blaa")
@@ -445,7 +445,7 @@ testAddTeamConvWithRole = do
   mem1 <- newTeamMember' p <$> Util.randomUser
   mem2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
-  tid <- Util.createTeam "foo" owner [mem2]
+  tid <- Util.createNonBindingTeam "foo" owner [mem2]
   WS.bracketRN c [owner, extern, mem1 ^. userId, mem2 ^. userId] $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
     -- Managed conversation:
     cid1 <- Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
@@ -517,7 +517,7 @@ testAddManagedConv :: TestM ()
 testAddManagedConv = do
   g <- view tsGalley
   owner <- Util.randomUser
-  tid <- Util.createTeam "foo" owner []
+  tid <- Util.createNonBindingTeam "foo" owner []
   let tinfo = ConvTeamInfo tid True
   let conv =
         NewConvManaged $
@@ -537,7 +537,7 @@ testAddTeamConvWithUsers = do
   owner <- Util.randomUser
   extern <- Util.randomUser
   Util.connectUsers owner (list1 extern [])
-  tid <- Util.createTeam "foo" owner []
+  tid <- Util.createNonBindingTeam "foo" owner []
   -- Create managed team conversation and erroneously specify external users.
   cid <- Util.createManagedConv owner tid [extern] (Just "gossip") Nothing Nothing
   -- External users have been ignored.
@@ -557,7 +557,7 @@ testAddTeamMemberToConv = do
   ownerT2 <- Util.randomUser
   mem1T2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers ownerT1 (list1 (mem1T1 ^. userId) [mem2T1 ^. userId, mem3T1 ^. userId, ownerT2, personalUser])
-  tidT1 <- Util.createTeam "foo" ownerT1 [mem1T1, mem2T1, mem3T1]
+  tidT1 <- Util.createNonBindingTeam "foo" ownerT1 [mem1T1, mem2T1, mem3T1]
   tidT2 <- Util.createTeamInternal "foo" ownerT2
   _ <- Util.addTeamMemberInternal tidT2 mem1T2
   -- Team owners create new regular team conversation:
@@ -632,7 +632,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   owner <- Util.randomUser
   member <- Util.randomUser
   Util.connectUsers owner (list1 member [])
-  tid <- Util.createTeam "foo" owner [newTeamMember member perms Nothing]
+  tid <- Util.createNonBindingTeam "foo" owner [newTeamMember member perms Nothing]
   cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
   resp <- updateTeamConv member cid (ConversationRename "not gossip")
   -- FUTUREWORK: Ensure that the team role _really_ does not matter
@@ -649,7 +649,7 @@ testDeleteTeam = do
   member <- newTeamMember' p <$> Util.randomUser
   extern <- Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [extern])
-  tid <- Util.createTeam "foo" owner [member]
+  tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   cid2 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
   Util.assertConvMember owner cid2
@@ -771,7 +771,7 @@ testDeleteTeamConv = do
   member <- newTeamMember' p <$> Util.randomUser
   extern <- Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [extern])
-  tid <- Util.createTeam "foo" owner [member]
+  tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
@@ -826,7 +826,7 @@ testUpdateTeam = do
   let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
   member <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createTeam "foo" owner [member]
+  tid <- Util.createNonBindingTeam "foo" owner [member]
   let bad = object ["name" .= T.replicate 100 "too large"]
   put
     ( g
@@ -871,7 +871,7 @@ testUpdateTeamMember = do
   let p = Util.symmPermissions [SetMemberPermissions]
   member <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createTeam "foo" owner [member]
+  tid <- Util.createNonBindingTeam "foo" owner [member]
   -- Must have at least 1 member with full permissions
   let changeOwner = newNewTeamMember (newTeamMember' p owner)
   put
@@ -1226,7 +1226,7 @@ putLegalHoldEnabledInternal' reqmod tid enabled = do
 testFeatureFlags :: TestM ()
 testFeatureFlags = do
   owner <- Util.randomUser
-  tid <- Util.createTeam "foo" owner []
+  tid <- Util.createNonBindingTeam "foo" owner []
   -- sso
 
   let getSSO :: HasCallStack => SSOStatus -> TestM ()

@@ -1,5 +1,6 @@
 module API.Util where
 
+import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -44,9 +45,17 @@ import TestSetup
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
+createTeam :: HasCallStack => TestM (UserId, TeamId)
+createTeam = do
+  ownerid <- randomUser
+  let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
+  teamid <- createTeamInternal tname ownerid
+  SQS.assertQueue "create team" SQS.tActivate
+  pure (ownerid, teamid)
+
 -- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
-createTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
-createTeam name owner mems = do
+createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
+createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
   let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
@@ -100,6 +109,12 @@ getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
   g <- view tsGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
+  responseJsonError r
+
+getTeamMembersLimited :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
+getTeamMembersLimited usr tid n = do
+  g <- view tsGalley
+  r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
