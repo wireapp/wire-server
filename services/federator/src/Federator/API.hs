@@ -6,9 +6,9 @@ module Federator.API where
 import Brig.Types.Client.Prekey
 import Brig.Types.Test.Arbitrary ()
 import Data.Aeson.TH (deriveJSON)
-import Data.FullyQualified
 import Data.Handle (Handle (..))
 import Data.Id (UserId)
+import Data.Qualified
 import Federator.Util
 import Imports
 import Servant.API
@@ -22,13 +22,13 @@ data API route
             :- "i"
             :> "search"
             -- QUESTION: what exactly should the query be? text + domain?
-            :> QueryParam' [Required, Strict] "q" (FullyQualified Handle)
+            :> QueryParam' [Required, Strict] "q" (Qualified Handle)
             :> Get '[JSON] FUser,
         _gapiPrekeys ::
           route
             :- "i"
             :> "users"
-            :> Capture "fqu" (FullyQualified UserId)
+            :> Capture "fqu" (Qualified UserId)
             :> "prekeys"
             :> Get '[JSON] PrekeyBundle
       }
@@ -44,8 +44,8 @@ data API route
 
 data FUser
   = FUser
-      { _fuGlobalHandle :: !(FullyQualified Handle),
-        _fuFQU :: !(FullyQualified UserId)
+      { _fuGlobalHandle :: !(Qualified Handle),
+        _fuFQU :: !(Qualified UserId)
       }
   deriving (Eq, Show, Generic)
 
