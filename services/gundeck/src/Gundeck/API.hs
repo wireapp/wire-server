@@ -209,7 +209,9 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
     isV1UUID :: UUID -> Maybe UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
     --
-    -- the motivation of updStatus is far from clear to me, but this is how it's always been done.
+    -- FUTUREWORK: updStatus sets the status code to 404 in even if it returns notifications.
+    -- even if this is not a mistake, it certainly should be changed into something less
+    -- surprising.  (sync with clients before we change this!)
     updStatus :: Bool -> Response -> Response
     updStatus True = setStatus status404
     updStatus False = case since of
