@@ -195,6 +195,36 @@ pushH (req ::: _) = do
   ps <- fromJsonBody (JsonRequest req)
   empty <$ Push.push ps
 
+-- | Returns a list of notifications for given 'uid'
+--
+--
+-- Takes an optional parameter 'since' which is a V1 UUID, (which includes a
+-- timestamp).
+--
+-- If the parameter 'since' is omitted, all notifications of the user are
+-- returned. This is not recommended. (TODO: Ask client teams if they ever use
+-- this)
+--
+-- If the parameter 'since' fails to parse, all notifications of the user are
+-- returned but the status code is set to 404.
+-- FUTUREWORK: We should change this behaviour as it's extremely confusing. We
+-- could kindly reject with a 400, and not event hit the database at all.
+--
+-- If the 'since' parameter is present, and a notification 'since' is actually
+-- found in the database, this returns all the notifications since 'since'
+-- (exclusive of 'since' itself) and returns a status code 200.
+--
+-- If the 'since' parameter is present, and a notification 'since' is not found
+-- in the database, then due to the fact that 'since' is a V1 UUID (which
+-- contains a timestamp) we can still return all the notifications that
+-- happened after it eventhough it is not present in the database. This can
+-- happen for example because a client hasn't been online for 30 days and we
+-- have deleted the notification in the backend in the meantime.
+-- We will return all the notifications that we have that happened after 'since'
+-- but return status code 404 to signal that 'since' itself was missing.
+--
+-- (arianvp): I am not sure why it is convenient for clients to distinct
+-- between these two cases.
 paginateH :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 -> Gundeck Response
 paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
   Notification.PaginateResult gap page <- Notification.paginate uid (join since) clt size
@@ -202,16 +232,10 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
   where
     since :: Maybe (Maybe NotificationId)
     since = parseUUID <$> sinceRaw
-    --
     parseUUID :: ByteString -> Maybe NotificationId
     parseUUID = UUID.fromASCIIBytes >=> isV1UUID >=> return . Id
-    --
     isV1UUID :: UUID -> Maybe UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
-    --
-    -- FUTUREWORK: updStatus sets the status code to 404 in even if it returns notifications.
-    -- even if this is not a mistake, it certainly should be changed into something less
-    -- surprising.  (sync with clients before we change this!)
     updStatus :: Bool -> Response -> Response
     updStatus True = setStatus status404
     updStatus False = case since of
