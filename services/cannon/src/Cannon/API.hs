@@ -27,7 +27,7 @@ import qualified System.Logger.Class as LC
 
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
-  get "/await" (continue await) $
+  get "/await" (continue awaitH) $
     header "Z-User"
       .&. header "Z-Connection"
       .&. opt (query "client")
@@ -43,37 +43,37 @@ sitemap = do
       optional
       description "Client ID"
     response 426 "Upgrade required" end
-  get "/await/api-docs" (continue docs) $
+  get "/await/api-docs" (continue docsH) $
     accept "application" "json"
       .&. query "base_url"
-  post "/i/push/:user/:conn" (continue push) $
+  post "/i/push/:user/:conn" (continue pushH) $
     capture "user" .&. capture "conn" .&. request
-  post "/i/bulkpush" (continue bulkpush) $
+  post "/i/bulkpush" (continue bulkpushH) $
     request
-  head "/i/presences/:uid/:conn" (continue checkPresence) $
+  head "/i/presences/:uid/:conn" (continue checkPresenceH) $
     param "uid" .&. param "conn"
   get "/i/status" (continue (const $ return empty)) true
   head "/i/status" (continue (const $ return empty)) true
 
-docs :: Media "application" "json" ::: Text -> Cannon Response
-docs (_ ::: url) = do
+docsH :: Media "application" "json" ::: Text -> Cannon Response
+docsH (_ ::: url) = do
   let doc = mkSwaggerApi url [] sitemap
   return $ json doc
 
-push :: UserId ::: ConnId ::: Request -> Cannon Response
-push (user ::: conn ::: req) =
+pushH :: UserId ::: ConnId ::: Request -> Cannon Response
+pushH (user ::: conn ::: req) =
   singlePush (readBody req) (PushTarget user conn) >>= \case
     PushStatusOk -> return empty
     PushStatusGone -> return $ errorRs status410 "general" "client gone"
 
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
-bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseBody' (JsonRequest req) >>= bulkpush')
+bulkpushH :: Request -> Cannon Response
+bulkpushH req = json <$> (parseBody' (JsonRequest req) >>= bulkpush)
 
 -- | The typed part of 'bulkpush'.
-bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
-bulkpush' (BulkPushRequest notifs) =
+bulkpush :: BulkPushRequest -> Cannon BulkPushResponse
+bulkpush (BulkPushRequest notifs) =
   BulkPushResponse . mconcat . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
   where
     doNotif :: Notification -> [PushTarget] -> Cannon [PushStatus]
@@ -102,16 +102,16 @@ singlePush notification (PushTarget usrid conid) = do
         (sendMsg b k x >> return PushStatusOk)
           `catchAll` const (terminate k x >> return PushStatusGone)
 
-checkPresence :: UserId ::: ConnId -> Cannon Response
-checkPresence (u ::: c) = do
+checkPresenceH :: UserId ::: ConnId -> Cannon Response
+checkPresenceH (u ::: c) = do
   e <- wsenv
   registered <- runWS e $ isRemoteRegistered u c
   if registered
     then return empty
     else return $ errorRs status404 "not-found" "presence not registered"
 
-await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
-await (u ::: a ::: c ::: r) = do
+awaitH :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
+awaitH (u ::: a ::: c ::: r) = do
   e <- wsenv
   case websocketsApp wsoptions (wsapp (mkKey u a) c e) r of
     Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
