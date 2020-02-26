@@ -9,7 +9,6 @@ where
 import Cassandra.CQL
 import Control.Error (note)
 import Data.Domain (Domain, domainText, mkDomain)
-import Data.Text.Encoding (encodeUtf8)
 import Galley.Types
 import Galley.Types.Bot ()
 import Galley.Types.Teams
@@ -123,5 +122,5 @@ instance Cql SSOStatus where
 instance Cql Domain where
   ctype = Tagged TextColumn
   toCql = CqlText . domainText
-  fromCql (CqlText txt) = either fail pure . mkDomain $ encodeUtf8 txt
+  fromCql (CqlText txt) = either fail pure $ mkDomain txt
   fromCql _ = fail "Domain: Text expected"

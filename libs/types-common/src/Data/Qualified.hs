@@ -6,13 +6,13 @@ import Data.Aeson (FromJSON, ToJSON, withText)
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor (first)
 import qualified Data.ByteString.Conversion as BS.C
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID), UserId)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import Imports
+import Imports hiding (local)
 import Servant.API (FromHttpApiData (parseUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary))
 
@@ -27,8 +27,18 @@ renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
 
-mkQualified :: (ByteString -> Either Text a) -> ByteString -> Either Text (Qualified a)
-mkQualified = undefined -- TODO: implement a parser
+-- | The string to parse must contain exactly one @"@"@ to separate local part from domain.
+mkQualified :: (Text -> Either String a) -> Text -> Either String (Qualified a)
+mkQualified mkLocal txt =
+  case Text.split (== '@') txt of
+    [local, domain] -> do
+      _qDomain <- mkDomain domain
+      _qLocalPart <- mkLocal local
+      pure Qualified {_qLocalPart, _qDomain}
+    [_one] ->
+      Left "not a qualified identifier: no '@'"
+    _more ->
+      Left "not a qualified identifier: multiple '@'s"
 
 instance ToJSON (Qualified UserId) where
   toJSON = Aeson.String . renderQualified (cs . UUID.toString . toUUID)
@@ -36,13 +46,12 @@ instance ToJSON (Qualified UserId) where
 instance FromJSON (Qualified UserId) where
   parseJSON =
     withText "QualifiedUserId" $
-      either (fail . Text.unpack) pure
-        . mkQualified (first cs . BS.C.runParser BS.C.parser)
+      either fail pure
+        . mkQualified (first cs . BS.C.runParser BS.C.parser . cs)
         . cs
 
 instance FromHttpApiData (Qualified UserId) where
-  parseUrlPiece _raw = do
-    error "TODO"
+  parseUrlPiece = first cs . mkQualified (BS.C.runParser BS.C.parser . cs)
 
 instance ToJSON (Qualified Handle) where
   toJSON = Aeson.String . renderQualified fromHandle
@@ -50,13 +59,12 @@ instance ToJSON (Qualified Handle) where
 instance FromJSON (Qualified Handle) where
   parseJSON =
     withText "QualifiedHandle" $
-      either (fail . Text.unpack) pure
-        . mkQualified (first cs . BS.C.runParser BS.C.parser)
+      either fail pure
+        . mkQualified (BS.C.runParser BS.C.parser . cs)
         . cs
 
 instance FromHttpApiData (Qualified Handle) where
-  parseUrlPiece _raw = do
-    error "TODO"
+  parseUrlPiece = first cs . mkQualified (BS.C.runParser BS.C.parser . cs)
 
 ----------------------------------------------------------------------
 -- ARBITRARY

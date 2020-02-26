@@ -3,9 +3,8 @@ module Data.Domain where
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Atto
-import Data.Bifunctor (bimap)
+import Data.Bifunctor (bimap, first)
 import Data.ByteString.Conversion
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text.E
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), elements)
@@ -20,8 +19,10 @@ newtype Domain
 domainText :: Domain -> Text
 domainText = _domainText
 
-mkDomain :: ByteString -> Either String Domain
-mkDomain = bimap show Domain . Text.E.decodeUtf8' <=< validateDomain
+mkDomain :: Text -> Either String Domain
+mkDomain =
+  bimap show Domain . Text.E.decodeUtf8'
+    <=< validateDomain . Text.E.encodeUtf8
   where
     -- this is a slightly hacky way of validating a domain,
     -- but Text.Email.Validate doesn't expose the parser for the domain.
@@ -30,7 +31,7 @@ mkDomain = bimap show Domain . Text.E.decodeUtf8' <=< validateDomain
 instance FromByteString Domain where
   parser = do
     bs <- Atto.takeByteString
-    case mkDomain bs of
+    case mkDomain =<< first show (Text.E.decodeUtf8' bs) of
       Left err -> fail ("Failed parsing ByteString as Domain: " <> err)
       Right domain -> pure domain
 
@@ -38,7 +39,7 @@ instance ToJSON Domain where
   toJSON = Aeson.String . domainText
 
 instance FromJSON Domain where
-  parseJSON = Aeson.withText "Domain" $ either fail pure . mkDomain . cs
+  parseJSON = Aeson.withText "Domain" $ either fail pure . mkDomain
 
 instance Arbitrary Domain where
   arbitrary =
