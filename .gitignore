@@ -24,6 +24,7 @@ ID
 Setup.hs
 cabal.sandbox.config
 dist
+dist-newstyle
 gen-hs
 log
 tags
