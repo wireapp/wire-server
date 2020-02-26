@@ -18,8 +18,8 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 
 data Qualified a
   = Qualified
-      { _fqLocalPart :: a,
-        _fqDomain :: Domain
+      { _qLocalPart :: a,
+        _qDomain :: Domain
       }
   deriving (Eq, Show, Generic)
 
