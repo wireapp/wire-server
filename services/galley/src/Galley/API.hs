@@ -133,6 +133,7 @@ sitemap = do
   get "/teams/:tid/members" (continue getTeamMembers) $
     zauthUserId
       .&. capture "tid"
+      .&. def (unsafeRange 2000) (query "maxResults")
       .&. accept "application" "json"
   document "GET" "getTeamMembers" $ do
     summary "Get team members"

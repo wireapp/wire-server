@@ -49,7 +49,7 @@ runCommand l env c start = void $ C.runClient c $ do
     journalTeamSuspend tid = publish tid TeamEvent'TEAM_SUSPEND Nothing Nothing
     journalTeamActivate :: TeamId -> Maybe TeamCreationTime -> C.Client ()
     journalTeamActivate tid time = do
-      mems <- Data.teamMembers tid
+      mems <- Data.teamMembersUnsafeForLargeTeams tid
       let dat = Journal.evData mems Nothing
       publish tid TeamEvent'TEAM_ACTIVATE time (Just dat)
     publish :: TeamId -> TeamEvent'EventType -> Maybe TeamCreationTime -> Maybe TeamEvent'EventData -> C.Client ()

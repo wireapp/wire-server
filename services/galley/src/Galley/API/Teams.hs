@@ -140,7 +140,7 @@ updateTeamStatus (tid ::: req ::: _) = do
   return empty
   where
     journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = Data.teamMembers tid >>= \mems ->
+    journal Active c = Data.teamMembersUnsafeForLargeTeams tid >>= \mems ->
       Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition from to = case (from, to) of
@@ -154,7 +154,7 @@ updateTeamStatus (tid ::: req ::: _) = do
 updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
 updateTeam (zusr ::: zcon ::: tid ::: req ::: _) = do
   body <- fromJsonBody req
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -174,7 +174,7 @@ deleteTeam (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
     Deleted -> throwM teamNotFound
     PendingDelete -> queueDelete
     _ -> do
-      void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
+      void $ permissionCheck zusr DeleteTeam =<< Data.teamMembersUnsafeForLargeTeams tid
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- fromJsonBody (JsonRequest req)
         ensureReAuthorised zusr (body ^. tdAuthPassword)
@@ -193,7 +193,7 @@ uncheckedDeleteTeam zusr zcon tid = do
   team <- Data.team tid
   when (isJust team) $ do
     Spar.deleteTeam tid
-    membs <- Data.teamMembers tid
+    membs <- Data.teamMembersUnsafeForLargeTeams tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
@@ -253,10 +253,10 @@ getTeamConversationRoles (zusr ::: tid ::: _) = do
       --       be merged with the team roles (if they exist)
       return . json $ ConversationRolesList wireConvRoles
 
-getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembers (zusr ::: tid ::: _) = do
-  mems <- Data.teamMembers tid
-  case findTeamMember zusr mems of
+getTeamMembers :: UserId ::: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+getTeamMembers (zusr ::: tid ::: maxResults ::: _) = do
+  mems <- Data.teamMembers tid maxResults
+  Data.teamMember tid zusr >>= \case
     Nothing -> throwM noTeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
@@ -264,7 +264,7 @@ getTeamMembers (zusr ::: tid ::: _) = do
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   case findTeamMember zusr mems of
     Nothing -> throwM noTeamMember
     Just m -> do
@@ -282,7 +282,7 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   return . json $ newTeamMemberList mems
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -292,7 +292,7 @@ addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   -- verify permissions
   tmem <- permissionCheck zusr AddTeamMember mems
   let targetPermissions = nmem ^. ntmNewTeamMember . permissions
@@ -306,7 +306,7 @@ addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 uncheckedAddTeamMember (tid ::: req ::: _) = do
   nmem <- fromJsonBody req
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   rsp <- addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
   return rsp
@@ -324,7 +324,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  members <- Data.teamMembers tid
+  members <- Data.teamMembersUnsafeForLargeTeams tid
   user <- permissionCheck zusr SetMemberPermissions members
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
@@ -359,7 +359,7 @@ deleteTeamMember (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck zusr RemoveTeamMember mems
   okToDelete <- canBeDeleted [] remove tid
   unless okToDelete $ throwM noOtherOwner
@@ -532,20 +532,20 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
-  members <- Data.teamMembers tid
+  members <- Data.teamMembersUnsafeForLargeTeams tid
   pure . json $ newTeamMemberList members
 
 -- Public endpoints for feature checks
 
 getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getSSOStatus (uid ::: tid ::: ct) = do
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck uid ViewSSOTeamSettings membs
   getSSOStatusInternal (tid ::: ct)
 
 getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getLegalholdStatus (uid ::: tid ::: ct) = do
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck uid ViewLegalHoldTeamSettings membs
   getLegalholdStatusInternal (tid ::: ct)
 

@@ -177,7 +177,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
-        tMembers <- map (view userId) <$> lift (Data.teamMembers tid)
+        tMembers <- map (view userId) <$> lift (Data.teamMembersUnsafeForLargeTeams tid)
         usersL %= filter (\user -> memId user `elem` tMembers)
         botsL .= []
       _ -> return ()
@@ -330,7 +330,7 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
-  mbTms <- traverse Data.teamMembers $ Data.convTeam conv
+  mbTms <- traverse Data.teamMembersUnsafeForLargeTeams $ Data.convTeam conv
   ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
   let newUsers = filter (notIsMember conv) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) newUsers
@@ -693,7 +693,7 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley Response
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-  tMembers <- fmap (view userId) <$> Data.teamMembers tid
+  tMembers <- fmap (view userId) <$> Data.teamMembersUnsafeForLargeTeams tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing

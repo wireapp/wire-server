@@ -17,6 +17,7 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
+    teamMembersUnsafeForLargeTeams,
     teamMembersLimited,
     userTeams,
     oneUserTeam,
@@ -183,10 +184,23 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
-teamMembers t =
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 2000 Int32 -> m [TeamMember]
+teamMembers t limit =
   mapM newTeamMember'
-    =<< retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
+    =<< retry x1 (query Cql.selectTeamMembers (params Quorum (t, limit)))
+  where
+    newTeamMember' ::
+      (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
+      m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+      newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- | This operation gets **all** members of a team, this should go away before we
+-- roll out large teams
+teamMembersUnsafeForLargeTeams :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
+teamMembersUnsafeForLargeTeams t =
+  mapM newTeamMember'
+    =<< retry x1 (query Cql.selectTeamMembersUnsafeForLargeTeams (params Quorum (Identity t)))
   where
     newTeamMember' ::
       (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
@@ -267,7 +281,7 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do
   retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
-  mm <- teamMembers tid
+  mm <- teamMembersUnsafeForLargeTeams tid
   for_ mm $ removeTeamMember tid . view userId
   cc <- teamConversations tid
   for_ cc $ removeTeamConv tid . view conversationId

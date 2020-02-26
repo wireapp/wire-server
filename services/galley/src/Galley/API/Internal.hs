@@ -41,7 +41,7 @@ rmUser (user ::: conn) = do
   return empty
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
-      Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
+      Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)
     leaveConversations u ids = do

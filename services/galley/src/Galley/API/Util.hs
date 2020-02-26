@@ -110,7 +110,7 @@ bindingTeamMembers :: TeamId -> Galley [TeamMember]
 bindingTeamMembers tid = do
   binding <- Data.teamBinding tid >>= ifNothing teamNotFound
   case binding of
-    Binding -> Data.teamMembers tid
+    Binding -> Data.teamMembersUnsafeForLargeTeams tid
     NonBinding -> throwM nonBindingTeam
 
 -- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
@@ -127,7 +127,7 @@ permissionCheck u p t =
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
-  members <- Data.teamMembers tid
+  members <- Data.teamMembersUnsafeForLargeTeams tid
   let isOnTeam = isJust $ find ((uid ==) . view userId) members
   unless isOnTeam (throwM noTeamMember)
 
@@ -136,7 +136,7 @@ assertOnTeam uid tid = do
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
 permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembers tid
+    Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembersUnsafeForLargeTeams tid
     Nothing -> pure ()
   Nothing -> throwM convNotFound
 

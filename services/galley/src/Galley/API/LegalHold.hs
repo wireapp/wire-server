@@ -39,7 +39,7 @@ isLegalHoldEnabled tid = do
 createSettings :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
 createSettings (zusr ::: tid ::: req ::: _) = do
   assertLegalHoldEnabled tid
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -57,7 +57,7 @@ createSettings (zusr ::: tid ::: req ::: _) = do
 
 getSettings :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettings (zusr ::: tid ::: _) = do
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
@@ -69,7 +69,7 @@ getSettings (zusr ::: tid ::: _) = do
 removeSettings :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
 removeSettings (zusr ::: tid ::: req ::: _) = do
   assertLegalHoldEnabled tid
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -87,7 +87,7 @@ removeSettings' ::
   Maybe [TeamMember] ->
   Galley ()
 removeSettings' tid mMembers = do
-  membs <- maybe (Data.teamMembers tid) pure mMembers
+  membs <- maybe (Data.teamMembersUnsafeForLargeTeams tid) pure mMembers
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -137,7 +137,7 @@ requestDevice (zusr ::: tid ::: uid ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.requestDevice")
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
   userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
   case userLHStatus of
@@ -212,7 +212,7 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.disableForUser")
-  membs <- Data.teamMembers tid
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
   if userLHNotDisabled membs
     then disableLH >> pure empty

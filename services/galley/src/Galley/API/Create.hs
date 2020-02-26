@@ -68,7 +68,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamGroupConv zusr zcon tinfo body = do
   name <- rangeCheckedMaybe (newConvName body)
-  teamMems <- Data.teamMembers (cnvTeamId tinfo)
+  teamMems <- Data.teamMembersUnsafeForLargeTeams (cnvTeamId tinfo)
   ensureAccessRole (accessRole body) (newConvUsers body) (Just teamMems)
   void $ permissionCheck zusr CreateConversation teamMems
   otherConvMems <-

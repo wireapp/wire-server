@@ -41,12 +41,15 @@ import UnliftIO (mapConcurrently, mapConcurrently_)
 
 tests :: IO TestSetup -> TestTree
 tests s =
-  testGroup
-    "Teams API"
+  testGroup "Teams API" $
     [ test s "create team" testCreateTeam,
       test s "create multiple binding teams fail" testCreateMulitpleBindingTeams,
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       test s "create team with members" testCreateTeamWithMembers,
+      testGroup "List Team Members" $
+        [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
+          test s "the list should be limited to the number requested" testListTeamMembersLimited
+        ],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
@@ -155,6 +158,40 @@ testCreateTeamWithMembers = do
       e ^. eventType @?= TeamCreate
       e ^. eventTeam @?= (team ^. teamId)
       e ^. eventData @?= Just (EdTeamCreate team)
+
+testListTeamMembersDefaultLimit :: TestM ()
+testListTeamMembersDefaultLimit = do
+  (owner, tid) <- createTeam
+  member1 <- randomUser
+  member2 <- randomUser
+  addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid $ newTeamMember member2 (rolePermissions RoleMember) Nothing
+  ensureQueueEmpty
+  listFromServer <- Util.getTeamMembers owner tid
+  liftIO $
+    assertEqual
+      "list members"
+      (Set.fromList [owner, member1, member2])
+      (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+
+testListTeamMembersLimited :: TestM ()
+testListTeamMembersLimited = do
+  (owner, tid) <- createTeam
+  member1 <- randomUser
+  member2 <- randomUser
+  member3 <- randomUser
+  member4 <- randomUser
+  addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid $ newTeamMember member2 (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid $ newTeamMember member3 (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid $ newTeamMember member4 (rolePermissions RoleMember) Nothing
+  ensureQueueEmpty
+  listFromServer <- Util.getTeamMembersLimited owner tid 2
+  liftIO $
+    assertEqual
+      "member list is not limited to the requested number"
+      2
+      (length $ listFromServer ^. teamMembers)
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do
