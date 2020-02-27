@@ -1,3 +1,10 @@
+# 2020-02-27
+
+## Hotfix
+
+- Fix encoding bug in SAML SSO (#995)
+
+
 # 2020-02-06
 
 ## New features
