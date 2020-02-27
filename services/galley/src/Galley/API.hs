@@ -7,6 +7,7 @@ import Data.Id (ConvId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
+import "types-common" Data.Swagger (int32Between)
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.API.Clients
@@ -139,6 +140,8 @@ sitemap = do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
+    parameter Query "maxResults" (int32Between 1 2000) $
+      description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
     errorResponse Error.noTeamMember

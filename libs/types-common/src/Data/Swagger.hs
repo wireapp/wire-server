@@ -3,7 +3,7 @@
 module Data.Swagger where
 
 import Data.Swagger.Build.Api
-import Imports
+import Imports hiding (max, min)
 
 errorModel :: Model
 errorModel = defineModel "Error" $ do
@@ -18,3 +18,6 @@ errorProperties = do
     description "Textual classifier for programmatic consumption."
   property "message" string' $
     description "More detailed error description."
+
+int32Between :: Int32 -> Int32 -> DataType
+int32Between m n = int32 (min m . max n)
