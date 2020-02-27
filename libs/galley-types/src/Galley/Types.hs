@@ -296,7 +296,7 @@ newtype OtrRecipients
       Monoid
     )
 
-foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
 foldrOtrRecipients f a =
   Map.foldrWithKey go a
     . userClientMap
@@ -434,7 +434,7 @@ data Invite
         invRoleName :: !RoleName -- This role name is to be applied to all users
       }
 
-newInvite :: List1 UserId -> Invite
+newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
 
 deriving instance Eq Invite
