@@ -195,8 +195,8 @@ teamMembers t limit =
     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
       newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
--- | This operation gets **all** members of a team, this should go away before we
--- roll out large teams
+-- | TODO: This operation gets **all** members of a team, this should go away before
+-- we roll out large teams
 teamMembersUnsafeForLargeTeams :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
 teamMembersUnsafeForLargeTeams t =
   mapM newTeamMember'
