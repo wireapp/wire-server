@@ -7,7 +7,6 @@ import Data.Id (ConvId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
-import "types-common" Data.Swagger (int32Between)
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.API.Clients
@@ -41,6 +40,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Swagger where
+module Wire.Swagger where
 
 import Data.Swagger.Build.Api
 import Imports hiding (max, min)

@@ -25,7 +25,6 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Id
 import Data.Predicate
 import Data.Range
-import qualified "types-common" Data.Swagger as Doc
 import Data.Swagger.Build.Api hiding (Response, def, min, response)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (Text, unpack)
@@ -49,6 +48,7 @@ import qualified Stern.Swagger as Doc
 import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name, trace)
 import Util.Options
+import qualified Wire.Swagger as Doc
 
 default (ByteString)
 
