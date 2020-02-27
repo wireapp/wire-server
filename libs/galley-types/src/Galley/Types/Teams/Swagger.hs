@@ -132,6 +132,8 @@ teamMemberList = defineModel "TeamMemberList" $ do
   description "list of team member"
   property "members" (unique $ array (ref teamMember)) $
     description "the array of team members"
+  property "hasMore" bool' $
+    description "true is the 'members' doesn't contain all team members"
 
 teamConversation :: Model
 teamConversation = defineModel "TeamConversation" $ do

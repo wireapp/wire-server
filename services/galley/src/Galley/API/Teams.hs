@@ -255,12 +255,12 @@ getTeamConversationRoles (zusr ::: tid ::: _) = do
 
 getTeamMembers :: UserId ::: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
 getTeamMembers (zusr ::: tid ::: maxResults ::: _) = do
-  mems <- Data.teamMembers tid maxResults
+  (mems, hasMore) <- Data.teamMembers tid maxResults
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM noTeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
-      pure (json $ teamMemberListJson withPerms (newTeamMemberList mems))
+      pure (json $ teamMemberListJson withPerms (newTeamMemberList mems hasMore))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
@@ -283,7 +283,7 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
   mems <- Data.teamMembersUnsafeForLargeTeams tid
-  return . json $ newTeamMemberList mems
+  return . json $ newTeamMemberList mems False
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -533,7 +533,7 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
   members <- Data.teamMembersUnsafeForLargeTeams tid
-  pure . json $ newTeamMemberList members
+  pure . json $ newTeamMemberList members False
 
 -- Public endpoints for feature checks
 

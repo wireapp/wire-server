@@ -173,6 +173,10 @@ testListTeamMembersDefaultLimit = do
       "list members"
       (Set.fromList [owner, member1, member2])
       (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+  liftIO $
+    assertBool
+      "member list indicates that there are no more members"
+      (not $ listFromServer ^. teamMemberListHasMore)
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
@@ -192,6 +196,10 @@ testListTeamMembersTruncated = do
       "member list is not limited to the requested number"
       2
       (length $ listFromServer ^. teamMembers)
+  liftIO $
+    assertBool
+      "member list indicates that there are more members"
+      (listFromServer ^. teamMemberListHasMore)
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do

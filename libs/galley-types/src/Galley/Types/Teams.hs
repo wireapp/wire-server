@@ -43,6 +43,7 @@ module Galley.Types.Teams
     isTeamMember,
     newTeamMemberList,
     teamMembers,
+    teamMemberListHasMore,
     teamMemberListJson,
     TeamConversation,
     newTeamConversation,
@@ -213,11 +214,12 @@ data TeamMember
       }
   deriving (Eq, Ord, Show, Generic)
 
-newtype TeamMemberList
+data TeamMemberList
   = TeamMemberList
-      { _teamMembers :: [TeamMember]
+      { _teamMembers :: [TeamMember],
+        _teamMemberListHasMore :: Bool
       }
-  deriving (Semigroup, Monoid, Generic)
+  deriving (Generic)
 
 data TeamConversation
   = TeamConversation
@@ -406,7 +408,7 @@ newTeamMemberRaw uid perms Nothing Nothing lhStatus =
   pure $ TeamMember uid perms Nothing lhStatus
 newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-newTeamMemberList :: [TeamMember] -> TeamMemberList
+newTeamMemberList :: [TeamMember] -> Bool -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
@@ -713,14 +715,17 @@ instance ToJSON TeamMemberList where
 -- | Show a list of team members using 'teamMemberJson'.
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
 teamMemberListJson withPerms l =
-  object ["members" .= map (teamMemberJson withPerms) (_teamMembers l)]
+  object
+    [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
+      "hasMore" .= _teamMemberListHasMore l
+    ]
 
 instance FromJSON TeamMember where
   parseJSON = parseTeamMember
 
 instance FromJSON TeamMemberList where
   parseJSON = withObject "team member list" $ \o ->
-    TeamMemberList <$> o .: "members"
+    TeamMemberList <$> o .: "members" <*> o .: "hasMore"
 
 instance ToJSON TeamConversation where
   toJSON t =

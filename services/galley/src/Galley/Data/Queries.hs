@@ -10,7 +10,6 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
-import Data.Range (Range)
 import qualified Data.Text.Lazy as LT
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
@@ -50,24 +49,8 @@ selectTeamMember ::
     )
 selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from team_member where team = ? and user = ?"
 
+-- | This query fetches **all** members of a team, it should always be paginated
 selectTeamMembers ::
-  PrepQuery R (TeamId, Range 1 2000 Int32)
-    ( UserId,
-      Permissions,
-      Maybe UserId,
-      Maybe UTCTimeMillis,
-      Maybe UserLegalHoldStatus
-    )
-selectTeamMembers =
-  [r|
-    select user, perms, invited_by, invited_at, legalhold_status
-      from team_member
-    where team = ? order by user limit ?
-    |]
-
--- | This operation gets **all** members of a team, this should go away before we
--- roll out large teams
-selectTeamMembersUnsafeForLargeTeams ::
   PrepQuery R (Identity TeamId)
     ( UserId,
       Permissions,
@@ -75,7 +58,7 @@ selectTeamMembersUnsafeForLargeTeams ::
       Maybe UTCTimeMillis,
       Maybe UserLegalHoldStatus
     )
-selectTeamMembersUnsafeForLargeTeams =
+selectTeamMembers =
   [r|
     select user, perms, invited_by, invited_at, legalhold_status
       from team_member
