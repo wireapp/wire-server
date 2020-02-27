@@ -161,7 +161,7 @@ testCreateTeamWithMembers = do
 
 testListTeamMembersDefaultLimit :: TestM ()
 testListTeamMembersDefaultLimit = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member1 <- randomUser
   member2 <- randomUser
   addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
@@ -176,7 +176,7 @@ testListTeamMembersDefaultLimit = do
 
 testListTeamMembersLimited :: TestM ()
 testListTeamMembersLimited = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member1 <- randomUser
   member2 <- randomUser
   member3 <- randomUser

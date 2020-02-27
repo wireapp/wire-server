@@ -45,8 +45,8 @@ import TestSetup
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
-createTeam :: HasCallStack => TestM (UserId, TeamId)
-createTeam = do
+createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
+createBindingTeam = do
   ownerid <- randomUser
   let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
   teamid <- createTeamInternal tname ownerid
