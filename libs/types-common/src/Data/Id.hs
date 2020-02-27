@@ -39,8 +39,6 @@ data I
 
 data U
 
-data MU
-
 data P
 
 data S
@@ -49,15 +47,33 @@ data T
 
 data STo
 
+data Mp a
+
+data Op a
+
 type AssetId = Id A
 
 type ConvId = Id C
 
+type MappedConvId = Id (Mp C)
+
+type OpaqueConvId = Id (Op C)
+
 type InvitationId = Id I
 
+-- | A local user ID
 type UserId = Id U
 
-type MappedUserId = Id MU
+-- | A UUID local to this backend, for which we know a mapping to a
+-- remote qualified user ID exists.
+-- These IDs should never leak to other backends or their clients.
+type MappedUserId = Id (Mp U)
+
+-- | A UUID local to this backend, which can either be a local or a mapped user ID.
+-- Which one it is can be found out by checking whether there exists a corresponding
+-- local user or mapping in the database.
+-- This is how clients refer to users, they don't need to know about the mapping.
+type OpaqueUserId = Id (Op U)
 
 type ProviderId = Id P
 
