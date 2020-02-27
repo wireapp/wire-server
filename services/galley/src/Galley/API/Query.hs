@@ -43,11 +43,11 @@ getBotConversation zbot zcnv = do
       | memId m /= botUserId zbot = Just (OtherMember (memId m) (memService m) (memConvRoleName m))
       | otherwise = Nothing
 
-getConversationH :: UserId ::: ConvId ::: JSON -> Galley Response
+getConversationH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
 getConversationH (zusr ::: cnv ::: _) = do
   json <$> getConversation zusr cnv
 
-getConversation :: UserId -> ConvId -> Galley Conversation
+getConversation :: UserId -> OpaqueConvId -> Galley Conversation
 getConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   conversationView zusr c
@@ -63,20 +63,20 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ ConversationRolesList wireConvRoles
 
-getConversationIdsH :: UserId ::: Maybe ConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
+getConversationIdsH :: UserId ::: Maybe OpaqueConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
 getConversationIdsH (zusr ::: start ::: size ::: _) = do
   json <$> getConversationIds zusr start size
 
-getConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (ConversationList ConvId)
+getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (ConversationList ConvId)
 getConversationIds zusr start size = do
   Data.ResultSet ids <- Data.conversationIdsFrom zusr start size
   pure $ ConversationList (result ids) (hasMore ids)
 
-getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List ConvId)) ConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
+getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
 getConversationsH (zusr ::: range ::: size ::: _) =
   json <$> getConversations zusr range size
 
-getConversations :: UserId -> Maybe (Either (Range 1 32 (List ConvId)) ConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
+getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
     cs <-
@@ -89,6 +89,7 @@ getConversations zusr range size =
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
+-- TODO(mheinzel): in minimal API, but not essential
 getSelfH :: UserId ::: ConvId -> Galley Response
 getSelfH (zusr ::: cnv) = do
   json <$> getSelf zusr cnv

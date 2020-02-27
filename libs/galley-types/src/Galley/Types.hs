@@ -215,7 +215,7 @@ data ConvTeamInfo
 
 data NewConv
   = NewConv
-      { newConvUsers :: ![UserId],
+      { newConvUsers :: ![OpaqueUserId],
         newConvName :: !(Maybe Text),
         newConvAccess :: !(Set Access),
         newConvAccessRole :: !(Maybe AccessRole),
@@ -271,7 +271,7 @@ create managed conversations anyway.
 
 newtype UserClientMap a
   = UserClientMap
-      { userClientMap :: Map UserId (Map ClientId a)
+      { userClientMap :: Map OpaqueUserId (Map ClientId a)
       }
   deriving
     ( Eq,
@@ -313,10 +313,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId)
+    OtrIgnoreMissing (Set UserId) -- TODO (mheinzel)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId)
+    OtrReportMissing (Set UserId) -- TODO (mheinzel)
 
 data NewOtrMessage
   = NewOtrMessage
@@ -430,7 +430,7 @@ deriving instance Show OtherMemberUpdate
 
 data Invite
   = Invite
-      { invUsers :: !(List1 UserId),
+      { invUsers :: !(List1 OpaqueUserId),
         invRoleName :: !RoleName -- This role name is to be applied to all users
       }
 

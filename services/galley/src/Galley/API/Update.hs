@@ -405,12 +405,12 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
 
-addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Invite -> Galley Response
+addMembersH :: UserId ::: ConnId ::: OpaqueConvId ::: JsonRequest Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
   invite <- fromJsonBody req
   handleUpdateResult <$> addMembers zusr zcon cid invite
 
-addMembers :: UserId -> ConnId -> ConvId -> Invite -> Galley UpdateResult
+addMembers :: UserId -> ConnId -> OpaqueConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
   conv <- Data.conversation cid >>= ifNothing convNotFound
   let mems = botsAndUsers (Data.convMembers conv)
@@ -436,6 +436,7 @@ addMembers zusr zcon cid invite = do
         throwM noAddToManaged
       ensureConnectedOrSameTeam zusr newUsers
 
+-- TODO(mheinzel): in minimal API, but not essential
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
   update <- fromJsonBody req
@@ -467,11 +468,11 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
+removeMemberH :: UserId ::: ConnId ::: OpaqueConvId ::: OpaqueUserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
   handleUpdateResult <$> removeMember zusr zcon cid victim
 
-removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
   conv <- Data.conversation cid >>= ifNothing convNotFound
   let (bots, users) = botsAndUsers (Data.convMembers conv)
@@ -509,26 +510,26 @@ handleOtrResult = \case
   OtrSent m -> json m & setStatus status201
   OtrMissingRecipients m -> json m & setStatus status412
 
-postBotMessageH :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
+postBotMessageH :: BotId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
   handleOtrResult <$> postBotMessage zbot zcnv val message
 
-postBotMessage :: BotId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postBotMessage :: BotId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
   postNewOtrMessage (botUserId zbot) Nothing zcnv val message
 
-postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
+postProtoOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   handleOtrResult <$> postOtrMessage zusr zcon cnv val message
 
-postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
+postOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
   message <- fromJsonBody req
   handleOtrResult <$> postOtrMessage zusr zcon cnv val message
 
-postOtrMessage :: UserId -> ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postOtrMessage :: UserId -> ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
   postNewOtrMessage zusr (Just zcon) cnv val message
 
@@ -558,7 +559,7 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
   let sender = newOtrSender msg
   let recvrs = newOtrRecipients msg
@@ -629,6 +630,7 @@ updateConversationName zusr zcon cnv convRename = do
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
 
+-- TODO(mheinzel): included in minimal API, but not essential
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   typingData <- fromJsonBody req
