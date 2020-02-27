@@ -48,7 +48,7 @@ tests s =
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
-          test s "the list should be limited to the number requested" testListTeamMembersLimited
+          test s "the list should be limited to the number requested" testListTeamMembersTruncated
         ],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
@@ -174,8 +174,8 @@ testListTeamMembersDefaultLimit = do
       (Set.fromList [owner, member1, member2])
       (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
 
-testListTeamMembersLimited :: TestM ()
-testListTeamMembersLimited = do
+testListTeamMembersTruncated :: TestM ()
+testListTeamMembersTruncated = do
   (owner, tid) <- createBindingTeam
   member1 <- randomUser
   member2 <- randomUser
