@@ -154,14 +154,15 @@ updateTeamStatus (tid ::: req ::: _) = do
 updateTeam :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
 updateTeam (zusr ::: zcon ::: tid ::: req ::: _) = do
   body <- fromJsonBody req
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "Teams.updateTeam")
-  void $ permissionCheck zusr SetTeamData membs
+  zusrMembership <- Data.teamMember tid zusr
+  -- let zothers = map (view userId) membs
+  -- Log.debug $
+  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+  --     . Log.field "action" (Log.val "Teams.updateTeam")
+  permissionCheckSimple SetTeamData zusrMembership
   Data.updateTeam tid body
   now <- liftIO getCurrentTime
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate body)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
   push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
@@ -174,7 +175,7 @@ deleteTeam (zusr ::: zcon ::: tid ::: req ::: _ ::: _) = do
     Deleted -> throwM teamNotFound
     PendingDelete -> queueDelete
     _ -> do
-      void $ permissionCheck zusr DeleteTeam =<< Data.teamMembersUnsafeForLargeTeams tid
+      permissionCheckSimple DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- fromJsonBody (JsonRequest req)
         ensureReAuthorised zusr (body ^. tdAuthPassword)
@@ -193,9 +194,9 @@ uncheckedDeleteTeam zusr zcon tid = do
   team <- Data.team tid
   when (isJust team) $ do
     Spar.deleteTeam tid
-    membs <- Data.teamMembersUnsafeForLargeTeams tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
+    membs <- Data.teamMembersUnsafeForLargeTeams tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
@@ -292,14 +293,17 @@ addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
+  zusrMembership <- Data.teamMember tid zusr >>= \case
+    Nothing -> throwM noTeamMember
+    Just u -> pure u
   -- verify permissions
-  tmem <- permissionCheck zusr AddTeamMember mems
+  permissionCheckSimple AddTeamMember (Just zusrMembership)
   let targetPermissions = nmem ^. ntmNewTeamMember . permissions
-  targetPermissions `ensureNotElevated` tmem
+  targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnected zusr [uid]
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -324,14 +328,18 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  members <- Data.teamMembersUnsafeForLargeTeams tid
-  user <- permissionCheck zusr SetMemberPermissions members
+  user <- Data.teamMember tid zusr >>= \case
+    Nothing -> throwM noTeamMember
+    Just u -> pure u
+  permissionCheckSimple SetMemberPermissions (Just user)
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   -- target user must be in same team
-  unless (isTeamMember targetId members) $
-    throwM teamMemberNotFound
+  Data.teamMember tid targetId >>= \case
+    Nothing -> throwM teamMemberNotFound
+    _ -> pure ()
   -- cannot demote only owner (effectively removing the last owner)
+  members <- Data.teamMembersUnsafeForLargeTeams tid
   okToDelete <- canBeDeleted members targetId tid
   when (not okToDelete && targetPermissions /= fullPermissions) $
     throwM noOtherOwner
@@ -359,12 +367,14 @@ deleteTeamMember (zusr ::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  void $ permissionCheck zusr RemoveTeamMember mems
+  zusrMembership <- Data.teamMember tid zusr
+  permissionCheckSimple RemoveTeamMember zusrMembership
   okToDelete <- canBeDeleted [] remove tid
   unless okToDelete $ throwM noOtherOwner
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  if team ^. teamBinding == Binding && isTeamMember remove mems
+  removeMembership <- Data.teamMember tid remove
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
+  if team ^. teamBinding == Binding && isJust removeMembership
     then do
       body <- fromJsonBody (JsonRequest req)
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
@@ -539,14 +549,14 @@ getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
 
 getSSOStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getSSOStatus (uid ::: tid ::: ct) = do
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  void $ permissionCheck uid ViewSSOTeamSettings membs
+  zusrMembership <- Data.teamMember tid uid
+  permissionCheckSimple ViewSSOTeamSettings zusrMembership
   getSSOStatusInternal (tid ::: ct)
 
 getLegalholdStatus :: UserId ::: TeamId ::: JSON -> Galley Response
 getLegalholdStatus (uid ::: tid ::: ct) = do
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+  zusrMembership <- Data.teamMember tid uid
+  permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal (tid ::: ct)
 
 -- Enable / Disable team features

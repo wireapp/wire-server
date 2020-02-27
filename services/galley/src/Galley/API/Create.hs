@@ -68,13 +68,17 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamGroupConv zusr zcon tinfo body = do
   name <- rangeCheckedMaybe (newConvName body)
-  teamMems <- Data.teamMembersUnsafeForLargeTeams (cnvTeamId tinfo)
-  ensureAccessRole (accessRole body) (newConvUsers body) (Just teamMems)
-  void $ permissionCheck zusr CreateConversation teamMems
+  let convTeam = (cnvTeamId tinfo)
+  zusrMembership <- Data.teamMember convTeam zusr
+  let convUsers = (newConvUsers body)
+  convMemberships <- mapM (Data.teamMember convTeam) convUsers
+  ensureAccessRoleSimple (accessRole body) (zip convUsers convMemberships)
+  permissionCheckSimple CreateConversation zusrMembership
   otherConvMems <-
     if cnvManaged tinfo
       then do
-        let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
+        allMembers <- Data.teamMembersUnsafeForLargeTeams convTeam
+        let otherConvMems = filter (/= zusr) $ map (view userId) $ allMembers
         checkedConvSize otherConvMems
       else do
         otherConvMems <- checkedConvSize (newConvUsers body)
@@ -89,10 +93,10 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- we can ever get rid of the team permission model anyway - the only thing I can
         -- think of is that 'partners' can create convs but not be admins...
         when (length (fromConvSize otherConvMems) > 1) $ do
-          void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
+          permissionCheckSimple DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
+        ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
         pure otherConvMems
   conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
@@ -130,10 +134,16 @@ createOne2OneConversation (zusr ::: zcon ::: req) = do
   maybe (create x y n $ newConvTeam j) (conversationResponse status200 zusr) c
   where
     checkBindingTeamPermissions x y tid = do
-      mems <- bindingTeamMembers tid
-      void $ permissionCheck zusr CreateConversation mems
-      unless (all (flip isTeamMember mems) [x, y]) $
-        throwM noBindingTeamMembers
+      zusrMembership <- Data.teamMember tid zusr
+      permissionCheckSimple CreateConversation zusrMembership
+      Data.teamBinding tid >>= \case
+        Just Binding -> do
+          xMembership <- Data.teamMember tid x
+          yMembership <- Data.teamMember tid y
+          unless (all isJust [xMembership, yMembership]) $
+            throwM noBindingTeamMembers
+        Just _ -> throwM nonBindingTeam
+        Nothing -> throwM teamNotFound
     create x y n tinfo = do
       c <- Data.createOne2OneConversation x y n (cnvTeamId <$> tinfo)
       notifyCreatedConversation Nothing zusr (Just zcon) c

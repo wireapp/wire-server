@@ -42,6 +42,18 @@ ensureAccessRole role users mbTms = case role of
     when (length activated /= length users) $ throwM convAccessDenied
   NonActivatedAccessRole -> return ()
 
+ensureAccessRoleSimple :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
+ensureAccessRoleSimple role users = case role of
+  PrivateAccessRole -> throwM convAccessDenied
+  TeamAccessRole ->
+    when (any (isNothing . snd) users) $
+      throwM noTeamMember
+  ActivatedAccessRole -> do
+    activated <- lookupActivatedUsers $ map fst users
+    when (length activated /= length users) $
+      throwM convAccessDenied
+  NonActivatedAccessRole -> return ()
+
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
 --
@@ -113,30 +125,28 @@ bindingTeamMembers tid = do
     Binding -> Data.teamMembersUnsafeForLargeTeams tid
     NonBinding -> throwM nonBindingTeam
 
--- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
--- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
--- 'operationDenied'.  Otherwise, return the found user.
-permissionCheck :: (Foldable m, IsPerm perm, Show perm) => UserId -> perm -> m TeamMember -> Galley TeamMember
-permissionCheck u p t =
-  case find ((u ==) . view userId) t of
-    Just m -> do
-      unless (m `hasPermission` p) $
-        throwM (operationDenied p)
-      pure m
-    Nothing -> throwM noTeamMember
+-- | If a team memeber is not given throw 'noTeamMember'; if the given team
+-- member does not have the given permission, throw 'operationDenied'.
+-- Otherwise, return unit.
+-- TODO(akshay): Make this return the TeamMember
+permissionCheckSimple :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley ()
+permissionCheckSimple p = \case
+  Just m ->
+    unless (m `hasPermission` p) $ throwM (operationDenied p)
+  Nothing -> throwM noTeamMember
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
-  members <- Data.teamMembersUnsafeForLargeTeams tid
-  let isOnTeam = isJust $ find ((uid ==) . view userId) members
-  unless isOnTeam (throwM noTeamMember)
+  Data.teamMember tid uid >>= \case
+    Nothing -> throwM noTeamMember
+    Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
 permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembersUnsafeForLargeTeams tid
+    Just tid -> permissionCheckSimple perm =<< Data.teamMember tid zusr
     Nothing -> pure ()
   Nothing -> throwM convNotFound
 
