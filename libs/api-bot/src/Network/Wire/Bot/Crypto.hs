@@ -104,7 +104,8 @@ encrypt cl cnv val = fmap (OtrRecipients . UserClientMap)
         ciphertext <- do
           bs <- CBox.encrypt s val >>= unwrap >>= CBox.copyBytes
           return $! decodeUtf8 $! B64.encode bs
-        return $ Map.insertWith Map.union u (Map.singleton c ciphertext) rcps
+        let userId = makeIdOpaque u
+        return $ Map.insertWith Map.union userId (Map.singleton c ciphertext) rcps
 
 -- | Decrypt an OTR message received from a given user and client.
 decrypt :: BotClient -> UserId -> ClientId -> ByteString -> BotSession ByteString
