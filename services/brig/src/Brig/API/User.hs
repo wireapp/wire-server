@@ -875,13 +875,13 @@ lookupProfile :: UserId -> UserId -> AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
--- a given user 'A'. User 'A' can see the 'FullProfile' of any other user 'B',
--- if the reverse relation (B -> A) is either 'Accepted' or 'Sent'.
--- Otherwise only the 'PublicProfile' is accessible for user 'A'.
+-- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
+-- if the reverse relation (other -> self) is either 'Accepted' or 'Sent'.
+-- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 lookupProfiles ::
-  -- | User 'A' on whose behalf the profiles are requested.
+  -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
-  -- | The users ('B's) for which to obtain the profiles.
+  -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
