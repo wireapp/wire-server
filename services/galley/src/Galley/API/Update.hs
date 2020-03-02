@@ -934,6 +934,7 @@ checkOtrRecipients usr sid prs vms vcs val now
     next u c t rs
       | Just m <- member u c = (m, c, t) : rs
       | otherwise = rs
+    member :: OpaqueUserId -> ClientId -> Maybe _
     member u c
       | Just m <- Map.lookup u vmembers,
         Clients.contains u c vclients =

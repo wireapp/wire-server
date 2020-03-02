@@ -80,7 +80,7 @@ getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) Opa
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
     -- FUTUREWORK(federation): resolve IDs in batch
-    (localConvIds, _qualifiedConvIds) <- partitionEithers <$> traverse resolveOpaqueConvId ids
+    (localConvIds, _qualifiedConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId ids
     -- FUTUREWORK(federation): fetch remote conversations from other backend
     cs <-
       Data.conversations localConvIds
