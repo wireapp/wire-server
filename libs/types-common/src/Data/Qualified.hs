@@ -8,7 +8,7 @@ import Data.Bifunctor (first)
 import qualified Data.ByteString.Conversion as BS.C
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID), UserId)
+import Data.Id (Id (toUUID))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -40,17 +40,17 @@ mkQualified mkLocal txt =
     _more ->
       Left "not a qualified identifier: multiple '@'s"
 
-instance ToJSON (Qualified UserId) where
+instance ToJSON (Qualified (Id a)) where
   toJSON = Aeson.String . renderQualified (cs . UUID.toString . toUUID)
 
-instance FromJSON (Qualified UserId) where
+instance FromJSON (Qualified (Id a)) where
   parseJSON =
     withText "QualifiedUserId" $
       either fail pure
         . mkQualified (first cs . BS.C.runParser BS.C.parser . cs)
         . cs
 
-instance FromHttpApiData (Qualified UserId) where
+instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualified (BS.C.runParser BS.C.parser . cs)
 
 instance ToJSON (Qualified Handle) where
