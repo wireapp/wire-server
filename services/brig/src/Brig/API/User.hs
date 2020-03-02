@@ -885,17 +885,18 @@ lookupProfiles ::
   [UserId] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
+  selfu <- Data.lookupUser self >>= maybe (throwM $ UserProfileNotFound self) return
   users <- Data.lookupUsers others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)
-  return $ map (toProfile emailVisibility' css) users
+  return $ map (toProfile emailVisibility' css selfu) users
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
-    toProfile :: EmailVisibility -> Map UserId Relation -> User -> UserProfile
-    toProfile emailVisibility' css u =
+    toProfile :: EmailVisibility -> Map UserId Relation -> User -> User -> UserProfile
+    toProfile emailVisibility' css selfu u =
       let cs = Map.lookup (userId u) css
-          profileEmail' = getEmailForProfile u undefined emailVisibility'
+          profileEmail' = getEmailForProfile u selfu emailVisibility'
           baseProfile =
             if userId u == self || cs == Just Accepted || cs == Just Sent
               then connectedProfile u
