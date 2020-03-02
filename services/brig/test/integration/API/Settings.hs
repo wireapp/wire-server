@@ -35,28 +35,18 @@ tests defOpts manager brig galley = return $ do
         "setEmailVisibility"
         [ testGroup
             "/users/"
-            [ testCase "EmailVisibleIfOnTeam"
-                . runHttpT manager
-                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam,
-              testCase "EmailVisibleIfOnSameTeam"
-                . runHttpT manager
-                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnSameTeam,
-              testCase "EmailVisibleToSelf"
-                . runHttpT manager
-                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleToSelf
-            ],
+            $ [minBound ..]
+              <&> \visibility -> do
+                testCase (show visibility)
+                  . runHttpT manager
+                  $ testUsersEmailVisibleIffExpected defOpts brig galley visibility,
           testGroup
             "/users/:uid"
-            [ testCase "EmailVisibleIfOnTeam"
-                . runHttpT manager
-                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam,
-              testCase "EmailVisibleIfOnSameTeam"
-                . runHttpT manager
-                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnSameTeam,
-              testCase "EmailVisibleToSelf"
-                . runHttpT manager
-                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleToSelf
-            ]
+            $ [minBound ..]
+              <&> \visibility -> do
+                testCase (show visibility)
+                  . runHttpT manager
+                  $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley visibility
         ]
     ]
 
