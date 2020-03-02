@@ -6,6 +6,7 @@ import Control.Lens ((.~), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
+import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
@@ -231,8 +232,8 @@ getConversationAndCheckMembership = getConversationAndCheckMembershipWithError c
 getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr cnv = do
   resolveOpaqueConvId cnv >>= \case
-    Right qualified -> failFederationNotImplemented qualified
-    Left convId -> do
+    Mapped IdMapping {idMappingGlobal} -> failFederationNotImplemented idMappingGlobal
+    Local convId -> do
       -- should we merge resolving to qualified ID and looking up the conversation?
       c <- Data.conversation convId >>= ifNothing convNotFound
       when (DataTypes.isConvDeleted c) $ do
@@ -243,16 +244,21 @@ getConversationAndCheckMembershipWithError ex zusr cnv = do
       return c
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: OpaqueUserId -> Galley (Either UserId (Qualified UserId))
+resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
 resolveOpaqueUserId (Id opaque) =
   -- FUTUREWORK(federation): implement database lookup
-  pure . Left $ Id opaque
+  pure . Local $ Id opaque
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
-resolveOpaqueConvId :: OpaqueConvId -> Galley (Either ConvId (Qualified ConvId))
+resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
 resolveOpaqueConvId (Id opaque) =
   -- FUTUREWORK(federation): implement database lookup
-  pure . Left $ Id opaque
+  pure . Local $ Id opaque
+
+partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
+partitionMappedOrLocalIds = foldMap $ \case
+  Mapped mapping -> (mempty, [mapping])
+  Local localId -> ([localId], mempty)
 
 failFederationNotImplemented :: Qualified (Id a) -> Galley void
 failFederationNotImplemented qualified =

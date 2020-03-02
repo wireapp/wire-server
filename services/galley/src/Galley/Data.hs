@@ -650,20 +650,28 @@ removeMembers conv orig victims = do
   retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ (toList victims) $ \case
-      Local userId -> do
-        addPrepQuery Cql.removeMember (convId conv, makeIdOpaque userId)
-        addPrepQuery Cql.deleteUserConv (userId, convId conv)
-      Mapped IdMapping {idMappingLocal} -> do
-        -- the user's conversation has to be deleted on their own backend
-        addPrepQuery Cql.removeMember (convId conv, makeMappedIdOpaque idMappingLocal)
-  return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIdList . toList $ victims)
+    for_ (toList victims) $ \u -> do
+      addPrepQuery Cql.removeMember (convId conv, opaqueIdFromMappedOrLocal u)
+      case u of
+        Local localId ->
+          addPrepQuery Cql.deleteUserConv (localId, convId conv)
+        Mapped IdMapping {idMappingLocal} ->
+          pure () -- the user's conversation has to be deleted on their own backend
+  return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
+  where
+    -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
+    -- FUTUREWORK(federation): These IDs don't mean anything to remote conversation members,
+    -- as they don't have the same mapping. Not sure how we should solve this.
+    leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims
+    localIdOrNothing = \case
+      Local localId -> Just localId
+      Mapped _ -> Nothing
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
-  addPrepQuery Cql.removeMember (cnv, usr)
+  addPrepQuery Cql.removeMember (cnv, makeIdOpaque usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
 
 newMember :: UserId -> Member
