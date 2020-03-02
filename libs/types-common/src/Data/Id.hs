@@ -83,8 +83,8 @@ type MappedUserId = Id (Mp U)
 -- This is how clients refer to users, they don't need to know about the mapping.
 type OpaqueUserId = Id (Op U)
 
-makeUserIdOpaque :: UserId -> OpaqueUserId
-makeUserIdOpaque (Id userId) = (Id userId)
+makeIdOpaque :: Id a -> Id (Op a)
+makeIdOpaque (Id userId) = (Id userId)
 
 type ProviderId = Id P
 
