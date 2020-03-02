@@ -15,6 +15,7 @@ import Test.QuickCheck (Arbitrary (arbitrary), choose, elements)
 --------------------------------------------------------------------------------
 -- Handle
 
+-- | Also called username.
 newtype Handle
   = Handle
       {fromHandle :: Text}

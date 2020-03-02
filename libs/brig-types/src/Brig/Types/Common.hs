@@ -25,6 +25,7 @@ import Imports
 --------------------------------------------------------------------------------
 -- Name
 
+-- | Usually called display name.
 newtype Name
   = Name
       {fromName :: Text}
