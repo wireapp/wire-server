@@ -50,9 +50,11 @@ tests defOpts manager brig galley = return $ do
         ]
     ]
 
-data UserRelationship = SameTeam | DifferentTeam | NoTeam
+-- | The user looking at users is always a team creator; the user looked falls into the
+-- different categories enumerated here.
+data ViewedUserIs = SameTeam | DifferentTeam | NoTeam
 
-expectEmailVisible :: Opt.EmailVisibility -> UserRelationship -> Bool
+expectEmailVisible :: Opt.EmailVisibility -> ViewedUserIs -> Bool
 expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
   SameTeam -> True
   DifferentTeam -> True
