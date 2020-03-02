@@ -23,12 +23,12 @@ import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
 import Data.Time.Clock.POSIX
-import Data.Typeable (typeOf)
 import Data.UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Type.Reflection (typeRep)
 
 tests :: TestTree
 tests =
@@ -192,7 +192,7 @@ jsonRoundtrip ::
   TestTree
 jsonRoundtrip = testProperty msg trip
   where
-    msg = show $ typeOf (undefined :: a)
+    msg = show (typeRep @a)
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (Aeson.parseEither parseJSON . toJSON) v
