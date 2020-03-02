@@ -895,7 +895,7 @@ lookupProfiles self others = do
     toProfile :: EmailVisibility -> Map UserId Relation -> User -> UserProfile
     toProfile emailVisibility' css u =
       let cs = Map.lookup (userId u) css
-          profileEmail' = getEmailForProfile u emailVisibility'
+          profileEmail' = getEmailForProfile u undefined emailVisibility'
           baseProfile =
             if userId u == self || cs == Just Accepted || cs == Just Sent
               then connectedProfile u
@@ -904,14 +904,18 @@ lookupProfiles self others = do
 
 -- | Gets the email if it's visible to the requester according to configured settings
 getEmailForProfile ::
-  -- | The user who's profile is being requested
+  User ->
   User ->
   EmailVisibility ->
   Maybe Email
-getEmailForProfile _ EmailVisibleToSelf = Nothing
-getEmailForProfile u EmailVisibleIfOnTeam =
-  if isJust (userTeam u)
-    then userEmail u
+getEmailForProfile _ _ EmailVisibleToSelf = Nothing
+getEmailForProfile profileOwner _ EmailVisibleIfOnTeam =
+  if isJust (userTeam profileOwner)
+    then userEmail profileOwner
+    else Nothing
+getEmailForProfile profileOwner profileViewer EmailVisibleIfOnSameTeam =
+  if userTeam profileViewer == userTeam profileOwner
+    then userEmail profileOwner
     else Nothing
 
 -- | Obtain a profile for a user as he can see himself.

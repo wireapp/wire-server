@@ -38,6 +38,9 @@ tests defOpts manager brig galley = return $ do
             [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
                 $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam,
+              testCase "EmailVisibleIfOnSameTeam"
+                . runHttpT manager
+                $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleIfOnSameTeam,
               testCase "EmailVisibleToSelf"
                 . runHttpT manager
                 $ testUsersEmailVisibleIffExpected defOpts brig galley Opt.EmailVisibleToSelf
@@ -47,6 +50,9 @@ tests defOpts manager brig galley = return $ do
             [ testCase "EmailVisibleIfOnTeam"
                 . runHttpT manager
                 $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnTeam,
+              testCase "EmailVisibleIfOnSameTeam"
+                . runHttpT manager
+                $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleIfOnSameTeam,
               testCase "EmailVisibleToSelf"
                 . runHttpT manager
                 $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley Opt.EmailVisibleToSelf
@@ -60,6 +66,9 @@ expectEmailVisible :: Opt.EmailVisibility -> UserRelationship -> Bool
 expectEmailVisible Opt.EmailVisibleIfOnTeam SameTeam = True
 expectEmailVisible Opt.EmailVisibleIfOnTeam DifferentTeam = True
 expectEmailVisible Opt.EmailVisibleIfOnTeam NoTeam = False
+expectEmailVisible Opt.EmailVisibleIfOnSameTeam SameTeam = True
+expectEmailVisible Opt.EmailVisibleIfOnSameTeam DifferentTeam = False
+expectEmailVisible Opt.EmailVisibleIfOnSameTeam NoTeam = False
 expectEmailVisible Opt.EmailVisibleToSelf SameTeam = False
 expectEmailVisible Opt.EmailVisibleToSelf DifferentTeam = False
 expectEmailVisible Opt.EmailVisibleToSelf NoTeam = False
