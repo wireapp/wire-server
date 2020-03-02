@@ -87,17 +87,17 @@ acceptConv usr conn cnv = do
   conversationView usr conv'
 
 blockConvH :: UserId ::: ConvId -> Galley Response
-blockConvH (usr ::: cnv) = do
-  empty <$ blockConv usr cnv
+blockConvH (zusr ::: cnv) = do
+  empty <$ blockConv zusr cnv
 
 blockConv :: UserId -> ConvId -> Galley ()
-blockConv usr cnv = do
+blockConv zusr cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv])
     $ throwM
     $ invalidOp "block: invalid conversation type"
   let mems = Data.convMembers conv
-  when (usr `isMember` mems) $ Data.removeMember usr cnv
+  when (makeIdOpaque zusr `isMember` mems) $ Data.removeMember zusr cnv
 
 unblockConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 unblockConvH (usr ::: conn ::: cnv) = do
@@ -398,8 +398,8 @@ joinConversation zusr zcon cnv access = do
   ensureAccess conv access
   mbTms <- traverse Data.teamMembers $ Data.convTeam conv
   ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
-  let newUsers = filter (notIsMember conv) [zusr]
-  ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+  let newUsers = filter (notIsMember conv . makeIdOpaque) [zusr]
+  ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
@@ -412,26 +412,36 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
 
 addMembers :: UserId -> ConnId -> OpaqueConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
-  conv <- Data.conversation cid >>= ifNothing convNotFound
-  let mems = botsAndUsers (Data.convMembers conv)
-  self <- getSelfMember zusr (snd mems)
-  ensureActionAllowed AddConversationMember self
-  toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
-  let newUsers = filter (notIsMember conv) (toList toAdd)
-  ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-  ensureAccess conv InviteAccess
-  ensureConvRoleNotElevated self (invRoleName invite)
-  case Data.convTeam conv of
-    Nothing -> do
-      ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
-      ensureConnectedOrSameTeam zusr newUsers
-    Just ti -> teamConvChecks ti newUsers conv
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+  resolveOpaqueConvId cid >>= \case
+    Right qualified -> failFederationNotImplemented qualified
+    Left localConvId -> addMembersToLocalConv localConvId
   where
-    teamConvChecks tid newUsers conv = do
+    addMembersToLocalConv convId = do
+      conv <- Data.conversation convId >>= ifNothing convNotFound
+      let mems = botsAndUsers (Data.convMembers conv)
+      self <- getSelfMember zusr (snd mems)
+      ensureActionAllowed AddConversationMember self
+      toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
+      let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
+      (newUsers, newQualifiedUsers) <- partitionEithers <$> traverse resolveOpaqueUserId newOpaqueUsers
+      for (listToMaybe newQualifiedUsers) $ \qualified ->
+        -- FUTUREWORK(federation): allow adding remote members
+        -- this one is a bit tricky because all of the checks that need to be done,
+        -- some of them on remote backends.
+        failFederationNotImplemented qualified
+      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
+      ensureAccess conv InviteAccess
+      ensureConvRoleNotElevated self (invRoleName invite)
+      case Data.convTeam conv of
+        Nothing -> do
+          ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
+          ensureConnectedOrSameTeam zusr newUsers
+        Just ti -> teamConvChecks ti newUsers convId conv
+      addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+    teamConvChecks tid newUsers convId conv = do
       tms <- Data.teamMembersLimited tid newUsers
       ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-      tcv <- Data.teamConversation tid cid
+      tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
       ensureConnectedOrSameTeam zusr newUsers
@@ -445,7 +455,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 
 updateSelfMember :: UserId -> ConnId -> ConvId -> MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
-  conv <- getConversationAndCheckMembership zusr cid
+  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
   m <- getSelfMember zusr (Data.convMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
@@ -461,7 +471,7 @@ updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> OtherMemberUpdate -
 updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
-  conv <- getConversationAndCheckMembership zusr cid
+  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
   let (bots, users) = botsAndUsers (Data.convMembers conv)
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
@@ -474,28 +484,32 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
-  conv <- Data.conversation cid >>= ifNothing convNotFound
-  let (bots, users) = botsAndUsers (Data.convMembers conv)
-  genConvChecks conv users
-  case Data.convTeam conv of
-    Nothing -> pure ()
-    Just ti -> teamConvChecks ti
-  if victim `isMember` users
-    then do
-      event <- Data.removeMembers conv zusr (singleton victim)
-      for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn ?~ zcon
-      void . forkIO $ void $ External.deliver (bots `zip` repeat event)
-      pure $ Updated event
-    else pure Unchanged
+  resolveOpaqueConvId cid >>= \case
+    Right qualified -> failFederationNotImplemented qualified
+    Left convId -> removeMemberOfLocalConversation convId
   where
+    removeMemberOfLocalConversation convId = do
+      conv <- Data.conversation convId >>= ifNothing convNotFound
+      let (bots, users) = botsAndUsers (Data.convMembers conv)
+      genConvChecks conv users
+      case Data.convTeam conv of
+        Nothing -> pure ()
+        Just ti -> teamConvChecks convId ti
+      if victim `isMember` users
+        then do
+          event <- Data.removeMembers conv zusr (singleton victim)
+          for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+            push1 $ p & pushConn ?~ zcon
+          void . forkIO $ void $ External.deliver (bots `zip` repeat event)
+          pure $ Updated event
+        else pure Unchanged
     genConvChecks conv usrs = do
       ensureGroupConv conv
       if zusr == victim
         then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
         else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
-    teamConvChecks tid = do
-      tcv <- Data.teamConversation tid cid
+    teamConvChecks convId tid = do
+      tcv <- Data.teamConversation tid convId
       when (maybe False (view managedConversation) tcv) $
         throwM (invalidOp "Users can not be removed from managed conversations.")
 
@@ -746,14 +760,14 @@ ensureGroupConv c = case Data.convType c of
   ConnectConv -> throwM invalidConnectOp
   _ -> return ()
 
-ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
+ensureMemberLimit :: [Member] -> [OpaqueUserId] -> Galley ()
 ensureMemberLimit old new = do
   o <- view options
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwM tooManyMembers
 
-notIsMember :: Data.Conversation -> UserId -> Bool
+notIsMember :: Data.Conversation -> OpaqueUserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
 
 ensureConvMember :: [Member] -> UserId -> Galley ()

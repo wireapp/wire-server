@@ -35,7 +35,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
+  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (makeIdOpaque zcnv)
   let cmems = mapMaybe mkMember (toList (Data.convMembers c))
   pure $ botConvView zcnv (Data.convName c) cmems
   where
@@ -52,11 +52,11 @@ getConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   conversationView zusr c
 
-getConversationRolesH :: UserId ::: ConvId ::: JSON -> Galley Response
+getConversationRolesH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
 getConversationRolesH (zusr ::: cnv ::: _) = do
   json <$> getConversationRoles zusr cnv
 
-getConversationRoles :: UserId -> ConvId -> Galley ConversationRolesList
+getConversationRoles :: UserId -> OpaqueConvId -> Galley ConversationRolesList
 getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
@@ -67,7 +67,7 @@ getConversationIdsH :: UserId ::: Maybe OpaqueConvId ::: Range 1 1000 Int32 ::: 
 getConversationIdsH (zusr ::: start ::: size ::: _) = do
   json <$> getConversationIds zusr start size
 
-getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (ConversationList ConvId)
+getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (ConversationList OpaqueConvId)
 getConversationIds zusr start size = do
   Data.ResultSet ids <- Data.conversationIdsFrom zusr start size
   pure $ ConversationList (result ids) (hasMore ids)
@@ -79,10 +79,13 @@ getConversationsH (zusr ::: range ::: size ::: _) =
 getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
+    -- FUTUREWORK(federation): resolve IDs in batch
+    (localConvIds, _qualifiedConvIds) <- partitionEithers <$> traverse resolveOpaqueConvId ids
+    -- FUTUREWORK(federation): fetch remote conversations from other backend
     cs <-
-      Data.conversations ids
+      Data.conversations localConvIds
         >>= filterM removeDeleted
-        >>= filterM (pure . isMember zusr . Data.convMembers)
+        >>= filterM (pure . isMember (makeIdOpaque zusr) . Data.convMembers)
     flip ConversationList more <$> mapM (conversationView zusr) cs
   where
     removeDeleted c
@@ -141,9 +144,9 @@ getConversationMeta cnv = do
 -- always false if the third lookup-case is used).
 withConvIds ::
   UserId ->
-  Maybe (Either (Range 1 32 (List ConvId)) ConvId) ->
+  Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ->
   Range 1 500 Int32 ->
-  (Bool -> [ConvId] -> Galley a) ->
+  (Bool -> [OpaqueConvId] -> Galley a) ->
   Galley a
 withConvIds usr range size k = case range of
   Nothing -> do

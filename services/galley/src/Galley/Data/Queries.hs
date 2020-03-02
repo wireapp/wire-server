@@ -185,15 +185,16 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
-selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
+selectUserConvs :: PrepQuery R (Identity UserId) (Identity OpaqueConvId)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
+selectUserConvsIn :: PrepQuery R (UserId, [OpaqueConvId]) (Identity OpaqueConvId)
 selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 
-selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
+selectUserConvsFrom :: PrepQuery R (UserId, OpaqueConvId) (Identity OpaqueConvId)
 selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
 
+-- FUTUREWORK(federation): unify types with queries above
 insertUserConv :: PrepQuery W (UserId, ConvId) ()
 insertUserConv = "insert into user (user, conv) values (?, ?)"
 
@@ -213,7 +214,7 @@ selectMembers = "select conv, user, service, provider, status, otr_muted, otr_mu
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
-removeMember :: PrepQuery W (ConvId, UserId) ()
+removeMember :: PrepQuery W (ConvId, OpaqueUserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
 updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()

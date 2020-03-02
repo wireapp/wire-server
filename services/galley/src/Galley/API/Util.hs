@@ -145,14 +145,14 @@ permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if usr `isMember` mems
+    if makeIdOpaque usr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | usr `isMember` mems -> promote
+    [_, _] | makeIdOpaque usr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
@@ -179,8 +179,8 @@ acceptOne2One usr conv conn = case Data.convType conv of
 isBot :: Member -> Bool
 isBot = isJust . memService
 
-isMember :: Foldable m => UserId -> m Member -> Bool
-isMember u = isJust . find ((u ==) . memId)
+isMember :: Foldable m => OpaqueUserId -> m Member -> Bool
+isMember u = isJust . find ((u ==) . makeIdOpaque . memId)
 
 findMember :: Data.Conversation -> UserId -> Maybe Member
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
@@ -238,9 +238,15 @@ getConversationAndCheckMembershipWithError ex zusr cnv = do
       when (DataTypes.isConvDeleted c) $ do
         Data.deleteConversation convId
         throwM convNotFound
-      unless (zusr `isMember` Data.convMembers c) $
+      unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
         throwM ex
       return c
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
+resolveOpaqueUserId :: OpaqueUserId -> Galley (Either UserId (Qualified UserId))
+resolveOpaqueUserId (Id opaque) =
+  -- FUTUREWORK(federation): implement database lookup
+  pure . Left $ Id opaque
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
 resolveOpaqueConvId :: OpaqueConvId -> Galley (Either ConvId (Qualified ConvId))

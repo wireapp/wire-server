@@ -468,7 +468,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
   let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
   cc <- Data.teamConversations tid
   for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
-    for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+    for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
       Data.removeMember remove (c ^. conversationId)
       unless (c ^. managedConversation) $
         pushEvent tmids edata now dc

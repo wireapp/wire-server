@@ -83,7 +83,8 @@ import Control.Arrow (second)
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.List.Extra as List
@@ -391,15 +392,15 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
-conversationIdsFrom :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (ResultSet ConvId)
-conversationIdsFrom usr range (fromRange -> max) =
-  ResultSet . fmap runIdentity . strip <$> case range of
+conversationIdsFrom :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (ResultSet OpaqueConvId)
+conversationIdsFrom usr start (fromRange -> max) =
+  ResultSet . fmap runIdentity . strip <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
-conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List ConvId) -> m [ConvId]
+conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [OpaqueConvId]
 conversationIdsOf usr (fromList . fromRange -> cids) =
   map runIdentity <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
@@ -643,15 +644,19 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
+removeMembers :: MonadClient m => Conversation -> UserId -> List1 (MappedOrLocalId Id.U) -> m Event
 removeMembers conv orig victims = do
   t <- liftIO getCurrentTime
   retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ (toList victims) $ \u -> do
-      addPrepQuery Cql.removeMember (convId conv, u)
-      addPrepQuery Cql.deleteUserConv (u, convId conv)
+    for_ (toList victims) $ \case
+      Local userId -> do
+        addPrepQuery Cql.removeMember (convId conv, makeIdOpaque userId)
+        addPrepQuery Cql.deleteUserConv (userId, convId conv)
+      Mapped IdMapping {idMappingLocal} -> do
+        -- the user's conversation has to be deleted on their own backend
+        addPrepQuery Cql.removeMember (convId conv, makeMappedIdOpaque idMappingLocal)
   return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIdList . toList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
