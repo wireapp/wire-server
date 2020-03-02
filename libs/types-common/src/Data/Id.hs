@@ -53,13 +53,21 @@ data Op a
 
 type AssetId = Id A
 
+type InvitationId = Id I
+
+-- | A local conversation ID
 type ConvId = Id C
 
+-- | A UUID local to this backend, for which we know a mapping to a
+-- remote qualified conversation ID exists.
+-- These IDs should never leak to other backends or their clients.
 type MappedConvId = Id (Mp C)
 
+-- | A UUID local to this backend, which can either be a local or a mapped conversation ID.
+-- Which one it is can be found out by checking whether there exists a corresponding
+-- local conversation or mapping in the database.
+-- This is how clients refer to conversations, they don't need to know about the mapping.
 type OpaqueConvId = Id (Op C)
-
-type InvitationId = Id I
 
 -- | A local user ID
 type UserId = Id U
@@ -74,6 +82,9 @@ type MappedUserId = Id (Mp U)
 -- local user or mapping in the database.
 -- This is how clients refer to users, they don't need to know about the mapping.
 type OpaqueUserId = Id (Op U)
+
+makeUserIdOpaque :: UserId -> OpaqueUserId
+makeUserIdOpaque (Id userId) = (Id userId)
 
 type ProviderId = Id P
 
