@@ -35,18 +35,18 @@ tests defOpts manager brig galley = return $ do
         "setEmailVisibility"
         [ testGroup
             "/users/"
-            $ [minBound ..]
-              <&> \visibility -> do
+            $ ((,) <$> [minBound ..] <*> [minBound ..])
+              <&> \(viewingUserIs, visibility) -> do
                 testCase (show visibility)
                   . runHttpT manager
-                  $ testUsersEmailVisibleIffExpected defOpts brig galley visibility,
+                  $ testUsersEmailVisibleIffExpected defOpts brig galley viewingUserIs visibility,
           testGroup
             "/users/:uid"
-            $ [minBound ..]
-              <&> \visibility -> do
+            $ ((,) <$> [minBound ..] <*> [minBound ..])
+              <&> \(viewingUserIs, visibility) -> do
                 testCase (show visibility)
                   . runHttpT manager
-                  $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley visibility
+                  $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley viewingUserIs visibility
         ]
     ]
 
@@ -54,25 +54,48 @@ tests defOpts manager brig galley = return $ do
 -- different categories enumerated here.
 data ViewedUserIs = SameTeam | DifferentTeam | NoTeam
 
-expectEmailVisible :: Opt.EmailVisibility -> ViewedUserIs -> Bool
+-- | Analog of 'ViewedUserIs' for the viewing user.
+data ViewingUserIs = Creator | Member | Guest
+  deriving (Eq, Show, Enum, Bounded)
+
+expectEmailVisible :: Opt.EmailVisibility -> ViewingUserIs -> ViewedUserIs -> Bool
 expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
-  SameTeam -> True
-  DifferentTeam -> True
-  NoTeam -> False
+  Creator -> \case
+    SameTeam -> True
+    DifferentTeam -> True
+    NoTeam -> False
+  Member -> \case
+    SameTeam -> True
+    DifferentTeam -> True
+    NoTeam -> False
+  Guest -> \case
+    SameTeam -> False
+    DifferentTeam -> False
+    NoTeam -> False
 expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
-  SameTeam -> True
-  DifferentTeam -> False
-  NoTeam -> False
+  Creator -> \case
+    SameTeam -> True
+    DifferentTeam -> False
+    NoTeam -> False
+  Member -> \case
+    SameTeam -> True
+    DifferentTeam -> False
+    NoTeam -> False
+  Guest -> \case
+    SameTeam -> False
+    DifferentTeam -> False
+    NoTeam -> False
 expectEmailVisible Opt.EmailVisibleToSelf = \case
-  SameTeam -> False
-  DifferentTeam -> False
-  NoTeam -> False
+  _ -> \case
+    SameTeam -> False
+    DifferentTeam -> False
+    NoTeam -> False
 
 jsonField :: FromJSON a => Text -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
 
-testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> Opt.EmailVisibility -> Http ()
-testUsersEmailVisibleIffExpected opts brig galley visibilitySetting = do
+testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testUsersEmailVisibleIffExpected opts brig galley viewingUserIs@Creator visibilitySetting = do
   (creatorId, tid) <- createUserWithTeam brig galley
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
@@ -85,17 +108,17 @@ testUsersEmailVisibleIffExpected opts brig galley visibilitySetting = do
       expected =
         Set.fromList
           [ ( Just $ userId userA,
-              if expectEmailVisible visibilitySetting SameTeam
+              if expectEmailVisible visibilitySetting viewingUserIs SameTeam
                 then userEmail userA
                 else Nothing
             ),
             ( Just $ userId userB,
-              if expectEmailVisible visibilitySetting DifferentTeam
+              if expectEmailVisible visibilitySetting viewingUserIs DifferentTeam
                 then userEmail userB
                 else Nothing
             ),
             ( Just $ userId nonTeamUser,
-              if expectEmailVisible visibilitySetting NoTeam
+              if expectEmailVisible visibilitySetting viewingUserIs NoTeam
                 then userEmail nonTeamUser
                 else Nothing
             )
@@ -108,8 +131,8 @@ testUsersEmailVisibleIffExpected opts brig galley visibilitySetting = do
   where
     result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
-testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> Opt.EmailVisibility -> Http ()
-testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
+testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs@Creator visibilitySetting = do
   (creatorId, tid) <- createUserWithTeam brig galley
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
@@ -118,17 +141,17 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley visibilitySetting = do
   let expectations :: [(UserId, Maybe Email)]
       expectations =
         [ ( userId userA,
-            if expectEmailVisible visibilitySetting SameTeam
+            if expectEmailVisible visibilitySetting viewingUserIs SameTeam
               then userEmail userA
               else Nothing
           ),
           ( userId userB,
-            if expectEmailVisible visibilitySetting DifferentTeam
+            if expectEmailVisible visibilitySetting viewingUserIs DifferentTeam
               then userEmail userB
               else Nothing
           ),
           ( userId nonTeamUser,
-            if expectEmailVisible visibilitySetting NoTeam
+            if expectEmailVisible visibilitySetting viewingUserIs NoTeam
               then userEmail nonTeamUser
               else Nothing
           )
