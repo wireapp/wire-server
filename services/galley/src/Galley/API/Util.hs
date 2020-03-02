@@ -5,8 +5,9 @@ import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
-import Data.Id
+import Data.Id as Id
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -224,15 +225,33 @@ getMember ex u ms = do
     Just m -> return m
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr cnv = do
-  c <- Data.conversation cnv >>= ifNothing convNotFound
-  when (DataTypes.isConvDeleted c) $ do
-    Data.deleteConversation cnv
-    throwM convNotFound
-  unless (zusr `isMember` Data.convMembers c) $
-    throwM ex
-  return c
+  resolveOpaqueConvId cnv >>= \case
+    Right qualified -> failFederationNotImplemented qualified
+    Left convId -> do
+      -- should we merge resolving to qualified ID and looking up the conversation?
+      c <- Data.conversation convId >>= ifNothing convNotFound
+      when (DataTypes.isConvDeleted c) $ do
+        Data.deleteConversation convId
+        throwM convNotFound
+      unless (zusr `isMember` Data.convMembers c) $
+        throwM ex
+      return c
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
+resolveOpaqueConvId :: OpaqueConvId -> Galley (Either ConvId (Qualified ConvId))
+resolveOpaqueConvId (Id opaque) =
+  -- FUTUREWORK(federation): implement database lookup
+  pure . Left $ Id opaque
+
+failFederationNotImplemented :: Qualified (Id a) -> Galley void
+failFederationNotImplemented qualified =
+  throwM $
+    Error
+      status500
+      "internal-error"
+      ("federation is not implemented, but global qualified ID found: " <> LT.fromStrict (renderQualified idToText qualified))
