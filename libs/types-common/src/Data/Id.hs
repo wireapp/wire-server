@@ -84,7 +84,10 @@ type MappedUserId = Id (Mapped U)
 type OpaqueUserId = Id (Opaque U)
 
 makeIdOpaque :: Id a -> Id (Opaque a)
-makeIdOpaque (Id userId) = (Id userId)
+makeIdOpaque (Id userId) = Id userId
+
+makeMappedIdOpaque :: Id (Mapped a) -> Id (Opaque a)
+makeMappedIdOpaque (Id userId) = Id userId
 
 type ProviderId = Id P
 
