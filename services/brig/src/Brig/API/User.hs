@@ -878,18 +878,20 @@ lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 -- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
 -- if the reverse relation (other -> self) is either 'Accepted' or 'Sent'.
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
+-- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
   AppIO [UserProfile]
-lookupProfiles self others = do
-  selfu <- Data.lookupUser self >>= maybe (throwM $ UserProfileNotFound self) return
-  users <- Data.lookupUsers others >>= mapM userGC
-  css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
-  emailVisibility' <- view (settings . emailVisibility)
-  return $ map (toProfile emailVisibility' css selfu) users
+lookupProfiles self others = Data.lookupUser self >>= \case
+  Nothing -> pure []
+  Just selfu -> do
+    users <- Data.lookupUsers others >>= mapM userGC
+    css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
+    emailVisibility' <- view (settings . emailVisibility)
+    return $ map (toProfile emailVisibility' css selfu) users
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
