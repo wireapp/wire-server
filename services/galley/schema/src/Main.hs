@@ -51,7 +51,6 @@ main = do
       V36.migration,
       V37.migration,
       V38AddRemoteIdentifiers.addRemoteIdentifiers
-
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]
