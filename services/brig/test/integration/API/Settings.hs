@@ -53,15 +53,18 @@ tests defOpts manager brig galley = return $ do
 data UserRelationship = SameTeam | DifferentTeam | NoTeam
 
 expectEmailVisible :: Opt.EmailVisibility -> UserRelationship -> Bool
-expectEmailVisible Opt.EmailVisibleIfOnTeam SameTeam = True
-expectEmailVisible Opt.EmailVisibleIfOnTeam DifferentTeam = True
-expectEmailVisible Opt.EmailVisibleIfOnTeam NoTeam = False
-expectEmailVisible Opt.EmailVisibleIfOnSameTeam SameTeam = True
-expectEmailVisible Opt.EmailVisibleIfOnSameTeam DifferentTeam = False
-expectEmailVisible Opt.EmailVisibleIfOnSameTeam NoTeam = False
-expectEmailVisible Opt.EmailVisibleToSelf SameTeam = False
-expectEmailVisible Opt.EmailVisibleToSelf DifferentTeam = False
-expectEmailVisible Opt.EmailVisibleToSelf NoTeam = False
+expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
+  SameTeam -> True
+  DifferentTeam -> True
+  NoTeam -> False
+expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
+  SameTeam -> True
+  DifferentTeam -> False
+  NoTeam -> False
+expectEmailVisible Opt.EmailVisibleToSelf = \case
+  SameTeam -> False
+  DifferentTeam -> False
+  NoTeam -> False
 
 jsonField :: FromJSON a => Text -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
