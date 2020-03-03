@@ -480,6 +480,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
+  | ViewSameTeamEmails
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
@@ -518,7 +519,9 @@ hiddenPermissionsFromPermissions =
               [ ChangeLegalHoldTeamSettings,
                 ChangeLegalHoldUserSettings
               ]
-        roleHiddenPerms RoleMember = roleHiddenPerms RoleExternalPartner
+        roleHiddenPerms RoleMember =
+          (roleHiddenPerms RoleExternalPartner <>) $
+            Set.fromList [ViewSameTeamEmails]
         roleHiddenPerms RoleExternalPartner =
           Set.fromList
             [ ViewLegalHoldTeamSettings,
