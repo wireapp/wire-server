@@ -96,15 +96,7 @@ jsonField f u = u ^? key f >>= maybeFromJSON
 
 testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
 testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySetting = do
-  (creatorId, tid) <- createUserWithTeam brig galley
-  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
-  userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
-  userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
-  nonTeamUser <- createUser "joe" brig
-  viewerId <- case viewingUserIs of
-    Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
-    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
+  (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let uids =
         C8.intercalate "," $
           toByteString' <$> [userId userA, userId userB, userId nonTeamUser]
@@ -137,15 +129,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
 
 testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibilitySetting = do
-  (creatorId, tid) <- createUserWithTeam brig galley
-  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
-  userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
-  userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
-  nonTeamUser <- createUser "joe" brig
-  viewerId <- case viewingUserIs of
-    Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
-    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
+  (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let expectations :: [(UserId, Maybe Email)]
       expectations =
         [ ( userId userA,
@@ -173,3 +157,16 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
   where
     emailResult :: Response (Maybe LByteString) -> Maybe Email
     emailResult r = responseJsonMaybe r >>= jsonField "email"
+
+setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)
+setup brig galley viewingUserIs = do
+  (creatorId, tid) <- createUserWithTeam brig galley
+  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
+  userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
+  userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
+  nonTeamUser <- createUser "joe" brig
+  viewerId <- case viewingUserIs of
+    Creator -> pure creatorId
+    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
+  pure (viewerId, userA, userB, nonTeamUser)
