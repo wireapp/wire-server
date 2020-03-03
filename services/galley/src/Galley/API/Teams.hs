@@ -265,12 +265,12 @@ getTeamMembers (zusr ::: tid ::: maxResults ::: _) = do
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  case findTeamMember zusr mems of
+  zusrMembership <- Data.teamMember tid zusr
+  case zusrMembership of
     Nothing -> throwM noTeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
-      let member = findTeamMember uid mems
+      member <- Data.teamMember tid uid
       maybe
         (throwM teamMemberNotFound)
         (pure . json . teamMemberJson withPerms)
