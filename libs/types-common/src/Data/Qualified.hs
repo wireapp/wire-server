@@ -30,6 +30,7 @@ renderQualified renderLocal (Qualified localPart domain) =
 -- | The string to parse must contain exactly one @"@"@ to separate local part from domain.
 mkQualified :: (Text -> Either String a) -> Text -> Either String (Qualified a)
 mkQualified mkLocal txt =
+  -- FUTUREWORK: this should be done in a less hacky way
   case Text.split (== '@') txt of
     [local, domain] -> do
       _qDomain <- mkDomain domain
