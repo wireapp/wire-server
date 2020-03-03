@@ -187,7 +187,7 @@ errorHandlers =
     Handler $ \(_ :: InvalidRequest) -> pure $ Wai.Error status400 "client-error" "Invalid Request",
     Handler $ \(_ :: TimeoutThread) -> pure $ Wai.Error status408 "client-error" "Request Timeout",
     Handler $ \(ZlibException (-3)) -> pure $ Wai.Error status400 "client-error" "Invalid request body compression",
-    Handler $ \(_ :: SomeException) -> pure $ Wai.Error status500 "server-error" "Server Error"
+    Handler $ \(e :: SomeException) -> pure $ Wai.Error status500 "server-error" (cs $ show e)
   ]
 {-# INLINE errorHandlers #-}
 
