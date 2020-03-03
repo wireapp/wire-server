@@ -332,8 +332,8 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
-  mbTms <- traverse Data.teamMembersUnsafeForLargeTeams $ Data.convTeam conv
-  ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
+  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  ensureAccessRoleSimple (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) newUsers
   -- NOTE: When joining conversations, all users become members
