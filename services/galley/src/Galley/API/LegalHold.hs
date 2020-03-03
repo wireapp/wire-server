@@ -215,14 +215,13 @@ disableForUser (zusr ::: tid ::: uid ::: req ::: _) = do
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- Data.teamMember tid zusr
   permissionCheckSimple ChangeLegalHoldUserSettings zusrMembership
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  if userLHNotDisabled membs
+  uidMembership <- Data.teamMember tid uid
+  if userLHNotDisabled uidMembership
     then disableLH >> pure empty
     else pure noContent
   where
     -- If not enabled nor pending, then it's disabled
-    userLHNotDisabled mems = do
-      let target = findTeamMember uid mems
+    userLHNotDisabled target = do
       case fmap (view legalHoldStatus) target of
         Just UserLegalHoldEnabled -> True
         Just UserLegalHoldPending -> True
