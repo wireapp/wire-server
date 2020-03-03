@@ -114,8 +114,8 @@ claimPrekeyBundle u = do
   PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
-claimMultiPrekeyBundles (UserClients x) = do
-  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . id)) $ Map.toList x
+claimMultiPrekeyBundles (UserClients clientMap) = do
+  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . id)) $ Map.toList clientMap
   let (localUserIds, remoteUserIds) = partitionWith localOrRemoteClient resolved
   for_ (nonEmpty remoteUserIds) $ \remotes ->
     -- FUTUREWORK(federation): check remote connections
@@ -137,7 +137,10 @@ claimMultiPrekeyBundles (UserClients x) = do
     partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
     partitionWith f = partitionEithers . map f
     localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
-    localOrRemoteClient = undefined
+    localOrRemoteClient (mappedOrLocal, x) =
+      case mappedOrLocal of
+        Local localId -> Left (localId, x)
+        Mapped mapping -> Right (mapping, x)
 
 -- Utilities
 
