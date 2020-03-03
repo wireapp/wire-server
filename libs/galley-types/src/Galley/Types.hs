@@ -313,10 +313,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId) -- TODO (mheinzel)
+    OtrIgnoreMissing (Set OpaqueUserId)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId) -- TODO (mheinzel)
+    OtrReportMissing (Set OpaqueUserId)
 
 data NewOtrMessage
   = NewOtrMessage

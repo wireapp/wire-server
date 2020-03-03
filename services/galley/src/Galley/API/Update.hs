@@ -966,5 +966,5 @@ checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
     filterMissing miss = case val of
       OtrReportAllMissing -> miss
       OtrIgnoreAllMissing -> Clients.nil
-      OtrReportMissing us -> Clients.filter (`Set.member` Set.map makeIdOpaque us) miss
-      OtrIgnoreMissing us -> Clients.filter (`Set.notMember` Set.map makeIdOpaque us) miss
+      OtrReportMissing us -> Clients.filter (`Set.member` us) miss
+      OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
