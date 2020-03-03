@@ -35,7 +35,6 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Event
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Control.Lens (view)
 import Data.Bitraversable (bitraverse)
@@ -53,6 +52,7 @@ import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import UnliftIO.Async (mapConcurrently)
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -120,20 +120,17 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   -- FUTUREWORK(federation): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwStd . federationNotImplemented . fmap fst
-  e <- ask
-  -- TODO: use traverse
-  m <- liftIO $ forM (chunksOf 16 localUserIds) (mapConcurrently $ runAppT e . outer)
+  m <- lift $ traverse (mapConcurrently getUserKeys) (chunksOf 16 localUserIds)
   return . UserClientMap . Map.mapKeys makeIdOpaque . Map.fromList $ concat m
   where
-    outer :: (UserId, Set ClientId) -> AppIO (UserId, Map ClientId (Maybe Prekey))
-    outer (u, c) = do
-      keymap <- foldrM (inner u) Map.empty c
-      return (u, keymap)
-    inner :: UserId -> ClientId -> Map ClientId (Maybe Prekey) -> AppIO (Map ClientId (Maybe Prekey))
-    inner u c m = do
+    getUserKeys :: (UserId, Set ClientId) -> AppIO (UserId, Map ClientId (Maybe Prekey))
+    getUserKeys i@(u, _) =
+      fmap (u,) . foldMap getClientKeys . traverse toList $ i
+    getClientKeys :: (UserId, ClientId) -> AppIO (Map ClientId (Maybe Prekey))
+    getClientKeys (u, c) = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
-      return (Map.insert c key m)
+      return (Map.singleton c key)
     localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
     localOrRemoteClient (mappedOrLocal, x) =
       case mappedOrLocal of
