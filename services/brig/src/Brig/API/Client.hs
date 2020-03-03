@@ -116,10 +116,10 @@ claimPrekeyBundle u = do
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
   resolved <- traverse (bitraverse resolveOpaqueUserId (pure . id)) $ Map.toList clientMap
-  let (localUserIds, remoteUserIds) = partitionWith localOrRemoteClient resolved
-  for_ (nonEmpty remoteUserIds) $ \remotes ->
-    -- FUTUREWORK(federation): check remote connections
-    throwStd . federationNotImplemented . fmap fst $ remotes
+  let (localUserIds, remoteUserIds) = partitionEithers $ map localOrRemoteClient resolved
+  -- FUTUREWORK(federation): check remote connections
+  for_ (nonEmpty remoteUserIds) $
+    throwStd . federationNotImplemented . fmap fst
   e <- ask
   -- TODO: use traverse
   m <- liftIO $ forM (chunksOf 16 localUserIds) (mapConcurrently $ runAppT e . outer)
@@ -134,8 +134,6 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return (Map.insert c key m)
-    partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
-    partitionWith f = partitionEithers . map f
     localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
     localOrRemoteClient (mappedOrLocal, x) =
       case mappedOrLocal of

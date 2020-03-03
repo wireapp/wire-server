@@ -69,9 +69,9 @@ ensureConnected _ [] = pure ()
 ensureConnected u opaqueIds = do
   (localUserIds, remoteUserIds) <-
     partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
-  for_ (nonEmpty remoteUserIds) $ \remotes ->
-    -- FUTUREWORK(federation): check remote connections
-    throwM $ federationNotImplemented remotes
+  -- FUTUREWORK(federation): check remote connections
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
   ensureConnectedToLocals localUserIds
   where
     ensureConnectedToLocals uids = do
