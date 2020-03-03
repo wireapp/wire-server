@@ -37,14 +37,14 @@ tests defOpts manager brig galley = return $ do
             "/users/"
             $ ((,) <$> [minBound ..] <*> [minBound ..])
               <&> \(viewingUserIs, visibility) -> do
-                testCase (show visibility)
+                testCase (show (viewingUserIs, visibility))
                   . runHttpT manager
                   $ testUsersEmailVisibleIffExpected defOpts brig galley viewingUserIs visibility,
           testGroup
             "/users/:uid"
             $ ((,) <$> [minBound ..] <*> [minBound ..])
               <&> \(viewingUserIs, visibility) -> do
-                testCase (show visibility)
+                testCase (show (viewingUserIs, visibility))
                   . runHttpT manager
                   $ testGetUserEmailShowsEmailsIffExpected defOpts brig galley viewingUserIs visibility
         ]
