@@ -170,6 +170,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   -- removed from the conversation. We keep track of them using 'State'.
   (newUsers, newBots) <- flip execStateT (users, bots) $ do
     -- We might have to remove non-activated members
+    -- TODO(akshay): Remove Ord instance for AccessRole.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
       activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
@@ -177,8 +178,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
-        tMembers <- map (view userId) <$> lift (Data.teamMembersUnsafeForLargeTeams tid)
-        usersL %= filter (\user -> memId user `elem` tMembers)
+        currentUsers <- use usersL
+        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (memId user)) currentUsers
+        assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
   -- Update Cassandra & send an event
