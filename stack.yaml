@@ -52,7 +52,7 @@ extra-deps:
 - git: https://github.com/wireapp/saml2-web-sso
   commit: 1a1b313092beb685a9bb15685c83a3162c1e220f  # master (Feb 17, 2020)
 - git: https://github.com/wireapp/hscim
-  commit: af22d89e7723d0f1a264fb4dbd0b4bbb4097c7a1  # master (Feb 4, 2020)
+  commit: a6f3c00af53c342b0f28fe0d441556da1f62381e  # some weird branch
 - ormolu-0.0.3.1
 - ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408  # for ormolu-0.0.3.1
 

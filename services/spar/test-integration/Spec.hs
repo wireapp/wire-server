@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- | It would be nice to use hspec-discover, which even has support for
 -- <https://hspec.github.io/hspec-discover.html#using-a-custom-main-function custom main functions>.
 --
@@ -10,8 +12,14 @@
 -- the solution: https://github.com/hspec/hspec/pull/397.
 module Main where
 
+import Control.Lens ((^.))
+import Data.String.Conversions
+import Data.Text (pack)
 import Imports
+import Servant.API (toHeader)
+import Spar.Run (mkApp)
 import System.Environment (withArgs)
+import System.Random (randomRIO)
 import Test.Hspec
 import qualified Test.LoggingSpec
 import qualified Test.MetricsSpec
@@ -22,12 +30,15 @@ import qualified Test.Spar.Intra.BrigSpec
 import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 import Util
+import Web.Scim.Test.Acceptance (AcceptanceConfig (..), AcceptanceQueryConfig (..), microsoftAzure)
 
 main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
-  withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
+  withArgs hspecArgs . hspec $ do
+    beforeAll (pure env) . afterAll destroyEnv $ mkspec
+    mkspec' env
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
@@ -47,3 +58,16 @@ mkspec = do
   describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
   describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
   describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
+
+mkspec' :: TestEnv -> Spec
+mkspec' env = do
+  describe "hscim acceptance tests" $
+    microsoftAzure AcceptanceConfig {..}
+  where
+    scimAppAndConfig = do
+      (app, _) <- mkApp (env ^. teOpts)
+      scimAuthToken <- toHeader . fst <$> registerIdPAndScimToken `runReaderT` env
+      let queryConfig = AcceptanceQueryConfig {..}
+          scimPathPrefix = "/scim/v2"
+      pure (app, queryConfig)
+    genUserName = pack <$> replicateM 9 (randomRIO ('a', 'z'))
