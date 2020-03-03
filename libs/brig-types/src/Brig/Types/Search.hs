@@ -5,7 +5,6 @@ module Brig.Types.Search where
 
 import Data.Aeson
 import Data.Id (TeamId, UserId)
-import Data.Json.Util
 import Imports
 
 data SearchResult a
