@@ -1,13 +1,19 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
+import Data.Id (idToText)
+import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
+import Data.List.NonEmpty (NonEmpty)
+import Data.Qualified (renderQualified)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
+import qualified Data.Text.Lazy as LT
 import Galley.Types.Conversations.Roles (Action)
 import Galley.Types.Teams (IsPerm)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Type.Reflection (Typeable, typeRep)
 
 internalError :: Error
 internalError = Error status500 "internal-error" "internal error"
@@ -188,3 +194,15 @@ customBackendNotFound domain =
     status404
     "custom-backend-not-found"
     ("custom backend not found for domain: " <> cs (domainText domain))
+
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
+federationNotImplemented qualified =
+  Error
+    status501
+    "federation-not-implemented"
+    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
+    renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
+      idToText idMappingLocal <> " -> " <> renderQualified idToText idMappingGlobal

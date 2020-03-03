@@ -10,7 +10,8 @@ where
 import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
-import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
+import Data.IdMapping (MappedOrLocalId (Local, Mapped))
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (list1)
 import Data.Range
 import qualified Data.Set as Set
@@ -69,9 +70,9 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   ensureConnected zusr (fromConvSize uids)
   (localUserIds, remoteUserIds) <-
     partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
-  for_ (listToMaybe remoteUserIds) $ \IdMapping {idMappingGlobal} ->
-    -- FUTUREWORK(federation): notify remote users' backends about new conversation
-    failFederationNotImplemented idMappingGlobal
+  -- FUTUREWORK(federation): notify remote users' backends about new conversation
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
   localCheckedUsers <- checkedConvSize localUserIds
   c <-
     Data.createConversation
@@ -93,10 +94,9 @@ createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Con
 createTeamGroupConv zusr zcon tinfo body = do
   (localUserIds, remoteUserIds) <-
     partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
-  for_ (listToMaybe remoteUserIds) $ \IdMapping {idMappingGlobal} ->
-    -- for now, teams don't support conversations with remote members
-    -- TODO: change error to something 400?
-    failFederationNotImplemented idMappingGlobal
+  -- for now, teams don't support conversations with remote members
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
   name <- rangeCheckedMaybe (newConvName body)
   teamMems <- Data.teamMembers (cnvTeamId tinfo)
   ensureAccessRole (accessRole body) localUserIds (Just teamMems)

@@ -45,6 +45,7 @@ import Data.Code
 import Data.Id
 import Data.IdMapping
 import Data.List (delete)
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -414,7 +415,7 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
 addMembers :: UserId -> ConnId -> OpaqueConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
   resolveOpaqueConvId cid >>= \case
-    Mapped IdMapping {idMappingGlobal} -> failFederationNotImplemented idMappingGlobal
+    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
     Local localConvId -> addMembersToLocalConv localConvId
   where
     addMembersToLocalConv convId = do
@@ -425,11 +426,11 @@ addMembers zusr zcon cid invite = do
       toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
       let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
       (newUsers, newQualifiedUsers) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId newOpaqueUsers
-      for_ (listToMaybe newQualifiedUsers) $ \IdMapping {idMappingGlobal} ->
-        -- FUTUREWORK(federation): allow adding remote members
-        -- this one is a bit tricky because all of the checks that need to be done,
-        -- some of them on remote backends.
-        failFederationNotImplemented idMappingGlobal
+      -- FUTUREWORK(federation): allow adding remote members
+      -- this one is a bit tricky because all of the checks that need to be done,
+      -- some of them on remote backends.
+      for_ (nonEmpty newQualifiedUsers) $
+        throwM . federationNotImplemented
       ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
       ensureAccess conv InviteAccess
       ensureConvRoleNotElevated self (invRoleName invite)
@@ -486,7 +487,7 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
   resolveOpaqueConvId cid >>= \case
-    Mapped IdMapping {idMappingGlobal} -> failFederationNotImplemented idMappingGlobal
+    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
     Local localConvId -> removeMemberOfLocalConversation localConvId
   where
     removeMemberOfLocalConversation convId = do
@@ -582,7 +583,7 @@ postNewOtrBroadcast usr con val msg = do
 postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
   resolveOpaqueConvId cnv >>= \case
-    Mapped IdMapping {idMappingGlobal} -> failFederationNotImplemented idMappingGlobal
+    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
     Local localConvId -> postToLocalConv localConvId
   where
     postToLocalConv localConvId = do

@@ -7,10 +7,9 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
 import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
+import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -28,7 +27,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import Type.Reflection (Typeable, typeRep)
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -71,9 +69,9 @@ ensureConnected _ [] = pure ()
 ensureConnected u opaqueIds = do
   (localUserIds, remoteUserIds) <-
     partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
-  for_ (listToMaybe remoteUserIds) $ \IdMapping {idMappingGlobal} ->
+  for_ (nonEmpty remoteUserIds) $ \remotes ->
     -- FUTUREWORK(federation): check remote connections
-    failFederationNotImplemented idMappingGlobal
+    throwM $ federationNotImplemented remotes
   ensureConnectedToLocals localUserIds
   where
     ensureConnectedToLocals uids = do
@@ -242,7 +240,8 @@ getConversationAndCheckMembership = getConversationAndCheckMembershipWithError c
 getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr cnv = do
   resolveOpaqueConvId cnv >>= \case
-    Mapped IdMapping {idMappingGlobal} -> failFederationNotImplemented idMappingGlobal
+    Mapped idMapping ->
+      throwM . federationNotImplemented $ pure idMapping
     Local convId -> do
       -- should we merge resolving to qualified ID and looking up the conversation?
       c <- Data.conversation convId >>= ifNothing convNotFound
@@ -269,14 +268,3 @@ partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [Id
 partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
-
-failFederationNotImplemented :: forall a void. Typeable a => Qualified (Id a) -> Galley void
-failFederationNotImplemented qualified =
-  throwM $
-    Error
-      status500
-      "internal-error"
-      ("federation is not implemented, but global qualified ID (" <> idType <> ") found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.fromStrict (renderQualified idToText qualified)

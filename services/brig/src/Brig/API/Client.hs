@@ -119,7 +119,7 @@ claimMultiPrekeyBundles (UserClients x) = do
   let (localUserIds, remoteUserIds) = partitionWith localOrRemoteClient resolved
   for_ (nonEmpty remoteUserIds) $ \remotes ->
     -- FUTUREWORK(federation): check remote connections
-    throwStd . federationNotImplemented . fmap (idMappingGlobal . fst) $ remotes
+    throwStd . federationNotImplemented . fmap fst $ remotes
   e <- ask
   -- TODO: use traverse
   m <- liftIO $ forM (chunksOf 16 localUserIds) (mapConcurrently $ runAppT e . outer)

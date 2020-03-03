@@ -8,9 +8,10 @@ import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.ByteString.Conversion
 import qualified Data.HashMap.Strict as HashMap
-import Data.Id (Id, idToText)
+import Data.Id (idToText)
+import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (Qualified, renderQualified)
+import Data.Qualified (renderQualified)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
@@ -452,7 +453,7 @@ can'tAddLegalHoldClient =
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
 
-federationNotImplemented :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Wai.Error
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
 federationNotImplemented qualified =
   Wai.Error
     status501
@@ -460,4 +461,6 @@ federationNotImplemented qualified =
     ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
   where
     idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualified idToText) $ qualified
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
+    renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
+      idToText idMappingLocal <> " -> " <> renderQualified idToText idMappingGlobal
