@@ -2,8 +2,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- FUTUREWORK: generate this file
 module Galley.Types.Proto
-  ( OpaqueUserId,
+  ( UserId,
     userId,
     fromUserId,
     ClientId,
@@ -48,22 +49,22 @@ import qualified Galley.Types as Galley
 import qualified Gundeck.Types.Push as Gundeck
 import Imports
 
--- OpaqueUserId -------------------------------------------------------------
+-- UserId -------------------------------------------------------------------
 
-newtype OpaqueUserId
-  = OpaqueUserId
+newtype UserId
+  = UserId
       { _user :: Required 1 (Value Id.OpaqueUserId)
       }
   deriving (Eq, Show, Generic)
 
-instance Encode OpaqueUserId
+instance Encode UserId
 
-instance Decode OpaqueUserId
+instance Decode UserId
 
-fromUserId :: Id.OpaqueUserId -> OpaqueUserId
-fromUserId u = OpaqueUserId {_user = putField u}
+fromUserId :: Id.OpaqueUserId -> UserId
+fromUserId u = UserId {_user = putField u}
 
-userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> OpaqueUserId -> f OpaqueUserId
+userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> UserId -> f UserId
 userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
 -- ClientId ------------------------------------------------------------------
@@ -124,7 +125,7 @@ clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 
 data UserEntry
   = UserEntry
-      { _userId :: !(Required 1 (Message OpaqueUserId)),
+      { _userId :: !(Required 1 (Message UserId)),
         _userVal :: !(Repeated 2 (Message ClientEntry))
       }
   deriving (Eq, Show, Generic)
@@ -133,14 +134,14 @@ instance Encode UserEntry
 
 instance Decode UserEntry
 
-userEntry :: OpaqueUserId -> [ClientEntry] -> UserEntry
+userEntry :: UserId -> [ClientEntry] -> UserEntry
 userEntry u c =
   UserEntry
     { _userId = putField u,
       _userVal = putField c
     }
 
-userEntryId :: Functor f => (OpaqueUserId -> f OpaqueUserId) -> UserEntry -> f UserEntry
+userEntryId :: Functor f => (UserId -> f UserId) -> UserEntry -> f UserEntry
 userEntryId f c = (\x -> c {_userId = x}) <$> field f (_userId c)
 
 userEntryClients :: Functor f => ([ClientEntry] -> f [ClientEntry]) -> UserEntry -> f UserEntry
