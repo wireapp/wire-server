@@ -106,7 +106,7 @@ run spar "" ${orange}
 function run_nginz() {
     colour=$1
 
-    # For nix we dont need LD_LIBRARY_PATH; we link agaiinterpolationnst libzauth directly.
+    # For nix we dont need LD_LIBRARY_PATH; we link against libzauth directly.
     # nix-build will put a symlink to ./result with the nginx artifact
     if which nix-build; then
       nginz=$(nix-build "${TOP_LEVEL}/nix" -A nginz --no-out-link )
