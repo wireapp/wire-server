@@ -95,12 +95,16 @@ jsonField :: FromJSON a => Text -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
 
 testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
-testUsersEmailVisibleIffExpected opts brig galley viewingUserIs@Creator visibilitySetting = do
+testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (creatorId, tid) <- createUserWithTeam brig galley
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
   userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
   nonTeamUser <- createUser "joe" brig
+  viewerId <- case viewingUserIs of
+    Creator -> pure creatorId
+    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
   let uids =
         C8.intercalate "," $
           toByteString' <$> [userId userA, userId userB, userId nonTeamUser]
@@ -125,19 +129,23 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs@Creator visibili
           ]
   let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
   withSettingsOverrides newOpts $ do
-    get (brig . zUser creatorId . path "users" . queryItem "ids" uids) !!! do
+    get (brig . zUser viewerId . path "users" . queryItem "ids" uids) !!! do
       const 200 === statusCode
       const (Just expected) === result
   where
     result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
 testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
-testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs@Creator visibilitySetting = do
+testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (creatorId, tid) <- createUserWithTeam brig galley
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
   userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
   nonTeamUser <- createUser "joe" brig
+  viewerId <- case viewingUserIs of
+    Creator -> pure creatorId
+    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
   let expectations :: [(UserId, Maybe Email)]
       expectations =
         [ ( userId userA,
@@ -159,7 +167,7 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs@Creator vi
   let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
   withSettingsOverrides newOpts $ do
     forM_ expectations $ \(uid, expectedEmail) ->
-      get (brig . zUser creatorId . paths ["users", toByteString' uid]) !!! do
+      get (brig . zUser viewerId . paths ["users", toByteString' uid]) !!! do
         const 200 === statusCode
         const expectedEmail === emailResult
   where
