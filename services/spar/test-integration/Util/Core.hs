@@ -114,6 +114,7 @@ import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
+import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
@@ -378,8 +379,8 @@ nextWireId = Id <$> liftIO UUID.nextRandom
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
 
-nextHandle :: MonadIO m => m Brig.Handle
-nextHandle = liftIO $ Brig.Handle . cs . show <$> randomRIO (0 :: Int, 13371137)
+nextHandle :: MonadIO m => m Handle
+nextHandle = liftIO $ Handle . cs . show <$> randomRIO (0 :: Int, 13371137)
 
 -- | Generate a 'SAML.UserRef' subject.
 nextSubject :: (HasCallStack, MonadIO m) => m NameID

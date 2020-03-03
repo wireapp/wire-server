@@ -29,6 +29,7 @@ library:
   - data-default >=0.5
   - deepseq >=1.4
   - directory >=1.2
+  - email-validate >=2.3
   - errors >=2.0
   - ghc-prim
   - hashable >=1.2
@@ -42,6 +43,7 @@ library:
   - safe >=0.3
   - scientific >=0.3.4
   - semigroups >=0.12
+  - servant >=0.16
   - singletons >=2.0
   - string-conversions
   - swagger >=0.3

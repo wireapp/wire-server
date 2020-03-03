@@ -28,6 +28,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Handle (Handle (Handle))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id hiding (client)
 import Data.List1 (List1)

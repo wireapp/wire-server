@@ -63,6 +63,7 @@ import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
+import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))

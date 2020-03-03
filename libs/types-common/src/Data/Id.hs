@@ -47,13 +47,47 @@ data T
 
 data STo
 
-type AssetId = Id A
+data Mapped a
 
-type ConvId = Id C
+data Opaque a
+
+type AssetId = Id A
 
 type InvitationId = Id I
 
+-- | A local conversation ID
+type ConvId = Id C
+
+-- | A UUID local to this backend, for which we know a mapping to a
+-- remote qualified conversation ID exists.
+-- These IDs should never leak to other backends or their clients.
+type MappedConvId = Id (Mapped C)
+
+-- | A UUID local to this backend, which can either be a local or a mapped conversation ID.
+-- Which one it is can be found out by checking whether there exists a corresponding
+-- local conversation or mapping in the database.
+-- This is how clients refer to conversations, they don't need to know about the mapping.
+type OpaqueConvId = Id (Opaque C)
+
+-- | A local user ID
 type UserId = Id U
+
+-- | A UUID local to this backend, for which we know a mapping to a
+-- remote qualified user ID exists.
+-- These IDs should never leak to other backends or their clients.
+type MappedUserId = Id (Mapped U)
+
+-- | A UUID local to this backend, which can either be a local or a mapped user ID.
+-- Which one it is can be found out by checking whether there exists a corresponding
+-- local user or mapping in the database.
+-- This is how clients refer to users, they don't need to know about the mapping.
+type OpaqueUserId = Id (Opaque U)
+
+makeIdOpaque :: Id a -> Id (Opaque a)
+makeIdOpaque (Id userId) = Id userId
+
+makeMappedIdOpaque :: Id (Mapped a) -> Id (Opaque a)
+makeMappedIdOpaque (Id userId) = Id userId
 
 type ProviderId = Id P
 

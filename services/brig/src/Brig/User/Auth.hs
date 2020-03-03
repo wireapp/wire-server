@@ -42,6 +42,7 @@ import qualified Brig.ZAuth as ZAuth
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
+import Data.Handle (Handle)
 import Data.Id
 import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword (..))

@@ -6,6 +6,7 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
@@ -332,14 +333,14 @@ updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
 
-selectCustomBackend :: PrepQuery R (Identity EmailDomain) (HttpsUrl, HttpsUrl)
+selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
 
-updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, EmailDomain) ()
+updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
 updateCustomBackend =
   "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
 
-deleteCustomBackend :: PrepQuery W (Identity EmailDomain) ()
+deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =
   "delete from custom_backend where domain = ?"

@@ -16,6 +16,7 @@ where
 import Brig.Types.Client.Prekey
 import Brig.Types.Common
 import Data.Aeson
+import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Galley.Types.Bot
