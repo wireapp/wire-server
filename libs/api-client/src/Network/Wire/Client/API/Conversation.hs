@@ -47,7 +47,7 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
 -- will be thrown. It's not possible that some users will be added and
 -- others will not.
 addMembers :: (MonadSession m, MonadThrow m) => ConvId -> List1 UserId -> m (Maybe (ConvEvent SimpleMembers))
-addMembers cnv (fmap makeUserIdOpaque -> mems) = do
+addMembers cnv (fmap makeIdOpaque -> mems) = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> Just <$> responseJsonThrow (ParseError . pack) rs
@@ -114,7 +114,7 @@ createConv ::
   -- | Conversation name
   Maybe Text ->
   m Conversation
-createConv (fmap makeUserIdOpaque -> users) name = sessionRequest req rsc readBody
+createConv (fmap makeIdOpaque -> users) name = sessionRequest req rsc readBody
   where
     req =
       method POST
