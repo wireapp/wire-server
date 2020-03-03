@@ -92,7 +92,6 @@ getConversations zusr range size =
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- TODO(mheinzel): in minimal API, but not essential
 getSelfH :: UserId ::: ConvId -> Galley Response
 getSelfH (zusr ::: cnv) = do
   json <$> getSelf zusr cnv

@@ -448,7 +448,6 @@ addMembers zusr zcon cid invite = do
         throwM noAddToManaged
       ensureConnectedOrSameTeam zusr newUsers
 
--- TODO(mheinzel): in minimal API, but not essential
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
   update <- fromJsonBody req
@@ -656,7 +655,6 @@ updateConversationName zusr zcon cnv convRename = do
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
 
--- TODO(mheinzel): included in minimal API, but not essential
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
   typingData <- fromJsonBody req
