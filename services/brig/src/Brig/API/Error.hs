@@ -8,11 +8,17 @@ import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.ByteString.Conversion
 import qualified Data.HashMap.Strict as HashMap
+import Data.Id (Id, idToText)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Qualified (Qualified, renderQualified)
+import Data.String.Conversions (cs)
+import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
+import Type.Reflection (Typeable, typeRep)
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -445,3 +451,13 @@ can'tAddLegalHoldClient =
 
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
+
+federationNotImplemented :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Wai.Error
+federationNotImplemented qualified =
+  Wai.Error
+    status501
+    "federation-not-implemented"
+    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualified idToText) $ qualified

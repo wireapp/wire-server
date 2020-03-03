@@ -20,7 +20,10 @@ module Brig.API.Client
   )
 where
 
+import Brig.API.Error (federationNotImplemented, throwStd)
+import Brig.API.Handler (Handler)
 import Brig.API.Types
+import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
@@ -35,9 +38,13 @@ import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Control.Lens (view)
+import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.IP (IP)
-import Data.Id (ClientId, ConnId, UserId)
+import qualified Data.Id as Id
+import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.IdMapping
+import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
@@ -106,20 +113,31 @@ claimPrekeyBundle u = do
   clients <- map clientId <$> Data.lookupClients u
   PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
 
-claimMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients x) = do
+  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . id)) $ Map.toList x
+  let (localUserIds, remoteUserIds) = partitionWith localOrRemoteClient resolved
+  for_ (nonEmpty remoteUserIds) $ \remotes ->
+    -- FUTUREWORK(federation): check remote connections
+    throwStd . federationNotImplemented . fmap (idMappingGlobal . fst) $ remotes
   e <- ask
-  m <- liftIO $ forM chunks (mapConcurrently $ runAppT e . outer)
-  return $ UserClientMap (Map.fromList (concat m))
+  -- TODO: use traverse
+  m <- liftIO $ forM (chunksOf 16 localUserIds) (mapConcurrently $ runAppT e . outer)
+  return . UserClientMap . Map.mapKeys makeIdOpaque . Map.fromList $ concat m
   where
-    chunks = chunksOf 16 (Map.toList x)
+    outer :: (UserId, Set ClientId) -> AppIO (UserId, Map ClientId (Maybe Prekey))
     outer (u, c) = do
       keymap <- foldrM (inner u) Map.empty c
       return (u, keymap)
+    inner :: UserId -> ClientId -> Map ClientId (Maybe Prekey) -> AppIO (Map ClientId (Maybe Prekey))
     inner u c m = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return (Map.insert c key m)
+    partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
+    partitionWith f = partitionEithers . map f
+    localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
+    localOrRemoteClient = undefined
 
 -- Utilities
 
