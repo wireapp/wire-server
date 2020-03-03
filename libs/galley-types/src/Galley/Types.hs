@@ -330,7 +330,7 @@ data NewOtrMessage
 
 newtype UserClients
   = UserClients
-      { userClients :: Map UserId (Set ClientId)
+      { userClients :: Map OpaqueUserId (Set ClientId)
       }
   deriving (Eq, Show, Semigroup, Monoid, Generic)
 

@@ -256,8 +256,8 @@ postCryptoMessage2 = do
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
   liftIO $ do
-    Map.keys (userClientMap p) @=? [eve]
-    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap p) @=? [makeIdOpaque eve]
+    Map.keys <$> Map.lookup (makeIdOpaque eve) (userClientMap p) @=? Just [ec]
 
 postCryptoMessage3 :: TestM ()
 postCryptoMessage3 = do
@@ -281,8 +281,8 @@ postCryptoMessage3 = do
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
   liftIO $ do
-    Map.keys (userClientMap p) @=? [eve]
-    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap p) @=? [makeIdOpaque eve]
+    Map.keys <$> Map.lookup (makeIdOpaque eve) (userClientMap p) @=? Just [ec]
 
 postCryptoMessage4 :: TestM ()
 postCryptoMessage4 = do
@@ -633,7 +633,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
+  let inv = NewConvUnmanaged (NewConv [makeIdOpaque alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

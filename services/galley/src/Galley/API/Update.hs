@@ -425,7 +425,7 @@ addMembers zusr zcon cid invite = do
       toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
       let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
       (newUsers, newQualifiedUsers) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId newOpaqueUsers
-      for (listToMaybe newQualifiedUsers) $ \IdMapping {idMappingGlobal} ->
+      for_ (listToMaybe newQualifiedUsers) $ \IdMapping {idMappingGlobal} ->
         -- FUTUREWORK(federation): allow adding remote members
         -- this one is a bit tricky because all of the checks that need to be done,
         -- some of them on remote backends.
@@ -530,14 +530,14 @@ handleOtrResult = \case
   OtrSent m -> json m & setStatus status201
   OtrMissingRecipients m -> json m & setStatus status412
 
-postBotMessageH :: BotId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
+postBotMessageH :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
   handleOtrResult <$> postBotMessage zbot zcnv val message
 
-postBotMessage :: BotId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postBotMessage :: BotId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage (botUserId zbot) Nothing (makeIdOpaque zcnv) val message
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
@@ -924,7 +924,7 @@ checkOtrRecipients ::
   -- | The current timestamp.
   UTCTime ->
   CheckedOtrRecipients
-checkOtrRecipients usr sid prs vms vcs val now
+checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
   | not (Map.member usr vmembers) = InvalidOtrSenderUser
   | not (Clients.contains usr sid vcs) = InvalidOtrSenderClient
   | not (Clients.null missing) = MissingOtrRecipients mismatch
@@ -934,14 +934,14 @@ checkOtrRecipients usr sid prs vms vcs val now
     next u c t rs
       | Just m <- member u c = (m, c, t) : rs
       | otherwise = rs
-    member :: OpaqueUserId -> ClientId -> Maybe _
+    member :: OpaqueUserId -> ClientId -> Maybe Member
     member u c
       | Just m <- Map.lookup u vmembers,
         Clients.contains u c vclients =
         Just m
       | otherwise = Nothing
     -- Valid recipient members & clients
-    vmembers = Map.fromList $ map (\m -> (memId m, m)) vms
+    vmembers = Map.fromList $ map (\m -> (makeIdOpaque (memId m), m)) vms
     vclients = Clients.rmClient usr sid vcs
     -- Proposed (given) recipients
     recipients = userClientMap (otrRecipientsMap prs)
@@ -965,5 +965,5 @@ checkOtrRecipients usr sid prs vms vcs val now
     filterMissing miss = case val of
       OtrReportAllMissing -> miss
       OtrIgnoreAllMissing -> Clients.nil
-      OtrReportMissing us -> Clients.filter (`Set.member` us) miss
-      OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
+      OtrReportMissing us -> Clients.filter (`Set.member` Set.map makeIdOpaque us) miss
+      OtrIgnoreMissing us -> Clients.filter (`Set.notMember` Set.map makeIdOpaque us) miss

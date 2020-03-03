@@ -10,6 +10,7 @@ import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -27,6 +28,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import Type.Reflection (Typeable, typeRep)
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -57,21 +59,29 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  ensureConnected u (uids \\ join sameTeamUids)
+  ensureConnected u (makeIdOpaque <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [UserId] -> Galley ()
+ensureConnected :: UserId -> [OpaqueUserId] -> Galley ()
 ensureConnected _ [] = pure ()
-ensureConnected u uids = do
-  (connsFrom, connsTo) <-
-    getConnections [u] uids (Just Accepted)
-      `concurrently` getConnections uids [u] (Just Accepted)
-  unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwM notConnected
+ensureConnected u opaqueIds = do
+  (localUserIds, remoteUserIds) <-
+    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
+  for_ (listToMaybe remoteUserIds) $ \IdMapping {idMappingGlobal} ->
+    -- FUTUREWORK(federation): check remote connections
+    failFederationNotImplemented idMappingGlobal
+  ensureConnectedToLocals localUserIds
+  where
+    ensureConnectedToLocals uids = do
+      (connsFrom, connsTo) <-
+        getConnections [u] uids (Just Accepted)
+          `concurrently` getConnections uids [u] (Just Accepted)
+      unless (length connsFrom == length uids && length connsTo == length uids) $
+        throwM notConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -260,10 +270,13 @@ partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
 
-failFederationNotImplemented :: Qualified (Id a) -> Galley void
+failFederationNotImplemented :: forall a void. Typeable a => Qualified (Id a) -> Galley void
 failFederationNotImplemented qualified =
   throwM $
     Error
       status500
       "internal-error"
-      ("federation is not implemented, but global qualified ID found: " <> LT.fromStrict (renderQualified idToText qualified))
+      ("federation is not implemented, but global qualified ID (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.fromStrict (renderQualified idToText qualified)

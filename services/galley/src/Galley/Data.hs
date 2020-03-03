@@ -82,6 +82,7 @@ import Cassandra.Util
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id as Id
 import Data.IdMapping
@@ -420,7 +421,8 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
   conv <- Id <$> liftIO nextRandom
   now <- liftIO getCurrentTime
   retry x5 $ case tinfo of
-    Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
+    Nothing ->
+      write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
     Just ti -> batch $ do
       setType BatchLogged
       setConsistency Quorum
@@ -655,8 +657,9 @@ removeMembers conv orig victims = do
       case u of
         Local localId ->
           addPrepQuery Cql.deleteUserConv (localId, convId conv)
-        Mapped IdMapping {idMappingLocal} ->
-          pure () -- the user's conversation has to be deleted on their own backend
+        Mapped _ ->
+          -- the user's conversation has to be deleted on their own backend
+          pure ()
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
     -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
@@ -738,7 +741,7 @@ lookupClients ::
   [UserId] ->
   m Clients
 lookupClients users =
-  Clients.fromList . concat . concat
+  Clients.fromList . fmap (first makeIdOpaque) . concat . concat
     <$> forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
   where
     getClients us =

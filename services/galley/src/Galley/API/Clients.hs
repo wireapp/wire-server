@@ -28,7 +28,7 @@ getClients usr = do
     if isInternal
       then fromUserClients <$> Intra.lookupClients [usr]
       else Data.lookupClients [usr]
-  return $ clientIds usr clts
+  return $ clientIds (makeIdOpaque usr) clts
 
 addClientH :: UserId ::: ClientId -> Galley Response
 addClientH (usr ::: clt) = do
