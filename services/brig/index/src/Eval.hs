@@ -32,16 +32,21 @@ runCommand l = \case
     e <- initIndex es
     c <- initDb cas
     runReindexIO e c reindexAll
+  UpdateMapping esURI indexName -> do
+    e <- initIndex' esURI indexName
+    runIndexIO e updateMapping
   where
     initIndex es =
+      initIndex' (es ^. esServer) (es ^. esIndex)
+    initIndex' esURI indexName =
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> initES es
+        <*> initES esURI
         <*> pure Nothing
-        <*> pure (view esIndex es)
-    initES es =
-      ES.mkBHEnv (view (esServer . re _ESServer) es)
+        <*> pure indexName
+    initES esURI =
+      ES.mkBHEnv (toESServer esURI)
         <$> newManager defaultManagerSettings
     initDb cas =
       C.init
@@ -52,20 +57,14 @@ runCommand l = \case
           . C.setProtocolVersion C.V4
         $ C.defSettings
 
-_ESServer :: Prism' ES.Server (URIRef Absolute)
-_ESServer = prism toS fromS
-  where
-    toS =
-      ES.Server
-        . view utf8
-        . serializeURIRef'
-        . set pathL mempty
-        . set queryL mempty
-        . set fragmentL mempty
-    fromS x@(ES.Server s) =
-      set _Left x
-        . parseURI strictURIParserOptions
-        $ review utf8 s
+toESServer :: URIRef Absolute -> ES.Server
+toESServer =
+  ES.Server
+    . view utf8
+    . serializeURIRef'
+    . set pathL mempty
+    . set queryL mempty
+    . set fragmentL mempty
 
 --------------------------------------------------------------------------------
 -- ReindexIO command monad

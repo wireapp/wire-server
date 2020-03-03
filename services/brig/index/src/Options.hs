@@ -35,6 +35,7 @@ data Command
   = Create ElasticSettings
   | Reset ElasticSettings
   | Reindex ElasticSettings CassandraSettings
+  | UpdateMapping (URIRef Absolute) ES.IndexName
   deriving (Show)
 
 data ElasticSettings
@@ -105,6 +106,17 @@ restrictedElasticSettingsParser = do
   server <- elasticServerParser
   pure $ localElasticSettings & esServer .~ server
 
+indexNameParser :: Parser ES.IndexName
+indexNameParser =
+  ES.IndexName . view packed
+    <$> strOption
+      ( long "elasticsearch-index"
+          <> metavar "STRING"
+          <> help "Elasticsearch Index Name."
+          <> value (view (esIndex . _IndexName . unpacked) localElasticSettings)
+          <> showDefault
+      )
+
 elasticSettingsParser :: Parser ElasticSettings
 elasticSettingsParser =
   ElasticSettings
@@ -114,15 +126,6 @@ elasticSettingsParser =
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
   where
-    indexNameParser =
-      ES.IndexName . view packed
-        <$> strOption
-          ( long "elasticsearch-index"
-              <> metavar "STRING"
-              <> help "Elasticsearch Index Name."
-              <> value (view (esIndex . _IndexName . unpacked) localElasticSettings)
-              <> showDefault
-          )
     indexShardCountParser =
       option
         auto
@@ -191,6 +194,12 @@ commandParser =
             (Create <$> elasticSettingsParser)
             (progDesc ("Create the ES user index, if it doesn't already exist. "))
         )
+        <> command
+          "update-mapping"
+          ( info
+              (UpdateMapping <$> elasticServerParser <*> indexNameParser)
+              (progDesc "Update mapping of the user index.")
+          )
         <> command
           "reset"
           ( info

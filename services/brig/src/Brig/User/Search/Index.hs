@@ -20,6 +20,7 @@ module Brig.User.Search.Index
     resetIndex,
     reindexAll,
     refreshIndex,
+    updateMapping,
 
     -- * exported for testin gonly
     userDoc,
@@ -396,6 +397,15 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
         ES.putMapping idx (ES.MappingName "user") indexMapping
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
+
+updateMapping :: MonadIndexIO m => m ()
+updateMapping = liftIndexIO $ do
+  idx <- asks idxName
+  ex <- ES.indexExists idx
+  unless ex $
+    throwM (IndexError "Index does not exist.")
+  void $ traceES "Put mapping" $
+    ES.putMapping idx (ES.MappingName "user") indexMapping
 
 resetIndex ::
   MonadIndexIO m =>
