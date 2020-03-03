@@ -115,16 +115,6 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- Actually, this will "never" happen due to the
--- fact that there can be no custom roles at the moment
-
-bindingTeamMembers :: TeamId -> Galley [TeamMember]
-bindingTeamMembers tid = do
-  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
-  case binding of
-    Binding -> Data.teamMembersUnsafeForLargeTeams tid
-    NonBinding -> throwM nonBindingTeam
-
 -- | If a team memeber is not given throw 'noTeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return unit.
