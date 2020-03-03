@@ -69,8 +69,8 @@ expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
     DifferentTeam -> True
     NoTeam -> False
   Guest -> \case
-    SameTeam -> False
-    DifferentTeam -> False
+    SameTeam -> True
+    DifferentTeam -> True
     NoTeam -> False
 expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
   Creator -> \case
