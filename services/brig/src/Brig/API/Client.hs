@@ -115,19 +115,22 @@ claimPrekeyBundle u = do
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
-  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . id)) $ Map.toList clientMap
+  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . toList)) $ Map.toList clientMap
   let (localUserIds, remoteUserIds) = partitionEithers $ map localOrRemoteClient resolved
   -- FUTUREWORK(federation): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwStd . federationNotImplemented . fmap fst
-  m <- lift $ traverse (mapConcurrently getUserKeys) (chunksOf 16 localUserIds)
-  return . UserClientMap . Map.mapKeys makeIdOpaque . Map.fromList $ concat m
+  m <- lift $ foldMap getChunk (chunksOf 16 localUserIds)
+  return . UserClientMap $ Map.mapKeys makeIdOpaque m
   where
-    getUserKeys :: (UserId, Set ClientId) -> AppIO (UserId, Map ClientId (Maybe Prekey))
-    getUserKeys i@(u, _) =
-      fmap (u,) . foldMap getClientKeys . traverse toList $ i
-    getClientKeys :: (UserId, ClientId) -> AppIO (Map ClientId (Maybe Prekey))
-    getClientKeys (u, c) = do
+    getChunk :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk =
+      fmap fold . mapConcurrently (uncurry getUserKeys)
+    getUserKeys :: UserId -> [ClientId] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+    getUserKeys u =
+      fmap (Map.singleton u) . foldMap (getClientKeys u)
+    getClientKeys :: UserId -> ClientId -> AppIO (Map ClientId (Maybe Prekey))
+    getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return (Map.singleton c key)
