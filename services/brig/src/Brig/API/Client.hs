@@ -52,7 +52,7 @@ import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import UnliftIO.Async (mapConcurrently)
+import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -115,7 +115,7 @@ claimPrekeyBundle u = do
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
-  resolved <- traverse (bitraverse resolveOpaqueUserId (pure . toList)) $ Map.toList clientMap
+  resolved <- traverse (bitraverse resolveOpaqueUserId pure) $ Map.toList clientMap
   let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
@@ -128,20 +128,20 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
         Local localId -> Left (localId, x)
         Mapped mapping -> Right (mapping, x)
 
-claimLocalPrekeyBundles :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
-claimLocalPrekeyBundles = foldMap getChunk . chunksOf 16
+claimLocalPrekeyBundles :: [(UserId, Set ClientId)] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+claimLocalPrekeyBundles = foldMap getChunk . fmap Map.fromList . chunksOf 16
   where
-    getChunk :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
-      fmap Map.fromList . mapConcurrently (uncurry getUserKeys)
-    getUserKeys :: UserId -> [ClientId] -> AppIO (UserId, Map ClientId (Maybe Prekey))
+      runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
+    getUserKeys :: UserId -> Set ClientId -> AppIO (Map ClientId (Maybe Prekey))
     getUserKeys u =
-      fmap ((u,) . Map.fromList) . traverse (getClientKeys u)
-    getClientKeys :: UserId -> ClientId -> AppIO (ClientId, Maybe Prekey)
+      sequenceA . Map.fromSet (getClientKeys u)
+    getClientKeys :: UserId -> ClientId -> AppIO (Maybe Prekey)
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
-      return (c, key)
+      return key
 
 -- Utilities
 
