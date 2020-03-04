@@ -15,6 +15,7 @@ DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
+INTEGRATION_USE_NGINZ ?= 1
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -85,18 +86,18 @@ $(DEB_INDEX): install
 
 .PHONY: i
 i:
-	INTEGRATION_USE_NGINZ=1 ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-aws
 i-aws:
-	INTEGRATION_USE_REAL_AWS=1 INTEGRATION_USE_NGINZ=1 ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_USE_REAL_AWS=1 INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	INTEGRATION_USE_NGINZ=1 ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i
