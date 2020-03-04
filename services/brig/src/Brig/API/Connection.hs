@@ -33,7 +33,7 @@ import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
-import Control.Lens ((^.), view)
+import Control.Lens (view)
 import Data.Id
 import Data.List.Split (chunksOf)
 import Data.Range
@@ -122,9 +122,10 @@ createConnection self ConnectionRequest {..} conn = do
       s2o' <- insert (Just s2o) (Just o2s)
       return $ ConnectionExists s2o'
     change c s = ConnectionExists <$> lift (Data.updateConnection c s)
-    belongSameTeam = Intra.getTeamContacts self >>= \case
-      Just mems -> return $ Team.isTeamMember crUser (mems ^. Team.teamMembers)
-      _ -> return False
+    belongSameTeam = do
+      selfTeam <- Intra.getTeamId self
+      crTeam <- Intra.getTeamId crUser
+      pure $ isJust selfTeam && selfTeam == crTeam
 
 -- | Change the status of a connection from one user to another.
 --
