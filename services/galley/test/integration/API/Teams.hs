@@ -50,6 +50,8 @@ tests s =
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
           test s "the list should be limited to the number requested" testListTeamMembersTruncated
         ],
+      testGroup "List Team members unchecked" $
+        [test s "the list should be truncated" $ testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
@@ -159,14 +161,19 @@ testCreateTeamWithMembers = do
       e ^. eventTeam @?= (team ^. teamId)
       e ^. eventData @?= Just (EdTeamCreate team)
 
+createTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
+createTeamWithNMembers n = do
+  (owner, tid) <- createBindingTeam
+  mems <- replicateM n $ do
+    member1 <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    pure member1
+  ensureQueueEmpty
+  pure (owner, tid, mems)
+
 testListTeamMembersDefaultLimit :: TestM ()
 testListTeamMembersDefaultLimit = do
-  (owner, tid) <- createBindingTeam
-  member1 <- randomUser
-  member2 <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
-  addTeamMemberInternal tid $ newTeamMember member2 (rolePermissions RoleMember) Nothing
-  ensureQueueEmpty
+  (owner, tid, [member1, member2]) <- createTeamWithNMembers 2
   listFromServer <- Util.getTeamMembers owner tid
   liftIO $
     assertEqual
@@ -180,17 +187,8 @@ testListTeamMembersDefaultLimit = do
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
-  (owner, tid) <- createBindingTeam
-  member1 <- randomUser
-  member2 <- randomUser
-  member3 <- randomUser
-  member4 <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
-  addTeamMemberInternal tid $ newTeamMember member2 (rolePermissions RoleMember) Nothing
-  addTeamMemberInternal tid $ newTeamMember member3 (rolePermissions RoleMember) Nothing
-  addTeamMemberInternal tid $ newTeamMember member4 (rolePermissions RoleMember) Nothing
-  ensureQueueEmpty
-  listFromServer <- Util.getTeamMembersLimited owner tid 2
+  (owner, tid, _) <- createTeamWithNMembers 4
+  listFromServer <- Util.getTeamMembersTruncated owner tid 2
   liftIO $
     assertEqual
       "member list is not limited to the requested number"
@@ -198,7 +196,21 @@ testListTeamMembersTruncated = do
       (length $ listFromServer ^. teamMembers)
   liftIO $
     assertBool
-      "member list indicates that there are more members"
+      "member list does not indicate that there are more members"
+      (listFromServer ^. teamMemberListHasMore)
+
+testUncheckedListTeamMembers :: TestM ()
+testUncheckedListTeamMembers = do
+  (_, tid, _) <- createTeamWithNMembers 4
+  listFromServer <- Util.getTeamMembersInternalTruncated tid 2
+  liftIO $
+    assertEqual
+      "member list is not limited to the requested number"
+      2
+      (length $ listFromServer ^. teamMembers)
+  liftIO $
+    assertBool
+      "member list does not indicate that there are more members"
       (listFromServer ^. teamMemberListHasMore)
 
 testEnableSSOPerTeam :: TestM ()

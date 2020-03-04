@@ -897,6 +897,7 @@ sitemap = do
       .&. accept "application" "json"
   get "/i/teams/:tid/members" (continue uncheckedGetTeamMembers) $
     capture "tid"
+      .&. def (unsafeRange 2000) (query "maxResults")
       .&. accept "application" "json"
   get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMember) $
     capture "tid"

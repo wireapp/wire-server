@@ -281,10 +281,10 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
   mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
   return $ json mem
 
-uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
-uncheckedGetTeamMembers (tid ::: _) = do
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  return . json $ newTeamMemberList mems False
+uncheckedGetTeamMembers :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+uncheckedGetTeamMembers (tid ::: maxResults ::: _) = do
+  (mems, hasMore) <- Data.teamMembers tid maxResults
+  return . json $ newTeamMemberList mems hasMore
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do

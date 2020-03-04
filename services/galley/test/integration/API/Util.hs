@@ -111,10 +111,23 @@ getTeamMembers usr tid = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
 
-getTeamMembersLimited :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
-getTeamMembersLimited usr tid n = do
+getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
+getTeamMembersTruncated usr tid n = do
   g <- view tsGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
+  responseJsonError r
+
+getTeamMembersInternalTruncated :: HasCallStack => TeamId -> Int -> TestM TeamMemberList
+getTeamMembersInternalTruncated tid n = do
+  g <- view tsGalley
+  r <-
+    get
+      ( g
+          . paths ["i", "teams", toByteString' tid, "members"]
+          . queryItem "maxResults" (C.pack $ show n)
+      )
+      <!! const 200
+      === statusCode
   responseJsonError r
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
