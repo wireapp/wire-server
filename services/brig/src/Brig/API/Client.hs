@@ -116,12 +116,20 @@ claimPrekeyBundle u = do
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
   resolved <- traverse (bitraverse resolveOpaqueUserId (pure . toList)) $ Map.toList clientMap
-  let (localUserIds, remoteUserIds) = partitionEithers $ map localOrRemoteClient resolved
-  -- FUTUREWORK(federation): check remote connections
-  for_ (nonEmpty remoteUserIds) $
+  let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
+  for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
-  m <- lift $ foldMap getChunk (chunksOf 16 localUserIds)
-  return . UserClientMap $ Map.mapKeys makeIdOpaque m
+  -- FUTUREWORK(federation): claim keys from other backends, merge maps
+  lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
+  where
+    localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
+    localOrRemoteUser (mappedOrLocal, x) =
+      case mappedOrLocal of
+        Local localId -> Left (localId, x)
+        Mapped mapping -> Right (mapping, x)
+
+claimLocalPrekeyBundles :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+claimLocalPrekeyBundles = foldMap getChunk . chunksOf 16
   where
     getChunk :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
@@ -134,11 +142,6 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return (c, key)
-    localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
-    localOrRemoteClient (mappedOrLocal, x) =
-      case mappedOrLocal of
-        Local localId -> Left (localId, x)
-        Mapped mapping -> Right (mapping, x)
 
 -- Utilities
 
