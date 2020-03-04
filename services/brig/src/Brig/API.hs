@@ -878,14 +878,14 @@ listPropertyKeysH (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
 listPropertyKeysAndValuesH (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
 
-getPrekeyH :: UserId ::: ClientId ::: JSON -> Handler Response
+getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
   prekey <- lift $ API.claimPrekey u c
   return $ case prekey of
     Just pk -> json pk
     Nothing -> setStatus status404 empty
 
-getPrekeyBundleH :: UserId ::: JSON -> Handler Response
+getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
 getPrekeyBundleH (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 
 getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
@@ -971,19 +971,19 @@ getClientH (usr ::: clt ::: _) = lift $ do
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-getUserClientsH :: UserId ::: JSON -> Handler Response
+getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
   json <$> lift (getUserClients user)
 
-getUserClients :: UserId -> AppIO [PubClient]
+getUserClients :: OpaqueUserId -> AppIO [PubClient]
 getUserClients user =
   API.pubClient <$$> API.lookupClients user
 
-getUserClientH :: UserId ::: ClientId ::: JSON -> Handler Response
+getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getUserClientH (user ::: cid ::: _) = do
   maybe (setStatus status404 empty) json <$> lift (getUserClient user cid)
 
-getUserClient :: UserId -> ClientId -> AppIO (Maybe PubClient)
+getUserClient :: OpaqueUserId -> ClientId -> AppIO (Maybe PubClient)
 getUserClient user cid = do
   API.pubClient <$$> API.lookupClient user cid
 
@@ -1101,12 +1101,12 @@ deleteUserNoVerify uid = do
 changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
 
-checkUserExistsH :: UserId ::: UserId -> Handler Response
+checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
 checkUserExistsH (self ::: uid) = do
   exists <- lift $ checkUserExists self uid
   if exists then return empty else throwStd userNotFound
 
-checkUserExists :: UserId -> UserId -> AppIO Bool
+checkUserExists :: UserId -> OpaqueUserId -> AppIO Bool
 checkUserExists self uid = do
   isJust <$> API.lookupProfile self uid
 
@@ -1118,11 +1118,11 @@ getSelf :: UserId -> Handler SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: UserId -> Handler Response
+getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
   json <$> getUser self uid
 
-getUser :: UserId -> UserId -> Handler UserProfile
+getUser :: UserId -> OpaqueUserId -> Handler UserProfile
 getUser self uid = do
   lift (API.lookupProfile self uid) >>= ifNothing userNotFound
 
@@ -1133,7 +1133,7 @@ getUserNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List Handle) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1141,7 +1141,7 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List UserId) (List Handle) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (List Handle) -> Handler [UserProfile]
 listUsers self = \case
   Left us -> byIds (fromList us)
   Right hs -> do
