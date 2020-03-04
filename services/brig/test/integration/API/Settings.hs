@@ -60,15 +60,7 @@ data ViewingUserIs = Creator | Member | Guest
 
 expectEmailVisible :: Opt.EmailVisibility -> ViewingUserIs -> ViewedUserIs -> Bool
 expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
-  Creator -> \case
-    SameTeam -> True
-    DifferentTeam -> True
-    NoTeam -> False
-  Member -> \case
-    SameTeam -> True
-    DifferentTeam -> True
-    NoTeam -> False
-  Guest -> \case
+  _ -> \case
     SameTeam -> True
     DifferentTeam -> True
     NoTeam -> False
