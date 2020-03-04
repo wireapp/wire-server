@@ -125,15 +125,15 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   where
     getChunk :: [(UserId, [ClientId])] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
-      fmap fold . mapConcurrently (uncurry getUserKeys)
-    getUserKeys :: UserId -> [ClientId] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+      fmap Map.fromList . mapConcurrently (uncurry getUserKeys)
+    getUserKeys :: UserId -> [ClientId] -> AppIO (UserId, Map ClientId (Maybe Prekey))
     getUserKeys u =
-      fmap (Map.singleton u) . foldMap (getClientKeys u)
-    getClientKeys :: UserId -> ClientId -> AppIO (Map ClientId (Maybe Prekey))
+      fmap ((u,) . Map.fromList) . traverse (getClientKeys u)
+    getClientKeys :: UserId -> ClientId -> AppIO (ClientId, Maybe Prekey)
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
-      return (Map.singleton c key)
+      return (c, key)
     localOrRemoteClient :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
     localOrRemoteClient (mappedOrLocal, x) =
       case mappedOrLocal of
