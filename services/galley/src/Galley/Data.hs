@@ -663,8 +663,6 @@ removeMembers conv orig victims = do
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
     -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
-    -- FUTUREWORK(federation): These IDs don't mean anything to remote conversation members,
-    -- as they don't have the same mapping. Not sure how we should solve this.
     leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims
     localIdOrNothing = \case
       Local localId -> Just localId
