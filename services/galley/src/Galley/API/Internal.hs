@@ -8,16 +8,18 @@ where
 import Cassandra
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Metrics.Middleware as Metrics
 import Data.Range
 import Data.String.Conversions (cs)
+import Galley.API.Error (federationNotImplemented)
 import Galley.API.Teams (uncheckedRemoveTeamMember)
 import qualified Galley.API.Teams as Teams
-import Galley.API.Util (isMember)
+import Galley.API.Util (isMember, partitionMappedOrLocalIds, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -47,15 +49,22 @@ rmUser user conn = do
       Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)
+    leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()
     leaveConversations u ids = do
-      cc <- Data.conversations (result ids)
+      (localConvIds, remoteConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId (result ids)
+      -- FUTUREWORK(federation): leave remote conversations.
+      -- If we could just get all conversation IDs at once and then leave conversations
+      -- in batches, it would make everything much easier.
+      for_ (nonEmpty remoteConvIds) $
+        throwM . federationNotImplemented
+      cc <- Data.conversations localConvIds
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
-          | isMember user (Data.convMembers c) -> do
-            e <- Data.removeMembers c user u
+          | isMember (makeIdOpaque user) (Data.convMembers c) -> do
+            e <- Data.removeMembers c user (Local <$> u)
             return $
               (Intra.newPush (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn

@@ -594,7 +594,7 @@ testAddManagedConv = do
   let tinfo = ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
+          NewConv [makeIdOpaque owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
   post
     ( g
         . path "/conversations"

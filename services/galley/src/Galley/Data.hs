@@ -83,8 +83,10 @@ import Cassandra.Util
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.List.Extra as List
@@ -406,15 +408,15 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
-conversationIdsFrom :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (ResultSet ConvId)
-conversationIdsFrom usr range (fromRange -> max) =
-  ResultSet . fmap runIdentity . strip <$> case range of
+conversationIdsFrom :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (ResultSet OpaqueConvId)
+conversationIdsFrom usr start (fromRange -> max) =
+  ResultSet . fmap runIdentity . strip <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
-conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List ConvId) -> m [ConvId]
+conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [OpaqueConvId]
 conversationIdsOf usr (fromList . fromRange -> cids) =
   map runIdentity <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
@@ -434,7 +436,8 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
   conv <- Id <$> liftIO nextRandom
   now <- liftIO getCurrentTime
   retry x5 $ case tinfo of
-    Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
+    Nothing ->
+      write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
     Just ti -> batch $ do
       setType BatchLogged
       setConsistency Quorum
@@ -658,22 +661,33 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
+removeMembers :: MonadClient m => Conversation -> UserId -> List1 (MappedOrLocalId Id.U) -> m Event
 removeMembers conv orig victims = do
   t <- liftIO getCurrentTime
   retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
     for_ (toList victims) $ \u -> do
-      addPrepQuery Cql.removeMember (convId conv, u)
-      addPrepQuery Cql.deleteUserConv (u, convId conv)
-  return $ Event MemberLeave (convId conv) orig t (Just . EdMembersLeave . UserIdList . toList $ victims)
+      addPrepQuery Cql.removeMember (convId conv, opaqueIdFromMappedOrLocal u)
+      case u of
+        Local localId ->
+          addPrepQuery Cql.deleteUserConv (localId, convId conv)
+        Mapped _ ->
+          -- the user's conversation has to be deleted on their own backend
+          pure ()
+  return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
+  where
+    -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
+    leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims
+    localIdOrNothing = \case
+      Local localId -> Just localId
+      Mapped _ -> Nothing
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
-  addPrepQuery Cql.removeMember (cnv, usr)
+  addPrepQuery Cql.removeMember (cnv, makeIdOpaque usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
 
 newMember :: UserId -> Member
@@ -740,7 +754,7 @@ lookupClients ::
   [UserId] ->
   m Clients
 lookupClients users =
-  Clients.fromList . concat . concat
+  Clients.fromList . fmap (first makeIdOpaque) . concat . concat
     <$> forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
   where
     getClients us =

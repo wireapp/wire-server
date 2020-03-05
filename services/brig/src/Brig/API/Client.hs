@@ -20,7 +20,10 @@ module Brig.API.Client
   )
 where
 
+import Brig.API.Error (federationNotImplemented, throwStd)
+import Brig.API.Handler (Handler)
 import Brig.API.Types
+import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
@@ -32,12 +35,15 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Event
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Control.Lens (view)
+import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.IP (IP)
-import Data.Id (ClientId, ConnId, UserId)
+import qualified Data.Id as Id
+import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.IdMapping
+import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
@@ -46,6 +52,7 @@ import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -106,20 +113,35 @@ claimPrekeyBundle u = do
   clients <- map clientId <$> Data.lookupClients u
   PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
 
-claimMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
-claimMultiPrekeyBundles (UserClients x) = do
-  e <- ask
-  m <- liftIO $ forM chunks (mapConcurrently $ runAppT e . outer)
-  return $ UserClientMap (Map.fromList (concat m))
+claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles (UserClients clientMap) = do
+  resolved <- traverse (bitraverse resolveOpaqueUserId pure) $ Map.toList clientMap
+  let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
+  for_ (nonEmpty remoteUsers) $
+    throwStd . federationNotImplemented . fmap fst
+  -- FUTUREWORK(federation): claim keys from other backends, merge maps
+  lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
   where
-    chunks = chunksOf 16 (Map.toList x)
-    outer (u, c) = do
-      keymap <- foldrM (inner u) Map.empty c
-      return (u, keymap)
-    inner u c m = do
+    localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
+    localOrRemoteUser (mappedOrLocal, x) =
+      case mappedOrLocal of
+        Local localId -> Left (localId, x)
+        Mapped mapping -> Right (mapping, x)
+
+claimLocalPrekeyBundles :: [(UserId, Set ClientId)] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+claimLocalPrekeyBundles = foldMap getChunk . fmap Map.fromList . chunksOf 16
+  where
+    getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk =
+      runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
+    getUserKeys :: UserId -> Set ClientId -> AppIO (Map ClientId (Maybe Prekey))
+    getUserKeys u =
+      sequenceA . Map.fromSet (getClientKeys u)
+    getClientKeys :: UserId -> ClientId -> AppIO (Maybe Prekey)
+    getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
-      return (Map.insert c key m)
+      return key
 
 -- Utilities
 

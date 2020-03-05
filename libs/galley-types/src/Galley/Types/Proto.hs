@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- FUTUREWORK: generate this file
 module Galley.Types.Proto
   ( UserId,
     userId,
@@ -52,7 +53,7 @@ import Imports
 
 newtype UserId
   = UserId
-      { _user :: Required 1 (Value Id.UserId)
+      { _user :: Required 1 (Value Id.OpaqueUserId)
       }
   deriving (Eq, Show, Generic)
 
@@ -60,10 +61,10 @@ instance Encode UserId
 
 instance Decode UserId
 
-fromUserId :: Id.UserId -> UserId
+fromUserId :: Id.OpaqueUserId -> UserId
 fromUserId u = UserId {_user = putField u}
 
-userId :: Functor f => (Id.UserId -> f Id.UserId) -> UserId -> f UserId
+userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> UserId -> f UserId
 userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
 -- ClientId ------------------------------------------------------------------

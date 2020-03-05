@@ -11,6 +11,7 @@ import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
 import qualified Control.Lens as Lens
 import Data.Aeson (withText)
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
@@ -293,21 +294,26 @@ data EmailVisibility
     --         This may sound strange; but certain on-premise hosters have many different teams
     --         and still want them to see each-other's emails.
     EmailVisibleIfOnTeam
+  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
+    EmailVisibleIfOnSameTeam
   | -- | Show your email only to yourself
     EmailVisibleToSelf
-  deriving (Eq, Show)
+  deriving (Eq, Show, Bounded, Enum)
 
 instance FromJSON EmailVisibility where
   parseJSON = withText "EmailVisibility" $ \case
     "visible_if_on_team" -> pure EmailVisibleIfOnTeam
+    "visible_if_on_same_team" -> pure EmailVisibleIfOnSameTeam
     "visible_to_self" -> pure EmailVisibleToSelf
     _ ->
       fail $
         "unexpected value for EmailVisibility settings: "
-          <> "expected one of [visible_if_on_team, visible_to_self]"
+          <> "expected one of "
+          <> show (Aeson.encode <$> [(minBound :: EmailVisibility) ..])
 
 instance ToJSON EmailVisibility where
   toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
+  toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
   toJSON EmailVisibleToSelf = "visible_to_self"
 
 -- | Options that are consumed on startup

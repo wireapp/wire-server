@@ -1255,7 +1255,7 @@ createConv g u us =
       . contentJson
       . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv (makeIdOpaque <$> us) Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postMessage ::
   Galley ->

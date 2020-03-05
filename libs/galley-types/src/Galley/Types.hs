@@ -215,7 +215,7 @@ data ConvTeamInfo
 
 data NewConv
   = NewConv
-      { newConvUsers :: ![UserId],
+      { newConvUsers :: ![OpaqueUserId],
         newConvName :: !(Maybe Text),
         newConvAccess :: !(Set Access),
         newConvAccessRole :: !(Maybe AccessRole),
@@ -271,7 +271,7 @@ create managed conversations anyway.
 
 newtype UserClientMap a
   = UserClientMap
-      { userClientMap :: Map UserId (Map ClientId a)
+      { userClientMap :: Map OpaqueUserId (Map ClientId a)
       }
   deriving
     ( Eq,
@@ -296,7 +296,7 @@ newtype OtrRecipients
       Monoid
     )
 
-foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
 foldrOtrRecipients f a =
   Map.foldrWithKey go a
     . userClientMap
@@ -313,10 +313,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId)
+    OtrIgnoreMissing (Set OpaqueUserId)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId)
+    OtrReportMissing (Set OpaqueUserId)
 
 data NewOtrMessage
   = NewOtrMessage
@@ -330,7 +330,7 @@ data NewOtrMessage
 
 newtype UserClients
   = UserClients
-      { userClients :: Map UserId (Set ClientId)
+      { userClients :: Map OpaqueUserId (Set ClientId)
       }
   deriving (Eq, Show, Semigroup, Monoid, Generic)
 
@@ -430,11 +430,11 @@ deriving instance Show OtherMemberUpdate
 
 data Invite
   = Invite
-      { invUsers :: !(List1 UserId),
+      { invUsers :: !(List1 OpaqueUserId),
         invRoleName :: !RoleName -- This role name is to be applied to all users
       }
 
-newInvite :: List1 UserId -> Invite
+newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
 
 deriving instance Eq Invite

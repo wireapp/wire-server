@@ -896,7 +896,7 @@ getMultiPrekeyBundles body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (userClients body) > maxSize) $
     throwStd tooManyClients
-  lift (API.claimMultiPrekeyBundles body)
+  API.claimMultiPrekeyBundles body
 
 addClientH :: JsonRequest NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
@@ -960,7 +960,8 @@ internalListClientsH (_ ::: req) = do
 
 internalListClients :: UserSet -> AppIO UserClients
 internalListClients (UserSet usrs) = do
-  UserClients . Map.fromList <$> (API.lookupUsersClientIds $ Set.toList usrs)
+  UserClients . Map.mapKeys makeIdOpaque . Map.fromList
+    <$> (API.lookupUsersClientIds $ Set.toList usrs)
 
 getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientH (usr ::: clt ::: _) = lift $ do
