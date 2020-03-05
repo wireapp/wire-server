@@ -890,10 +890,11 @@ lookupProfiles self others = do
   users <- Data.lookupUsers others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)
-  selfInfo <- case emailVisibility' of
-    EmailVisibleIfOnSameTeam -> getSelfInfo
-    _ -> pure Nothing
-  return $ map (toProfile emailVisibility' selfInfo css) users
+  emailVisibility'' <- case emailVisibility' of
+    EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
+    EmailVisibleIfOnSameTeam -> EmailVisibleIfOnSameTeam' <$> getSelfInfo
+    EmailVisibleToSelf -> pure EmailVisibleToSelf'
+  return $ map (toProfile emailVisibility'' css) users
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
@@ -908,34 +909,38 @@ lookupProfiles self others = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember self tid
     --
-    toProfile :: EmailVisibility -> Maybe (TeamId, Team.TeamMember) -> Map UserId Relation -> User -> UserProfile
-    toProfile emailVisibility' selfInfo css u =
+    toProfile :: EmailVisibility' -> Map UserId Relation -> User -> UserProfile
+    toProfile emailVisibility'' css u =
       let cs = Map.lookup (userId u) css
-          profileEmail' = getEmailForProfile u selfInfo emailVisibility'
+          profileEmail' = getEmailForProfile u emailVisibility''
           baseProfile =
             if userId u == self || cs == Just Accepted || cs == Just Sent
               then connectedProfile u
               else publicProfile u
        in baseProfile {profileEmail = profileEmail'}
 
+data EmailVisibility'
+  = EmailVisibleIfOnTeam'
+  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, Team.TeamMember))
+  | EmailVisibleToSelf'
+
 -- | Gets the email if it's visible to the requester according to configured settings
 getEmailForProfile ::
   User ->
-  Maybe (TeamId, Team.TeamMember) ->
-  EmailVisibility ->
+  EmailVisibility' ->
   Maybe Email
-getEmailForProfile profileOwner _ EmailVisibleIfOnTeam =
+getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
   if isJust (userTeam profileOwner)
     then userEmail profileOwner
     else Nothing
-getEmailForProfile profileOwner (Just (viewerTeamId, viewerTeamMember)) EmailVisibleIfOnSameTeam =
+getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
   if ( Just viewerTeamId == userTeam profileOwner
          && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
      )
     then userEmail profileOwner
     else Nothing
-getEmailForProfile _ Nothing EmailVisibleIfOnSameTeam = Nothing
-getEmailForProfile _ _ EmailVisibleToSelf = Nothing
+getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing
+getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
 -- | Obtain a profile for a user as he can see himself.
 lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)
