@@ -931,7 +931,7 @@ getEmailForProfile profileOwner profileViewer EmailVisibleIfOnSameTeam = do
     getViewerUser =
       Data.lookupUser profileViewer
         >>= maybe
-          (throwM $ UserNameNotFound profileViewer {- searching user does not exist. -})
+          (throwM $ UserProfileNotFound profileViewer {- searching user does not exist. -})
           return
     --
     getViewerTeamMember :: User -> AppIO (Maybe Team.TeamMember)
