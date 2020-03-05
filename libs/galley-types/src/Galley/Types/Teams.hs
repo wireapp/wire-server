@@ -107,14 +107,14 @@ module Galley.Types.Teams
     mkLargeTeamSize,
     ltsLimit,
     ltsSize,
-    isBiggerThanLimit
+    isBiggerThanLimit,
   )
 where
 
 import qualified Cassandra as Cql
 import qualified Control.Error.Util as Err
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((^.), makeLenses, to, view, (.~), lensRules, generateUpdateableOptics, makeLensesWith)
+import Control.Lens ((.~), (^.), generateUpdateableOptics, lensRules, makeLenses, makeLensesWith, to, view)
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Pair, Parser, typeMismatch)
@@ -228,15 +228,18 @@ data TeamMemberList
       }
   deriving (Generic)
 
-data LimitedTeamSize = LimitedTeamSize { _ltsLimit :: Natural
-                                       , _ltsSize :: Maybe Natural
-                                       }
-                     deriving (Eq, Show)
+data LimitedTeamSize
+  = LimitedTeamSize
+      { _ltsLimit :: Natural,
+        _ltsSize :: Maybe Natural
+      }
+  deriving (Eq, Show)
 
 mkLimitedTeamSize :: Natural -> Natural -> LimitedTeamSize
-mkLimitedTeamSize limit n = if n > limit
-                            then LimitedTeamSize limit Nothing
-                            else LimitedTeamSize limit (Just n)
+mkLimitedTeamSize limit n =
+  if n > limit
+    then LimitedTeamSize limit Nothing
+    else LimitedTeamSize limit (Just n)
 
 mkLargeTeamSize :: Natural -> LimitedTeamSize
 mkLargeTeamSize limit = LimitedTeamSize limit Nothing
@@ -959,9 +962,9 @@ instance ToJSON LimitedTeamSize where
   toJSON limitedSize =
     let sizePairs =
           case _ltsSize limitedSize of
-            Nothing ->  [ "within-limit" .= False ]
-            Just n ->  [ "within-limit" .= True, "size" .= n ]
-    in object (["limit" .= _ltsLimit limitedSize] ++ sizePairs )
+            Nothing -> ["within-limit" .= False]
+            Just n -> ["within-limit" .= True, "size" .= n]
+     in object (["limit" .= _ltsLimit limitedSize] ++ sizePairs)
 
 instance FromJSON LimitedTeamSize where
   parseJSON = withObject "LimitedTeamSize" $ \o -> do
@@ -969,9 +972,9 @@ instance FromJSON LimitedTeamSize where
     limit <- o .: "limit"
     case withinLimit of
       (Bool True) -> (o .: "size") >>= \s ->
-                                         if s <= limit
-                                         then pure $ LimitedTeamSize limit (Just s)
-                                         else fail $ "expected size to be less than " ++ show limit ++ ", encountered " ++ show s
+        if s <= limit
+          then pure $ LimitedTeamSize limit (Just s)
+          else fail $ "expected size to be less than " ++ show limit ++ ", encountered " ++ show s
       (Bool False) -> pure $ LimitedTeamSize limit Nothing
       v -> typeMismatch "Boolean" v
 
