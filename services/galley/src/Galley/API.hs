@@ -3,7 +3,7 @@ module Galley.API where
 import Brig.Types.Team.LegalHold
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Id (ConvId, UserId)
+import Data.Id (ConvId, OpaqueUserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -968,7 +968,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       Just True -> return OtrReportAllMissing
       Just False -> return OtrIgnoreAllMissing
       Nothing -> OtrReportMissing <$> users "report_missing" rep
-    users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
+    users :: ByteString -> ByteString -> P.Result P.Error (Set OpaqueUserId)
     users src bs = case fromByteString bs of
       Nothing ->
         P.Fail $ P.setMessage "Boolean or list of user IDs expected."

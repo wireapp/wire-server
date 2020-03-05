@@ -10,6 +10,8 @@ where
 import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
+import Data.IdMapping (MappedOrLocalId (Local, Mapped))
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (list1)
 import Data.Range
 import qualified Data.Set as Set
@@ -66,7 +68,23 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   uids <- checkedConvSize (newConvUsers body)
   ensureConnected zusr (fromConvSize uids)
-  c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
+  (localUserIds, remoteUserIds) <-
+    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
+  -- FUTUREWORK(federation): notify remote users' backends about new conversation
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
+  localCheckedUsers <- checkedConvSize localUserIds
+  c <-
+    Data.createConversation
+      zusr
+      name
+      (access body)
+      (accessRole body)
+      localCheckedUsers
+      (newConvTeam body)
+      (newConvMessageTimer body)
+      (newConvReceiptMode body)
+      (newConvUsersRole body)
   notifyCreatedConversation Nothing zusr (Just zcon) c
   conversationCreated zusr c
 
@@ -74,9 +92,14 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
+  (localUserIds, remoteUserIds) <-
+    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
+  -- for now, teams don't support conversations with remote members
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
   name <- rangeCheckedMaybe (newConvName body)
   teamMems <- Data.teamMembers (cnvTeamId tinfo)
-  ensureAccessRole (accessRole body) (newConvUsers body) (Just teamMems)
+  ensureAccessRole (accessRole body) localUserIds (Just teamMems)
   void $ permissionCheck zusr CreateConversation teamMems
   otherConvMems <-
     if cnvManaged tinfo
@@ -84,7 +107,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
         checkedConvSize otherConvMems
       else do
-        otherConvMems <- checkedConvSize (newConvUsers body)
+        otherConvMems <- checkedConvSize localUserIds
         -- In teams we don't have 1:1 conversations, only regular conversations. We want
         -- users without the 'AddRemoveConvMember' permission to still be able to create
         -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -99,7 +122,7 @@ createTeamGroupConv zusr zcon tinfo body = do
           void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
+        ensureConnected zusr (makeIdOpaque <$> notTeamMember (fromConvSize otherConvMems) teamMems)
         pure otherConvMems
   conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
@@ -130,8 +153,8 @@ createOne2OneConversationH (zusr ::: zcon ::: req) = do
 
 createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
-  other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
-  (x, y) <- toUUIDs zusr other
+  other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [OpaqueUserId]))
+  (x, y) <- toUUIDs (makeIdOpaque zusr) other
   when (x == y)
     $ throwM
     $ invalidOp "Cannot create a 1-1 with yourself"
@@ -144,7 +167,10 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
-    checkBindingTeamPermissions x y tid = do
+    checkBindingTeamPermissions x other tid = do
+      y <- resolveOpaqueUserId other >>= \case
+        Local l -> pure l
+        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
       mems <- bindingTeamMembers tid
       void $ permissionCheck zusr CreateConversation mems
       unless (all (flip isTeamMember mems) [x, y]) $
@@ -161,7 +187,7 @@ createConnectConversationH (usr ::: conn ::: req) = do
 
 createConnectConversation :: UserId -> Maybe ConnId -> Connect -> Galley ConversationResponse
 createConnectConversation usr conn j = do
-  (x, y) <- toUUIDs usr (cRecipient j)
+  (x, y) <- toUUIDs (makeIdOpaque usr) (makeIdOpaque (cRecipient j))
   n <- rangeCheckedMaybe (cName j)
   conv <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n) (update n) conv
@@ -178,7 +204,7 @@ createConnectConversation usr conn j = do
     update n conv =
       let mems = Data.convMembers conv
        in conversationExisted usr
-            =<< if | usr `isMember` mems -> connect n conv
+            =<< if | makeIdOpaque usr `isMember` mems -> connect n conv
                    | otherwise -> do
                      now <- liftIO getCurrentTime
                      mm <- snd <$> Data.addMember now (Data.convId conv) usr
@@ -244,7 +270,7 @@ notifyCreatedConversation dtime usr conn c = do
           & pushConn .~ conn
           & pushRoute .~ route
 
-toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)
+toUUIDs :: OpaqueUserId -> OpaqueUserId -> Galley (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & ifNothing invalidUUID4
   b' <- U.fromUUID (toUUID b) & ifNothing invalidUUID4

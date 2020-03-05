@@ -130,7 +130,7 @@ createNonBindingTeam zusr zcon (NonBindingNewTeam body) = do
           $ body ^. newTeamMembers
   let zothers = map (view userId) others
   ensureUnboundUsers (zusr : zothers)
-  ensureConnected zusr zothers
+  ensureConnected zusr (makeIdOpaque <$> zothers)
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "Teams.createNonBindingTeam")
@@ -362,7 +362,7 @@ addTeamMember zusr zcon tid nmem = do
   targetPermissions `ensureNotElevated` tmem
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
-  ensureConnected zusr [uid]
+  ensureConnected zusr [makeIdOpaque uid]
   addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -468,7 +468,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
   let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
   cc <- Data.teamConversations tid
   for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
-    for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+    for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
       Data.removeMember remove (c ^. conversationId)
       unless (c ^. managedConversation) $
         pushEvent tmids edata now dc

@@ -30,7 +30,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Id (ConvId, UserId)
+import Data.Id (ConvId, UserId, makeIdOpaque)
 import qualified Data.Map.Strict as Map
 import Data.Serialize
 import qualified Data.Set as Set
@@ -199,6 +199,6 @@ assertClientMissing ::
   BotSession ()
 assertClientMissing u d cm =
   assertEqual
-    (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
+    (UserClients (Map.singleton (makeIdOpaque u) (Set.singleton $ botClientId d)))
     (missingClients cm)
     "Missing Clients"

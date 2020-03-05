@@ -4,7 +4,8 @@ import Brig.API.Handler
 import qualified Brig.Data.User as Data
 import Brig.Types
 import Control.Monad
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import Data.Maybe
 import Imports
 
@@ -14,3 +15,9 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
   return $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
+resolveOpaqueUserId :: Monad m => OpaqueUserId -> m (MappedOrLocalId Id.U)
+resolveOpaqueUserId (Id opaque) =
+  -- FUTUREWORK(federation): implement database lookup
+  pure . Local $ Id opaque
