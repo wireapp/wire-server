@@ -109,6 +109,7 @@ import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
+import qualified Data.Range as Range
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -246,9 +247,12 @@ createUser new@NewUser {..} = do
       Nothing -> throwE InvalidInvitationCode
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      mems <- lift $ Intra.getTeamMembers tid
-      when (length (mems ^. Team.teamMembers) >= maxSize) $
-        throwE TooManyTeamMembers
+      case Range.checked maxSize of
+        Nothing -> throwE TooManyTeamMembers
+        Just rangedSize -> do
+          teamSize <- lift $ Intra.getLimitedTeamSize tid rangedSize
+          when (Team.isBiggerThanLimit teamSize) $
+            throwE TooManyTeamMembers
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid

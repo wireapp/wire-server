@@ -899,10 +899,15 @@ sitemap = do
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
+  -- i.*users.*team.*members"
   get "/i/users/:uid/team/members" (continue getBindingTeamMembersH) $
     capture "uid"
   get "/i/users/:uid/team" (continue getBindingTeamIdH) $
     capture "uid"
+  get "/i/teams/:tid/limited-size/:size" (continue getLimitedTeamSize) $
+    capture "tid"
+      .&. capture "size"
+      .&. accept "application" "json"
   -- Start of team features (internal); enabling this should only be
   -- possible internally. Viewing the status should be allowed
   -- for any admin

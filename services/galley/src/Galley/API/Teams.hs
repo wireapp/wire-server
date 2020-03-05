@@ -31,6 +31,7 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
+    getLimitedTeamSize,
   )
 where
 
@@ -42,7 +43,7 @@ import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
-import Data.Range
+import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
@@ -340,7 +341,7 @@ uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
   json <$> uncheckedGetTeamMembers tid maxResults
 
 uncheckedGetTeamMembers :: TeamId -> Range 1 2000 Int32 -> Galley TeamMemberList
-uncheckedGetTeamMembers tid maxResults  = do
+uncheckedGetTeamMembers tid maxResults = do
   (mems, hasMore) <- Data.teamMembers tid maxResults
   return $ newTeamMemberList mems hasMore
 
@@ -735,3 +736,10 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+
+getLimitedTeamSize :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+getLimitedTeamSize (tid ::: r ::: _) = do
+  (members, hasMore) <- Data.teamMembers tid r
+  if hasMore
+    then pure $ json $ mkLargeTeamSize $ fromIntegral $ fromRange r
+    else pure $ json $ mkLimitedTeamSize (fromIntegral $ fromRange r) (fromIntegral $ length members)

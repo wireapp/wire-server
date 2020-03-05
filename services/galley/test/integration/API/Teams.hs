@@ -51,7 +51,7 @@ tests s =
           test s "the list should be limited to the number requested" testListTeamMembersTruncated
         ],
       testGroup "List Team members unchecked" $
-        [test s "the list should be truncated" $ testUncheckedListTeamMembers],
+        [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
@@ -83,7 +83,11 @@ tests s =
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
       test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam,
       test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns,
-      test s "feature flags" testFeatureFlags
+      test s "feature flags" testFeatureFlags,
+      testGroup "get team size" $
+        [ test s "it should return the team size when it is less than the limit" testTeamSize,
+          test s "it should return that the team size is larger when it is more than the limit" testTeamSizeLimited
+        ]
     ]
 
 timeout :: WS.Timeout
@@ -212,6 +216,18 @@ testUncheckedListTeamMembers = do
     assertBool
       "member list does not indicate that there are more members"
       (listFromServer ^. teamMemberListHasMore)
+
+testTeamSize :: TestM ()
+testTeamSize = do
+  (_, tid, _) <- createTeamWithNMembers 4
+  sizeFromServer <- getLimitedTeamSize tid 2000
+  liftIO $ assertEqual "team size" (mkLimitedTeamSize 2000 5) sizeFromServer
+
+testTeamSizeLimited :: TestM ()
+testTeamSizeLimited = do
+  (_, tid, _) <- createTeamWithNMembers 4
+  sizeFromServer <- getLimitedTeamSize tid 2
+  liftIO $ assertEqual "team size is larger than limit" (mkLargeTeamSize 2) sizeFromServer
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do
