@@ -18,6 +18,7 @@ import Data.Text (pack)
 import Imports
 import Servant.API (toHeader)
 import Spar.Run (mkApp)
+import Spar.Scim.Types
 import System.Environment (withArgs)
 import System.Random (randomRIO)
 import Test.Hspec
@@ -62,7 +63,7 @@ mkspec = do
 mkspec' :: TestEnv -> Spec
 mkspec' env = do
   describe "hscim acceptance tests" $
-    microsoftAzure AcceptanceConfig {..}
+    microsoftAzure @SparTag AcceptanceConfig {..}
   where
     scimAppAndConfig = do
       (app, _) <- mkApp (env ^. teOpts)
@@ -71,3 +72,4 @@ mkspec' env = do
           scimPathPrefix = "/scim/v2"
       pure (app, queryConfig)
     genUserName = pack <$> replicateM 9 (randomRIO ('a', 'z'))
+    responsesFullyKnown = False
