@@ -103,6 +103,7 @@ import Control.Lens ((^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
+import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
 import Data.List1 (List1)

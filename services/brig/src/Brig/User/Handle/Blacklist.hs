@@ -1,6 +1,6 @@
 module Brig.User.Handle.Blacklist (isBlacklistedHandle) where
 
-import Brig.Types.Common (Handle (..))
+import Data.Handle (Handle (Handle))
 import qualified Data.HashSet as HashSet
 import Imports
 

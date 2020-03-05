@@ -96,11 +96,6 @@ instance Arbitrary TurnURI where
       <*> arbitrary
       <*> arbitrary
 
-instance Arbitrary Handle where
-  arbitrary = Handle . ST.pack <$> do
-    let many n = replicateM n (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> ['_'] <> ['-'] <> ['.'])
-    ((<>) <$> many 2 <*> (many =<< choose (0, 254)))
-
 instance Arbitrary Name where
   arbitrary =
     Name . ST.pack

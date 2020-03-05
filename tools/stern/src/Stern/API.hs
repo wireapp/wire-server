@@ -22,6 +22,7 @@ import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import Data.Handle (Handle)
 import Data.Id
 import Data.Predicate
 import Data.Range

@@ -54,6 +54,7 @@ import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
+import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Int

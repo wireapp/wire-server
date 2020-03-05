@@ -38,6 +38,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
+import Data.Handle (Handle (fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
@@ -223,14 +224,14 @@ setBrigUserName buid name = do
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
 setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
-setBrigUserHandle buid (Handle handle) = do
+setBrigUserHandle buid handle = do
   resp <-
     call $
       method PUT
         . path "/self/handle"
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
-        . json (HandleUpdate handle)
+        . json (HandleUpdate (fromHandle handle))
   let sCode = statusCode resp
   if  | sCode < 300 ->
         pure ()

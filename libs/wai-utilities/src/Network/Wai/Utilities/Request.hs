@@ -41,6 +41,16 @@ parseBody' r = either thrw pure =<< runExceptT (parseBody r)
   where
     thrw msg = throwM $ Wai.Error status400 "bad-request" msg
 
+parseOptionalBody ::
+  (MonadIO m, FromJSON a) =>
+  OptionalJsonRequest a ->
+  ExceptT LText m (Maybe a)
+parseOptionalBody r =
+  hoistEither . fmapL Text.pack . traverse eitherDecode' . nonEmptyBody =<< readBody r
+  where
+    nonEmptyBody "" = Nothing
+    nonEmptyBody ne = Just ne
+
 lookupRequestId :: HasRequest r => r -> Maybe ByteString
 lookupRequestId = lookup "Request-Id" . requestHeaders . getRequest
 
@@ -57,11 +67,24 @@ jsonRequest =
   contentType "application" "json"
     .&> (return . JsonRequest . getRequest)
 
+newtype OptionalJsonRequest body = OptionalJsonRequest {fromOptionalJsonRequest :: Request}
+
+optionalJsonRequest ::
+  forall body r.
+  (HasRequest r, HasHeaders r) =>
+  Predicate r Error (OptionalJsonRequest body)
+optionalJsonRequest =
+  opt (contentType "application" "json")
+    .&> (return . OptionalJsonRequest . getRequest)
+
 ----------------------------------------------------------------------------
 -- Instances
 
 instance HasRequest (JsonRequest a) where
   getRequest = fromJsonRequest
+
+instance HasRequest (OptionalJsonRequest a) where
+  getRequest = fromOptionalJsonRequest
 
 instance HasRequest Request where
   getRequest = id
