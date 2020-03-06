@@ -810,12 +810,14 @@ sitemap o = do
     Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
   ---
 
-  post "/onboarding/v3" (continue onboardingH) $
+  post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
       .&. header "Z-User"
       .&. jsonRequest @Value
   document "POST" "onboardingV3" $ do
-    Doc.summary "[DEPRECATED]  the end-point does nothing.  (it used to upload contacts and invoke matching.)"
+    Doc.deprecated
+    Doc.summary "Upload contacts and invoke matching. Returns the list of Matches"
+    Doc.notes "DEPRECATED: the feature has been turned off, the end-point does anothing."
   -----
 
   Provider.routes
@@ -1508,9 +1510,17 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
--- | DEPRECATED / does nothing.
-onboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
-onboardingH (_ ::: _ ::: _) = pure empty
+deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
+deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+
+instance ToJSON DeprecatedMatchingResult where
+  toJSON DeprecatedMatchingResult =
+    object
+      [ "results" .= ([] :: [()]),
+        "auto-connects" .= ([] :: [()])
+      ]
 
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
