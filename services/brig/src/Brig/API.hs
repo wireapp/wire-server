@@ -813,12 +813,9 @@ sitemap o = do
   post "/onboarding/v3" (continue onboardingH) $
     accept "application" "json"
       .&. header "Z-User"
-      .&. jsonRequest @AddressBook
+      .&. jsonRequest @Value
   document "POST" "onboardingV3" $ do
-    Doc.summary "Upload contacts and invoke matching. Returns the list of Matches"
-    Doc.body (Doc.ref Doc.addressBook) $ Doc.description "Address book"
-    Doc.returns (Doc.ref Doc.onboardingMatches)
-    Doc.response 200 "Matches" Doc.end
+    Doc.summary "[DEPRECATED]  the end-point does nothing.  (it used to upload contacts and invoke matching.)"
   -----
 
   Provider.routes
@@ -1511,10 +1508,9 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
-onboardingH :: JSON ::: UserId ::: JsonRequest AddressBook -> Handler Response
-onboardingH (_ ::: uid ::: r) = do
-  ab <- parseJsonBody r
-  json <$> API.onboarding uid ab !>> connError
+-- | DEPRECATED / does nothing.
+onboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
+onboardingH (_ ::: _ ::: _) = pure empty
 
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
