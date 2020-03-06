@@ -147,10 +147,6 @@ lastNotification = do
 
 -- * Event Data
 
--- FUTUREWORK(federation):
--- A lot of information in the events can contain remote IDs (UserConnection,
--- User, ConvEvent, Conversation, SimpleMembers, UserIdList, Connect), but the
--- receiver might be on another backend, so mapped IDs don't work for them.
 data Event
   = -- User events
     EConnection UserConnection (Maybe UserInfo)

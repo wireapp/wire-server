@@ -470,6 +470,9 @@ data EventType
   | Typing
   deriving (Eq, Show, Generic)
 
+-- FUTUREWORK(federation):
+-- A lot of information in the events can contain remote IDs, but the
+-- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
   = EdMembersJoin !SimpleMembers
   | EdMembersLeave !UserIdList
