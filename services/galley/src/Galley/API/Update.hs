@@ -199,7 +199,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   -- removed from the conversation. We keep track of them using 'State'.
   (newUsers, newBots) <- flip execStateT (users, bots) $ do
     -- We might have to remove non-activated members
-    -- TODO(akshay): Remove Ord instance for AccessRole.
+    -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
+    -- to make assumption about the order of roles and implement policy
+    -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
       activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
