@@ -1,4 +1,4 @@
-resolver: snapshots/wire-2.1.yaml
+resolver: snapshots/wire-2.2.yaml
 
 packages:
 - libs/api-bot
@@ -26,6 +26,7 @@ packages:
 - services/brig
 - services/cannon
 - services/cargohold
+- services/federator
 - services/galley
 - services/gundeck
 - services/proxy
@@ -54,18 +55,6 @@ extra-deps:
   commit: af22d89e7723d0f1a264fb4dbd0b4bbb4097c7a1  # master (Feb 4, 2020)
 - ormolu-0.0.3.1
 - ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408  # for ormolu-0.0.3.1
-
-flags:
-  types-common:
-    cql: true
-    protobuf: true
-    arbitrary: true
-
-  galley-types:
-    cql: true
-
-  brig-types:
-    cql: true
 
 allow-newer: false
 

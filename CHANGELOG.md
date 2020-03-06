@@ -1,3 +1,35 @@
+# 2020-02-27
+
+## Hotfix
+
+- Fix encoding bug in SAML SSO (#995)
+
+
+# 2020-02-06
+
+## New features
+
+* Configure max nr of devices (#969)
+* libs/federation-util: SRV resolution (#962)
+
+## Significant internal changes
+
+* Better docs on brig integration yaml (#973)
+
+## Internal changes
+
+- Remove unnecessary LANGUAGE CPP pragmas (#978)
+- Introduce code formatting with ormolu (#974, #979)
+- Soften a rarely occurring timing issue by slowing things down. (#975)
+- debug spar prod (#977)
+- Upgrade amazonka (abandon fork) (#976)
+- remove unused imports
+- Symlink local dist folders in tools to the global one (#971, similar to #904)
+- Upgrade to GHC 8.6.5 (LTS 14.12) (#958)
+- Refactor: separate http parsing / generation from app logic. (#967)
+- spar/integration: no auth required for /sso/settings (#963)
+
+
 # 2020-02-06
 
 ## New features

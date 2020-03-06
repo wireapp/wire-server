@@ -6,6 +6,7 @@ import Brig.Types.Provider
 import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
@@ -184,15 +185,16 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
-selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
+selectUserConvs :: PrepQuery R (Identity UserId) (Identity OpaqueConvId)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
+selectUserConvsIn :: PrepQuery R (UserId, [OpaqueConvId]) (Identity OpaqueConvId)
 selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 
-selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
+selectUserConvsFrom :: PrepQuery R (UserId, OpaqueConvId) (Identity OpaqueConvId)
 selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
 
+-- FUTUREWORK(federation): unify types with queries above
 insertUserConv :: PrepQuery W (UserId, ConvId) ()
 insertUserConv = "insert into user (user, conv) values (?, ?)"
 
@@ -212,7 +214,7 @@ selectMembers = "select conv, user, service, provider, status, otr_muted, otr_mu
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
-removeMember :: PrepQuery W (ConvId, UserId) ()
+removeMember :: PrepQuery W (ConvId, OpaqueUserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
 updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
@@ -332,14 +334,14 @@ updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
 
-selectCustomBackend :: PrepQuery R (Identity EmailDomain) (HttpsUrl, HttpsUrl)
+selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
 
-updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, EmailDomain) ()
+updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
 updateCustomBackend =
   "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
 
-deleteCustomBackend :: PrepQuery W (Identity EmailDomain) ()
+deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =
   "delete from custom_backend where domain = ?"

@@ -46,6 +46,7 @@ import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
+import Data.Handle (Handle, fromHandle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics

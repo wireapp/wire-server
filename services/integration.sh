@@ -102,12 +102,23 @@ run cannon "" ${orange}
 run cannon "2" ${orange}
 run cargohold "" ${purpleish}
 run spar "" ${orange}
+run federator "" ${blue}
 
 function run_nginz() {
     colour=$1
-    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
-    (cd ${NGINZ_WORK_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
-        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+
+    # For nix we dont need LD_LIBRARY_PATH; we link against libzauth directly.
+    # nix-build will put a symlink to ./result with the nginx artifact
+    if which nix-build; then
+      nginz=$(nix-build "${TOP_LEVEL}/nix" -A nginz --no-out-link )
+      (cd ${NGINZ_WORK_DIR} && ${nginz}/bin/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+    else
+      prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+
+      (cd ${NGINZ_WORK_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+    fi
 }
 
 NGINZ_PORT=""

@@ -13,6 +13,7 @@ import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.Handle (fromHandle)
 import Data.Id hiding (client)
 import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.Text.Ascii as Ascii

@@ -5,6 +5,7 @@ import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWith
 import Bilge
 import Brig.Types
 import Data.List (elemIndex)
+import Data.Handle (fromHandle)
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty

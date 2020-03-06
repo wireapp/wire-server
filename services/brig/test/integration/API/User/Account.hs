@@ -356,8 +356,11 @@ testActivateWithExpiry brig timeout = do
 
 testNonExistingUser :: Brig -> Http ()
 testNonExistingUser brig = do
-  uid <- liftIO $ Id <$> UUID.nextRandom
-  get (brig . paths ["users", pack $ show uid] . zUser uid)
+  findingOne <- liftIO $ Id <$> UUID.nextRandom
+  foundOne <- liftIO $ Id <$> UUID.nextRandom
+  get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
+    !!! const 404 === statusCode
+  get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
     !!! const 404 === statusCode
 
 testExistingUser :: Brig -> Http ()

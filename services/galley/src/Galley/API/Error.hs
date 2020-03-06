@@ -1,13 +1,19 @@
 module Galley.API.Error where
 
+import Data.Domain (Domain, domainText)
+import Data.Id (idToText)
+import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
+import Data.List.NonEmpty (NonEmpty)
+import Data.Qualified (renderQualified)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
-import Galley.Types (EmailDomain (..))
+import qualified Data.Text.Lazy as LT
 import Galley.Types.Conversations.Roles (Action)
 import Galley.Types.Teams (IsPerm)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Type.Reflection (Typeable, typeRep)
 
 internalError :: Error
 internalError = Error status500 "internal-error" "internal error"
@@ -182,9 +188,21 @@ disableSsoNotImplemented =
     \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."
 
-customBackendNotFound :: EmailDomain -> Error
+customBackendNotFound :: Domain -> Error
 customBackendNotFound domain =
   Error
     status404
     "custom-backend-not-found"
-    ("custom backend not found for domain: " <> cs (emailDomainText domain))
+    ("custom backend not found for domain: " <> cs (domainText domain))
+
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
+federationNotImplemented qualified =
+  Error
+    status501
+    "federation-not-implemented"
+    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
+    renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
+      idToText idMappingLocal <> " -> " <> renderQualified idToText idMappingGlobal

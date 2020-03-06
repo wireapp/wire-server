@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 ORMOLU_VERSION=$(perl -ne '/^- ormolu-([^\s]+)(\s|$)/ && print $1' stack.yaml)
@@ -77,5 +76,8 @@ done
 
 if [ "$FAILURES" != 0 ]; then
     echo "ormolu failed on $FAILURES files."
+    if [ "$ARG_ORMOLU_MODE" == "check" ]; then
+        echo -en "\n\nyou can fix this by running 'make format' from the git repo root.\n\n"
+    fi
     exit 1
 fi

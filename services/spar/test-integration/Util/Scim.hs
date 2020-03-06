@@ -11,6 +11,7 @@ import Control.Monad.Random
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
+import Data.Handle (Handle (Handle))
 import Data.Id
 import qualified Data.Map as Map
 import Data.String.Conversions (cs)

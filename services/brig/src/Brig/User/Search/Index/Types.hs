@@ -6,6 +6,7 @@ import Brig.Types.User
 import Control.Lens (makeLenses)
 import Control.Monad.Catch
 import Data.Aeson
+import Data.Handle (Handle)
 import Data.Id
 import Database.V5.Bloodhound hiding (key)
 import Imports

@@ -45,8 +45,6 @@ module Galley.Types
     ConversationMessageTimerUpdate (..),
     ConvType (..),
     CustomBackend (..),
-    EmailDomain (emailDomainText),
-    mkEmailDomain,
     Invite (..),
     NewConv (..),
     NewConvManaged (..),
@@ -67,8 +65,6 @@ where
 import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
-import qualified Data.Attoparsec.ByteString as Atto
-import Data.Bifunctor (bimap)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.HashMap.Strict as HashMap
@@ -84,7 +80,6 @@ import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Push (Priority)
 import Imports
-import qualified Text.Email.Validate as Email
 import URI.ByteString
 
 -- Conversations ------------------------------------------------------------
@@ -220,7 +215,7 @@ data ConvTeamInfo
 
 data NewConv
   = NewConv
-      { newConvUsers :: ![UserId],
+      { newConvUsers :: ![OpaqueUserId],
         newConvName :: !(Maybe Text),
         newConvAccess :: !(Set Access),
         newConvAccessRole :: !(Maybe AccessRole),
@@ -276,7 +271,7 @@ create managed conversations anyway.
 
 newtype UserClientMap a
   = UserClientMap
-      { userClientMap :: Map UserId (Map ClientId a)
+      { userClientMap :: Map OpaqueUserId (Map ClientId a)
       }
   deriving
     ( Eq,
@@ -301,7 +296,7 @@ newtype OtrRecipients
       Monoid
     )
 
-foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
 foldrOtrRecipients f a =
   Map.foldrWithKey go a
     . userClientMap
@@ -318,10 +313,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId)
+    OtrIgnoreMissing (Set OpaqueUserId)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId)
+    OtrReportMissing (Set OpaqueUserId)
 
 data NewOtrMessage
   = NewOtrMessage
@@ -335,7 +330,7 @@ data NewOtrMessage
 
 newtype UserClients
   = UserClients
-      { userClients :: Map UserId (Set ClientId)
+      { userClients :: Map OpaqueUserId (Set ClientId)
       }
   deriving (Eq, Show, Semigroup, Monoid, Generic)
 
@@ -435,11 +430,11 @@ deriving instance Show OtherMemberUpdate
 
 data Invite
   = Invite
-      { invUsers :: !(List1 UserId),
+      { invUsers :: !(List1 OpaqueUserId),
         invRoleName :: !RoleName -- This role name is to be applied to all users
       }
 
-newInvite :: List1 UserId -> Invite
+newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
 
 deriving instance Eq Invite
@@ -580,26 +575,6 @@ data CustomBackend
         backendWebappWelcomeUrl :: !HttpsUrl
       }
   deriving (Eq, Show)
-
-newtype EmailDomain
-  = EmailDomain
-      { emailDomainText :: Text
-      }
-  deriving (Eq, Generic, Show)
-
-mkEmailDomain :: ByteString -> Either String EmailDomain
-mkEmailDomain = bimap show EmailDomain . T.decodeUtf8' <=< validateDomain
-  where
-    -- this is a slightly hacky way of validating an email domain,
-    -- but Text.Email.Validate doesn't expose the parser for the domain.
-    validateDomain = fmap Email.domainPart . Email.validate . ("local-part@" <>)
-
-instance FromByteString EmailDomain where
-  parser = do
-    bs <- Atto.takeByteString
-    case mkEmailDomain bs of
-      Left err -> fail ("Failed parsing ByteString as EmailDomain: " <> err)
-      Right domain -> pure domain
 
 -- Instances ----------------------------------------------------------------
 

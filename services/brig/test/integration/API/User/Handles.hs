@@ -11,6 +11,7 @@ import Control.Lens hiding ((#))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.UUID as UUID

@@ -4,6 +4,7 @@ module Brig.User.Event where
 
 import Brig.Types
 import Brig.Types.Intra
+import Data.Handle (Handle)
 import Data.Id
 import Imports
 

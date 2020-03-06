@@ -27,6 +27,7 @@ module Galley.App
     -- * Utilities
     ifNothing,
     fromJsonBody,
+    fromOptionalJsonBody,
     fromProtoBody,
     initExtEnv,
   )
@@ -216,6 +217,10 @@ reqIdMsg = ("request" .=) . unRequestId
 fromJsonBody :: FromJSON a => JsonRequest a -> Galley a
 fromJsonBody r = exceptT (throwM . invalidPayload) return (parseBody r)
 {-# INLINE fromJsonBody #-}
+
+fromOptionalJsonBody :: FromJSON a => OptionalJsonRequest a -> Galley (Maybe a)
+fromOptionalJsonBody r = exceptT (throwM . invalidPayload) return (parseOptionalBody r)
+{-# INLINE fromOptionalJsonBody #-}
 
 fromProtoBody :: Proto.Decode a => Request -> Galley a
 fromProtoBody r = do

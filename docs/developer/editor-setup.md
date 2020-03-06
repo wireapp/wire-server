@@ -45,6 +45,32 @@ Install the [projectile][] package for Emacs and do `M-x projectile-add-known-pr
       ad-do-it)))
 ```
 
+### Ormolu integration
+
+There are make targets `format`, `formatf`, `formatc` to re-format
+or check the entire repository.  This takes about 10 seconds.
+
+Emacs integration is [linked
+here](https://github.com/tweag/ormolu#editor-integration).
+
 ## Vim {#DevVim}
 
 TODO.
+
+### ormolu integration
+
+There are make targets `format`, `formatf`, `formatc` to re-format
+or check the entire repository.  This takes about 10 seconds.
+
+Vim integration is [linked
+here](https://github.com/tweag/ormolu#editor-integration).
+
+If you use sdiehl's module, you you need to collect the language extensions from `package-defaults.yaml`:
+
+```
+    let g:ormolu_options = ["--ghc-opt -XAllowAmbiguousTypes --ghc-opt -XBangPatterns --ghc-opt -XConstraintKinds --ghc-opt -XDataKinds --ghc-opt -XDefaultSignatures --ghc-opt -XDerivingStrategies --ghc-opt -XDeriveFunctor --ghc-opt -XDeriveGeneric --ghc-opt -XDeriveLift --ghc-opt -XDeriveTraversable --ghc-opt -XEmptyCase --ghc-opt -XFlexibleContexts --ghc-opt -XFlexibleInstances --ghc-opt -XFunctionalDependencies --ghc-opt -XGADTs --ghc-opt -XInstanceSigs --ghc-opt -XKindSignatures --ghc-opt -XLambdaCase --ghc-opt -XMultiParamTypeClasses --ghc-opt -XMultiWayIf --ghc-opt -XNamedFieldPuns --ghc-opt -XNoImplicitPrelude --ghc-opt -XOverloadedStrings --ghc-opt -XPackageImports --ghc-opt -XPatternSynonyms --ghc-opt -XPolyKinds --ghc-opt -XQuasiQuotes --ghc-opt -XRankNTypes --ghc-opt -XScopedTypeVariables --ghc-opt -XStandaloneDeriving --ghc-opt -XTemplateHaskell --ghc-opt -XTupleSections --ghc-opt -XTypeApplications --ghc-opt -XTypeFamilies --ghc-opt -XTypeFamilyDependencies --ghc-opt -XTypeOperators --ghc-opt -XUndecidableInstances --ghc-opt -XViewPatterns"]
+```
+
+If you want to be playful, you can look at how `tools/ormolu.sh`
+collects the language extensions automatically and see if you can get
+it to work here.

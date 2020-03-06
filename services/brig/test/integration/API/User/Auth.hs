@@ -26,6 +26,7 @@ import Data.Aeson.Lens
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy

@@ -1,7 +1,7 @@
-{ pkgs ? import <nixpkgs> {}}:
+{ pkgs ? import ./nix }:
 with pkgs; mkShell {
   name = "shell";
-  buildInputs = [ 
+  buildInputs = [
     docker-compose
     gnumake
     stack

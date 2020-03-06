@@ -27,6 +27,7 @@ import Brig.Types.User as Brig
 import Control.Lens hiding ((#), (.=), Strict)
 import Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
+import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import qualified Data.Map as Map

@@ -16,6 +16,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
+import Data.Handle (Handle (Handle))
 import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import qualified Data.Map as Map

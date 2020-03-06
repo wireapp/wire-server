@@ -149,7 +149,7 @@ createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid False
   let conv =
         NewConvUnmanaged $
-          NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
@@ -171,7 +171,7 @@ createManagedConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g

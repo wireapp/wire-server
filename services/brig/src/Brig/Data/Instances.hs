@@ -13,6 +13,7 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
+import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)

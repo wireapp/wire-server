@@ -1,5 +1,5 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-FROM alpine:3.8 as libzauth-builder
+FROM alpine:3.11 as libzauth-builder
 
 # Compile libzauth
 COPY libs/libzauth /src/libzauth
@@ -8,9 +8,7 @@ RUN cd /src/libzauth/libzauth-c \
     && make install
 
 # Nginz container
-FROM alpine:3.8
-
-ENV NGINX_VERSION 1.14.2
+FROM alpine:3.11
 
 # Install libzauth
 COPY --from=libzauth-builder /usr/local/include/zauth.h /usr/local/include/zauth.h
@@ -19,12 +17,7 @@ COPY --from=libzauth-builder /usr/local/lib/pkgconfig/libzauth.pc /usr/local/lib
 
 COPY services/nginz/third_party /src/third_party
 
-RUN apk add --no-cache inotify-tools dumb-init bash curl && \
-    # Install nginz (nginx including the zauth module)
-    # (taken mostly from https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile)
-    export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
-    && CONFIG="\
-        --prefix=/etc/nginx \
+ENV CONFIG --prefix=/etc/nginx \
         --sbin-path=/usr/sbin/nginx \
         --modules-path=/usr/lib/nginx/modules \
         --conf-path=/etc/nginx/nginx.conf \
@@ -45,10 +38,24 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
         --with-http_gunzip_module \
         --add-module=/src/third_party/nginx-zauth-module \
         --add-module=/src/third_party/headers-more-nginx-module \
-        --add-module=/src/third_party/nginx-module-vts \
-    " \
-    && addgroup -g 666 -S nginx \
-    && adduser -u 666 -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx \
+        --add-module=/src/third_party/nginx-module-vts
+
+# extra build dependencies needed for libzauth/nginx-xauth-module
+RUN apk add --no-cache --virtual .build-deps \
+        libsodium-dev \
+        llvm-libunwind-dev
+
+################# similar block as upstream ########################################
+# see https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile
+# This uses dockerfile logic from before 1.16
+####################################################################################
+
+ENV NGINX_VERSION 1.16.1
+
+RUN set -x \
+    && addgroup -g 101 -S nginx \
+    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
+    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
     && apk add --no-cache --virtual .build-deps \
         libsodium-dev \
         llvm-libunwind-dev \
@@ -124,13 +131,18 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
     # variables
     && apk add --no-cache tzdata \
     \
-    # add libzauth runtime dependencies back in
-    && apk add --no-cache libsodium llvm-libunwind \
-    \
     # forward request and error logs to docker log collector
     && ln -sf /dev/stdout /var/log/nginx/access.log \
-    && ln -sf /dev/stderr /var/log/nginx/error.log \
-    && apk add --no-cache libgcc
+    && ln -sf /dev/stderr /var/log/nginx/error.log
+
+################# wire/nginz specific ######################
+
+# Fix file permissions
+RUN mkdir -p /var/cache/nginx/client_temp && chown -R nginx:nginx /var/cache/nginx
+
+RUN apk add --no-cache inotify-tools dumb-init bash curl && \
+    # add libzauth runtime dependencies back in
+    apk add --no-cache libsodium llvm-libunwind libgcc
 
 COPY services/nginz/nginz_reload.sh /usr/bin/nginz_reload.sh
 
