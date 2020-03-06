@@ -48,7 +48,7 @@ tests s =
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
-          test s "the list should be limited to the number requested" testListTeamMembersTruncated
+          test s "the list should be limited to the number requested (if < 2000; hard truncation is not tested here)" testListTeamMembersTruncated
         ],
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
