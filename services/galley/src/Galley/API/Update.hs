@@ -501,9 +501,10 @@ removeMember zusr zcon cid victim = do
           resolvedVictim <- resolveOpaqueUserId victim
           event <- Data.removeMembers conv zusr (singleton resolvedVictim)
           case resolvedVictim of
-            Mapped _ -> pure () -- FUTUREWORK(federation): notify victim
             Local _ -> pure () -- nothing to do
-                -- FUTUREWORK(federation): users can be on other backend, how to notify it?
+            Mapped _ -> do
+              -- FUTUREWORK(federation): users can be on other backend, how to notify it?
+              pure ()
           for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
@@ -582,8 +583,11 @@ postNewOtrBroadcast usr con val msg = do
 postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
   resolveOpaqueConvId cnv >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> postToLocalConv localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation): forward message to backend owning the conversation
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      postToLocalConv localConvId
   where
     postToLocalConv localConvId = do
       let sender = newOtrSender msg

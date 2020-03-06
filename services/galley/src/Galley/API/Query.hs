@@ -82,7 +82,6 @@ getConversationsH (zusr ::: range ::: size ::: _) =
 getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
-    -- FUTUREWORK(federation): resolve IDs in batch
     (localConvIds, _qualifiedConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId ids
     -- FUTUREWORK(federation): fetch remote conversations from other backend
     cs <-

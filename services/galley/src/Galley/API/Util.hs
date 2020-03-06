@@ -252,6 +252,8 @@ getConversationAndCheckMembershipWithError ex zusr = \case
       throwM ex
     return c
 
+-- FUTUREWORK(federation): implement function to resolve IDs in batch
+
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
 resolveOpaqueUserId (Id opaque) =
