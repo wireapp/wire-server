@@ -142,6 +142,7 @@ executables:
       - spar
       - stm
       - tinylog
+      - unliftio
       - wai
       - wai-extra
       - warp-tls

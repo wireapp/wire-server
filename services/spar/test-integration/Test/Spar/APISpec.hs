@@ -25,6 +25,7 @@ import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
 import Spar.Types
 import URI.ByteString.QQ (uri)
+import UnliftIO.Async
 import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
@@ -693,24 +694,27 @@ specDeleteCornerCases = describe "delete corner cases" $ do
   -- saml login; remove it via brig leaving a dangling entry in @spar.user@; create it via saml
   -- login once more.  This should work despite the dangling database entry.
   it "re-create previously deleted, dangling users" $ do
-    (_ownerid, _teamid, idp) <- registerTestIdP
-    uname :: SAML.UnqualifiedNameID <- do
-      suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-      either (error . show) pure $
-        SAML.mkUNameIDEmail ("email_" <> suffix <> "@example.com")
-    let uref = SAML.UserRef tenant subj
-        subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
-        tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-    !(Just !uid) <- createViaSaml idp uref
-    samlUserShouldSatisfy uref isJust
-    deleteViaBrig uid
-    samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
-      -- are deleted there.  we need to work around this
-      -- fact for now.  (if the test fails here, this may
-      -- mean that you fixed the behavior and can
-      -- change this to 'isNothing'.)
-    (Just _) <- createViaSaml idp uref
-    samlUserShouldSatisfy uref isJust
+    let action = do
+          (_ownerid, _teamid, idp) <- registerTestIdP
+          uname :: SAML.UnqualifiedNameID <- do
+            suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+            either (error . show) pure $
+              SAML.mkUNameIDEmail ("email_" <> suffix <> "@example.com")
+          let uref = SAML.UserRef tenant subj
+              subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+              tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+          !(Just !uid) <- createViaSaml idp uref
+          samlUserShouldSatisfy uref isJust
+          deleteViaBrig uid
+          -- () <- threadDelay 1000000
+          samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
+            -- are deleted there.  we need to work around this
+            -- fact for now.  (if the test fails here, this may
+            -- mean that you fixed the behavior and can
+            -- change this to 'isNothing'.)
+          (Just _) <- createViaSaml idp uref
+          samlUserShouldSatisfy uref isJust
+    mapM_ wait =<< replicateM 600 (async action)
   where
     samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
     samlUserShouldSatisfy uref property = do
