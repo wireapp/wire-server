@@ -59,7 +59,7 @@ createSettings zusr tid newService = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
-  permissionCheckSimple ChangeLegalHoldTeamSettings zusrMembership
+  void $ permissionCheckSimple ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
     LHService.validateServiceKey (newLegalHoldServiceKey newService)
       >>= maybe (throwM legalHoldServiceInvalidKey) pure
@@ -75,7 +75,7 @@ getSettingsH (zusr ::: tid ::: _) = do
 getSettings :: UserId -> TeamId -> Galley ViewLegalHoldService
 getSettings zusr tid = do
   zusrMembership <- Data.teamMember tid zusr
-  permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
+  void $ permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of
@@ -97,7 +97,7 @@ removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
-  permissionCheckSimple ChangeLegalHoldTeamSettings zusrMembership
+  void $ permissionCheckSimple ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
   membs <- Data.teamMembersUnsafeForLargeTeams tid
   removeSettings' tid (Just membs)
@@ -174,7 +174,7 @@ requestDevice zusr tid uid = do
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- Data.teamMember tid zusr
-  permissionCheckSimple ChangeLegalHoldUserSettings zusrMembership
+  void $ permissionCheckSimple ChangeLegalHoldUserSettings zusrMembership
   userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
   case userLHStatus of
     Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
@@ -263,7 +263,7 @@ disableForUser zusr tid uid (DisableLegalHoldForUserRequest mPassword) = do
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- Data.teamMember tid zusr
-  permissionCheckSimple ChangeLegalHoldUserSettings zusrMembership
+  void $ permissionCheckSimple ChangeLegalHoldUserSettings zusrMembership
   uidMembership <- Data.teamMember tid uid
   if userLHNotDisabled uidMembership
     then disableLH >> pure DisableLegalHoldSuccess

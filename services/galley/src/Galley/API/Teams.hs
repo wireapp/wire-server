@@ -189,7 +189,7 @@ updateTeam zusr zcon tid updateData = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "Teams.updateTeam")
-  permissionCheckSimple SetTeamData zusrMembership
+  void $ permissionCheckSimple SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
   membs <- Data.teamMembersUnsafeForLargeTeams tid
@@ -217,7 +217,7 @@ deleteTeam zusr zcon tid mBody = do
       queueDelete
   where
     checkPermissions team = do
-      permissionCheckSimple DeleteTeam =<< Data.teamMember tid zusr
+      void $ permissionCheckSimple DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
@@ -357,11 +357,10 @@ addTeamMember zusr zcon tid nmem = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
-  zusrMembership <- Data.teamMember tid zusr >>= \case
-    Nothing -> throwM notATeamMember
-    Just u -> pure u
   -- verify permissions
-  permissionCheckSimple AddTeamMember (Just zusrMembership)
+  zusrMembership <-
+    Data.teamMember tid zusr
+      >>= permissionCheckSimple AddTeamMember
   let targetPermissions = nmem ^. ntmNewTeamMember . permissions
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
@@ -399,10 +398,9 @@ updateTeamMember zusr zcon tid targetMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  user <- Data.teamMember tid zusr >>= \case
-    Nothing -> throwM notATeamMember
-    Just u -> pure u
-  permissionCheckSimple SetMemberPermissions (Just user)
+  user <-
+    Data.teamMember tid zusr
+      >>= permissionCheckSimple SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   -- target user must be in same team
@@ -450,7 +448,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
   zusrMembership <- Data.teamMember tid zusr
-  permissionCheckSimple RemoveTeamMember zusrMembership
+  void $ permissionCheckSimple RemoveTeamMember zusrMembership
   okToDelete <- canBeDeleted [] remove tid
   unless okToDelete $ throwM noOtherOwner
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -653,7 +651,7 @@ getSSOStatusH (uid ::: tid ::: _) = do
 getSSOStatus :: UserId -> TeamId -> Galley SSOTeamConfig
 getSSOStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  permissionCheckSimple ViewSSOTeamSettings zusrMembership
+  void $ permissionCheckSimple ViewSSOTeamSettings zusrMembership
   getSSOStatusInternal tid
 
 getLegalholdStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -663,7 +661,7 @@ getLegalholdStatusH (uid ::: tid ::: _) = do
 getLegalholdStatus :: UserId -> TeamId -> Galley LegalHoldTeamConfig
 getLegalholdStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
+  void $ permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
 
 -- Enable / Disable team features
