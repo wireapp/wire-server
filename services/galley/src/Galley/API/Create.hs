@@ -66,10 +66,10 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
-  uids <- checkedConvSize (newConvUsers body)
-  ensureConnected zusr (fromConvSize uids)
-  (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
+  _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
+  mappedOrLocalUserIds <- traverse resolveOpaqueUserId (newConvUsers body)
+  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
+  ensureConnected zusr mappedOrLocalUserIds
   -- FUTUREWORK(federation): notify remote users' backends about new conversation
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
@@ -122,7 +122,7 @@ createTeamGroupConv zusr zcon tinfo body = do
           void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnected zusr (makeIdOpaque <$> notTeamMember (fromConvSize otherConvMems) teamMems)
+        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
         pure otherConvMems
   conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
@@ -162,7 +162,9 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
       | otherwise -> checkBindingTeamPermissions zusr other (cnvTeamId ti)
-    Nothing -> ensureConnected zusr [other]
+    Nothing -> do
+      otherUserId <- resolveOpaqueUserId other
+      ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c

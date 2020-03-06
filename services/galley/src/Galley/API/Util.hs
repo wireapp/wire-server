@@ -57,29 +57,30 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  ensureConnected u (makeIdOpaque <$> uids \\ join sameTeamUids)
+  ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [OpaqueUserId] -> Galley ()
+ensureConnected :: UserId -> [MappedOrLocalId Id.U] -> Galley ()
 ensureConnected _ [] = pure ()
-ensureConnected u opaqueIds = do
-  (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
+ensureConnected u mappedOrLocalUserIds = do
+  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
   -- FUTUREWORK(federation): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
-  ensureConnectedToLocals localUserIds
-  where
-    ensureConnectedToLocals uids = do
-      (connsFrom, connsTo) <-
-        getConnections [u] uids (Just Accepted)
-          `concurrently` getConnections uids [u] (Just Accepted)
-      unless (length connsFrom == length uids && length connsTo == length uids) $
-        throwM notConnected
+  ensureConnectedToLocals u localUserIds
+
+ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
+ensureConnectedToLocals _ [] = pure ()
+ensureConnectedToLocals u uids = do
+  (connsFrom, connsTo) <-
+    getConnections [u] uids (Just Accepted)
+      `concurrently` getConnections uids [u] (Just Accepted)
+  unless (length connsFrom == length uids && length connsTo == length uids) $
+    throwM notConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
