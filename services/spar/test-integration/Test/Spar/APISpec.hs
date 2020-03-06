@@ -706,7 +706,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
           !(Just !uid) <- createViaSaml idp uref
           samlUserShouldSatisfy uref isJust
           deleteViaBrig uid
-          -- () <- threadDelay 1000000
+          () <- threadDelay 1000000
           samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
             -- are deleted there.  we need to work around this
             -- fact for now.  (if the test fails here, this may
