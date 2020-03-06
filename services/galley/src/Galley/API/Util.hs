@@ -235,23 +235,22 @@ getMember ex u ms = do
     Just m -> return m
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> OpaqueConvId -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
-getConversationAndCheckMembershipWithError ex zusr cnv = do
-  resolveOpaqueConvId cnv >>= \case
-    Mapped idMapping ->
-      throwM . federationNotImplemented $ pure idMapping
-    Local convId -> do
-      -- should we merge resolving to qualified ID and looking up the conversation?
-      c <- Data.conversation convId >>= ifNothing convNotFound
-      when (DataTypes.isConvDeleted c) $ do
-        Data.deleteConversation convId
-        throwM convNotFound
-      unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
-        throwM ex
-      return c
+getConversationAndCheckMembershipWithError :: Error -> UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr = \case
+  Mapped idMapping ->
+    throwM . federationNotImplemented $ pure idMapping
+  Local convId -> do
+    -- should we merge resolving to qualified ID and looking up the conversation?
+    c <- Data.conversation convId >>= ifNothing convNotFound
+    when (DataTypes.isConvDeleted c) $ do
+      Data.deleteConversation convId
+      throwM convNotFound
+    unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
+      throwM ex
+    return c
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)

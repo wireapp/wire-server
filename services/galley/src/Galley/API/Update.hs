@@ -456,7 +456,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 
 updateSelfMember :: UserId -> ConnId -> ConvId -> MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
-  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
+  conv <- getConversationAndCheckMembership zusr (Local cid)
   m <- getSelfMember zusr (Data.convMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
@@ -472,7 +472,7 @@ updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> OtherMemberUpdate -
 updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
-  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
+  conv <- getConversationAndCheckMembership zusr (Local cid)
   let (bots, users) = botsAndUsers (Data.convMembers conv)
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
