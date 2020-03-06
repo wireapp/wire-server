@@ -170,6 +170,10 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
+    verifyMembership tid u = do
+      membership <- Data.teamMember tid u
+      when (isNothing membership) $
+        throwM noBindingTeamMembers
     checkBindingTeamPermissions x other tid = do
       y <- resolveOpaqueUserId other >>= \case
         Local l -> pure l
@@ -178,10 +182,8 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       permissionCheckSimple CreateConversation zusrMembership
       Data.teamBinding tid >>= \case
         Just Binding -> do
-          xMembership <- Data.teamMember tid x
-          yMembership <- Data.teamMember tid y
-          unless (all isJust [xMembership, yMembership]) $
-            throwM noBindingTeamMembers
+          verifyMembership tid x
+          verifyMembership tid y
         Just _ -> throwM nonBindingTeam
         Nothing -> throwM teamNotFound
     create x y n tinfo = do
