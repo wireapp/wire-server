@@ -1346,17 +1346,6 @@ sendActivationCode SendActivationCode {..} = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
 
--- Deprecated and to be removed after new versions of brig and galley are
--- deployed. Reason for deprecation: it returns N^2 things (which is not
--- needed), it doesn't scale, and it accepts everything in URL parameters,
--- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
-deprecatedGetConnectionsStatusH (users ::: flt) = do
-  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
-  return . json $ maybe r (filterByRelation r) flt
-  where
-    filterByRelation l rel = filter ((== rel) . csStatus) l
-
 getConnectionsStatusH ::
   JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
   Handler Response
@@ -1510,18 +1499,6 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
-deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
-deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
-
-data DeprecatedMatchingResult = DeprecatedMatchingResult
-
-instance ToJSON DeprecatedMatchingResult where
-  toJSON DeprecatedMatchingResult =
-    object
-      [ "results" .= ([] :: [()]),
-        "auto-connects" .= ([] :: [()])
-      ]
-
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
@@ -1564,6 +1541,29 @@ respFromActivationRespWithStatus = \case
   ActivationRespSuccessNoIdent -> empty
 
 -- Deprecated
+
+-- Deprecated and to be removed after new versions of brig and galley are
+-- deployed. Reason for deprecation: it returns N^2 things (which is not
+-- needed), it doesn't scale, and it accepts everything in URL parameters,
+-- which doesn't work when the list of users is long.
+deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatusH (users ::: flt) = do
+  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
+  return . json $ maybe r (filterByRelation r) flt
+  where
+    filterByRelation l rel = filter ((== rel) . csStatus) l
+
+deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
+deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+
+instance ToJSON DeprecatedMatchingResult where
+  toJSON DeprecatedMatchingResult =
+    object
+      [ "results" .= ([] :: [()]),
+        "auto-connects" .= ([] :: [()])
+      ]
 
 deprecatedCompletePasswordResetH :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
