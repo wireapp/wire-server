@@ -128,8 +128,8 @@ ensureConvRoleNotElevated origMember targetRole = do
 -- | If a team memeber is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return unit.
-permissionCheckSimple :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
-permissionCheckSimple p = \case
+permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
+permissionCheck p = \case
   Just m -> do
     unless (m `hasPermission` p) $ throwM (operationDenied p)
     pure m
@@ -146,7 +146,7 @@ assertOnTeam uid tid = do
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
 permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheckSimple perm =<< Data.teamMember tid zusr
+    Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
     Nothing -> pure ()
   Nothing -> throwM convNotFound
 

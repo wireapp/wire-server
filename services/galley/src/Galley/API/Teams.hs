@@ -189,7 +189,7 @@ updateTeam zusr zcon tid updateData = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "Teams.updateTeam")
-  void $ permissionCheckSimple SetTeamData zusrMembership
+  void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
   membs <- Data.teamMembersUnsafeForLargeTeams tid
@@ -217,7 +217,7 @@ deleteTeam zusr zcon tid mBody = do
       queueDelete
   where
     checkPermissions team = do
-      void $ permissionCheckSimple DeleteTeam =<< Data.teamMember tid zusr
+      void $ permissionCheck DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
@@ -360,7 +360,7 @@ addTeamMember zusr zcon tid nmem = do
   -- verify permissions
   zusrMembership <-
     Data.teamMember tid zusr
-      >>= permissionCheckSimple AddTeamMember
+      >>= permissionCheck AddTeamMember
   let targetPermissions = nmem ^. ntmNewTeamMember . permissions
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
@@ -400,7 +400,7 @@ updateTeamMember zusr zcon tid targetMember = do
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   user <-
     Data.teamMember tid zusr
-      >>= permissionCheckSimple SetMemberPermissions
+      >>= permissionCheck SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   -- target user must be in same team
@@ -448,7 +448,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
   zusrMembership <- Data.teamMember tid zusr
-  void $ permissionCheckSimple RemoveTeamMember zusrMembership
+  void $ permissionCheck RemoveTeamMember zusrMembership
   okToDelete <- canBeDeleted [] remove tid
   unless okToDelete $ throwM noOtherOwner
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
@@ -651,7 +651,7 @@ getSSOStatusH (uid ::: tid ::: _) = do
 getSSOStatus :: UserId -> TeamId -> Galley SSOTeamConfig
 getSSOStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  void $ permissionCheckSimple ViewSSOTeamSettings zusrMembership
+  void $ permissionCheck ViewSSOTeamSettings zusrMembership
   getSSOStatusInternal tid
 
 getLegalholdStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -661,7 +661,7 @@ getLegalholdStatusH (uid ::: tid ::: _) = do
 getLegalholdStatus :: UserId -> TeamId -> Galley LegalHoldTeamConfig
 getLegalholdStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  void $ permissionCheckSimple ViewLegalHoldTeamSettings zusrMembership
+  void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
 
 -- Enable / Disable team features

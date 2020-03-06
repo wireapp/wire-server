@@ -102,7 +102,7 @@ createTeamGroupConv zusr zcon tinfo body = do
   zusrMembership <- Data.teamMember convTeam zusr
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRoleSimple (accessRole body) (zip localUserIds convMemberships)
-  void $ permissionCheckSimple CreateConversation zusrMembership
+  void $ permissionCheck CreateConversation zusrMembership
   otherConvMems <-
     if cnvManaged tinfo
       then do
@@ -122,7 +122,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- we can ever get rid of the team permission model anyway - the only thing I can
         -- think of is that 'partners' can create convs but not be admins...
         when (length (fromConvSize otherConvMems) > 1) $ do
-          void $ permissionCheckSimple DoNotUseDeprecatedAddRemoveConvMember zusrMembership
+          void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
         ensureConnected zusr (makeIdOpaque <$> notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
@@ -179,7 +179,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
         Local l -> pure l
         Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
       zusrMembership <- Data.teamMember tid zusr
-      void $ permissionCheckSimple CreateConversation zusrMembership
+      void $ permissionCheck CreateConversation zusrMembership
       Data.teamBinding tid >>= \case
         Just Binding -> do
           verifyMembership tid x
