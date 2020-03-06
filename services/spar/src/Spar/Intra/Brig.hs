@@ -393,11 +393,11 @@ ensureReAuthorised (Just uid) secret = do
 
 -- | Get persistent cookie from brig and redirect user past login process.
 --
--- If brig responds with status >=400;<500, return Nothing.  Otherwise, crash (500).
+-- If brig responds with status >=400;<500, return 'Left'.  Otherwise, throw 'SparBrigError'.
 ssoLogin ::
   (HasCallStack, SAML.HasConfig m, MonadSparToBrig m) =>
   UserId ->
-  m (Maybe SetCookie)
+  m (Either Int SetCookie)
 ssoLogin buid = do
   resp :: Response (Maybe LBS) <-
     call $
@@ -407,8 +407,8 @@ ssoLogin buid = do
         . queryItem "persist" "true"
   let sCode = statusCode resp
   if  | sCode < 300 ->
-        Just <$> respToCookie resp
+        Right <$> respToCookie resp
       | inRange (400, 499) sCode ->
-        pure Nothing
+        pure (Left sCode)
       | otherwise ->
         throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show sCode

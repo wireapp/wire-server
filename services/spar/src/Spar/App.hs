@@ -319,11 +319,14 @@ verdictHandlerResultCore bindCky = \case
           -- Attempt to use ssoid for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
-    mcky :: Maybe SetCookie <- Intra.ssoLogin uid
+    mcky :: Either Int SetCookie <- Intra.ssoLogin uid
     -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
     case mcky of
-      Just cky -> pure $ VerifyHandlerGranted cky uid
-      Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+      Right cky ->
+        pure $ VerifyHandlerGranted cky uid
+      Left status ->
+        throwSpar . SparBrigError $
+          "sso-login failed with status " <> cs (show status) <> " (race condition?)"
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
