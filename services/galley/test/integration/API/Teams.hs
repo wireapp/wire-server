@@ -165,19 +165,9 @@ testCreateTeamWithMembers = do
       e ^. eventTeam @?= (team ^. teamId)
       e ^. eventData @?= Just (EdTeamCreate team)
 
-createTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
-createTeamWithNMembers n = do
-  (owner, tid) <- createBindingTeam
-  mems <- replicateM n $ do
-    member1 <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
-    pure member1
-  ensureQueueEmpty
-  pure (owner, tid, mems)
-
 testListTeamMembersDefaultLimit :: TestM ()
 testListTeamMembersDefaultLimit = do
-  (owner, tid, [member1, member2]) <- createTeamWithNMembers 2
+  (owner, tid, [member1, member2]) <- Util.createBindingTeamWithNMembers 2
   listFromServer <- Util.getTeamMembers owner tid
   liftIO $
     assertEqual
@@ -191,7 +181,7 @@ testListTeamMembersDefaultLimit = do
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
-  (owner, tid, _) <- createTeamWithNMembers 4
+  (owner, tid, _) <- Util.createBindingTeamWithNMembers 4
   listFromServer <- Util.getTeamMembersTruncated owner tid 2
   liftIO $
     assertEqual
@@ -205,7 +195,7 @@ testListTeamMembersTruncated = do
 
 testUncheckedListTeamMembers :: TestM ()
 testUncheckedListTeamMembers = do
-  (_, tid, _) <- createTeamWithNMembers 4
+  (_, tid, _) <- Util.createBindingTeamWithNMembers 4
   listFromServer <- Util.getTeamMembersInternalTruncated tid 2
   liftIO $
     assertEqual
@@ -219,13 +209,13 @@ testUncheckedListTeamMembers = do
 
 testTeamSize :: TestM ()
 testTeamSize = do
-  (_, tid, _) <- createTeamWithNMembers 4
+  (_, tid, _) <- Util.createBindingTeamWithNMembers 4
   sizeFromServer <- getLimitedTeamSize tid 2000
   liftIO $ assertEqual "team size" (mkLimitedTeamSize 2000 5) sizeFromServer
 
 testTeamSizeLimited :: TestM ()
 testTeamSizeLimited = do
-  (_, tid, _) <- createTeamWithNMembers 4
+  (_, tid, _) <- Util.createBindingTeamWithNMembers 4
   sizeFromServer <- getLimitedTeamSize tid 2
   liftIO $ assertEqual "team size is larger than limit" (mkLargeTeamSize 2) sizeFromServer
 

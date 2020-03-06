@@ -53,6 +53,16 @@ createBindingTeam = do
   SQS.assertQueue "create team" SQS.tActivate
   pure (ownerid, teamid)
 
+createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
+createBindingTeamWithNMembers n = do
+  (owner, tid) <- createBindingTeam
+  mems <- replicateM n $ do
+    member1 <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    pure member1
+  SQS.ensureQueueEmpty
+  pure (owner, tid, mems)
+
 -- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
 createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
 createNonBindingTeam name owner mems = do
