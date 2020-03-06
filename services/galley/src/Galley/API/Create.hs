@@ -101,7 +101,7 @@ createTeamGroupConv zusr zcon tinfo body = do
   let convTeam = (cnvTeamId tinfo)
   zusrMembership <- Data.teamMember convTeam zusr
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
-  ensureAccessRoleSimple (accessRole body) (zip localUserIds convMemberships)
+  ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
   void $ permissionCheck CreateConversation zusrMembership
   otherConvMems <-
     if cnvManaged tinfo

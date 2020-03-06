@@ -403,7 +403,7 @@ joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
-  ensureAccessRoleSimple (Data.convAccessRole conv) [(zusr, zusrMembership)]
+  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv . makeIdOpaque) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
   -- NOTE: When joining conversations, all users become members
@@ -440,7 +440,7 @@ addMembers zusr zcon cid invite = do
       ensureConvRoleNotElevated self (invRoleName invite)
       case Data.convTeam conv of
         Nothing -> do
-          ensureAccessRoleSimple (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
+          ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
           ensureConnectedOrSameTeam zusr newUsers
         Just ti -> teamConvChecks ti newUsers convId conv
       addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
@@ -448,7 +448,7 @@ addMembers zusr zcon cid invite = do
     teamConvChecks tid newUsers convId conv = do
       tms <- Data.teamMembersLimited tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
-      ensureAccessRoleSimple (Data.convAccessRole conv) userMembershipMap
+      ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
