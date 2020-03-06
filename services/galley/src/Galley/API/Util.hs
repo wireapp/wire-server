@@ -31,19 +31,6 @@ import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
-ensureAccessRole role users mbTms = case role of
-  PrivateAccessRole -> throwM convAccessDenied
-  TeamAccessRole -> case mbTms of
-    Nothing -> throwM internalError
-    Just tms ->
-      unless (null $ notTeamMember users tms) $
-        throwM notATeamMember
-  ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers users
-    when (length activated /= length users) $ throwM convAccessDenied
-  NonActivatedAccessRole -> return ()
-
 ensureAccessRoleSimple :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
 ensureAccessRoleSimple role users = case role of
   PrivateAccessRole -> throwM convAccessDenied

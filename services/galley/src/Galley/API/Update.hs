@@ -440,13 +440,15 @@ addMembers zusr zcon cid invite = do
       ensureConvRoleNotElevated self (invRoleName invite)
       case Data.convTeam conv of
         Nothing -> do
-          ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
+          ensureAccessRoleSimple (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
           ensureConnectedOrSameTeam zusr newUsers
         Just ti -> teamConvChecks ti newUsers convId conv
       addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+    userIsMember u = (^. userId . to (== u))
     teamConvChecks tid newUsers convId conv = do
       tms <- Data.teamMembersLimited tid newUsers
-      ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
+      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+      ensureAccessRoleSimple (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
