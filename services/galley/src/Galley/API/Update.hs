@@ -425,15 +425,15 @@ addMembers zusr zcon cid invite = do
       ensureActionAllowed AddConversationMember self
       toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
       let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
+      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
+      ensureAccess conv InviteAccess
+      ensureConvRoleNotElevated self (invRoleName invite)
       (newUsers, newQualifiedUsers) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId newOpaqueUsers
       -- FUTUREWORK(federation): allow adding remote members
       -- this one is a bit tricky because all of the checks that need to be done,
       -- some of them on remote backends.
       for_ (nonEmpty newQualifiedUsers) $
         throwM . federationNotImplemented
-      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
-      ensureAccess conv InviteAccess
-      ensureConvRoleNotElevated self (invRoleName invite)
       case Data.convTeam conv of
         Nothing -> do
           ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
