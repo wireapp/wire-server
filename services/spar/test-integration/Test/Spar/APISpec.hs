@@ -714,7 +714,8 @@ specDeleteCornerCases = describe "delete corner cases" $ do
             -- change this to 'isNothing'.)
           (Just _) <- createViaSaml idp uref
           samlUserShouldSatisfy uref isJust
-    mapM_ wait =<< replicateM 600 (async action)
+    results <- replicateConcurrently 600 (async action {- TODO: handle exceptions here, return as left! -})
+    liftIO $ results `shouldSatisfy` all isRight
   where
     samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
     samlUserShouldSatisfy uref property = do
