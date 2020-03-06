@@ -67,7 +67,7 @@ sitemap = do
       description "Team ID"
     body (ref TeamsModel.update) $
       description "JSON body"
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied SetTeamData)
   --
 
@@ -109,7 +109,7 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied DeleteTeam)
     errorResponse Error.deleteQueueFull
     errorResponse Error.reAuthFailed
@@ -127,7 +127,7 @@ sitemap = do
     returns (ref Model.conversationRolesList)
     response 200 "Team conversations roles list" end
     errorResponse Error.teamNotFound
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
   --
 
   get "/teams/:tid/members" (continue getTeamMembersH) $
@@ -143,7 +143,7 @@ sitemap = do
       description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
   --
 
   get "/teams/:tid/members/:uid" (continue getTeamMemberH) $
@@ -159,7 +159,7 @@ sitemap = do
       description "User ID"
     returns (ref TeamsModel.teamMember)
     response 200 "Team member" end
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
   --
 
@@ -175,7 +175,7 @@ sitemap = do
       description "Team ID"
     body (ref TeamsModel.newTeamMember) $
       description "JSON body"
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied AddTeamMember)
     errorResponse Error.notConnected
     errorResponse Error.invalidPermissions
@@ -199,7 +199,7 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied RemoveTeamMember)
     errorResponse Error.reAuthFailed
   --
@@ -216,7 +216,7 @@ sitemap = do
       description "Team ID"
     body (ref TeamsModel.newTeamMember) $
       description "JSON body"
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
     errorResponse (Error.operationDenied SetMemberPermissions)
   --
@@ -265,7 +265,7 @@ sitemap = do
       description "Team ID"
     parameter Path "cid" bytes' $
       description "Conversation ID"
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.actionDenied DeleteConversation)
   --
 
@@ -404,7 +404,7 @@ sitemap = do
       description "JSON body"
     response 201 "Conversation created" end
     errorResponse Error.notConnected
-    errorResponse Error.noTeamMember
+    errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied CreateConversation)
   ---
 

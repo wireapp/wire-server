@@ -38,7 +38,7 @@ ensureAccessRole role users mbTms = case role of
     Nothing -> throwM internalError
     Just tms ->
       unless (null $ notTeamMember users tms) $
-        throwM noTeamMember
+        throwM notATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers users
     when (length activated /= length users) $ throwM convAccessDenied
@@ -49,7 +49,7 @@ ensureAccessRoleSimple role users = case role of
   PrivateAccessRole -> throwM convAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwM noTeamMember
+      throwM notATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
@@ -125,7 +125,7 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- | If a team memeber is not given throw 'noTeamMember'; if the given team
+-- | If a team memeber is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return unit.
 -- TODO(akshay): Make this return the TeamMember
@@ -133,12 +133,12 @@ permissionCheckSimple :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember ->
 permissionCheckSimple p = \case
   Just m ->
     unless (m `hasPermission` p) $ throwM (operationDenied p)
-  Nothing -> throwM noTeamMember
+  Nothing -> throwM notATeamMember
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
   Data.teamMember tid uid >>= \case
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named

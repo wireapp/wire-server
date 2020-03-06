@@ -292,7 +292,7 @@ getTeamConversationRoles :: UserId -> TeamId -> Galley ConversationRolesList
 getTeamConversationRoles zusr tid = do
   mem <- Data.teamMember tid zusr
   case mem of
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just _ -> do
       -- NOTE: If/when custom roles are added, these roles should
       --       be merged with the team roles (if they exist)
@@ -307,7 +307,7 @@ getTeamMembers :: UserId -> TeamId -> Range 1 2000 Int32 -> Galley (TeamMemberLi
 getTeamMembers zusr tid maxResults = do
   (mems, hasMore) <- Data.teamMembers tid maxResults
   Data.teamMember tid zusr >>= \case
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
       pure (newTeamMemberList mems hasMore, withPerms)
@@ -321,7 +321,7 @@ getTeamMember :: UserId -> TeamId -> UserId -> Galley (TeamMember, TeamMember ->
 getTeamMember zusr tid uid = do
   zusrMembership <- Data.teamMember tid zusr
   case zusrMembership of
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
       Data.teamMember tid uid >>= \case
@@ -358,7 +358,7 @@ addTeamMember zusr zcon tid nmem = do
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
   zusrMembership <- Data.teamMember tid zusr >>= \case
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just u -> pure u
   -- verify permissions
   permissionCheckSimple AddTeamMember (Just zusrMembership)
@@ -400,7 +400,7 @@ updateTeamMember zusr zcon tid targetMember = do
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   user <- Data.teamMember tid zusr >>= \case
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just u -> pure u
   permissionCheckSimple SetMemberPermissions (Just user)
   -- user may not elevate permissions
@@ -498,7 +498,7 @@ getTeamConversationsH (zusr ::: tid ::: _) = do
 
 getTeamConversations :: UserId -> TeamId -> Galley TeamConversationList
 getTeamConversations zusr tid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   newTeamConversationList <$> Data.teamConversations tid
@@ -509,7 +509,7 @@ getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley TeamConversation
 getTeamConversation zusr tid cid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
