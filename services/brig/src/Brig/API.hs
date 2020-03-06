@@ -816,8 +816,10 @@ sitemap o = do
       .&. jsonRequest @Value
   document "POST" "onboardingV3" $ do
     Doc.deprecated
-    Doc.summary "Upload contacts and invoke matching. Returns the list of Matches"
-    Doc.notes "DEPRECATED: the feature has been turned off, the end-point does anothing."
+    Doc.summary "Upload contacts and invoke matching."
+    Doc.notes
+      "DEPRECATED: the feature has been turned off, the end-point does \
+      \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
   -----
 
   Provider.routes
