@@ -158,21 +158,20 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   when (x == y)
     $ throwM
     $ invalidOp "Cannot create a 1-1 with yourself"
+  otherUserId <- resolveOpaqueUserId other
   case newConvTeam j of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
-      | otherwise -> checkBindingTeamPermissions zusr other (cnvTeamId ti)
+      | otherwise -> case otherUserId of
+        Local localOther -> checkBindingTeamPermissions zusr localOther (cnvTeamId ti)
+        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
     Nothing -> do
-      otherUserId <- resolveOpaqueUserId other
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
-    checkBindingTeamPermissions x other tid = do
-      y <- resolveOpaqueUserId other >>= \case
-        Local l -> pure l
-        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
+    checkBindingTeamPermissions x y tid = do
       mems <- bindingTeamMembers tid
       void $ permissionCheck zusr CreateConversation mems
       unless (all (flip isTeamMember mems) [x, y]) $
