@@ -31,7 +31,7 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
-    getLimitedTeamSize,
+    getLimitedTeamSizeH,
   )
 where
 
@@ -735,9 +735,13 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
 
-getLimitedTeamSize :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
-getLimitedTeamSize (tid ::: r ::: _) = do
+getLimitedTeamSizeH :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+getLimitedTeamSizeH (tid ::: r ::: _) = json <$> getLimitedTeamSize tid r
+
+getLimitedTeamSize :: TeamId -> Range 1 2000 Int32 -> Galley LimitedTeamSize
+getLimitedTeamSize tid r = do
   (members, hasMore) <- Data.teamMembers tid r
-  if hasMore
-    then pure $ json $ mkLargeTeamSize $ fromIntegral $ fromRange r
-    else pure $ json $ mkLimitedTeamSize (fromIntegral $ fromRange r) (fromIntegral $ length members)
+  pure $
+    if hasMore
+      then mkLargeTeamSize $ fromIntegral $ fromRange r
+      else mkLimitedTeamSize (fromIntegral $ fromRange r) (fromIntegral $ length members)

@@ -903,7 +903,7 @@ sitemap = do
     capture "uid"
   get "/i/users/:uid/team" (continue getBindingTeamIdH) $
     capture "uid"
-  get "/i/teams/:tid/limited-size/:size" (continue getLimitedTeamSize) $
+  get "/i/teams/:tid/limited-size/:size" (continue getLimitedTeamSizeH) $
     capture "tid"
       .&. capture "size"
       .&. accept "application" "json"
