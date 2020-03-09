@@ -1,0 +1,5 @@
+Package: metrics-collectd
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Wire Swiss GmbH <backend@wire.com>
+Architecture: amd64
+Description: collectd plugin

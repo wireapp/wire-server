@@ -10,6 +10,7 @@ packages:
 - libs/galley-types
 - libs/gundeck-types
 - libs/http-client-openssl-ext
+- libs/metrics-collectd
 - libs/metrics-core
 - libs/metrics-wai
 - libs/ropes
