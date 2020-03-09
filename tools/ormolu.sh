@@ -2,7 +2,7 @@
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-ORMOLU_VERSION=$(perl -ne '/^- ormolu-([^\s]+)(\s|$)/ && print $1' stack.yaml)
+ORMOLU_VERSION=$(yq read stack.yaml 'extra-deps[*]' | sed -n 's/ormolu-//p')
 ( ormolu -v 2>/dev/null | grep -q $ORMOLU_VERSION ) || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
 
 ARG_ALLOW_DIRTY_WC="0"
@@ -58,7 +58,7 @@ if [ "$(git status -s | grep -v \?\?)" != "" ]; then
     fi
 fi
 
-LANGUAGE_EXTS=$(perl -ne '$x=1 if /default-extensions:/?1:(/^[^-]/?0:$x); print "--ghc-opt -X$1 " if ($x && /^- (.+)/);' package-defaults.yaml)
+LANGUAGE_EXTS=$(yq read package-defaults.yaml 'default-extensions[*]' | awk '{print "--ghc-opt -X" $0}' ORS=' ')
 echo "ormolu mode: $ARG_ORMOLU_MODE"
 
 FAILURES=0
