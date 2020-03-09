@@ -1,5 +1,5 @@
 name:                hscim
-version:             0.3.0
+version:             0.3.4
 synopsis:            ...
 description:         ...
 homepage:            https://github.com/wireapp/hscim/README.md
@@ -71,7 +71,9 @@ dependencies:
   -  servant-server       >= 0.16.2 && < 0.17
   -  warp                 >= 3.2.28 && < 3.4
   -  stm-containers       >= 1.1.0 && < 1.2
+  -  string-conversions   >= 0.4.0 && < 0.5
   -  uuid                 >= 1.3.13 && < 1.4
+  -  retry                >= 0.8.1.0 && < 0.9
 
 ghc-options: -Wall -Werror
 
@@ -96,3 +98,12 @@ tests:
       - hspec-discover:hspec-discover
     dependencies:
       - hscim
+
+  doctests:
+    main: doctests.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    source-dirs:
+      - doctests
+    dependencies:
+      - base
+      - doctest

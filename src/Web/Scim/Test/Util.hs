@@ -1,9 +1,14 @@
-
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Web.Scim.Test.Util (
+    shouldRespondWith,
+    shouldEventuallyRespondWith,
   -- * Making wai requests
     post, put, patch,
+    AcceptanceConfig(..), defAcceptanceConfig,
+    AcceptanceQueryConfig(..), defAcceptanceQueryConfig,
     post', put', patch', get', delete'
   -- * Request/response quasiquoter
   , scim
@@ -14,20 +19,28 @@ module Web.Scim.Test.Util (
   , TestTag
   ) where
 
+import qualified Control.Retry as Retry
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
 import           Data.Aeson
 import           Data.Aeson.Internal (JSONPathElement (Key), (<?>))
 import           Data.Aeson.QQ
+import           Data.Proxy
 import           Data.Text
+import           Data.UUID as UUID
+import           Data.UUID.V4 as UUID
+import           GHC.Stack
+import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import           Language.Haskell.TH.Quote
 import           Network.HTTP.Types
+import           Network.Wai (Application)
 import           Network.Wai.Test (SResponse)
-import           Test.Hspec.Wai hiding (post, put, patch)
+import           Test.Hspec.Expectations (expectationFailure)
+import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
 import           Test.Hspec.Wai.Matcher (bodyEquals)
-import           Data.Proxy
-import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import           Test.Hspec.Wai.Matcher (match)
 import qualified Data.HashMap.Strict as SMap
 
 import           Web.Scim.Schema.User (UserTypes (..))
@@ -35,16 +48,70 @@ import           Web.Scim.Class.Group (GroupTypes (..))
 import           Web.Scim.Class.Auth (AuthTypes (..))
 import           Web.Scim.Schema.Schema (Schema (User20, CustomSchema))
 
+-- | re-implementation of 'shouldRespondWith' with better error reporting.
+-- FUTUREWORK: make this a PR upstream.  (while we're at it, we can also patch 'WaiSession'
+-- and 'request' to keep track of the 'SRequest', and add that to the error message here with
+-- the response.)
+shouldRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> WaiExpectation
+shouldRespondWith action matcher =
+  either (liftIO . expectationFailure) pure =<< doesRespondWith action matcher
+
+doesRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> WaiSession (Either String ())
+doesRespondWith action matcher = do
+  r <- action
+  let extmsg = "  details:  " <> show r <> "\n"
+  pure $ maybe (Right ()) (Left . (<> extmsg)) (match r matcher)
+
+shouldEventuallyRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> WaiExpectation
+shouldEventuallyRespondWith action matcher =
+  either (liftIO . expectationFailure) pure =<<
+    Retry.retrying (Retry.exponentialBackoff 66000 <> Retry.limitRetries 6)
+      (\_ -> pure . either (const True) (const False))
+      (\_ -> doesRespondWith action matcher)
+
+data AcceptanceConfig tag = AcceptanceConfig
+  { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag)
+  , genUserName    :: IO Text
+  , responsesFullyKnown :: Bool  -- ^ some acceptance tests match against a fully rendered
+                                 -- response body, which will now work when running the test
+                                 -- as a library user (since the response will have more and
+                                 -- other information).  if you leave this on 'False' (default
+                                 -- from 'defAcceptanceConfig'), the test will only check some
+                                 -- invariants on the response instead that must hold in all
+                                 -- cases.
+  }
+
+defAcceptanceConfig :: IO Application -> AcceptanceConfig tag
+defAcceptanceConfig scimApp = AcceptanceConfig{..}
+  where
+    scimAppAndConfig = (, defAcceptanceQueryConfig) <$> scimApp
+    genUserName    = ("Test_User_" <>) . UUID.toText <$> UUID.nextRandom
+    responsesFullyKnown = False
+
+data AcceptanceQueryConfig tag = AcceptanceQueryConfig
+  { scimPathPrefix :: BS.ByteString
+  , scimAuthToken  :: BS.ByteString
+  }
+
+defAcceptanceQueryConfig :: AcceptanceQueryConfig tag
+defAcceptanceQueryConfig = AcceptanceQueryConfig{..}
+  where
+    scimPathPrefix = ""
+    scimAuthToken = "authorized"
+
 ----------------------------------------------------------------------------
 -- Redefine wai test helpers to include scim+json content type
 
 -- | avoid multiple @/@.  (kill at most one @/@ at the end of first arg and beginning of
 -- second arg, resp., then add one during concatenation.
+--
+-- >>> ["a" <//> "b", "a" <//> "/b", "a/" <//> "b", "a/" <//> "/b"]
+-- ["a/b","a/b","a/b","a/b"]
 (<//>) :: ByteString -> ByteString -> ByteString
 (<//>) a b = a' <> "/" <> b'
   where
-    a' = maybe a fst $ BS.unsnoc a
-    b' = maybe b snd $ BS.uncons b
+    a' = maybe a (\(t,l) -> if l == '/' then t else a) $ BS8.unsnoc a
+    b' = maybe b (\(h,t) -> if h == '/' then t else b) $ BS8.uncons b
 
 post :: ByteString -> L.ByteString -> WaiSession SResponse
 post path = request methodPost path [(hContentType, "application/scim+json")]
@@ -55,22 +122,23 @@ put path = request methodPut path [(hContentType, "application/scim+json")]
 patch :: ByteString -> L.ByteString -> WaiSession SResponse
 patch path = request methodPatch path [(hContentType, "application/scim+json")]
 
-get' :: ByteString -> ByteString -> WaiSession SResponse
-get' prefix path = request methodGet (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")] ""
+request' :: Method -> AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
+request' method (AcceptanceQueryConfig prefix token) path = request method (prefix <//> path) [(hAuthorization, token), (hContentType, "application/scim+json")]
 
-post' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
-post' prefix path = request methodPost (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+get' :: AcceptanceQueryConfig tag -> ByteString -> WaiSession SResponse
+get' cfg path = request' methodGet cfg path ""
 
-put' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
-put' prefix path = request methodPut (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+post' :: AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
+post' = request' methodPost
 
-patch' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
-patch' prefix path = request methodPatch (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+put' :: AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
+put' = request' methodPut
 
-delete' :: ByteString -> ByteString -> L.ByteString -> WaiSession SResponse
-delete' prefix path = request methodDelete (prefix <//> path) [(hAuthorization, "authorized"), (hContentType, "application/scim+json")]
+patch' :: AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
+patch' = request' methodPatch
 
-
+delete' :: AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
+delete' = request' methodDelete
 
 
 ----------------------------------------------------------------------------

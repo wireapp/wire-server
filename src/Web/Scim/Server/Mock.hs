@@ -21,6 +21,7 @@ import           Data.Time.Clock
 import           Data.Time.Calendar
 import           GHC.Exts (sortWith)
 import           ListT
+import qualified Network.URI as URI
 import qualified StmContainers.Map as STMMap
 import           Text.Read (readMaybe)
 import           Web.Scim.Filter (Filter(..), CompValue(..), AttrPath(..), compareStr)
@@ -39,6 +40,9 @@ import           Servant
 data Mock
 
 -- | A simple ID type.
+--
+-- >>> eitherDecode' @Id . encode $ (Id 3)
+-- Right (Id {unId = 3})
 newtype Id = Id { unId :: Int }
   deriving (Eq, Show, Ord, Hashable, ToHttpApiData, FromHttpApiData)
 
@@ -192,7 +196,9 @@ createMeta rType = Meta
   , created = testDate
   , lastModified = testDate
   , version = Weak "testVersion"
-  , location = Common.URI $ URI "todo" Nothing "" "" ""
+  , location = Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
+                            -- is a bit of work, but it may be required one day.
+                            URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
   }
 
 -- Natural transformation from our transformer stack to the Servant stack

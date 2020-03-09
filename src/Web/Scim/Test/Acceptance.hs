@@ -1,18 +1,39 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 -- | A bunch of hspec acceptance tests that assert that your SCIM
 -- implementation is compatible with popular SCIM 2.0 providers
-module Web.Scim.Test.Acceptance where
+module Web.Scim.Test.Acceptance
+  ( module Web.Scim.Test.Acceptance,
+    module Web.Scim.Test.Util
+  ) where
 
-import Data.ByteString
-import Network.Wai (Application)
-import Test.Hspec (Spec, xit, it, shouldBe, beforeAll, pending, describe)
-import Test.Hspec.Wai (shouldRespondWith,  matchStatus)
-import Web.Scim.Test.Util (scim, get', post', patch', delete')
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as L
+import Data.String.Conversions (cs)
+import Data.Text (Text)
+import Network.HTTP.Types.Status
+import Network.Wai.Test
+import Servant.API as Servant
+import Test.Hspec (Spec, it, shouldBe, beforeAll, pending, pendingWith, describe)
+import Test.Hspec.Wai.Internal (runWaiSession)
+import Test.Hspec.Wai (matchStatus)
+import Web.Scim.Test.Util
+import Web.Scim.Class.User
+import Web.Scim.Schema.Common as Hscim
+import Web.Scim.Schema.Meta
+import Web.Scim.Schema.UserTypes
+
+
+ignore :: Monad m => m a -> m ()
+ignore _ = pure ()
 
 
 -- https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/use-scim-to-provision-users-and-groups#step-2-understand-the-azure-ad-scim-implementation
-microsoftAzure :: ByteString -> IO Application -> Spec
-microsoftAzure scimPathPrefix scimApp = do
+microsoftAzure :: forall tag. (Aeson.FromJSON (UserId tag), Aeson.FromJSON (UserExtra tag), ToHttpApiData (UserId tag)) => AcceptanceConfig tag -> Spec
+microsoftAzure AcceptanceConfig{..} = do
   describe "Within the SCIM 2.0 protocol specification, your application must meet these requirements:" $ do
     it "Supports creating users, and optionally also groups, as per section 3.3 of the SCIM protocol." $ pending -- TODO(arianvp): Write test
     it "Supports modifying users or groups with PATCH requests, as per section 3.5.2 of the SCIM protocol." $ pending -- TODO(arianvp): Write test
@@ -45,38 +66,32 @@ microsoftAzure scimPathPrefix scimApp = do
       -- TODO(arianvp): Implement 'and' as Azure needs it
       it "and" $ pending
 
-  beforeAll scimApp $ do
-    describe "User Operations" $ do
-      it "POST /Users" $ do
-        let user = [scim|
-          {
-            "schemas": [
-                "urn:ietf:params:scim:schemas:core:2.0:User",
-                "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"],
-            "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef",
-            "userName": "Test_User_ab6490ee-1e48-479e-a20b-2d77186b5dd1",
-            "active": true,
-            "emails": [{
-                    "primary": true,
-                    "type": "work",
-                    "value": "Test_User_fd0ea19b-0777-472c-9f96-4f70d2226f2e@testuser.com"
-            }],
-            "meta": {
-                    "resourceType": "User"
-            },
-            "name": {
-                    "formatted": "givenName familyName",
-                    "familyName": "familyName",
-                    "givenName": "givenName"
-            },
-            "roles": []
-          }
-        |]
-        post' scimPathPrefix "/Users" user `shouldRespondWith` 201
-      it "Get user by query" $ do
-        get' scimPathPrefix "/Users?filter userName eq \"Test_User_ab6490ee-1e48-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
-      it "Get user by query, zero results" $ do
-        get' scimPathPrefix "/Users?filter=userName eq \"non-existent user\"" `shouldRespondWith` [scim|
+  describe "good errors" $ do
+    -- (we may touch servant for this?)
+    it "surfaces parse errors of the user id path segment" $ do
+      pendingWith "should contain the offending id and the error; currently contains neither"
+    it "same for user id in query" $ do
+      pending
+    it "same for all other things parsed in path, query, body, ..." $ do
+      pending
+
+  beforeAll scimAppAndConfig $ do
+    it "User Operations" $ \(app, queryConfig) -> flip runWaiSession app $ do
+      userName1 <- liftIO genUserName
+      userName2 <- liftIO genUserName
+
+      -- POST /Users
+      resp :: SResponse <- post' queryConfig "/Users" (sampleUser1 userName1)
+      liftIO $ simpleStatus resp `shouldBe` status201
+      let testuid :: BS.ByteString
+          testuid = either (error . show . (, resp)) (cs . Servant.toUrlPiece . Hscim.id . thing)
+                  $ Aeson.eitherDecode' @(StoredUser tag) (simpleBody resp)
+
+      -- Get user by query
+      get' queryConfig (cs $ "/Users?filter userName eq " <> show userName1) `shouldRespondWith` 200
+
+      -- Get user by query, zero results
+      get' queryConfig (cs $ "/Users?filter=userName eq " <> show userName2) `shouldRespondWith` [scim|
           {
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
             "totalResults": 0,
@@ -85,10 +100,12 @@ microsoftAzure scimPathPrefix scimApp = do
             "itemsPerPage": 0
           }
         |] { matchStatus = 200 }
-      it "Get user by externalId works" $ do
-        get' scimPathPrefix "/Users?filter externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
-      xit "Update user [Multi-valued properties]" $ do
-        patch' scimPathPrefix "/Users/0" [scim|
+
+      -- Get user by externalId works
+      get' queryConfig "/Users?filter externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
+
+      -- Update user [Multi-valued properties]
+      ignore $ patch' queryConfig "/Users/0" [scim|
             {
               "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
               "Operations": [
@@ -105,103 +122,145 @@ microsoftAzure scimPathPrefix scimApp = do
               ]
             }
         |] `shouldRespondWith` 200
-      describe "Update user [Single-valued properties]" $ do
-        it "replace userName" $ patch' scimPathPrefix "/Users/0"
-          [scim|
-            {
-                    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                    "Operations": [{
-                            "op": "Replace",
-                            "path": "userName",
-                            "value": "5b50642d-79fc-4410-9e90-4c077cdd1a59@testuser.com"
-                    }]
-            }
-          |] `shouldRespondWith` 200
-        it "replace displayName" $ patch' scimPathPrefix "/Users/0"
-          [scim|
-            {
-                    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                    "Operations": [{
-                            "op": "Replace",
-                            "path": "displayName",
-                            "value": "newDisplayName"
-                    }]
-            }
-          |] `shouldRespondWith` [scim|
-            {
-              "schemas": [
-                "urn:ietf:params:scim:schemas:core:2.0:User",
-                "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-              ],
-              "userName": "5b50642d-79fc-4410-9e90-4c077cdd1a59@testuser.com",
-              "active": true,
-              "name": {
-                "givenName": "givenName",
-                "formatted": "givenName familyName",
-                "familyName": "familyName"
-              },
-              "emails": [
-                {
-                  "value": "Test_User_fd0ea19b-0777-472c-9f96-4f70d2226f2e@testuser.com",
-                  "primary": true,
-                  "type": "work"
-                }
-              ],
-              "displayName": "newDisplayName",
-              "id": "0",
-              "meta": {
-                "resourceType": "User",
-                "location": "todo",
-                "created": "2018-01-01T00:00:00Z",
-                "version": "W/\"testVersion\"",
-                "lastModified": "2018-01-01T00:00:00Z"
-              },
-              "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef"
-            }
-          |]
-        it "remove displayName" $ patch' scimPathPrefix "/Users/0"
-          [scim|
-            {
-                    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                    "Operations": [{
-                            "op": "Remove",
-                            "path": "displayName"
-                    }]
-            }
-          |] `shouldRespondWith`  [scim|
-            {
-              "schemas": [
-                "urn:ietf:params:scim:schemas:core:2.0:User",
-                "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-              ],
-              "userName": "5b50642d-79fc-4410-9e90-4c077cdd1a59@testuser.com",
-              "active": true,
-              "name": {
-                "givenName": "givenName",
-                "formatted": "givenName familyName",
-                "familyName": "familyName"
-              },
-              "emails": [
-                {
-                  "value": "Test_User_fd0ea19b-0777-472c-9f96-4f70d2226f2e@testuser.com",
-                  "primary": true,
-                  "type": "work"
-                }
-              ],
-              "id": "0",
-              "meta": {
-                "resourceType": "User",
-                "location": "todo",
-                "created": "2018-01-01T00:00:00Z",
-                "version": "W/\"testVersion\"",
-                "lastModified": "2018-01-01T00:00:00Z"
-              },
-              "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef"
-            }
-          |]
-          -- TODO match body
-      it "Delete User" $ do
-        delete' scimPathPrefix "/Users/0" "" `shouldRespondWith` 204
-        delete' scimPathPrefix "/Users/0" "" `shouldRespondWith` 404
-    describe "Group operations" $
-      it "is in progress" $ \_-> pending
+
+      -- update user [single-valued properties]
+      -- replace userName
+      let ops1 = [scim|
+                   {
+                         "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                         "Operations": [{
+                                 "op": "Replace",
+                                 "path": "userName",
+                                 "value": #{userName2}
+                         }]
+                   }
+                 |]
+      patch' queryConfig ("/Users/" <> testuid) ops1 `shouldRespondWith` 200
+
+      -- replace displayName
+      let ops2 = [scim|
+                   {
+                           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                           "Operations": [{
+                                   "op": "Replace",
+                                   "path": "displayName",
+                                   "value": "newDisplayName"
+                           }]
+                   }
+                 |]
+
+          exactResult = [scim|
+                     {
+                       "schemas": [
+                         "urn:ietf:params:scim:schemas:core:2.0:User",
+                         "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                       ],
+                       "userName": #{userName2},
+                       "active": true,
+                       "name": {
+                         "givenName": "givenName",
+                         "formatted": "givenName familyName",
+                         "familyName": "familyName"
+                       },
+                       "emails": [
+                         {
+                           "value": #{userName1 <> "@testuser.com"},
+                           "primary": true,
+                           "type": "work"
+                         }
+                       ],
+                       "displayName": "newDisplayName",
+                       "id": "0",
+                       "meta": {
+                         "resourceType": "User",
+                         "location": "https://example.com/Users/id",
+                         "created": "2018-01-01T00:00:00Z",
+                         "version": "W/\"testVersion\"",
+                         "lastModified": "2018-01-01T00:00:00Z"
+                       },
+                       "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef"
+                     }
+                   |]
+          result = if responsesFullyKnown
+            then exactResult
+            else 200  -- TODO(fisx): check the fields changed by the patch operations?
+      patch' queryConfig ("/Users/" <> testuid) ops2 `shouldRespondWith` result
+
+      -- remove displayName
+      let op3 = [scim|
+                 {
+                         "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                         "Operations": [{
+                                 "op": "Remove",
+                                 "path": "displayName"
+                         }]
+                 }
+               |]
+          exactResult3 = [scim|
+                     {
+                       "schemas": [
+                         "urn:ietf:params:scim:schemas:core:2.0:User",
+                         "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                       ],
+                       "userName": #{userName2},
+                       "active": true,
+                       "name": {
+                         "givenName": "givenName",
+                         "formatted": "givenName familyName",
+                         "familyName": "familyName"
+                       },
+                       "emails": [
+                         {
+                           "value": #{userName1 <> "@testuser.com"},
+                           "primary": true,
+                           "type": "work"
+                         }
+                       ],
+                       "id": "0",
+                       "meta": {
+                         "resourceType": "User",
+                         "location": "https://example.com/Users/id",
+                         "created": "2018-01-01T00:00:00Z",
+                         "version": "W/\"testVersion\"",
+                         "lastModified": "2018-01-01T00:00:00Z"
+                       },
+                       "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef"
+                     }
+                   |]
+          result3 = if responsesFullyKnown
+            then exactResult3
+            else 200  -- TODO(fisx): check the fields changed by the patch operations?
+      patch' queryConfig ("/Users/" <> testuid) op3 `shouldRespondWith` result3
+
+      -- Delete User
+      delete' queryConfig ("/Users/" <> testuid) "" `shouldRespondWith` 204
+      delete' queryConfig ("/Users/" <> testuid) "" `shouldEventuallyRespondWith` 404
+
+    it "Group operations" $ \_ -> pending
+
+
+sampleUser1 :: Text -> L.ByteString
+sampleUser1 userName1 = [scim|
+  {
+    "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"],
+    "externalId": "0a21f0f2-8d2a-4f8e-bf98-7363c4aed4ef",
+    "userName": #{userName1},
+    "active": true,
+    "emails": [{
+            "primary": true,
+            "type": "work",
+            "value": #{userName1 <> "@testuser.com"}
+    }],
+    "meta": {
+            "resourceType": "User"
+    },
+    "name": {
+            "formatted": "givenName familyName",
+            "familyName": "familyName",
+            "givenName": "givenName"
+    },
+    "roles": []
+  }
+|]

@@ -6,7 +6,7 @@ import           Web.Scim.Server (app)
 import           Web.Scim.Server.Mock
 
 import           Web.Scim.Capabilities.MetaSchema (empty)
-import           Web.Scim.Test.Acceptance (microsoftAzure)
+import           Web.Scim.Test.Acceptance (microsoftAzure, defAcceptanceConfig, responsesFullyKnown)
 
 
 spec :: Spec
@@ -16,4 +16,4 @@ spec = do
       storage <- emptyTestStorage
       pure (app @Mock empty (nt storage))
 
-  describe "Azure" $ microsoftAzure "" app'
+  describe "Azure" $ microsoftAzure ((defAcceptanceConfig @Mock app') { responsesFullyKnown = True })

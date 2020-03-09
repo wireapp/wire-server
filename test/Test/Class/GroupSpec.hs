@@ -10,7 +10,7 @@ import           Web.Scim.Server (mkapp, GroupAPI, groupServer)
 import           Web.Scim.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
-import           Test.Hspec.Wai      hiding (post, put, patch)
+import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
 import           Servant.API.Generic
 
 app :: IO Application
@@ -75,7 +75,7 @@ groups = [scim|
                "id":"0",
                "meta":{
                  "resourceType":"Group",
-                 "location":"todo",
+                 "location":"https://example.com/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -95,7 +95,7 @@ admins = [scim|
            "id":"0",
            "meta":{
              "resourceType":"Group",
-             "location":"todo",
+             "location":"https://example.com/Users/id",
              "created":"2018-01-01T00:00:00Z",
              "version":"W/\"testVersion\"",
              "lastModified":"2018-01-01T00:00:00Z"
@@ -126,7 +126,7 @@ updatedAdmins0 = [scim|
            "id":"0",
            "meta":{
              "resourceType":"Group",
-             "location":"todo",
+             "location":"https://example.com/Users/id",
              "created":"2018-01-01T00:00:00Z",
              "version":"W/\"testVersion\"",
              "lastModified":"2018-01-01T00:00:00Z"

@@ -17,7 +17,7 @@ import           Servant.API.Generic
 
 import           Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
-import           Test.Hspec.Wai      hiding (post, put, patch)
+import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
 
 app :: IO Application
 app = do

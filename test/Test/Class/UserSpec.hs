@@ -7,7 +7,7 @@ import           Web.Scim.Test.Util
 import           Web.Scim.Server (mkapp, UserAPI, userServer)
 import           Web.Scim.Server.Mock
 import           Test.Hspec
-import           Test.Hspec.Wai      hiding (post, put, patch)
+import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
 import           Data.ByteString.Lazy (ByteString)
 import           Servant (Proxy(Proxy))
 import           Network.Wai (Application)
@@ -96,7 +96,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -122,7 +122,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -148,7 +148,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -201,7 +201,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -227,7 +227,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -253,7 +253,7 @@ spec = beforeAll app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "todo",
+              "location": "https://example.com/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -306,7 +306,7 @@ spec = beforeAll app $ do
           "id": "0",
           "meta": {
             "resourceType": "User",
-            "location": "todo",
+            "location": "https://example.com/Users/id",
             "created": "2018-01-01T00:00:00Z",
             "version": "W/\"testVersion\"",
             "lastModified": "2018-01-01T00:00:00Z"
@@ -342,7 +342,7 @@ smallUserGet = [scim|
   "id": "0",
   "meta": {
     "resourceType": "User",
-    "location": "todo",
+    "location": "https://example.com/Users/id",
     "created": "2018-01-01T00:00:00Z",
     "version": "W/\"testVersion\"",
     "lastModified": "2018-01-01T00:00:00Z"
@@ -387,7 +387,7 @@ barbara = [scim|
           "externalId":"bjensen",
           "meta":{
             "resourceType":"User",
-            "location":"todo",
+            "location":"https://example.com/Users/id",
             "created":"2018-01-01T00:00:00Z",
             "version":"W/\"testVersion\"",
             "lastModified":"2018-01-01T00:00:00Z"
@@ -412,7 +412,7 @@ allUsers = [scim|
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"todo",
+                 "location":"https://example.com/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -429,7 +429,7 @@ allUsers = [scim|
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"todo",
+                 "location":"https://example.com/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -455,7 +455,7 @@ onlyBarbara = [scim|
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"todo",
+                 "location":"https://example.com/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -510,7 +510,7 @@ updatedBarb0 = [scim|
           ],
           "meta":{
             "resourceType":"User",
-            "location":"todo",
+            "location":"https://example.com/Users/id",
             "created":"2018-01-01T00:00:00Z",
             "version":"W/\"testVersion\"",
             "lastModified":"2018-01-01T00:00:00Z"
