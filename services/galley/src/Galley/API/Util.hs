@@ -118,8 +118,9 @@ ensureConvRoleNotElevated origMember targetRole = do
 permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
 permissionCheck p = \case
   Just m -> do
-    unless (m `hasPermission` p) $ throwM (operationDenied p)
-    pure m
+    if m `hasPermission` p
+      then pure m
+      else throwM (operationDenied p)
   Nothing -> throwM notATeamMember
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
