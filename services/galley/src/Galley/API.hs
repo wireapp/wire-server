@@ -899,7 +899,6 @@ sitemap = do
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  -- i.*users.*team.*members"
   get "/i/users/:uid/team/members" (continue getBindingTeamMembersH) $
     capture "uid"
   get "/i/users/:uid/team" (continue getBindingTeamIdH) $
