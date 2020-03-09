@@ -44,3 +44,5 @@ gundeck-schema.yaml
 gundeck.yaml
 proxy.yaml
 DOCKER_ID*
+
+git rm -rf   services/cargohold/deb/opt/cargohold/bin/cargohold services/brig/schema/deb/opt/brig/schema/bin/brig-schema  services/brig/deb/opt/brig/bin/brig services/brig/index/deb/opt/brig/index/bin/brig-index services/cannon/deb/opt/cannon/bin/cannon  services/galley/deb/opt/galley/bin/galley services/galley/deb-journaler/opt/galley/bin/galley-journaler services/galley/deb-schema/opt/galley/bin/galley-schema services/gundeck/schema/deb/opt/gundeck/schema/bin/gundeck-schema services/gundeck/deb/opt/gundeck/bin/gundeck services/nginz/deb/opt/nginz/sbin/nginx services/proxy/deb/opt/proxy/bin/proxy
