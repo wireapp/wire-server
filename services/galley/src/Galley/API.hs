@@ -5,12 +5,10 @@ import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (ConvId, OpaqueUserId)
 import qualified Data.Predicate as P
-import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import Data.Text.Encoding (decodeLatin1)
-import GHC.TypeLits
 import Galley.API.Clients
 import Galley.API.Create
 import qualified Galley.API.CustomBackend as CustomBackend
