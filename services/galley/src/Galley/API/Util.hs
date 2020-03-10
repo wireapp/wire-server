@@ -57,7 +57,8 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  -- FUTUREWORK(federation): handle remote users (can't be part of the same team, just check connections)
+  ensureConnected u (Local <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --

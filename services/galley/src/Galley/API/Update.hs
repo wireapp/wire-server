@@ -415,8 +415,14 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
 addMembers :: UserId -> ConnId -> OpaqueConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
   resolveOpaqueConvId cid >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> addMembersToLocalConv localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation): if the conversation is on another backend, send request there.
+      -- in the case of a non-team conversation, we need to think about `ensureConnectedOrSameTeam`,
+      -- specifically whether teams from another backend than the conversation should have any
+      -- relevance here.
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      addMembersToLocalConv localConvId
   where
     addMembersToLocalConv convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
