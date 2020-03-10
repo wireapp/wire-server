@@ -15,12 +15,10 @@ import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
-import GHC.TypeLits
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
