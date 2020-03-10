@@ -1035,13 +1035,12 @@ specDeleteUser = do
       deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
         !!! assertTrue_ (inRange (200, 499) . statusCode)
 
--- TODO(arianvp): Move the acceptance tests from hscim to spar. We should've caught this mistake!!!
+-- | Azure sends a request for an unknown user to test out whether your API is online However;
+-- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
+-- found'.
 specAzureQuirks :: SpecWith TestEnv
 specAzureQuirks = do
   describe "Assert that we implement all azure quirks" $ do
-    -- Azure sends a request for an unknown user to test out whether your API is online
-    -- However; it sends a userName that is not a valid wire handle. So we should ignore
-    -- when wire handles are invalid :)
     it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
       (tok, (_, _, _)) <- registerIdPAndScimToken
       users <- listUsers tok (Just (filterBy "userName" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))

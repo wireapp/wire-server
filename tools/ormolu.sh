@@ -2,8 +2,14 @@
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-ORMOLU_VERSION=$(perl -ne '/^- ormolu-([^\s]+)(\s|$)/ && print $1' stack.yaml)
+command -v grep >/dev/null 2>&1 || { echo >&2 "grep is not installed, aborting."; exit 1; }
+command -v awk  >/dev/null 2>&1 || { echo >&2 "awk is not installed, aborting."; exit 1; }
+command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
+command -v yq   >/dev/null 2>&1 || { echo >&2 "yq is not installed, aborting. See https://github.com/mikefarah/yq"; exit 1; }
+
+ORMOLU_VERSION=$(yq read stack.yaml 'extra-deps[*]' | sed -n 's/ormolu-//p')
 ( ormolu -v 2>/dev/null | grep -q $ORMOLU_VERSION ) || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
+echo "ormolu version: $ORMOLU_VERSION"
 
 ARG_ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
@@ -58,8 +64,9 @@ if [ "$(git status -s | grep -v \?\?)" != "" ]; then
     fi
 fi
 
-LANGUAGE_EXTS=$(perl -ne '$x=1 if /default-extensions:/?1:(/^[^-]/?0:$x); print "--ghc-opt -X$1 " if ($x && /^- (.+)/);' package-defaults.yaml)
+LANGUAGE_EXTS=$(yq read package-defaults.yaml 'default-extensions[*]' | awk '{print "--ghc-opt -X" $0}' ORS=' ')
 echo "ormolu mode: $ARG_ORMOLU_MODE"
+echo "language extensions: $LANGUAGE_EXTS"
 
 FAILURES=0
 

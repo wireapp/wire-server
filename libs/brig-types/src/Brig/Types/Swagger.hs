@@ -70,7 +70,6 @@ brigModels =
     addressBook,
     card,
     match,
-    onboardingMatches,
     -- Search
     searchResult,
     searchContact,
@@ -833,16 +832,6 @@ match = defineModel "Match" $ do
     optional
   property "cards" (array string') $
     description "List of card ids for this match."
-
-onboardingMatches :: Model
-onboardingMatches = defineModel "onboardingMatches" $ do
-  description "Result of the address book matching"
-  property "results" (array (ref match)) $
-    description "List of matches."
-  property "auto-connects" (array (ref match)) $
-    description
-      "List of user IDs matched. It's a bit redudant given 'results' \
-      \but it is here for reasons of backwards compatibility."
 
 --------------------------------------------------------------------------------
 -- Search

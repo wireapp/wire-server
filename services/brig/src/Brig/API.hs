@@ -810,15 +810,16 @@ sitemap o = do
     Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
   ---
 
-  post "/onboarding/v3" (continue onboardingH) $
+  post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
       .&. header "Z-User"
-      .&. jsonRequest @AddressBook
+      .&. jsonRequest @Value
   document "POST" "onboardingV3" $ do
-    Doc.summary "Upload contacts and invoke matching. Returns the list of Matches"
-    Doc.body (Doc.ref Doc.addressBook) $ Doc.description "Address book"
-    Doc.returns (Doc.ref Doc.onboardingMatches)
-    Doc.response 200 "Matches" Doc.end
+    Doc.deprecated
+    Doc.summary "Upload contacts and invoke matching."
+    Doc.notes
+      "DEPRECATED: the feature has been turned off, the end-point does \
+      \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
   -----
 
   Provider.routes
@@ -1347,17 +1348,6 @@ sendActivationCode SendActivationCode {..} = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
 
--- Deprecated and to be removed after new versions of brig and galley are
--- deployed. Reason for deprecation: it returns N^2 things (which is not
--- needed), it doesn't scale, and it accepts everything in URL parameters,
--- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
-deprecatedGetConnectionsStatusH (users ::: flt) = do
-  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
-  return . json $ maybe r (filterByRelation r) flt
-  where
-    filterByRelation l rel = filter ((== rel) . csStatus) l
-
 getConnectionsStatusH ::
   JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
   Handler Response
@@ -1511,11 +1501,6 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   return (setStatus status200 empty)
 
-onboardingH :: JSON ::: UserId ::: JsonRequest AddressBook -> Handler Response
-onboardingH (_ ::: uid ::: r) = do
-  ab <- parseJsonBody r
-  json <$> API.onboarding uid ab !>> connError
-
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
@@ -1558,6 +1543,29 @@ respFromActivationRespWithStatus = \case
   ActivationRespSuccessNoIdent -> empty
 
 -- Deprecated
+
+-- Deprecated and to be removed after new versions of brig and galley are
+-- deployed. Reason for deprecation: it returns N^2 things (which is not
+-- needed), it doesn't scale, and it accepts everything in URL parameters,
+-- which doesn't work when the list of users is long.
+deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatusH (users ::: flt) = do
+  r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
+  return . json $ maybe r (filterByRelation r) flt
+  where
+    filterByRelation l rel = filter ((== rel) . csStatus) l
+
+deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> Handler Response
+deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+
+instance ToJSON DeprecatedMatchingResult where
+  toJSON DeprecatedMatchingResult =
+    object
+      [ "results" .= ([] :: [()]),
+        "auto-connects" .= ([] :: [()])
+      ]
 
 deprecatedCompletePasswordResetH :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do

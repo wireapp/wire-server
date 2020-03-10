@@ -26,8 +26,7 @@ self: super: {
         name = "libzauth-${version}";
         version = "3.0.0";
         buildInputs = [ libsodium pkgconfig ];
-        src = self.nix-gitignore.gitignoreSource [] ../../libs/libzauth;
-
+        src = self.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
         sourceRoot = "libzauth/libzauth-c";
 
         cargoSha256 = "01yj1rchqmjnpj5cb9wl7vdzrycjwjhm60xh1jghw02n8jhl51p2"; # self.lib.fakeSha256;

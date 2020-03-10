@@ -14,9 +14,6 @@ module Brig.API.Connection
     Data.lookupConnection,
     Data.lookupConnectionStatus,
     Data.lookupContactList,
-
-    -- * Onboarding
-    onboarding,
   )
 where
 
@@ -24,20 +21,16 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
-import qualified Brig.Data.UserKey as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
 import Control.Lens (view)
 import Data.Id
-import Data.List.Split (chunksOf)
 import Data.Range
-import Data.Set (fromList)
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
 import qualified Galley.Types.Teams as Team
@@ -285,40 +278,6 @@ lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserCo
 lookupConnections from start size = do
   rs <- Data.lookupConnections from start size
   return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)
-
-onboarding :: UserId -> AddressBook -> ExceptT ConnectionError AppIO MatchingResult
-onboarding uid ab = do
-  -- The choice of 25 is arbitrary and is here only to avoid having a user
-  -- auto-connect to too many users; thus the upper limit
-  ms <- lift $ collectMatches 25 [] (chunksOf 25 (abCards ab))
-  autos <- autoConnect uid (fromList $ map fst ms) Nothing
-  let connected = map ucTo $ filter ((== uid) . ucFrom) autos
-  return $ MatchingResult (toMatches connected ms) connected
-  where
-    collectMatches :: Int -> [(UserId, Maybe CardId)] -> [[Card]] -> AppIO [(UserId, Maybe CardId)]
-    collectMatches 0 acc _ = return acc
-    collectMatches _ acc [] = return acc
-    collectMatches n acc cards = do
-      -- Make 4 parallel requests, each will have at most 25 keys to look up
-      let (cur, rest) = splitAt 4 cards
-      e <- ask
-      ms <-
-        take n <$> filter ((/= uid) . fst) . join
-          <$> liftIO (mapConcurrently (runAppT e . lookupHashes) cur)
-      collectMatches (n - length ms) (acc ++ ms) rest
-    lookupHashes :: [Card] -> AppIO [(UserId, Maybe CardId)]
-    lookupHashes xs =
-      concatMap findCards
-        <$> Data.lookupPhoneHashes (map abEntrySha256 (concatMap cEntries xs))
-      where
-        findCards :: (ByteString, UserId) -> [(UserId, Maybe CardId)]
-        findCards (h, u) =
-          map ((u,) . cCardId) $
-            filter ((h `elem`) . (map abEntrySha256 . cEntries)) xs
-    toMatches :: [UserId] -> [(UserId, Maybe CardId)] -> [Match]
-    toMatches uids =
-      map (\(u, c) -> Match u c (maybeToList c))
-        . filter ((`elem` uids) . fst)
 
 -- Helpers
 

@@ -12,8 +12,6 @@ Members of the same team are always considered connected, see [Connections betwe
 
 Internally, connection status is a _directed_ edge from one user to another that is attributed with a relation state and some meta information. If a user has a connection to another user, it can be in one of the six [connection states](#RefConnectionStates).
 
-TODO describe autoconnection and onboarding.
-
 ## Connection states {#RefConnectionStates}
 
 ### Sent {#RefConnectionSent}

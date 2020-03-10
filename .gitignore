@@ -1,5 +1,5 @@
 target
-Cargo.lock
+./libs/libzauth/libzauth/Cargo.lock
 *.aux*
 *.chi
 *.chs.h
