@@ -15,10 +15,12 @@ import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
+import GHC.TypeLits
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
@@ -86,7 +88,7 @@ tests s =
       test s "feature flags" testFeatureFlags,
       testGroup "get team size" $
         [ test s "it should return the team size when it is less than the limit" testTeamSize,
-          test s "it should return that the team size is larger when it is more than the limit" testTeamSizeLimited
+          test s "it should return that the team size is larger when it is more than the truncation limit" testTeamSizeTruncated
         ]
     ]
 
@@ -210,13 +212,13 @@ testUncheckedListTeamMembers = do
 testTeamSize :: TestM ()
 testTeamSize = do
   (_, tid, _) <- Util.createBindingTeamWithNMembers 4
-  sizeFromServer <- getLimitedTeamSize tid HardTruncationLimit
-  liftIO $ assertEqual "team size" (mkLimitedTeamSize HardTruncationLimit 5) sizeFromServer
+  sizeFromServer <- getTruncatedTeamSize tid hardTruncationLimit
+  liftIO $ assertEqual "team size" (mkTruncatedTeamSize hardTruncationLimit 5) sizeFromServer
 
-testTeamSizeLimited :: TestM ()
-testTeamSizeLimited = do
+testTeamSizeTruncated :: TestM ()
+testTeamSizeTruncated = do
   (_, tid, _) <- Util.createBindingTeamWithNMembers 4
-  sizeFromServer <- getLimitedTeamSize tid 2
+  sizeFromServer <- getTruncatedTeamSize tid 2
   liftIO $ assertEqual "team size is larger than limit" (mkLargeTeamSize 2) sizeFromServer
 
 testEnableSSOPerTeam :: TestM ()

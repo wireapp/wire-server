@@ -140,13 +140,13 @@ getTeamMembersInternalTruncated tid n = do
       === statusCode
   responseJsonError r
 
-getLimitedTeamSize :: TeamId -> Int -> TestM LimitedTeamSize
-getLimitedTeamSize tid n = do
+getTruncatedTeamSize :: TeamId -> Int -> TestM TruncatedTeamSize
+getTruncatedTeamSize tid n = do
   g <- view tsGalley
   r <-
     get
       ( g
-          . paths ["i", "teams", toByteString' tid, "limited-size", toByteString' n]
+          . paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' n]
       )
       <!! const 200
       === statusCode

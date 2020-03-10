@@ -135,13 +135,13 @@ sitemap = do
   get "/teams/:tid/members" (continue getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
-      .&. def (unsafeRange (fromIntegral $ natVal (Proxy @HardTruncationLimit))) (query "maxResults")
+      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
       .&. accept "application" "json"
   document "GET" "getTeamMembers" $ do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 (fromIntegral $ natVal (Proxy @HardTruncationLimit))) $
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
       description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
@@ -895,7 +895,7 @@ sitemap = do
       .&. accept "application" "json"
   get "/i/teams/:tid/members" (continue uncheckedGetTeamMembersH) $
     capture "tid"
-      .&. def (unsafeRange (fromIntegral $ natVal (Proxy @HardTruncationLimit))) (query "maxResults")
+      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
       .&. accept "application" "json"
   get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMemberH) $
     capture "tid"
@@ -905,7 +905,7 @@ sitemap = do
     capture "uid"
   get "/i/users/:uid/team" (continue getBindingTeamIdH) $
     capture "uid"
-  get "/i/teams/:tid/limited-size/:size" (continue getLimitedTeamSizeH) $
+  get "/i/teams/:tid/truncated-size/:size" (continue getTruncatedTeamSizeH) $
     capture "tid"
       .&. capture "size"
       .&. accept "application" "json"

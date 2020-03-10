@@ -251,7 +251,7 @@ createUser new@NewUser {..} = do
       case Range.checked maxSize of
         Nothing -> throwE TooManyTeamMembers
         Just rangedSize -> do
-          teamSize <- lift $ Intra.getLimitedTeamSize tid rangedSize
+          teamSize <- lift $ Intra.getTruncatedTeamSize tid rangedSize
           when (Team.isBiggerThanLimit teamSize) $
             throwE TooManyTeamMembers
     acceptTeamInvitation account inv ii uk ident = do

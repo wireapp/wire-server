@@ -103,11 +103,12 @@ module Galley.Types.Teams
     tdAuthPassword,
     newTeamDeleteData,
     HardTruncationLimit,
-    LimitedTeamSize,
-    mkLimitedTeamSize,
+    hardTruncationLimit,
+    TruncatedTeamSize,
+    mkTruncatedTeamSize,
     mkLargeTeamSize,
-    ltsLimit,
-    ltsSize,
+    ttsLimit,
+    ttsSize,
     isBiggerThanLimit,
   )
 where
@@ -126,6 +127,7 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.Maybe as Maybe
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -232,24 +234,27 @@ data TeamMemberList
 
 type HardTruncationLimit = (2000 :: Nat)
 
-data LimitedTeamSize
-  = LimitedTeamSize
-      { _ltsLimit :: Natural,
-        _ltsSize :: Maybe Natural
+hardTruncationLimit :: Integral a => a
+hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
+
+data TruncatedTeamSize
+  = TruncatedTeamSize
+      { _ttsLimit :: Natural,
+        _ttsSize :: Maybe Natural
       }
   deriving (Eq, Show)
 
-mkLimitedTeamSize :: Natural -> Natural -> LimitedTeamSize
-mkLimitedTeamSize limit n =
+mkTruncatedTeamSize :: Natural -> Natural -> TruncatedTeamSize
+mkTruncatedTeamSize limit n =
   if n > limit
-    then LimitedTeamSize limit Nothing
-    else LimitedTeamSize limit (Just n)
+    then TruncatedTeamSize limit Nothing
+    else TruncatedTeamSize limit (Just n)
 
-mkLargeTeamSize :: Natural -> LimitedTeamSize
-mkLargeTeamSize limit = LimitedTeamSize limit Nothing
+mkLargeTeamSize :: Natural -> TruncatedTeamSize
+mkLargeTeamSize limit = TruncatedTeamSize limit Nothing
 
-isBiggerThanLimit :: LimitedTeamSize -> Bool
-isBiggerThanLimit = isNothing . _ltsSize
+isBiggerThanLimit :: TruncatedTeamSize -> Bool
+isBiggerThanLimit = isNothing . _ttsSize
 
 data TeamConversation
   = TeamConversation
@@ -495,7 +500,7 @@ makeLenses ''TeamCreationTime
 
 makeLenses ''FeatureFlags
 
-makeLensesWith (lensRules & generateUpdateableOptics .~ False) ''LimitedTeamSize
+makeLensesWith (lensRules & generateUpdateableOptics .~ False) ''TruncatedTeamSize
 
 -- Note [hidden team roles]
 --
@@ -962,24 +967,24 @@ instance ToJSON TeamDeleteData where
       [ "password" .= _tdAuthPassword tdd
       ]
 
-instance ToJSON LimitedTeamSize where
+instance ToJSON TruncatedTeamSize where
   toJSON limitedSize =
     let sizePairs =
-          case _ltsSize limitedSize of
+          case _ttsSize limitedSize of
             Nothing -> ["within-limit" .= False]
             Just n -> ["within-limit" .= True, "size" .= n]
-     in object (["limit" .= _ltsLimit limitedSize] ++ sizePairs)
+     in object (["limit" .= _ttsLimit limitedSize] ++ sizePairs)
 
-instance FromJSON LimitedTeamSize where
-  parseJSON = withObject "LimitedTeamSize" $ \o -> do
+instance FromJSON TruncatedTeamSize where
+  parseJSON = withObject "TruncatedTeamSize" $ \o -> do
     withinLimit <- o .: "within-limit"
     limit <- o .: "limit"
     case withinLimit of
       (Bool True) -> (o .: "size") >>= \s ->
         if s <= limit
-          then pure $ LimitedTeamSize limit (Just s)
+          then pure $ TruncatedTeamSize limit (Just s)
           else fail $ "expected size to be less than " ++ show limit ++ ", encountered " ++ show s
-      (Bool False) -> pure $ LimitedTeamSize limit Nothing
+      (Bool False) -> pure $ TruncatedTeamSize limit Nothing
       v -> typeMismatch "Boolean" v
 
 instance Cql.Cql Role where
