@@ -714,7 +714,7 @@ getTruncatedTeamSize tid limit = do
   galleyRequest GET req >>= decodeBody "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "limited-size", toByteString' limit]
+      paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' limit]
         . expect2xx
 
 -- | Only works on 'BindingTeam's!
