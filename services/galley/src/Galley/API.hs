@@ -9,17 +9,16 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import Data.Text.Encoding (decodeLatin1)
-import Galley.API.Clients
-import Galley.API.Create
+import qualified Galley.API.Clients as Clients
+import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.Internal as Internal
 import qualified Galley.API.LegalHold as LegalHold
-import Galley.API.Query
+import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
-import Galley.API.Teams
 import qualified Galley.API.Teams as Teams
-import Galley.API.Update
+import qualified Galley.API.Update as Update
 import Galley.App
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
@@ -44,7 +43,7 @@ import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
-  post "/teams" (continue createNonBindingTeamH) $
+  post "/teams" (continue Teams.createNonBindingTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NonBindingNewTeam
@@ -55,7 +54,7 @@ sitemap = do
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
     errorResponse Error.notConnected
-  put "/teams/:tid" (continue updateTeamH) $
+  put "/teams/:tid" (continue Teams.updateTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -71,7 +70,7 @@ sitemap = do
     errorResponse (Error.operationDenied SetTeamData)
   --
 
-  get "/teams" (continue getManyTeamsH) $
+  get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId
       .&. opt (query "ids" ||| query "start")
       .&. def (unsafeRange 100) (query "size")
@@ -82,7 +81,7 @@ sitemap = do
     response 200 "Teams list" end
   --
 
-  get "/teams/:tid" (continue getTeamH) $
+  get "/teams/:tid" (continue Teams.getTeamH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -95,7 +94,7 @@ sitemap = do
     errorResponse Error.teamNotFound
   --
 
-  delete "/teams/:tid" (continue deleteTeamH) $
+  delete "/teams/:tid" (continue Teams.deleteTeamH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -116,7 +115,7 @@ sitemap = do
     errorResponse Error.teamNotFound
   --
 
-  get "/teams/:tid/conversations/roles" (continue getTeamConversationRolesH) $
+  get "/teams/:tid/conversations/roles" (continue Teams.getTeamConversationRolesH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -130,7 +129,7 @@ sitemap = do
     errorResponse Error.notATeamMember
   --
 
-  get "/teams/:tid/members" (continue getTeamMembersH) $
+  get "/teams/:tid/members" (continue Teams.getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
       .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
@@ -146,7 +145,7 @@ sitemap = do
     errorResponse Error.notATeamMember
   --
 
-  get "/teams/:tid/members/:uid" (continue getTeamMemberH) $
+  get "/teams/:tid/members/:uid" (continue Teams.getTeamMemberH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
@@ -163,7 +162,7 @@ sitemap = do
     errorResponse Error.teamMemberNotFound
   --
 
-  post "/teams/:tid/members" (continue addTeamMemberH) $
+  post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -182,7 +181,7 @@ sitemap = do
     errorResponse Error.tooManyTeamMembers
   --
 
-  delete "/teams/:tid/members/:uid" (continue deleteTeamMemberH) $
+  delete "/teams/:tid/members/:uid" (continue Teams.deleteTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -204,7 +203,7 @@ sitemap = do
     errorResponse Error.reAuthFailed
   --
 
-  put "/teams/:tid/members" (continue updateTeamMemberH) $
+  put "/teams/:tid/members" (continue Teams.updateTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -221,7 +220,7 @@ sitemap = do
     errorResponse (Error.operationDenied SetMemberPermissions)
   --
 
-  get "/teams/:tid/conversations" (continue getTeamConversationsH) $
+  get "/teams/:tid/conversations" (continue Teams.getTeamConversationsH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -235,7 +234,7 @@ sitemap = do
     errorResponse (Error.operationDenied GetTeamConversations)
   --
 
-  get "/teams/:tid/conversations/:cid" (continue getTeamConversationH) $
+  get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "cid"
@@ -253,7 +252,7 @@ sitemap = do
     errorResponse (Error.operationDenied GetTeamConversations)
   --
 
-  delete "/teams/:tid/conversations/:cid" (continue deleteTeamConversationH) $
+  delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
@@ -314,12 +313,12 @@ sitemap = do
       .&. accept "application" "json"
   ---
 
-  get "/bot/conversation" (continue getBotConversationH) $
+  get "/bot/conversation" (continue Query.getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
-  post "/bot/messages" (continue postBotMessageH) $
+  post "/bot/messages" (continue Update.postBotMessageH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
@@ -328,7 +327,7 @@ sitemap = do
       .&. accept "application" "json"
   --
 
-  get "/conversations/:cnv" (continue getConversationH) $
+  get "/conversations/:cnv" (continue Query.getConversationH) $
     zauthUserId
       .&. capture "cnv"
       .&. accept "application" "json"
@@ -341,7 +340,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   --
 
-  get "/conversations/:cnv/roles" (continue getConversationRolesH) $
+  get "/conversations/:cnv/roles" (continue Query.getConversationRolesH) $
     zauthUserId
       .&. capture "cnv"
       .&. accept "application" "json"
@@ -354,7 +353,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  get "/conversations/ids" (continue getConversationIdsH) $
+  get "/conversations/ids" (continue Query.getConversationIdsH) $
     zauthUserId
       .&. opt (query "start")
       .&. def (unsafeRange 1000) (query "size")
@@ -371,7 +370,7 @@ sitemap = do
     returns (ref Model.conversationIds)
   ---
 
-  get "/conversations" (continue getConversationsH) $
+  get "/conversations" (continue Query.getConversationsH) $
     zauthUserId
       .&. opt (query "ids" ||| query "start")
       .&. def (unsafeRange 100) (query "size")
@@ -393,7 +392,7 @@ sitemap = do
       description "Max. number of conversations to return"
   ---
 
-  post "/conversations" (continue createGroupConversationH) $
+  post "/conversations" (continue Create.createGroupConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -408,7 +407,7 @@ sitemap = do
     errorResponse (Error.operationDenied CreateConversation)
   ---
 
-  post "/conversations/self" (continue createSelfConversationH) $
+  post "/conversations/self" (continue Create.createSelfConversationH) $
     zauthUserId
   document "POST" "createSelfConversation" $ do
     summary "Create a self-conversation"
@@ -416,7 +415,7 @@ sitemap = do
     response 201 "Conversation created" end
   ---
 
-  post "/conversations/one2one" (continue createOne2OneConversationH) $
+  post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -429,7 +428,7 @@ sitemap = do
     errorResponse Error.noManagedTeamConv
   ---
 
-  put "/conversations/:cnv/name" (continue updateConversationNameH) $
+  put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -444,7 +443,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv" (continue updateConversationDeprecatedH) $
+  put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -459,7 +458,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/join" (continue joinConversationByIdH) $
+  post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -473,7 +472,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/code-check" (continue checkReusableCodeH) $
+  post "/conversations/code-check" (continue Update.checkReusableCodeH) $
     jsonRequest @ConversationCode
   document "POST" "checkConversationCode" $ do
     summary "Check validity of a conversation code"
@@ -481,7 +480,7 @@ sitemap = do
     body (ref Model.conversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
-  post "/conversations/join" (continue joinConversationByReusableCodeH) $
+  post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @ConversationCode
@@ -496,7 +495,7 @@ sitemap = do
     errorResponse Error.tooManyMembers
   ---
 
-  post "/conversations/:cnv/code" (continue addCodeH) $
+  post "/conversations/:cnv/code" (continue Update.addCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -512,7 +511,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  delete "/conversations/:cnv/code" (continue rmCodeH) $
+  delete "/conversations/:cnv/code" (continue Update.rmCodeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -526,7 +525,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  get "/conversations/:cnv/code" (continue getCodeH) $
+  get "/conversations/:cnv/code" (continue Update.getCodeH) $
     zauthUserId
       .&. capture "cnv"
   document "GET" "getConversationCode" $ do
@@ -539,7 +538,7 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  put "/conversations/:cnv/access" (continue updateConversationAccessH) $
+  put "/conversations/:cnv/access" (continue Update.updateConversationAccessH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -561,7 +560,7 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  put "/conversations/:cnv/receipt-mode" (continue updateConversationReceiptModeH) $
+  put "/conversations/:cnv/receipt-mode" (continue Update.updateConversationReceiptModeH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -580,7 +579,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
-  put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimerH) $
+  put "/conversations/:cnv/message-timer" (continue Update.updateConversationMessageTimerH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -601,7 +600,7 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  post "/conversations/:cnv/members" (continue addMembersH) $
+  post "/conversations/:cnv/members" (continue Update.addMembersH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -621,7 +620,7 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
-  get "/conversations/:cnv/self" (continue getSelfH) $
+  get "/conversations/:cnv/self" (continue Query.getSelfH) $
     zauthUserId
       .&. capture "cnv"
   document "GET" "getSelf" $ do
@@ -632,7 +631,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/self" (continue updateSelfMemberH) $
+  put "/conversations/:cnv/self" (continue Update.updateSelfMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -647,7 +646,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/members/:usr" (continue updateOtherMemberH) $
+  put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -667,7 +666,7 @@ sitemap = do
     errorResponse Error.invalidTargetUserOp
   ---
 
-  post "/conversations/:cnv/typing" (continue isTypingH) $
+  post "/conversations/:cnv/typing" (continue Update.isTypingH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -681,7 +680,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  delete "/conversations/:cnv/members/:usr" (continue removeMemberH) $
+  delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -699,7 +698,7 @@ sitemap = do
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
   ---
 
-  post "/broadcast/otr/messages" (continue postOtrBroadcastH) $
+  post "/broadcast/otr/messages" (continue Update.postOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -718,7 +717,7 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/broadcast/otr/messages" (continue postProtoOtrBroadcastH) $
+  post "/broadcast/otr/messages" (continue Update.postProtoOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -750,7 +749,7 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue postOtrMessageH) $
+  post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -783,7 +782,7 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue postProtoOtrMessageH) $
+  post "/conversations/:cnv/otr/messages" (continue Update.postProtoOtrMessageH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -848,62 +847,62 @@ sitemap = do
       .&. request
   head "/i/status" (continue $ const (return empty)) true
   get "/i/status" (continue $ const (return empty)) true
-  get "/i/conversations/:cnv/members/:usr" (continue internalGetMemberH) $
+  get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
     capture "cnv"
       .&. capture "usr"
-  post "/i/conversations/managed" (continue internalCreateManagedConversationH) $
+  post "/i/conversations/managed" (continue Create.internalCreateManagedConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-  post "/i/conversations/connect" (continue createConnectConversationH) $
+  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @Connect
-  put "/i/conversations/:cnv/accept/v2" (continue acceptConvH) $
+  put "/i/conversations/:cnv/accept/v2" (continue Update.acceptConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
-  put "/i/conversations/:cnv/block" (continue blockConvH) $
+  put "/i/conversations/:cnv/block" (continue Update.blockConvH) $
     zauthUserId
       .&. capture "cnv"
-  put "/i/conversations/:cnv/unblock" (continue unblockConvH) $
+  put "/i/conversations/:cnv/unblock" (continue Update.unblockConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
-  get "/i/conversations/:cnv/meta" (continue getConversationMetaH) $
+  get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
     capture "cnv"
-  get "/i/teams/:tid" (continue getTeamInternalH) $
+  get "/i/teams/:tid" (continue Teams.getTeamInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  get "/i/teams/:tid/name" (continue getTeamNameInternalH) $
+  get "/i/teams/:tid/name" (continue Teams.getTeamNameInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  put "/i/teams/:tid" (continue createBindingTeamH) $
+  put "/i/teams/:tid" (continue Teams.createBindingTeamH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @BindingNewTeam
       .&. accept "application" "json"
-  put "/i/teams/:tid/status" (continue updateTeamStatusH) $
+  put "/i/teams/:tid/status" (continue Teams.updateTeamStatusH) $
     capture "tid"
       .&. jsonRequest @TeamStatusUpdate
       .&. accept "application" "json"
-  post "/i/teams/:tid/members" (continue uncheckedAddTeamMemberH) $
+  post "/i/teams/:tid/members" (continue Teams.uncheckedAddTeamMemberH) $
     capture "tid"
       .&. jsonRequest @NewTeamMember
       .&. accept "application" "json"
-  get "/i/teams/:tid/members" (continue uncheckedGetTeamMembersH) $
+  get "/i/teams/:tid/members" (continue Teams.uncheckedGetTeamMembersH) $
     capture "tid"
       .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
       .&. accept "application" "json"
-  get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMemberH) $
+  get "/i/teams/:tid/members/:uid" (continue Teams.uncheckedGetTeamMemberH) $
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  get "/i/users/:uid/team/members" (continue getBindingTeamMembersH) $
+  get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
     capture "uid"
-  get "/i/users/:uid/team" (continue getBindingTeamIdH) $
+  get "/i/users/:uid/team" (continue Teams.getBindingTeamIdH) $
     capture "uid"
-  get "/i/teams/:tid/truncated-size/:size" (continue getTruncatedTeamSizeH) $
+  get "/i/teams/:tid/truncated-size/:size" (continue Teams.getTruncatedTeamSizeH) $
     capture "tid"
       .&. capture "size"
       .&. accept "application" "json"
@@ -927,27 +926,27 @@ sitemap = do
       .&. accept "application" "json"
   -- End of team features
 
-  get "/i/test/clients" (continue getClientsH) $
+  get "/i/test/clients" (continue Clients.getClientsH) $
     zauthUserId
   -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
-  post "/i/clients/:client" (continue addClientH) $
+  post "/i/clients/:client" (continue Clients.addClientH) $
     zauthUserId
       .&. capture "client"
-  delete "/i/clients/:client" (continue rmClientH) $
+  delete "/i/clients/:client" (continue Clients.rmClientH) $
     zauthUserId
       .&. capture "client"
   delete "/i/user" (continue Internal.rmUserH) $
     zauthUserId .&. opt zauthConnId
-  post "/i/services" (continue addServiceH) $
+  post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
-  delete "/i/services" (continue rmServiceH) $
+  delete "/i/services" (continue Update.rmServiceH) $
     jsonRequest @ServiceRef
-  post "/i/bots" (continue addBotH) $
+  post "/i/bots" (continue Update.addBotH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @AddBot
-  delete "/i/bots" (continue rmBotH) $
+  delete "/i/bots" (continue Update.rmBotH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @RemoveBot

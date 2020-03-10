@@ -66,10 +66,10 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
-  uids <- checkedConvSize (newConvUsers body)
-  ensureConnected zusr (fromConvSize uids)
-  (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
+  _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
+  mappedOrLocalUserIds <- traverse resolveOpaqueUserId (newConvUsers body)
+  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
+  ensureConnected zusr mappedOrLocalUserIds
   -- FUTUREWORK(federation): notify remote users' backends about new conversation
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
@@ -125,7 +125,7 @@ createTeamGroupConv zusr zcon tinfo body = do
           void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnected zusr (makeIdOpaque <$> notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
+        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
         pure otherConvMems
   conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
@@ -161,11 +161,15 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   when (x == y)
     $ throwM
     $ invalidOp "Cannot create a 1-1 with yourself"
+  otherUserId <- resolveOpaqueUserId other
   case newConvTeam j of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
-      | otherwise -> checkBindingTeamPermissions zusr other (cnvTeamId ti)
-    Nothing -> ensureConnected zusr [other]
+      | otherwise -> case otherUserId of
+        Local localOther -> checkBindingTeamPermissions zusr localOther (cnvTeamId ti)
+        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
+    Nothing -> do
+      ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
@@ -174,10 +178,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       membership <- Data.teamMember tid u
       when (isNothing membership) $
         throwM noBindingTeamMembers
-    checkBindingTeamPermissions x other tid = do
-      y <- resolveOpaqueUserId other >>= \case
-        Local l -> pure l
-        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
+    checkBindingTeamPermissions x y tid = do
       zusrMembership <- Data.teamMember tid zusr
       void $ permissionCheck CreateConversation zusrMembership
       Data.teamBinding tid >>= \case
