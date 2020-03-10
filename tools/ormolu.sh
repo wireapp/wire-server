@@ -2,6 +2,11 @@
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
+command -v grep >/dev/null 2>&1 || { echo >&2 "grep is not installed, aborting."; exit 1; }
+command -v awk  >/dev/null 2>&1 || { echo >&2 "awk is not installed, aborting."; exit 1; }
+command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
+command -v yq   >/dev/null 2>&1 || { echo >&2 "yq is not installed, aborting. See https://github.com/mikefarah/yq"; exit 1; }
+
 ORMOLU_VERSION=$(yq read stack.yaml 'extra-deps[*]' | sed -n 's/ormolu-//p')
 ( ormolu -v 2>/dev/null | grep -q $ORMOLU_VERSION ) || ( echo "please install ormolu $ORMOLU_VERSION (eg., run 'stack install ormolu' and ensure ormolu is on your PATH.)"; exit 1 )
 echo "ormolu version: $ORMOLU_VERSION"
