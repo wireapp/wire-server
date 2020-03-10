@@ -102,6 +102,7 @@ module Galley.Types.Teams
     TeamDeleteData,
     tdAuthPassword,
     newTeamDeleteData,
+    HardTruncationLimit,
     LimitedTeamSize,
     mkLimitedTeamSize,
     mkLargeTeamSize,
@@ -129,6 +130,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
+import GHC.TypeLits
 import Galley.Types.Teams.Internal
 import Imports
 import Numeric.Natural (Natural)
@@ -227,6 +229,8 @@ data TeamMemberList
         _teamMemberListHasMore :: Bool
       }
   deriving (Generic)
+
+type HardTruncationLimit = (2000 :: Nat)
 
 data LimitedTeamSize
   = LimitedTeamSize

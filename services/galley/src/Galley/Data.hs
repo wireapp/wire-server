@@ -186,7 +186,7 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 2000 Int32 -> m ([TeamMember], Bool)
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], Bool)
 teamMembers t (fromRange -> limit) = do
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
   ms <- mapM newTeamMember' $ result pageTuple

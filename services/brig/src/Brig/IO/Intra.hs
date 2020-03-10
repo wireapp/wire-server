@@ -708,7 +708,7 @@ getTeamMembers tid = do
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
-getLimitedTeamSize :: TeamId -> Range 1 2000 Int32 -> AppIO Team.LimitedTeamSize
+getLimitedTeamSize :: TeamId -> Range 1 HardTruncationLimit Int32 -> AppIO Team.LimitedTeamSize
 getLimitedTeamSize tid limit = do
   debug $ remote "galley" . msg (val "Get limited team size")
   galleyRequest GET req >>= decodeBody "galley"

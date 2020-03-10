@@ -48,7 +48,7 @@ tests s =
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
-          test s "the list should be limited to the number requested (if < 2000; hard truncation is not tested here)" testListTeamMembersTruncated
+          test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
         ],
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
@@ -210,8 +210,8 @@ testUncheckedListTeamMembers = do
 testTeamSize :: TestM ()
 testTeamSize = do
   (_, tid, _) <- Util.createBindingTeamWithNMembers 4
-  sizeFromServer <- getLimitedTeamSize tid 2000
-  liftIO $ assertEqual "team size" (mkLimitedTeamSize 2000 5) sizeFromServer
+  sizeFromServer <- getLimitedTeamSize tid HardTruncationLimit
+  liftIO $ assertEqual "team size" (mkLimitedTeamSize HardTruncationLimit 5) sizeFromServer
 
 testTeamSizeLimited :: TestM ()
 testTeamSizeLimited = do

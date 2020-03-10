@@ -5,10 +5,12 @@ import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (ConvId, OpaqueUserId)
 import qualified Data.Predicate as P
+import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import Data.Text.Encoding (decodeLatin1)
+import GHC.TypeLits
 import Galley.API.Clients
 import Galley.API.Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -133,13 +135,13 @@ sitemap = do
   get "/teams/:tid/members" (continue getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
-      .&. def (unsafeRange 2000) (query "maxResults")
+      .&. def (unsafeRange (fromIntegral $ natVal (Proxy @HardTruncationLimit))) (query "maxResults")
       .&. accept "application" "json"
   document "GET" "getTeamMembers" $ do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 2000) $
+    parameter Query "maxResults" (int32Between 1 (fromIntegral $ natVal (Proxy @HardTruncationLimit))) $
       description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
@@ -893,7 +895,7 @@ sitemap = do
       .&. accept "application" "json"
   get "/i/teams/:tid/members" (continue uncheckedGetTeamMembersH) $
     capture "tid"
-      .&. def (unsafeRange 2000) (query "maxResults")
+      .&. def (unsafeRange (fromIntegral $ natVal (Proxy @HardTruncationLimit))) (query "maxResults")
       .&. accept "application" "json"
   get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMemberH) $
     capture "tid"

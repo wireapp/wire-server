@@ -298,12 +298,12 @@ getTeamConversationRoles zusr tid = do
       --       be merged with the team roles (if they exist)
       pure $ ConversationRolesList wireConvRoles
 
-getTeamMembersH :: UserId ::: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+getTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
 getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
   (memberList, withPerms) <- getTeamMembers zusr tid maxResults
   pure . json $ teamMemberListJson withPerms memberList
 
-getTeamMembers :: UserId -> TeamId -> Range 1 2000 Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
+getTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
   (mems, hasMore) <- Data.teamMembers tid maxResults
   Data.teamMember tid zusr >>= \case
@@ -336,11 +336,11 @@ uncheckedGetTeamMember :: TeamId -> UserId -> Galley TeamMember
 uncheckedGetTeamMember tid uid = do
   Data.teamMember tid uid >>= ifNothing teamMemberNotFound
 
-uncheckedGetTeamMembersH :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+uncheckedGetTeamMembersH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
 uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
   json <$> uncheckedGetTeamMembers tid maxResults
 
-uncheckedGetTeamMembers :: TeamId -> Range 1 2000 Int32 -> Galley TeamMemberList
+uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TeamMemberList
 uncheckedGetTeamMembers tid maxResults = do
   (mems, hasMore) <- Data.teamMembers tid maxResults
   return $ newTeamMemberList mems hasMore
@@ -735,10 +735,10 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
 
-getLimitedTeamSizeH :: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+getLimitedTeamSizeH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
 getLimitedTeamSizeH (tid ::: r ::: _) = json <$> getLimitedTeamSize tid r
 
-getLimitedTeamSize :: TeamId -> Range 1 2000 Int32 -> Galley LimitedTeamSize
+getLimitedTeamSize :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley LimitedTeamSize
 getLimitedTeamSize tid r = do
   (members, hasMore) <- Data.teamMembers tid r
   pure $
