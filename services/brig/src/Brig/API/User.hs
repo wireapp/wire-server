@@ -247,6 +247,14 @@ createUser new@NewUser {..} = do
           _ -> throwE InvalidInvitationCode
       Nothing -> throwE InvalidInvitationCode
     ensureMemberCanJoin tid = do
+      -- TODO: the logic in this block is mixing 'setMaxTeamSize' (the maximum number of
+      -- members suppored for teams) with 'HardTruncationLimit' (the maximum number of members
+      -- that can be efficiently retrieved from the database and passed to clients).  the
+      -- straight-forward solution here would be to keep track of the team size in galley in a
+      -- more efficient way and return it on a different end-point.  for now, the
+      -- implementation enforces that the maximum configured team size never exceeds the
+      -- hard-coded truncation limit (which is silly, but works, since larger values don't
+      -- work).
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
       case Range.checked maxSize of
         Nothing -> throwE TooManyTeamMembers
