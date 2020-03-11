@@ -9,7 +9,7 @@ where
 
 import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
-import Data.Id (ConvId)
+import Data.Id (ConvId, makeIdOpaque)
 import Data.List1
 import Imports
 import Network.Wire.Bot
@@ -44,7 +44,7 @@ mainBotNet n = do
         conn <-
           connectTo
             ConnectionRequest
-              { crUser = botId user,
+              { crUser = makeIdOpaque (botId user),
                 crName = fromMaybe "" (botEmail ally),
                 crMessage = Message "Hi there!"
               }
