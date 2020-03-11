@@ -41,31 +41,35 @@ mkQualified mkLocal txt =
     _more ->
       Left "not a qualified identifier: multiple '@'s"
 
+renderQualifiedId :: Qualified (Id a) -> Text
+renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
+
+mkQualifiedId :: Text -> Either String (Qualified (Id a))
+mkQualifiedId = mkQualified (first cs . BS.C.runParser BS.C.parser . cs)
+
 instance ToJSON (Qualified (Id a)) where
-  toJSON = Aeson.String . renderQualified (cs . UUID.toString . toUUID)
+  toJSON = Aeson.String . renderQualifiedId
 
 instance FromJSON (Qualified (Id a)) where
-  parseJSON =
-    withText "QualifiedUserId" $
-      either fail pure
-        . mkQualified (first cs . BS.C.runParser BS.C.parser . cs)
-        . cs
+  parseJSON = withText "QualifiedUserId" $ either fail pure . mkQualifiedId
 
 instance FromHttpApiData (Qualified (Id a)) where
-  parseUrlPiece = first cs . mkQualified (BS.C.runParser BS.C.parser . cs)
+  parseUrlPiece = first cs . mkQualifiedId
+
+renderQualifiedHandle :: Qualified Handle -> Text
+renderQualifiedHandle = renderQualified fromHandle
+
+mkQualifiedHandle :: Text -> Either String (Qualified Handle)
+mkQualifiedHandle = mkQualified (BS.C.runParser BS.C.parser . cs)
 
 instance ToJSON (Qualified Handle) where
-  toJSON = Aeson.String . renderQualified fromHandle
+  toJSON = Aeson.String . renderQualifiedHandle
 
 instance FromJSON (Qualified Handle) where
-  parseJSON =
-    withText "QualifiedHandle" $
-      either fail pure
-        . mkQualified (BS.C.runParser BS.C.parser . cs)
-        . cs
+  parseJSON = withText "QualifiedHandle" $ either fail pure . mkQualifiedHandle
 
 instance FromHttpApiData (Qualified Handle) where
-  parseUrlPiece = first cs . mkQualified (BS.C.runParser BS.C.parser . cs)
+  parseUrlPiece = first cs . mkQualifiedHandle
 
 ----------------------------------------------------------------------
 -- ARBITRARY
