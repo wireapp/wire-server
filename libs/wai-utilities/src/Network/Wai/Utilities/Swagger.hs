@@ -2,7 +2,6 @@
 
 module Network.Wai.Utilities.Swagger where
 
-import Data.Swagger
 import Data.Swagger.Build.Api
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
@@ -12,6 +11,7 @@ import Imports
 import Network.HTTP.Types.Status (statusCode)
 import Network.Wai.Routing (Meta (..), Routes, attach, examine)
 import Network.Wai.Utilities.Error
+import Wire.Swagger
 
 mkSwaggerApi :: Text -> [Model] -> Routes ApiBuilder m a -> ApiDecl
 mkSwaggerApi base models sitemap =

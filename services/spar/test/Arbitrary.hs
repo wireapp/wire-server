@@ -9,7 +9,7 @@ import Data.Aeson
 import Data.Id ()
 import Data.Proxy
 import Data.String.Conversions (cs)
-import "swagger2" Data.Swagger hiding (Header (..))
+import Data.Swagger hiding (Header (..))
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes

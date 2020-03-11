@@ -2,13 +2,13 @@
 
 module Brig.Types.Swagger where
 
-import Data.Swagger
 import Data.Swagger.Build.Api
 import qualified Data.Swagger.Model.Api as Model
 import qualified Galley.Types.Swagger as Galley
 import Galley.Types.Teams (defaultRole)
 import qualified Galley.Types.Teams.Swagger as Galley
 import Imports
+import Wire.Swagger
 
 brigModels :: [Model]
 brigModels =
@@ -70,7 +70,6 @@ brigModels =
     addressBook,
     card,
     match,
-    onboardingMatches,
     -- Search
     searchResult,
     searchContact,
@@ -832,16 +831,6 @@ match = defineModel "Match" $ do
     optional
   property "cards" (array string') $
     description "List of card ids for this match."
-
-onboardingMatches :: Model
-onboardingMatches = defineModel "onboardingMatches" $ do
-  description "Result of the address book matching"
-  property "results" (array (ref match)) $
-    description "List of matches."
-  property "auto-connects" (array (ref match)) $
-    description
-      "List of user IDs matched. It's a bit redudant given 'results' \
-      \but it is here for reasons of backwards compatibility."
 
 --------------------------------------------------------------------------------
 -- Search

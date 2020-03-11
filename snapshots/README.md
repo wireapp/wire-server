@@ -3,7 +3,8 @@ This directory contains [custom Stack snapshots][custom] used for Wire code.
 [custom]: https://docs.haskellstack.org/en/stable/custom_snapshot/
 
 Snapshot definitions should never be changed (once committed to `develop`), because in other
-repositories we refer to snapshot definitions by URL.
+repositories we refer to snapshot definitions by URL.  This goes for *ANY* change!  What
+matters is that the sha256 hash of the file remains intact!
 
 (Rationale: Stack only downloads snapshot definitions once, and never checks whether they have
 changed. If a snapshot changes and you have a repo that depends on it, you will get

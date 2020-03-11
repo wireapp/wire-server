@@ -17,7 +17,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
-import "swagger2" Data.Swagger hiding (Header (..))
+import Data.Swagger hiding (Header (..))
 -- NB: this package depends on both types-common, swagger2, so there is no away around this name
 -- clash other than -XPackageImports.
 

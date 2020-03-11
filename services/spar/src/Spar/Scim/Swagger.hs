@@ -16,7 +16,7 @@ where
 import Control.Lens
 import Data.Id
 import Data.Proxy
-import "swagger2" Data.Swagger hiding (Header (..))
+import Data.Swagger hiding (Header (..))
 import Data.Time
 import Imports
 -- NB: this package depends on both types-common, swagger2, so there is no away around this name

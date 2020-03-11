@@ -81,7 +81,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   [owner, member, guest] <- randomUsers 3
   connectUsers owner (list1 member [guest])
-  tid <- createTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
+  tid <- createNonBindingTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   -- Try to change the timer (as a non admin, guest user) and observe failure

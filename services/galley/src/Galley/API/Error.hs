@@ -92,8 +92,8 @@ actionDenied a =
     "action-denied"
     ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
-noTeamMember :: Error
-noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
+notATeamMember :: Error
+notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
 noOtherOwner :: Error
 noOtherOwner =

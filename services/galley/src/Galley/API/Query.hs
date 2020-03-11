@@ -13,6 +13,7 @@ where
 import Cassandra (hasMore, result)
 import Data.ByteString.Conversion
 import Data.Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import Data.Range
 import Galley.API.Error
 import Galley.API.Mapping
@@ -35,7 +36,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (makeIdOpaque zcnv)
+  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (Local zcnv)
   let cmems = mapMaybe mkMember (toList (Data.convMembers c))
   pure $ botConvView zcnv (Data.convName c) cmems
   where
@@ -48,7 +49,8 @@ getConversationH (zusr ::: cnv ::: _) = do
   json <$> getConversation zusr cnv
 
 getConversation :: UserId -> OpaqueConvId -> Galley Conversation
-getConversation zusr cnv = do
+getConversation zusr opaqueCnv = do
+  cnv <- resolveOpaqueConvId opaqueCnv
   c <- getConversationAndCheckMembership zusr cnv
   conversationView zusr c
 
@@ -57,7 +59,8 @@ getConversationRolesH (zusr ::: cnv ::: _) = do
   json <$> getConversationRoles zusr cnv
 
 getConversationRoles :: UserId -> OpaqueConvId -> Galley ConversationRolesList
-getConversationRoles zusr cnv = do
+getConversationRoles zusr opaqueCnv = do
+  cnv <- resolveOpaqueConvId opaqueCnv
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
@@ -79,7 +82,6 @@ getConversationsH (zusr ::: range ::: size ::: _) =
 getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
-    -- FUTUREWORK(federation): resolve IDs in batch
     (localConvIds, _qualifiedConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId ids
     -- FUTUREWORK(federation): fetch remote conversations from other backend
     cs <-

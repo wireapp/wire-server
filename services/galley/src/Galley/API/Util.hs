@@ -31,17 +31,16 @@ import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
-ensureAccessRole role users mbTms = case role of
+ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
+ensureAccessRole role users = case role of
   PrivateAccessRole -> throwM convAccessDenied
-  TeamAccessRole -> case mbTms of
-    Nothing -> throwM internalError
-    Just tms ->
-      unless (null $ notTeamMember users tms) $
-        throwM noTeamMember
+  TeamAccessRole ->
+    when (any (isNothing . snd) users) $
+      throwM notATeamMember
   ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers users
-    when (length activated /= length users) $ throwM convAccessDenied
+    activated <- lookupActivatedUsers $ map fst users
+    when (length activated /= length users) $
+      throwM convAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -57,29 +56,31 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  ensureConnected u (makeIdOpaque <$> uids \\ join sameTeamUids)
+  -- FUTUREWORK(federation): handle remote users (can't be part of the same team, just check connections)
+  ensureConnected u (Local <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [OpaqueUserId] -> Galley ()
+ensureConnected :: UserId -> [MappedOrLocalId Id.U] -> Galley ()
 ensureConnected _ [] = pure ()
-ensureConnected u opaqueIds = do
-  (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
+ensureConnected u mappedOrLocalUserIds = do
+  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
   -- FUTUREWORK(federation): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
-  ensureConnectedToLocals localUserIds
-  where
-    ensureConnectedToLocals uids = do
-      (connsFrom, connsTo) <-
-        getConnections [u] uids (Just Accepted)
-          `concurrently` getConnections uids [u] (Just Accepted)
-      unless (length connsFrom == length uids && length connsTo == length uids) $
-        throwM notConnected
+  ensureConnectedToLocals u localUserIds
+
+ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
+ensureConnectedToLocals _ [] = pure ()
+ensureConnectedToLocals u uids = do
+  (connsFrom, connsTo) <-
+    getConnections [u] uids (Just Accepted)
+      `concurrently` getConnections uids [u] (Just Accepted)
+  unless (length connsFrom == length uids && length connsTo == length uids) $
+    throwM notConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -113,40 +114,29 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- Actually, this will "never" happen due to the
--- fact that there can be no custom roles at the moment
-
-bindingTeamMembers :: TeamId -> Galley [TeamMember]
-bindingTeamMembers tid = do
-  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
-  case binding of
-    Binding -> Data.teamMembers tid
-    NonBinding -> throwM nonBindingTeam
-
--- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
--- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
--- 'operationDenied'.  Otherwise, return the found user.
-permissionCheck :: (Foldable m, IsPerm perm, Show perm) => UserId -> perm -> m TeamMember -> Galley TeamMember
-permissionCheck u p t =
-  case find ((u ==) . view userId) t of
-    Just m -> do
-      unless (m `hasPermission` p) $
-        throwM (operationDenied p)
-      pure m
-    Nothing -> throwM noTeamMember
+-- | If a team memeber is not given throw 'notATeamMember'; if the given team
+-- member does not have the given permission, throw 'operationDenied'.
+-- Otherwise, return unit.
+permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
+permissionCheck p = \case
+  Just m -> do
+    if m `hasPermission` p
+      then pure m
+      else throwM (operationDenied p)
+  Nothing -> throwM notATeamMember
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
-  members <- Data.teamMembers tid
-  let isOnTeam = isJust $ find ((uid ==) . view userId) members
-  unless isOnTeam (throwM noTeamMember)
+  Data.teamMember tid uid >>= \case
+    Nothing -> throwM notATeamMember
+    Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
 permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembers tid
+    Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
     Nothing -> pure ()
   Nothing -> throwM convNotFound
 
@@ -234,23 +224,24 @@ getMember ex u ms = do
     Just m -> return m
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> OpaqueConvId -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
-getConversationAndCheckMembershipWithError ex zusr cnv = do
-  resolveOpaqueConvId cnv >>= \case
-    Mapped idMapping ->
-      throwM . federationNotImplemented $ pure idMapping
-    Local convId -> do
-      -- should we merge resolving to qualified ID and looking up the conversation?
-      c <- Data.conversation convId >>= ifNothing convNotFound
-      when (DataTypes.isConvDeleted c) $ do
-        Data.deleteConversation convId
-        throwM convNotFound
-      unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
-        throwM ex
-      return c
+getConversationAndCheckMembershipWithError :: Error -> UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr = \case
+  Mapped idMapping ->
+    throwM . federationNotImplemented $ pure idMapping
+  Local convId -> do
+    -- should we merge resolving to qualified ID and looking up the conversation?
+    c <- Data.conversation convId >>= ifNothing convNotFound
+    when (DataTypes.isConvDeleted c) $ do
+      Data.deleteConversation convId
+      throwM convNotFound
+    unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
+      throwM ex
+    return c
+
+-- FUTUREWORK(federation): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
