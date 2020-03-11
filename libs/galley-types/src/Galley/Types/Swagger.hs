@@ -2,9 +2,9 @@
 
 module Galley.Types.Swagger where
 
-import qualified "types-common" Data.Swagger as Swagger
 import Data.Swagger.Build.Api as Swagger
 import Imports
+import qualified Wire.Swagger as Swagger
 
 galleyModels :: [Model]
 galleyModels =

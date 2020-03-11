@@ -2,13 +2,13 @@
 
 module Brig.Types.Swagger where
 
-import Data.Swagger
 import Data.Swagger.Build.Api
 import qualified Data.Swagger.Model.Api as Model
 import qualified Galley.Types.Swagger as Galley
 import Galley.Types.Teams (defaultRole)
 import qualified Galley.Types.Teams.Swagger as Galley
 import Imports
+import Wire.Swagger
 
 brigModels :: [Model]
 brigModels =

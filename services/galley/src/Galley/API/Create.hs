@@ -98,13 +98,16 @@ createTeamGroupConv zusr zcon tinfo body = do
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
   name <- rangeCheckedMaybe (newConvName body)
-  teamMems <- Data.teamMembers (cnvTeamId tinfo)
-  ensureAccessRole (accessRole body) localUserIds (Just teamMems)
-  void $ permissionCheck zusr CreateConversation teamMems
+  let convTeam = (cnvTeamId tinfo)
+  zusrMembership <- Data.teamMember convTeam zusr
+  convMemberships <- mapM (Data.teamMember convTeam) localUserIds
+  ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
+  void $ permissionCheck CreateConversation zusrMembership
   otherConvMems <-
     if cnvManaged tinfo
       then do
-        let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
+        allMembers <- Data.teamMembersUnsafeForLargeTeams convTeam
+        let otherConvMems = filter (/= zusr) $ map (view userId) $ allMembers
         checkedConvSize otherConvMems
       else do
         otherConvMems <- checkedConvSize localUserIds
@@ -119,10 +122,10 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- we can ever get rid of the team permission model anyway - the only thing I can
         -- think of is that 'partners' can create convs but not be admins...
         when (length (fromConvSize otherConvMems) > 1) $ do
-          void $ permissionCheck zusr DoNotUseDeprecatedAddRemoveConvMember teamMems
+          void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
+        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
         pure otherConvMems
   conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
@@ -171,11 +174,19 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
-    checkBindingTeamPermissions x y tid = do
-      mems <- bindingTeamMembers tid
-      void $ permissionCheck zusr CreateConversation mems
-      unless (all (flip isTeamMember mems) [x, y]) $
+    verifyMembership tid u = do
+      membership <- Data.teamMember tid u
+      when (isNothing membership) $
         throwM noBindingTeamMembers
+    checkBindingTeamPermissions x y tid = do
+      zusrMembership <- Data.teamMember tid zusr
+      void $ permissionCheck CreateConversation zusrMembership
+      Data.teamBinding tid >>= \case
+        Just Binding -> do
+          verifyMembership tid x
+          verifyMembership tid y
+        Just _ -> throwM nonBindingTeam
+        Nothing -> throwM teamNotFound
     create x y n tinfo = do
       c <- Data.createOne2OneConversation x y n (cnvTeamId <$> tinfo)
       notifyCreatedConversation Nothing zusr (Just zcon) c

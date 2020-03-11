@@ -37,6 +37,7 @@ module Brig.IO.Intra
     getTeamOwnersWithEmail,
     getTeamLegalHoldStatus,
     changeTeamStatus,
+    getTruncatedTeamSize,
   )
 where
 
@@ -64,8 +65,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
-import Data.Json.Util ((#))
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util ((#), UTCTimeMillis)
+import Data.Json.Util ()
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map as Map
@@ -705,6 +706,15 @@ getTeamMembers tid = do
   where
     req =
       paths ["i", "teams", toByteString' tid, "members"]
+        . expect2xx
+
+getTruncatedTeamSize :: TeamId -> Range 1 Team.HardTruncationLimit Int32 -> AppIO Team.TruncatedTeamSize
+getTruncatedTeamSize tid limit = do
+  debug $ remote "galley" . msg (val "Get limited team size")
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' limit]
         . expect2xx
 
 -- | Only works on 'BindingTeam's!

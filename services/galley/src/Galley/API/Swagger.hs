@@ -26,7 +26,7 @@ import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Data.Proxy
-import "swagger2" Data.Swagger hiding (Header (..))
+import Data.Swagger hiding (Header (..))
 import Data.Text as Text (unlines)
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (UUID, fromText)

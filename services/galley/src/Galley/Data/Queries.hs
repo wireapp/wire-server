@@ -50,6 +50,7 @@ selectTeamMember ::
     )
 selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from team_member where team = ? and user = ?"
 
+-- | This query fetches **all** members of a team, it should always be paginated
 selectTeamMembers ::
   PrepQuery R (Identity TeamId)
     ( UserId,

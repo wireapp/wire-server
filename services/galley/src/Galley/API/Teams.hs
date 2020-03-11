@@ -31,6 +31,7 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
+    getTruncatedTeamSizeH,
   )
 where
 
@@ -42,7 +43,7 @@ import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
-import Data.Range
+import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
@@ -164,7 +165,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     Data.updateTeamStatus tid newStatus
   where
     journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = Data.teamMembers tid >>= \mems ->
+    journal Active c = Data.teamMembersUnsafeForLargeTeams tid >>= \mems ->
       Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition from to = case (from, to) of
@@ -183,14 +184,15 @@ updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
 
 updateTeam :: UserId -> ConnId -> TeamId -> TeamUpdateData -> Galley ()
 updateTeam zusr zcon tid updateData = do
-  membs <- Data.teamMembers tid
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "Teams.updateTeam")
-  void $ permissionCheck zusr SetTeamData membs
+  zusrMembership <- Data.teamMember tid zusr
+  -- let zothers = map (view userId) membs
+  -- Log.debug $
+  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+  --     . Log.field "action" (Log.val "Teams.updateTeam")
+  void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
   push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
@@ -215,7 +217,7 @@ deleteTeam zusr zcon tid mBody = do
       queueDelete
   where
     checkPermissions team = do
-      void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
+      void $ permissionCheck DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
@@ -232,9 +234,9 @@ uncheckedDeleteTeam zusr zcon tid = do
   team <- Data.team tid
   when (isJust team) $ do
     Spar.deleteTeam tid
-    membs <- Data.teamMembers tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
+    membs <- Data.teamMembersUnsafeForLargeTeams tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
@@ -290,25 +292,25 @@ getTeamConversationRoles :: UserId -> TeamId -> Galley ConversationRolesList
 getTeamConversationRoles zusr tid = do
   mem <- Data.teamMember tid zusr
   case mem of
-    Nothing -> throwM noTeamMember
+    Nothing -> throwM notATeamMember
     Just _ -> do
       -- NOTE: If/when custom roles are added, these roles should
       --       be merged with the team roles (if they exist)
       pure $ ConversationRolesList wireConvRoles
 
-getTeamMembersH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembersH (zusr ::: tid ::: _) = do
-  (memberList, withPerms) <- getTeamMembers zusr tid
+getTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
+getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
+  (memberList, withPerms) <- getTeamMembers zusr tid maxResults
   pure . json $ teamMemberListJson withPerms memberList
 
-getTeamMembers :: UserId -> TeamId -> Galley (TeamMemberList, TeamMember -> Bool)
-getTeamMembers zusr tid = do
-  mems <- Data.teamMembers tid
-  case findTeamMember zusr mems of
-    Nothing -> throwM noTeamMember
+getTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
+getTeamMembers zusr tid maxResults = do
+  (mems, hasMore) <- Data.teamMembers tid maxResults
+  Data.teamMember tid zusr >>= \case
+    Nothing -> throwM notATeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
-      pure (newTeamMemberList mems, withPerms)
+      pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
@@ -317,12 +319,12 @@ getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
 
 getTeamMember :: UserId -> TeamId -> UserId -> Galley (TeamMember, TeamMember -> Bool)
 getTeamMember zusr tid uid = do
-  mems <- Data.teamMembers tid
-  case findTeamMember zusr mems of
-    Nothing -> throwM noTeamMember
+  zusrMembership <- Data.teamMember tid zusr
+  case zusrMembership of
+    Nothing -> throwM notATeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
-      case findTeamMember uid mems of
+      Data.teamMember tid uid >>= \case
         Nothing -> throwM teamMemberNotFound
         Just member -> pure (member, withPerms)
 
@@ -334,14 +336,14 @@ uncheckedGetTeamMember :: TeamId -> UserId -> Galley TeamMember
 uncheckedGetTeamMember tid uid = do
   Data.teamMember tid uid >>= ifNothing teamMemberNotFound
 
-uncheckedGetTeamMembersH :: TeamId ::: JSON -> Galley Response
-uncheckedGetTeamMembersH (tid ::: _) = do
-  json <$> uncheckedGetTeamMembers tid
+uncheckedGetTeamMembersH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
+uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
+  json <$> uncheckedGetTeamMembers tid maxResults
 
-uncheckedGetTeamMembers :: TeamId -> Galley TeamMemberList
-uncheckedGetTeamMembers tid = do
-  mems <- Data.teamMembers tid
-  pure $ newTeamMemberList mems
+uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TeamMemberList
+uncheckedGetTeamMembers tid maxResults = do
+  (mems, hasMore) <- Data.teamMembers tid maxResults
+  return $ newTeamMemberList mems hasMore
 
 addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -355,14 +357,16 @@ addTeamMember zusr zcon tid nmem = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "Teams.addTeamMember")
-  mems <- Data.teamMembers tid
   -- verify permissions
-  tmem <- permissionCheck zusr AddTeamMember mems
+  zusrMembership <-
+    Data.teamMember tid zusr
+      >>= permissionCheck AddTeamMember
   let targetPermissions = nmem ^. ntmNewTeamMember . permissions
-  targetPermissions `ensureNotElevated` tmem
+  targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -374,7 +378,7 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- Data.teamMembers tid
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
 
@@ -394,14 +398,17 @@ updateTeamMember zusr zcon tid targetMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  members <- Data.teamMembers tid
-  user <- permissionCheck zusr SetMemberPermissions members
+  user <-
+    Data.teamMember tid zusr
+      >>= permissionCheck SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   -- target user must be in same team
-  unless (isTeamMember targetId members) $
-    throwM teamMemberNotFound
+  Data.teamMember tid targetId >>= \case
+    Nothing -> throwM teamMemberNotFound
+    _ -> pure ()
   -- cannot demote only owner (effectively removing the last owner)
+  members <- Data.teamMembersUnsafeForLargeTeams tid
   okToDelete <- canBeDeleted members targetId tid
   when (not okToDelete && targetPermissions /= fullPermissions) $
     throwM noOtherOwner
@@ -440,12 +447,14 @@ deleteTeamMember zusr zcon tid remove mBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
-  mems <- Data.teamMembers tid
-  void $ permissionCheck zusr RemoveTeamMember mems
+  zusrMembership <- Data.teamMember tid zusr
+  void $ permissionCheck RemoveTeamMember zusrMembership
   okToDelete <- canBeDeleted [] remove tid
   unless okToDelete $ throwM noOtherOwner
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  if team ^. teamBinding == Binding && isTeamMember remove mems
+  removeMembership <- Data.teamMember tid remove
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
+  if team ^. teamBinding == Binding && isJust removeMembership
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
@@ -487,7 +496,7 @@ getTeamConversationsH (zusr ::: tid ::: _) = do
 
 getTeamConversations :: UserId -> TeamId -> Galley TeamConversationList
 getTeamConversations zusr tid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   newTeamConversationList <$> Data.teamConversations tid
@@ -498,7 +507,7 @@ getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley TeamConversation
 getTeamConversation zusr tid cid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing noTeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
@@ -630,8 +639,8 @@ getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers :: UserId -> Galley TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
-  members <- Data.teamMembers tid
-  pure $ newTeamMemberList members
+  members <- Data.teamMembersUnsafeForLargeTeams tid
+  pure $ newTeamMemberList members False
 
 -- Public endpoints for feature checks
 
@@ -641,8 +650,8 @@ getSSOStatusH (uid ::: tid ::: _) = do
 
 getSSOStatus :: UserId -> TeamId -> Galley SSOTeamConfig
 getSSOStatus uid tid = do
-  membs <- Data.teamMembers tid
-  void $ permissionCheck uid ViewSSOTeamSettings membs
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewSSOTeamSettings zusrMembership
   getSSOStatusInternal tid
 
 getLegalholdStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -651,8 +660,8 @@ getLegalholdStatusH (uid ::: tid ::: _) = do
 
 getLegalholdStatus :: UserId -> TeamId -> Galley LegalHoldTeamConfig
 getLegalholdStatus uid tid = do
-  membs <- Data.teamMembers tid
-  void $ permissionCheck uid ViewLegalHoldTeamSettings membs
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
 
 -- Enable / Disable team features
@@ -725,3 +734,14 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+
+getTruncatedTeamSizeH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
+getTruncatedTeamSizeH (tid ::: r ::: _) = json <$> getTruncatedTeamSize tid r
+
+getTruncatedTeamSize :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TruncatedTeamSize
+getTruncatedTeamSize tid r = do
+  (members, hasMore) <- Data.teamMembers tid r
+  pure $
+    if hasMore
+      then mkLargeTeamSize $ fromIntegral $ fromRange r
+      else mkTruncatedTeamSize (fromIntegral $ fromRange r) (fromIntegral $ length members)

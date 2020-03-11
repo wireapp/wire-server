@@ -199,6 +199,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   -- removed from the conversation. We keep track of them using 'State'.
   (newUsers, newBots) <- flip execStateT (users, bots) $ do
     -- We might have to remove non-activated members
+    -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
+    -- to make assumption about the order of roles and implement policy
+    -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
       activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
@@ -206,8 +209,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
-        tMembers <- map (view userId) <$> lift (Data.teamMembers tid)
-        usersL %= filter (\user -> memId user `elem` tMembers)
+        currentUsers <- use usersL
+        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (memId user)) currentUsers
+        assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
   -- Update Cassandra & send an event
@@ -398,8 +402,8 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
-  mbTms <- traverse Data.teamMembers $ Data.convTeam conv
-  ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
+  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv . makeIdOpaque) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
   -- NOTE: When joining conversations, all users become members
@@ -442,13 +446,15 @@ addMembers zusr zcon cid invite = do
         throwM . federationNotImplemented
       case Data.convTeam conv of
         Nothing -> do
-          ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
+          ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
           ensureConnectedOrSameTeam zusr newUsers
         Just ti -> teamConvChecks ti newUsers convId conv
       addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+    userIsMember u = (^. userId . to (== u))
     teamConvChecks tid newUsers convId conv = do
       tms <- Data.teamMembersLimited tid newUsers
-      ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
+      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+      ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
@@ -855,7 +861,7 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-  tMembers <- fmap (view userId) <$> Data.teamMembers tid
+  tMembers <- fmap (view userId) <$> Data.teamMembersUnsafeForLargeTeams tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing

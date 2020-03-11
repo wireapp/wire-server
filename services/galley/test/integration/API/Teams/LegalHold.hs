@@ -7,8 +7,7 @@ module API.Teams.LegalHold
 where
 
 import API.SQS
-import API.Util hiding (createTeam)
-import qualified API.Util as Util
+import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Client
@@ -114,7 +113,7 @@ testSwaggerJsonConsistency = do
 
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -164,7 +163,7 @@ testRequestLegalHoldDevice = do
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- do
     usr <- randomUser
     addTeamMemberInternal tid $ newTeamMember usr (rolePermissions RoleMember) Nothing
@@ -228,7 +227,7 @@ testApproveLegalHoldDevice = do
 
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -277,7 +276,7 @@ testGetLegalHoldDeviceStatus = do
 
 testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -318,7 +317,7 @@ data IsWorking = Working | NotWorking
 
 testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -374,7 +373,7 @@ testCreateLegalHoldTeamSettings = do
 
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
@@ -418,7 +417,7 @@ testGetLegalHoldTeamSettings = do
 
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
@@ -469,7 +468,7 @@ testRemoveLegalHoldFromTeam = do
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -503,7 +502,7 @@ testEnablePerTeam = do
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
   member <- randomUser
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   ensureQueueEmpty
   -- user without team can't add LH device
   tryout member
@@ -532,7 +531,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 
 testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
-  (owner, tid) <- createTeam
+  (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -556,14 +555,6 @@ testGetTeamMembersIncludesLHStatus = do
 
 ----------------------------------------------------------------------
 -- API helpers
-
-createTeam :: HasCallStack => TestM (UserId, TeamId)
-createTeam = do
-  ownerid <- Util.randomUser
-  let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
-  teamid <- Util.createTeamInternal tname ownerid
-  assertQueue "create team" tActivate
-  pure (ownerid, teamid)
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do

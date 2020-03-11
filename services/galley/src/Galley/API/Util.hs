@@ -31,17 +31,16 @@ import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
-ensureAccessRole role users mbTms = case role of
+ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
+ensureAccessRole role users = case role of
   PrivateAccessRole -> throwM convAccessDenied
-  TeamAccessRole -> case mbTms of
-    Nothing -> throwM internalError
-    Just tms ->
-      unless (null $ notTeamMember users tms) $
-        throwM noTeamMember
+  TeamAccessRole ->
+    when (any (isNothing . snd) users) $
+      throwM notATeamMember
   ActivatedAccessRole -> do
-    activated <- lookupActivatedUsers users
-    when (length activated /= length users) $ throwM convAccessDenied
+    activated <- lookupActivatedUsers $ map fst users
+    when (length activated /= length users) $
+      throwM convAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -115,40 +114,29 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- Actually, this will "never" happen due to the
--- fact that there can be no custom roles at the moment
-
-bindingTeamMembers :: TeamId -> Galley [TeamMember]
-bindingTeamMembers tid = do
-  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
-  case binding of
-    Binding -> Data.teamMembers tid
-    NonBinding -> throwM nonBindingTeam
-
--- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
--- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
--- 'operationDenied'.  Otherwise, return the found user.
-permissionCheck :: (Foldable m, IsPerm perm, Show perm) => UserId -> perm -> m TeamMember -> Galley TeamMember
-permissionCheck u p t =
-  case find ((u ==) . view userId) t of
-    Just m -> do
-      unless (m `hasPermission` p) $
-        throwM (operationDenied p)
-      pure m
-    Nothing -> throwM noTeamMember
+-- | If a team memeber is not given throw 'notATeamMember'; if the given team
+-- member does not have the given permission, throw 'operationDenied'.
+-- Otherwise, return unit.
+permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
+permissionCheck p = \case
+  Just m -> do
+    if m `hasPermission` p
+      then pure m
+      else throwM (operationDenied p)
+  Nothing -> throwM notATeamMember
 
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
-  members <- Data.teamMembers tid
-  let isOnTeam = isJust $ find ((uid ==) . view userId) members
-  unless isOnTeam (throwM noTeamMember)
+  Data.teamMember tid uid >>= \case
+    Nothing -> throwM notATeamMember
+    Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
 permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembers tid
+    Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
     Nothing -> pure ()
   Nothing -> throwM convNotFound
 
