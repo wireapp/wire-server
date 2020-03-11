@@ -38,7 +38,8 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle, parseHandle)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>), IpAddr (..))
@@ -1125,12 +1126,12 @@ changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
 
 checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
 checkUserExistsH (self ::: uid) = do
-  exists <- lift $ checkUserExists self uid
+  exists <- checkUserExists self uid
   if exists then return empty else throwStd userNotFound
 
-checkUserExists :: UserId -> OpaqueUserId -> AppIO Bool
-checkUserExists self uid = do
-  isJust <$> API.lookupProfile self uid
+checkUserExists :: UserId -> OpaqueUserId -> Handler Bool
+checkUserExists self opaqueUserId =
+  isJust <$> getUser self opaqueUserId
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
@@ -1142,11 +1143,12 @@ getSelf self = do
 
 getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
-  json <$> getUser self uid
+  fmap json . ifNothing userNotFound =<< getUser self uid
 
-getUser :: UserId -> OpaqueUserId -> Handler UserProfile
-getUser self uid = do
-  lift (API.lookupProfile self uid) >>= ifNothing userNotFound
+getUser :: UserId -> OpaqueUserId -> Handler (Maybe UserProfile)
+getUser self opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  lift $ API.lookupProfile self resolvedUserId
 
 getUserNameH :: JSON ::: UserId -> Handler Response
 getUserNameH (_ ::: self) = do
@@ -1165,13 +1167,15 @@ listUsersH (_ ::: self ::: qry) =
 
 listUsers :: UserId -> Either (List OpaqueUserId) (List Handle) -> Handler [UserProfile]
 listUsers self = \case
-  Left us -> byIds (fromList us)
+  Left us -> do
+    resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
+    byIds resolvedUserIds
   Right hs -> do
     us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
     if sameTeamSearchOnly
-      then sameTeamOnly =<< byIds us
-      else byIds us
+      then sameTeamOnly =<< byIds (Local <$> us)
+      else byIds (Local <$> us)
   where
     sameTeamOnly :: [UserProfile] -> Handler [UserProfile]
     sameTeamOnly us = do
@@ -1179,6 +1183,7 @@ listUsers self = \case
       return $ case selfTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
+    byIds :: [MappedOrLocalId Id.U] -> Handler [UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response

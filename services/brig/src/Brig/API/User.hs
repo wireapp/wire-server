@@ -901,7 +901,7 @@ lookupProfiles ::
   [MappedOrLocalId Id.U] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
-  let (localUsers, remoteUsers) = partitionMappedOrLocalIds others
+  let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
   localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation): fetch remote profiles
   -- TODO: error?
