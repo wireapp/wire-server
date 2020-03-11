@@ -5,15 +5,12 @@ import qualified API.SQS as SQS
 import Bilge hiding (body, header)
 import Cassandra.Util
 import Control.Lens
-import qualified Data.ByteString.Char8 as BS
-import Data.ByteString.Conversion
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.Tagged
-import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Yaml (decodeFileEither)
+import Data.Yaml (decodeFileThrow)
 import Galley.API (sitemap)
 import Galley.Options
 import Imports hiding (local)
@@ -28,7 +25,6 @@ import Test.Tasty.HUnit
 import Test.Tasty.Options
 import TestSetup
 import Util.Options
-import Util.Options.Common
 import Util.Test
 
 newtype ServiceConfigFile = ServiceConfigFile String
@@ -72,31 +68,30 @@ main = withOpenSSL $ runTests go
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup
         ]
+    getOpts :: FilePath -> FilePath -> IO TestSetup
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
-      let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
-      gConf <- handleParseError =<< decodeFileEither gFile
-      iConf <- handleParseError =<< decodeFileEither iFile
-      -- FUTUREWORK: we don't support process env setup any more, so both gconf and iConf
-      -- must be 'Just'.  the following code could be simplified a lot, but this should
-      -- probably happen after (or at least while) unifying the integration test suites into
-      -- a single library.
-      g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-      b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-      c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-      -- unset this env variable in galley's config to disable testing SQS team events
-      q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
-      e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
-      convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
+      gConf :: Opts <- decodeFileThrow gFile
+      iConf :: IntegrationConfig <- decodeFileThrow iFile
+      let g = mkRequest (galley iConf)
+      let b = mkRequest (brig iConf)
+      let c = mkRequest (cannon iConf)
+      let federatedBrig1' = mkRequest (federatedBrig1 iConf)
+      let federatedBrig2' = mkRequest (federatedBrig2 iConf)
+      let federatedBackend1' = mkRequest (federatedBackend1 iConf)
+      let federatedBackend2' = mkRequest (federatedBackend2 iConf)
+      let q = queueName gConf
+      let e = endpoint gConf
+      let convMaxSize = maxSize gConf
       awsEnv <- initAwsEnv e q
       SQS.ensureQueueEmptyIO awsEnv
       -- Initialize cassandra
-      let ch = fromJust gConf ^. optCassandra . casEndpoint . epHost
-      let cp = fromJust gConf ^. optCassandra . casEndpoint . epPort
-      let ck = fromJust gConf ^. optCassandra . casKeyspace
+      let ch = gConf ^. optCassandra . casEndpoint . epHost
+      let cp = gConf ^. optCassandra . casEndpoint . epPort
+      let ck = gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db
+      return $ TestSetup gConf iConf m g b c awsEnv convMaxSize db federatedBrig1' federatedBrig2' federatedBackend1' federatedBackend2'
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)

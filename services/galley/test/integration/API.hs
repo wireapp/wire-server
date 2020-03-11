@@ -176,6 +176,19 @@ postCryptoMessage1 = do
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext2")
     void . liftIO $ WS.assertMatch t wsE (wsAssertOtr conv alice ac ec "ciphertext2")
   -- Redundant self
+  --
+  -- What we do now is
+  --
+  --
+  --
+  --
+  --    Galley ->  Cannon -> tasty cannon -> Assertion
+  --     ^
+  --     |
+  --     `- assertion
+  --
+  --     So this is more of a Cannon test than a galley test is it not?
+  --
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (eve, ec, "ciphertext3")]
     postOtrMessage id alice ac conv m3 !!! do
