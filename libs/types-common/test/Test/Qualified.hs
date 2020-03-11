@@ -22,29 +22,15 @@ tests =
     "Qualified"
     [ testGroup
         "serialization"
-        [ testCase "render foo@bar.com" $
-            assertEqual
-              "foo@bar.com"
-              "foo@bar.com"
-              ( renderQualifiedHandle
-                  ( Qualified
-                      (Handle "foo")
-                      (Domain "bar.com")
-                  )
-              ),
+        [ testCase "render foo@bar.com" $ do
+            assertEqual "" "foo@bar.com" $
+              (renderQualifiedHandle (Qualified (Handle "foo") (Domain "bar.com"))),
           testCase "render 61a73a52-e526-4892-82a9-3d638d77629f@example.com" $ do
             uuid <-
               maybe (assertFailure "invalid UUID") pure $
                 UUID.fromString "61a73a52-e526-4892-82a9-3d638d77629f"
-            assertEqual
-              "61a73a52-e526-4892-82a9-3d638d77629f@example.com"
-              "61a73a52-e526-4892-82a9-3d638d77629f@example.com"
-              ( renderQualifiedId
-                  ( Qualified
-                      (Id uuid)
-                      (Domain "example.com")
-                  )
-              ),
+            assertEqual "" "61a73a52-e526-4892-82a9-3d638d77629f@example.com" $
+              (renderQualifiedId (Qualified (Id uuid) (Domain "example.com"))),
           testProperty "mkQualifiedHandle (renderQualifiedHandle x) == Right x" $
             \(x :: Qualified Handle) ->
               mkQualifiedHandle (renderQualifiedHandle x) === Right x,
