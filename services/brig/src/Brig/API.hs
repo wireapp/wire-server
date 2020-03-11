@@ -12,6 +12,7 @@ import Brig.API.Handler
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
+import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -880,13 +881,22 @@ listPropertyKeysAndValuesH (u ::: _) = json <$> lift (API.lookupPropertyKeysAndV
 
 getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
-  prekey <- lift $ API.claimPrekey u c
-  return $ case prekey of
+  getPrekey u c <&> \case
     Just pk -> json pk
     Nothing -> setStatus status404 empty
 
+getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe ClientPrekey)
+getPrekey u c = do
+  resolvedUserId <- resolveOpaqueUserId u
+  lift $ API.claimPrekey resolvedUserId c
+
 getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
-getPrekeyBundleH (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
+getPrekeyBundleH (u ::: _) = json <$> getPrekeyBundle u
+
+getPrekeyBundle :: OpaqueUserId -> Handler PrekeyBundle
+getPrekeyBundle u = do
+  resolvedUserId <- resolveOpaqueUserId u
+  lift $ API.claimPrekeyBundle resolvedUserId
 
 getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
@@ -952,8 +962,14 @@ updateClient :: UpdateClient -> UserId -> ClientId -> Handler ()
 updateClient body usr clt = do
   API.updateClient usr clt body !>> clientError
 
-listClientsH :: UserId ::: JSON -> Handler Response
-listClientsH (usr ::: _) = json <$> lift (API.lookupClients usr)
+listClientsH :: OpaqueUserId ::: JSON -> Handler Response
+listClientsH (opaqueUserId ::: _) =
+  json <$> listClients opaqueUserId
+
+listClients :: OpaqueUserId -> Handler [Client]
+listClients opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.lookupClients resolvedUserId !>> clientError
 
 internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListClientsH (_ ::: req) = do
@@ -964,28 +980,34 @@ internalListClients (UserSet usrs) = do
   UserClients . Map.mapKeys makeIdOpaque . Map.fromList
     <$> (API.lookupUsersClientIds $ Set.toList usrs)
 
-getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientH (usr ::: clt ::: _) = lift $ do
-  client <- API.lookupClient usr clt
-  return $ case client of
+getClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
+getClientH (usr ::: clt ::: _) =
+  getClient usr clt <&> \case
     Just c -> json c
     Nothing -> setStatus status404 empty
 
+getClient :: OpaqueUserId -> ClientId -> Handler (Maybe Client)
+getClient opaqueUserId clientId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.lookupClient resolvedUserId clientId !>> clientError
+
 getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
-  json <$> lift (getUserClients user)
+  json <$> getUserClients user
 
-getUserClients :: OpaqueUserId -> AppIO [PubClient]
-getUserClients user =
-  API.pubClient <$$> API.lookupClients user
+getUserClients :: OpaqueUserId -> Handler [PubClient]
+getUserClients opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
 
 getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getUserClientH (user ::: cid ::: _) = do
-  maybe (setStatus status404 empty) json <$> lift (getUserClient user cid)
+  maybe (setStatus status404 empty) json <$> getUserClient user cid
 
-getUserClient :: OpaqueUserId -> ClientId -> AppIO (Maybe PubClient)
-getUserClient user cid = do
-  API.pubClient <$$> API.lookupClient user cid
+getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe PubClient)
+getUserClient opaqueUserId clientId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do

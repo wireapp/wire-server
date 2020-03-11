@@ -155,7 +155,7 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !UserId
+  | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
 
