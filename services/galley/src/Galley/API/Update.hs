@@ -65,6 +65,7 @@ import Data.List (delete)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified (OptionallyQualified, Qualified, eitherQualifiedOrNot, unqualified)
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
@@ -405,18 +406,23 @@ joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
 joinConversationByReusableCode :: UserId -> ConnId -> ConversationCode -> Galley UpdateResult
 joinConversationByReusableCode zusr zcon convCode = do
   c <- verifyReusableCode convCode
-  joinConversation zusr zcon (codeConversation c) CodeAccess
+  joinConversation zusr zcon (unqualified (codeConversation c)) CodeAccess
 
-joinConversationByIdH :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
+joinConversationByIdH :: UserId ::: ConnId ::: OptionallyQualified ConvId ::: JSON -> Galley Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
   handleUpdateResult <$> joinConversationById zusr zcon cnv
 
-joinConversationById :: UserId -> ConnId -> ConvId -> Galley UpdateResult
+joinConversationById :: UserId -> ConnId -> OptionallyQualified ConvId -> Galley UpdateResult
 joinConversationById zusr zcon cnv =
   joinConversation zusr zcon cnv LinkAccess
 
-joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
-joinConversation zusr zcon cnv access = do
+joinConversation :: UserId -> ConnId -> OptionallyQualified ConvId -> Access -> Galley UpdateResult
+joinConversation zusr zcon cnv = case eitherQualifiedOrNot cnv of
+  Left localCnv -> joinLocalConversation zusr zcon localCnv
+  Right qualifiedCnv -> joinRemoteConversation zusr zcon qualifiedCnv
+
+joinLocalConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
+joinLocalConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
@@ -427,6 +433,12 @@ joinConversation zusr zcon cnv access = do
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
   addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
+
+joinRemoteConversation :: UserId -> ConnId -> Qualified ConvId -> Access -> Galley UpdateResult
+joinRemoteConversation _zusr _zcon cnv _access =
+  -- FUTUREWORK(federation): send request to remote backend
+  -- question: how can this backend prove to the remote one that the user is activated?
+  throwM $ federationNotImplemented' (pure (Nothing, cnv))
 
 addMembersH :: UserId ::: ConnId ::: OpaqueConvId ::: JsonRequest Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
