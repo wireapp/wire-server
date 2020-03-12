@@ -92,7 +92,6 @@ instance Arbitrary FeatureFlags where
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
-      <*> Test.Tasty.QuickCheck.elements [minBound ..]
 
 instance Arbitrary TruncatedTeamSize where
   arbitrary =
