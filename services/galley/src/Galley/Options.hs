@@ -25,6 +25,7 @@ data Settings
         _setConcurrentDeletionEvents :: !(Maybe Int),
         -- | Throttling: delay between sending events upon team deletion
         _setDeleteConvThrottleMillis :: !(Maybe Int),
+        _setEnableFederation :: !(Maybe Bool),
         _setFeatureFlags :: !FeatureFlags
       }
   deriving (Show, Generic)
@@ -38,6 +39,9 @@ defConcurrentDeletionEvents = 128
 
 defDeleteConvThrottleMillis :: Int
 defDeleteConvThrottleMillis = 20
+
+defEnableFederation :: Bool
+defEnableFederation = False
 
 data JournalOpts
   = JournalOpts

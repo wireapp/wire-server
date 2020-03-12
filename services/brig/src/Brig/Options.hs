@@ -441,7 +441,8 @@ data Settings
         setDeleteThrottleMillis :: !(Maybe Int),
         -- | When true, search only
         -- returns users from the same team
-        setSearchSameTeamOnly :: !(Maybe Bool)
+        setSearchSameTeamOnly :: !(Maybe Bool),
+        setEnableFederation :: !(Maybe Bool)
       }
   deriving (Show, Generic)
 
@@ -456,6 +457,9 @@ defDeleteThrottleMillis = 100
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
+
+defEnableFederation :: Bool
+defEnableFederation = False
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
