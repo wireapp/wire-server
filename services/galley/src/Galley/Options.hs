@@ -3,7 +3,7 @@ module Galley.Options where
 import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Misc
-import Galley.Types.FeatureFlags (FeatureFlags (..))
+import Galley.Types.Teams (FeatureFlags (..))
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options

@@ -15,7 +15,6 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.Typeable (typeOf)
 import Galley.Types (CustomBackend)
-import Galley.Types.FeatureFlags
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
 import Imports
