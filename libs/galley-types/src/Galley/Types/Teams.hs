@@ -22,8 +22,10 @@ module Galley.Types.Teams
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
+    flagFederation,
     FeatureSSO (..),
     FeatureLegalHold (..),
+    FeatureFederation (..),
     TeamList,
     newTeamList,
     teamListTeams,
@@ -368,7 +370,8 @@ newtype TeamCreationTime
 data FeatureFlags
   = FeatureFlags
       { _flagSSO :: !FeatureSSO,
-        _flagLegalHold :: !FeatureLegalHold
+        _flagLegalHold :: !FeatureLegalHold,
+        _flagFederation :: !FeatureFederation
       }
   deriving (Eq, Show, Generic)
 
@@ -382,17 +385,24 @@ data FeatureLegalHold
   | FeatureLegalHoldDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+data FeatureFederation
+  = FeatureFederationDisabledPermanently
+  | FeatureFederationDisabledByDefault
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
     FeatureFlags
       <$> (obj .: "sso")
       <*> (obj .: "legalhold")
+      <*> (obj .: "federation")
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold) =
+  toJSON (FeatureFlags sso legalhold federation) =
     object $
       [ "sso" .= sso,
-        "legalhold" .= legalhold
+        "legalhold" .= legalhold,
+        "federation" .= federation
       ]
 
 instance FromJSON FeatureSSO where
@@ -412,6 +422,15 @@ instance FromJSON FeatureLegalHold where
 instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
+
+instance FromJSON FeatureFederation where
+  parseJSON (String "disabled-permanently") = pure $ FeatureFederationDisabledPermanently
+  parseJSON (String "disabled-by-default") = pure $ FeatureFederationDisabledByDefault
+  parseJSON bad = fail $ "FeatureFederation: " <> cs (encode bad)
+
+instance ToJSON FeatureFederation where
+  toJSON FeatureFederationDisabledPermanently = String "disabled-permanently"
+  toJSON FeatureFederationDisabledByDefault = String "disabled-by-default"
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
