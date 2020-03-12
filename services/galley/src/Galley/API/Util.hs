@@ -19,6 +19,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
+import Galley.Options (defEnableFederation, optSettings, setEnableFederation)
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -245,15 +246,27 @@ getConversationAndCheckMembershipWithError ex zusr = \case
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) =
-  -- FUTUREWORK(federation): implement database lookup
-  pure . Local $ Id opaque
+resolveOpaqueUserId (Id opaque) = do
+  mEnabled <- view (options . optSettings . setEnableFederation)
+  case fromMaybe defEnableFederation mEnabled of
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation): implement database lookup
+      pure . Local $ Id opaque
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
 resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId (Id opaque) =
-  -- FUTUREWORK(federation): implement database lookup
-  pure . Local $ Id opaque
+resolveOpaqueConvId (Id opaque) = do
+  mEnabled <- view (options . optSettings . setEnableFederation)
+  case fromMaybe defEnableFederation mEnabled of
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation): implement database lookup
+      pure . Local $ Id opaque
 
 partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
 partitionMappedOrLocalIds = foldMap $ \case

@@ -487,3 +487,5 @@ Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Setting
 Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
 
 Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
+
+Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings
