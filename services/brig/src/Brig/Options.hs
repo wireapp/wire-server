@@ -442,6 +442,9 @@ data Settings
         -- | When true, search only
         -- returns users from the same team
         setSearchSameTeamOnly :: !(Maybe Bool),
+        -- | When false, assume there are no other backends and IDs are always local.
+        -- This means we don't run any queries on federation-related tables and don't
+        -- make any calls to the federator service.
         setEnableFederation :: !(Maybe Bool)
       }
   deriving (Show, Generic)
