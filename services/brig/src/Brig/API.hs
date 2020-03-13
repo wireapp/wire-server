@@ -43,6 +43,7 @@ import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>), IpAddr (..))
+import Data.Qualified (OptionallyQualified)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
@@ -1157,7 +1158,7 @@ getUserNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List Handle) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1165,20 +1166,27 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (List Handle) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler [UserProfile]
 listUsers self = \case
   Left us -> do
     resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
     byIds resolvedUserIds
   Right hs -> do
-    us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
+    us <- getIds (fromList hs)
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
     if sameTeamSearchOnly
-      then sameTeamOnly =<< byIds (Local <$> us)
-      else byIds (Local <$> us)
+      then filterSameTeamOnly =<< byIds us
+      else byIds us
   where
-    sameTeamOnly :: [UserProfile] -> Handler [UserProfile]
-    sameTeamOnly us = do
+    getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
+    getIds hs = do
+      -- we might be able to do something smarter if the domain is our own
+      let (localHandles, _remoteHandles) = partitionEithers hs
+      localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
+      -- FUTUREWORK(federation): resolve remote handles, too
+      pure (Local <$> localUsers)
+    filterSameTeamOnly :: [UserProfile] -> Handler [UserProfile]
+    filterSameTeamOnly us = do
       selfTeam <- lift $ Data.lookupUserTeam self
       return $ case selfTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
