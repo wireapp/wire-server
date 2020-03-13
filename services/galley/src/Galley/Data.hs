@@ -520,6 +520,10 @@ deleteConversation cid = do
 acceptConnect :: MonadClient m => ConvId -> m ()
 acceptConnect cid = retry x5 $ write Cql.updateConvType (params Quorum (One2OneConv, cid))
 
+-- | We deduce the conversation ID by adding the 4 components of the V4 UUID
+-- together pairwise, and then setting the version bits (v4) and variant bits
+-- (variant 2). This means that we always know what the UUID is for a
+-- one-to-one conversation which hopefully makes them unique.
 one2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
 one2OneConvId a b = Id . U.unpack $ U.addv4 a b
 

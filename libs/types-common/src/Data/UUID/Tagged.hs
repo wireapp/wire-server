@@ -5,7 +5,6 @@ module Data.UUID.Tagged
     version,
     variant,
     addv4,
-    subv4,
     unpack,
   )
 where
@@ -13,6 +12,8 @@ where
 import Data.Bits
 import qualified Data.UUID as D
 import qualified Data.UUID.V4 as D4
+import Test.QuickCheck (arbitrary, Arbitrary)
+
 import Imports
 
 -- | Versioned UUID.
@@ -35,13 +36,25 @@ instance Version V4 where
     4 -> Just (UUID u)
     _ -> Nothing
 
+instance Arbitrary (UUID V4) where
+  arbitrary = do
+    a <- arbitrary
+    b <- retainVersion 4 <$> arbitrary
+    c <- retainVariant 2 <$> arbitrary
+    d <- arbitrary
+    pure $ UUID $ D.fromWords a b c d
+
 -- | Extract the 'D.UUID' from a versioned UUID.
 unpack :: UUID v -> D.UUID
 unpack (UUID x) = x
 
--- | Add two @UUID V4@ values. This retains
--- variant and version information and adds
--- all other bits.
+-- | Add two @UUID V4@ values. This retains variant and version information and
+-- adds all other bits.
+--
+-- Note: This should've been XOR as the operation is bit-local, which makes
+-- us not have to think about wrap-around and whatnot.  I'm not 100% sure that
+-- this thing does not have subtle bugs that steer the number distribtution, which could
+-- introduce an increase of collisions
 addv4 :: UUID V4 -> UUID V4 -> UUID V4
 addv4 (UUID a) (UUID b) =
   let (x0, x1, x2, x3) = D.toWords a
@@ -53,19 +66,6 @@ addv4 (UUID a) (UUID b) =
           (retainVariant 2 (x2 + y2))
           (x3 + y3)
 
--- | Subtract two @UUID V4@ values (the second argument from the first).
--- This retains variant and version information and subtracts
--- all other bits.
-subv4 :: UUID V4 -> UUID V4 -> UUID V4
-subv4 (UUID a) (UUID b) =
-  let (x0, x1, x2, x3) = D.toWords a
-      (y0, y1, y2, y3) = D.toWords b
-   in UUID $
-        D.fromWords
-          (x0 - y0)
-          (retainVersion 4 (x1 - y1))
-          (retainVariant 2 (x2 - y2))
-          (x3 - y3)
 
 -- | Tell the version number of a 'D.UUID' value.
 version :: D.UUID -> Word32
