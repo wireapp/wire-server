@@ -28,8 +28,7 @@ tests :: TestTree
 tests =
   testGroup
     "Common (types vs. aeson)"
-    [ run @Handle,
-      run @Name,
+    [ run @Name,
       run @ColourId,
       run @Email,
       run @Phone,

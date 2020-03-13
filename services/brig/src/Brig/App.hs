@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -399,7 +400,7 @@ newtype AppT m a
   = AppT
       { unAppT :: ReaderT Env m a
       }
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -409,6 +410,11 @@ newtype AppT m a
       MonadMask,
       MonadReader Env
     )
+  deriving
+    ( Semigroup,
+      Monoid
+    )
+    via (Ap (AppT m) a)
 
 type AppIO = AppT IO
 

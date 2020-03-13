@@ -21,10 +21,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as T
 import qualified Data.Vector as Vec
 import Imports
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Test.Tasty.HUnit
 import Util
 
@@ -249,40 +247,6 @@ downloadAsset c usr ast =
         . zUser usr
         . zConn "conn"
     )
-
-uploadAddressBook :: HasCallStack => Brig -> UserId -> AddressBook -> MatchingResult -> Http ()
-uploadAddressBook b u a m =
-  post
-    ( b
-        . path "/onboarding/v3"
-        . contentJson
-        . zUser u
-        . body (RequestBodyLBS $ encode a)
-    )
-    !!! do
-      const 200 === statusCode
-      const (Just (f m)) === (fmap f . responseJsonMaybe)
-  where
-    f :: MatchingResult -> MatchingResult
-    f (MatchingResult x y) = MatchingResult (sort x) (sort y)
-
--- Builds expectations on the matched users/cards
-toMatchingResult :: [(UserId, Text)] -> MatchingResult
-toMatchingResult xs =
-  MatchingResult
-    (map (\(u, c) -> Match u (Just (CardId c)) [CardId c]) xs)
-    (Set.toList $ Set.fromList (map fst xs))
-
--- Hashes each entry and builds an appropriate address book
-toAddressBook :: [(Text, [Text])] -> IO AddressBook
-toAddressBook xs = do
-  Just sha <- liftIO $ getDigestByName "SHA256"
-  return . AddressBook $ fmap (toCard sha) xs
-  where
-    toCard sha (cardId, entries) =
-      Card
-        (Just $ CardId cardId)
-        (map (Entry . digestBS sha . T.encodeUtf8) entries)
 
 requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> Http ResponseLBS
 requestLegalHoldDevice brig requesterId targetUserId lastPrekey' =

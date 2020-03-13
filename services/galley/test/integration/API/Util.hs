@@ -169,7 +169,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   let tinfo = ConvTeamInfo tid False
   let conv =
         NewConvUnmanaged $
-          NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
+          NewConv (makeIdOpaque <$> us) name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
   post
     ( g
         . path "/conversations"
@@ -198,7 +198,7 @@ createManagedConv u tid us name acc mtimer = do
   let tinfo = ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
+          NewConv (makeIdOpaque <$> us) name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
@@ -216,7 +216,7 @@ createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
   let conv =
         NewConvUnmanaged $
-          NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
+          NewConv [makeIdOpaque u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
@@ -225,13 +225,13 @@ postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWi
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole u us name a r mtimer role = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing role
+  let conv = NewConvUnmanaged $ NewConv (makeIdOpaque <$> us) name (Set.fromList a) r Nothing mtimer Nothing role
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
+  let conv = NewConvUnmanaged $ NewConv (makeIdOpaque <$> us) name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -242,7 +242,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConvUnmanaged $ NewConv [makeIdOpaque u2] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -377,7 +377,7 @@ getConvIds u r s = do
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
   g <- view tsGalley
-  let i = newInvite us
+  let i = newInvite (makeIdOpaque <$> us)
   post $
     g
       . paths ["conversations", toByteString' c, "members"]
@@ -389,7 +389,7 @@ postMembers u us c = do
 postMembersWithRole :: UserId -> List1 UserId -> ConvId -> RoleName -> TestM ResponseLBS
 postMembersWithRole u us c r = do
   g <- view tsGalley
-  let i = (newInvite us) {invRoleName = r}
+  let i = (newInvite (makeIdOpaque <$> us)) {invRoleName = r}
   post $
     g
       . paths ["conversations", toByteString' c, "members"]
@@ -972,14 +972,17 @@ eqMismatch ::
   Bool
 eqMismatch _ _ _ Nothing = False
 eqMismatch mssd rdnt dltd (Just other) =
-  UserClients (Map.fromList mssd) == missingClients other
-    && UserClients (Map.fromList rdnt) == redundantClients other
-    && UserClients (Map.fromList dltd) == deletedClients other
+  userClients mssd == missingClients other
+    && userClients rdnt == redundantClients other
+    && userClients dltd == deletedClients other
+  where
+    userClients :: [(UserId, Set ClientId)] -> UserClients
+    userClients = UserClients . Map.mapKeys makeIdOpaque . Map.fromList
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
-otrRecipients = OtrRecipients . UserClientMap . Map.fromList . map toUserClientMap
+otrRecipients = OtrRecipients . UserClientMap . buildMap
   where
-    toUserClientMap (u, css) = (u, Map.fromList css)
+    buildMap = fmap Map.fromList . Map.mapKeys makeIdOpaque . Map.fromList
 
 encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode

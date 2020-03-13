@@ -1,7 +1,7 @@
 module Galley.API.Clients
-  ( getClients,
-    addClient,
-    rmClient,
+  ( getClientsH,
+    addClientH,
+    rmClientH,
   )
 where
 
@@ -17,21 +17,25 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 
-getClients :: UserId -> Galley Response
+getClientsH :: UserId -> Galley Response
+getClientsH usr = do
+  json <$> getClients usr
+
+getClients :: UserId -> Galley [ClientId]
 getClients usr = do
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
     if isInternal
       then fromUserClients <$> Intra.lookupClients [usr]
       else Data.lookupClients [usr]
-  return . json $ clientIds usr clts
+  return $ clientIds (makeIdOpaque usr) clts
 
-addClient :: UserId ::: ClientId -> Galley Response
-addClient (usr ::: clt) = do
+addClientH :: UserId ::: ClientId -> Galley Response
+addClientH (usr ::: clt) = do
   Data.updateClient True usr clt
   return empty
 
-rmClient :: UserId ::: ClientId -> Galley Response
-rmClient (usr ::: clt) = do
+rmClientH :: UserId ::: ClientId -> Galley Response
+rmClientH (usr ::: clt) = do
   Data.updateClient False usr clt
   return empty

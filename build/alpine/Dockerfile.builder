@@ -22,6 +22,7 @@ RUN set -x && \
     stack build --haddock --dependencies-only haskell-src-exts && \
     stack build --haddock --no-haddock-hyperlink-source haskell-src-exts && \
     stack build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only && \
+    stack install ormolu && \
     cd / && \
     # we run the build only to cache the built source in /root/.stack, we can remove the source code itself
     rm -rf /wire-server

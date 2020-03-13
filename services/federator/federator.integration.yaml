@@ -1,0 +1,6 @@
+federator:
+  host: 0.0.0.0
+  port: 8097
+
+logLevel: Debug
+logNetStrings: false

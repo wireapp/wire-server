@@ -44,18 +44,18 @@ null = Map.null . (userClients . clients)
 nil :: Clients
 nil = Clients $ UserClients Map.empty
 
-userIds :: Clients -> [UserId]
+userIds :: Clients -> [OpaqueUserId]
 userIds = Map.keys . (userClients . clients)
 
-clientIds :: UserId -> Clients -> [ClientId]
+clientIds :: OpaqueUserId -> Clients -> [ClientId]
 clientIds u c = Set.toList $ fromMaybe Set.empty (Map.lookup u ((userClients . clients) c))
 
-toList :: Clients -> [(UserId, [ClientId])]
+toList :: Clients -> [(OpaqueUserId, [ClientId])]
 toList = Map.foldrWithKey' fn [] . (userClients . clients)
   where
     fn u c a = (u, Set.toList c) : a
 
-fromList :: [(UserId, [ClientId])] -> Clients
+fromList :: [(OpaqueUserId, [ClientId])] -> Clients
 fromList = Clients . UserClients . foldr fn Map.empty
   where
     fn (u, c) = Map.insert u (Set.fromList c)
@@ -63,27 +63,27 @@ fromList = Clients . UserClients . foldr fn Map.empty
 fromUserClients :: UserClients -> Clients
 fromUserClients ucs = Clients ucs
 
-fromMap :: Map UserId (Set ClientId) -> Clients
+fromMap :: Map OpaqueUserId (Set ClientId) -> Clients
 fromMap = Clients . UserClients
 
-toMap :: Clients -> Map UserId (Set ClientId)
+toMap :: Clients -> Map OpaqueUserId (Set ClientId)
 toMap = userClients . clients
 
-singleton :: UserId -> [ClientId] -> Clients
+singleton :: OpaqueUserId -> [ClientId] -> Clients
 singleton u c =
   Clients . UserClients $ Map.singleton u (Set.fromList c)
 
-filter :: (UserId -> Bool) -> Clients -> Clients
+filter :: (OpaqueUserId -> Bool) -> Clients -> Clients
 filter p =
   Clients . UserClients
     . Map.filterWithKey (\u _ -> p u)
     . (userClients . clients)
 
-contains :: UserId -> ClientId -> Clients -> Bool
+contains :: OpaqueUserId -> ClientId -> Clients -> Bool
 contains u c =
   maybe False (Set.member c) . Map.lookup u . (userClients . clients)
 
-insert :: UserId -> ClientId -> Clients -> Clients
+insert :: OpaqueUserId -> ClientId -> Clients -> Clients
 insert u c =
   Clients . UserClients
     . Map.insertWith Set.union u (Set.singleton c)
@@ -97,7 +97,7 @@ diff (Clients (UserClients ca)) (Clients (UserClients cb)) =
       let d = a `Set.difference` b
        in if Set.null d then Nothing else Just d
 
-rmClient :: UserId -> ClientId -> Clients -> Clients
+rmClient :: OpaqueUserId -> ClientId -> Clients -> Clients
 rmClient u c (Clients (UserClients m)) =
   Clients . UserClients $ Map.update f u m
   where

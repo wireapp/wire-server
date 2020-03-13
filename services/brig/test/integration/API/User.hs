@@ -5,7 +5,6 @@ import qualified API.User.Auth
 import qualified API.User.Client
 import qualified API.User.Connection
 import qualified API.User.Handles
-import qualified API.User.Onboarding
 import qualified API.User.PasswordReset
 import qualified API.User.Property
 import qualified API.User.RichInfo
@@ -33,7 +32,6 @@ tests conf p b c ch g n aws = do
         API.User.Auth.tests conf p z b g n,
         API.User.Connection.tests cl at conf p b c g,
         API.User.Handles.tests cl at conf p b c g,
-        API.User.Onboarding.tests cl at conf p b c g,
         API.User.PasswordReset.tests cl at conf p b c g,
         API.User.Property.tests cl at conf p b c g,
         API.User.RichInfo.tests cl at conf p b c g

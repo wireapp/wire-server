@@ -28,6 +28,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Handle (Handle (Handle))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id hiding (client)
 import Data.List1 (List1)
@@ -1254,7 +1255,7 @@ createConv g u us =
       . contentJson
       . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv (makeIdOpaque <$> us) Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postMessage ::
   Galley ->

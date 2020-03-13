@@ -1,7 +1,7 @@
 LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.14.2
+NGINX_VERSION   = 1.16.1
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
@@ -12,6 +12,7 @@ DEB            := $(NAME)_$(NGINZ_VERSION)_$(ARCH).deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
+DOCKER_REGISTRY ?= quay.io
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 
@@ -124,8 +125,15 @@ docker:
 	git submodule update --init
 	docker build -t $(DOCKER_USER)/nginz:$(DOCKER_TAG) -f Dockerfile ../..
 	docker tag $(DOCKER_USER)/nginz:$(DOCKER_TAG) $(DOCKER_USER)/nginz:latest
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
+	if test -n "$$DOCKER_PUSH"; then docker login $(DOCKER_REGISTRY); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
 
 .PHONY: libzauth
 libzauth:
 	$(MAKE) -C ../../libs/libzauth install
+
+# a target to start the locally-compiled docker image (tagged 'local')
+# using the configuration in wire-server/deploy/services-demo
+# can aid when updating nginx versions and configuration
+.PHONY: docker-run-demo-local
+docker-run-demo:
+	docker run --network=host -it -v $$(pwd)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf

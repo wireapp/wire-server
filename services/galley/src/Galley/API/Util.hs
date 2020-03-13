@@ -5,7 +5,9 @@ import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
+import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
@@ -55,21 +57,29 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  ensureConnected u (uids \\ join sameTeamUids)
+  ensureConnected u (makeIdOpaque <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [UserId] -> Galley ()
+ensureConnected :: UserId -> [OpaqueUserId] -> Galley ()
 ensureConnected _ [] = pure ()
-ensureConnected u uids = do
-  (connsFrom, connsTo) <-
-    getConnections [u] uids (Just Accepted)
-      `concurrently` getConnections uids [u] (Just Accepted)
-  unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwM notConnected
+ensureConnected u opaqueIds = do
+  (localUserIds, remoteUserIds) <-
+    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId opaqueIds
+  -- FUTUREWORK(federation): check remote connections
+  for_ (nonEmpty remoteUserIds) $
+    throwM . federationNotImplemented
+  ensureConnectedToLocals localUserIds
+  where
+    ensureConnectedToLocals uids = do
+      (connsFrom, connsTo) <-
+        getConnections [u] uids (Just Accepted)
+          `concurrently` getConnections uids [u] (Just Accepted)
+      unless (length connsFrom == length uids && length connsTo == length uids) $
+        throwM notConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -144,14 +154,14 @@ permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if usr `isMember` mems
+    if makeIdOpaque usr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | usr `isMember` mems -> promote
+    [_, _] | makeIdOpaque usr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
@@ -178,8 +188,8 @@ acceptOne2One usr conv conn = case Data.convType conv of
 isBot :: Member -> Bool
 isBot = isJust . memService
 
-isMember :: Foldable m => UserId -> m Member -> Bool
-isMember u = isJust . find ((u ==) . memId)
+isMember :: Foldable m => OpaqueUserId -> m Member -> Bool
+isMember u = isJust . find ((u ==) . makeIdOpaque . memId)
 
 findMember :: Data.Conversation -> UserId -> Maybe Member
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
@@ -224,15 +234,37 @@ getMember ex u ms = do
     Just m -> return m
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError :: Error -> UserId -> OpaqueConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr cnv = do
-  c <- Data.conversation cnv >>= ifNothing convNotFound
-  when (DataTypes.isConvDeleted c) $ do
-    Data.deleteConversation cnv
-    throwM convNotFound
-  unless (zusr `isMember` Data.convMembers c) $
-    throwM ex
-  return c
+  resolveOpaqueConvId cnv >>= \case
+    Mapped idMapping ->
+      throwM . federationNotImplemented $ pure idMapping
+    Local convId -> do
+      -- should we merge resolving to qualified ID and looking up the conversation?
+      c <- Data.conversation convId >>= ifNothing convNotFound
+      when (DataTypes.isConvDeleted c) $ do
+        Data.deleteConversation convId
+        throwM convNotFound
+      unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
+        throwM ex
+      return c
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
+resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
+resolveOpaqueUserId (Id opaque) =
+  -- FUTUREWORK(federation): implement database lookup
+  pure . Local $ Id opaque
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
+resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
+resolveOpaqueConvId (Id opaque) =
+  -- FUTUREWORK(federation): implement database lookup
+  pure . Local $ Id opaque
+
+partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
+partitionMappedOrLocalIds = foldMap $ \case
+  Mapped mapping -> (mempty, [mapping])
+  Local localId -> ([localId], mempty)

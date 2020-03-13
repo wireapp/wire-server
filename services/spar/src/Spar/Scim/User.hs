@@ -31,6 +31,7 @@ import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import Crypto.Hash
 import Data.Aeson as Aeson
+import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id
 import Data.Range
 import Data.String.Conversions
