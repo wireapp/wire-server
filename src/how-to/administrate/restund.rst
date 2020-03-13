@@ -107,3 +107,56 @@ How to renew a certificate for restund
 
 
 2. Restart restund (see sections above)
+
+
+How to check which restund/TURN servers will be used by clients
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The list of turn servers contacted by clients *should* match what you added to your `turnStatic` configuration. But if you'd like to double-check, here's how:
+
+Terminal one:
+
+.. code:: sh
+
+   kubectl port-forward svc/brig 9999:8080
+
+Terminal two:
+
+.. code:: sh
+
+   UUID=$(cat /proc/sys/kernel/random/uuid)
+   curl -s -H "Z-User:$UUID" -H "Z-Connection:anything" "http://localhost:9999/calls/config/v2" | json_pp
+
+
+May return something like:
+
+.. code:: json
+
+   {
+      "ice_servers" : [
+         {
+            "credential" : "ASyFLXqbmg8fuK4chJG3S1Qg4L/nnhpkN0/UctdtTFbGW1AcuuAaOqUMDhm9V2w7zKHY6PPMqjhwKZ2neSE78g==",
+            "urls" : [
+               "turn:turn1.example.com:3478"
+            ],
+            "username" : "d=1582157904.v=1.k=0.t=s.r=mbzovplogqxbasbf"
+         },
+         {
+            "credential" : "ZsxEtGWbpUZ3QWxPZtbX6g53HXu6PWfhhUfGNqRBJjrsly5w9IPAsuAWLEOP7fsoSXF13mgSPROXxMYAB/fQ6g==",
+            "urls" : [
+               "turn:turn1.example.com:3478?transport=tcp"
+            ],
+            "username" : "d=1582157904.v=1.k=0.t=s.r=jsafnwtgqhfqjvco"
+         },
+         {
+            "credential" : "ZsxEtGWbpUZ3QWxPZtbX6g53HXu6PWfhhUfGNqRBJjrsly5w9IPAsuAWLEOP7fsoSXF13mgSPROXxMYAB/fQ6g==",
+            "urls" : [
+               "turns:turn1.example.com:5349?transport=tcp"
+            ],
+            "username" : "d=1582157904.v=1.k=0.t=s.r=jsafnwtgqhfqjvco"
+         }
+      ],
+      "ttl" : 3600
+   }
+
+In the above case, there is a single server configured to use UDP on port 3478, plain TCP on port 3478, and TLS over TCP on port 5349. The ordering of the list is random and will change on every request made with curl.
