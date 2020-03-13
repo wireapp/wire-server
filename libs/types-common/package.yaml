@@ -77,6 +77,7 @@ tests:
     - bytestring-conversion
     - protobuf
     - QuickCheck
+    - string-conversions
     - tasty
     - tasty-hunit
     - tasty-quickcheck
