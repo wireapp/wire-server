@@ -131,7 +131,10 @@ testHandleQuery opts brig galley = do
   -- Query user profiles by handles
   get (brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (>>= (listToMaybe >=> userHandle)) . responseJsonMaybe
+    const (Just (Handle hdl)) === (userHandle <=< listToMaybe <=< responseJsonMaybe)
+  -- Qualified handles get accepted, but don't have any matches (federation)
+  get (brig . path "/users" . queryItem "handles" (toByteString' hdl <> "@wire.com") . zUser uid) !!! do
+    const 404 === statusCode
   -- Bulk availability check
   hdl2 <- randomHandle
   hdl3 <- randomHandle
