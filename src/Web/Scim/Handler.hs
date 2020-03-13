@@ -1,8 +1,9 @@
 module Web.Scim.Handler
-  ( ScimHandler
-  , throwScim
-  , fromScimHandler
-  ) where
+  ( ScimHandler,
+    throwScim,
+    fromScimHandler,
+  )
+where
 
 import Control.Monad.Except
 import Web.Scim.Schema.Error
@@ -23,8 +24,8 @@ throwScim = throwError
 --
 -- You can either do something custom for 'ScimError', or use
 -- 'scimToServantErr'.
-fromScimHandler
-  :: Monad m
-  => (forall a. ScimError -> m a)
-  -> (forall a. ScimHandler m a -> m a)
+fromScimHandler ::
+  Monad m =>
+  (forall a. ScimError -> m a) ->
+  (forall a. ScimHandler m a -> m a)
 fromScimHandler fromError = either fromError pure <=< runExceptT

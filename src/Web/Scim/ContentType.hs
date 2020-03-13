@@ -5,12 +5,14 @@
 --
 -- This module contains helpers for handling it. Basically, just write
 -- 'SCIM' instead of 'JSON' in all Servant routes.
+module Web.Scim.ContentType
+  ( SCIM,
+  )
+where
 
-module Web.Scim.ContentType (SCIM) where
-
-import Data.Proxy
-import Data.List.NonEmpty
 import Data.Aeson
+import Data.List.NonEmpty
+import Data.Proxy
 import Network.HTTP.Media hiding (Accept)
 import Servant.API.ContentTypes
 
@@ -18,14 +20,14 @@ data SCIM
 
 instance Accept SCIM where
   contentTypes _ =
-    "application" // "scim+json" /: ("charset", "utf-8") :|
-    "application" // "scim+json" :
-    "application" // "json" /: ("charset", "utf-8") :
-    "application" // "json" :
-    []
+    "application" // "scim+json" /: ("charset", "utf-8")
+      :| "application" // "scim+json"
+      : "application" // "json" /: ("charset", "utf-8")
+      : "application" // "json"
+      : []
 
 instance ToJSON a => MimeRender SCIM a where
-    mimeRender _ = mimeRender (Proxy @JSON)
+  mimeRender _ = mimeRender (Proxy @JSON)
 
 instance FromJSON a => MimeUnrender SCIM a where
-    mimeUnrender _ = mimeUnrender (Proxy @JSON)
+  mimeUnrender _ = mimeUnrender (Proxy @JSON)

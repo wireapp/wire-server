@@ -1,72 +1,69 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Class.GroupSpec (spec) where
+module Test.Class.GroupSpec
+  ( spec,
+  )
+where
 
-import           Web.Scim.Test.Util
-
-import           Network.Wai (Application)
-import           Servant (Proxy(Proxy))
-import           Web.Scim.Server (mkapp, GroupAPI, groupServer)
-import           Web.Scim.Server.Mock
-import           Data.ByteString.Lazy (ByteString)
-import           Test.Hspec hiding (shouldSatisfy)
-import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
-import           Servant.API.Generic
+import Data.ByteString.Lazy (ByteString)
+import Network.Wai (Application)
+import Servant (Proxy (Proxy))
+import Servant.API.Generic
+import Test.Hspec hiding (shouldSatisfy)
+import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
+import Web.Scim.Server (GroupAPI, groupServer, mkapp)
+import Web.Scim.Server.Mock
+import Web.Scim.Test.Util
 
 app :: IO Application
 app = do
   storage <- emptyTestStorage
   let auth = Just "authorized"
-  pure $ mkapp @Mock (Proxy @(GroupAPI Mock))
-               (toServant (groupServer @Mock auth)) (nt storage)
+  pure $
+    mkapp @Mock
+      (Proxy @(GroupAPI Mock))
+      (toServant (groupServer @Mock auth))
+      (nt storage)
 
 spec :: Spec
 spec = beforeAll app $ do
   describe "GET & POST /Groups" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` emptyList
-
     it "can insert then retrieve stored group" $ do
       post "/" adminGroup `shouldRespondWith` 201
       get "/" `shouldRespondWith` groups
-
   describe "GET /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
       get "/9999" `shouldRespondWith` 404
-
     it "retrieves stored group" $ do
       -- the test implementation stores groups with uid [0,1..n-1]
       get "/0" `shouldRespondWith` admins
-
   describe "PUT /Groups/:id" $ do
     it "adds member to existing group" $ do
       put "/0" adminUpdate0 `shouldRespondWith` updatedAdmins0
-
     it "does not create new group" $ do
       put "/9999" adminGroup `shouldRespondWith` 404
-
   describe "DELETE /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
       delete "/Users/unknown" `shouldRespondWith` 404
-
     it "deletes a stored group" $ do
       delete "/0" `shouldRespondWith` 204
       -- group should be gone
-      get    "/0" `shouldRespondWith` 404
+      get "/0" `shouldRespondWith` 404
       delete "/0" `shouldRespondWith` 404
 
-
-
 adminGroup :: ByteString
-adminGroup = [scim|
+adminGroup =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
           "displayName":"Admin",
           "members":[]
         }|]
 
-
 groups :: ResponseMatcher
-groups = [scim|
+groups =
+  [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "Resources":
             [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -88,7 +85,8 @@ groups = [scim|
         }|]
 
 admins :: ResponseMatcher
-admins = [scim|
+admins =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
            "displayName":"Admin",
            "members":[],
@@ -103,7 +101,8 @@ admins = [scim|
         }|]
 
 adminUpdate0 :: ByteString
-adminUpdate0 = [scim|
+adminUpdate0 =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
           "displayName":"Admin",
           "members":[
@@ -115,7 +114,8 @@ adminUpdate0 = [scim|
         }|]
 
 updatedAdmins0 :: ResponseMatcher
-updatedAdmins0 = [scim|
+updatedAdmins0 =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
            "displayName":"Admin",
            "members":[
@@ -134,7 +134,8 @@ updatedAdmins0 = [scim|
         }|]
 
 emptyList :: ResponseMatcher
-emptyList = [scim|
+emptyList =
+  [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
          "Resources":[],
          "totalResults":0,

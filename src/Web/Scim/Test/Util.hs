@@ -1,52 +1,64 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE TupleSections #-}
 
-module Web.Scim.Test.Util (
-    shouldRespondWith,
+module Web.Scim.Test.Util
+  ( shouldRespondWith,
     shouldEventuallyRespondWith,
-  -- * Making wai requests
-    post, put, patch,
-    AcceptanceConfig(..), defAcceptanceConfig,
-    AcceptanceQueryConfig(..), defAcceptanceQueryConfig,
-    post', put', patch', get', delete'
-  -- * Request/response quasiquoter
-  , scim
-  -- * JSON parsing
-  , Field(..)
-  , getField
-  -- * Tag
-  , TestTag
-  ) where
+
+    -- * Making wai requests
+    post,
+    put,
+    patch,
+    AcceptanceConfig (..),
+    defAcceptanceConfig,
+    AcceptanceQueryConfig (..),
+    defAcceptanceQueryConfig,
+    post',
+    put',
+    patch',
+    get',
+    delete',
+
+    -- * Request/response quasiquoter
+    scim,
+
+    -- * JSON parsing
+    Field (..),
+    getField,
+
+    -- * Tag
+    TestTag,
+  )
+where
 
 import qualified Control.Retry as Retry
-import           Data.ByteString (ByteString)
+import Data.Aeson
+import Data.Aeson.Internal ((<?>), JSONPathElement (Key))
+import Data.Aeson.QQ
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
-import           Data.Aeson
-import           Data.Aeson.Internal (JSONPathElement (Key), (<?>))
-import           Data.Aeson.QQ
-import           Data.Proxy
-import           Data.Text
-import           Data.UUID as UUID
-import           Data.UUID.V4 as UUID
-import           GHC.Stack
-import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
-import           Language.Haskell.TH.Quote
-import           Network.HTTP.Types
-import           Network.Wai (Application)
-import           Network.Wai.Test (SResponse)
-import           Test.Hspec.Expectations (expectationFailure)
-import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
-import           Test.Hspec.Wai.Matcher (bodyEquals)
-import           Test.Hspec.Wai.Matcher (match)
 import qualified Data.HashMap.Strict as SMap
-
-import           Web.Scim.Schema.User (UserTypes (..))
-import           Web.Scim.Class.Group (GroupTypes (..))
-import           Web.Scim.Class.Auth (AuthTypes (..))
-import           Web.Scim.Schema.Schema (Schema (User20, CustomSchema))
+import Data.Proxy
+import Data.Text
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
+import GHC.Stack
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import Language.Haskell.TH.Quote
+import Network.HTTP.Types
+import Network.Wai (Application)
+import Network.Wai.Test (SResponse)
+import Test.Hspec.Expectations (expectationFailure)
+import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
+import Test.Hspec.Wai.Matcher (bodyEquals)
+import Test.Hspec.Wai.Matcher (match)
+import Web.Scim.Class.Auth (AuthTypes (..))
+import Web.Scim.Class.Group (GroupTypes (..))
+import Web.Scim.Schema.Schema (Schema (CustomSchema, User20))
+import Web.Scim.Schema.User (UserTypes (..))
 
 -- | re-implementation of 'shouldRespondWith' with better error reporting.
 -- FUTUREWORK: make this a PR upstream.  (while we're at it, we can also patch 'WaiSession'
@@ -64,37 +76,41 @@ doesRespondWith action matcher = do
 
 shouldEventuallyRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> WaiExpectation
 shouldEventuallyRespondWith action matcher =
-  either (liftIO . expectationFailure) pure =<<
-    Retry.retrying (Retry.exponentialBackoff 66000 <> Retry.limitRetries 6)
+  either (liftIO . expectationFailure) pure
+    =<< Retry.retrying
+      (Retry.exponentialBackoff 66000 <> Retry.limitRetries 6)
       (\_ -> pure . either (const True) (const False))
       (\_ -> doesRespondWith action matcher)
 
-data AcceptanceConfig tag = AcceptanceConfig
-  { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag)
-  , genUserName    :: IO Text
-  , responsesFullyKnown :: Bool  -- ^ some acceptance tests match against a fully rendered
-                                 -- response body, which will now work when running the test
-                                 -- as a library user (since the response will have more and
-                                 -- other information).  if you leave this on 'False' (default
-                                 -- from 'defAcceptanceConfig'), the test will only check some
-                                 -- invariants on the response instead that must hold in all
-                                 -- cases.
-  }
+data AcceptanceConfig tag
+  = AcceptanceConfig
+      { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
+        genUserName :: IO Text,
+        -- | some acceptance tests match against a fully rendered
+        -- response body, which will now work when running the test
+        -- as a library user (since the response will have more and
+        -- other information).  if you leave this on 'False' (default
+        -- from 'defAcceptanceConfig'), the test will only check some
+        -- invariants on the response instead that must hold in all
+        -- cases.
+        responsesFullyKnown :: Bool
+      }
 
 defAcceptanceConfig :: IO Application -> AcceptanceConfig tag
-defAcceptanceConfig scimApp = AcceptanceConfig{..}
+defAcceptanceConfig scimApp = AcceptanceConfig {..}
   where
-    scimAppAndConfig = (, defAcceptanceQueryConfig) <$> scimApp
-    genUserName    = ("Test_User_" <>) . UUID.toText <$> UUID.nextRandom
+    scimAppAndConfig = (,defAcceptanceQueryConfig) <$> scimApp
+    genUserName = ("Test_User_" <>) . UUID.toText <$> UUID.nextRandom
     responsesFullyKnown = False
 
-data AcceptanceQueryConfig tag = AcceptanceQueryConfig
-  { scimPathPrefix :: BS.ByteString
-  , scimAuthToken  :: BS.ByteString
-  }
+data AcceptanceQueryConfig tag
+  = AcceptanceQueryConfig
+      { scimPathPrefix :: BS.ByteString,
+        scimAuthToken :: BS.ByteString
+      }
 
 defAcceptanceQueryConfig :: AcceptanceQueryConfig tag
-defAcceptanceQueryConfig = AcceptanceQueryConfig{..}
+defAcceptanceQueryConfig = AcceptanceQueryConfig {..}
   where
     scimPathPrefix = ""
     scimAuthToken = "authorized"
@@ -110,8 +126,8 @@ defAcceptanceQueryConfig = AcceptanceQueryConfig{..}
 (<//>) :: ByteString -> ByteString -> ByteString
 (<//>) a b = a' <> "/" <> b'
   where
-    a' = maybe a (\(t,l) -> if l == '/' then t else a) $ BS8.unsnoc a
-    b' = maybe b (\(h,t) -> if h == '/' then t else b) $ BS8.uncons b
+    a' = maybe a (\(t, l) -> if l == '/' then t else a) $ BS8.unsnoc a
+    b' = maybe b (\(h, t) -> if h == '/' then t else b) $ BS8.uncons b
 
 post :: ByteString -> L.ByteString -> WaiSession SResponse
 post path = request methodPost path [(hContentType, "application/scim+json")]
@@ -140,7 +156,6 @@ patch' = request' methodPatch
 delete' :: AcceptanceQueryConfig tag -> ByteString -> L.ByteString -> WaiSession SResponse
 delete' = request' methodDelete
 
-
 ----------------------------------------------------------------------------
 -- Redefine wai quasiquoter
 --
@@ -152,12 +167,13 @@ delete' = request' methodDelete
 -- | A response matcher and quasiquoter that should be used instead of
 -- 'Test.Hspec.Wai.JSON.json'.
 scim :: QuasiQuoter
-scim = QuasiQuoter
-  { quoteExp = \input -> [|fromValue $(quoteExp aesonQQ input)|]
-  , quotePat = const $ error "No quotePat defined for Test.Util.scim"
-  , quoteType = const $ error "No quoteType defined for Test.Util.scim"
-  , quoteDec = const $ error "No quoteDec defined for Test.Util.scim"
-  }
+scim =
+  QuasiQuoter
+    { quoteExp = \input -> [|fromValue $(quoteExp aesonQQ input)|],
+      quotePat = const $ error "No quotePat defined for Test.Util.scim",
+      quoteType = const $ error "No quoteType defined for Test.Util.scim",
+      quoteDec = const $ error "No quoteDec defined for Test.Util.scim"
+    }
 
 class FromValue a where
   fromValue :: Value -> a
@@ -196,13 +212,13 @@ getField (Field a) = a
 instance (KnownSymbol s, FromJSON a) => FromJSON (Field s a) where
   parseJSON = withObject ("Field " <> show key) $ \obj ->
     case SMap.lookup key obj of
-        Nothing -> fail $ "key " ++ show key ++ " not present"
-        Just v  -> Field <$> parseJSON v <?> Key key
+      Nothing -> fail $ "key " ++ show key ++ " not present"
+      Just v -> Field <$> parseJSON v <?> Key key
     where
       key = pack $ symbolVal (Proxy :: Proxy s)
 
 instance (KnownSymbol s, ToJSON a) => ToJSON (Field s a) where
-  toJSON (Field x) = object [ key .= x]
+  toJSON (Field x) = object [key .= x]
     where
       key = pack $ symbolVal (Proxy :: Proxy s)
 

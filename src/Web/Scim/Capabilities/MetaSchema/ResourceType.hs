@@ -1,12 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Web.Scim.Capabilities.MetaSchema.ResourceType (resourceSchema) where
+module Web.Scim.Capabilities.MetaSchema.ResourceType
+  ( resourceSchema,
+  )
+where
 
 import Data.Aeson (Value)
 import Data.Aeson.QQ
 
 resourceSchema :: Value
-resourceSchema = [aesonQQ|
+resourceSchema =
+  [aesonQQ|
 {
   "id": "urn:ietf:params:scim:schemas:core:2.0:ResourceType",
   "name": "ResourceType",

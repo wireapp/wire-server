@@ -1,35 +1,37 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Test.Schema.UserSpec (spec) where
+module Test.Schema.UserSpec
+  ( spec,
+  )
+where
 
-import           Web.Scim.Test.Util
-
-import           Web.Scim.Schema.Common (URI(..))
-import           Web.Scim.Schema.Schema (Schema(..))
-import           Web.Scim.Schema.User (User(..), NoUserExtra(..))
-import qualified Web.Scim.Schema.User as User
-import           Web.Scim.Schema.PatchOp (PatchOp(..), Op(..), Operation(..), Patchable(..))
-import qualified Web.Scim.Schema.PatchOp as PatchOp
-import           Web.Scim.Schema.User.Address as Address
-import           Web.Scim.Schema.User.Certificate as Certificate
-import           Web.Scim.Schema.User.Email as Email
-import           Web.Scim.Schema.User.IM as IM
-import           Web.Scim.Schema.User.Name as Name
-import           Web.Scim.Schema.User.Phone as Phone
-import           Web.Scim.Schema.User.Photo as Photo
-import           Data.Aeson
+import Data.Aeson
 import qualified Data.HashMap.Strict as HM
-import           Data.Text (Text, toLower, toUpper)
-import           Lens.Micro
-import           Test.Hspec
-import           Text.Email.Validate (emailAddress)
-import           Network.URI.Static (uri)
-import           HaskellWorks.Hspec.Hedgehog (require)
-import           Hedgehog
+import Data.Text (Text, toLower, toUpper)
+import HaskellWorks.Hspec.Hedgehog (require)
+import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Lens.Micro
+import Network.URI.Static (uri)
+import Test.Hspec
+import Text.Email.Validate (emailAddress)
+import Web.Scim.Schema.Common (URI (..))
+import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..))
+import qualified Web.Scim.Schema.PatchOp as PatchOp
+import Web.Scim.Schema.Schema (Schema (..))
+import Web.Scim.Schema.User (NoUserExtra (..), User (..))
+import qualified Web.Scim.Schema.User as User
+import Web.Scim.Schema.User.Address as Address
+import Web.Scim.Schema.User.Certificate as Certificate
+import Web.Scim.Schema.User.Email as Email
+import Web.Scim.Schema.User.IM as IM
+import Web.Scim.Schema.User.Name as Name
+import Web.Scim.Schema.User.Phone as Phone
+import Web.Scim.Schema.User.Photo as Photo
+import Web.Scim.Test.Util
 
 prop_roundtrip :: Property
 prop_roundtrip = property $ do
@@ -44,7 +46,6 @@ prop_caseInsensitive = property $ do
   let (Object user') = toJSON user
   let user'' = HM.foldlWithKey' (\u k v -> HM.insert (toUpper k) v u) user' HM.empty
   let user''' = HM.foldlWithKey' (\u k v -> HM.insert (toLower k) v u) user' HM.empty
-
   fromJSON (Object user'') === Success user
   fromJSON (Object user''') === Success user
 
@@ -60,39 +61,32 @@ spec = do
       let extras = HM.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
-      let operation =  Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
-      let patchOp  = PatchOp [ operation ]
+      let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
+      let patchOp = PatchOp [operation]
       User.extra <$> (User.applyPatch user patchOp) `shouldBe` Right (HM.singleton "programmingLanguage" "haskell")
-
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
       toJSON completeUser `shouldBe` completeUserJson
       eitherDecode (encode completeUserJson) `shouldBe` Right completeUser
-
     it "has defaults for all optional and multi-valued fields" $ do
       toJSON minimalUser `shouldBe` minimalUserJson
       eitherDecode (encode minimalUserJson) `shouldBe` Right minimalUser
-
     it "treats 'null' and '[]' as absence of fields" $
       eitherDecode (encode minimalUserJsonRedundant) `shouldBe` Right minimalUser
-
     it "allows casing variations in field names" $ do
       require prop_caseInsensitive
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
-
     it "doesn't require the 'schemas' field" $
       eitherDecode (encode minimalUserJsonNoSchemas) `shouldBe` Right minimalUser
-
     it "doesn't add 'extra' if it's an empty object" $ do
       toJSON (extendedUser UserExtraEmpty) `shouldBe` extendedUserEmptyJson
-      eitherDecode (encode extendedUserEmptyJson) `shouldBe`
-        Right (extendedUser UserExtraEmpty)
-
+      eitherDecode (encode extendedUserEmptyJson)
+        `shouldBe` Right (extendedUser UserExtraEmpty)
     it "encodes and decodes 'extra' correctly" $ do
       toJSON (extendedUser (UserExtraObject "foo")) `shouldBe` extendedUserObjectJson
-      eitherDecode (encode extendedUserObjectJson) `shouldBe`
-        Right (extendedUser (UserExtraObject "foo"))
+      eitherDecode (encode extendedUserObjectJson)
+        `shouldBe` Right (extendedUser (UserExtraObject "foo"))
 
 genName :: Gen Name
 genName =
@@ -104,9 +98,8 @@ genName =
     <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
     <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
 
-
 genUri :: Gen URI
-genUri = Gen.element [ URI [uri|https://example.com|] ]
+genUri = Gen.element [URI [uri|https://example.com|]]
 
 -- TODO(arianvp) Generate the lists too, but first need better support for SCIM
 -- lists in the first place
@@ -133,96 +126,114 @@ genUser = do
   entitlements' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 20) Gen.unicode)
   roles' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 10) Gen.unicode)
   x509Certificates' <- pure [] -- Gen.list (Range.constant 0 20) genCertificate
-
-  pure $ User
-    { schemas = schemas'
-    , userName = userName'
-    , externalId = externalId'
-    , name = name'
-    , displayName = displayName'
-    , nickName = nickName'
-    , profileUrl = profileUrl'
-    , title = title'
-    , userType = userType'
-    , preferredLanguage = preferredLanguage'
-    , locale = locale'
-    , active = active'
-    , password = password'
-    , emails = emails'
-    , phoneNumbers = phoneNumbers'
-    , ims = ims'
-    , photos = photos'
-    , addresses = addresses'
-    , entitlements = entitlements'
-    , roles = roles'
-    , x509Certificates = x509Certificates'
-    , extra = NoUserExtra
-    }
-
+  pure $
+    User
+      { schemas = schemas',
+        userName = userName',
+        externalId = externalId',
+        name = name',
+        displayName = displayName',
+        nickName = nickName',
+        profileUrl = profileUrl',
+        title = title',
+        userType = userType',
+        preferredLanguage = preferredLanguage',
+        locale = locale',
+        active = active',
+        password = password',
+        emails = emails',
+        phoneNumbers = phoneNumbers',
+        ims = ims',
+        photos = photos',
+        addresses = addresses',
+        entitlements = entitlements',
+        roles = roles',
+        x509Certificates = x509Certificates',
+        extra = NoUserExtra
+      }
 
 -- | A 'User' with all attributes present.
 completeUser :: User (TestTag Text () () NoUserExtra)
-completeUser = User
-  { schemas = [User20]
-  , userName = "sample userName"
-  , externalId = Just "sample externalId"
-  , name = Just $ Name
-      { Name.formatted = Just "sample formatted name"
-      , Name.familyName = Nothing
-      , Name.givenName = Nothing
-      , Name.middleName = Nothing
-      , Name.honorificPrefix = Nothing
-      , Name.honorificSuffix = Nothing
-      }
-  , displayName = Just "sample displayName"
-  , nickName = Just "sample nickName"
-  , profileUrl = Just (URI [uri|https://example.com|])
-  , title = Just "sample title"
-  , userType = Just "sample userType"
-  , preferredLanguage = Just "da, en-gb;q=0.8, en;q=0.7"
-  , locale = Just "en-US"
-  , active = Just True
-  , password = Just "sample password"
-  , emails = [
-      Email { Email.typ = Just "work"
-            , Email.value = maybe (error "couldn't parse email") EmailAddress2
-                            (emailAddress "user@example.com")
-            , Email.primary = Nothing }
-      ]
-  , phoneNumbers = [
-      Phone { Phone.typ = Just "work"
-            , Phone.value = Just "+15417543010" }
-      ]
-  , ims = [
-      IM { IM.typ = Just "Wire"
-         , IM.value = Just "@user" }
-      ]
-  , photos = [
-      Photo { Photo.typ = Just "userpic"
-            , Photo.value = Just (URI [uri|https://example.com/userpic.png|]) }
-      ]
-  , addresses = [
-      Address { Address.formatted = Just "sample Address"
-              , Address.streetAddress = Nothing
-              , Address.locality = Nothing
-              , Address.region = Nothing
-              , Address.postalCode = Nothing
-              , Address.country = Nothing
-              , Address.typ = Just "home"
-              , Address.primary = Just True }
-      ]
-  , entitlements = ["sample entitlement"]
-  , roles = ["sample role"]
-  , x509Certificates = [
-      Certificate { Certificate.typ = Just "sample certificate type"
-                  , Certificate.value = Just "sample certificate" }
-      ]
-  , extra = NoUserExtra
-  }
+completeUser =
+  User
+    { schemas = [User20],
+      userName = "sample userName",
+      externalId = Just "sample externalId",
+      name =
+        Just $
+          Name
+            { Name.formatted = Just "sample formatted name",
+              Name.familyName = Nothing,
+              Name.givenName = Nothing,
+              Name.middleName = Nothing,
+              Name.honorificPrefix = Nothing,
+              Name.honorificSuffix = Nothing
+            },
+      displayName = Just "sample displayName",
+      nickName = Just "sample nickName",
+      profileUrl = Just (URI [uri|https://example.com|]),
+      title = Just "sample title",
+      userType = Just "sample userType",
+      preferredLanguage = Just "da, en-gb;q=0.8, en;q=0.7",
+      locale = Just "en-US",
+      active = Just True,
+      password = Just "sample password",
+      emails =
+        [ Email
+            { Email.typ = Just "work",
+              Email.value =
+                maybe
+                  (error "couldn't parse email")
+                  EmailAddress2
+                  (emailAddress "user@example.com"),
+              Email.primary = Nothing
+            }
+        ],
+      phoneNumbers =
+        [ Phone
+            { Phone.typ = Just "work",
+              Phone.value = Just "+15417543010"
+            }
+        ],
+      ims =
+        [ IM
+            { IM.typ = Just "Wire",
+              IM.value = Just "@user"
+            }
+        ],
+      photos =
+        [ Photo
+            { Photo.typ = Just "userpic",
+              Photo.value = Just (URI [uri|https://example.com/userpic.png|])
+            }
+        ],
+      addresses =
+        [ Address
+            { Address.formatted = Just "sample Address",
+              Address.streetAddress = Nothing,
+              Address.locality = Nothing,
+              Address.region = Nothing,
+              Address.postalCode = Nothing,
+              Address.country = Nothing,
+              Address.typ = Just "home",
+              Address.primary = Just True
+            }
+        ],
+      entitlements = ["sample entitlement"],
+      roles = ["sample role"],
+      x509Certificates =
+        [ Certificate
+            { Certificate.typ = Just "sample certificate type",
+              Certificate.value = Just "sample certificate"
+            }
+        ],
+      extra = NoUserExtra
+    }
 
 -- | Reference encoding of 'completeUser'.
 completeUserJson :: Value
-completeUserJson = [scim|
+completeUserJson =
+  [scim|
 {
   "roles": [
     "sample role"
@@ -293,7 +304,8 @@ minimalUser = User.empty [User20] "sample userName" NoUserExtra
 
 -- | Reference encoding of 'minimalUser'.
 minimalUserJson :: Value
-minimalUserJson = [scim|
+minimalUserJson =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -305,7 +317,8 @@ minimalUserJson = [scim|
 -- | An encoding of 'minimalUser' with redundant @null@s and @[]@s for missing
 -- fields.
 minimalUserJsonRedundant :: Value
-minimalUserJsonRedundant = [scim|
+minimalUserJsonRedundant =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -335,7 +348,8 @@ minimalUserJsonRedundant = [scim|
 
 -- | An encoding of 'minimalUser' with non-canonical field name casing.
 minimalUserJsonNonCanonical :: Value
-minimalUserJsonNonCanonical = [scim|
+minimalUserJsonNonCanonical =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -346,13 +360,14 @@ minimalUserJsonNonCanonical = [scim|
 
 -- | An encoding of 'minimalUser' without the @schemas@ field.
 minimalUserJsonNoSchemas :: Value
-minimalUserJsonNoSchemas = [scim|
+minimalUserJsonNoSchemas =
+  [scim|
 {
   "userName": "sample userName"
 }
 |]
 
-data UserExtraTest = UserExtraEmpty | UserExtraObject { test :: Text }
+data UserExtraTest = UserExtraEmpty | UserExtraObject {test :: Text}
   deriving (Show, Eq)
 
 instance FromJSON UserExtraTest where
@@ -368,18 +383,18 @@ instance ToJSON UserExtraTest where
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
 
-
 instance Patchable UserExtraTest where
   applyOperation _ _ = undefined
 
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
 extendedUser e =
-    (User.empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
+  (User.empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
 
 -- | Encoding of @extendedUser UserExtraEmpty@.
 extendedUserEmptyJson :: Value
-extendedUserEmptyJson = [scim|
+extendedUserEmptyJson =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User",
@@ -391,7 +406,8 @@ extendedUserEmptyJson = [scim|
 
 -- | Encoding of @extendedUser (UserExtraObject "foo")@.
 extendedUserObjectJson :: Value
-extendedUserObjectJson = [scim|
+extendedUserObjectJson =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User",

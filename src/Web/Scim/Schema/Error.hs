@@ -1,31 +1,30 @@
 -- | SCIM errors
 module Web.Scim.Schema.Error
-  (
-  -- * Types
-    ScimErrorType(..)
-  , ScimError(..)
-  , Status(..)
+  ( -- * Types
+    ScimErrorType (..),
+    ScimError (..),
+    Status (..),
 
-  -- * Constructors
-  , notFound
-  , badRequest
-  , conflict
-  , unauthorized
-  , forbidden
-  , serverError
+    -- * Constructors
+    notFound,
+    badRequest,
+    conflict,
+    unauthorized,
+    forbidden,
+    serverError,
 
-  -- * Servant interoperability
-  , scimToServerError
-  ) where
+    -- * Servant interoperability
+    scimToServerError,
+  )
+where
 
-import Data.Text (Text, pack)
-import Data.Aeson hiding (Error)
 import Control.Exception
+import Data.Aeson hiding (Error)
+import Data.Text (Text, pack)
+import GHC.Generics (Generic)
+import Servant (ServerError (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
-import Servant (ServerError (..))
-
-import GHC.Generics (Generic)
 
 ----------------------------------------------------------------------------
 -- Types
@@ -50,15 +49,15 @@ data ScimErrorType
 
 instance ToJSON ScimErrorType where
   toJSON InvalidFilter = "invalidFilter"
-  toJSON TooMany       = "tooMany"
-  toJSON Uniqueness    = "uniqueness"
-  toJSON Mutability    = "mutability"
+  toJSON TooMany = "tooMany"
+  toJSON Uniqueness = "uniqueness"
+  toJSON Mutability = "mutability"
   toJSON InvalidSyntax = "invalidSyntax"
-  toJSON InvalidPath   = "invalidPath"
-  toJSON NoTarget      = "noTarget"
-  toJSON InvalidValue  = "invalidValue"
-  toJSON InvalidVers   = "invalidVers"
-  toJSON Sensitive     = "sensitive"
+  toJSON InvalidPath = "invalidPath"
+  toJSON NoTarget = "noTarget"
+  toJSON InvalidValue = "invalidValue"
+  toJSON InvalidVers = "invalidVers"
+  toJSON Sensitive = "sensitive"
 
 -- wrapped in a newtype because SCIM wants strings for status codes
 newtype Status = Status {unStatus :: Int}
@@ -67,12 +66,14 @@ newtype Status = Status {unStatus :: Int}
 instance ToJSON Status where
   toJSON (Status stat) = String . pack . show $ stat
 
-data ScimError = ScimError
-  { schemas :: [Schema]
-  , status :: Status
-  , scimType :: Maybe ScimErrorType
-  , detail :: Maybe Text
-  } deriving (Show, Eq, Generic)
+data ScimError
+  = ScimError
+      { schemas :: [Schema],
+        status :: Status,
+        scimType :: Maybe ScimErrorType,
+        detail :: Maybe Text
+      }
+  deriving (Show, Eq, Generic)
 
 instance ToJSON ScimError where
   toJSON = genericToJSON serializeOptions
@@ -82,70 +83,77 @@ instance Exception ScimError
 ----------------------------------------------------------------------------
 -- Constructors
 
-badRequest
-  :: ScimErrorType  -- ^ Error type
-  -> Maybe Text     -- ^ Error details
-  -> ScimError
+badRequest ::
+  -- | Error type
+  ScimErrorType ->
+  -- | Error details
+  Maybe Text ->
+  ScimError
 badRequest typ mbDetail =
   ScimError
-    { schemas = [Error20]
-    , status = Status 400
-    , scimType = pure typ
-    , detail = mbDetail
+    { schemas = [Error20],
+      status = Status 400,
+      scimType = pure typ,
+      detail = mbDetail
     }
 
-unauthorized
-  :: Text         -- ^ Error details
-  -> ScimError
+unauthorized ::
+  -- | Error details
+  Text ->
+  ScimError
 unauthorized details =
   ScimError
-    { schemas = [Error20]
-    , status = Status 401
-    , scimType = Nothing
-    , detail = pure $ "authorization failed: " <> details
+    { schemas = [Error20],
+      status = Status 401,
+      scimType = Nothing,
+      detail = pure $ "authorization failed: " <> details
     }
 
-forbidden
-  :: Text         -- ^ Error details
-  -> ScimError
+forbidden ::
+  -- | Error details
+  Text ->
+  ScimError
 forbidden details =
   ScimError
-    { schemas = [Error20]
-    , status = Status 403
-    , scimType = Nothing
-    , detail = pure $ "forbidden: " <> details
+    { schemas = [Error20],
+      status = Status 403,
+      scimType = Nothing,
+      detail = pure $ "forbidden: " <> details
     }
 
-notFound
-  :: Text        -- ^ Resource type
-  -> Text        -- ^ Resource ID
-  -> ScimError
+notFound ::
+  -- | Resource type
+  Text ->
+  -- | Resource ID
+  Text ->
+  ScimError
 notFound resourceType resourceId =
   ScimError
-    { schemas = [Error20]
-    , status = Status 404
-    , scimType = Nothing
-    , detail = pure $ resourceType <> " " <> resourceId <> " not found"
+    { schemas = [Error20],
+      status = Status 404,
+      scimType = Nothing,
+      detail = pure $ resourceType <> " " <> resourceId <> " not found"
     }
 
 conflict :: ScimError
 conflict =
   ScimError
-    { schemas = [Error20]
-    , status = Status 409
-    , scimType = Just Uniqueness
-    , detail = Nothing
+    { schemas = [Error20],
+      status = Status 409,
+      scimType = Just Uniqueness,
+      detail = Nothing
     }
 
-serverError
-  :: Text         -- ^ Error details
-  -> ScimError
+serverError ::
+  -- | Error details
+  Text ->
+  ScimError
 serverError details =
   ScimError
-    { schemas = [Error20]
-    , status = Status 500
-    , scimType = Nothing
-    , detail = pure details
+    { schemas = [Error20],
+      status = Status 500,
+      scimType = Nothing,
+      detail = pure details
     }
 
 ----------------------------------------------------------------------------
@@ -156,10 +164,10 @@ serverError details =
 scimToServerError :: ScimError -> ServerError
 scimToServerError err =
   ServerError
-    { errHTTPCode = unStatus (status err)
-    , errReasonPhrase = reasonPhrase (status err)
-    , errBody = encode err
-    , errHeaders = [("Content-Type", "application/scim+json;charset=utf-8")]
+    { errHTTPCode = unStatus (status err),
+      errReasonPhrase = reasonPhrase (status err),
+      errBody = encode err,
+      errHeaders = [("Content-Type", "application/scim+json;charset=utf-8")]
     }
 
 -- | A mapping of error code "reason phrases" (e.g. "Method Not Allowed")
@@ -191,4 +199,4 @@ reasonPhrase = \case
   Status 503 -> "Service Unavailable"
   Status 504 -> "Gateway Time-out"
   Status 505 -> "HTTP Version not supported"
-  other      -> show other
+  other -> show other

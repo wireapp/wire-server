@@ -1,6 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Web.Scim.Capabilities.MetaSchema.SPConfig (spConfigSchema) where
+module Web.Scim.Capabilities.MetaSchema.SPConfig
+  ( spConfigSchema,
+  )
+where
 
 import Data.Aeson (Value)
 import Data.Aeson.QQ
@@ -8,7 +11,8 @@ import Data.Aeson.QQ
 -- NB: it looks like 'authenticationSchemes' should also have a 'type'
 -- attribute. The sample schema from the RFC doesn't list it, though.
 spConfigSchema :: Value
-spConfigSchema = [aesonQQ|
+spConfigSchema =
+  [aesonQQ|
 {
   "id": "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
   "name": "Service Provider Configuration",

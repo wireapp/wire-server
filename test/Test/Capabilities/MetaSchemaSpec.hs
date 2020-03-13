@@ -1,31 +1,35 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Capabilities.MetaSchemaSpec (spec) where
+module Test.Capabilities.MetaSchemaSpec
+  ( spec,
+  )
+where
 
-import           Web.Scim.Test.Util
-
+import Data.Aeson
+import Data.Coerce
 import qualified Data.List as List
-import           Data.Aeson
-import           Data.Text (Text)
-import           Data.Coerce
-import           Web.Scim.Capabilities.MetaSchema
-import           Web.Scim.Server (ConfigAPI, mkapp)
-import           Web.Scim.Server.Mock
-import           Network.Wai.Test (SResponse (..))
-import           Servant
-import           Servant.API.Generic
-
-import           Test.Hspec hiding (shouldSatisfy)
+import Data.Text (Text)
+import Network.Wai.Test (SResponse (..))
+import Servant
+import Servant.API.Generic
+import Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
-import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
+import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
+import Web.Scim.Capabilities.MetaSchema
+import Web.Scim.Server (ConfigAPI, mkapp)
+import Web.Scim.Server.Mock
+import Web.Scim.Test.Util
 
 app :: IO Application
 app = do
   storage <- emptyTestStorage
   pure $ mkapp @Mock (Proxy @ConfigAPI) (toServant (configServer empty)) (nt storage)
 
-shouldSatisfy :: (Show a, FromJSON a) =>
-                 WaiSession SResponse -> (a -> Bool) -> WaiExpectation
+shouldSatisfy ::
+  (Show a, FromJSON a) =>
+  WaiSession SResponse ->
+  (a -> Bool) ->
+  WaiExpectation
 shouldSatisfy resp predicate = do
   maybeDecoded <- eitherDecode . simpleBody <$> resp
   case maybeDecoded of
@@ -40,11 +44,11 @@ type SchemasResponse = Field "Resources" [Field "id" Text]
 
 coreSchemas :: [Text]
 coreSchemas =
-  [ "urn:ietf:params:scim:schemas:core:2.0:User"
-  , "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
-  , "urn:ietf:params:scim:schemas:core:2.0:Group"
-  , "urn:ietf:params:scim:schemas:core:2.0:Schema"
-  , "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
+  [ "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
+    "urn:ietf:params:scim:schemas:core:2.0:Group",
+    "urn:ietf:params:scim:schemas:core:2.0:Schema",
+    "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
   ]
 
 spec :: Spec
@@ -54,7 +58,6 @@ spec = beforeAll app $ do
       get "/Schemas" `shouldRespondWith` 200
       get "/Schemas" `shouldSatisfy` \(resp :: SchemasResponse) ->
         List.sort (coerce resp) == List.sort coreSchemas
-
   describe "GET /Schemas/:id" $ do
     it "returns valid schema" $ do
       -- TODO: (partially) verify content
@@ -62,19 +65,17 @@ spec = beforeAll app $ do
         `shouldRespondWith` 200
     it "returns 404 on unknown schemaId" $ do
       get "/Schemas/unknown" `shouldRespondWith` 404
-
   describe "GET /ServiceProviderConfig" $ do
     it "returns configuration" $ do
       get "/ServiceProviderConfig" `shouldRespondWith` spConfig
-
   describe "GET /ResourceTypes" $ do
     it "returns resource types" $ do
       get "/ResourceTypes" `shouldRespondWith` resourceTypes
 
-
 -- FIXME: missing some "supported" fields
 spConfig :: ResponseMatcher
-spConfig = [scim|
+spConfig =
+  [scim|
 {"schemas":["urn:ietf:params:scim:schemas:core:2.0:User",
             "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
             "urn:ietf:params:scim:schemas:core:2.0:Group",
@@ -103,7 +104,8 @@ spConfig = [scim|
 |]
 
 resourceTypes :: ResponseMatcher
-resourceTypes = [scim|
+resourceTypes =
+  [scim|
 {"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
  "Resources":[
    {"schema":"urn:ietf:params:scim:schemas:core:2.0:User",

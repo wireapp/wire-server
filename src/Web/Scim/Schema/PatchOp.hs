@@ -3,22 +3,23 @@ module Web.Scim.Schema.PatchOp where
 import Control.Applicative
 import Control.Monad (guard)
 import Control.Monad.Except
-import Web.Scim.Schema.Schema (Schema(PatchOp20))
-import Web.Scim.Schema.UserTypes (UserTypes(supportedSchemas))
-import Data.Aeson.Types (withText, ToJSON(toJSON), object, (.=), FromJSON(parseJSON), withObject, (.:), (.:?), Value(String))
+import Data.Aeson.Types ((.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText)
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HashMap
-import Data.Text (toCaseFold, toLower, Text)
-import Data.Text.Encoding (encodeUtf8)
+import Data.Attoparsec.ByteString (Parser, endOfInput, parseOnly)
 import Data.Bifunctor (first)
-import Data.Attoparsec.ByteString (Parser, parseOnly, endOfInput)
-import Web.Scim.AttrName (AttrName(..))
-import Web.Scim.Filter (AttrPath(..), ValuePath(..), SubAttr(..), pAttrPath, pValuePath, pSubAttr, rAttrPath, rSubAttr, rValuePath)
-import Web.Scim.Schema.Error
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict as HM
+import Data.Text (Text, toCaseFold, toLower)
+import Data.Text.Encoding (encodeUtf8)
+import Web.Scim.AttrName (AttrName (..))
+import Web.Scim.Filter (AttrPath (..), SubAttr (..), ValuePath (..), pAttrPath, pSubAttr, pValuePath, rAttrPath, rSubAttr, rValuePath)
+import Web.Scim.Schema.Error
+import Web.Scim.Schema.Schema (Schema (PatchOp20))
+import Web.Scim.Schema.UserTypes (UserTypes (supportedSchemas))
 
-newtype PatchOp tag = PatchOp
-  { getOperations :: [Operation] }
+newtype PatchOp tag
+  = PatchOp
+      {getOperations :: [Operation]}
   deriving (Eq, Show)
 
 -- | The 'Path' attribute value is a 'String' containing an attribute path
@@ -32,11 +33,13 @@ newtype PatchOp tag = PatchOp
 --
 -- NOTE: When the path contains a schema, this schema must be implicitly added
 -- to the list of schemas on the result type
-data Operation = Operation
-  { op :: Op
-  , path :: Maybe Path
-  , value :: Maybe Value
-  } deriving (Eq, Show)
+data Operation
+  = Operation
+      { op :: Op,
+        path :: Maybe Path,
+        value :: Maybe Value
+      }
+  deriving (Eq, Show)
 
 data Op
   = Add
@@ -56,13 +59,12 @@ parsePath schemas' = parseOnly (pPath schemas' <* endOfInput) . encodeUtf8
 -- | PATH = attrPath / valuePath [subAttr]
 pPath :: [Schema] -> Parser Path
 pPath schemas' =
-  IntoValuePath <$> pValuePath schemas' <*> optional pSubAttr <|>
-  NormalPath <$> pAttrPath schemas'
+  IntoValuePath <$> pValuePath schemas' <*> optional pSubAttr
+    <|> NormalPath <$> pAttrPath schemas'
 
 rPath :: Path -> Text
 rPath (NormalPath attrPath) = rAttrPath attrPath
 rPath (IntoValuePath valuePath subAttr) = rValuePath valuePath <> maybe "" rSubAttr subAttr
-
 
 -- TODO(arianvp): According to the SCIM spec we should throw an InvalidPath
 -- error when the path is invalid syntax. this is a bit hard to do though as we
@@ -77,7 +79,7 @@ instance UserTypes tag => FromJSON (PatchOp tag) where
 
 instance ToJSON (PatchOp tag) where
   toJSON (PatchOp operations) =
-    object [ "operations" .=  operations , "schemas" .= [PatchOp20] ]
+    object ["operations" .= operations, "schemas" .= [PatchOp20]]
 
 -- TODO: Azure wants us to be case-insensitive on _values_ as well here.  We currently do not
 -- comply with that.
@@ -100,8 +102,7 @@ instance ToJSON Operation where
     where
       optionalField fname = \case
         Nothing -> []
-        Just x  -> [fname .= x]
-
+        Just x -> [fname .= x]
 
 instance FromJSON Op where
   parseJSON = withText "Op" $ \op' ->

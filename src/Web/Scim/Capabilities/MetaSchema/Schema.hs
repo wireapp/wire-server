@@ -1,12 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Web.Scim.Capabilities.MetaSchema.Schema (metaSchema) where
+module Web.Scim.Capabilities.MetaSchema.Schema
+  ( metaSchema,
+  )
+where
 
 import Data.Aeson (Value)
 import Data.Aeson.QQ
 
 metaSchema :: Value
-metaSchema = [aesonQQ|
+metaSchema =
+  [aesonQQ|
 {
   "id": "urn:ietf:params:scim:schemas:core:2.0:Schema",
   "name": "Schema",

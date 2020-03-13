@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- | A query might specify a filter that should be applied to the results
 -- before returning them. This module implements a very limited subset of
 -- the specification: <https://tools.ietf.org/html/rfc7644#section-3.4.2.2>.
@@ -14,47 +15,45 @@
 -- * Boolean operators
 -- * Combined filters
 -- * Fully qualified attribute names (schema prefixes, attribute paths)
-
 module Web.Scim.Filter
-  (
-  -- * Filter type
-    Filter(..)
-  , parseFilter
-  , renderFilter
+  ( -- * Filter type
+    Filter (..),
+    parseFilter,
+    renderFilter,
 
-  -- * Constructing filters
-  , CompValue(..)
-  , CompareOp(..)
-  , AttrPath(..)
-  , ValuePath(..)
-  , SubAttr(..)
-  , pAttrPath
-  , pValuePath
-  , pSubAttr
-  , pFilter
-  , rAttrPath
-  , rValuePath
-  , rSubAttr
-  , compareStr
-  , topLevelAttrPath
-  ) where
+    -- * Constructing filters
+    CompValue (..),
+    CompareOp (..),
+    AttrPath (..),
+    ValuePath (..),
+    SubAttr (..),
+    pAttrPath,
+    pValuePath,
+    pSubAttr,
+    pFilter,
+    rAttrPath,
+    rValuePath,
+    rSubAttr,
+    compareStr,
+    topLevelAttrPath,
+  )
+where
 
-import Data.String
-import Prelude hiding (takeWhile)
-import Control.Applicative (optional, (<|>))
-import Data.Scientific
-import Data.Text (Text, pack, isInfixOf, isPrefixOf, isSuffixOf)
-import Data.Text.Encoding (encodeUtf8)
-import Data.Text.Lazy (toStrict)
-import Data.Attoparsec.ByteString.Char8
+import Control.Applicative ((<|>), optional)
+import Data.Aeson as Aeson
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson
-import Data.Aeson as Aeson
+import Data.Attoparsec.ByteString.Char8
+import Data.Scientific
+import Data.String
+import Data.Text (Text, isInfixOf, isPrefixOf, isSuffixOf, pack)
+import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Lazy (toStrict)
 import Lens.Micro
 import Web.HttpApiData
-
-import Web.Scim.Schema.Schema (Schema(User20), getSchemaUri, pSchema)
 import Web.Scim.AttrName
+import Web.Scim.Schema.Schema (Schema (User20), getSchemaUri, pSchema)
+import Prelude hiding (takeWhile)
 
 ----------------------------------------------------------------------------
 -- Types
@@ -71,15 +70,24 @@ data CompValue
 
 -- | A comparison operator.
 data CompareOp
-  = OpEq            -- ^ Equal
-  | OpNe            -- ^ Not equal
-  | OpCo            -- ^ Contains
-  | OpSw            -- ^ Starts with
-  | OpEw            -- ^ Ends with
-  | OpGt            -- ^ Greater than
-  | OpGe            -- ^ Greater than or equal to
-  | OpLt            -- ^ Less than
-  | OpLe            -- ^ Less than or equal to
+  = -- | Equal
+    OpEq
+  | -- | Not equal
+    OpNe
+  | -- | Contains
+    OpCo
+  | -- | Starts with
+    OpSw
+  | -- | Ends with
+    OpEw
+  | -- | Greater than
+    OpGt
+  | -- | Greater than or equal to
+    OpGe
+  | -- | Less than
+    OpLt
+  | -- | Less than or equal to
+    OpLe
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | A filter.
@@ -94,15 +102,15 @@ data CompareOp
 --
 -- FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
 data Filter
-  -- | Compare the attribute value with a literal
-  = FilterAttrCompare AttrPath CompareOp CompValue
+  = -- | Compare the attribute value with a literal
+    FilterAttrCompare AttrPath CompareOp CompValue
   deriving (Eq, Show)
 
 -- | valuePath = attrPath "[" valFilter "]"
 -- TODO(arianvp): This is a slight simplification at the moment as we
 -- don't support the complete Filter grammar. This should be a
 -- valFilter, not a FILTER.
-data ValuePath  = ValuePath AttrPath Filter
+data ValuePath = ValuePath AttrPath Filter
   deriving (Eq, Show)
 
 -- | subAttr   = "." ATTRNAME
@@ -112,7 +120,6 @@ newtype SubAttr = SubAttr AttrName
 -- | attrPath  = [URI ":"] ATTRNAME *1subAtt
 data AttrPath = AttrPath (Maybe Schema) AttrName (Maybe SubAttr)
   deriving (Eq, Show)
-
 
 -- | Smart constructor that refers to a toplevel field with default schema
 topLevelAttrPath :: Text -> AttrPath
@@ -140,9 +147,9 @@ topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 -- lift an Attoparsec parser (from Aeson) to Megaparsec
 parseFilter :: [Schema] -> Text -> Either Text Filter
 parseFilter supportedSchemas =
-  over _Left pack .
-  parseOnly (skipSpace *> pFilter supportedSchemas <* skipSpace <* endOfInput) .
-  encodeUtf8
+  over _Left pack
+    . parseOnly (skipSpace *> pFilter supportedSchemas <* skipSpace <* endOfInput)
+    . encodeUtf8
 
 -- |
 -- @
@@ -151,7 +158,7 @@ parseFilter supportedSchemas =
 -- @
 pAttrPath :: [Schema] -> Parser AttrPath
 pAttrPath supportedSchemas = do
-  schema <- (Just <$> (pSchema supportedSchemas <* char ':') ) <|> pure Nothing
+  schema <- (Just <$> (pSchema supportedSchemas <* char ':')) <|> pure Nothing
   AttrPath schema <$> pAttrName <*> optional pSubAttr
 
 -- | subAttr   = "." ATTRNAME
@@ -165,35 +172,37 @@ pValuePath supportedSchemas =
 
 -- | Value literal parser.
 pCompValue :: Parser CompValue
-pCompValue = choice
-  [ ValNull       <$  string "null"
-  , ValBool True  <$  string "true"
-  , ValBool False <$  string "false"
-  , ValNumber     <$> Aeson.scientific
-  , ValString     <$> Aeson.jstring
-  ]
+pCompValue =
+  choice
+    [ ValNull <$ string "null",
+      ValBool True <$ string "true",
+      ValBool False <$ string "false",
+      ValNumber <$> Aeson.scientific,
+      ValString <$> Aeson.jstring
+    ]
 
 -- | Comparison operator parser.
 pCompareOp :: Parser CompareOp
-pCompareOp = choice
-  [ OpEq <$ stringCI "eq"
-  , OpNe <$ stringCI "ne"
-  , OpCo <$ stringCI "co"
-  , OpSw <$ stringCI "sw"
-  , OpEw <$ stringCI "ew"
-  , OpGt <$ stringCI "gt"
-  , OpGe <$ stringCI "ge"
-  , OpLt <$ stringCI "lt"
-  , OpLe <$ stringCI "le"
-  ]
+pCompareOp =
+  choice
+    [ OpEq <$ stringCI "eq",
+      OpNe <$ stringCI "ne",
+      OpCo <$ stringCI "co",
+      OpSw <$ stringCI "sw",
+      OpEw <$ stringCI "ew",
+      OpGt <$ stringCI "gt",
+      OpGe <$ stringCI "ge",
+      OpLt <$ stringCI "lt",
+      OpLe <$ stringCI "le"
+    ]
 
 -- | Filter parser.
 pFilter :: [Schema] -> Parser Filter
 pFilter supportedSchemas =
   FilterAttrCompare
-  <$> pAttrPath supportedSchemas
-  <*> (skipSpace1 *> pCompareOp)
-  <*> (skipSpace1 *> pCompValue)
+    <$> pAttrPath supportedSchemas
+    <*> (skipSpace1 *> pCompareOp)
+    <*> (skipSpace1 *> pCompValue)
 
 -- | Utility parser for skipping one or more spaces.
 skipSpace1 :: Parser ()
@@ -209,10 +218,10 @@ renderFilter filter_ = case filter_ of
     rAttrPath attr <> " " <> rCompareOp op <> " " <> rCompValue val
 
 rAttrPath :: AttrPath -> Text
-rAttrPath (AttrPath schema attr subAttr)
-  =  maybe "" ((<> ":") . getSchemaUri) schema
-  <> rAttrName attr
-  <> maybe "" rSubAttr subAttr
+rAttrPath (AttrPath schema attr subAttr) =
+  maybe "" ((<> ":") . getSchemaUri) schema
+    <> rAttrName attr
+    <> maybe "" rSubAttr subAttr
 
 rSubAttr :: SubAttr -> Text
 rSubAttr (SubAttr x) = "." <> rAttrName x
@@ -223,11 +232,11 @@ rValuePath (ValuePath attrPath filter') = rAttrPath attrPath <> "[" <> renderFil
 -- | Value literal renderer.
 rCompValue :: CompValue -> Text
 rCompValue = \case
-  ValNull       -> "null"
-  ValBool True  -> "true"
+  ValNull -> "null"
+  ValBool True -> "true"
   ValBool False -> "false"
-  ValNumber n   -> toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
-  ValString s   -> toStrict $ Aeson.encodeToLazyText (Aeson.String s)
+  ValNumber n -> toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
+  ValString s -> toStrict $ Aeson.encodeToLazyText (Aeson.String s)
 
 -- | Comparison operator renderer.
 rCompareOp :: CompareOp -> Text
@@ -245,15 +254,15 @@ rCompareOp = \case
 -- | Execute a comparison operator.
 compareStr :: CompareOp -> Text -> Text -> Bool
 compareStr = \case
-  OpEq -> (==)                -- equal
-  OpNe -> (/=)                -- not equal
-  OpCo -> flip isInfixOf      -- A contains B
-  OpSw -> flip isPrefixOf     -- A starts with B
-  OpEw -> flip isSuffixOf     -- A ends with B
-  OpGt -> (>)                 -- greater than
-  OpGe -> (>=)                -- greater than or equal to
-  OpLt -> (<)                 -- less than
-  OpLe -> (<=)                -- less than or equal to
+  OpEq -> (==) -- equal
+  OpNe -> (/=) -- not equal
+  OpCo -> flip isInfixOf -- A contains B
+  OpSw -> flip isPrefixOf -- A starts with B
+  OpEw -> flip isSuffixOf -- A ends with B
+  OpGt -> (>) -- greater than
+  OpGe -> (>=) -- greater than or equal to
+  OpLt -> (<) -- less than
+  OpLe -> (<=) -- less than or equal to
 
 ----------------------------------------------------------------------------
 -- Instances
