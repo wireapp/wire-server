@@ -131,7 +131,7 @@ data Access
     LinkAccess
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Bounded, Enum, Show)
 
 -- | AccessRoles define who can join conversations. The roles are
 -- "supersets", i.e. Activated includes Team and NonActivated includes

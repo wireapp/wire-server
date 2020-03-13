@@ -725,7 +725,7 @@ client = defineModel "Client" $ do
   property "time" dateTime' $
     description "The date and time when this client was registered."
   property "class" clientClass $
-    description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
+    description "The device class this client belongs to."
   property "cookie" string' $
     description "The cookie label of this client."
   property "address" string' $ do
