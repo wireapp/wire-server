@@ -31,6 +31,7 @@ qualified :: Qualified a -> OptionallyQualified a
 qualified = Right
 
 {-
+TODO: do it properly
 Either is a hack, conceptually we want this:
 
 data OptionallyQualified a
