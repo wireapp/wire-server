@@ -296,9 +296,8 @@ conversationUpdateName = defineModel "ConversationUpdateName" $ do
 conversationAccessUpdate :: Model
 conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
   description "Contains conversation properties to update"
-  property "access" (unique $ array access)
-    $ description
-    $ "List of conversation access modes."
+  property "access" (unique $ array access) $
+    description "List of conversation access modes."
   property "access_role" (bytes') $
     description "Conversation access role: private|team|activated|non_activated"
 
