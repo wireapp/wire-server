@@ -199,6 +199,7 @@ dispatchNotifications orig conn e = case e of
   UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
   UserUpdated {..}
+    -- This relies on the fact that we never change the locale AND something else.
     | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
     | otherwise -> notifyContacts event orig Push.RouteDirect conn
   UserActivated {} -> notifySelf event orig Push.RouteAny conn
