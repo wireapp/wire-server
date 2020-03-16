@@ -1,9 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | SCIM user representation.
 --
@@ -44,29 +44,32 @@
 -- When parsing JSON objects, we ignore capitalization differences in field
 -- names -- e.g. both @USERNAME@ and @userName@ are accepted.
 --  This is described by the spec  https://tools.ietf.org/html/rfc7643#section-2.1
---
 module Web.Scim.Schema.User
-  ( User(..)
-  , empty
-  , NoUserExtra(..)
-  , applyPatch
-  , resultToScimError
-  , isUserSchema
-  , module Web.Scim.Schema.UserTypes
+  ( User (..),
+    empty,
+    NoUserExtra (..),
+    applyPatch,
+    resultToScimError,
+    isUserSchema,
+    module Web.Scim.Schema.UserTypes,
   )
 where
 
 import Control.Monad (foldM)
+import Control.Monad.Except
 import Data.Aeson
-import Data.List ((\\))
 import qualified Data.HashMap.Strict as HM
+import Data.List ((\\))
 import Data.Text (Text, pack, toLower)
+import qualified Data.Text as Text
+import GHC.Generics (Generic)
 import Lens.Micro
-
 import Web.Scim.AttrName
-import Web.Scim.Filter (AttrPath(..))
+import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common
-import Web.Scim.Schema.Schema (Schema(..), getSchemaUri)
+import Web.Scim.Schema.Error
+import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.Schema (Schema (..), getSchemaUri)
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
 import Web.Scim.Schema.User.Email (Email)
@@ -74,103 +77,98 @@ import Web.Scim.Schema.User.IM (IM)
 import Web.Scim.Schema.User.Name (Name)
 import Web.Scim.Schema.User.Phone (Phone)
 import Web.Scim.Schema.User.Photo (Photo)
-import Web.Scim.Schema.PatchOp
-import Web.Scim.Schema.Error
 import Web.Scim.Schema.UserTypes
 
-import GHC.Generics (Generic)
-import Control.Monad.Except
-import qualified Data.Text as Text
-
 -- | SCIM user record, parametrized with type-level tag @t@ (see 'UserTypes').
-data User tag = User
-  {
-    schemas :: [Schema]
-
-  -- Mandatory fields
-  , userName :: Text
-
-  -- Optional fields
-  , externalId :: Maybe Text
-  , name :: Maybe Name
-  , displayName :: Maybe Text
-  , nickName :: Maybe Text
-  , profileUrl :: Maybe URI
-  , title :: Maybe Text
-  , userType :: Maybe Text
-  , preferredLanguage :: Maybe Text
-  , locale :: Maybe Text
-  , active :: Maybe Bool
-  , password :: Maybe Text
-
-  -- Multi-valued fields
-  , emails :: [Email]
-  , phoneNumbers :: [Phone]
-  , ims :: [IM]
-  , photos :: [Photo]
-  , addresses :: [Address]
-  , entitlements :: [Text]
-  , roles :: [Text]
-  , x509Certificates :: [Certificate]
-
-  -- Extra data.
-  --
-  -- During rendering, we'll convert it to JSON; if it's an object we'll merge it with the
-  -- main user object, if it's @null@ we'll do nothing, otherwise we'll add it under the
-  -- @"extra"@ field (though you should definitely not rely on this).
-  --
-  -- During parsing, we'll attempt to parse the /whole/ user object as @extra@, so your
-  -- 'FromJSON' instance should be prepared to ignore unrelated fields. Also keep in mind that
-  -- the SCIM spec requires field names to be case-insensitive, i.e. if you're looking for a
-  -- field "foo" you should also handle a field called "FOO". Look at the @FromJSON User@
-  -- instance to see how it can be done.
-  --
-  -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
-  -- rendering of optional and multivalued fields, lowercase objects, etc).
-  , extra :: UserExtra tag
-  } deriving (Generic)
+data User tag
+  = User
+      { schemas :: [Schema],
+        -- Mandatory fields
+        userName :: Text,
+        -- Optional fields
+        externalId :: Maybe Text,
+        name :: Maybe Name,
+        displayName :: Maybe Text,
+        nickName :: Maybe Text,
+        profileUrl :: Maybe URI,
+        title :: Maybe Text,
+        userType :: Maybe Text,
+        preferredLanguage :: Maybe Text,
+        locale :: Maybe Text,
+        active :: Maybe Bool,
+        password :: Maybe Text,
+        -- Multi-valued fields
+        emails :: [Email],
+        phoneNumbers :: [Phone],
+        ims :: [IM],
+        photos :: [Photo],
+        addresses :: [Address],
+        entitlements :: [Text],
+        roles :: [Text],
+        x509Certificates :: [Certificate],
+        -- Extra data.
+        --
+        -- During rendering, we'll convert it to JSON; if it's an object we'll merge it with the
+        -- main user object, if it's @null@ we'll do nothing, otherwise we'll add it under the
+        -- @"extra"@ field (though you should definitely not rely on this).
+        --
+        -- During parsing, we'll attempt to parse the /whole/ user object as @extra@, so your
+        -- 'FromJSON' instance should be prepared to ignore unrelated fields. Also keep in mind that
+        -- the SCIM spec requires field names to be case-insensitive, i.e. if you're looking for a
+        -- field "foo" you should also handle a field called "FOO". Look at the @FromJSON User@
+        -- instance to see how it can be done.
+        --
+        -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
+        -- rendering of optional and multivalued fields, lowercase objects, etc).
+        extra :: UserExtra tag
+      }
+  deriving (Generic)
 
 deriving instance Show (UserExtra tag) => Show (User tag)
+
 deriving instance Eq (UserExtra tag) => Eq (User tag)
 
-
-empty
-  :: [Schema]               -- ^ Schemas
-  -> Text                   -- ^ userName
-  -> UserExtra tag          -- ^ Extra data
-  -> User tag
-empty schemas userName extra = User
-  { schemas = schemas
-  , userName = userName
-  , externalId = Nothing
-  , name = Nothing
-  , displayName = Nothing
-  , nickName = Nothing
-  , profileUrl = Nothing
-  , title = Nothing
-  , userType = Nothing
-  , preferredLanguage = Nothing
-  , locale = Nothing
-  , active = Nothing
-  , password = Nothing
-  , emails = []
-  , phoneNumbers = []
-  , ims = []
-  , photos = []
-  , addresses = []
-  , entitlements = []
-  , roles = []
-  , x509Certificates = []
-  , extra = extra
-  }
+empty ::
+  -- | Schemas
+  [Schema] ->
+  -- | userName
+  Text ->
+  -- | Extra data
+  UserExtra tag ->
+  User tag
+empty schemas userName extra =
+  User
+    { schemas = schemas,
+      userName = userName,
+      externalId = Nothing,
+      name = Nothing,
+      displayName = Nothing,
+      nickName = Nothing,
+      profileUrl = Nothing,
+      title = Nothing,
+      userType = Nothing,
+      preferredLanguage = Nothing,
+      locale = Nothing,
+      active = Nothing,
+      password = Nothing,
+      emails = [],
+      phoneNumbers = [],
+      ims = [],
+      photos = [],
+      addresses = [],
+      entitlements = [],
+      roles = [],
+      x509Certificates = [],
+      extra = extra
+    }
 
 instance FromJSON (UserExtra tag) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
     let o = HM.fromList . map (over _1 toLower) . HM.toList $ obj
     schemas <- o .:? "schemas" <&> \case
-        Nothing -> [User20]
-        Just xs -> if User20 `elem` xs then xs else User20 : xs
+      Nothing -> [User20]
+      Just xs -> if User20 `elem` xs then xs else User20 : xs
     userName <- o .: "username"
     externalId <- o .:? "externalid"
     name <- o .:? "name"
@@ -192,44 +190,45 @@ instance FromJSON (UserExtra tag) => FromJSON (User tag) where
     roles <- o .:? "roles" .!= []
     x509Certificates <- o .:? "x509certificates" .!= []
     extra <- parseJSON (Object obj)
-    pure User{..}
+    pure User {..}
 
 instance ToJSON (UserExtra tag) => ToJSON (User tag) where
-  toJSON User{..} =
-    let mainObject = HM.fromList $ concat
-          [ [ "schemas" .= schemas ]
-          , [ "userName" .= userName ]
-          , optionalField "externalId" externalId
-          , optionalField "name" name
-          , optionalField "displayName" displayName
-          , optionalField "nickName" nickName
-          , optionalField "profileUrl" profileUrl
-          , optionalField "title" title
-          , optionalField "userType" userType
-          , optionalField "preferredLanguage" preferredLanguage
-          , optionalField "locale" locale
-          , optionalField "active" active
-          , optionalField "password" password
-          , multiValuedField "emails" emails
-          , multiValuedField "phoneNumbers" phoneNumbers
-          , multiValuedField "ims" ims
-          , multiValuedField "photos" photos
-          , multiValuedField "addresses" addresses
-          , multiValuedField "entitlements" entitlements
-          , multiValuedField "roles" roles
-          , multiValuedField "x509Certificates" x509Certificates
-          ]
+  toJSON User {..} =
+    let mainObject =
+          HM.fromList $
+            concat
+              [ ["schemas" .= schemas],
+                ["userName" .= userName],
+                optionalField "externalId" externalId,
+                optionalField "name" name,
+                optionalField "displayName" displayName,
+                optionalField "nickName" nickName,
+                optionalField "profileUrl" profileUrl,
+                optionalField "title" title,
+                optionalField "userType" userType,
+                optionalField "preferredLanguage" preferredLanguage,
+                optionalField "locale" locale,
+                optionalField "active" active,
+                optionalField "password" password,
+                multiValuedField "emails" emails,
+                multiValuedField "phoneNumbers" phoneNumbers,
+                multiValuedField "ims" ims,
+                multiValuedField "photos" photos,
+                multiValuedField "addresses" addresses,
+                multiValuedField "entitlements" entitlements,
+                multiValuedField "roles" roles,
+                multiValuedField "x509Certificates" x509Certificates
+              ]
         extraObject = case toJSON extra of
           Null -> mempty
           Object x -> x
           other -> HM.fromList ["extra" .= other]
-    in Object (HM.union mainObject extraObject)
-
+     in Object (HM.union mainObject extraObject)
     where
       -- Omit a field if it's Nothing
       optionalField fname = \case
         Nothing -> []
-        Just x  -> [fname .= x]
+        Just x -> [fname .= x]
       -- Omit a field if it's []
       multiValuedField fname = \case
         [] -> []
@@ -258,11 +257,14 @@ instance Patchable NoUserExtra where
 -- We'll have to think how patch is going to work in the presence of extensions.
 -- Also, we can probably make  PatchOp type-safe to some extent (Read arianvp's thesis :))
 applyPatch ::
-  ( Patchable (UserExtra tag)
-  , FromJSON (UserExtra tag)
-  , MonadError ScimError m
-  , UserTypes tag
-  ) => User tag  -> PatchOp tag ->  m (User tag)
+  ( Patchable (UserExtra tag),
+    FromJSON (UserExtra tag),
+    MonadError ScimError m,
+    UserTypes tag
+  ) =>
+  User tag ->
+  PatchOp tag ->
+  m (User tag)
 applyPatch = (. getOperations) . foldM applyOperation
 
 resultToScimError :: (MonadError ScimError m) => Result a -> m a
@@ -276,25 +278,26 @@ resultToScimError (Success a) = pure a
 -- What I understand from the spec:  The difference between add an replace is only
 -- in the fact that replace will not concat multi-values, and behaves differently for complex values too.
 -- For simple attributes, add and replace are identical.
-applyUserOperation
-  :: forall m tag.( UserTypes tag
-                  , FromJSON (User tag)
-                  , Patchable (UserExtra tag)
-                  , MonadError ScimError m)
-  => User tag
-  -> Operation
-  -> m (User tag)
+applyUserOperation ::
+  forall m tag.
+  ( UserTypes tag,
+    FromJSON (User tag),
+    Patchable (UserExtra tag),
+    MonadError ScimError m
+  ) =>
+  User tag ->
+  Operation ->
+  m (User tag)
 applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
 applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of
     "username" ->
-      (\x -> user { userName = x }) <$> resultToScimError (fromJSON value)
+      (\x -> user {userName = x}) <$> resultToScimError (fromJSON value)
     "displayname" ->
-      (\x -> user { displayName = x }) <$> resultToScimError (fromJSON value)
+      (\x -> user {displayName = x}) <$> resultToScimError (fromJSON value)
     "externalid" ->
-      (\x -> user { externalId = x }) <$> resultToScimError (fromJSON value)
+      (\x -> user {externalId = x}) <$> resultToScimError (fromJSON value)
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
-
 applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
@@ -302,20 +305,20 @@ applyUserOperation user (Operation Replace Nothing (Just value)) = do
     Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid"]) -> pure ()
     _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
   (u :: User tag) <- resultToScimError $ fromJSON value
-  pure $ user
-    { userName = userName u
-    , displayName = displayName u
-    , externalId = externalId u
-    }
+  pure $
+    user
+      { userName = userName u,
+        displayName = displayName u,
+        externalId = externalId u
+      }
 applyUserOperation _ (Operation Replace _ Nothing) =
   throwError (badRequest InvalidValue (Just "No value was provided"))
-
 applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
 applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
   case attr of
     "username" -> throwError (badRequest Mutability Nothing)
-    "displayname" -> pure $ user { displayName = Nothing }
-    "externalid" -> pure $ user { externalId = Nothing }
+    "displayname" -> pure $ user {displayName = Nothing}
+    "externalid" -> pure $ user {externalId = Nothing}
     _ -> pure user
 applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
@@ -323,10 +326,11 @@ applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
 instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patchable (User tag) where
   applyOperation user op@(Operation _ (Just (NormalPath (AttrPath schema _ _))) _)
     | isUserSchema schema = applyUserOperation user op
-    | isSupportedCustomSchema schema = (\x ->  user { extra = x }) <$> applyOperation (extra user) op
+    | isSupportedCustomSchema schema = (\x -> user {extra = x}) <$> applyOperation (extra user) op
     | otherwise =
       throwError $ badRequest InvalidPath $ Just $ "we only support these schemas: " <> (Text.intercalate ", " $ map getSchemaUri (supportedSchemas @tag))
-    where isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
+    where
+      isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
   applyOperation user op = applyUserOperation user op
 
 -- Omission of a schema for users is implicitly the core schema

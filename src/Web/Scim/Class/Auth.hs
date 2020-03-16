@@ -4,9 +4,10 @@
 -- auth, or something else (though OAuth is likely not implementable with
 -- this API).
 module Web.Scim.Class.Auth
-    ( AuthTypes (..)
-    , AuthDB (..)
-    ) where
+  ( AuthTypes (..),
+    AuthDB (..),
+  )
+where
 
 import Servant
 import Web.Scim.Handler
@@ -31,6 +32,6 @@ class (AuthTypes tag, FromHttpApiData (AuthData tag)) => AuthDB tag m where
   -- | Do authentication or throw an error in `ScimHandler` (e.g.
   -- 'Web.Scim.Schema.Error.unauthorized') if the provided credentials are
   -- invalid or don't correspond to any user.
-  authCheck
-      :: Maybe (AuthData tag)
-      -> ScimHandler m (AuthInfo tag)
+  authCheck ::
+    Maybe (AuthData tag) ->
+    ScimHandler m (AuthInfo tag)

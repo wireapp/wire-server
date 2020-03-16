@@ -1,40 +1,38 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | A mock server for use in our testsuite, as well as for automated
 -- compliance testing (e.g. with Runscope – see
 -- <https://developer.okta.com/standards/SCIM/#step-2-test-your-scim-server>).
-
 module Web.Scim.Server.Mock where
 
-import           Web.Scim.Class.Group hiding (value)
-import           Web.Scim.Class.User
-import           Web.Scim.Class.Auth
-import           Control.Monad.STM (STM, atomically)
-import           Control.Monad.Reader
-import           Control.Monad.Morph
-import           Data.Aeson
-import           Data.Hashable
-import           Data.Text (Text, pack, toCaseFold)
-import           Data.Time.Clock
-import           Data.Time.Calendar
-import           GHC.Exts (sortWith)
-import           ListT
+import Control.Monad.Morph
+import Control.Monad.Reader
+import Control.Monad.STM (STM, atomically)
+import Data.Aeson
+import Data.Hashable
+import Data.Text (Text, pack, toCaseFold)
+import Data.Time.Calendar
+import Data.Time.Clock
+import GHC.Exts (sortWith)
+import ListT
 import qualified Network.URI as URI
+import Servant
 import qualified StmContainers.Map as STMMap
-import           Text.Read (readMaybe)
-import           Web.Scim.Filter (Filter(..), CompValue(..), AttrPath(..), compareStr)
-import           Web.Scim.Schema.User
-import           Web.Scim.Schema.Error
-import           Web.Scim.Schema.Meta
-import           Web.Scim.Schema.ListResponse
-import           Web.Scim.Schema.ResourceType
-import           Web.Scim.Schema.Schema (Schema(User20))
-import           Web.Scim.Schema.Common (WithId(WithId, value))
-import qualified Web.Scim.Schema.Common     as Common
-import           Web.Scim.Handler
-import           Servant
+import Text.Read (readMaybe)
+import Web.Scim.Class.Auth
+import Web.Scim.Class.Group hiding (value)
+import Web.Scim.Class.User
+import Web.Scim.Filter (AttrPath (..), CompValue (..), Filter (..), compareStr)
+import Web.Scim.Handler
+import Web.Scim.Schema.Common (WithId (WithId, value))
+import qualified Web.Scim.Schema.Common as Common
+import Web.Scim.Schema.Error
+import Web.Scim.Schema.ListResponse
+import Web.Scim.Schema.Meta
+import Web.Scim.Schema.ResourceType
+import Web.Scim.Schema.Schema (Schema (User20))
+import Web.Scim.Schema.User
 
 -- | Tag used in the mock server.
 data Mock
@@ -43,21 +41,24 @@ data Mock
 --
 -- >>> eitherDecode' @Id . encode $ (Id 3)
 -- Right (Id {unId = 3})
-newtype Id = Id { unId :: Int }
+newtype Id = Id {unId :: Int}
   deriving (Eq, Show, Ord, Hashable, ToHttpApiData, FromHttpApiData)
 
 instance ToJSON Id where
   toJSON = toJSON . show . unId
+
 instance FromJSON Id where
   parseJSON = maybe (fail "not a number") (pure . Id) . readMaybe <=< parseJSON
 
-type UserStorage  = STMMap.Map Id (StoredUser Mock)
+type UserStorage = STMMap.Map Id (StoredUser Mock)
+
 type GroupStorage = STMMap.Map Id (StoredGroup Mock)
 
-data TestStorage = TestStorage
-  { userDB :: UserStorage
-  , groupDB :: GroupStorage
-  }
+data TestStorage
+  = TestStorage
+      { userDB :: UserStorage,
+        groupDB :: GroupStorage
+      }
 
 emptyTestStorage :: IO TestStorage
 emptyTestStorage =
@@ -87,17 +88,17 @@ instance UserDB Mock TestServer where
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ -> do
-            let user' = value (thing user)      -- unwrap
+            let user' = value (thing user) -- unwrap
             case filterUser filter_ user' of
               Right res -> pure res
-              Left err  -> throwScim (badRequest InvalidFilter (Just err))
+              Left err -> throwScim (badRequest InvalidFilter (Just err))
     fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
 
   getUser () uid = do
     m <- userDB <$> ask
     liftSTM (STMMap.lookup uid m) >>= \case
       Nothing -> throwScim (notFound "User" (pack (show uid)))
-      Just x  -> pure x
+      Just x -> pure x
 
   postUser () user = do
     m <- userDB <$> ask
@@ -176,38 +177,40 @@ instance AuthTypes Mock where
 
 instance AuthDB Mock TestServer where
   authCheck = \case
-      Just "authorized" -> pure ()
-      _ -> throwScim (unauthorized "expected 'authorized'")
+    Just "authorized" -> pure ()
+    _ -> throwScim (unauthorized "expected 'authorized'")
 
 ----------------------------------------------------------------------------
 -- Misc
 
 -- 2018-01-01 00:00
 testDate :: UTCTime
-testDate = UTCTime
-  { utctDay = ModifiedJulianDay 58119
-  , utctDayTime = 0
-  }
+testDate =
+  UTCTime
+    { utctDay = ModifiedJulianDay 58119,
+      utctDayTime = 0
+    }
 
 -- static meta for testing
 createMeta :: ResourceType -> Meta
-createMeta rType = Meta
-  { resourceType = rType
-  , created = testDate
-  , lastModified = testDate
-  , version = Weak "testVersion"
-  , location = Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
-                            -- is a bit of work, but it may be required one day.
-                            URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
-  }
+createMeta rType =
+  Meta
+    { resourceType = rType,
+      created = testDate,
+      lastModified = testDate,
+      version = Weak "testVersion",
+      location =
+        Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
+        -- is a bit of work, but it may be required one day.
+          URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+    }
 
 -- Natural transformation from our transformer stack to the Servant stack
 -- this takes the initial environment and returns the transformation
 nt :: TestStorage -> ScimHandler TestServer a -> Handler a
 nt storage =
-  flip runReaderT storage .
-  fromScimHandler (lift . throwError . scimToServerError)
-
+  flip runReaderT storage
+    . fromScimHandler (lift . throwError . scimToServerError)
 
 -- | Check whether a user satisfies the filter.
 --
@@ -218,11 +221,13 @@ nt storage =
 filterUser :: Filter -> User extra -> Either Text Bool
 filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
   | isUserSchema schema' =
-      case (subAttr, val) of
-        (Nothing, (ValString str)) | attrib == "userName" ->
+    case (subAttr, val) of
+      (Nothing, (ValString str))
+        | attrib == "userName" ->
           Right (compareStr op (toCaseFold (userName user)) (toCaseFold str))
-        (Nothing, _) | attrib == "userName" ->
+      (Nothing, _)
+        | attrib == "userName" ->
           Left "usernames can only be compared with strings"
-        (_, _) ->
-          Left "Only search on usernames is currently supported"
+      (_, _) ->
+        Left "Only search on usernames is currently supported"
   | otherwise = Left "Invalid schema. Only user schema is supported"

@@ -1,15 +1,15 @@
-
 module Web.Scim.Schema.User.Email where
 
-import Data.Text hiding (dropWhile)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Aeson
+import Data.Text hiding (dropWhile)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
-import Web.Scim.Schema.Common
 import Text.Email.Validate
+import Web.Scim.Schema.Common
 
-newtype EmailAddress2 = EmailAddress2
-  { unEmailAddress :: EmailAddress }
+newtype EmailAddress2
+  = EmailAddress2
+      {unEmailAddress :: EmailAddress}
   deriving (Show, Eq)
 
 instance FromJSON EmailAddress2 where
@@ -20,11 +20,13 @@ instance FromJSON EmailAddress2 where
 instance ToJSON EmailAddress2 where
   toJSON (EmailAddress2 e) = String $ decodeUtf8 . toByteString $ e
 
-data Email = Email
-  { typ :: Maybe Text
-  , value :: EmailAddress2
-  , primary :: Maybe Bool
-  } deriving (Show, Eq, Generic)
+data Email
+  = Email
+      { typ :: Maybe Text,
+        value :: EmailAddress2,
+        primary :: Maybe Bool
+      }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON Email where
   parseJSON = genericParseJSON parseOptions . jsonLower

@@ -1,12 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Web.Scim.Capabilities.MetaSchema.User (userSchema) where
+module Web.Scim.Capabilities.MetaSchema.User
+  ( userSchema,
+  )
+where
 
 import Data.Aeson (Value)
 import Data.Aeson.QQ
 
 userSchema :: Value
-userSchema = [aesonQQ|
+userSchema =
+  [aesonQQ|
 {
   "id": "urn:ietf:params:scim:schemas:core:2.0:User",
   "name": "User",

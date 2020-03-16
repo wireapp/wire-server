@@ -1,27 +1,27 @@
 module Web.Scim.Schema.Schema where
 
-import           Web.Scim.Capabilities.MetaSchema.User
-import           Web.Scim.Capabilities.MetaSchema.SPConfig
-import           Web.Scim.Capabilities.MetaSchema.Group
-import           Web.Scim.Capabilities.MetaSchema.Schema
-import           Web.Scim.Capabilities.MetaSchema.ResourceType
-
-import           Data.Text (Text)
-import           Data.Aeson (FromJSON, parseJSON, toJSON, ToJSON, withText, Value)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Aeson (FromJSON, ToJSON, Value, parseJSON, toJSON, withText)
 import Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Web.Scim.Capabilities.MetaSchema.Group
+import Web.Scim.Capabilities.MetaSchema.ResourceType
+import Web.Scim.Capabilities.MetaSchema.SPConfig
+import Web.Scim.Capabilities.MetaSchema.Schema
+import Web.Scim.Capabilities.MetaSchema.User
 
 -- | All schemas that we support.
-data Schema = User20
-            | ServiceProviderConfig20
-            | Group20
-            | Schema20
-            | ResourceType20
-            | ListResponse20
-            | Error20
-            | PatchOp20
-            | CustomSchema Text
+data Schema
+  = User20
+  | ServiceProviderConfig20
+  | Group20
+  | Schema20
+  | ResourceType20
+  | ListResponse20
+  | Error20
+  | PatchOp20
+  | CustomSchema Text
   deriving (Show, Eq)
 
 instance FromJSON Schema where
@@ -52,14 +52,15 @@ getSchemaUri (CustomSchema x) =
   x
 
 -- TODO(akshay): Make everything Text, ByteStrings are unnecessary here
+
 -- | Parser for schemas
 --
 -- NOTE: according to the spec, this parser needs to be case insensitive, but
 -- that is literally insane. Won't implement.
 pSchema :: [Schema] -> Parser Schema
 pSchema supportedSchemas =
-  Parser.choice
-  $ map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supportedSchemas
+  Parser.choice $
+    map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supportedSchemas
 
 -- | Get a schema by its URI.
 --

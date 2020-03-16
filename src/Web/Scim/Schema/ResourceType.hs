@@ -2,16 +2,13 @@
 
 module Web.Scim.Schema.ResourceType where
 
-import Prelude hiding (map)
-
-import Data.Text (Text)
 import Data.Aeson
-import Network.URI.Static
-
-import Web.Scim.Schema.Common
-import Web.Scim.Schema.Schema (Schema(..))
-
+import Data.Text (Text)
 import GHC.Generics (Generic)
+import Network.URI.Static
+import Web.Scim.Schema.Common
+import Web.Scim.Schema.Schema (Schema (..))
+import Prelude hiding (map)
 
 -- | Supported resource types. Each resource type also corresponds to an
 -- endpoint, described by 'ResourceTypeEndpoint'.
@@ -31,11 +28,13 @@ instance FromJSON ResourceType where
     other -> fail ("unknown ResourceType: " ++ show other)
 
 -- | Definitions of endpoints, returned by @/ResourceTypes@.
-data Resource = Resource
-  { name :: Text
-  , endpoint :: URI
-  , schema :: Schema
-  } deriving (Show, Eq, Generic)
+data Resource
+  = Resource
+      { name :: Text,
+        endpoint :: URI,
+        schema :: Schema
+      }
+  deriving (Show, Eq, Generic)
 
 instance ToJSON Resource where
   toJSON = genericToJSON serializeOptions
@@ -47,15 +46,17 @@ instance FromJSON Resource where
 -- Available resource endpoints
 
 usersResource :: Resource
-usersResource = Resource
-  { name = "User"
-  , endpoint = URI [relativeReference|/Users|]
-  , schema = User20
-  }
+usersResource =
+  Resource
+    { name = "User",
+      endpoint = URI [relativeReference|/Users|],
+      schema = User20
+    }
 
 groupsResource :: Resource
-groupsResource = Resource
-  { name = "Group"
-  , endpoint = URI [relativeReference|/Groups|]
-  , schema = Group20
-  }
+groupsResource =
+  Resource
+    { name = "Group",
+      endpoint = URI [relativeReference|/Groups|],
+      schema = Group20
+    }

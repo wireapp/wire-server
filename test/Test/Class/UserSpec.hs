@@ -1,18 +1,19 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Class.UserSpec (spec) where
+module Test.Class.UserSpec
+  ( spec,
+  )
+where
 
-import           Web.Scim.Test.Util
-
-import           Web.Scim.Server (mkapp, UserAPI, userServer)
-import           Web.Scim.Server.Mock
-import           Test.Hspec
-import           Test.Hspec.Wai hiding (post, put, patch, shouldRespondWith)
-import           Data.ByteString.Lazy (ByteString)
-import           Servant (Proxy(Proxy))
-import           Network.Wai (Application)
-import           Servant.API.Generic
-
+import Data.ByteString.Lazy (ByteString)
+import Network.Wai (Application)
+import Servant (Proxy (Proxy))
+import Servant.API.Generic
+import Test.Hspec
+import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
+import Web.Scim.Server (UserAPI, mkapp, userServer)
+import Web.Scim.Server.Mock
+import Web.Scim.Test.Util
 
 app :: IO Application
 app = do
@@ -25,49 +26,38 @@ spec = beforeAll app $ do
   describe "GET & POST /Users" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` emptyList
-
     it "can insert then retrieve stored Users" $ do
       post "/" newBarbara `shouldRespondWith` 201
       post "/" newJim `shouldRespondWith` 201
       get "/" `shouldRespondWith` allUsers
-
     describe "filtering" $ do
       it "can filter by username" $ do
         get "/?filter=userName eq \"bjensen\"" `shouldRespondWith` onlyBarbara
-
       it "is case-insensitive regarding syntax" $ do
         get "/?filter=USERName EQ \"bjensen\"" `shouldRespondWith` onlyBarbara
-
       it "is case-insensitive regarding usernames" $ do
         get "/?filter=userName eq \"BJensen\"" `shouldRespondWith` onlyBarbara
-
       it "handles malformed filter syntax" $ do
         get "/?filter=userName eqq \"bjensen\"" `shouldRespondWith` 400
-        -- TODO: would be nice to check the error message as well
+      -- TODO: would be nice to check the error message as well
 
       it "handles type errors in comparisons" $ do
         get "/?filter=userName eq true" `shouldRespondWith` 400
-
   describe "GET /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
       get "/9999" `shouldRespondWith` 404
-
     -- FUTUREWORK: currently it returns 404:
     -- https://github.com/haskell-servant/servant/issues/1155
     xit "responds with 401 for unparseable user ID" $ do
       get "/unparseable" `shouldRespondWith` 401
-
     it "retrieves stored user" $ do
       -- the test implementation stores users with uid [0,1..n-1]
       get "/0" `shouldRespondWith` barbara
-
   describe "PUT /Users/:id" $ do
     it "overwrites the user" $ do
       put "/0" barbUpdate0 `shouldRespondWith` updatedBarb0
-
     it "does not create new users" $ do
       put "/9999" newBarbara `shouldRespondWith` 404
-
   -- TODO(arianvp): Perhaps we want to make this an acceptance spec.
   describe "PATCH /Users/:id" $ do
     describe "Add" $ do
@@ -76,7 +66,9 @@ spec = beforeAll app $ do
       -- TODO(arianvp): Add and Replace tests currently identical, because of lack of multi-value
       it "adds all fields if no target" $ do
         _ <- put "/0" smallUser -- reset
-        patch "/0" [scim|{
+        patch
+          "/0"
+          [scim|{
               "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
               "Operations": [{
                 "op": "Add",
@@ -86,7 +78,8 @@ spec = beforeAll app $ do
                 }
 
               }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -102,17 +95,22 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
+        |]
+            { matchStatus = 200
+            }
       it "adds fields if they didn't exist yet" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Add",
             "path": "displayName",
             "value": "arian"
           }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -128,17 +126,22 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
+        |]
+            { matchStatus = 200
+            }
       it "replaces individual simple fields" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Add",
             "path": "userName",
             "value": "arian"
           }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -154,16 +157,19 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
-
+        |]
+            { matchStatus = 200
+            }
       -- TODO(arianvp): I think this is better done with quickcheck test.
       -- Generate some adds, replaces, removes and then an invalid one However,
       -- for this we need to be able to generate valid patches but a patch does
       -- not limit by type what fields it lenses in to. It is a very untyped
       -- thingy currently.
       it "PatchOp is atomic. Either fully applies or not at all" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Add",
@@ -173,15 +179,16 @@ spec = beforeAll app $ do
           { "op": "Add",
             "path": "displayName",
             "value": 5
-          }]}|] `shouldRespondWith` 400
-        get "/0" `shouldRespondWith` smallUserGet { matchStatus = 200 }
-
-
+          }]}|]
+          `shouldRespondWith` 400
+        get "/0" `shouldRespondWith` smallUserGet {matchStatus = 200}
     describe "Replace" $ do
       -- TODO(arianvp): Implement and test multi-value fields properly
       it "adds all fields if no target" $ do
         _ <- put "/0" smallUser -- reset
-        patch "/0" [scim|{
+        patch
+          "/0"
+          [scim|{
               "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
               "Operations": [{
                 "op": "Replace",
@@ -191,7 +198,8 @@ spec = beforeAll app $ do
                 }
 
               }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -207,17 +215,22 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
+        |]
+            { matchStatus = 200
+            }
       it "adds fields if they didn't exist yet" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Replace",
             "path": "displayName",
             "value": "arian"
           }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -233,17 +246,22 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
+        |]
+            { matchStatus = 200
+            }
       it "replaces individual simple fields" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Replace",
             "path": "userName",
             "value": "arian"
           }]
-        }|] `shouldRespondWith` [scim|
+        }|]
+          `shouldRespondWith` [scim|
           {
             "schemas": [
               "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -259,11 +277,14 @@ spec = beforeAll app $ do
               "lastModified": "2018-01-01T00:00:00Z"
             }
           }
-        |] { matchStatus = 200 }
-
+        |]
+            { matchStatus = 200
+            }
       it "PatchOp is atomic. Either fully applies or not at all" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{
             "op": "Replace",
@@ -273,32 +294,45 @@ spec = beforeAll app $ do
           { "op": "Replace",
             "path": "displayName",
             "value": 5
-          }]}|] `shouldRespondWith` 400
-        get "/0" `shouldRespondWith` smallUserGet { matchStatus = 200 }
-
+          }]}|]
+          `shouldRespondWith` 400
+        get "/0" `shouldRespondWith` smallUserGet {matchStatus = 200}
     describe "Remove" $ do
       it "fails if no target" $ do
-        _ <- put "/0" barbUpdate0  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" barbUpdate0 -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{ "op": "Remove" }]
-        }|] `shouldRespondWith` [scim|{
+        }|]
+          `shouldRespondWith` [scim|{
           "scimType":"noTarget","status":"400","schemas":["urn:ietf:params:scim:api:messages:2.0:Error"]
-        }|] { matchStatus = 400 }
+        }|]
+            { matchStatus = 400
+            }
       it "fails if removing immutable" $ do
-        _ <- put "/0" barbUpdate0  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" barbUpdate0 -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{ "op": "Remove", "path": "userName"}]
-        }|] `shouldRespondWith` [scim|{
+        }|]
+          `shouldRespondWith` [scim|{
           "scimType":"mutability","status":"400","schemas":["urn:ietf:params:scim:api:messages:2.0:Error"]
-        }|] { matchStatus = 400 }
+        }|]
+            { matchStatus = 400
+            }
       it "deletes the specified attribute" $ do
-        _ <- put "/0" smallUser  -- reset
-        patch "/0" [scim|{
+        _ <- put "/0" smallUser -- reset
+        patch
+          "/0"
+          [scim|{
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
           "Operations": [{ "op": "Remove", "path": "displayName"}]
-        }|] `shouldRespondWith` [scim|{
+        }|]
+          `shouldRespondWith` [scim|{
           "schemas": [
             "urn:ietf:params:scim:schemas:core:2.0:User"
           ],
@@ -311,28 +345,29 @@ spec = beforeAll app $ do
             "version": "W/\"testVersion\"",
             "lastModified": "2018-01-01T00:00:00Z"
           }
-        }|] { matchStatus = 200 }
-
+        }|]
+            { matchStatus = 200
+            }
   describe "DELETE /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
       delete "/9999" `shouldRespondWith` 404
-
     it "deletes a stored user" $ do
       delete "/0" `shouldRespondWith` 204
       -- user should be gone
-      get    "/0" `shouldRespondWith` 404
+      get "/0" `shouldRespondWith` 404
       delete "/0" `shouldRespondWith` 404
 
-
 smallUser :: ByteString
-smallUser = [scim|
+smallUser =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"bjensen",
           "displayName": "bjensen2"
         }|]
 
 smallUserGet :: ResponseMatcher
-smallUserGet = [scim|
+smallUserGet =
+  [scim|
 {
   "schemas": [
     "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -351,7 +386,8 @@ smallUserGet = [scim|
 |]
 
 newBarbara :: ByteString
-newBarbara = [scim|
+newBarbara =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"bjensen",
           "externalId":"bjensen",
@@ -363,7 +399,8 @@ newBarbara = [scim|
         }|]
 
 newJim :: ByteString
-newJim = [scim|
+newJim =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"jim",
           "externalId":"jim",
@@ -375,7 +412,8 @@ newJim = [scim|
         }|]
 
 barbara :: ResponseMatcher
-barbara = [scim|
+barbara =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"bjensen",
           "name": {
@@ -395,7 +433,8 @@ barbara = [scim|
         }|]
 
 allUsers :: ResponseMatcher
-allUsers = [scim|
+allUsers =
+  [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "totalResults": 2,
           "itemsPerPage": 2,
@@ -438,7 +477,8 @@ allUsers = [scim|
         }|]
 
 onlyBarbara :: ResponseMatcher
-onlyBarbara = [scim|
+onlyBarbara =
+  [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "totalResults": 1,
           "itemsPerPage": 1,
@@ -465,7 +505,8 @@ onlyBarbara = [scim|
 
 -- source: https://tools.ietf.org/html/rfc7644#section-3.5.1 (p. 30)
 barbUpdate0 :: ByteString
-barbUpdate0 = [scim|
+barbUpdate0 =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "id":"0",
           "userName":"bjensen",
@@ -487,9 +528,9 @@ barbUpdate0 = [scim|
           ]
         }|]
 
-
 updatedBarb0 :: ResponseMatcher
-updatedBarb0 = [scim|
+updatedBarb0 =
+  [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "id":"0",
           "userName":"bjensen",
@@ -518,7 +559,8 @@ updatedBarb0 = [scim|
         }|]
 
 emptyList :: ResponseMatcher
-emptyList = [scim|
+emptyList =
+  [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
          "Resources":[],
          "totalResults":0,

@@ -1,6 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Web.Scim.Capabilities.MetaSchema.Group (groupSchema) where
+module Web.Scim.Capabilities.MetaSchema.Group
+  ( groupSchema,
+  )
+where
 
 import Data.Aeson (Value)
 import Data.Aeson.QQ
@@ -10,7 +13,8 @@ import Data.Aeson.QQ
 -- now because nobody seems to care about these schemas anyway.
 -- See https://www.rfc-editor.org/errata_search.php?rfc=7643
 groupSchema :: Value
-groupSchema = [aesonQQ|
+groupSchema =
+  [aesonQQ|
 {
   "id": "urn:ietf:params:scim:schemas:core:2.0:Group",
   "name": "Group",

@@ -25,3 +25,9 @@ for tests. You can run the tests with the standard stack interface:
 ```sh
 stack test
 ```
+
+# Contributing
+
+Before submitting a PR, make sure to install [ormolu](https://github.com/tweag/ormolu)
+by doing `stack install ormolu` (we pin the version in our `stack.yaml` file)
+and run `make format`.
