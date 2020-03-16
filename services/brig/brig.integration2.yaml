@@ -1,5 +1,5 @@
 brig:
-  host: 127.0.0.1
+  host: 127.0.0.2
   port: 8082
 
 cassandra:
@@ -13,15 +13,15 @@ elasticsearch:
   index: directory_test
 
 cargohold:
-  host: 127.0.0.1
+  host: 127.0.0.2
   port: 8084
 
 galley:
-  host: 127.0.0.1
+  host: 127.0.0.2
   port: 8085
 
 gundeck:
-  host: 127.0.0.1
+  host: 127.0.0.2
   port: 8086
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
@@ -85,11 +85,11 @@ emailSMS:
       forgot: https://wire.com/forgot/
       support: https://support.wire.com/
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
-    smsActivationUrl: http://127.0.0.1:8080/v/${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
-    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
+    activationUrl: http://127.0.0.2:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.2:8080/v/${code}
+    passwordResetUrl: http://127.0.0.2:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.2:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.2:8080/users/delete?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
@@ -131,7 +131,7 @@ optSettings:
   setNexmo: test/resources/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
-  setCookieDomain: 127.0.0.1
+  setCookieDomain: 127.0.0.2
   setCookieInsecure: true
   setUserCookieRenewAge: 2
   setUserCookieLimit: 5

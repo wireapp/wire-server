@@ -77,6 +77,7 @@ function run() {
     service=$1
     instance=$2
     colour=$3
+    federation=$4
     # Check if we're on a Mac
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # Mac sed uses '-l' to set line-by-line buffering
@@ -88,14 +89,17 @@ function run() {
         echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
         UNBUFFERED=''
     fi
-    ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
-        | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+    ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${federation}${integration_file_extension}" ) || kill_all) \
+        | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}${instance}${federation}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 
 check_prerequisites
 
 run brig "" ${green}
+run brig "" ${green} "2"
+# run brig "" ${green} "3"  # in federation 3 once we need it. Lets start with just two copies
+
 run galley "" ${yellow}
 run gundeck "" ${blue}
 run cannon "" ${orange}
