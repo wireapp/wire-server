@@ -50,7 +50,8 @@ routes = do
     Doc.response 200 "Searchable status." Doc.end
   --
 
-  put "/self/searchable" (continue setSearchableH) $
+  -- UserUpdated event to contacts
+  put "/self/searchable" (continue (setSearchableH E)) $
     header "Z-User"
       .&. jsonRequest @SearchableStatus
   document "PUT" "updateSearchableStatus" $ do
@@ -111,14 +112,18 @@ isSearchableH (_ ::: u) = json <$> lift (isSearchable u)
 isSearchable :: UserId -> AppIO SearchableStatus
 isSearchable = checkIndex
 
-setSearchableH :: UserId ::: JsonRequest SearchableStatus -> Handler Response
-setSearchableH (u ::: r) = do
+-- UserUpdated event to contacts
+setSearchableH :: E -> UserId ::: JsonRequest SearchableStatus -> Handler Response
+setSearchableH E (u ::: r) = do
   s <- parseJsonBody r
-  lift (setSearchable u s)
+  -- UserUpdated event to contacts
+  lift (setSearchable E u s)
   return (setStatus status200 empty)
 
-setSearchable :: UserId -> SearchableStatus -> AppIO ()
-setSearchable u s = do
+-- UserUpdated event to contacts
+setSearchable :: E -> UserId -> SearchableStatus -> AppIO ()
+setSearchable E u s = do
   DB.updateSearchableStatus u s
-  Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
+  -- UserUpdated event to contacts
+  Intra.onUserEvent E u Nothing (searchableStatusUpdated u s)
   return ()

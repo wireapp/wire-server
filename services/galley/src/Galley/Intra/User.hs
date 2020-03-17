@@ -99,8 +99,12 @@ lookupActivatedUsers uids = do
     users = BSC.intercalate "," $ toByteString' <$> uids
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
-deleteUser :: UserId -> Galley ()
-deleteUser uid = do
+--
+-- when internal event is handled asynchronously in brig:
+--   UserDeleted event to contacts
+--   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
+deleteUser :: N -> UserId -> Galley ()
+deleteUser N uid = do
   (h, p) <- brigReq
   void $ call "brig" $
     method DELETE . host h . port p
