@@ -283,7 +283,10 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
-  delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettingsH) $
+  -- for each user with a legalhold client, via brig:
+  --   ClientRemoved event to self
+  --   UserLegalHoldDisabled event to contacts
+  delete "/teams/:tid/legalhold/settings" (continue (LegalHold.removeSettingsH N)) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @RemoveLegalHoldSettingsRequest
@@ -293,18 +296,27 @@ sitemap = do
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDeviceH) $
+  -- if user did not have legalhold client before, via brig:
+  --   LegalHoldClientRequested event to contacts of user
+  post "/teams/:tid/legalhold/:uid" (continue (LegalHold.requestDeviceH N)) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
-  delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUserH) $
+  -- via brig:
+  --   ClientRemoved event to self
+  --   UserLegalHoldDisabled event to contacts
+  delete "/teams/:tid/legalhold/:uid" (continue (LegalHold.disableForUserH N)) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. jsonRequest @DisableLegalHoldForUserRequest
       .&. accept "application" "json"
-  put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDeviceH) $
+  -- via brig:
+  --   ClientAdded event to self
+  --   UserLegalHoldEnabled event to contacts
+  --   ClientRemoved event to self, if removing old clients
+  put "/teams/:tid/legalhold/:uid/approve" (continue (LegalHold.approveDeviceH N)) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
@@ -318,7 +330,8 @@ sitemap = do
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
-  post "/bot/messages" (continue Update.postBotMessageH) $
+  -- OtrMessageAdd EdOtrMessage event to recipients
+  post "/bot/messages" (continue (Update.postBotMessageH E)) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
@@ -392,7 +405,8 @@ sitemap = do
       description "Max. number of conversations to return"
   ---
 
-  post "/conversations" (continue Create.createGroupConversationH) $
+  -- ConvCreate EdConversation event to members
+  post "/conversations" (continue (Create.createGroupConversationH E)) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -415,7 +429,8 @@ sitemap = do
     response 201 "Conversation created" end
   ---
 
-  post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
+  -- ConvCreate EdConversation event to members
+  post "/conversations/one2one" (continue (Create.createOne2OneConversationH E)) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvUnmanaged
@@ -428,7 +443,8 @@ sitemap = do
     errorResponse Error.noManagedTeamConv
   ---
 
-  put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
+  -- ConvRename EdConvRename event to members
+  put "/conversations/:cnv/name" (continue (Update.updateConversationNameH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -443,7 +459,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
+  -- ConvRename EdConvRename event to members
+  put "/conversations/:cnv" (continue (Update.updateConversationDeprecatedH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -458,7 +475,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
+  -- MemberJoin EdMembersJoin event to members
+  post "/conversations/:cnv/join" (continue (Update.joinConversationByIdH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -480,7 +498,8 @@ sitemap = do
     body (ref Model.conversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
-  post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $
+  -- MemberJoin EdMembersJoin event to members
+  post "/conversations/join" (continue (Update.joinConversationByReusableCodeH E)) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @ConversationCode
@@ -495,7 +514,8 @@ sitemap = do
     errorResponse Error.tooManyMembers
   ---
 
-  post "/conversations/:cnv/code" (continue Update.addCodeH) $
+  -- ConvCodeUpdate EdConvCodeUpdate event to members, if code didn't exist before
+  post "/conversations/:cnv/code" (continue (Update.addCodeH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -511,7 +531,8 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  delete "/conversations/:cnv/code" (continue Update.rmCodeH) $
+  -- ConvCodeDelete event to members
+  delete "/conversations/:cnv/code" (continue (Update.rmCodeH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -538,7 +559,9 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
-  put "/conversations/:cnv/access" (continue Update.updateConversationAccessH) $
+  -- MemberLeave EdMembersLeave event to members, if members get removed
+  -- ConvAccessUpdate EdConvAccessUpdate event to members
+  put "/conversations/:cnv/access" (continue (Update.updateConversationAccessH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -560,7 +583,8 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  put "/conversations/:cnv/receipt-mode" (continue Update.updateConversationReceiptModeH) $
+  -- ConvReceiptModeUpdate EdConvReceiptModeUpdate event to members
+  put "/conversations/:cnv/receipt-mode" (continue (Update.updateConversationReceiptModeH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -579,7 +603,8 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
-  put "/conversations/:cnv/message-timer" (continue Update.updateConversationMessageTimerH) $
+  -- ConvMessageTimerUpdate EdConvMessageTimerUpdate event to members
+  put "/conversations/:cnv/message-timer" (continue (Update.updateConversationMessageTimerH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -600,7 +625,8 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
-  post "/conversations/:cnv/members" (continue Update.addMembersH) $
+  -- MemberJoin EdMembersJoin event to members
+  post "/conversations/:cnv/members" (continue (Update.addMembersH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -631,7 +657,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/self" (continue Update.updateSelfMemberH) $
+  -- MemberStateUpdate EdMemberUpdate event to self
+  put "/conversations/:cnv/self" (continue (Update.updateSelfMemberH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -646,7 +673,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
+  -- MemberStateUpdate EdMemberUpdate event to members
+  put "/conversations/:cnv/members/:usr" (continue (Update.updateOtherMemberH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -666,7 +694,8 @@ sitemap = do
     errorResponse Error.invalidTargetUserOp
   ---
 
-  post "/conversations/:cnv/typing" (continue Update.isTypingH) $
+  -- Typing EdTyping event to members
+  post "/conversations/:cnv/typing" (continue (Update.isTypingH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -680,7 +709,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
+  -- MemberLeave EdMembersLeave event to members
+  delete "/conversations/:cnv/members/:usr" (continue (Update.removeMemberH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -698,7 +728,8 @@ sitemap = do
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
   ---
 
-  post "/broadcast/otr/messages" (continue Update.postOtrBroadcastH) $
+  -- MemberLeave EdMembersLeave event to members
+  post "/broadcast/otr/messages" (continue (Update.postOtrBroadcastH E)) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -717,7 +748,8 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/broadcast/otr/messages" (continue Update.postProtoOtrBroadcastH) $
+  -- OtrMessageAdd EdOtrMessage event to recipients
+  post "/broadcast/otr/messages" (continue (Update.postProtoOtrBroadcastH E)) $
     zauthUserId
       .&. zauthConnId
       .&. def OtrReportAllMissing filterMissing
@@ -749,7 +781,8 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
+  -- OtrMessageAdd EdOtrMessage event to recipients
+  post "/conversations/:cnv/otr/messages" (continue (Update.postOtrMessageH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -782,7 +815,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
-  post "/conversations/:cnv/otr/messages" (continue Update.postProtoOtrMessageH) $
+  -- OtrMessageAdd EdOtrMessage event to recipients
+  post "/conversations/:cnv/otr/messages" (continue (Update.postProtoOtrMessageH E)) $
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
@@ -850,22 +884,32 @@ sitemap = do
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
     capture "cnv"
       .&. capture "usr"
-  post "/i/conversations/managed" (continue Create.internalCreateManagedConversationH) $
+  -- ConvCreate EdConversation event to members
+  post "/i/conversations/managed" (continue (Create.internalCreateManagedConversationH E)) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
+  -- if conversation did not exist before:
+  --   ConvCreate EdConversation event to self
+  --   ConvConnect EdConnect event to self
+  -- if conversation existed, but other didn't join/accept yet;
+  --   ConvConnect EdConnect event to self
+  post "/i/conversations/connect" (continue (Create.createConnectConversationH E)) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @Connect
-  put "/i/conversations/:cnv/accept/v2" (continue Update.acceptConvH) $
+  -- MemberJoin EdMembersJoin event to you, if the conversation existed and had < 2 members before
+  -- MemberJoin EdMembersJoin event to other, if the conversation existed and only the other already was member before
+  put "/i/conversations/:cnv/accept/v2" (continue (Update.acceptConvH E)) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
   put "/i/conversations/:cnv/block" (continue Update.blockConvH) $
     zauthUserId
       .&. capture "cnv"
-  put "/i/conversations/:cnv/unblock" (continue Update.unblockConvH) $
+  -- MemberJoin EdMembersJoin event to you
+  -- MemberJoin EdMembersJoin event to other, if other was already member
+  put "/i/conversations/:cnv/unblock" (continue (Update.unblockConvH E)) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
@@ -936,17 +980,20 @@ sitemap = do
   delete "/i/clients/:client" (continue Clients.rmClientH) $
     zauthUserId
       .&. capture "client"
-  delete "/i/user" (continue Internal.rmUserH) $
+  -- MemberLeave EdMembersLeave event to members for all conversations the user was in
+  delete "/i/user" (continue (Internal.rmUserH E)) $
     zauthUserId .&. opt zauthConnId
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
   delete "/i/services" (continue Update.rmServiceH) $
     jsonRequest @ServiceRef
-  post "/i/bots" (continue Update.addBotH) $
+  -- MemberJoin EdMembersJoin event to members
+  post "/i/bots" (continue (Update.addBotH E)) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @AddBot
-  delete "/i/bots" (continue Update.rmBotH) $
+  -- MemberLeave EdMembersLeave event to members
+  delete "/i/bots" (continue (Update.rmBotH E)) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @RemoveBot

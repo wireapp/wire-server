@@ -45,8 +45,11 @@ lookupClients uids = do
   return $ filterClients (not . Set.null) clients
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
-notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
-notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
+--
+-- via brig:
+--   LegalHoldClientRequested event to contacts
+notifyClientsAboutLegalHoldRequest :: N -> UserId -> UserId -> LastPrekey -> Galley ()
+notifyClientsAboutLegalHoldRequest N requesterUid targetUid lastPrekey' = do
   (brigHost, brigPort) <- brigReq
   void . call "brig" $
     method POST
@@ -76,9 +79,14 @@ getLegalHoldAuthToken uid pw = do
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
 -- | Calls 'Brig.API.addClientInternalH'.
-addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
-addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-  clientId <$> brigAddClient uid connId lhClient
+--
+-- via brig:
+--   ClientAdded event to self
+--   UserLegalHoldEnabled event to contacts
+--   ClientRemoved event to self, if removing old clients
+addLegalHoldClientToUser :: N -> UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
+addLegalHoldClientToUser N uid connId prekeys lastPrekey' = do
+  clientId <$> brigAddClient N uid connId lhClient
   where
     lhClient =
       NewClient
@@ -92,8 +100,12 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
-removeLegalHoldClientFromUser :: UserId -> Galley ()
-removeLegalHoldClientFromUser targetUid = do
+--
+-- via brig:
+--   ClientRemoved event to self
+--   UserLegalHoldDisabled event to contacts
+removeLegalHoldClientFromUser :: N -> UserId -> Galley ()
+removeLegalHoldClientFromUser N targetUid = do
   (brigHost, brigPort) <- brigReq
   void . call "brig" $
     method DELETE
@@ -104,8 +116,12 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
-brigAddClient uid connId client = do
+--
+-- via brig:
+--   ClientAdded event to self, if client type is legalhold
+--   UserLegalHoldEnabled event to contacts
+brigAddClient :: N -> UserId -> ConnId -> NewClient -> Galley Client
+brigAddClient N uid connId client = do
   (brigHost, brigPort) <- brigReq
   r <-
     call "brig" $

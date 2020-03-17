@@ -31,12 +31,14 @@ import Network.Wai.Predicate hiding (err, result)
 import Network.Wai.Utilities
 import System.Logger.Class
 
-rmUserH :: UserId ::: Maybe ConnId -> Galley Response
-rmUserH (user ::: conn) = do
-  empty <$ rmUser user conn
+-- MemberLeave EdMembersLeave event to members of all conversations the user was in
+rmUserH :: E -> UserId ::: Maybe ConnId -> Galley Response
+rmUserH E (user ::: conn) = do
+  empty <$ rmUser E user conn
 
-rmUser :: UserId -> Maybe ConnId -> Galley ()
-rmUser user conn = do
+-- MemberLeave EdMembersLeave event to members of all conversations the user was in
+rmUser :: E -> UserId -> Maybe ConnId -> Galley ()
+rmUser E user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
   Data.ResultSet tids <- Data.teamIdsFrom user Nothing (rcast n)
   leaveTeams tids
@@ -66,13 +68,14 @@ rmUser user conn = do
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
+              -- MemberLeave EdMembersLeave event to members
               (Intra.newPush (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
       for_
         (List1 <$> nonEmpty (catMaybes pp))
-        Intra.push
+        (Intra.push E)
       when (hasMore ids) $
         leaveConversations u =<< liftClient (nextPage ids)
 

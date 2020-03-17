@@ -142,8 +142,11 @@ permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
   Nothing -> throwM convNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
-acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
-acceptOne2One usr conv conn = case Data.convType conv of
+--
+-- MemberJoin EdMembersJoin event to you, if the conversation had < 2 members before
+-- MemberJoin EdMembersJoin event to other, if only the other already was member before
+acceptOne2One :: E -> UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
+acceptOne2One E usr conv conn = case Data.convType conv of
   One2OneConv ->
     if makeIdOpaque usr `isMember` mems
       then return conv
@@ -157,18 +160,27 @@ acceptOne2One usr conv conn = case Data.convType conv of
     _ -> do
       when (length mems > 2) $
         throwM badConvState
+      -- we know now that there is one member so far
       now <- liftIO getCurrentTime
+      -- TODO: what if we are the only member of the conversation?
+      -- Do we need to be added and send an event?
       (e, mm) <- Data.addMember now cid usr
+      -- if the other was already member, it's a complete One2OneConv now
       conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+      -- members conv <> usr == usr and maybe other
       let mems' = mems <> toList mm
+      --
       for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
-        push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+        -- MemberJoin EdMembersJoin event to you
+        -- MemberJoin EdMembersJoin event to other, if other was already member
+        push1 E $ p & pushConn .~ conn & pushRoute .~ RouteDirect
       return $ conv' {Data.convMembers = mems'}
   _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
     cid = Data.convId conv
     mems = Data.convMembers conv
     promote = do
+      -- updates connection type to One2OneConv
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
     badConvState =

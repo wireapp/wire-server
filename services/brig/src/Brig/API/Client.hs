@@ -79,18 +79,25 @@ lookupLocalClients = Data.lookupClients
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
-addClient u con ip new = do
+--
+-- ClientAdded event to self
+-- UserLegalHoldEnabled event to contacts, if client is legalhold
+-- ClientRemoved event to self, if removing old clients
+addClient :: E -> UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
+addClient E u con ip new = do
   acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound (makeIdOpaque u))) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
   let usr = accountUser acc
   lift $ do
-    for_ old $ execDelete u con
+    -- ClientRemoved event to self, if removing old clients
+    for_ old $ execDelete E u con
     Intra.newClient u (clientId clt)
-    Intra.onClientEvent u con (ClientAdded u clt)
-    when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
+    -- ClientAdded event to self
+    Intra.onClientEvent E u con (ClientAdded u clt)
+    -- UserLegalHoldEnabled event to contacts, if client is legalhold
+    when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent E u con (UserLegalHoldEnabled u)
     when (count > 1)
       $ for_ (userEmail usr)
       $ \email ->
@@ -110,8 +117,10 @@ updateClient u c r = do
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError AppIO ()
-rmClient u con clt pw =
+--
+-- ClientRemoved event to self
+rmClient :: E -> UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError AppIO ()
+rmClient E u con clt pw =
   maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
   where
     fn client = do
@@ -122,7 +131,8 @@ rmClient u con clt pw =
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
-      lift $ execDelete u (Just con) client
+      -- ClientRemoved event to self
+      lift $ execDelete E u (Just con) client
 
 claimPrekey :: MappedOrLocalId Id.U -> ClientId -> AppIO (Maybe ClientPrekey)
 claimPrekey u c = case u of
@@ -183,11 +193,14 @@ claimLocalPrekeyBundles = foldMap getChunk . fmap Map.fromList . chunksOf 16
 -- Utilities
 
 -- | Perform an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> AppIO ()
-execDelete u con c = do
+--
+-- ClientRemoved event to self
+execDelete :: E -> UserId -> Maybe ConnId -> Client -> AppIO ()
+execDelete E u con c = do
   Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> Auth.revokeCookies u [] [l]
-  Intra.onClientEvent u con (ClientRemoved u c)
+  -- ClientRemoved event to self
+  Intra.onClientEvent E u con (ClientRemoved u c)
   Data.rmClient u (clientId c)
 
 -- | Defensive measure when no prekey is found for a
@@ -216,9 +229,11 @@ pubClient c =
       pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> AppIO ()
-legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  Intra.onUserEvent targetUser Nothing lhClientEvent
+-- LegalHoldClientRequested event to contacts
+legalHoldClientRequested :: E -> UserId -> LegalHoldClientRequest -> AppIO ()
+legalHoldClientRequested E targetUser (LegalHoldClientRequest _requester lastPrekey') =
+  -- LegalHoldClientRequested event to contacts
+  Intra.onUserEvent E targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
@@ -227,11 +242,15 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient :: UserId -> AppIO ()
-removeLegalHoldClient uid = do
+-- ClientRemoved event to self
+-- UserLegalHoldDisabled event to contacts
+removeLegalHoldClient :: E -> UserId -> AppIO ()
+removeLegalHoldClient E uid = do
   clients <- Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case
-  forM_ legalHoldClients (execDelete uid Nothing)
-  Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+  -- ClientRemoved event to self
+  forM_ legalHoldClients (execDelete E uid Nothing)
+  -- UserLegalHoldDisabled event to contacts
+  Intra.onUserEvent E uid Nothing (UserLegalHoldDisabled uid)
