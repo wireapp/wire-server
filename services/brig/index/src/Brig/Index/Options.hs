@@ -26,7 +26,7 @@ import Control.Lens
 import Data.ByteString.Lens
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import Options.Applicative
 import URI.ByteString

@@ -8,7 +8,7 @@ import Data.Aeson
 import Data.Handle
 import Data.Id
 import Data.UUID
-import Database.V5.Bloodhound.Internal.Client
+import Database.Bloodhound.Internal.Client
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

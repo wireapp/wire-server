@@ -10,6 +10,7 @@ module Brig.User.Search.Index
 
     -- * Queries
     searchIndex,
+    teamSize,
 
     -- * Updates
     reindex,
@@ -23,7 +24,7 @@ module Brig.User.Search.Index
     refreshIndex,
     updateMapping,
 
-    -- * exported for testin gonly
+    -- * exported for testing only
     userDoc,
 
     -- * Re-exports
@@ -36,6 +37,7 @@ where
 import Brig.Data.Instances ()
 import Brig.Types.Intra
 import Brig.Types.Search
+import Brig.Types.Team (TeamSize (..))
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
@@ -57,7 +59,7 @@ import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import qualified Data.UUID as UUID
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
@@ -120,6 +122,21 @@ instance ES.MonadBH IndexIO where
 
 --------------------------------------------------------------------------------
 -- Queries
+
+teamSize :: MonadIndexIO m => TeamId -> m TeamSize
+teamSize t = liftIndexIO $ do
+  indexName <- asks idxName
+  countResEither <- ES.countByIndex indexName (ES.CountQuery $ query)
+  countRes <- either (throwM . IndexLookupError) (pure) countResEither
+  pure . TeamSize $ ES.crCount countRes
+  where
+    query =
+      ES.TermQuery
+        ES.Term
+          { ES.termField = "team_id",
+            ES.termValue = idToText t
+          }
+        Nothing
 
 searchIndex ::
   MonadIndexIO m =>

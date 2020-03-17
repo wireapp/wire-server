@@ -91,7 +91,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL

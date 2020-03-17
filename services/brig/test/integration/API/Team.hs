@@ -1,5 +1,6 @@
 module API.Team (tests) where
 
+import qualified API.Search.Util as SearchUtil
 import API.Team.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
@@ -40,8 +41,7 @@ tests conf m b c g aws = do
   return $
     testGroup
       "team"
-      [ testGroup
-          "invitation"
+      [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b g,
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b g,
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl,
@@ -65,13 +65,23 @@ tests conf m b c g aws = do
             test m "delete /self - 200 (ensure no orphan teams)" $ testDeleteTeamUser b g,
             test m "post /connections - 403 (same binding team)" $ testConnectionSameTeam b g
           ],
-        testGroup
-          "sso"
+        testGroup "sso" $
           [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
             test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
             test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
-          ]
+          ],
+        testGroup "size" $ [test m "post /i/teams/:tid/size" $ testTeamSize b g]
       ]
+
+testTeamSize :: Brig -> Galley -> Http ()
+testTeamSize brig galley = do
+  (tid, _, _) <- createPopulatedBindingTeam brig galley 10
+  SearchUtil.refreshIndex brig
+  void $
+    get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+      const 200 === statusCode
+      -- 10 Team Members and an admin
+      (const . Right $ TeamSize 11) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Invitation Tests

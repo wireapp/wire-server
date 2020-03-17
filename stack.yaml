@@ -64,6 +64,8 @@ extra-deps:
   commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6  # master (Mar 27, 2020)
 - ormolu-0.0.3.1
 - ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408  # for ormolu-0.0.3.1
+- git: https://github.com/wireapp/bloodhound
+  commit: 4cbc40057c75b5509bd3025205557860d05c2472
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -135,7 +137,6 @@ extra-deps:
   - http-conduit
 
 # Dropped from upstream snapshot
-- bloodhound-0.16.0.0
 - template-0.2.0.10
 - HaskellNet-0.5.1
 - HaskellNet-SSL-0.3.4.1
