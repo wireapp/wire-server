@@ -78,8 +78,8 @@ main = withOpenSSL $ runTests go
       let c = mkRequest (cannon iConf)
       let federatedBrig1' = mkRequest (federatedBrig1 iConf)
       let federatedBrig2' = mkRequest (federatedBrig2 iConf)
-      let federatedBackend1' = mkRequest (federatedBackend1 iConf)
-      let federatedBackend2' = mkRequest (federatedBackend2 iConf)
+      let federator1' = mkRequest (federator1 iConf)
+      let federator2' = mkRequest (federator2 iConf)
       let q = queueName gConf
       let e = endpoint gConf
       let convMaxSize = maxSize gConf
@@ -91,7 +91,7 @@ main = withOpenSSL $ runTests go
       let ck = gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup gConf iConf m g b c awsEnv convMaxSize db federatedBrig1' federatedBrig2' federatedBackend1' federatedBackend2'
+      return $ TestSetup gConf iConf m g b c awsEnv convMaxSize db federatedBrig1' federatedBrig2' federator1' federator2'
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)

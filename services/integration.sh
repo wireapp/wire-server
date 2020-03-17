@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz|federator"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
@@ -106,7 +106,10 @@ run cannon "" ${orange}
 run cannon "2" ${orange}
 run cargohold "" ${purpleish}
 run spar "" ${orange}
+
 run federator "" ${blue}
+run federator "" ${blue} "2"
+# run federator "" ${blue} "3"  Federation 3 once we need it. Lets start with just two copies
 
 function run_nginz() {
     colour=$1
@@ -138,7 +141,7 @@ fi
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
-    for port in $(seq 8082 8086) 8088 $NGINZ_PORT; do
+    for port in $(seq 8082 8086) 8088 $NGINZ_PORT 8097; do
         ( curl --write-out '%{http_code}' --silent --output /dev/null http://localhost:"$port"/i/status \
                 | grep -q '^20[04]' ) \
             || export all_services_are_up=""

@@ -51,8 +51,8 @@ data IntegrationConfig
         provider :: LegalHoldConfig,
         federatedBrig1 :: Endpoint, -- An escape hatch into brig on the other side. Dirty. to create users!
         federatedBrig2 :: Endpoint, -- An escape hatch into brig on the other side. Dirty. to create users!
-        federatedBackend1 :: Endpoint, -- A backend that we federate with
-        federatedBackend2 :: Endpoint -- another backend that we federate with
+        federator1 :: Endpoint, -- A backend that we federate with
+        federator2 :: Endpoint -- another backend that we federate with
       }
   deriving (Show, Generic)
 

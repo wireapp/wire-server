@@ -8,9 +8,18 @@ brig:
 federatedBrig1:
   host: 127.0.0.2
   port: 8082
+
 federatedBrig2:
   host: 127.0.0.3
   port: 8082
+
+federator1:
+  host: 127.0.02
+  port: 8097
+
+federator2:
+  host: 127.0.03
+  port: 8097
 
 cannon:
   host: 127.0.0.1
