@@ -11,8 +11,8 @@ module TestSetup
     tsBrig,
     tsFederatedBrig1,
     tsFederatedBrig2,
-    tsFederatedBackend1,
-    tsFederatedBackend2,
+    tsFederator1,
+    tsFederator2,
     tsCannon,
     tsAwsEnv,
     tsMaxConvSize,
@@ -84,8 +84,8 @@ data TestSetup
         _tsCass :: Cql.ClientState,
         _tsFederatedBrig1 :: BrigR,
         _tsFederatedBrig2 :: BrigR,
-        _tsFederatedBackend1 :: Request -> Request,
-        _tsFederatedBackend2 :: Request -> Request
+        _tsFederator1 :: Request -> Request,
+        _tsFederator2 :: Request -> Request
       }
 
 makeLenses ''TestSetup
