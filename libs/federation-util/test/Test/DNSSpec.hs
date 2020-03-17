@@ -43,19 +43,19 @@ spec = do
       length y `shouldSatisfy` (< 49)
   describe "srvLookup" $ do
     it "returns the expected result for wire.com" $ do
-      rs <- makeResolvSeed defaultResolvConf
+      rs <- makeResolvSeed defaultResolvConf { resolvInfo = RCHostName "127.0.0.1" }
       wire <- srvLookup'' mockLookupSRV "_wire-server" "wire.com" rs
       wire `shouldBe` Just [("wire.com", 443)]
     it "filters out single '.' results" $ do
-      rs <- makeResolvSeed defaultResolvConf
+      rs <- makeResolvSeed defaultResolvConf { resolvInfo = RCHostName "127.0.0.1" }
       exampleDotCom <- srvLookup'' mockLookupSRV "_wire-server" "example.com" rs
       exampleDotCom `shouldBe` Nothing
     it "can return multiple results" $ do
-      rs <- makeResolvSeed defaultResolvConf
+      rs <- makeResolvSeed defaultResolvConf { resolvInfo = RCHostName "127.0.0.1" }
       zinfra <- srvLookup'' mockLookupSRV "_wire-server" "zinfra.io" rs
       (length <$> zinfra) `shouldBe` Just 2
     it "returns Nothing if there is no DNS record" $ do
-      rs <- makeResolvSeed defaultResolvConf
+      rs <- makeResolvSeed defaultResolvConf { resolvInfo = RCHostName "127.0.0.1" }
       noRecord <- srvLookup'' mockLookupSRV "_wire-server" "no-record-here" rs
       noRecord `shouldBe` Nothing
 
