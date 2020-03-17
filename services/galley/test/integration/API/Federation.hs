@@ -2,9 +2,9 @@ module API.Federation where
 
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit
+-- import Test.Tasty.HUnit
 import TestHelpers (test)
-import TestSetup (TestM, TestSetup, tsCannon, tsGConf, tsGalley)
+import TestSetup (TestM, TestSetup) -- tsCannon, tsGConf, tsGalley)
 
 tests :: IO TestSetup -> TestTree
 tests s =
