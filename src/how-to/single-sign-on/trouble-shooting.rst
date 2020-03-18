@@ -21,3 +21,11 @@ that contains a lot of machine-readable info.
 
 With all this information, please get in touch with our customer
 support.
+
+
+Firewall settings
+-----------------
+
+There is nothing to be done here.  There is no internet traffic
+between your SAML IdP and the wire service.  All communication happens
+via the browser or app.
