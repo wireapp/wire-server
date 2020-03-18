@@ -124,14 +124,13 @@ searchIndex ::
   MonadIndexIO m =>
   -- | The user performing the search.
   UserId ->
-  -- | The teamId of the user performing the search.
-  Maybe TeamId ->
+  TeamSearchInfo ->
   -- | The search query
   Text ->
   -- | The maximum number of results.
   Range 1 100 Int32 ->
   m (SearchResult Contact)
-searchIndex u t q = queryIndex (defaultUserQuery u t q)
+searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
 -- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
 -- ~~~~~~~~~~~~~~~~~
@@ -168,8 +167,8 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
-defaultUserQuery :: UserId -> Maybe TeamId -> Text -> IndexQuery Contact
-defaultUserQuery u t (normalized -> term') =
+defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
+defaultUserQuery u teamSearchInfo (normalized -> term') =
   let matchPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
@@ -211,10 +210,10 @@ defaultUserQuery u t (normalized -> term') =
               ES.negativeQuery = matchNonTeamMemberUsers,
               ES.negativeBoost = ES.Boost 0.1
             }
-   in mkUserQuery u t queryWithBoost
+   in mkUserQuery u teamSearchInfo queryWithBoost
 
-mkUserQuery :: UserId -> Maybe TeamId -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) t q =
+mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
+mkUserQuery (review _TextId -> self) teamSearchInfo q =
   IndexQuery q
     $ ES.Filter . ES.QueryBoolQuery
     $ boolQuery
@@ -222,7 +221,7 @@ mkUserQuery (review _TextId -> self) t q =
           [ termQ "suspended" "1", -- [Note: suspended]
             termQ "_id" self
           ],
-        ES.boolQueryMustMatch = [optionallySearchWithinTeam t]
+        ES.boolQueryMustMatch = [optionallySearchWithinTeam teamSearchInfo]
       }
   where
     termQ f v =
@@ -236,19 +235,21 @@ mkUserQuery (review _TextId -> self) t q =
 -- | This query will make sure that: if teamId is absent, only users without a teamId are
 -- returned.  if teamId is present, only users with the *same* teamId or users without a
 -- teamId are returned.
-optionallySearchWithinTeam :: Maybe TeamId -> ES.Query
+optionallySearchWithinTeam :: TeamSearchInfo -> ES.Query
 optionallySearchWithinTeam =
-  maybe
-    matchNonTeamMemberUsers
-    ( \teamId ->
-        ES.QueryBoolQuery
-          boolQuery
-            { ES.boolQueryShouldMatch =
-                [ matchTeamMembersOf teamId,
-                  matchNonTeamMemberUsers
-                ]
-            }
-    )
+  \case
+    NoTeam ->
+      matchNonTeamMemberUsers
+    TeamOnly teamId ->
+      matchTeamMembersOf teamId
+    TeamAndNonMembers teamId ->
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryShouldMatch =
+              [ matchTeamMembersOf teamId,
+                matchNonTeamMemberUsers
+              ]
+          }
   where
     matchTeamMembersOf team = ES.TermQuery (ES.Term "team_id" $ idToText team) Nothing
 

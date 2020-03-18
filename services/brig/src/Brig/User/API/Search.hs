@@ -3,9 +3,11 @@ module Brig.User.API.Search (routes) where
 import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
-import Brig.Types.Search
+import qualified Brig.Options as Opts
+import Brig.Types.Search as Search
 import qualified Brig.Types.Swagger as Doc
 import Brig.User.Search.Index
+import Control.Lens (view)
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -55,4 +57,12 @@ searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
 search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
 search searcherId searchTerm maxResults = do
   searcherTeamId <- DB.lookupUserTeam searcherId
-  searchIndex searcherId searcherTeamId searchTerm maxResults
+  sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
+  let teamSearchInfo =
+        case searcherTeamId of
+          Nothing -> Search.NoTeam
+          Just t ->
+            if sameTeamSearchOnly
+              then Search.TeamOnly t
+              else Search.TeamAndNonMembers t
+  searchIndex searcherId teamSearchInfo searchTerm maxResults

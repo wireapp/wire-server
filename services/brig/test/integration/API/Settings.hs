@@ -6,7 +6,7 @@ import Bilge.Assert
 import Brig.Options (Opts)
 import qualified Brig.Options as Opt
 import Brig.Run (mkApp)
-import Brig.Types
+import Brig.Types (Email (..), User (..), userEmail)
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.Aeson

@@ -26,6 +26,14 @@ data Contact
       }
   deriving (Show)
 
+data TeamSearchInfo
+  = -- | When searching user is not part of a team.
+    NoTeam
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
+    TeamOnly TeamId
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
+    TeamAndNonMembers TeamId
+
 instance ToJSON a => ToJSON (SearchResult a) where
   toJSON r =
     object

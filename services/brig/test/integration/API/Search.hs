@@ -3,9 +3,11 @@ module API.Search (tests) where
 import API.Search.Util
 import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWithNames)
 import Bilge
+import qualified Brig.Options as Opt
 import Brig.Types
-import Data.List (elemIndex)
+import Control.Lens ((.~))
 import Data.Handle (fromHandle)
+import Data.List (elemIndex)
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty
@@ -13,21 +15,21 @@ import Test.Tasty.HUnit
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 
-tests :: Manager -> Galley -> Brig -> IO TestTree
-tests mgr galley brig =
+tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
+tests opts mgr galley brig =
   return $
     testGroup
       "search"
       [ test mgr "by-name" $ testSearchByName brig,
         test mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
-        testGroup
-          "team-members"
+        testGroup "team-members" $
           [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
             test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
             test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
-            test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMemeber galley brig
+            test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMemeber galley brig,
+            test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
           ]
       ]
 
@@ -116,3 +118,12 @@ testSearchOrderingAsTeamMemeber galley brig = do
       (Just nonTeamSearcheeIndex) = elemIndex (userId nonTeamSearchee) resultUserIds
       (Just teamSearcheeIndex) = elemIndex (userId teamSearchee) resultUserIds
   liftIO $ assertBool "teammate is not ordered before non teammate" (nonTeamSearcheeIndex > teamSearcheeIndex)
+
+testSearchSameTeamOnly :: Opt.Opts -> Galley -> Brig -> Http ()
+testSearchSameTeamOnly opts galley brig = do
+  nonTeamMember <- randomUser brig
+  (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
+  refreshIndex brig
+  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
+  withSettingsOverrides newOpts $ do
+    assertCan'tFind brig (userId teamMember) (userId nonTeamMember) (fromName (userName nonTeamMember))
