@@ -441,7 +441,11 @@ data Settings
         setDeleteThrottleMillis :: !(Maybe Int),
         -- | When true, search only
         -- returns users from the same team
-        setSearchSameTeamOnly :: !(Maybe Bool)
+        setSearchSameTeamOnly :: !(Maybe Bool),
+        -- | When false, assume there are no other backends and IDs are always local.
+        -- This means we don't run any queries on federation-related tables and don't
+        -- make any calls to the federator service.
+        setEnableFederation :: !(Maybe Bool)
       }
   deriving (Show, Generic)
 
@@ -456,6 +460,9 @@ defDeleteThrottleMillis = 100
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
+
+defEnableFederation :: Bool
+defEnableFederation = False
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
@@ -483,3 +490,5 @@ Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Setting
 Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
 
 Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
+
+Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings

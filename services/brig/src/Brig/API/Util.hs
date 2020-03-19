@@ -1,8 +1,11 @@
 module Brig.API.Util where
 
 import Brig.API.Handler
+import Brig.App (Env, settings)
 import qualified Brig.Data.User as Data
+import Brig.Options (defEnableFederation, enableFederation)
 import Brig.Types
+import Control.Lens (view)
 import Control.Monad
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
@@ -19,7 +22,13 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
 -- FUTUREWORK(federation): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: Monad m => OpaqueUserId -> m (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) =
-  -- FUTUREWORK(federation): implement database lookup
-  pure . Local $ Id opaque
+resolveOpaqueUserId :: MonadReader Env m => OpaqueUserId -> m (MappedOrLocalId Id.U)
+resolveOpaqueUserId (Id opaque) = do
+  mEnabled <- view (settings . enableFederation)
+  case fromMaybe defEnableFederation mEnabled of
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation): implement database lookup
+      pure . Local $ Id opaque

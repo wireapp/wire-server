@@ -25,6 +25,10 @@ data Settings
         _setConcurrentDeletionEvents :: !(Maybe Int),
         -- | Throttling: delay between sending events upon team deletion
         _setDeleteConvThrottleMillis :: !(Maybe Int),
+        -- | When false, assume there are no other backends and IDs are always local.
+        -- This means we don't run any queries on federation-related tables and don't
+        -- make any calls to the federator service.
+        _setEnableFederation :: !(Maybe Bool),
         _setFeatureFlags :: !FeatureFlags
       }
   deriving (Show, Generic)
@@ -38,6 +42,9 @@ defConcurrentDeletionEvents = 128
 
 defDeleteConvThrottleMillis :: Int
 defDeleteConvThrottleMillis = 20
+
+defEnableFederation :: Bool
+defEnableFederation = False
 
 data JournalOpts
   = JournalOpts

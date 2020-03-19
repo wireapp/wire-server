@@ -2,7 +2,10 @@
 
 module Galley.Types.Swagger where
 
+import Data.Aeson (encode)
+import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api as Swagger
+import Galley.Types (Access)
 import Imports
 import qualified Wire.Swagger as Swagger
 
@@ -293,8 +296,13 @@ conversationUpdateName = defineModel "ConversationUpdateName" $ do
 conversationAccessUpdate :: Model
 conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
   description "Contains conversation properties to update"
-  property "access" (unique $ array bytes') $
-    description "List of conversation access modes: []|[invite]|[invite,code]"
+  property "access" (unique $ array access) $
+    description "List of conversation access modes."
+  property "access_role" (bytes') $
+    description "Conversation access role: private|team|activated|non_activated"
+
+access :: DataType
+access = string . enum $ cs . encode <$> [(minBound :: Access) ..]
 
 conversationReceiptModeUpdate :: Model
 conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do

@@ -1,3 +1,40 @@
+# 2020-03-10
+
+## New features
+
+- Remove autoconnect functionality; deprecate end-point. (#1005)
+- Email visible to all users in same team (#999)
+
+## Bug fixes
+
+- fix nginx permissions in docker image (#985)
+
+## Significant internal changes
+
+- Update nginx to latest stable (#725)
+
+## Internal Changes
+
+- ormolu.sh: make queries for options more robust (#1009)
+- Run hscim azure tests (#941)
+- move FUTUREWORK(federation) comment to right place
+- stack snapshot 3.0. (#1004, works around 8697b57609b523905641f943d68bbbe18de110e8)
+- Fix .gitignore shenanigans in Nix (#1002)
+- Update types of some galley endpoints to be federation-aware (#1001)
+- Cleanup (#1000)
+- Compile nginx with libzauth using nix (#988)
+- Move and create federation-related types (#997)
+- Tweak ormolu script. (#998)
+- Give handlers in gundeck, cannon stronger types (#990)
+- Rename cassandra-schema.txt to cassandra-schema.cql (#992)
+- Ignore dist-newstyle (#991)
+- Refactor: separate HTTP handlers from app logic (galley) (#989)
+- Mock federator (#986)
+- Eliminate more CPP (#987)
+- Cleanup compiler warnings (#984)
+- Make ormolu available in builder (#983)
+
+
 # 2020-02-27
 
 ## Hotfix
