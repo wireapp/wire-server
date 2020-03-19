@@ -12,7 +12,7 @@ team with SAML single-sign-on.
    Instructions for Centrify <./centrify/main.rst>
    Instructions for Azure <./azure/main.rst>
    Generic instructions (try this if none of the above are applicable) <./generic-setup.rst>
-   Trouble shooting: collect debug information for customer support <./trouble-shooting.rst>
+   Trouble shooting & FAQ <./trouble-shooting.rst>
 
 See also: `SSO-related documentation for your users
 <https://support.wire.com/hc/en-us/categories/360000248538?section=administration>`_
