@@ -1,3 +1,15 @@
+# [fragments that must make it into the notes for next release]
+
+
+
+## Upgrade steps (IMPORTANT)
+
+1. Update mapping in ElasticSearch (see ./docs/reference/elastic-search.md)
+2. Do upgrade brig and the other services as usual
+3. Refill ElasticSearch documents from Cassandra (see ./docs/reference/elastic-search.md)
+
+
+
 # 2020-03-10
 
 ## New features
