@@ -247,6 +247,11 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     Data.deleteIdPRawMetadata idpid
   return NoContent
 
+-- | This handler only does the json parsing, and leaves all authorization checks and
+-- application logic to 'idpCreateXML'.
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
+idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
+
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
 idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
@@ -256,29 +261,6 @@ idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   pure idp
-
--- | This handler only does the json parsing, and leaves all authorization checks and
--- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
-
-withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
-withDebugLog msg showval action = do
-  SAML.logger SAML.Debug $ "entering " ++ msg
-  val <- action
-  let mshowedval = showval val
-  SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
-  pure val
-
--- | Called by get, put, delete handlers.
-authorizeIdP ::
-  (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m, Galley.MonadSparToGalley m) =>
-  Maybe UserId ->
-  IdP ->
-  m ()
-authorizeIdP zusr idp = do
-  teamid <- Brig.getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 -- | Check that issuer is fresh (see longer comment in source) and request URI is https.
 --
@@ -309,6 +291,24 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
   -- creating users in victim teams.
 
   pure SAML.IdPConfig {..}
+
+withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
+withDebugLog msg showval action = do
+  SAML.logger SAML.Debug $ "entering " ++ msg
+  val <- action
+  let mshowedval = showval val
+  SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  pure val
+
+-- | Called by get, put, delete handlers.
+authorizeIdP ::
+  (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
+  Maybe UserId ->
+  IdP ->
+  m ()
+authorizeIdP zusr idp = do
+  teamid <- Brig.getZUsrOwnedTeam zusr
+  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 enforceHttps :: URI.URI -> Spar ()
 enforceHttps uri = do
