@@ -46,6 +46,7 @@ import Control.Lens
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
+import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions
@@ -99,6 +100,7 @@ apiIDP =
     :<|> idpGetRaw
     :<|> idpGetAll
     :<|> idpCreate
+    :<|> idpUpdate
     :<|> idpDelete
 
 apiINTERNAL :: ServerT APIINTERNAL Spar
@@ -209,13 +211,13 @@ ssoSettings = do
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP zusr idp
+  authorizeIdP_ zusr idp
   pure idp
 
 idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP zusr idp
+  authorizeIdP_ zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar SparNotFound
@@ -229,7 +231,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP zusr idp
+  authorizeIdP_ zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo
   -- fail if idp is not empty
@@ -280,8 +282,8 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
-  -- idp(s), either use put (not implemented), or delete the old one before creating a new one
-  -- (already works, even though it may create a brief time window in which users experience
+  -- idp(s), either use put, or delete the old one before creating a new one
+  -- (*may* already work, even though it may create a brief time window in which users experience
   -- broken login behavior).
   --
   -- rationale: the issuer is how the idp self-identifies.  we can't allow the same idp to serve
@@ -292,6 +294,47 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
 
   pure SAML.IdPConfig {..}
 
+idpUpdate :: Maybe UserId -> SAML.IdPId -> IdPMetadataInfo -> Spar IdP
+idpUpdate zusr idpid (IdPMetadataValue raw xml) = idpUpdateXML zusr idpid raw xml
+
+idpUpdateXML :: Maybe UserId -> SAML.IdPId -> Text -> SAML.IdPMetadata -> Spar IdP
+idpUpdateXML zusr idpid raw idpmeta = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
+  (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
+  Galley.assertSSOEnabled teamid
+  wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
+  SAML.storeIdPConfig idp
+  -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
+  -- structured idp config.  since this will lead to a 5xx response, the client is epected to
+  -- try again, which would clean up cassandra state.)
+  pure idp
+
+-- | Check that issuer exists and belongs to the right team and request URI is https.
+validateIdPUpdate ::
+  forall m.
+  (HasCallStack, m ~ Spar) =>
+  Maybe UserId ->
+  SAML.IdPMetadata ->
+  SAML.IdPId ->
+  m (TeamId, IdP)
+validateIdPUpdate zusr _idpMetadata _idpId = do
+  previousIdP <- wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
+    Nothing -> throwError errUnknownIdPId
+    Just idp -> pure idp
+  _idpExtraInfo <- authorizeIdP zusr previousIdP
+  unless (previousIdP ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
+    throwError errUnknownIdP
+  unless (previousIdP ^. SAML.idpMetadata . SAML.edIssuer == _idpMetadata ^. SAML.edIssuer) $
+    throwError errUnknownIdP
+  let requri = _idpMetadata ^. SAML.edRequestURI
+  enforceHttps requri
+  pure (_idpExtraInfo, SAML.IdPConfig {..})
+  where
+    errUnknownIdP = SAML.UnknownIdP $ enc uri
+      where
+        enc = cs . toLazyByteString . URI.serializeURIRef
+        uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
+    errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
+
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
   SAML.logger SAML.Debug $ "entering " ++ msg
@@ -301,14 +344,22 @@ withDebugLog msg showval action = do
   pure val
 
 -- | Called by get, put, delete handlers.
-authorizeIdP ::
+authorizeIdP_ ::
   (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
   Maybe UserId ->
   IdP ->
   m ()
+authorizeIdP_ zusr idp = void $ authorizeIdP zusr idp
+
+authorizeIdP ::
+  (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
+  Maybe UserId ->
+  IdP ->
+  m TeamId
 authorizeIdP zusr idp = do
   teamid <- Brig.getZUsrOwnedTeam zusr
   when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
+  pure teamid
 
 enforceHttps :: URI.URI -> Spar ()
 enforceHttps uri = do

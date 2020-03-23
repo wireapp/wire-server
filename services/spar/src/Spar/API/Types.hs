@@ -150,6 +150,7 @@ type APIIDP =
     :<|> Header "Z-User" UserId :> IdpGetRaw
     :<|> Header "Z-User" UserId :> IdpGetAll
     :<|> Header "Z-User" UserId :> IdpCreate
+    :<|> Header "Z-User" UserId :> IdpUpdate
     :<|> Header "Z-User" UserId :> IdpDelete
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
@@ -159,6 +160,8 @@ type IdpGet = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll = Get '[JSON] IdPList
 
 type IdpCreate = ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
+
+type IdpUpdate = Capture "id" SAML.IdPId :> ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo :> Put '[JSON] IdP
 
 type IdpDelete = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
