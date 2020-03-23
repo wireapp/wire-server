@@ -23,12 +23,14 @@ where
 import Bilge
 import Brig.Types.User
 import Control.Lens hiding ((.=))
+import Text.XML.DSig (mkSignCredsWithCert)
 import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
 import qualified Data.ByteString.Builder as LB
 import Data.ByteString.Conversion
 import Data.Id
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
@@ -605,20 +607,46 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` checkErr (== 412) "idp-has-bound-users"
         callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
-  -- there are no routes for PUT yet.
-  xdescribe "PUT /identity-providers/:idp" $ do
-    xdescribe "need to implement `callIdpGet'` for these tests" $ do
-      let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
-          callIdpPut' = undefined -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
-      testGetPutDelete callIdpPut'
+  describe "PUT /identity-providers/:idp" $ do
+    let mdinfo :: IO IdPMetadataInfo
+        mdinfo = do
+          -- @mkinfo@ is needed because put (in contrast to get, delete) requires a changed
+          -- metatadata file in the body.
+          (_, _, cert) <- mkSignCredsWithCert Nothing 96
+          let xml = IdPMetadata issuer requri (cert :| [])
+              issuer = Issuer [uri|https://idp.example.com/|]
+              requri = [uri|https://auth.example.com/|]
+          pure $ IdPMetadataValue (cs $ SAML.encode xml) xml
+    testGetPutDelete (\s u i -> callIdpUpdate' s u i =<< liftIO mdinfo)
+
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and updates IdP" $ do
-        pending
+        pendingWith "TODO/@@@"
       context "invalid body" $ do
         it "rejects" $ do
-          pending -- (only test for signature here, but make sure that the same validity tests
-          -- are performed as for POST in Spar.API.)
-    it "also works with sso-authenticated users (see above)" $ pending
+          pendingWith "TODO/@@@"
+      context "invalid signature" $ do
+        it "rejects" $ do
+          pendingWith "TODO/@@@"
+
+    describe "unknown issuer" $ do
+      it "rejects" $ do
+        pendingWith "TODO/@@@"
+    describe "issuer from other team" $ do
+      it "rejects" $ do
+        pendingWith "TODO/@@@"
+    describe "issuer and idp do not refer to the same idp" $ do
+      it "rejects" $ do
+        pendingWith "TODO/@@@"
+    describe "new request uri" $ do
+      it "uses it on next auth handshake" $ do
+        pendingWith "TODO/@@@"
+    describe "new certs" $ do
+      it "uses those certs on next auth handshake" $ do
+        pendingWith "TODO/@@@"
+      it "removes all old certs (even if there were more before)" $ do
+        pendingWith "TODO/@@@"
+
   describe "POST /identity-providers" $ do
     context "sso disabled for team" $ do
       it "responds with 403 forbidden" $ do
