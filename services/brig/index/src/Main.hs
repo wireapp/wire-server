@@ -1,8 +1,8 @@
 module Main (main) where
 
-import Eval
+import Brig.Index.Eval
+import Brig.Index.Options
 import Imports
-import Options
 import Options.Applicative
 import System.Exit
 import qualified System.Logger.Class as Log

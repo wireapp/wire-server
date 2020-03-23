@@ -17,6 +17,7 @@ module Brig.User.Search.Index
 
     -- * Administrative
     createIndex,
+    createIndexIfNotPresent,
     resetIndex,
     reindexAll,
     refreshIndex,
@@ -335,29 +336,58 @@ refreshIndex = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
 
-createIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
-createIndex s = liftIndexIO $ do
+createIndexIfNotPresent ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+createIndexIfNotPresent = createIndex' False
+
+createIndex ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+createIndex = createIndex' True
+
+createIndex' ::
+  MonadIndexIO m =>
+  -- | Fail if index alredy exists
+  Bool ->
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+createIndex' failIfExists settings shardCount = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
-  when ex $
+  when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
-  cr <- traceES "Create index" $ ES.createIndex s idx
-  unless (ES.isSuccess cr) $
-    throwM (IndexError "Index creation failed.")
-  mr <-
-    traceES "Put mapping" $
-      ES.putMapping idx (ES.MappingName "user") indexMapping
-  unless (ES.isSuccess mr) $
-    throwM (IndexError "Put Mapping failed.")
+  unless ex $ do
+    cr <- traceES "Create index" $ ES.createIndexWith settings shardCount idx
+    unless (ES.isSuccess cr) $
+      throwM (IndexError "Index creation failed.")
+    mr <-
+      traceES "Put mapping" $
+        ES.putMapping idx (ES.MappingName "user") indexMapping
+    unless (ES.isSuccess mr) $
+      throwM (IndexError "Put Mapping failed.")
 
-resetIndex :: MonadIndexIO m => ES.IndexSettings -> m ()
-resetIndex s = liftIndexIO $ do
+resetIndex ::
+  MonadIndexIO m =>
+  [ES.UpdatableIndexSetting] ->
+  -- | Number of shards
+  Int ->
+  m ()
+resetIndex settings shardCount = liftIndexIO $ do
   idx <- asks idxName
   gone <- ES.indexExists idx >>= \case
     True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
     False -> return True
   if gone
-    then createIndex s
+    then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
 
 reindexAll :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()

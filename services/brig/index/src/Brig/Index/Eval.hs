@@ -1,10 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Eval
+module Brig.Index.Eval
   ( runCommand,
   )
 where
 
+import Brig.Index.Options
 import Brig.User.Search.Index
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
@@ -15,7 +16,6 @@ import Data.Text.Strict.Lens
 import qualified Database.V5.Bloodhound as ES
 import Imports
 import Network.HTTP.Client
-import Options
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import URI.ByteString
@@ -24,10 +24,10 @@ runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es -> do
     e <- initIndex es
-    runIndexIO e (createIndex (es ^. esIndexSettings))
+    runIndexIO e $ uncurry createIndexIfNotPresent $ mkCreateIndexSettings es
   Reset es -> do
     e <- initIndex es
-    runIndexIO e (resetIndex (es ^. esIndexSettings))
+    runIndexIO e $ uncurry resetIndex $ mkCreateIndexSettings es
   Reindex es cas -> do
     e <- initIndex es
     c <- initDb cas
