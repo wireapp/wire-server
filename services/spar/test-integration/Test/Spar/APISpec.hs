@@ -479,12 +479,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "with bind cookie and two other cookies in the request" $ do
         check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
-specCRUDIdentityProvider :: SpecWith TestEnv
-specCRUDIdentityProvider = do
-  let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-      checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
-      testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
-      testGetPutDelete whichone = do
+checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
+
+testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+testGetPutDelete whichone = do
         context "unknown IdP" $ do
           it "responds with 'not found'" $ do
             env <- ask
@@ -519,11 +518,12 @@ specCRUDIdentityProvider = do
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
             whichone (env ^. teSpar) (Just newmember) idpid
               `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
-      -- Authenticate via sso, and assign owner status to the thus created user.  (This
-      -- doesn't work via the cookie, since we don't talk to nginz here, so we assume there
-      -- is only one user in the team, which is the original owner.)
-      mkSsoOwner :: UserId -> TeamId -> IdP -> TestSpar UserId
-      mkSsoOwner firstOwner tid idp = do
+
+-- Authenticate via sso, and assign owner status to the thus created user.  (This doesn't work
+-- via the cookie, since we don't talk to nginz here, so we assume there is only one user in
+-- the team, which is the original owner.)
+mkSsoOwner :: UserId -> TeamId -> IdP -> TestSpar UserId
+mkSsoOwner firstOwner tid idp = do
         spmeta <- getTestSPMetadata
         (privcreds, authnreq) <- negotiateAuthnRequest idp
         authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
@@ -532,6 +532,9 @@ specCRUDIdentityProvider = do
         [ssoOwner] <- filter (/= firstOwner) <$> getTeamMembers firstOwner tid
         promoteTeamMember firstOwner tid ssoOwner
         pure ssoOwner
+
+specCRUDIdentityProvider :: SpecWith TestEnv
+specCRUDIdentityProvider = do
   describe "GET /identity-providers/:idp" $ do
     testGetPutDelete callIdpGet'
     context "known IdP, client is team owner" $ do
