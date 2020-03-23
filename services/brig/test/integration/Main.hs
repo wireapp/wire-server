@@ -22,6 +22,7 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Imports hiding (local)
+import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
@@ -79,6 +80,7 @@ runTests iConf bConf otherArgs = do
   turnApi <- TURN.tests mg b turnFile turnFileV2
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
+  createIndex <- Index.Create.spec brigOpts
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -93,7 +95,8 @@ runTests iConf bConf otherArgs = do
         teamApis,
         turnApi,
         metricsApi,
-        settingsApi
+        settingsApi,
+        createIndex
       ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

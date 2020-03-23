@@ -130,6 +130,23 @@ library:
   - wai-utilities >=0.16
   - warp >=3.0.12.1
   - zauth >=0.10.3
+internal-libraries:
+  brig-index-lib:
+    source-dirs: index/src
+    dependencies:
+    - base
+    - brig
+    - cassandra-util >=0.12
+    - exceptions
+    - http-client
+    - lens
+    - metrics-core
+    - mtl
+    - optparse-applicative >=0.13
+    - text
+    - time
+    - types-common
+    - uri-bytestring
 executables:
   brig-schema:
     main: Main.hs
@@ -150,6 +167,7 @@ executables:
     - attoparsec
     - bilge
     - brig
+    - brig-index-lib
     - brig-types
     - bytestring >=0.9
     - cargohold-types
@@ -185,6 +203,7 @@ executables:
     - unix >=2.5
     - unliftio
     - unordered-containers
+    - uri-bytestring >=0.2
     - vector >=0.10
     - wai
     - wai-route
@@ -193,25 +212,13 @@ executables:
     - warp-tls >=3.2
     - zauth
   brig-index:
-    main: Main.hs
-    source-dirs: index/src
+    main: index/src/Main.hs
     ghc-options:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
     - base
-    - brig
-    - cassandra-util >=0.12
-    - exceptions
-    - http-client
-    - lens
-    - metrics-core
-    - mtl
-    - optparse-applicative >=0.13
-    - text
-    - time
-    - types-common
-    - uri-bytestring
+    - brig-index-lib
   brig:
     main: src/Main.hs
     ghc-options:
