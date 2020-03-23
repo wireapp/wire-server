@@ -1,0 +1,154 @@
+cradle:
+  stack:
+    - path: ./libs/api-bot/src
+      component: api-bot:lib
+    - path: ./libs/api-client/src
+      component: api-client:lib
+    - path: ./tools/api-simulations/lib/src
+      component: api-simulations:lib
+    - path: ./tools/api-simulations/loadtest/src
+      component: api-simulations:exe:api-loadtest
+    - path: ./tools/api-simulations/smoketest/src
+      component: api-simulations:exe:api-smoketest
+    - path: ./tools/db/auto-whitelist/src
+      component: auto-whitelist:exe:auto-whitelist
+    - path: ./libs/bilge/src
+      component: bilge:lib
+    - path: ./tools/bonanza/src
+      component: bonanza:lib
+    - path: ./tools/bonanza/main/Main.hs
+      component: bonanza:exe:bonanza
+    - path: ./tools/bonanza/main/KibanaRaw.hs
+      component: bonanza:exe:kibana-raw
+    - path: ./tools/bonanza/main/Kibanana.hs
+      component: bonanza:exe:kibanana
+    - path: ./tools/bonanza/test/unit
+      component: bonanza:test:bonanza-tests
+    - path: ./services/brig/src
+      component: brig:lib
+    - path: ./services/brig/src/Main.hs
+      component: brig:exe:brig
+    - path: ./services/brig/index/src
+      component: brig:exe:brig-index
+    - path: ./services/brig/test/integration
+      component: brig:exe:brig-integration
+    - path: ./services/brig/schema/src
+      component: brig:exe:brig-schema
+    - path: ./libs/brig-types/src
+      component: brig-types:lib
+    - path: ./libs/brig-types/test/unit
+      component: brig-types:test:brig-types-tests
+    - path: ./services/cannon/src
+      component: cannon:lib
+    - path: ./services/cannon/src/Main.hs
+      component: cannon:exe:cannon
+    - path: ./services/cannon/test
+      component: cannon:test:cannon-tests
+    - path: ./services/cargohold/src
+      component: cargohold:lib
+    - path: ./services/cargohold/src/Main.hs
+      component: cargohold:exe:cargohold
+    - path: ./services/cargohold/test/integration
+      component: cargohold:exe:cargohold-integration
+    - path: ./libs/cargohold-types/src
+      component: cargohold-types:lib
+    - path: ./libs/cassandra-util/src
+      component: cassandra-util:lib
+    - path: ./libs/extended/src
+      component: extended:lib
+    - path: ./libs/federation-util/src
+      component: federation-util:lib
+    - path: ./libs/federation-util/test
+      component: federation-util:test:spec
+    - path: ./services/federator/src
+      component: federator:lib
+    - path: ./services/federator/exec
+      component: federator:exe:federator
+    - path: ./services/galley/src
+      component: galley:lib
+    - path: ./services/galley/src/Main.hs
+      component: galley:exe:galley
+    - path: ./services/galley/test/integration
+      component: galley:exe:galley-integration
+    - path: ./services/galley/journaler/src
+      component: galley:exe:galley-journaler
+    - path: ./services/galley/schema/src
+      component: galley:exe:galley-schema
+    - path: ./libs/galley-types/src
+      component: galley-types:lib
+    - path: ./libs/galley-types/test/unit
+      component: galley-types:test:galley-types-tests
+    - path: ./services/gundeck/src
+      component: gundeck:lib
+    - path: ./services/gundeck/src/Main.hs
+      component: gundeck:exe:gundeck
+    - path: ./services/gundeck/test/integration
+      component: gundeck:exe:gundeck-integration
+    - path: ./services/gundeck/schema/src
+      component: gundeck:exe:gundeck-schema
+    - path: ./services/gundeck/test/unit
+      component: gundeck:test:gundeck-tests
+    - path: ./services/gundeck/test/unit
+      component: gundeck:bench:gundeck-bench
+    - path: ./libs/gundeck-types/src
+      component: gundeck-types:lib
+    - path: ./libs/imports/src
+      component: imports:lib
+    - path: ./tools/makedeb/src
+      component: makedeb:lib
+    - path: ./tools/makedeb/src/Main.hs
+      component: makedeb:exe:makedeb
+    - path: ./libs/metrics-core/src
+      component: metrics-core:lib
+    - path: ./libs/metrics-wai/src
+      component: metrics-wai:lib
+    - path: ./tools/db/migrate-sso-feature-flag/src
+      component: migrate-sso-feature-flag:exe:migrate-sso-feature-flag
+    - path: ./services/proxy/src
+      component: proxy:lib
+    - path: ./services/proxy/src/Main.hs
+      component: proxy:exe:proxy
+    - path: ./libs/ropes/src
+      component: ropes:lib
+    - path: ./libs/ropes/test/integration-aws-auth
+      component: ropes:exe:ropes-aws-auth-test
+    - path: ./libs/ropes/test/integration-aws
+      component: ropes:exe:ropes-aws-test
+    - path: ./tools/db/service-backfill/src
+      component: service-backfill:exe:service-backfill
+    - path: ./libs/sodium-crypto-sign/src
+      component: sodium-crypto-sign:lib
+    - path: ./services/spar/src
+      component: spar:lib
+    - path: ./services/spar/exec
+      component: spar:exe:spar
+    - path: ./services/spar/test-integration
+      component: spar:exe:spar-integration
+    - path: ./services/spar/schema/src
+      component: spar:exe:spar-schema
+    - path: ./services/spar/test
+      component: spar:test:spec
+    - path: ./libs/ssl-util/src
+      component: ssl-util:lib
+    - path: ./tools/stern/src
+      component: stern:lib
+    - path: ./tools/stern/src/Main.hs
+      component: stern:exe:stern
+    - path: ./libs/tasty-cannon/src
+      component: tasty-cannon:lib
+    - path: ./libs/types-common/src
+      component: types-common:lib
+    - path: ./libs/types-common/test
+      component: types-common:test:tests
+    - path: ./libs/types-common-aws/src
+      component: types-common-aws:lib
+    - path: ./libs/types-common-journal/src
+      component: types-common-journal:lib
+    - path: ./libs/wai-utilities/src
+      component: wai-utilities:lib
+    - path: ./libs/zauth/src
+      component: zauth:lib
+    - path: ./libs/zauth/main
+      component: zauth:exe:zauth
+    - path: ./libs/zauth/test
+      component: zauth:test:zauth-unit
