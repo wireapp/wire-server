@@ -181,3 +181,6 @@ db-reset:
 
 libzauth:
 	$(MAKE) -C libs/libzauth install
+
+hie.yaml:
+	./tools/gen-hie-yaml.sh > hie.yaml
