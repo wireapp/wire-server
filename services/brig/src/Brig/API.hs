@@ -43,7 +43,7 @@ import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>), IpAddr (..))
-import Data.Qualified (OptionallyQualified)
+import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
@@ -1181,7 +1181,7 @@ listUsers self = \case
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
       -- we might be able to do something smarter if the domain is our own
-      let (localHandles, _remoteHandles) = partitionEithers hs
+      let (localHandles, _remoteHandles) = partitionEithers (map eitherQualifiedOrNot hs)
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation): resolve remote handles, too
       pure (Local <$> localUsers)

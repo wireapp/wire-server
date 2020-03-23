@@ -11,10 +11,11 @@ import Cassandra hiding (S)
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.Aeson.Types (Parser)
-import Data.Attoparsec.ByteString (takeByteString)
+import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
@@ -24,7 +25,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
-import Data.UUID
+import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Imports
@@ -112,20 +113,30 @@ newtype Id a
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
 instance Show (Id a) where
-  show = toString . toUUID
+  show = UUID.toString . toUUID
 
 instance Read (Id a) where
   readsPrec n = map (\(a, x) -> (Id a, x)) . readsPrec n
 
 instance FromByteString (Id a) where
   parser = do
-    x <- takeByteString
-    case fromASCIIBytes x of
+    x <-
+      -- we only want the matching ByteString
+      matching $ do
+        () <$ Atto.count 8 hexDigit <* Atto.char '-'
+        () <$ Atto.count 4 hexDigit <* Atto.char '-'
+        () <$ Atto.count 4 hexDigit <* Atto.char '-'
+        () <$ Atto.count 4 hexDigit <* Atto.char '-'
+        () <$ Atto.count 12 hexDigit
+    case UUID.fromASCIIBytes x of
       Nothing -> fail "Invalid UUID"
       Just ui -> return (Id ui)
+    where
+      matching = fmap fst . Atto.match
+      hexDigit = Atto.satisfy Char.isHexDigit
 
 instance ToByteString (Id a) where
-  builder = byteString . toASCIIBytes . toUUID
+  builder = byteString . UUID.toASCIIBytes . toUUID
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
@@ -221,7 +232,7 @@ clientIdFromByteString txt =
 
 instance FromByteString ClientId where
   parser = do
-    bs <- takeByteString
+    bs <- Atto.takeByteString
     either fail pure $ clientIdFromByteString (cs bs)
 
 instance FromJSON ClientId where

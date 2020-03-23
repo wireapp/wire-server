@@ -2,17 +2,17 @@
 
 module Data.Qualified where
 
+import Control.Applicative (optional)
 import Data.Aeson (FromJSON, ToJSON, withText)
 import qualified Data.Aeson as Aeson
-import Data.Attoparsec.ByteString (takeByteString)
+import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
 import qualified Data.ByteString.Conversion as BS.C
 import Data.ByteString.Conversion (FromByteString (parser))
-import Data.Domain (Domain, domainText, mkDomain)
+import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
@@ -22,32 +22,39 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 ----------------------------------------------------------------------
 -- OPTIONALLY QUALIFIED
 
-type OptionallyQualified a = Either a (Qualified a)
-
-unqualified :: a -> OptionallyQualified a
-unqualified = Left
-
-qualified :: Qualified a -> OptionallyQualified a
-qualified = Right
-
-{-
-TODO: do it properly
-Either is a hack, conceptually we want this:
-
 data OptionallyQualified a
   = OptionallyQualified
       { _oqLocalPart :: a,
         _oqDomain :: Maybe Domain
       }
--}
+  deriving (Eq, Show)
 
--- OptionallyQualified (Id a)
-instance FromByteString (Either (Id a) (Qualified (Id a))) where
-  parser = asum [Left <$> parser, Right <$> parser]
+unqualified :: a -> OptionallyQualified a
+unqualified x = OptionallyQualified x Nothing
 
--- OptionallyQualified Handle
-instance FromByteString (Either Handle (Qualified Handle)) where
-  parser = asum [Left <$> parser, Right <$> parser]
+qualified :: Qualified a -> OptionallyQualified a
+qualified (Qualified x domain) = OptionallyQualified x (Just domain)
+
+eitherQualifiedOrNot :: OptionallyQualified a -> Either a (Qualified a)
+eitherQualifiedOrNot = \case
+  OptionallyQualified x Nothing -> Left x
+  OptionallyQualified x (Just domain) -> Right (Qualified x domain)
+
+optionallyQualifiedParser :: Atto.Parser a -> Atto.Parser (OptionallyQualified a)
+optionallyQualifiedParser localParser =
+  OptionallyQualified
+    <$> localParser
+    <*> optional (Atto.char '@' *> parser @Domain)
+
+-- | we could have an
+-- @instance FromByteString a => FromByteString (OptionallyQualified a)@,
+-- but we only need this for specific things and don't want to just allow parsing things like
+-- @OptionallyQualified HttpsUrl@.
+instance FromByteString (OptionallyQualified (Id a)) where
+  parser = optionallyQualifiedParser (parser @(Id a))
+
+instance FromByteString (OptionallyQualified Handle) where
+  parser = optionallyQualifiedParser (parser @Handle)
 
 ----------------------------------------------------------------------
 -- QUALIFIED
@@ -63,25 +70,17 @@ renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
 
--- | The string to parse must contain exactly one @"@"@ to separate local part from domain.
-mkQualified :: (Text -> Either String a) -> Text -> Either String (Qualified a)
-mkQualified mkLocal txt =
-  -- FUTUREWORK: this should be done in a less hacky way
-  case Text.split (== '@') txt of
-    [local, domain] -> do
-      _qDomain <- mkDomain domain
-      _qLocalPart <- mkLocal local
-      pure Qualified {_qLocalPart, _qDomain}
-    [_one] ->
-      Left "not a qualified identifier: no '@'"
-    _more ->
-      Left "not a qualified identifier: multiple '@'s"
+qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
+qualifiedParser localParser =
+  Qualified <$> localParser <*> (Atto.char '@' *> parser @Domain)
+
+----------------------------------------------------------------------
 
 renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
-mkQualifiedId = mkQualified (first cs . BS.C.runParser BS.C.parser . cs)
+mkQualifiedId = Atto.parseOnly BS.C.parser . Text.E.encodeUtf8
 
 instance ToJSON (Qualified (Id a)) where
   toJSON = Aeson.String . renderQualifiedId
@@ -93,19 +92,15 @@ instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualifiedId
 
 instance FromByteString (Qualified (Id a)) where
-  parser = do
-    bs <- takeByteString
-    case makeFromByteString bs of
-      Left err -> fail err
-      Right qi -> pure qi
-    where
-      makeFromByteString = mkQualifiedId <=< first show . Text.E.decodeUtf8'
+  parser = qualifiedParser BS.C.parser
+
+----------------------------------------------------------------------
 
 renderQualifiedHandle :: Qualified Handle -> Text
 renderQualifiedHandle = renderQualified fromHandle
 
 mkQualifiedHandle :: Text -> Either String (Qualified Handle)
-mkQualifiedHandle = mkQualified (BS.C.runParser BS.C.parser . cs)
+mkQualifiedHandle = Atto.parseOnly BS.C.parser . Text.E.encodeUtf8
 
 instance ToJSON (Qualified Handle) where
   toJSON = Aeson.String . renderQualifiedHandle
@@ -117,16 +112,13 @@ instance FromHttpApiData (Qualified Handle) where
   parseUrlPiece = first cs . mkQualifiedHandle
 
 instance FromByteString (Qualified Handle) where
-  parser = do
-    bs <- takeByteString
-    case makeFromByteString bs of
-      Left err -> fail err
-      Right qi -> pure qi
-    where
-      makeFromByteString = mkQualifiedHandle <=< first show . Text.E.decodeUtf8'
+  parser = qualifiedParser BS.C.parser
 
 ----------------------------------------------------------------------
 -- ARBITRARY
 
 instance Arbitrary a => Arbitrary (Qualified a) where
   arbitrary = Qualified <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (OptionallyQualified a) where
+  arbitrary = OptionallyQualified <$> arbitrary <*> arbitrary

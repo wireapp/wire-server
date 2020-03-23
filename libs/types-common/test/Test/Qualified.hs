@@ -9,7 +9,7 @@ import qualified Data.ByteString.Conversion as BS.C
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id, toUUID), UserId)
-import Data.Qualified (OptionallyQualified, Qualified (Qualified), mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
+import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
@@ -42,12 +42,12 @@ tests =
               mkQualifiedId (renderQualifiedId x) === Right x,
           testProperty "roundtrip for OptionallyQualified Handle" $
             \(x :: OptionallyQualified Handle) -> do
-              let render = Text.E.encodeUtf8 . either fromHandle renderQualifiedHandle
+              let render = Text.E.encodeUtf8 . either fromHandle renderQualifiedHandle . eitherQualifiedOrNot
               let parse = BS.C.runParser BS.C.parser
               parse (render x) === Right x,
           testProperty "roundtrip for OptionallyQualified UserId" $
             \(x :: OptionallyQualified UserId) -> do
-              let render = Text.E.encodeUtf8 . either (cs . UUID.toString . toUUID) renderQualifiedId
+              let render = Text.E.encodeUtf8 . either (cs . UUID.toString . toUUID) renderQualifiedId . eitherQualifiedOrNot
               let parse = BS.C.runParser BS.C.parser
               parse (render x) === Right x,
           jsonRoundtrip @(Qualified Handle),
