@@ -101,14 +101,14 @@ Load balancer on bare metal servers
 ::
 
    cp values/metallb/demo-values.example.yaml values/metallb/demo-values.yaml
-   cp values/nginx-lb-ingress/demo-values.example.yaml values/nginx-lb-ingress/demo-values.yaml
-   cp values/nginx-lb-ingress/demo-secrets.example.yaml values/nginx-lb-ingress/demo-secrets.yaml
+   cp values/nginx-ingress-services/demo-values.example.yaml values/nginx-ingress-services/demo-values.yaml
+   cp values/nginx-ingress-services/demo-secrets.example.yaml values/nginx-ingress-services/demo-secrets.yaml
 
 -  Adapt ``values/metallb/demo-values.yaml`` to provide a list of public
    IP address CIDRs that your kubernetes nodes can bind to.
--  Adapt ``values/nginx-lb-ingress/demo-values.yaml`` with correct URLs
+-  Adapt ``values/nginx-ingress-services/demo-values.yaml`` with correct URLs
 -  Put your TLS cert and key into
-   ``values/nginx-lb-ingress/demo-secrets.yaml``.
+   ``values/nginx-ingress-services/demo-secrets.yaml``.
 
 Install ``metallb`` (for more information see the
 `docs <https://metallb.universe.tf>`__):
@@ -119,13 +119,15 @@ Install ``metallb`` (for more information see the
        -f values/metallb/demo-values.yaml \
        --wait --timeout 1800
 
-Install ``nginx-lb-ingress``:
+Install ``nginx-ingress-[controller,services]``:
 
 ::
+   helm upgrade --install --namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller \
+       --wait
 
-   helm upgrade --install --namespace demo demo-nginx-lb-ingress wire/nginx-lb-ingress \
-       -f values/nginx-lb-ingress/demo-values.yaml \
-       -f values/nginx-lb-ingress/demo-secrets.yaml \
+   helm upgrade --install --namespace demo demo-nginx-ingress-services wire/nginx-ingress-services \
+       -f values/nginx-ingress-services/demo-values.yaml \
+       -f values/nginx-ingress-services/demo-secrets.yaml \
        --wait
 
 Now, create DNS records for the URLs configured above.

@@ -59,7 +59,7 @@ A production installation will look a bit like this:
 
     Production installation in High-Availability mode
 
-If you use a private datacentre (not a cloud provider), the easiest is
+If you use a private datacenter (not a cloud provider), the easiest is
 to have three physical servers, each with one virtual machine for each
 server component (cassandra, minio, elasticsearch, redis, kubernetes,
 restund)

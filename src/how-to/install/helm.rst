@@ -136,7 +136,7 @@ Generate some secrets (if you are using the docker image from :ref:`ansible-kube
   docker run --rm quay.io/wire/alpine-intermediate /dist/zauth -m gen-keypair -i 1 > zauth.txt
 
 1. Add the generated secret from restund.txt to secrets.yaml under ``brig.secrets.turn.secret``
-2. add **both** the public and private parts from zauth.txt to secrets.yaml under ``brig.zauth``
+2. add **both** the public and private parts from zauth.txt to secrets.yaml under ``brig.secrets.zAuth``
 3. Add the public key from zauth.txt **also** to secrets.yaml under ``nginz.secrets.zAuth.publicKeys``
 
 Great, now try the installation:
