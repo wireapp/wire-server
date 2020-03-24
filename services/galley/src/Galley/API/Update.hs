@@ -773,7 +773,6 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
   where
-    -- TODO: simplify to use `nub (new <> others)`
     allMembers new = foldl' fn new others
       where
         fn acc m

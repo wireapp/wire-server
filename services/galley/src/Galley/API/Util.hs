@@ -157,10 +157,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
     _ -> do
       when (length mems > 2) $
         throwM badConvState
-      -- we know now that there is one member so far
       now <- liftIO getCurrentTime
-      -- TODO: what if we are the only member of the conversation?
-      -- Do we need to be added and send an event?
       (e, mm) <- Data.addMember now cid usr
       conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
