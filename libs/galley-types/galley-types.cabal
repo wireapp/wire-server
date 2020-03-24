@@ -1,0 +1,88 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 17c531781908d029505fd232502717c457cd69cdc75158a30937b07dd9f95b87
+
+name:           galley-types
+version:        0.81.0
+description:    API types of Galley.
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Galley.Types
+      Galley.Types.Bot
+      Galley.Types.Bot.Service
+      Galley.Types.Bot.Service.Internal
+      Galley.Types.Conversations.Roles
+      Galley.Types.Proto
+      Galley.Types.Swagger
+      Galley.Types.Teams
+      Galley.Types.Teams.Internal
+      Galley.Types.Teams.Intra
+      Galley.Types.Teams.SSO
+      Galley.Types.Teams.Swagger
+  other-modules:
+      Paths_galley_types
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.6
+    , attoparsec >=0.10
+    , base >=4 && <5
+    , base64-bytestring >=1.0
+    , bytestring >=0.9
+    , bytestring-conversion >=0.2
+    , cassandra-util
+    , containers >=0.5
+    , currency-codes >=2.0
+    , data-default >=0.5
+    , errors
+    , exceptions >=0.10.0
+    , gundeck-types >=1.15.13
+    , hashable
+    , imports
+    , lens >=4.12
+    , protobuf >=0.2
+    , string-conversions
+    , swagger >=0.1
+    , text >=0.11
+    , time >=1.4
+    , transformers >=0.3
+    , types-common >=0.16
+    , unordered-containers >=0.2
+    , uri-bytestring >=0.2
+    , uuid >=1.3
+  default-language: Haskell2010
+
+test-suite galley-types-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Galley.Types
+      Paths_galley_types
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , containers
+    , galley-types
+    , imports
+    , lens
+    , tasty
+    , tasty-hunit
+    , types-common
+  default-language: Haskell2010

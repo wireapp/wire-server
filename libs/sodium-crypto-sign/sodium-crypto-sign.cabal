@@ -1,0 +1,37 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: e269c6982089a3f0f5b7e20f9c88218fed99a2344c98c4c5c75ba382789d9a90
+
+name:           sodium-crypto-sign
+version:        0.1.2
+synopsis:       FFI to some of the libsodium crypto_sign_* functions.
+description:    FFI bindings to some of the libsodium cryptographic signature functions which are based on Ed25519.
+category:       Cryptography
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Sodium.Crypto.Sign
+  other-modules:
+      Paths_sodium_crypto_sign
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  pkgconfig-depends:
+      libsodium >= 0.4.5
+  build-depends:
+      base >=4.6 && <5
+    , base64-bytestring >=1.0
+    , bytestring >=0.10
+    , imports
+  default-language: Haskell2010

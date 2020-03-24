@@ -1,0 +1,49 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 9f5daffbdfdfad8ece7e59b59a05ece9aaec09bd2efbd317782e0179455afb91
+
+name:           auto-whitelist
+version:        1.0.0
+synopsis:       Backfill service tables
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        UnspecifiedLicense
+build-type:     Simple
+
+executable auto-whitelist
+  main-is: Main.hs
+  other-modules:
+      Options
+      Work
+      Paths_auto_whitelist
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  build-depends:
+      attoparsec
+    , base
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , extended
+    , extra
+    , galley-types
+    , imports
+    , lens
+    , mtl
+    , optparse-applicative
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+  default-language: Haskell2010

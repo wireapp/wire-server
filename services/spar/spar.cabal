@@ -1,0 +1,473 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 58734828df130e18cc6382fbf2e2dc6524f24a90c4b48c24c2908a1ad9b63e42
+
+name:           spar
+version:        0.1
+synopsis:       User Service for SSO (Single Sign-On) provisioning and authentication.
+description:    See README.md
+category:       System
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Spar.API
+      Spar.API.Swagger
+      Spar.API.Types
+      Spar.API.Util
+      Spar.App
+      Spar.Data
+      Spar.Data.Instances
+      Spar.Error
+      Spar.Intra.Brig
+      Spar.Intra.Galley
+      Spar.Options
+      Spar.Orphans
+      Spar.Run
+      Spar.Scim
+      Spar.Scim.Auth
+      Spar.Scim.Swagger
+      Spar.Scim.Types
+      Spar.Scim.User
+      Spar.Types
+  other-modules:
+      Paths_spar
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror
+  build-depends:
+      HsOpenSSL
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , containers
+    , cookie
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , x509
+    , xml-conduit
+    , yaml
+  default-language: Haskell2010
+
+executable spar
+  main-is: Main.hs
+  other-modules:
+      Paths_spar
+  hs-source-dirs:
+      exec
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
+  build-depends:
+      HsOpenSSL
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , containers
+    , cookie
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , spar
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , x509
+    , xml-conduit
+    , yaml
+  default-language: Haskell2010
+
+executable spar-integration
+  main-is: Spec.hs
+  other-modules:
+      Test.LoggingSpec
+      Test.MetricsSpec
+      Test.Spar.APISpec
+      Test.Spar.AppSpec
+      Test.Spar.DataSpec
+      Test.Spar.Intra.BrigSpec
+      Test.Spar.Scim.AuthSpec
+      Test.Spar.Scim.UserSpec
+      Util
+      Util.Core
+      Util.Scim
+      Util.Types
+      Paths_spar
+  hs-source-dirs:
+      test-integration
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HsOpenSSL
+    , MonadRandom
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , async
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , containers
+    , cookie
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , hspec
+    , hspec-discover
+    , hspec-wai
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , lens-aeson
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , random
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-client
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , silently
+    , spar
+    , stm
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-extra
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , warp-tls
+    , x509
+    , xml-conduit
+    , xml-hamlet
+    , xml-lens
+    , yaml
+    , zauth
+  default-language: Haskell2010
+
+executable spar-schema
+  main-is: Main.hs
+  other-modules:
+      V0
+      V1
+      V2
+      V3
+      V4
+      V5
+      V6
+      V7
+      Paths_spar
+  hs-source-dirs:
+      schema/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HsOpenSSL
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , containers
+    , cookie
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , spar
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , x509
+    , xml-conduit
+    , yaml
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Arbitrary
+      Test.Spar.APISpec
+      Test.Spar.DataSpec
+      Test.Spar.Intra.BrigSpec
+      Test.Spar.ScimSpec
+      Test.Spar.TypesSpec
+      Paths_spar
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HsOpenSSL
+    , QuickCheck
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , containers
+    , cookie
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , hspec
+    , hspec-discover
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , lens-aeson
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , spar
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , x509
+    , xml-conduit
+    , yaml
+  default-language: Haskell2010
