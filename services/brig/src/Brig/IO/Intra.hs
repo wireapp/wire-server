@@ -732,8 +732,9 @@ getTruncatedTeamSize tid limit = do
       paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' limit]
         . expect2xx
 
--- | Calls 'Galley.API.getBindingTeamMembersH'.
 -- | Only works on 'BindingTeam's!
+--
+-- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")

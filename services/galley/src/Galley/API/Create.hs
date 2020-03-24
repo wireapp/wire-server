@@ -197,7 +197,6 @@ createConnectConversationH (usr ::: conn ::: req) = do
   j <- fromJsonBody req
   handleConversationResponse <$> createConnectConversation usr conn j
 
--- - if only self is in the connect conv already, should we send a ConvConnect event to ourselves? (seems like that's what we do)
 createConnectConversation :: UserId -> Maybe ConnId -> Connect -> Galley ConversationResponse
 createConnectConversation usr conn j = do
   (x, y) <- toUUIDs (makeIdOpaque usr) (makeIdOpaque (cRecipient j))
@@ -218,7 +217,7 @@ createConnectConversation usr conn j = do
       let mems = Data.convMembers conv
        in conversationExisted usr
             =<< if | makeIdOpaque usr `isMember` mems ->
-                     -- we know: we are in the conversation, maybe other
+                     -- we already were in the conversation, maybe also other
                      connect n conv
                    | otherwise -> do
                      now <- liftIO getCurrentTime
@@ -228,18 +227,14 @@ createConnectConversation usr conn j = do
                              { Data.convMembers = Data.convMembers conv <> toList mm
                              }
                      if null mems
-                       then connect n conv'
+                       then do
+                         -- the conversation was empty
+                         connect n conv'
                        else do
-                         -- we know: we were not in the conversation, but someone else.
+                         -- we were not in the conversation, but someone else
                          conv'' <- acceptOne2One usr conv' conn
                          if Data.convType conv'' == ConnectConv
-                           then do
-                             -- we know: acceptOne2One didn't promote the conversation,
-                             -- thus there was no existing other user in it,
-                             -- thus we are the only member.
-                             -- TODO: is this dead code???
-                             void $ error "dead code?"
-                             connect n conv''
+                           then connect n conv''
                            else return conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
