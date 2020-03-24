@@ -1,7 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE StrictData #-}
 
-module Options
+module Brig.Index.Options
   ( Command (..),
     ElasticSettings,
     esServer,
