@@ -195,8 +195,7 @@ updateTeam zusr zcon tid updateData = do
   membs <- Data.teamMembersUnsafeForLargeTeams tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  -- FUTUREWORK: teams is out of scope for now
-  push1 E $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
+  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -246,11 +245,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     -- every bot user can only be in a single conversation. Just
     -- deleting conversations from the database is not enough.
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
-      -- FUTUREWORK: teams is out of scope for now
-      -- when internal event is handled asynchronously in brig:
-      --   UserDeleted event to contacts
-      --   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-      mapM_ (deleteUser N . view userId) membs
+      mapM_ (deleteUser . view userId) membs
       Journal.teamDelete tid
     Data.deleteTeam tid
   where
@@ -263,14 +258,13 @@ uncheckedDeleteTeam zusr zcon tid = do
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \chunk -> case chunk of
         [] -> return ()
-        -- FUTUREWORK: teams is out of scope for now
-        x : xs -> push1 E (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        -- push TeamDelete events
+        x : xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
         -- push ConversationDelete events
-        -- FUTUREWORK: teams is out of scope for now
-        push1 E event
+        push1 event
         threadDelay delay
     createConvDeleteEvents ::
       UTCTime ->
@@ -285,8 +279,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-      -- teams are out of scope for now
-      let p = newPush zusr (ConvEvent e) (map (recipient) mm)
+      let p = newPush zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
@@ -434,10 +427,8 @@ updateTeamMember zusr zcon tid targetMember = do
   now <- liftIO getCurrentTime
   let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
   -- push to all members (user is privileged)
-  -- teams are out of scope for now
   let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
-  -- FUTUREWORK: teams is out of scope for now
-  for_ pushPriv $ \p -> push1 E $ p & pushConn .~ Just zcon
+  for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
@@ -467,11 +458,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
-      -- FUTUREWORK: teams is out of scope for now
-      -- when internal event is handled asynchronously in brig:
-      --   UserDeleted event to contacts
-      --   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-      deleteUser N remove
+      deleteUser remove
       Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
@@ -484,8 +471,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
   let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-  -- FUTUREWORK: teams is out of scope for now
-  push1 E $ newPush1 zusr (TeamEvent e) (r) & pushConn .~ zcon
+  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
   Data.removeTeamMember tid remove
   let tmids = Set.fromList $ map (view userId) mems
   let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
@@ -501,8 +487,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
       let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) users
       let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
       for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
-        -- FUTUREWORK: teams is out of scope for now
-        push1 E $ p & pushConn .~ zcon
+        push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
 getTeamConversationsH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -540,9 +525,8 @@ deleteTeamConversation zusr zcon tid cid = do
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
   let recps = fmap recipient cmems
-  let convPush = newPush zusr (ConvEvent ce) (recps) <&> pushConn .~ Just zcon
-  -- FUTUREWORK: teams is out of scope for now
-  pushSome E $ maybeToList convPush
+  let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+  pushSome $ maybeToList convPush
   void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
@@ -620,8 +604,7 @@ addTeamMemberInternal tid origin originConn newMem mems = do
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  -- FUTUREWORK: teams is out of scope for now
-  push1 E $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
+  push1 $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
   where
     r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
     r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
@@ -634,8 +617,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
   let r = membersToRecipients Nothing others
-  -- FUTUREWORK: teams is out of scope for now
-  push1 E $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
   pure (team ^. teamId)
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
@@ -749,11 +731,7 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
-    -- FUTUREWORK: teams is out of scope for now
-    -- for each user with a legalhold client, via brig:
-    --   ClientRemoved event to self
-    --   UserLegalHoldDisabled event to contacts
-    LegalHoldDisabled -> removeSettings' N tid Nothing
+    LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
 
