@@ -85,14 +85,13 @@ import System.Logger.Class as Log hiding ((.=), name)
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent :: E -> UserId -> Maybe ConnId -> UserEvent -> AppIO ()
-onUserEvent E orig conn e =
+onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
+onUserEvent orig conn e =
   updateSearchIndex orig e
-    *> dispatchNotifications E orig conn e
+    *> dispatchNotifications orig conn e
     *> journalEvent orig e
 
 onConnectionEvent ::
-  E ->
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID, if any.
@@ -100,10 +99,9 @@ onConnectionEvent ::
   -- | The event.
   ConnectionEvent ->
   AppIO ()
-onConnectionEvent E orig conn evt = do
+onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   notify
-    E
     (singleton $ ConnectionEvent evt)
     orig
     Push.RouteAny
@@ -111,16 +109,14 @@ onConnectionEvent E orig conn evt = do
     (return $ list1 from [])
 
 onPropertyEvent ::
-  E ->
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
   AppIO ()
-onPropertyEvent E orig conn e =
+onPropertyEvent orig conn e =
   notify
-    E
     (singleton $ PropertyEvent e)
     orig
     Push.RouteDirect
@@ -128,7 +124,6 @@ onPropertyEvent E orig conn e =
     (return $ list1 orig [])
 
 onClientEvent ::
-  E ->
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
@@ -136,13 +131,13 @@ onClientEvent ::
   -- | The event.
   ClientEvent ->
   AppIO ()
-onClientEvent E orig conn e = do
+onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
   -- Synchronous push for better delivery guarantees of these
   -- events and to make sure new clients have a first notification
   -- in the stream.
-  push E events rcps orig Push.RouteAny conn
+  push events rcps orig Push.RouteAny conn
 
 updateSearchIndex :: UserId -> UserEvent -> AppIO ()
 updateSearchIndex orig e = case e of
@@ -183,32 +178,30 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: E -> UserId -> Maybe ConnId -> UserEvent -> AppIO ()
-dispatchNotifications E orig conn e = case e of
+dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
+dispatchNotifications orig conn e = case e of
   UserCreated {} -> return ()
   UserSuspended {} -> return ()
   UserResumed {} -> return ()
-  LegalHoldClientRequested {} -> notifyContacts E event orig Push.RouteAny conn
-  UserLegalHoldDisabled {} -> notifyContacts E event orig Push.RouteAny conn
-  UserLegalHoldEnabled {} -> notifyContacts E event orig Push.RouteAny conn
+  LegalHoldClientRequested {} -> notifyContacts event orig Push.RouteAny conn
+  UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
+  UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
   UserUpdated {..}
-    -- bug hiding?
-    | isJust eupLocale -> notifySelf E event orig Push.RouteDirect conn
-    | otherwise -> notifyContacts E event orig Push.RouteDirect conn
-  UserActivated {} -> notifySelf E event orig Push.RouteAny conn
-  UserIdentityUpdated {} -> notifySelf E event orig Push.RouteDirect conn
-  UserIdentityRemoved {} -> notifySelf E event orig Push.RouteDirect conn
+    | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
+    | otherwise -> notifyContacts event orig Push.RouteDirect conn
+  UserActivated {} -> notifySelf event orig Push.RouteAny conn
+  UserIdentityUpdated {} -> notifySelf event orig Push.RouteDirect conn
+  UserIdentityRemoved {} -> notifySelf event orig Push.RouteDirect conn
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
     recipients <- list1 orig <$> lookupContactList orig
-    notify E event orig Push.RouteDirect conn (pure recipients)
+    notify event orig Push.RouteDirect conn (pure recipients)
   where
     event = singleton $ UserEvent e
 
 -- | Push events to other users.
 push ::
-  E ->
   -- | The events to push.
   List1 Event ->
   -- | The users to push to.
@@ -220,10 +213,10 @@ push ::
   -- | The originating device connection.
   Maybe ConnId ->
   AppIO ()
-push E (toList -> events) usrs orig route conn =
+push (toList -> events) usrs orig route conn =
   case mapMaybe toPushData events of
     [] -> pure ()
-    x : xs -> rawPush E (list1 x xs) usrs orig route conn
+    x : xs -> rawPush (list1 x xs) usrs orig route conn
   where
     toPushData :: Event -> Maybe (Builder, (Object, Maybe ApsData))
     toPushData e = case toPushFormat e of
@@ -233,7 +226,6 @@ push E (toList -> events) usrs orig route conn =
 -- | Push encoded events to other users. Useful if you want to push
 -- something that's not defined in Brig.
 rawPush ::
-  E ->
   -- | The events to push.
   List1 (Builder, (Object, Maybe ApsData)) ->
   -- | The users to push to.
@@ -247,7 +239,7 @@ rawPush ::
   AppIO ()
 -- TODO: if we decide to have service whitelist events in Brig instead of
 -- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
-rawPush E (toList -> events) usrs orig route conn = do
+rawPush (toList -> events) usrs orig route conn = do
   for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
   g <- view gundeck
   forM_ recipients $ \rcps ->
@@ -279,7 +271,6 @@ rawPush E (toList -> events) usrs orig route conn = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
-  E ->
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -290,12 +281,11 @@ notify ::
   -- | Users to notify.
   IO (List1 UserId) ->
   AppIO ()
-notify E events orig route conn recipients = forkAppIO (Just orig) $ do
+notify events orig route conn recipients = forkAppIO (Just orig) $ do
   rs <- liftIO recipients
-  push E events rs orig route conn
+  push events rs orig route conn
 
 notifySelf ::
-  E ->
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -304,11 +294,10 @@ notifySelf ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   AppIO ()
-notifySelf E events orig route conn =
-  notify E events orig route conn (pure (singleton orig))
+notifySelf events orig route conn =
+  notify events orig route conn (pure (singleton orig))
 
 notifyContacts ::
-  E ->
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -317,9 +306,9 @@ notifyContacts ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   AppIO ()
-notifyContacts E events orig route conn = do
+notifyContacts events orig route conn = do
   env <- ask
-  notify E events orig route conn
+  notify events orig route conn
     $ runAppT env
     $ list1 orig <$> liftA2 (++) contacts teamContacts
   where
@@ -496,14 +485,8 @@ createSelfConv u = do
         . expect2xx
 
 -- | Calls 'Galley.API.createConnectConversationH'.
---
--- via galley, if conversation did not exist before:
---   ConvCreate EdConversation event to self
---   ConvConnect EdConnect event to self
--- via galley, if conversation existed, but other didn't join/accept yet;
---   ConvConnect EdConnect event to self
-createConnectConv :: N -> UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
-createConnectConv N from to cname mess conn = do
+createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
+createConnectConv from to cname mess conn = do
   debug $
     Log.connection from to
       . remote "galley"
@@ -522,13 +505,8 @@ createConnectConv N from to cname mess conn = do
         . expect2xx
 
 -- | Calls 'Galley.API.acceptConvH'.
---
--- if the conversation existed and had < 2 members before
---   via galley: MemberJoin EdMembersJoin event to you
--- if the conversation existed and only the other already was member before
---   via galley: MemberJoin EdMembersJoin event to other
-acceptConnectConv :: N -> UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-acceptConnectConv N from conn cnv = do
+acceptConnectConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+acceptConnectConv from conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -557,11 +535,8 @@ blockConv usr conn cnv = do
         . expect2xx
 
 -- | Calls 'Galley.API.unblockConvH'.
---
--- MemberJoin EdMembersJoin event to you, if the conversation had < 2 members before
--- MemberJoin EdMembersJoin event to other, if only the other already was member before
-unblockConv :: N -> UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
-unblockConv N usr conn cnv = do
+unblockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
+unblockConv usr conn cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -612,10 +587,8 @@ getTeamConv usr tid cnv = do
 -- User management
 
 -- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
---
--- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-rmUser :: N -> UserId -> [Asset] -> AppIO ()
-rmUser N usr asts = do
+rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser usr asts = do
   debug $
     remote "gundeck"
       . field "user" (toByteString usr)

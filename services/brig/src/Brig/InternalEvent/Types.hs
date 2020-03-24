@@ -6,14 +6,9 @@ where
 import BasePrelude
 import Data.Aeson
 import Data.Id
-import Imports
 
 data InternalNotification
-  = -- | see 'onEvent'.
-    --
-    -- UserDeleted event to contacts
-    -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-    DeleteUser !N !E !UserId
+  = DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
   deriving (Eq, Show)
 
@@ -36,11 +31,11 @@ instance FromJSON InternalNotification where
   parseJSON = withObject "InternalNotification" $ \o -> do
     t <- o .: "type"
     case (t :: InternalNotificationType) of
-      UserDeletion -> DeleteUser N E <$> o .: "user"
+      UserDeletion -> DeleteUser <$> o .: "user"
       ServiceDeletion -> DeleteService <$> o .: "provider" <*> o .: "service"
 
 instance ToJSON InternalNotification where
-  toJSON (DeleteUser N E uid) =
+  toJSON (DeleteUser uid) =
     object
       [ "user" .= uid,
         "type" .= UserDeletion

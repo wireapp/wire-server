@@ -29,7 +29,7 @@ run o = do
   internalEventListener <-
     Async.async
       $ runAppT e
-      $ Queue.listen (e ^. internalEvents) (Internal.onEvent E)
+      $ Queue.listen (e ^. internalEvents) Internal.onEvent
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async
       $ AWS.execute (e ^. awsEnv)

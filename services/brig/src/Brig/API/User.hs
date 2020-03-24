@@ -125,13 +125,8 @@ import System.Logger.Message
 -- Create User
 
 -- docs/reference/user/registration.md {#RefRegistration}
---
--- UserActivated event to self, if user is team user
--- UserActivated event to self, if user has SSO ID
--- UserIdentityUpdated event to self, if user has newUserPhoneCode
--- UserIdentityUpdated event to self, if user has newUserEmailCode (unless team email invite)
-createUser :: E -> NewUser -> ExceptT CreateUserError AppIO CreateUserResult
-createUser E new@NewUser {..} = do
+createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
+createUser new@NewUser {..} = do
   -- Validate e-mail
   email <- for (newUserEmail new) $ \e ->
     either
@@ -165,8 +160,7 @@ createUser E new@NewUser {..} = do
   activatedTeam <- lift $ do
     Data.insertAccount account Nothing pw False searchable
     Intra.createSelfConv uid
-    -- UserEvent.UserCreated event to nobody
-    Intra.onUserEvent E uid Nothing (UserCreated account)
+    Intra.onUserEvent uid Nothing (UserCreated account)
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
     case (tid, newTeam) of
       (Just t, Just nt) -> createTeam uid (isJust newUserEmailCode) (bnuTeam nt) t
@@ -198,9 +192,7 @@ createUser E new@NewUser {..} = do
           return $ Just edata
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey ek
-          -- UserActivated event to self, if ? account gets activated
-          -- UserIdentityUpdated event to self, if ? email or phone get activated
-          void $ activateWithCurrency E (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
+          void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
           return Nothing
   -- Handle phone activation
   pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode of
@@ -214,9 +206,7 @@ createUser E new@NewUser {..} = do
       return $ Just pdata
     Just c -> do
       ak <- liftIO $ Data.mkActivationKey pk
-      -- UserActivated event to self, if ? account gets activated
-      -- UserIdentityUpdated event to self, if ? email or phone get activated
-      void $ activate E (ActivateKey ak) c (Just uid) !>> PhoneActivationError
+      void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
       return Nothing
   return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
@@ -286,8 +276,7 @@ createUser E new@NewUser {..} = do
         throwE TooManyTeamMembers
       lift $ do
         activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
-          -- UserActivated event to self
-        void $ onActivated E (AccountActivated account)
+        void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
@@ -301,8 +290,7 @@ createUser E new@NewUser {..} = do
         throwE TooManyTeamMembers
       lift $ do
         activateUser uid ident
-        -- UserActivated event to self
-        void $ onActivated E (AccountActivated account)
+        void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
             . field "team" (toByteString tid)
@@ -316,39 +304,32 @@ createUser E new@NewUser {..} = do
 -- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
 -- {#DevScimOneWaySync}
 
--- UserUpdated event to contacts
-updateUser :: E -> UserId -> ConnId -> UserUpdate -> AppIO ()
-updateUser E uid conn uu = do
+updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
+updateUser uid conn uu = do
   Data.updateUser uid uu
-  -- UserUpdated event to contacts
-  Intra.onUserEvent E uid (Just conn) (profileUpdated uid uu)
+  Intra.onUserEvent uid (Just conn) (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
 
--- UserUpdated event to self
 changeLocale :: UserId -> ConnId -> LocaleUpdate -> AppIO ()
 changeLocale uid conn (LocaleUpdate loc) = do
   Data.updateLocale uid loc
-  -- UserUpdated event to self
-  Intra.onUserEvent E uid (Just conn) (localeUpdate uid loc)
+  Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy
 
--- UserUpdated event to contacts
-changeManagedBy :: E -> UserId -> ConnId -> ManagedByUpdate -> AppIO ()
-changeManagedBy E uid conn (ManagedByUpdate mb) = do
+changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> AppIO ()
+changeManagedBy uid conn (ManagedByUpdate mb) = do
   Data.updateManagedBy uid mb
-  -- UserUpdated event to contacts
-  Intra.onUserEvent E uid (Just conn) (managedByUpdate uid mb)
+  Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
 
--- UserUpdated event to contacts
-changeHandle :: E -> UserId -> ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle E uid conn hdl = do
+changeHandle :: UserId -> ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeHandle uid conn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser uid
@@ -362,8 +343,7 @@ changeHandle E uid conn hdl = do
       claimed <- lift $ claimHandle u hdl
       unless claimed $
         throwE ChangeHandleExists
-      -- UserUpdated event to contacts
-      lift $ Intra.onUserEvent E uid (Just conn) (handleUpdated uid hdl)
+      lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handles
@@ -431,25 +411,22 @@ changePhone u phone = do
 -------------------------------------------------------------------------------
 -- Remove Email
 
--- UserIdentityRemoved event to self
-removeEmail :: E -> UserId -> ConnId -> ExceptT RemoveIdentityError AppIO ()
-removeEmail E uid conn = do
+removeEmail :: UserId -> ConnId -> ExceptT RemoveIdentityError AppIO ()
+removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity e _) -> lift $ do
       deleteKey $ userEmailKey e
       Data.deleteEmail uid
-      -- UserIdentityRemoved event to self
-      Intra.onUserEvent E uid (Just conn) (emailRemoved uid e)
+      Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
 -- Remove Phone
 
--- UserIdentityRemoved event to self
-removePhone :: E -> UserId -> ConnId -> ExceptT RemoveIdentityError AppIO ()
-removePhone E uid conn = do
+removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError AppIO ()
+removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity _ p) -> do
@@ -459,17 +436,15 @@ removePhone E uid conn = do
       lift $ do
         deleteKey $ userPhoneKey p
         Data.deletePhone uid
-        -- UserIdentityRemoved event to self
-        Intra.onUserEvent E uid (Just conn) (phoneRemoved uid p)
+        Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
--- UserIdentityRemoved event to self
-revokeIdentity :: E -> Either Email Phone -> AppIO ()
-revokeIdentity E key = do
+revokeIdentity :: Either Email Phone -> AppIO ()
+revokeIdentity key = do
   let uk = either userEmailKey userPhoneKey key
   mu <- Data.lookupKey uk
   case mu of
@@ -490,8 +465,7 @@ revokeIdentity E key = do
         (\(_ :: Email) -> Data.deleteEmail u)
         (\(_ :: Phone) -> Data.deletePhone u)
         uk
-      -- UserIdentityRemoved event to self
-      Intra.onUserEvent E u Nothing $
+      Intra.onUserEvent u Nothing $
         foldKey
           (emailRemoved u)
           (phoneRemoved u)
@@ -513,8 +487,7 @@ changeAccountStatus usrs status = do
     update :: (UserId -> UserEvent) -> UserId -> AppIO ()
     update ev u = do
       Data.updateStatus u status
-      -- UserSuspended event to nobody
-      Intra.onUserEvent E u Nothing (ev u)
+      Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
 suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
@@ -524,21 +497,15 @@ suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
 -------------------------------------------------------------------------------
 -- Activation
 
--- UserActivated event to self, if ? account gets activated
--- UserIdentityUpdated event to self, if ? email or phone get activated
 activate ::
-  E ->
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
   Maybe UserId ->
   ExceptT ActivationError AppIO ActivationResult
-activate E tgt code usr = activateWithCurrency E tgt code usr Nothing
+activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
--- UserActivated event to self, if ? account gets activated
--- UserIdentityUpdated event to self, if ? email or phone get activated
 activateWithCurrency ::
-  E ->
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -547,7 +514,7 @@ activateWithCurrency ::
   -- ^ TODO: to be removed once billing supports currency changes after team creation
   Maybe Currency.Alpha ->
   ExceptT ActivationError AppIO ActivationResult
-activateWithCurrency E tgt code usr cur = do
+activateWithCurrency tgt code usr cur = do
   key <- mkActivationKey tgt
   Log.info $
     field "activation.key" (toByteString key)
@@ -557,9 +524,7 @@ activateWithCurrency E tgt code usr cur = do
   case event of
     Nothing -> return ActivationPass
     Just e -> do
-      -- UserActivated event to self, if account gets activated
-      -- UserIdentityUpdated event to self, if email or phone get activated
-      (uid, ident, first) <- lift $ onActivated E e
+      (uid, ident, first) <- lift $ onActivated e
       when first
         $ lift
         $ activateTeam uid
@@ -574,23 +539,18 @@ preverify tgt code = do
   key <- mkActivationKey tgt
   void $ Data.verifyCode key code
 
--- UserActivated event to self, if account gets activated
--- UserIdentityUpdated event to self, if email or phone get activated
-onActivated :: E -> ActivationEvent -> AppIO (UserId, Maybe UserIdentity, Bool)
-onActivated E (AccountActivated account) = do
+onActivated :: ActivationEvent -> AppIO (UserId, Maybe UserIdentity, Bool)
+onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  -- UserActivated event to self
-  Intra.onUserEvent E uid Nothing $ UserActivated account
+  Intra.onUserEvent uid Nothing $ UserActivated account
   return (uid, userIdentity (accountUser account), True)
-onActivated E (EmailActivated uid email) = do
-  -- UserIdentityUpdated event to self
-  Intra.onUserEvent E uid Nothing (emailUpdated uid email)
+onActivated (EmailActivated uid email) = do
+  Intra.onUserEvent uid Nothing (emailUpdated uid email)
   return (uid, Just (EmailIdentity email), False)
-onActivated E (PhoneActivated uid phone) = do
-  -- UserIdentityUpdated event to self
-  Intra.onUserEvent E uid Nothing (phoneUpdated uid phone)
+onActivated (PhoneActivated uid phone) = do
+  Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
   return (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -763,11 +723,8 @@ mkPasswordResetKey ident = case ident of
 -- the team admin has to delete them via the team console on galley.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
---
--- UserDeleted event to contacts
--- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-deleteUser :: N -> E -> UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
-deleteUser N E uid pwd = do
+deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
+deleteUser uid pwd = do
   account <- lift $ Data.lookupAccount uid
   case account of
     Nothing -> throwE DeleteUserInvalid
@@ -787,8 +744,6 @@ deleteUser N E uid pwd = do
           Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
           Team.IsTeamOwnerWithoutEmail -> pure ()
           Team.IsNotTeamOwner -> pure ()
-    -- UserDeleted event to contacts
-    -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
@@ -801,9 +756,7 @@ deleteUser N E uid pwd = do
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
-        -- UserDeleted event to contacts
-        -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-        Nothing -> lift $ deleteAccount N E a >> return Nothing
+        Nothing -> lift $ deleteAccount a >> return Nothing
     byPassword a pw = do
       Log.info $
         field "user" (toByteString uid)
@@ -814,9 +767,7 @@ deleteUser N E uid pwd = do
         Just p -> do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
-          -- UserDeleted event to contacts
-          -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-          lift $ deleteAccount N E a >> return Nothing
+          lift $ deleteAccount a >> return Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
       pending <- lift $ Code.lookup (Code.genKey gen) Code.AccountDeletion
@@ -847,29 +798,21 @@ deleteUser N E uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
---
--- UserDeleted event to contacts
--- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-verifyDeleteUser :: N -> E -> VerifyDeleteUser -> ExceptT DeleteUserError AppIO ()
-verifyDeleteUser N E d = do
+verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError AppIO ()
+verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
   c <- lift $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) return (Code.codeAccount =<< c)
   account <- lift $ Data.lookupAccount (Id a)
-  -- UserDeleted event to contacts
-  -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-  for_ account $ lift . deleteAccount N E
+  for_ account $ lift . deleteAccount
   lift $ Code.delete key Code.AccountDeletion
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
 -- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
 -- in the team.
---
--- UserDeleted event to contacts
--- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-deleteAccount :: N -> E -> UserAccount -> AppIO ()
-deleteAccount N E account@(accountUser -> user) = do
+deleteAccount :: UserAccount -> AppIO ()
+deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
@@ -880,11 +823,9 @@ deleteAccount N E account@(accountUser -> user) = do
   Data.clearProperties uid
   tombstone <- mkTombstone
   Data.insertAccount tombstone Nothing Nothing False (SearchableStatus False)
-  -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-  Intra.rmUser N uid (userAssets user)
+  Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
-  -- UserDeleted event to contacts
-  Intra.onUserEvent E uid Nothing (UserDeleted uid)
+  Intra.onUserEvent uid Nothing (UserDeleted uid)
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid
@@ -928,81 +869,52 @@ lookupPasswordResetCode emailOrPhone = do
       c <- Data.lookupPasswordResetCode u
       return $ (k,) <$> c
 
--- when internal event is handled asynchronously:
---   UserDeleted event to contacts
---   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-deleteUserNoVerify :: N -> E -> UserId -> AppIO ()
-deleteUserNoVerify N E uid = do
+deleteUserNoVerify :: UserId -> AppIO ()
+deleteUserNoVerify uid = do
   queue <- view internalEvents
-  -- UserDeleted event to contacts, when event is handled
-  -- via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-  Queue.enqueue queue (Internal.DeleteUser N E uid)
+  Queue.enqueue queue (Internal.DeleteUser uid)
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
---
--- when internal event is handled asynchronously:
---   UserDeleted event to contacts
---   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-userGC :: N -> E -> User -> AppIO User
-userGC N E u = case (userExpire u) of
+userGC :: User -> AppIO User
+userGC u = case (userExpire u) of
   Nothing -> return u
   (Just (fromUTCTimeMillis -> e)) -> do
     now <- liftIO =<< view currentTime
     -- ephemeral users past their expiry date are deleted
     when (diffUTCTime e now < 0) $
-      -- when internal event is handled asynchronously:
-      --   UserDeleted event to contacts
-      --   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-      deleteUserNoVerify N E (userId u)
+      deleteUserNoVerify (userId u)
     return u
 
--- when internal event is handled asynchronously:
---   UserDeleted event to contacts
---   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-lookupProfile :: N -> E -> UserId -> MappedOrLocalId Id.U -> AppIO (Maybe UserProfile)
-lookupProfile N E self other = listToMaybe <$> lookupProfiles N E self [other]
+lookupProfile :: UserId -> MappedOrLocalId Id.U -> AppIO (Maybe UserProfile)
+lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
 -- if the reverse relation (other -> self) is either 'Accepted' or 'Sent'.
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
---
--- when internal event is handled asynchronously:
---   UserDeleted event to contacts
---   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
 lookupProfiles ::
-  N ->
-  E ->
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [MappedOrLocalId Id.U] ->
   AppIO [UserProfile]
-lookupProfiles N E self others = do
+lookupProfiles self others = do
   let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
-  localProfiles <- lookupProfilesOfLocalUsers N E self localUsers
+  localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation): fetch remote profiles
   remoteProfiles <- pure []
   pure (localProfiles <> remoteProfiles)
 
--- when internal event is handled asynchronously:
---   UserDeleted event to contacts
---   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
 lookupProfilesOfLocalUsers ::
-  N ->
-  E ->
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
   AppIO [UserProfile]
-lookupProfilesOfLocalUsers N E self others = do
-  -- when internal event is handled asynchronously:
-  --   UserDeleted event to contacts
-  --   via galley: MemberLeave EdMembersLeave event to members for all conversations the user was in
-  users <- Data.lookupUsers others >>= mapM (userGC N E)
+lookupProfilesOfLocalUsers self others = do
+  users <- Data.lookupUsers others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of

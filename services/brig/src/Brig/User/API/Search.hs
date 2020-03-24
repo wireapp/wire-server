@@ -51,7 +51,7 @@ routes = do
   --
 
   -- UserUpdated event to contacts
-  put "/self/searchable" (continue (setSearchableH E)) $
+  put "/self/searchable" (continue setSearchableH) $
     header "Z-User"
       .&. jsonRequest @SearchableStatus
   document "PUT" "updateSearchableStatus" $ do
@@ -112,18 +112,14 @@ isSearchableH (_ ::: u) = json <$> lift (isSearchable u)
 isSearchable :: UserId -> AppIO SearchableStatus
 isSearchable = checkIndex
 
--- UserUpdated event to contacts
-setSearchableH :: E -> UserId ::: JsonRequest SearchableStatus -> Handler Response
-setSearchableH E (u ::: r) = do
+setSearchableH :: UserId ::: JsonRequest SearchableStatus -> Handler Response
+setSearchableH (u ::: r) = do
   s <- parseJsonBody r
-  -- UserUpdated event to contacts
-  lift (setSearchable E u s)
+  lift (setSearchable u s)
   return (setStatus status200 empty)
 
--- UserUpdated event to contacts
-setSearchable :: E -> UserId -> SearchableStatus -> AppIO ()
-setSearchable E u s = do
+setSearchable :: UserId -> SearchableStatus -> AppIO ()
+setSearchable u s = do
   DB.updateSearchableStatus u s
-  -- UserUpdated event to contacts
-  Intra.onUserEvent E u Nothing (searchableStatusUpdated u s)
+  Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
   return ()
