@@ -518,10 +518,10 @@ packages:
     git: https://github.com/wireapp/hscim
     commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
 - completed:
-    hackage: ormolu-0.0.3.1@sha256:10fbcc0adc652c8df631313e8e9c523196bb2e0ef53d883c82155067516c571d,7802
+    hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
     pantry-tree:
       size: 64583
-      sha256: b46ee023613c0ae4d2188cdb35117f5585bda69aa3afac9421eb25e2468ff985
+      sha256: aafd93fb839fda7b294a199048817517337df5e59258034006dfd1d7bb992af7
   original:
     hackage: ormolu-0.0.3.1
 - completed:
