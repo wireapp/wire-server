@@ -1,0 +1,533 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 9eca1c7a6e618bcb13ab300ef95a44dfa29d3c3ca86b90cdd5a4ce015cd1625e
+
+name:           brig
+version:        1.35.0
+synopsis:       User Service
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Brig.API
+      Brig.API.Client
+      Brig.API.Connection
+      Brig.API.Error
+      Brig.API.Handler
+      Brig.API.Properties
+      Brig.API.Types
+      Brig.API.User
+      Brig.API.Util
+      Brig.App
+      Brig.AWS
+      Brig.AWS.SesNotification
+      Brig.AWS.Types
+      Brig.Budget
+      Brig.Code
+      Brig.Data.Activation
+      Brig.Data.Blacklist
+      Brig.Data.Client
+      Brig.Data.Connection
+      Brig.Data.Instances
+      Brig.Data.LoginCode
+      Brig.Data.PasswordReset
+      Brig.Data.Properties
+      Brig.Data.Types
+      Brig.Data.User
+      Brig.Data.UserKey
+      Brig.Email
+      Brig.InternalEvent.Process
+      Brig.InternalEvent.Types
+      Brig.IO.Intra
+      Brig.IO.Journal
+      Brig.Locale
+      Brig.Options
+      Brig.Password
+      Brig.Phone
+      Brig.Provider.API
+      Brig.Provider.DB
+      Brig.Provider.Email
+      Brig.Provider.RPC
+      Brig.Provider.Template
+      Brig.Queue
+      Brig.Queue.Stomp
+      Brig.Queue.Types
+      Brig.RPC
+      Brig.Run
+      Brig.SMTP
+      Brig.Team.API
+      Brig.Team.DB
+      Brig.Team.Email
+      Brig.Team.Template
+      Brig.Team.Util
+      Brig.Template
+      Brig.TURN
+      Brig.TURN.API
+      Brig.Unique
+      Brig.User.API.Auth
+      Brig.User.API.Search
+      Brig.User.Auth
+      Brig.User.Auth.Cookie
+      Brig.User.Auth.Cookie.Limit
+      Brig.User.Auth.DB.Cookie
+      Brig.User.Auth.DB.Instances
+      Brig.User.Email
+      Brig.User.Event
+      Brig.User.Event.Log
+      Brig.User.Handle
+      Brig.User.Handle.Blacklist
+      Brig.User.Phone
+      Brig.User.Search.Index
+      Brig.User.Search.Index.Types
+      Brig.User.Template
+      Brig.Whitelist
+      Brig.ZAuth
+      Main
+  other-modules:
+      Paths_brig
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      HaskellNet >=0.3
+    , HaskellNet-SSL >=0.3
+    , HsOpenSSL >=0.10
+    , HsOpenSSL-x509-system >=0.1
+    , MonadRandom >=0.5
+    , aeson >=0.11
+    , amazonka >=1.3.7
+    , amazonka-dynamodb >=1.3.7
+    , amazonka-ses >=1.3.7
+    , amazonka-sns >=1.3.7
+    , amazonka-sqs >=1.3.7
+    , async >=2.1
+    , attoparsec >=0.12
+    , auto-update >=0.1
+    , base ==4.*
+    , base-prelude
+    , base16-bytestring >=0.1
+    , base64-bytestring >=1.0
+    , bilge >=0.21.1
+    , blaze-builder >=0.3
+    , bloodhound >=0.13
+    , brig-types >=0.91.1
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , cassandra-util >=0.16.2
+    , conduit >=1.2.8
+    , containers >=0.5
+    , cookie >=0.4
+    , cryptobox-haskell >=0.1.1
+    , currency-codes >=2.0
+    , data-default >=0.5
+    , data-timeout >=0.3
+    , directory >=1.2
+    , either >=4.3
+    , email-validate >=2.0
+    , enclosed-exceptions >=1.0
+    , errors >=1.4
+    , exceptions >=0.5
+    , extended
+    , extra >=1.3
+    , filepath >=1.3
+    , fsnotify >=0.2
+    , galley-types >=0.75.3
+    , geoip2 >=0.3.1.0
+    , gundeck-types >=1.32.1
+    , hashable >=1.2
+    , html-entities >=1.1
+    , http-client >=0.5
+    , http-client-openssl >=0.2
+    , http-types >=0.8
+    , imports
+    , iproute >=1.5
+    , iso639 >=0.1
+    , lens >=3.8
+    , lens-aeson >=1.0
+    , lifted-base >=0.2
+    , metrics-core >=0.3
+    , metrics-wai >=0.3
+    , mime
+    , mime-mail >=0.4
+    , monad-control >=1.0
+    , mtl >=2.1
+    , multihash >=0.1.3
+    , mwc-random
+    , network >=2.4
+    , network-conduit-tls
+    , network-uri >=2.6
+    , optparse-applicative >=0.11
+    , pem >=0.2
+    , prometheus-client
+    , proto-lens >=0.1
+    , random-shuffle >=0.0.3
+    , resource-pool >=0.2
+    , resourcet >=1.1
+    , retry >=0.7
+    , ropes >=0.4.20
+    , safe >=0.3
+    , scientific >=0.3.4
+    , scrypt >=0.5
+    , semigroups >=0.15
+    , singletons >=2.0
+    , smtp-mail >=0.1
+    , sodium-crypto-sign >=0.1
+    , split >=0.2
+    , ssl-util
+    , statistics >=0.13
+    , stomp-queue >=0.3
+    , string-conversions
+    , swagger >=0.1
+    , tagged >=0.7
+    , template >=0.2
+    , text >=0.11
+    , text-icu-translit >=0.1
+    , time >=1.1
+    , tinylog >=0.10
+    , tls >=1.3.4
+    , transformers >=0.3
+    , transformers-base >=0.4
+    , types-common >=0.16
+    , types-common-journal >=0.1
+    , unliftio >=0.2
+    , unliftio-core >=0.1
+    , unordered-containers >=0.2
+    , uri-bytestring >=0.2
+    , uuid >=1.3.5
+    , vault >=0.3
+    , vector >=0.11
+    , wai >=3.0
+    , wai-extra >=3.0
+    , wai-middleware-gunzip >=0.0.2
+    , wai-predicates >=0.8
+    , wai-routing >=0.12
+    , wai-utilities >=0.16
+    , warp >=3.0.12.1
+    , yaml >=0.8.22
+    , zauth >=0.10.3
+  default-language: Haskell2010
+
+library brig-index-lib
+  exposed-modules:
+      Brig.Index.Eval
+      Brig.Index.Options
+      Main
+  other-modules:
+      Paths_brig
+  hs-source-dirs:
+      index/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      HsOpenSSL >=0.10
+    , aeson >=0.11
+    , base
+    , base64-bytestring >=1.0
+    , bloodhound >=0.13
+    , brig
+    , bytestring-conversion >=0.2
+    , cassandra-util >=0.12
+    , containers >=0.5
+    , cookie >=0.4
+    , directory >=1.2
+    , errors >=1.4
+    , exceptions
+    , extended
+    , http-client
+    , http-types >=0.8
+    , imports
+    , lens
+    , lens-aeson >=1.0
+    , metrics-core
+    , mtl
+    , optparse-applicative >=0.13
+    , prometheus-client
+    , safe >=0.3
+    , text
+    , time
+    , tinylog >=0.10
+    , transformers >=0.3
+    , types-common
+    , types-common-journal >=0.1
+    , uri-bytestring
+    , uuid >=1.3.5
+    , wai-extra >=3.0
+    , yaml >=0.8.22
+  default-language: Haskell2010
+
+executable brig
+  main-is: src/Main.hs
+  other-modules:
+      Paths_brig
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
+  build-depends:
+      HsOpenSSL >=0.10
+    , aeson >=0.11
+    , base
+    , base64-bytestring >=1.0
+    , bloodhound >=0.13
+    , brig
+    , bytestring-conversion >=0.2
+    , containers >=0.5
+    , cookie >=0.4
+    , directory >=1.3
+    , errors >=1.4
+    , exceptions >=0.5
+    , extended
+    , http-types >=0.8
+    , imports
+    , lens-aeson >=1.0
+    , mtl >=2.1
+    , optparse-applicative >=0.10
+    , prometheus-client
+    , safe >=0.3
+    , text >=0.11
+    , tinylog >=0.10
+    , transformers >=0.3
+    , types-common
+    , types-common-journal >=0.1
+    , uuid >=1.3.5
+    , wai-extra >=3.0
+    , yaml >=0.8.22
+  default-language: Haskell2010
+
+executable brig-index
+  main-is: index/src/Main.hs
+  other-modules:
+      Paths_brig
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
+  build-depends:
+      HsOpenSSL >=0.10
+    , aeson >=0.11
+    , base
+    , base64-bytestring >=1.0
+    , bloodhound >=0.13
+    , brig-index-lib
+    , bytestring-conversion >=0.2
+    , containers >=0.5
+    , cookie >=0.4
+    , directory >=1.2
+    , errors >=1.4
+    , exceptions >=0.5
+    , extended
+    , http-types >=0.8
+    , imports
+    , lens-aeson >=1.0
+    , mtl >=2.1
+    , optparse-applicative >=0.11
+    , prometheus-client
+    , safe >=0.3
+    , text >=0.11
+    , tinylog >=0.10
+    , transformers >=0.3
+    , types-common-journal >=0.1
+    , uuid >=1.3.5
+    , wai-extra >=3.0
+    , yaml >=0.8.22
+  default-language: Haskell2010
+
+executable brig-integration
+  main-is: Main.hs
+  other-modules:
+      API.Metrics
+      API.Provider
+      API.RichInfo.Util
+      API.Search
+      API.Search.Util
+      API.Settings
+      API.Team
+      API.Team.Util
+      API.TURN
+      API.User
+      API.User.Account
+      API.User.Auth
+      API.User.Client
+      API.User.Connection
+      API.User.Handles
+      API.User.PasswordReset
+      API.User.Property
+      API.User.RichInfo
+      API.User.Util
+      Index.Create
+      Util
+      Util.AWS
+      Paths_brig
+  hs-source-dirs:
+      test/integration
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      HsOpenSSL
+    , aeson >=0.11
+    , async
+    , attoparsec
+    , base ==4.*
+    , base64-bytestring >=1.0
+    , bilge
+    , bloodhound >=0.13
+    , brig
+    , brig-index-lib
+    , brig-types
+    , bytestring >=0.9
+    , bytestring-conversion >=0.2
+    , cargohold-types
+    , case-insensitive
+    , cassandra-util
+    , containers >=0.5
+    , cookie >=0.4
+    , data-timeout
+    , directory >=1.2
+    , errors >=1.4
+    , exceptions >=0.5
+    , extended
+    , extra
+    , filepath >=1.4
+    , galley-types
+    , gundeck-types
+    , http-client
+    , http-client-tls >=0.2
+    , http-types >=0.8
+    , imports
+    , lens >=3.9
+    , lens-aeson >=1.0
+    , metrics-wai
+    , mime >=0.4
+    , mtl >=2.1
+    , network
+    , options >=0.1
+    , optparse-applicative >=0.11
+    , pem
+    , prometheus-client
+    , proto-lens
+    , random >=1.0
+    , retry >=0.6
+    , safe >=0.3
+    , semigroups
+    , string-conversions
+    , tasty >=1.0
+    , tasty-cannon >=0.3.4
+    , tasty-hunit >=0.2
+    , temporary >=1.2.1
+    , text >=0.11
+    , time >=1.5
+    , tinylog
+    , transformers >=0.3
+    , types-common >=0.3
+    , types-common-aws >=0.1
+    , types-common-journal >=0.1
+    , unix >=2.5
+    , unliftio
+    , unordered-containers
+    , uri-bytestring >=0.2
+    , uuid >=1.3.5
+    , vector >=0.10
+    , wai
+    , wai-extra >=3.0
+    , wai-route
+    , wai-utilities >=0.9
+    , warp
+    , warp-tls >=3.2
+    , yaml >=0.8.22
+    , zauth
+  default-language: Haskell2010
+
+executable brig-schema
+  main-is: Main.hs
+  other-modules:
+      V10
+      V11
+      V12
+      V13
+      V14
+      V15
+      V16
+      V17
+      V18
+      V19
+      V20
+      V21
+      V22
+      V23
+      V24
+      V25
+      V28
+      V29
+      V30
+      V31
+      V32
+      V33
+      V34
+      V35
+      V36
+      V37
+      V38
+      V39
+      V40
+      V41
+      V42
+      V43
+      V44
+      V45
+      V46
+      V47
+      V48
+      V49
+      V50
+      V51
+      V52
+      V53
+      V54
+      V55
+      V56
+      V57
+      V58
+      V9
+      Paths_brig
+  hs-source-dirs:
+      schema/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      HsOpenSSL >=0.10
+    , aeson >=0.11
+    , base
+    , base64-bytestring >=1.0
+    , bloodhound >=0.13
+    , bytestring-conversion >=0.2
+    , cassandra-util >=0.12
+    , containers >=0.5
+    , cookie >=0.4
+    , directory >=1.3
+    , errors >=1.4
+    , exceptions >=0.5
+    , extended
+    , http-types >=0.8
+    , imports
+    , lens-aeson >=1.0
+    , mtl >=2.1
+    , optparse-applicative >=0.10
+    , prometheus-client
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , text
+    , tinylog >=0.10
+    , transformers >=0.3
+    , types-common
+    , types-common-journal >=0.1
+    , uuid >=1.3.5
+    , wai-extra >=3.0
+    , yaml >=0.8.22
+  default-language: Haskell2010

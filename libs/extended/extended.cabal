@@ -1,0 +1,57 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 6d1c11d003f9c50397c8bc6ff6b07138dc00200844cb86411aa895fa49ca81f6
+
+name:           extended
+version:        0.1.0
+synopsis:       Extended versions of common modules
+description:    .Extended versions of various libraries from Hackage. See
+                https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
+                for a description of this design pattern.
+category:       Utilities
+stability:      experimental
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Options.Applicative.Extended
+      Servant.API.Extended
+      System.Logger.Extended
+  other-modules:
+      Paths_extended
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , cql-io
+    , errors
+    , exceptions
+    , extra
+    , http-types
+    , imports
+    , mtl
+    , optparse-applicative
+    , servant
+    , servant-client
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , text
+    , tinylog
+    , transformers
+    , unliftio
+    , wai
+  default-language: Haskell2010
