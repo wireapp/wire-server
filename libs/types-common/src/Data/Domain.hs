@@ -26,6 +26,8 @@ import qualified Test.QuickCheck as QC
 -- <letter> ::= any one of the 52 alphabetic characters A through Z in
 -- upper case and a through z in lower case
 -- <digit> ::= any one of the ten digits 0 through 9
+--
+-- All letters will be lowercased when parsed.
 newtype Domain
   = Domain {_domainText :: Text}
   deriving (Eq, Generic, Show)
@@ -47,7 +49,7 @@ domainParser = do
     fail "Invalid domain: too long"
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "Invalid UTF-8 in Domain: " <> show err
-    Right txt -> pure $ Domain txt
+    Right txt -> pure . Domain $ Text.toCaseFold txt
   where
     domainLabel :: Atto.Parser ByteString
     domainLabel = do
@@ -56,10 +58,8 @@ domainParser = do
         fail "Invalid domain label"
       pure match
     matching = fmap fst . Atto.match
-    -- TODO: we don't accept capital letters here.
-    -- we probably should, but need to normalize them?
-    alphaNum = Atto.inClass "a-z0-9"
-    alphaNumHyphen = Atto.inClass "a-z0-9-"
+    alphaNum = Atto.inClass "A-Za-z0-9"
+    alphaNumHyphen = Atto.inClass "A-Za-z0-9-"
 
 instance ToJSON Domain where
   toJSON = Aeson.String . domainText
