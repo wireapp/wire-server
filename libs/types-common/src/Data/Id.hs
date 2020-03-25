@@ -8,9 +8,10 @@
 module Data.Id where
 
 import Cassandra hiding (S)
-import Data.Aeson
+import Data.Aeson hiding ((<?>))
 import Data.Aeson.Encoding (text)
 import Data.Aeson.Types (Parser)
+import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
@@ -123,17 +124,17 @@ instance FromByteString (Id a) where
     x <-
       -- we only want the matching ByteString
       matching $ do
-        () <$ Atto.count 8 hexDigit <* Atto.char '-'
-        () <$ Atto.count 4 hexDigit <* Atto.char '-'
-        () <$ Atto.count 4 hexDigit <* Atto.char '-'
-        () <$ Atto.count 4 hexDigit <* Atto.char '-'
-        () <$ Atto.count 12 hexDigit
+        void $ Atto.count 8 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 12 hexDigit
     case UUID.fromASCIIBytes x of
       Nothing -> fail "Invalid UUID"
       Just ui -> return (Id ui)
     where
       matching = fmap fst . Atto.match
-      hexDigit = Atto.satisfy Char.isHexDigit
+      hexDigit = Atto.satisfy Char.isHexDigit <?> "hexadecimal digit"
 
 instance ToByteString (Id a) where
   builder = byteString . UUID.toASCIIBytes . toUUID

@@ -2,6 +2,7 @@ module Data.Domain where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson as Aeson
+import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS.Char8
@@ -53,9 +54,13 @@ domainParser = do
   where
     domainLabel :: Atto.Parser ByteString
     domainLabel = do
-      match <- matching (Atto.satisfy alphaNum *> Atto.skipWhile alphaNumHyphen)
-      when (BS.length match > 63 || BS.Char8.last match == '-') $
-        fail "Invalid domain label"
+      match <- matching $ do
+        (void $ Atto.satisfy alphaNum) <?> "alphanumeric character"
+        Atto.skipWhile alphaNumHyphen
+      when (BS.length match > 63) $
+        fail "Invalid domain label: too long"
+      when (BS.Char8.last match == '-') $
+        fail "Invalid domain label: last character is a hyphen"
       pure match
     matching = fmap fst . Atto.match
     alphaNum = Atto.inClass "A-Za-z0-9"
