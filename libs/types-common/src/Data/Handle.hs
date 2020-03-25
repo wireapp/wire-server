@@ -34,10 +34,10 @@ parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither
 
 parseHandleEither :: Text -> Either String Handle
-parseHandleEither = Atto.parseOnly handleParser . Text.E.encodeUtf8
+parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 isValidHandle :: Text -> Bool
-isValidHandle = maybe False (const True) . parseHandle
+isValidHandle = isRight . parseHandleEither
 
 instance FromJSON Handle where
   parseJSON =

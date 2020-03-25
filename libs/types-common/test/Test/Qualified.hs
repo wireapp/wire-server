@@ -41,9 +41,9 @@ testHandle =
       let invalidHandles =
             [ "h", -- too short
               Text.replicate 257 "a", -- too long
-              "händle",
-              "hàndle",
-              "h@ndle",
+              "myhändle",
+              "myhàndle",
+              "myh@ndle",
               "$pecial",
               "some+name",
               "upperCase",

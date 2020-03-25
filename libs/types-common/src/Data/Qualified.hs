@@ -94,7 +94,7 @@ renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
-mkQualifiedId = Atto.parseOnly BS.C.parser . Text.E.encodeUtf8
+mkQualifiedId = Atto.parseOnly (BS.C.parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance ToJSON (Qualified (Id a)) where
   toJSON = Aeson.String . renderQualifiedId
@@ -114,7 +114,7 @@ renderQualifiedHandle :: Qualified Handle -> Text
 renderQualifiedHandle = renderQualified fromHandle
 
 mkQualifiedHandle :: Text -> Either String (Qualified Handle)
-mkQualifiedHandle = Atto.parseOnly BS.C.parser . Text.E.encodeUtf8
+mkQualifiedHandle = Atto.parseOnly (BS.C.parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance ToJSON (Qualified Handle) where
   toJSON = Aeson.String . renderQualifiedHandle
