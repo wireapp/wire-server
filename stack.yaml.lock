@@ -200,12 +200,12 @@ packages:
     version: '0.1'
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
-      size: 3865
-      sha256: b66d79dfae0fb261dc80c22f3fbcd2930c1b90eb25783bfeac0d1f9298b2b896
-    commit: cc47da1d097b0b26595b8889e40c33c6c0c1c551
+      size: 3918
+      sha256: a90ad3e25ab6ba579ea4d347c8734f92f73e323303c91d53729ddc8784774f72
+    commit: fe08618e81dee9b7a25f10f5b9d26d1ff1837c79
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: cc47da1d097b0b26595b8889e40c33c6c0c1c551
+    commit: fe08618e81dee9b7a25f10f5b9d26d1ff1837c79
 - completed:
     subdir: http-client
     cabal-file:
@@ -465,7 +465,7 @@ packages:
       size: 1636
       sha256: 8a990a301f2ff81843edea539bddd0f2b13b95a8001922bada69361d8db7e401
   original:
-    hackage: servant-swagger-1.1.7.1
+    hackage: servant-swagger-1.1.7.1@rev:2
 - completed:
     hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
     pantry-tree:
@@ -499,10 +499,10 @@ packages:
     pantry-tree:
       size: 4593
       sha256: 127f0e4c67697f8eed57b9675cca6bfaff7ac028d7c0907a110f2974a66b017f
-    commit: c17a6fd2bf06c61d229cdc8ec6af4a75ffbca8e5
+    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: c17a6fd2bf06c61d229cdc8ec6af4a75ffbca8e5
+    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
 - completed:
     cabal-file:
       size: 9240
