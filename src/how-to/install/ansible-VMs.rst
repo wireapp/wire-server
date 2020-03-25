@@ -220,6 +220,15 @@ Install restund:
 
    poetry run ansible-playbook -i hosts.ini restund.yml -vv
 
+IMPORTANT checks
+^^^^^^^^^^^^^^^^
+
+ After running the above playbooks, it is important to ensure that everything is setup correctly. Please have a look at the post install checks in the section :ref:`checks`
+
+::
+
+   poetry run ansible-playbook -i hosts.ini cassandra-verify-ntp.yml -vv
+
 Installing helm charts - prerequisites
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

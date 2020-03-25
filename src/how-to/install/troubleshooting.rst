@@ -50,3 +50,14 @@ If your target machine only has python 3 (not python 2.7), you can tell ansible 
    ansible_python_interpreter=/usr/bin/python3
 
 (python 3 may not be supported by all ansible modules yet)
+
+Flaky issues with Cassandra (failed QUORUMs, etc.)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Cassandra is *very* picky about time! Ensure that NTP is properly set up on all nodes. Particularly for Cassandra *DO NOT* use anything else other than ntp. Here are some helpful blogs that explain why:
+
+ * https://blog.rapid7.com/2014/03/14/synchronizing-clocks-in-a-cassandra-cluster-pt-1-the-problem/
+ * https://blog.rapid7.com/2014/03/17/synchronizing-clocks-in-a-cassandra-cluster-pt-2-solutions/
+ * https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04
+
+How can I ensure that I have correctly setup NTP on my machine(s)? Have a look at `this ansible playbook <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/cassandra-verify-ntp.yml>`_

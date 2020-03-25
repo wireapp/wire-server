@@ -9,4 +9,5 @@ server components.
    :glob:
 
     How to install wire-server <install/index.rst>
+    How to verify your wire-server installtion <post-install/index.rst>
     How to administrate servers after successful installation <administrate/index.rst>
