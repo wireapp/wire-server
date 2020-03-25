@@ -7,7 +7,7 @@ import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Conversion as BS.C
 import Data.Domain (Domain (Domain), DomainText (DomainText), domainText, mkDomain)
-import Data.Handle (Handle (Handle, fromHandle))
+import Data.Handle (Handle (Handle, fromHandle), parseHandleEither)
 import Data.Id (Id (Id, toUUID), UserId)
 import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -24,9 +24,39 @@ tests :: TestTree
 tests =
   testGroup
     "Qualified"
-    [ testGroup "Domain" testDomain,
+    [ testGroup "Handle" testHandle,
+      testGroup "Domain" testDomain,
       testGroup "Qualified" testQualified
     ]
+
+testHandle :: [TestTree]
+testHandle =
+  [ testCase "parses some example handles" $ do
+      let validHandles = ["handle", "--", "__", "..", "0123456789", Text.replicate 256 "a"]
+      for_ validHandles $ \h ->
+        case parseHandleEither h of
+          Right _ -> pure ()
+          Left err -> assertFailure $ "valid handle " <> show h <> " not parsed successfully: " <> err,
+    testCase "rejects invalid handles" $ do
+      let invalidHandles =
+            [ "h", -- too short
+              Text.replicate 257 "a", -- too long
+              "händle",
+              "hàndle",
+              "h@ndle",
+              "$pecial",
+              "some+name",
+              "upperCase",
+              "with space"
+            ]
+      for_ invalidHandles $ \h ->
+        case parseHandleEither h of
+          Left _ -> pure ()
+          Right parsed -> assertFailure $ "invalid handle parsed successfully: " <> show (h, parsed),
+    testProperty "roundtrip for Handle" $
+      \(x :: Handle) ->
+        parseHandleEither (fromHandle x) === Right x
+  ]
 
 testDomain :: [TestTree]
 testDomain =
