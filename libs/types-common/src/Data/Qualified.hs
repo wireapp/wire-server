@@ -21,7 +21,6 @@ import Data.Aeson (FromJSON, ToJSON, withText)
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
-import qualified Data.ByteString.Conversion as BS.C
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
@@ -94,7 +93,7 @@ renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
-mkQualifiedId = Atto.parseOnly (BS.C.parser <* Atto.endOfInput) . Text.E.encodeUtf8
+mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance ToJSON (Qualified (Id a)) where
   toJSON = Aeson.String . renderQualifiedId
@@ -106,7 +105,7 @@ instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualifiedId
 
 instance FromByteString (Qualified (Id a)) where
-  parser = qualifiedParser BS.C.parser
+  parser = qualifiedParser parser
 
 ----------------------------------------------------------------------
 
@@ -114,7 +113,7 @@ renderQualifiedHandle :: Qualified Handle -> Text
 renderQualifiedHandle = renderQualified fromHandle
 
 mkQualifiedHandle :: Text -> Either String (Qualified Handle)
-mkQualifiedHandle = Atto.parseOnly (BS.C.parser <* Atto.endOfInput) . Text.E.encodeUtf8
+mkQualifiedHandle = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance ToJSON (Qualified Handle) where
   toJSON = Aeson.String . renderQualifiedHandle
@@ -126,7 +125,7 @@ instance FromHttpApiData (Qualified Handle) where
   parseUrlPiece = first cs . mkQualifiedHandle
 
 instance FromByteString (Qualified Handle) where
-  parser = qualifiedParser BS.C.parser
+  parser = qualifiedParser parser
 
 ----------------------------------------------------------------------
 -- ARBITRARY
