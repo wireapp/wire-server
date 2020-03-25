@@ -1,6 +1,20 @@
 {-# LANGUAGE StrictData #-}
 
-module Data.Qualified where
+module Data.Qualified
+  ( -- * Optionally qualified
+    OptionallyQualified (..),
+    unqualified,
+    qualified,
+    eitherQualifiedOrNot,
+
+    -- * Qualified
+    Qualified (..),
+    renderQualifiedId,
+    mkQualifiedId,
+    renderQualifiedHandle,
+    mkQualifiedHandle,
+  )
+where
 
 import Control.Applicative (optional)
 import Data.Aeson (FromJSON, ToJSON, withText)

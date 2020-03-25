@@ -1,7 +1,13 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Data.Handle where
+module Data.Handle
+  ( Handle (..),
+    parseHandle,
+    parseHandleEither,
+    isValidHandle,
+  )
+where
 
 import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.ByteString ((<?>))

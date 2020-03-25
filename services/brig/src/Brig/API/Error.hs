@@ -11,7 +11,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id (idToText)
 import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (renderQualified)
+import Data.Qualified (renderQualifiedId)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
@@ -463,4 +463,4 @@ federationNotImplemented qualified =
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
-      idToText idMappingLocal <> " -> " <> renderQualified idToText idMappingGlobal
+      idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
