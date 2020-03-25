@@ -12,8 +12,20 @@ import Imports
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 
--- | FUTUREWORK: move this type upstream into the email-validate package?
--- or become independent of email validation.
+-- | Following [RFC-1035](https://www.ietf.org/rfc/rfc1035.txt), Section 2.3.1,
+-- except for:
+-- * not allowing a space @" "@
+-- * accepting digits as the first letter of labels (except for the last label)
+-- * not only must labels be 63 characters or less, the whole domain be 255 characters or less
+--
+-- <domain> ::= <label> | <domain> "." <label>
+-- <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
+-- <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+-- <let-dig-hyp> ::= <let-dig> | "-"
+-- <let-dig> ::= <letter> | <digit>
+-- <letter> ::= any one of the 52 alphabetic characters A through Z in
+-- upper case and a through z in lower case
+-- <digit> ::= any one of the ten digits 0 through 9
 newtype Domain
   = Domain {_domainText :: Text}
   deriving (Eq, Generic, Show)
@@ -57,22 +69,52 @@ instance FromJSON Domain where
 
 instance Arbitrary Domain where
   arbitrary =
-    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . Text.intercalate "."
-      <$> count 1 4 arbitraryDomainLabel
+    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary
+
+-- | only for QuickCheck
+newtype DomainText
+  = DomainText {getDomainText :: Text}
+  deriving (Eq, Show)
+
+instance Arbitrary DomainText where
+  arbitrary = DomainText <$> domain
     where
-      arbitraryDomainLabel = do
-        a <- alphaNum
-        b <- Text.pack <$> count 0 61 alphaNumHypen
-        c <- alphaNum
-        pure (a `Text.cons` b `Text.snoc` c)
-      -- unicode domains are not supported, sadly:
-      -- "例.com",
-      -- "مثال.com",
-      -- "dæmi.com"
-      alphaNum =
-        QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
-      alphaNumHypen =
-        QC.elements $ ['a' .. 'z'] <> ['0' .. '9'] <> "-"
-      count x y gen = do
-        n <- QC.choose (x, y)
-        replicateM n gen
+      -- <domain> ::= <label> | <domain> "." <label>
+      domain =
+        QC.oneof
+          [ label,
+            conc [domain, pure ".", label]
+          ]
+          `QC.suchThat` ((<= 255) . Text.length)
+      -- <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
+      label =
+        conc [letDig, opt (conc [opt ldhStr, letDig])]
+          `QC.suchThat` ((<= 63) . Text.length)
+      -- <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+      ldhStr =
+        QC.frequency
+          [ (1, letDigHyp),
+            (3, conc [letDigHyp, ldhStr]) -- to get longer labels
+          ]
+          `QC.suchThat` ((<= 61) . Text.length)
+      -- <let-dig-hyp> ::= <let-dig> | "-"
+      letDigHyp =
+        QC.frequency
+          [ (1, pure "-"),
+            (5, letDig) -- fewer hyphens
+          ]
+      -- <let-dig> ::= <letter> | <digit>
+      -- <letter> ::= any one of the 52 alphabetic characters A through Z in
+      -- upper case and a through z in lower case
+      -- <digit> ::= any one of the ten digits 0 through 9
+      letDig =
+        Text.singleton <$> QC.elements (['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9'])
+      -- helpers
+      conc :: [QC.Gen Text] -> QC.Gen Text
+      conc = fmap Text.concat . sequenceA
+      opt :: QC.Gen Text -> QC.Gen Text
+      opt x =
+        QC.frequency
+          [ (1, pure ""),
+            (5, x) -- to get longer labels
+          ]

@@ -59,6 +59,7 @@ instance FromByteString (OptionallyQualified Handle) where
 ----------------------------------------------------------------------
 -- QUALIFIED
 
+-- TODO: how do we deal with IPs?
 data Qualified a
   = Qualified
       { _qLocalPart :: a,
