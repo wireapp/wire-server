@@ -30,22 +30,22 @@ newtype Handle
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
 
-parseHandle :: Text -> Maybe Handle
-parseHandle = either (const Nothing) Just . parseHandleEither
-
-parseHandleEither :: Text -> Either String Handle
-parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.encodeUtf8
-
-isValidHandle :: Text -> Bool
-isValidHandle = isRight . parseHandleEither
+instance FromByteString Handle where
+  parser = handleParser
 
 instance FromJSON Handle where
   parseJSON =
     withText "Handle" $
-      maybe (fail "Invalid handle") pure . parseHandle
+      either (fail . ("Invalid handle: " <>)) pure . parseHandleEither
 
-instance FromByteString Handle where
-  parser = handleParser
+parseHandle :: Text -> Maybe Handle
+parseHandle = either (const Nothing) Just . parseHandleEither
+
+isValidHandle :: Text -> Bool
+isValidHandle = isRight . parseHandleEither
+
+parseHandleEither :: Text -> Either String Handle
+parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 handleParser :: Atto.Parser Handle
 handleParser = do
