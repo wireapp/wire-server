@@ -6,12 +6,11 @@ where
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Conversion as BS.C
-import Data.Domain (Domain (Domain), DomainText (DomainText), domainText, mkDomain)
-import Data.Handle (Handle (Handle, fromHandle), parseHandleEither)
+import Data.Domain (Domain (Domain))
+import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id, toUUID), UserId)
 import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports
@@ -24,54 +23,8 @@ tests :: TestTree
 tests =
   testGroup
     "Qualified"
-    [ testGroup "Handle" testHandle,
-      testGroup "Domain" testDomain,
-      testGroup "Qualified" testQualified
+    [ testGroup "serialization" testQualifiedSerialization
     ]
-
-testHandle :: [TestTree]
-testHandle =
-  [ testCase "parses some example handles" $ do
-      let validHandles = ["handle", "--", "__", "..", "0123456789", Text.replicate 256 "a"]
-      for_ validHandles $ \h ->
-        case parseHandleEither h of
-          Right _ -> pure ()
-          Left err -> assertFailure $ "valid handle " <> show h <> " not parsed successfully: " <> err,
-    testCase "rejects invalid handles" $ do
-      let invalidHandles =
-            [ "h", -- too short
-              Text.replicate 257 "a", -- too long
-              "myhändle",
-              "myhàndle",
-              "myh@ndle",
-              "$pecial",
-              "some+name",
-              "upperCase",
-              "with space"
-            ]
-      for_ invalidHandles $ \h ->
-        case parseHandleEither h of
-          Left _ -> pure ()
-          Right parsed -> assertFailure $ "invalid handle parsed successfully: " <> show (h, parsed),
-    testProperty "roundtrip for Handle" $
-      \(x :: Handle) ->
-        parseHandleEither (fromHandle x) === Right x
-  ]
-
-testDomain :: [TestTree]
-testDomain =
-  [ testProperty "Arbitrary DomainText generates valid domains" $
-      \(DomainText x) ->
-        isRight $ mkDomain x,
-    testProperty "parsing a domain normalizes it" $
-      \(DomainText x) ->
-        (domainText <$> mkDomain x) === Right (Text.toCaseFold x)
-  ]
-
-testQualified :: [TestTree]
-testQualified =
-  [ testGroup "serialization" testQualifiedSerialization
-  ]
 
 testQualifiedSerialization :: [TestTree]
 testQualifiedSerialization =
