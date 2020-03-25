@@ -129,7 +129,6 @@ claimPrekey u c = case u of
   Local localUser ->
     claimLocalPrekey localUser c
   Mapped _ ->
-    -- TODO: error?
     pure Nothing
 
 claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
@@ -144,7 +143,6 @@ claimPrekeyBundle = \case
   Local localUser ->
     claimLocalPrekeyBundle localUser
   Mapped IdMapping {idMappingLocal} ->
-    -- TODO: error?
     pure $ PrekeyBundle (makeMappedIdOpaque idMappingLocal) []
 
 claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle

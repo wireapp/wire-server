@@ -51,7 +51,6 @@ createConnection self req conn = do
       createConnectionToLocalUser self u req conn
     Mapped IdMapping {idMappingLocal} ->
       -- FUTUREWORK(federation): allow creating connections to remote users
-      -- TODO: different error?
       throwE $ InvalidUser (makeMappedIdOpaque idMappingLocal)
 
 createConnectionToLocalUser ::

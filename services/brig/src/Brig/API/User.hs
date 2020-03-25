@@ -904,7 +904,6 @@ lookupProfiles self others = do
   let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
   localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation): fetch remote profiles
-  -- TODO: error?
   remoteProfiles <- pure []
   pure (localProfiles <> remoteProfiles)
 
