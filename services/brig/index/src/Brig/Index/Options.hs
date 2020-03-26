@@ -17,6 +17,7 @@ module Brig.Index.Options
     localCassandraSettings,
     commandParser,
     mkCreateIndexSettings,
+    toESServer,
   )
 where
 
@@ -36,6 +37,7 @@ data Command
   | Reset ElasticSettings
   | Reindex ElasticSettings CassandraSettings
   | UpdateMapping (URIRef Absolute) ES.IndexName
+  | Migrate ElasticSettings CassandraSettings
   deriving (Show)
 
 data ElasticSettings
@@ -212,6 +214,12 @@ commandParser =
               (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser)
               (progDesc "Reindex all users from Cassandra.")
           )
+        <> command
+          "migrate-data"
+          ( info
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (progDesc "Migrate data in elastic search")
+          )
     )
 
 _IndexName :: Iso' ES.IndexName Text
@@ -219,3 +227,12 @@ _IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
 
 _Keyspace :: Iso' C.Keyspace Text
 _Keyspace = iso C.unKeyspace C.Keyspace
+
+toESServer :: URIRef Absolute -> ES.Server
+toESServer =
+  ES.Server
+    . view utf8
+    . serializeURIRef'
+    . set pathL mempty
+    . set queryL mempty
+    . set fragmentL mempty

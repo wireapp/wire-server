@@ -5,6 +5,7 @@ module Brig.Index.Eval
   )
 where
 
+import Brig.Index.Migrations
 import Brig.Index.Options
 import Brig.User.Search.Index
 import qualified Cassandra as C
@@ -12,13 +13,11 @@ import qualified Cassandra.Settings as C
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Metrics as Metrics
-import Data.Text.Strict.Lens
 import qualified Database.V5.Bloodhound as ES
 import Imports
 import Network.HTTP.Client
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
-import URI.ByteString
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
@@ -35,6 +34,8 @@ runCommand l = \case
   UpdateMapping esURI indexName -> do
     e <- initIndex' esURI indexName
     runIndexIO e updateMapping
+  Migrate es cas -> do
+    migrate l es cas
   where
     initIndex es =
       initIndex' (es ^. esServer) (es ^. esIndex)
@@ -56,15 +57,6 @@ runCommand l = \case
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
         $ C.defSettings
-
-toESServer :: URIRef Absolute -> ES.Server
-toESServer =
-  ES.Server
-    . view utf8
-    . serializeURIRef'
-    . set pathL mempty
-    . set queryL mempty
-    . set fragmentL mempty
 
 --------------------------------------------------------------------------------
 -- ReindexIO command monad
