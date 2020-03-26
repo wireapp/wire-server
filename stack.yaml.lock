@@ -5,20 +5,6 @@
 
 packages:
 - completed:
-    hackage: servant-swagger-1.1.7.1@sha256:9b0bc99cbd399b47630fc56f05eb8b7d05f1b26cd941faf24b036b7ada1d4946,4647
-    pantry-tree:
-      size: 1636
-      sha256: 8a990a301f2ff81843edea539bddd0f2b13b95a8001922bada69361d8db7e401
-  original:
-    hackage: servant-swagger-1.1.7.1@rev:2
-- completed:
-    hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
-    pantry-tree:
-      size: 2260
-      sha256: 918512b76aee4d580e9fa2d9e1fd4d9987065788ab99b62d59335e3e0242f12a
-  original:
-    hackage: swagger2-2.5
-- completed:
     subdir: wai-middleware-prometheus
     cabal-file:
       size: 1314
@@ -50,18 +36,18 @@ packages:
     commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
 - completed:
     cabal-file:
-      size: 9240
-      sha256: 884d9ade3b69cfe7e30193ac26120a98c6b5dcbaa4e250a0a4a25be7e4137c28
+      size: 9076
+      sha256: 8cee304fe3c710634ff87432d3ac65e4b05d13c32e8219fe977e424a57f080b6
     name: hscim
     version: 0.3.4
     git: https://github.com/wireapp/hscim
     pantry-tree:
-      size: 3620
-      sha256: f32516a4c51233fc44ebd31db6682a7ff6c9b69c55e77221582bfec4f1c771f1
-    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
+      size: 3779
+      sha256: 9403276629139c9e1754f9779209170457105fc83e476f17ba114e288638973e
+    commit: fda44fd37713edbf770378ef85986ea809ff3b87
   original:
     git: https://github.com/wireapp/hscim
-    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
+    commit: fda44fd37713edbf770378ef85986ea809ff3b87
 - completed:
     hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
     pantry-tree:
@@ -250,6 +236,34 @@ packages:
     subdir: core
     url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+- completed:
+    hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
+    pantry-tree:
+      size: 8333
+      sha256: bd7469b4077272ecf37fe30dcff64c3af0a820b610ca592c172d7fa97d9e6833
+  original:
+    hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
+- completed:
+    hackage: amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
+    pantry-tree:
+      size: 18151
+      sha256: 1b4746acac660d5418731b3972c4ff2285ee3435c709dfda67df49665f781d0a
+  original:
+    hackage: amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
+- completed:
+    hackage: amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
+    pantry-tree:
+      size: 7859
+      sha256: d7791240fd6ed273f602e7739c141c56dd9f08ea37cc1ea7d0cfb095489e595d
+  original:
+    hackage: amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
+- completed:
+    hackage: amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
+    pantry-tree:
+      size: 5305
+      sha256: 4ba2af33686b13cdfb473035500c7e07028564ed4b6ab2a4a6e0bd027b919ef8
+  original:
+    hackage: amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
 - completed:
     cabal-file:
       size: 1150
@@ -497,13 +511,6 @@ packages:
   original:
     hackage: invertible-hxt-0.1
 - completed:
-    hackage: network-uri-static-0.1.2.1@sha256:7e1ca4358b319ac2db6514d0e0beb073c296789eeef9cebd89cc9517618fbfe8,1724
-    pantry-tree:
-      size: 334
-      sha256: ee5fd663eed91eedc681a798578b32b1ba8fbf7a15924303aef8f1761a42c137
-  original:
-    hackage: network-uri-static-0.1.2.1
-- completed:
     hackage: base58-bytestring-0.1.0@sha256:a1da72ee89d5450bac1c792d9fcbe95ed7154ab7246f2172b57bd4fd9b5eab79,1913
     pantry-tree:
       size: 419
@@ -533,7 +540,7 @@ packages:
     hackage: wai-route-0.4.0
 snapshots:
 - completed:
-    size: 545658
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/12.yaml
-    sha256: 26b807457213126d26b595439d705dc824dbb7618b0de6b900adc2bf6a059406
-  original: lts-14.12
+    size: 524996
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/27.yaml
+    sha256: 7ea31a280c56bf36ff591a7397cc384d0dff622e7f9e4225b47d8980f019a0f0
+  original: lts-14.27
