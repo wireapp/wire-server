@@ -121,15 +121,17 @@ instance Read (Id a) where
 
 instance FromByteString (Id a) where
   parser = do
-    x <-
-      -- we only want the matching ByteString
+    match <-
+      -- we only want the matching part of the ByteString, so the parser doesn't
+      -- consume additional input.
+      -- This allows the parser to be composed.
       matching $ do
         void $ Atto.count 8 hexDigit <* Atto.char '-'
         void $ Atto.count 4 hexDigit <* Atto.char '-'
         void $ Atto.count 4 hexDigit <* Atto.char '-'
         void $ Atto.count 4 hexDigit <* Atto.char '-'
         void $ Atto.count 12 hexDigit
-    case UUID.fromASCIIBytes x of
+    case UUID.fromASCIIBytes match of
       Nothing -> fail "Invalid UUID"
       Just ui -> return (Id ui)
     where
