@@ -5,6 +5,78 @@
 
 packages:
 - completed:
+    hackage: servant-swagger-1.1.7.1@sha256:9b0bc99cbd399b47630fc56f05eb8b7d05f1b26cd941faf24b036b7ada1d4946,4647
+    pantry-tree:
+      size: 1636
+      sha256: 8a990a301f2ff81843edea539bddd0f2b13b95a8001922bada69361d8db7e401
+  original:
+    hackage: servant-swagger-1.1.7.1@rev:2
+- completed:
+    hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
+    pantry-tree:
+      size: 2260
+      sha256: 918512b76aee4d580e9fa2d9e1fd4d9987065788ab99b62d59335e3e0242f12a
+  original:
+    hackage: swagger2-2.5
+- completed:
+    subdir: wai-middleware-prometheus
+    cabal-file:
+      size: 1314
+      sha256: 1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4
+    name: wai-middleware-prometheus
+    version: 1.0.0
+    git: https://github.com/fimad/prometheus-haskell
+    pantry-tree:
+      size: 359
+      sha256: 72560f0d8c7f57db769e77d491e8b10255938631847981de52e94781b905a27a
+    commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
+  original:
+    subdir: wai-middleware-prometheus
+    git: https://github.com/fimad/prometheus-haskell
+    commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
+- completed:
+    cabal-file:
+      size: 8017
+      sha256: d65ad9f5d25e5ac40afeb6de695b9fc8fc9e1220c04ac59f506dcfad23d62524
+    name: saml2-web-sso
+    version: '0.18'
+    git: https://github.com/wireapp/saml2-web-sso
+    pantry-tree:
+      size: 4593
+      sha256: 127f0e4c67697f8eed57b9675cca6bfaff7ac028d7c0907a110f2974a66b017f
+    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+  original:
+    git: https://github.com/wireapp/saml2-web-sso
+    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+- completed:
+    cabal-file:
+      size: 9240
+      sha256: 884d9ade3b69cfe7e30193ac26120a98c6b5dcbaa4e250a0a4a25be7e4137c28
+    name: hscim
+    version: 0.3.4
+    git: https://github.com/wireapp/hscim
+    pantry-tree:
+      size: 3620
+      sha256: f32516a4c51233fc44ebd31db6682a7ff6c9b69c55e77221582bfec4f1c771f1
+    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
+  original:
+    git: https://github.com/wireapp/hscim
+    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
+- completed:
+    hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
+    pantry-tree:
+      size: 64583
+      sha256: aafd93fb839fda7b294a199048817517337df5e59258034006dfd1d7bb992af7
+  original:
+    hackage: ormolu-0.0.3.1
+- completed:
+    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
+    pantry-tree:
+      size: 18102
+      sha256: 3749da93f98300b35fe20e4947478a9ec081405e700e48d9d1998718c55e7eb2
+  original:
+    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
+- completed:
     cabal-file:
       size: 912
       sha256: 71d9fd9fd55cfb7b549eb2cecfb5258171be14669f990e4d05c6b3508dd5878b
@@ -459,78 +531,6 @@ packages:
       sha256: d98288879d370d53e741f0dafaad96de2a58f84556ce4a835322d4029e529b9d
   original:
     hackage: wai-route-0.4.0
-- completed:
-    hackage: servant-swagger-1.1.7.1@sha256:9b0bc99cbd399b47630fc56f05eb8b7d05f1b26cd941faf24b036b7ada1d4946,4647
-    pantry-tree:
-      size: 1636
-      sha256: 8a990a301f2ff81843edea539bddd0f2b13b95a8001922bada69361d8db7e401
-  original:
-    hackage: servant-swagger-1.1.7.1@rev:2
-- completed:
-    hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
-    pantry-tree:
-      size: 2260
-      sha256: 918512b76aee4d580e9fa2d9e1fd4d9987065788ab99b62d59335e3e0242f12a
-  original:
-    hackage: swagger2-2.5
-- completed:
-    subdir: wai-middleware-prometheus
-    cabal-file:
-      size: 1314
-      sha256: 1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4
-    name: wai-middleware-prometheus
-    version: 1.0.0
-    git: https://github.com/fimad/prometheus-haskell
-    pantry-tree:
-      size: 359
-      sha256: 72560f0d8c7f57db769e77d491e8b10255938631847981de52e94781b905a27a
-    commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
-  original:
-    subdir: wai-middleware-prometheus
-    git: https://github.com/fimad/prometheus-haskell
-    commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
-- completed:
-    cabal-file:
-      size: 8017
-      sha256: d65ad9f5d25e5ac40afeb6de695b9fc8fc9e1220c04ac59f506dcfad23d62524
-    name: saml2-web-sso
-    version: '0.18'
-    git: https://github.com/wireapp/saml2-web-sso
-    pantry-tree:
-      size: 4593
-      sha256: 127f0e4c67697f8eed57b9675cca6bfaff7ac028d7c0907a110f2974a66b017f
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
-  original:
-    git: https://github.com/wireapp/saml2-web-sso
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
-- completed:
-    cabal-file:
-      size: 9240
-      sha256: 884d9ade3b69cfe7e30193ac26120a98c6b5dcbaa4e250a0a4a25be7e4137c28
-    name: hscim
-    version: 0.3.4
-    git: https://github.com/wireapp/hscim
-    pantry-tree:
-      size: 3620
-      sha256: f32516a4c51233fc44ebd31db6682a7ff6c9b69c55e77221582bfec4f1c771f1
-    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
-  original:
-    git: https://github.com/wireapp/hscim
-    commit: 20e2ce169d2c85a10c09b4dc564eacedf8acad68
-- completed:
-    hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
-    pantry-tree:
-      size: 64583
-      sha256: aafd93fb839fda7b294a199048817517337df5e59258034006dfd1d7bb992af7
-  original:
-    hackage: ormolu-0.0.3.1
-- completed:
-    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
-    pantry-tree:
-      size: 18102
-      sha256: 3749da93f98300b35fe20e4947478a9ec081405e700e48d9d1998718c55e7eb2
-  original:
-    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
 snapshots:
 - completed:
     size: 545658
