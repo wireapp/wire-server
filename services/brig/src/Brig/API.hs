@@ -205,7 +205,8 @@ sitemap o = do
       .&. query "base_url"
   ---
 
-  -- If the user is expired, it will be removed asynchronously.
+  -- If the user is ephemeral and expired, it will be removed asynchronously,
+  -- see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -220,7 +221,8 @@ sitemap o = do
     Doc.errorResponse userNotFound
   ---
 
-  -- If the user is expired, it will be removed asynchronously.
+  -- If the user is ephemeral and expired, it will be removed asynchronously,
+  -- see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -270,7 +272,8 @@ sitemap o = do
     Doc.errorResponse handleNotFound
   ---
 
-  -- If the user is expired, it will be removed asynchronously.
+  -- If the user is ephemeral and expired, it will be removed asynchronously,
+  -- see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
