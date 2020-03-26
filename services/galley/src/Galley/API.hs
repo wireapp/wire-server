@@ -297,16 +297,16 @@ sitemap = do
       .&. capture "uid"
       .&. accept "application" "json"
   -- This endpoint can lead to the following events being sent to clients:
-  -- - LegalHoldClientRequested event to contacts of the user, if they didn't already have a
-  --   legalhold client (via brig)
+  -- - LegalHoldClientRequested event to contacts of the user the device is requested for,
+  --   if they didn't already have a legalhold client (via brig)
   post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDeviceH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
   -- This endpoint can lead to the following events being sent to clients:
-  -- - ClientRemoved event to the user (via brig)
-  -- - UserLegalHoldDisabled event to contacts of the user (via brig)
+  -- - ClientRemoved event to the user owning the client (via brig)
+  -- - UserLegalHoldDisabled event to contacts of the user owning the client (via brig)
   delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUserH) $
     zauthUserId
       .&. capture "tid"
@@ -314,9 +314,9 @@ sitemap = do
       .&. jsonRequest @DisableLegalHoldForUserRequest
       .&. accept "application" "json"
   -- This endpoint can lead to the following events being sent to clients:
-  -- - ClientAdded event to the user (via brig)
-  -- - UserLegalHoldEnabled event to contacts of the user (via brig)
-  -- - ClientRemoved event to the user, if removing old clients due to max number (via brig)
+  -- - ClientAdded event to the user owning the client (via brig)
+  -- - UserLegalHoldEnabled event to contacts of the user owning the client (via brig)
+  -- - ClientRemoved event to the user, if removing old client due to max number (via brig)
   put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDeviceH) $
     zauthUserId
       .&. capture "tid"
