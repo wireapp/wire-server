@@ -1,9 +1,11 @@
-Administrate compontents after successful installation
-========================================================
+Administrate components after successful installation
+=====================================================
 
 .. toctree::
     :maxdepth: 2
     :glob:
+
+    Kubernetes <kubernetes/index.rst>
 
     *
 
