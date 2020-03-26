@@ -73,9 +73,6 @@ deploy/dockerephemeral/build/airdock_rvm/
 deploy/dockerephemeral/build/dynamodb_local/
 deploy/dockerephemeral/build/smtp/
 
-# Ignore cabal files; use package.yaml instead
-*.cabal
-
 # Avoid storing generated keys
 /deploy/services-demo/resources/turn/secret.txt
 

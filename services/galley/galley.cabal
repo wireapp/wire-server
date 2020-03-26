@@ -1,0 +1,347 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 43845fb31cb219d0f684627a7703c5421330c9db89dcfe4cd56001d1262e1d4f
+
+name:           galley
+version:        0.83.0
+synopsis:       Conversations
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+flag static
+  description: Enable static linking
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      Galley.API
+      Galley.API.Clients
+      Galley.API.Create
+      Galley.API.CustomBackend
+      Galley.API.Error
+      Galley.API.Internal
+      Galley.API.LegalHold
+      Galley.API.Mapping
+      Galley.API.Query
+      Galley.API.Swagger
+      Galley.API.Teams
+      Galley.API.Update
+      Galley.API.Util
+      Galley.App
+      Galley.Aws
+      Galley.Data
+      Galley.Data.CustomBackend
+      Galley.Data.Instances
+      Galley.Data.LegalHold
+      Galley.Data.Queries
+      Galley.Data.Services
+      Galley.Data.SSO
+      Galley.Data.Types
+      Galley.External
+      Galley.External.LegalHoldService
+      Galley.Intra.Client
+      Galley.Intra.Journal
+      Galley.Intra.Push
+      Galley.Intra.Spar
+      Galley.Intra.User
+      Galley.Intra.Util
+      Galley.Options
+      Galley.Queue
+      Galley.Run
+      Galley.Types.Clients
+      Galley.Validation
+      Main
+  other-modules:
+      Paths_galley
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      HsOpenSSL >=0.11
+    , HsOpenSSL-x509-system >=0.1
+    , aeson >=0.11
+    , amazonka >=1.4.5
+    , amazonka-sqs >=1.4.5
+    , async >=2.0
+    , attoparsec >=0.10
+    , base >=4.6 && <5
+    , base64-bytestring >=1.0
+    , bilge >=0.21.1
+    , blaze-builder >=0.3
+    , brig-types >=0.73.1
+    , bytestring >=0.9
+    , bytestring-conversion >=0.2
+    , case-insensitive >=1.0
+    , cassandra-util >=0.16.2
+    , cereal >=0.4
+    , containers >=0.5
+    , currency-codes >=2.0
+    , data-default >=0.5
+    , enclosed-exceptions >=1.0
+    , errors >=2.0
+    , exceptions >=0.4
+    , extended
+    , extra >=1.3
+    , galley-types >=0.65.0
+    , gundeck-types >=1.35.2
+    , http-client >=0.4
+    , http-client-openssl >=0.2
+    , http-client-tls >=0.2.2
+    , http-types >=0.8
+    , imports
+    , insert-ordered-containers
+    , lens >=4.4
+    , lifted-base >=0.2
+    , metrics-wai >=0.4
+    , monad-control >=1.0
+    , mtl >=2.2
+    , optparse-applicative >=0.10
+    , pem
+    , prometheus-client
+    , proto-lens >=0.2
+    , protobuf >=0.2
+    , raw-strings-qq >=1.0
+    , resourcet >=1.1
+    , retry >=0.5
+    , safe >=0.3
+    , safe-exceptions >=0.1
+    , semigroups >=0.12
+    , servant
+    , servant-swagger
+    , singletons >=1.0
+    , split >=0.2
+    , ssl-util >=0.1
+    , stm >=2.4
+    , string-conversions
+    , swagger >=0.1
+    , swagger2
+    , text >=0.11
+    , text-format >=0.3
+    , time >=1.4
+    , tinylog >=0.10
+    , tls >=1.3.10
+    , transformers >=0.3
+    , transformers-base >=0.4
+    , types-common >=0.16
+    , types-common-journal >=0.1
+    , unliftio >=0.2
+    , unliftio-core >=0.1
+    , unordered-containers >=0.2
+    , uri-bytestring >=0.2
+    , uuid >=1.3
+    , vector >=0.10
+    , wai >=3.0
+    , wai-extra >=3.0
+    , wai-middleware-gunzip >=0.0.2
+    , wai-predicates >=0.8
+    , wai-routing >=0.12
+    , wai-utilities >=0.16
+    , warp >=3.0
+    , zauth
+  default-language: Haskell2010
+
+executable galley
+  main-is: src/Main.hs
+  other-modules:
+      Paths_galley
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-T -rtsopts
+  build-depends:
+      HsOpenSSL
+    , base
+    , extended
+    , galley
+    , galley-types
+    , imports
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , types-common
+  if flag(static)
+    ld-options: -static
+  default-language: Haskell2010
+
+executable galley-integration
+  main-is: Main.hs
+  other-modules:
+      API
+      API.CustomBackend
+      API.MessageTimer
+      API.Roles
+      API.SQS
+      API.Teams
+      API.Teams.LegalHold
+      API.Util
+      TestHelpers
+      TestSetup
+      Paths_galley
+  hs-source-dirs:
+      test/integration
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+  build-depends:
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
+    , aeson
+    , aeson-qq
+    , amazonka
+    , amazonka-sqs
+    , async
+    , base
+    , base64-bytestring
+    , bilge
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , cereal
+    , containers
+    , currency-codes
+    , data-default-class
+    , data-timeout
+    , errors
+    , exceptions
+    , extended
+    , galley
+    , galley-types
+    , gundeck-types
+    , hspec
+    , http-client
+    , http-client-openssl
+    , http-client-tls
+    , http-types
+    , imports
+    , lens
+    , lens-aeson
+    , metrics-wai
+    , mtl
+    , network
+    , optparse-applicative
+    , pem
+    , proto-lens
+    , protobuf
+    , quickcheck-instances
+    , raw-strings-qq >=1.0
+    , retry
+    , safe >=0.3
+    , servant-swagger
+    , ssl-util
+    , string-conversions
+    , tagged
+    , tasty >=0.8
+    , tasty-cannon >=0.3.2
+    , tasty-hunit >=0.9
+    , text
+    , time
+    , tinylog
+    , tls >=1.3.8
+    , transformers
+    , types-common
+    , types-common-journal
+    , unix
+    , unliftio
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-route
+    , wai-utilities
+    , warp
+    , warp-tls >=3.2
+    , yaml
+  default-language: Haskell2010
+
+executable galley-journaler
+  main-is: Main.hs
+  other-modules:
+      Journal
+      Options
+      Paths_galley
+  hs-source-dirs:
+      journaler/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
+  build-depends:
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , amazonka
+    , amazonka-sqs
+    , base
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , extended
+    , galley
+    , galley-types
+    , http-client
+    , http-client-openssl
+    , imports
+    , lens
+    , mtl
+    , optparse-applicative
+    , proto-lens
+    , proto-lens-protoc
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , text
+    , time
+    , tinylog
+    , types-common
+    , types-common-journal
+    , unliftio
+    , uuid
+  default-language: Haskell2010
+
+executable galley-schema
+  main-is: Main.hs
+  other-modules:
+      V20
+      V21
+      V22
+      V23
+      V24
+      V25
+      V26
+      V27
+      V28
+      V29
+      V30
+      V31
+      V32
+      V33
+      V34
+      V35
+      V36
+      V37
+      Paths_galley
+  hs-source-dirs:
+      schema/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , cassandra-util
+    , extended
+    , imports
+    , optparse-applicative
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , text
+    , tinylog
+  if flag(static)
+    ld-options: -static
+  default-language: Haskell2010

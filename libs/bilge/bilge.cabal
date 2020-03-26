@@ -1,0 +1,66 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 3935614b306254149b1649f7970804c8b164d0edfee1b42192edd81220011379
+
+name:           bilge
+version:        0.22.0
+synopsis:       Library for composing HTTP requests.
+description:    Library for constructing HTTP requests and asserting on their responses.
+category:       Network
+stability:      experimental
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+library
+  exposed-modules:
+      Bilge
+      Bilge.Assert
+      Bilge.IO
+      Bilge.Request
+      Bilge.Response
+      Bilge.Retry
+      Bilge.RPC
+  other-modules:
+      Paths_bilge
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.6
+    , ansi-terminal >=0.6
+    , base >=4.7 && <5
+    , bytestring >=0.9
+    , case-insensitive >=1.1
+    , containers >=0.5
+    , cookie
+    , data-default >=0.5
+    , errors >=1.4
+    , exceptions >=0.6
+    , http-client >=0.5
+    , http-types >=0.8
+    , imports
+    , lens
+    , monad-control >=1.0
+    , mtl >=2.2
+    , text >=0.11
+    , time >=1.4
+    , tinylog >=0.9
+    , transformers >=0.4
+    , transformers-base >=0.4
+    , types-common >=0.7
+    , unliftio
+    , uri-bytestring
+    , wai
+    , wai-extra
+  default-language: Haskell2010

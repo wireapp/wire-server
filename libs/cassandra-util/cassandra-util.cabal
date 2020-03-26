@@ -1,0 +1,59 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 4b6e1302b2f3f0c59820223b656b21aeb8634a3697b272f2546dc957818a3310
+
+name:           cassandra-util
+version:        0.16.5
+synopsis:       Cassandra Utilities
+category:       Database
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Cassandra
+      Cassandra.CQL
+      Cassandra.Exec
+      Cassandra.Schema
+      Cassandra.Settings
+      Cassandra.Util
+  other-modules:
+      Paths_cassandra_util
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.7
+    , base >=4.6 && <5.0
+    , conduit
+    , cql >=3.0.0
+    , cql-io >=0.14
+    , cql-io-tinylog
+    , dns >=3.0
+    , errors >=1.4
+    , exceptions >=0.6
+    , imports
+    , lens >=4.4
+    , lens-aeson >=1.0
+    , mtl ==2.*
+    , optparse-applicative >=0.10
+    , retry
+    , semigroups >=0.15
+    , split >=0.2
+    , text >=0.11
+    , time >=1.4
+    , tinylog >=0.7
+    , transformers >=0.3
+    , unliftio-core >=0.1
+    , uuid
+    , wreq >=0.2
+  default-language: Haskell2010
