@@ -20,7 +20,14 @@ tests =
 testHandleSerialization :: [TestTree]
 testHandleSerialization =
   [ testCase "parses some example handles" $ do
-      let validHandles = ["handle", "--", "__", "..", "0123456789", Text.replicate 256 "a"]
+      let validHandles =
+            [ "handle",
+              Text.replicate 256 "a",
+              "--",
+              "__",
+              "..",
+              "0123456789"
+            ]
       for_ validHandles $ \h ->
         case parseHandleEither h of
           Right _ -> pure ()
