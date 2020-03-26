@@ -16,7 +16,7 @@ This assumes you're using python 2.7 (if you only have python3 available, you ma
 
    sudo apt install -y python2.7 python-pip
    curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py > get-poetry.py
-   python2.7 get-poetry.py
+   python2.7 get-poetry.py --yes
    source $HOME/.poetry/env
    ln -s /usr/bin/python2.7 $HOME/.poetry/bin/python
 
