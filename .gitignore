@@ -85,3 +85,5 @@ deploy/dockerephemeral/build/smtp/
 
 /libs/libzauth/bzauth-c/deb/usr
 
+# Generated hie.yaml
+hie.yaml
