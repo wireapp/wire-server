@@ -13,16 +13,17 @@ import Imports
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 
--- | Following [RFC-1035](https://www.ietf.org/rfc/rfc1035.txt), Section 2.3.1,
+-- | A Fully Qualified Domain Name (FQDN).
+--
+-- Following [RFC-1035](https://www.ietf.org/rfc/rfc1035.txt), Section 2.3.1,
 -- except for:
 -- * not allowing a space @" "@
--- * TODO accepting digits as the first letter of labels (except for the last label)
--- * TODO requiring at least two labels
--- * not only must labels be 63 characters or less, the whole domain must be 253 characters or less
+-- * accepting digits as first letter of labels (except for the last label, not allowing IPs)
+-- * requiring at least two labels
+-- * not only must labels be 63 chars or less, the whole domain must be 253 chars or less
 --
--- TODO: rename to Fqdn
---
--- <domain> ::= <label> | <domain> "." <label>
+-- <domain> ::= <label> "." <tld> | <label> "." <domain>
+-- <tld> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
 -- <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
 -- <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
 -- <let-dig-hyp> ::= <let-dig> | "-"
@@ -48,9 +49,13 @@ instance FromByteString Domain where
 domainParser :: Atto.Parser Domain
 domainParser = do
   parts <- domainLabel `Atto.sepBy1` Atto.char '.'
+  when (length parts < 2) $
+    fail "Invalid domain name: cannot be dotless domain"
+  when (isDigit (BS.Char8.head (last parts))) $
+    fail "Invalid domain name: last label cannot start with digit"
   let bs = BS.intercalate "." parts
   when (BS.length bs > 253) $
-    fail "Invalid domain: too long"
+    fail "Invalid domain name: too long"
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "Invalid UTF-8 in Domain: " <> show err
     Right txt -> pure . Domain $ Text.toCaseFold txt
@@ -87,13 +92,17 @@ newtype DomainText
 instance Arbitrary DomainText where
   arbitrary = DomainText <$> domain
     where
-      -- <domain> ::= <label> | <domain> "." <label>
+      -- <domain> ::= <label> "." <tld> | <label> "." <domain>
       domain =
         QC.oneof
-          [ label,
-            conc [domain, pure ".", label]
+          [ conc [label, pure ".", tldLabel],
+            conc [label, pure ".", domain]
           ]
           `QC.suchThat` ((<= 255) . Text.length)
+      -- <tld> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
+      tldLabel =
+        conc [letter, opt (conc [opt ldhStr, letDig])]
+          `QC.suchThat` ((<= 63) . Text.length)
       -- <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
       label =
         conc [letDig, opt (conc [opt ldhStr, letDig])]
@@ -112,11 +121,15 @@ instance Arbitrary DomainText where
             (5, letDig) -- fewer hyphens
           ]
       -- <let-dig> ::= <letter> | <digit>
-      -- <letter> ::= any one of the 52 alphabetic characters A through Z in
-      -- upper case and a through z in lower case
-      -- <digit> ::= any one of the ten digits 0 through 9
       letDig =
-        Text.singleton <$> QC.elements (['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9'])
+        QC.oneof [letter, digit]
+      -- <letter> ::= any one of the 52 alphabetic characters A through Z in
+      letter =
+        Text.singleton <$> QC.elements (['a' .. 'z'] <> ['A' .. 'Z'])
+      -- <digit> ::= any one of the ten digits 0 through 9
+      digit =
+        Text.singleton <$> QC.elements ['0' .. '9']
+      -- upper case and a through z in lower case
       -- helpers
       conc :: [QC.Gen Text] -> QC.Gen Text
       conc = fmap Text.concat . sequenceA
