@@ -16,8 +16,11 @@ import qualified Test.QuickCheck as QC
 -- | Following [RFC-1035](https://www.ietf.org/rfc/rfc1035.txt), Section 2.3.1,
 -- except for:
 -- * not allowing a space @" "@
--- * accepting digits as the first letter of labels (except for the last label)
--- * not only must labels be 63 characters or less, the whole domain be 255 characters or less
+-- * TODO accepting digits as the first letter of labels (except for the last label)
+-- * TODO requiring at least two labels
+-- * not only must labels be 63 characters or less, the whole domain must be 253 characters or less
+--
+-- TODO: rename to Fqdn
 --
 -- <domain> ::= <label> | <domain> "." <label>
 -- <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
@@ -28,7 +31,7 @@ import qualified Test.QuickCheck as QC
 -- upper case and a through z in lower case
 -- <digit> ::= any one of the ten digits 0 through 9
 --
--- All letters will be lowercased when parsed.
+-- The domain will be normalized to lowercase when parsed.
 newtype Domain
   = Domain {_domainText :: Text}
   deriving (Eq, Generic, Show)
