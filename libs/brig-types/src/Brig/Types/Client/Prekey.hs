@@ -31,7 +31,7 @@ data Prekey
 
 data PrekeyBundle
   = PrekeyBundle
-      { prekeyUser :: !UserId,
+      { prekeyUser :: !OpaqueUserId,
         prekeyClients :: ![ClientPrekey]
       }
   deriving (Eq, Show, Generic)

@@ -1,16 +1,24 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Data.Handle where
+module Data.Handle
+  ( Handle (..),
+    parseHandle,
+    parseHandleEither,
+    isValidHandle,
+  )
+where
 
-import Control.Applicative (optional)
 import Data.Aeson hiding ((<?>))
-import Data.Attoparsec.Text
-import Data.ByteString.Conversion
+import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import qualified Data.ByteString as BS
+import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text.E
 import Imports
-import Test.QuickCheck (Arbitrary (arbitrary), choose, elements)
+import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)
+import Util.Attoparsec (takeUpToWhile)
 
 --------------------------------------------------------------------------------
 -- Handle
@@ -23,27 +31,32 @@ newtype Handle
   deriving newtype (ToJSON, ToByteString, Hashable)
 
 instance FromByteString Handle where
-  parser = parser >>= maybe (fail "Invalid handle") return . parseHandle
+  parser = handleParser
 
 instance FromJSON Handle where
   parseJSON =
     withText "Handle" $
-      maybe (fail "Invalid handle") pure . parseHandle
+      either (fail . ("Invalid handle: " <>)) pure . parseHandleEither
 
 parseHandle :: Text -> Maybe Handle
-parseHandle t
-  | isValidHandle t = Just (Handle t)
-  | otherwise = Nothing
+parseHandle = either (const Nothing) Just . parseHandleEither
 
 isValidHandle :: Text -> Bool
-isValidHandle t =
-  either (const False) (const True) $
-    parseOnly handle t
+isValidHandle = isRight . parseHandleEither
+
+parseHandleEither :: Text -> Either String Handle
+parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.encodeUtf8
+
+handleParser :: Atto.Parser Handle
+handleParser = do
+  bs <- takeUpToWhile 256 isHandleChar
+  when (BS.length bs < 2) $ do
+    nextChar <- maybe "end of input" show <$> Atto.peekChar
+    fail $ "not enough valid characters for handle before " <> nextChar
+  case Text.E.decodeUtf8' bs of
+    Left err -> fail $ "handle contains invalid UTF-8: " <> show err
+    Right txt -> pure (Handle txt)
   where
-    handle =
-      count 2 (satisfy chars)
-        *> count 254 (optional (satisfy chars))
-        *> endOfInput
     -- NOTE: Ensure that characters such as `@` and `+` should _NOT_
     -- be used so that "phone numbers", "emails", and "handles" remain
     -- disjoint sets.
@@ -51,9 +64,9 @@ isValidHandle t =
     -- an email address as defined here:
     -- http://www.rfc-editor.org/errata_search.php?rfc=3696&eid=1690
     -- with the intent that in the enterprise world handle =~ email address
-    chars = inClass "a-z0-9_.-"
+    isHandleChar = Atto.inClass "a-z0-9_.-"
 
 instance Arbitrary Handle where
   arbitrary = Handle . Text.pack <$> do
-    let many n = replicateM n (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> ['_'] <> ['-'] <> ['.'])
-    ((<>) <$> many 2 <*> (many =<< choose (0, 254)))
+    len <- oneof [choose (2, 10), choose (2, 256)] -- prefer short handles
+    replicateM len (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-.")

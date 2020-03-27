@@ -34,7 +34,7 @@ getByDomainInvalidDomain = do
   -- contains invalid character '+'
   get (galley . path "/custom-backend/by-domain/invalid%2Bdomain") !!! do
     const 400 === statusCode
-    const ("Failed parsing" :: ByteString) =~= (cs . fold . responseBody)
+    const ("client-error" :: ByteString) =~= (cs . fold . responseBody)
 
 getByDomainFound :: TestM ()
 getByDomainFound = do
