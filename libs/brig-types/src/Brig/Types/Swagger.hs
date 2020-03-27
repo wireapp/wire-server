@@ -145,6 +145,9 @@ user = defineModel "User" $ do
   property "handle" string' $ do
     description "Unique user handle."
     optional
+  property "team" string' $ do
+    description "Team ID"
+    optional
 
 managedBy :: DataType
 managedBy =
