@@ -50,10 +50,7 @@ nix:
 allow-newer: true
 
 extra-deps:
-- swagger2-2.5
-# Needed for swagger2-2.5
-- optics-core-0.2@sha256:6966f4f8cc9163b63d87dcca2d2617684b4ac8a80c5e50c69e9f3adf4dcdf0e9,4409
-- indexed-profunctors-0.1@sha256:ddf618d0d4c58319c1e735e746bc69a1021f13b6f475dc9614b80af03432e6d4,1016
+- swagger2-2.4
 - git: https://github.com/fimad/prometheus-haskell
   commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
   subdirs:
