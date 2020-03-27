@@ -50,7 +50,7 @@ routes = do
     Doc.response 200 "Searchable status." Doc.end
   --
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
   put "/self/searchable" (continue setSearchableH) $
     header "Z-User"
