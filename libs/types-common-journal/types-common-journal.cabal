@@ -1,0 +1,53 @@
+cabal-version: 1.24
+
+-- This file has been generated from package.yaml by hpack version 0.32.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: c0fe3ead4cd149cf0424226e6d130441dc44ea8538517927150a017c1a983cd6
+
+name:           types-common-journal
+version:        0.1.0
+synopsis:       Shared protobuf type definitions.
+description:    Shared protobuf type definitions for journaling.
+category:       System
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Custom
+extra-source-files:
+    proto/TeamEvents.proto
+    proto/UserEvents.proto
+
+custom-setup
+  setup-depends:
+      Cabal
+    , base
+    , proto-lens-setup
+
+library
+  exposed-modules:
+      Data.Proto
+      Data.Proto.Id
+      Proto.TeamEvents
+      Proto.TeamEvents_Fields
+      Proto.UserEvents
+      Proto.UserEvents_Fields
+  other-modules:
+      Paths_types_common_journal
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -fno-warn-redundant-constraints
+  ghc-prof-options: -fprof-auto-exported
+  build-depends:
+      base ==4.*
+    , bytestring
+    , imports
+    , proto-lens-runtime
+    , time
+    , types-common
+    , uuid
+  default-language: Haskell2010
