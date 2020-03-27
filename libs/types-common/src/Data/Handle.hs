@@ -10,7 +10,6 @@ module Data.Handle
 where
 
 import Data.Aeson hiding ((<?>))
-import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
@@ -19,6 +18,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)
+import Util.Attoparsec (takeUpToWhile)
 
 --------------------------------------------------------------------------------
 -- Handle
@@ -49,9 +49,10 @@ parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.en
 
 handleParser :: Atto.Parser Handle
 handleParser = do
-  bs <- matching (Atto.count 2 handleChar *> Atto.skipMany handleChar)
-  when (BS.length bs > 256) $
-    fail "handle too long"
+  bs <- takeUpToWhile 256 isHandleChar
+  when (BS.length bs < 2) $ do
+    nextChar <- maybe "end of input" show <$> Atto.peekChar
+    fail $ "not enough valid characters for handle before " <> nextChar
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "handle contains invalid UTF-8: " <> show err
     Right txt -> pure (Handle txt)
@@ -63,9 +64,7 @@ handleParser = do
     -- an email address as defined here:
     -- http://www.rfc-editor.org/errata_search.php?rfc=3696&eid=1690
     -- with the intent that in the enterprise world handle =~ email address
-    handleChar = Atto.satisfy isHandleChar <?> "valid handle character"
     isHandleChar = Atto.inClass "a-z0-9_.-"
-    matching = fmap fst . Atto.match
 
 instance Arbitrary Handle where
   arbitrary = Handle . Text.pack <$> do

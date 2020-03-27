@@ -9,9 +9,10 @@ import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
-import Imports
+import Imports hiding (isAlphaNum)
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
+import Util.Attoparsec (takeUpToWhile)
 
 -- | A Fully Qualified Domain Name (FQDN).
 --
@@ -62,17 +63,13 @@ domainParser = do
   where
     domainLabel :: Atto.Parser ByteString
     domainLabel = do
-      match <- matching $ do
-        (void $ Atto.satisfy alphaNum) <?> "alphanumeric character"
-        Atto.skipWhile alphaNumHyphen
-      when (BS.length match > 63) $
-        fail "Invalid domain label: too long"
+      match <- BS.Char8.cons <$> alphaNum <*> takeUpToWhile 62 isAlphaNumHyphen
       when (BS.Char8.last match == '-') $
         fail "Invalid domain label: last character is a hyphen"
       pure match
-    matching = fmap fst . Atto.match
-    alphaNum = Atto.inClass "A-Za-z0-9"
-    alphaNumHyphen = Atto.inClass "A-Za-z0-9-"
+    alphaNum = Atto.satisfy isAlphaNum <?> "alphanumeric character"
+    isAlphaNum = Atto.inClass "A-Za-z0-9"
+    isAlphaNumHyphen = Atto.inClass "A-Za-z0-9-"
 
 instance ToJSON Domain where
   toJSON = Aeson.String . domainText

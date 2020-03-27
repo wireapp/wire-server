@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 484de5870f7e8d34240981855e8f568bb05647325fe2a5fbd26d1912107f0557
+-- hash: 6524c012b9c2b417de7d0c9d6462811a09880449bbac320e48c098532860eb86
 
 name:           types-common
 version:        0.16.0
@@ -35,6 +35,7 @@ library
       Data.SizedHashMap
       Data.Text.Ascii
       Data.UUID.Tagged
+      Util.Attoparsec
       Util.Options
       Util.Options.Common
       Util.Test
