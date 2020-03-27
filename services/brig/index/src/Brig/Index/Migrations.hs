@@ -17,8 +17,8 @@ import System.Logger.Class (Logger)
 import qualified System.Logger.Class as Log
 
 migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> IO ()
-migrate l es _cas = do
-  env <- mkEnv l es _cas
+migrate l es cas = do
+  env <- mkEnv l es cas
   finally (go env) (cleanup env)
   where
     go env =
