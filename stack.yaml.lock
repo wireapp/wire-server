@@ -5,26 +5,12 @@
 
 packages:
 - completed:
-    hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
+    hackage: swagger2-2.4@sha256:3fde8c2c6bc091738cba62e63c29d690b711848560d86e82615516869f76140b,4415
     pantry-tree:
-      size: 2260
-      sha256: 918512b76aee4d580e9fa2d9e1fd4d9987065788ab99b62d59335e3e0242f12a
+      size: 2192
+      sha256: f4ae95200dfc2f44699a39f533dd6889107aff61f52e988c13edad8fcb30faef
   original:
-    hackage: swagger2-2.5
-- completed:
-    hackage: optics-core-0.2@sha256:6966f4f8cc9163b63d87dcca2d2617684b4ac8a80c5e50c69e9f3adf4dcdf0e9,4409
-    pantry-tree:
-      size: 4818
-      sha256: 4797bbb8dad9a21ed5d10fd6436a9114df19ebf742a69e9c2a0cd4fceab41a93
-  original:
-    hackage: optics-core-0.2@sha256:6966f4f8cc9163b63d87dcca2d2617684b4ac8a80c5e50c69e9f3adf4dcdf0e9,4409
-- completed:
-    hackage: indexed-profunctors-0.1@sha256:ddf618d0d4c58319c1e735e746bc69a1021f13b6f475dc9614b80af03432e6d4,1016
-    pantry-tree:
-      size: 235
-      sha256: cfd66c0a53be1b45eae72df112ea1158614458bb7b1c9cbbe3410b04ab011ec6
-  original:
-    hackage: indexed-profunctors-0.1@sha256:ddf618d0d4c58319c1e735e746bc69a1021f13b6f475dc9614b80af03432e6d4,1016
+    hackage: swagger2-2.4
 - completed:
     subdir: wai-middleware-prometheus
     cabal-file:
@@ -58,17 +44,17 @@ packages:
 - completed:
     cabal-file:
       size: 9076
-      sha256: 8cee304fe3c710634ff87432d3ac65e4b05d13c32e8219fe977e424a57f080b6
+      sha256: a40e84ca590cc055e2f0d1b884d015f20197addfd16890044797e9ac56c41f22
     name: hscim
     version: 0.3.4
     git: https://github.com/wireapp/hscim
     pantry-tree:
       size: 3779
-      sha256: 9403276629139c9e1754f9779209170457105fc83e476f17ba114e288638973e
-    commit: fda44fd37713edbf770378ef85986ea809ff3b87
+      sha256: c266a1739d01bf02c8196d72741dc5cafcbcf343d64a4731dce00158816fb041
+    commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6
   original:
     git: https://github.com/wireapp/hscim
-    commit: fda44fd37713edbf770378ef85986ea809ff3b87
+    commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6
 - completed:
     hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
     pantry-tree:
