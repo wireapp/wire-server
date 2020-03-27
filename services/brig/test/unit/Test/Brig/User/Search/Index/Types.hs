@@ -38,7 +38,7 @@ userDoc1 :: UserDoc
 userDoc1 =
   UserDoc
     { udId = Id . fromJust . fromText $ "0a96b396-57d6-11ea-a04b-7b93d1a5c19c",
-      udTeamId = Just . Id . fromJust . fromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
+      udTeam = Just . Id . fromJust . fromText $ "17c59b18-57d6-11ea-9220-8bbf5eee961a",
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
@@ -53,7 +53,7 @@ indexUser1 =
   IndexUser
     { _iuUserId = udId userDoc1,
       _iuVersion = IndexVersion (DocVersion 1),
-      _iuTeamId = udTeamId userDoc1,
+      _iuTeam = udTeam userDoc1,
       _iuName = udName userDoc1,
       _iuHandle = udHandle userDoc1,
       _iuColourId = udColourId userDoc1
