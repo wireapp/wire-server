@@ -75,7 +75,7 @@ sitemap o = do
 
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ConnectionUpdated event to the user and all users connecting with
   -- - ConvCreate event to the user for each connect conversation that did not exist before
   --   (via galley)
@@ -88,7 +88,7 @@ sitemap o = do
       .&. capture "uid"
       .&. opt (header "Z-Connection")
       .&. jsonRequest @UserSet
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
   post "/i/users" (continue createUserNoVerifyH) $
@@ -97,7 +97,7 @@ sitemap o = do
   put "/i/self/email" (continue changeSelfEmailNoSendH) $
     header "Z-User"
       .&. jsonRequest @EmailUpdate
-  -- This endpoint will lead to the following events being sent to clients:
+  -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
@@ -130,7 +130,7 @@ sitemap o = do
   get "/i/users/password-reset-code" (continue getPasswordResetCodeH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to target user
   post "/i/users/revoke-identity" (continue revokeIdentityH) $
     param "email" ||| param "phone"
@@ -172,7 +172,7 @@ sitemap o = do
   post "/i/clients" (continue internalListClientsH) $
     accept "application" "json"
       .&. jsonRequest @UserSet
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to the user
   -- - ClientRemoved event to the user, if removing old clients due to max number of clients
   -- - UserLegalHoldEnabled event to contacts of the user, if client type is legalhold
@@ -181,13 +181,13 @@ sitemap o = do
       .&. jsonRequest @NewClient
       .&. opt (header "Z-Connection")
       .&. accept "application" "json"
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - LegalHoldClientRequested event to contacts of the user
   post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequestedH) $
     capture "uid"
       .&. jsonRequest @LegalHoldClientRequest
       .&. accept "application" "json"
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to the user
   -- - UserLegalHoldDisabled event to contacts of the user
   delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClientH) $
@@ -206,7 +206,7 @@ sitemap o = do
   ---
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent to clients:
+  -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   head "/users/:uid" (continue checkUserExistsH) $
@@ -221,7 +221,7 @@ sitemap o = do
   ---
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent to clients:
+  -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   get "/users/:uid" (continue getUserH) $
@@ -271,7 +271,7 @@ sitemap o = do
   ---
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent to clients:
+  -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   get "/users" (continue listUsersH) $
@@ -382,7 +382,7 @@ sitemap o = do
     Doc.response 200 "Self profile" Doc.end
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
   put "/self" (continue updateUserH) $
     header "Z-User"
@@ -463,7 +463,7 @@ sitemap o = do
     Doc.response 200 "Locale changed." Doc.end
   --
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
   put "/self/handle" (continue changeHandleH) $
     header "Z-User"
@@ -478,7 +478,7 @@ sitemap o = do
     Doc.response 200 "Handle changed." Doc.end
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to self
   delete "/self/phone" (continue removePhoneH) $
     header "Z-User"
@@ -493,7 +493,7 @@ sitemap o = do
     Doc.errorResponse noPassword
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to self
   delete "/self/email" (continue removeEmailH) $
     header "Z-User"
@@ -508,7 +508,7 @@ sitemap o = do
   ---
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserDeleted event to contacts of self
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/self" (continue deleteUserH) $
@@ -532,7 +532,7 @@ sitemap o = do
     Doc.errorResponse missingAuthError
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- UserDeleted event to contacts of deleted user
   -- MemberLeave event to members for all conversations the user was in (via galley)
   post "/delete" (continue verifyDeleteUserH) $
@@ -546,7 +546,7 @@ sitemap o = do
     Doc.errorResponse invalidCode
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ConnectionUpdated event to self and other, if any side's connection state changes
   -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
   -- - ConvCreate event to self, if creating a connect conversation (via galley)
@@ -590,7 +590,7 @@ sitemap o = do
     Doc.response 200 "List of connections" Doc.end
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ConnectionUpdated event to self and other, if their connection states change
   --
   -- When changing the connection state to Sent or Accepted, this can cause events to be sent
@@ -629,7 +629,7 @@ sitemap o = do
     Doc.response 200 "Connection" Doc.end
   --- Clients
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   post "/clients" (continue addClientH) $
@@ -664,7 +664,7 @@ sitemap o = do
     Doc.errorResponse malformedPrekeys
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to self
   delete "/clients/:client" (continue rmClientH) $
     jsonRequest @RmClient
@@ -714,7 +714,7 @@ sitemap o = do
     Doc.response 200 "List of remaining prekey IDs." Doc.end
   --- Properties
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - PropertySet event to self
   put "/properties/:key" (continue setPropertyH) $
     header "Z-User"
@@ -730,7 +730,7 @@ sitemap o = do
     Doc.response 200 "Property set." Doc.end
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - PropertyDeleted event to self
   delete "/properties/:key" (continue deletePropertyH) $
     header "Z-User"
@@ -743,7 +743,7 @@ sitemap o = do
     Doc.response 200 "Property deleted." Doc.end
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - PropertiesCleared event to self
   delete "/properties" (continue clearPropertiesH) $
     header "Z-User"
@@ -785,7 +785,7 @@ sitemap o = do
 
   -- docs/reference/user/registration.md {#RefRegistration}
   --
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email code or phone code is provided
   post "/register" (continue createUserH) $
@@ -810,7 +810,7 @@ sitemap o = do
     Doc.errorResponse blacklistedPhone
   ---
 
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
   -- - UserIdentityUpdated event to the user, if email or phone get activated
   get "/activate" (continue activateH) $
@@ -831,7 +831,7 @@ sitemap o = do
 
   -- docs/reference/user/activation.md {#RefActivationSubmit}
   --
-  -- This endpoint can lead to the following events being sent to clients:
+  -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
   -- - UserIdentityUpdated event to the user, if email or phone get activated
   post "/activate" (continue activateKeyH) $
