@@ -443,6 +443,9 @@ deriving instance Show Invite
 
 -- Events -------------------------------------------------------------------
 
+-- FUTUREWORK(federation):
+-- Conversation and user ID can be remote IDs, but the receiver might be on
+-- another backend, so mapped IDs don't work for them.
 data Event
   = Event
       { evtType :: !EventType,
