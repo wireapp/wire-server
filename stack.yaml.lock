@@ -5,6 +5,27 @@
 
 packages:
 - completed:
+    hackage: swagger2-2.5@sha256:d864c999a9934f5a4d1a1b8155df9da2fabca8dfe2d83ae128fe4bfdbb96f6f9,4531
+    pantry-tree:
+      size: 2260
+      sha256: 918512b76aee4d580e9fa2d9e1fd4d9987065788ab99b62d59335e3e0242f12a
+  original:
+    hackage: swagger2-2.5
+- completed:
+    hackage: optics-core-0.2@sha256:6966f4f8cc9163b63d87dcca2d2617684b4ac8a80c5e50c69e9f3adf4dcdf0e9,4409
+    pantry-tree:
+      size: 4818
+      sha256: 4797bbb8dad9a21ed5d10fd6436a9114df19ebf742a69e9c2a0cd4fceab41a93
+  original:
+    hackage: optics-core-0.2@sha256:6966f4f8cc9163b63d87dcca2d2617684b4ac8a80c5e50c69e9f3adf4dcdf0e9,4409
+- completed:
+    hackage: indexed-profunctors-0.1@sha256:ddf618d0d4c58319c1e735e746bc69a1021f13b6f475dc9614b80af03432e6d4,1016
+    pantry-tree:
+      size: 235
+      sha256: cfd66c0a53be1b45eae72df112ea1158614458bb7b1c9cbbe3410b04ab011ec6
+  original:
+    hackage: indexed-profunctors-0.1@sha256:ddf618d0d4c58319c1e735e746bc69a1021f13b6f475dc9614b80af03432e6d4,1016
+- completed:
     subdir: wai-middleware-prometheus
     cabal-file:
       size: 1314
