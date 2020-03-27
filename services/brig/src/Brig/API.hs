@@ -97,7 +97,7 @@ sitemap o = do
   put "/i/self/email" (continue changeSelfEmailNoSendH) $
     header "Z-User"
       .&. jsonRequest @EmailUpdate
-  -- This endpoint will asynchronously lead to the following events being sent to clients:
+  -- This endpoint will lead to the following events being sent to clients:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
@@ -205,8 +205,7 @@ sitemap o = do
       .&. query "base_url"
   ---
 
-  -- If the user is ephemeral and expired, it will be removed asynchronously,
-  -- see 'Brig.API.User.userGC'.
+  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -221,8 +220,7 @@ sitemap o = do
     Doc.errorResponse userNotFound
   ---
 
-  -- If the user is ephemeral and expired, it will be removed asynchronously,
-  -- see 'Brig.API.User.userGC'.
+  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -272,8 +270,7 @@ sitemap o = do
     Doc.errorResponse handleNotFound
   ---
 
-  -- If the user is ephemeral and expired, it will be removed asynchronously,
-  -- see 'Brig.API.User.userGC'.
+  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent to clients:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
