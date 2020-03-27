@@ -10,7 +10,7 @@ where
 import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
-import Data.IdMapping (MappedOrLocalId (Local, Mapped))
+import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (list1)
 import Data.Range

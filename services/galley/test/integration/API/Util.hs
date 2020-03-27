@@ -852,7 +852,7 @@ connectUsersWith fn u us = mapM connectTo us
               . zUser u
               . zConn "conn"
               . path "/connections"
-              . json (ConnectionRequest v "chat" (Message "Y"))
+              . json (ConnectionRequest (makeIdOpaque v) "chat" (Message "Y"))
               . fn
           )
       r2 <-

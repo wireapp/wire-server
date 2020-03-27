@@ -104,7 +104,8 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
@@ -885,7 +886,7 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> UserId -> AppIO (Maybe UserProfile)
+lookupProfile :: UserId -> MappedOrLocalId Id.U -> AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -897,9 +898,22 @@ lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
-  [UserId] ->
+  [MappedOrLocalId Id.U] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
+  let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
+  localProfiles <- lookupProfilesOfLocalUsers self localUsers
+  -- FUTUREWORK(federation): fetch remote profiles
+  remoteProfiles <- pure []
+  pure (localProfiles <> remoteProfiles)
+
+lookupProfilesOfLocalUsers ::
+  -- | User 'self' on whose behalf the profiles are requested.
+  UserId ->
+  -- | The users ('others') for which to obtain the profiles.
+  [UserId] ->
+  AppIO [UserProfile]
+lookupProfilesOfLocalUsers self others = do
   users <- Data.lookupUsers others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)

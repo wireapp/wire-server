@@ -5,10 +5,13 @@ where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Conversion as BS.C
 import Data.Domain (Domain (Domain))
-import Data.Handle (Handle (Handle))
-import Data.Id (Id (Id), UserId)
-import Data.Qualified (Qualified (Qualified), mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
+import Data.Handle (Handle (Handle, fromHandle))
+import Data.Id (Id (Id, toUUID), UserId)
+import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, mkQualifiedHandle, mkQualifiedId, renderQualifiedHandle, renderQualifiedId)
+import Data.String.Conversions (cs)
+import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports
 import Test.Tasty
@@ -20,27 +23,39 @@ tests :: TestTree
 tests =
   testGroup
     "Qualified"
-    [ testGroup
-        "serialization"
-        [ testCase "render foo@bar.com" $ do
-            assertEqual "" "foo@bar.com" $
-              (renderQualifiedHandle (Qualified (Handle "foo") (Domain "bar.com"))),
-          testCase "render 61a73a52-e526-4892-82a9-3d638d77629f@example.com" $ do
-            uuid <-
-              maybe (assertFailure "invalid UUID") pure $
-                UUID.fromString "61a73a52-e526-4892-82a9-3d638d77629f"
-            assertEqual "" "61a73a52-e526-4892-82a9-3d638d77629f@example.com" $
-              (renderQualifiedId (Qualified (Id uuid) (Domain "example.com"))),
-          testProperty "mkQualifiedHandle (renderQualifiedHandle x) == Right x" $
-            \(x :: Qualified Handle) ->
-              mkQualifiedHandle (renderQualifiedHandle x) === Right x,
-          testProperty "mkQualifiedId (renderQualifiedId x) == Right x" $
-            \(x :: Qualified UserId) ->
-              mkQualifiedId (renderQualifiedId x) === Right x,
-          jsonRoundtrip @(Qualified Handle),
-          jsonRoundtrip @(Qualified UserId)
-        ]
+    [ testGroup "serialization" testQualifiedSerialization
     ]
+
+testQualifiedSerialization :: [TestTree]
+testQualifiedSerialization =
+  [ testCase "render foo@bar.com" $ do
+      assertEqual "" "foo@bar.com" $
+        (renderQualifiedHandle (Qualified (Handle "foo") (Domain "bar.com"))),
+    testCase "render 61a73a52-e526-4892-82a9-3d638d77629f@example.com" $ do
+      uuid <-
+        maybe (assertFailure "invalid UUID") pure $
+          UUID.fromString "61a73a52-e526-4892-82a9-3d638d77629f"
+      assertEqual "" "61a73a52-e526-4892-82a9-3d638d77629f@example.com" $
+        (renderQualifiedId (Qualified (Id uuid) (Domain "example.com"))),
+    testProperty "roundtrip for Qualified Handle" $
+      \(x :: Qualified Handle) ->
+        mkQualifiedHandle (renderQualifiedHandle x) === Right x,
+    testProperty "roundtrip for Qualified UserId" $
+      \(x :: Qualified UserId) ->
+        mkQualifiedId (renderQualifiedId x) === Right x,
+    testProperty "roundtrip for OptionallyQualified Handle" $
+      \(x :: OptionallyQualified Handle) -> do
+        let render = Text.E.encodeUtf8 . either fromHandle renderQualifiedHandle . eitherQualifiedOrNot
+        let parse = BS.C.runParser BS.C.parser
+        parse (render x) === Right x,
+    testProperty "roundtrip for OptionallyQualified UserId" $
+      \(x :: OptionallyQualified UserId) -> do
+        let render = Text.E.encodeUtf8 . either (cs . UUID.toString . toUUID) renderQualifiedId . eitherQualifiedOrNot
+        let parse = BS.C.runParser BS.C.parser
+        parse (render x) === Right x,
+    jsonRoundtrip @(Qualified Handle),
+    jsonRoundtrip @(Qualified UserId)
+  ]
 
 jsonRoundtrip ::
   forall a.

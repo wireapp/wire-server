@@ -17,6 +17,11 @@ opaqueIdFromMappedOrLocal = \case
   Local localId -> makeIdOpaque localId
   Mapped IdMapping {idMappingLocal} -> makeMappedIdOpaque idMappingLocal
 
+partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
+partitionMappedOrLocalIds = foldMap $ \case
+  Mapped mapping -> (mempty, [mapping])
+  Local localId -> ([localId], mempty)
+
 data IdMapping a
   = IdMapping
       { idMappingLocal :: Id (Mapped a),
