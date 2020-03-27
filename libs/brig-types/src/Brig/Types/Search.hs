@@ -16,13 +16,14 @@ data SearchResult a
       }
   deriving (Show)
 
+-- | This is a subset of 'User' and json instances should reflect that.
 data Contact
   = Contact
       { contactUserId :: UserId,
         contactName :: Text,
         contactColorId :: Maybe Int,
         contactHandle :: Maybe Text,
-        contactTeamId :: Maybe TeamId
+        contactTeam :: Maybe TeamId
       }
   deriving (Show)
 
@@ -57,7 +58,7 @@ instance ToJSON Contact where
         "name" .= contactName c,
         "accent_id" .= contactColorId c,
         "handle" .= contactHandle c,
-        "team_id" .= contactTeamId c
+        "team" .= contactTeam c
       ]
 
 instance FromJSON Contact where
@@ -68,4 +69,4 @@ instance FromJSON Contact where
         <*> o .: "name"
         <*> o .:? "accent_id"
         <*> o .:? "handle"
-        <*> o .:? "team_id"
+        <*> o .:? "team"

@@ -22,7 +22,7 @@ data IndexUser
   = IndexUser
       { _iuUserId :: UserId,
         _iuVersion :: IndexVersion,
-        _iuTeamId :: Maybe TeamId,
+        _iuTeam :: Maybe TeamId,
         _iuName :: Maybe Name,
         _iuHandle :: Maybe Handle,
         _iuColourId :: Maybe ColourId
@@ -49,7 +49,7 @@ newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
 data UserDoc
   = UserDoc
       { udId :: UserId,
-        udTeamId :: Maybe TeamId,
+        udTeam :: Maybe TeamId,
         udName :: Maybe Name,
         udNormalized :: Maybe Text,
         udHandle :: Maybe Handle,
@@ -61,7 +61,7 @@ instance ToJSON UserDoc where
   toJSON ud =
     object
       [ "id" .= udId ud,
-        "team_id" .= udTeamId ud,
+        "team" .= udTeam ud,
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
         "handle" .= udHandle ud,
@@ -71,7 +71,7 @@ instance ToJSON UserDoc where
 instance FromJSON UserDoc where
   parseJSON = withObject "UserDoc" $ \o ->
     UserDoc <$> o .: "id"
-      <*> o .:? "team_id"
+      <*> o .:? "team"
       <*> o .:? "name"
       <*> o .:? "normalized"
       <*> o .:? "handle"
@@ -90,7 +90,7 @@ mkIndexUser u v =
   IndexUser
     { _iuUserId = u,
       _iuVersion = v,
-      _iuTeamId = Nothing,
+      _iuTeam = Nothing,
       _iuName = Nothing,
       _iuHandle = Nothing,
       _iuColourId = Nothing

@@ -251,13 +251,13 @@ optionallySearchWithinTeam =
               ]
           }
   where
-    matchTeamMembersOf team = ES.TermQuery (ES.Term "team_id" $ idToText team) Nothing
+    matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
 
 matchNonTeamMemberUsers :: ES.Query
 matchNonTeamMemberUsers =
   ES.QueryBoolQuery
     boolQuery
-      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team_id"]
+      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
       }
 
 --------------------------------------------------------------------------------
@@ -452,7 +452,7 @@ userDoc :: IndexUser -> UserDoc
 userDoc iu =
   UserDoc
     { udId = _iuUserId iu,
-      udTeamId = _iuTeamId iu,
+      udTeam = _iuTeam iu,
       udName = _iuName iu,
       udNormalized = normalized . fromName <$> _iuName iu,
       udHandle = _iuHandle iu,
@@ -468,7 +468,7 @@ indexMapping =
           [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True}, -- normalized user name
             "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False},
             "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True},
-            "team_id" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True},
+            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True},
             "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False}
           ]
     ]
@@ -581,7 +581,7 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
     pure $
       if shouldIndex
         then
-          iu & set iuTeamId mteam
+          iu & set iuTeam mteam
             . set iuName (Just name)
             . set iuHandle handle
             . set iuColourId (Just colour)

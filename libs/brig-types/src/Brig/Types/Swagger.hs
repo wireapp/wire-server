@@ -859,7 +859,7 @@ searchContact = defineModel "Contact" $ do
   property "accent_id" int32' $ do
     description "Accent color"
     optional
-  property "team_id" string' $ do
+  property "team" string' $ do
     description "Team ID"
     optional
 
