@@ -65,8 +65,7 @@ dependencies:
   -  hw-hspec-hedgehog    >= 0.1.0 && < 0.2
   -  list-t               >= 1.0.4 && < 1.1
   -  microlens            >= 0.4.10 && < 0.5
-  -  network-uri          >= 2.6.1 && < 2.7
-  -  network-uri-static   >= 0.1.2 && < 0.2
+  -  network-uri          >= 2.6.2 && < 2.7
   -  servant              >= 0.16.2 && < 0.17
   -  servant-server       >= 0.16.2 && < 0.17
   -  warp                 >= 3.2.28 && < 3.4
