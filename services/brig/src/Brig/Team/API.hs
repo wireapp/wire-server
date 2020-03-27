@@ -6,11 +6,12 @@ import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.App (currentTime, settings)
 import qualified Brig.Data.Blacklist as Blacklist
-import Brig.Data.UserKey (userEmailKey)
+import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
+import Brig.Phone
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -165,25 +166,44 @@ createInvitation uid tid body = do
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   ensurePermissionToAddUser uid tid inviteePerms
+
+  -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
+  --             sendActivationCode. Refactor this to a single place
+
+  -- Validate e-mail
   email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
-  let uk = userEmailKey email
-  blacklisted <- lift $ Blacklist.exists uk
-  when blacklisted $
+  let uke = userEmailKey email
+  blacklistedEm <- lift $ Blacklist.exists uke
+  when blacklistedEm $
     throwStd blacklistedEmail
+  emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  when emailTaken $
+    throwStd emailExists
+
+  -- Validate phone
+  phone <- for (irPhone body) $ \p -> do
+      validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (validatePhone p)
+      let ukp = userPhoneKey validatedPhone
+      blacklistedPh <- lift $ Blacklist.exists ukp
+      when blacklistedPh $
+        throwStd blacklistedPhone
+      phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+      when phoneTaken $
+        throwStd phoneExists
+      return validatedPhone
+
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  user <- lift $ Data.lookupKey uk
-  case user of
-    Just _ -> throwStd emailExists
-    Nothing -> doInvite inviteeRole email from (irLocale body)
+
+  doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
   where
-    doInvite role to from lc = lift $ do
+    doInvite role toEmail from lc toName toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role to now (Just uid) timeout
-      void $ sendInvitationMail to tid from code lc
+      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone timeout
+      void $ sendInvitationMail toEmail tid from code lc
       return newInv
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response

@@ -381,7 +381,7 @@ instance Arbitrary InvitationList where
   arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
 
 instance Arbitrary Invitation where
-  arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Permissions where
   arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
@@ -393,7 +393,7 @@ instance Arbitrary Perm where
   arbitrary = elements [minBound ..]
 
 instance Arbitrary InvitationRequest where
-  arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Role where
   arbitrary = elements [minBound ..]

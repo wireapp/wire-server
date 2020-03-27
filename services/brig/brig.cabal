@@ -494,6 +494,7 @@ executable brig-schema
       V56
       V57
       V58
+      V59
       V9
       Paths_brig
   hs-source-dirs:
