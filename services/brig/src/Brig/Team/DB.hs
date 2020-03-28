@@ -78,7 +78,7 @@ insertInvitation t role email (toUTCTimeMillis -> now) minviter inviteeName phon
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
     cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Int32) ()
-    cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, invitee_name, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+    cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r =
@@ -86,7 +86,7 @@ lookupInvitation t r =
     <$> retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
     cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlInvitation = "SELECT team, role, id, email, created_at, created_by, invitee_name, phone FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitation = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
 lookupInvitationByCode i = lookupInvitationInfo i >>= \case
@@ -116,9 +116,9 @@ lookupInvitations team start (fromRange -> size) = do
             hasMore = more
           }
     cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlSelect = "SELECT team, role, id, email, created_at, created_by, invitee_name, phone FROM team_invitation WHERE team = ? ORDER BY id ASC"
+    cqlSelect = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? ORDER BY id ASC"
     cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by, invitee_name, phone FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
+    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do

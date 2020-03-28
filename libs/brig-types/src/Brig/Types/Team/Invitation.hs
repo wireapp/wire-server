@@ -48,7 +48,7 @@ instance FromJSON InvitationRequest where
       <*> o .: "inviter_name"
       <*> o .:? "locale"
       <*> o .:? "role"
-      <*> o .:? "invitee_name"
+      <*> o .:? "name"
       <*> o .:? "phone"
 
 instance ToJSON InvitationRequest where
@@ -58,7 +58,7 @@ instance ToJSON InvitationRequest where
         "inviter_name" .= irName i,
         "locale" .= irLocale i,
         "role" .= irRole i,
-        "invitee_name" .= irInviteeName i,
+        "name" .= irInviteeName i,
         "phone" .= irPhone i
       ]
 
@@ -71,7 +71,7 @@ instance FromJSON Invitation where
       <*> o .: "email"
       <*> o .: "created_at"
       <*> o .:? "created_by"
-      <*> o .:? "invitee_name"
+      <*> o .:? "name"
       <*> o .:? "phone"
 
 instance ToJSON Invitation where
@@ -83,7 +83,7 @@ instance ToJSON Invitation where
         "email" .= inIdentity i,
         "created_at" .= inCreatedAt i,
         "created_by" .= inCreatedBy i,
-        "invitee_name" .= inInviteeName i,
+        "name" .= inInviteeName i,
         "phone" .= inPhone i
       ]
 
