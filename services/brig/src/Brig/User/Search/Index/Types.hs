@@ -13,7 +13,7 @@ import Imports
 
 data IndexUpdate
   = IndexUpdateUser IndexUser
-  | IndexUpdateUsers [IndexUser]
+  | IndexUpdateUsers Text [IndexUser]
   | IndexDeleteUser UserId
 
 -- | Represents the ES *index*, ie. the attributes of a user searchable in ES.  See also:

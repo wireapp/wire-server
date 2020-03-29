@@ -48,6 +48,13 @@ routes = do
     "/i/index/reindex"
     (continue . const $ lift reindexAll *> pure empty)
     true
+  -- forcefully reindex from Cassandra, even if nothing has changed
+  -- (e.g. integration testing -- prefer the `brig-index` executable
+  -- for actual operations!)
+  post
+    "/i/index/reindex-force"
+    (continue . const $ lift reindexAllForce *> pure empty)
+    true
 
 -- Handlers
 

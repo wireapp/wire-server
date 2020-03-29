@@ -19,6 +19,7 @@ module Brig.User.Search.Index
     createIndexIfNotPresent,
     resetIndex,
     reindexAll,
+    reindexAllForce,
     refreshIndex,
     updateMapping,
 
@@ -287,7 +288,7 @@ updateIndex (IndexUpdateUser iu) = liftIndexIO $ do
         { ES.idsVersionControl = ES.ExternalGT (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
-updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
+updateIndex (IndexUpdateUsers versionCheck ius) = liftIndexIO $ do
   m <- asks idxMetrics
   counterIncr (path "user.index.update.bulk.count") m
   info $
@@ -331,7 +332,7 @@ updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
       fromEncoding . pairs . pair "index" . pairs $
         "_id" .= docId
           <> "_version" .= v
-          <> "_version_type" .= ("external" :: Text)
+          <> "_version_type" .= versionCheck -- "external or external_gt"
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -424,8 +425,14 @@ resetIndex settings shardCount = liftIndexIO $ do
     then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
 
+reindexAllForce :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
+reindexAllForce = reindexAllWith "external_gte"
+
 reindexAll :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
-reindexAll = do
+reindexAll = reindexAllWith "external"
+
+reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => Text -> m ()
+reindexAllWith versionCheck = do
   idx <- liftIndexIO $ asks idxName
   C.liftClient (scanForIndex 100) >>= loop idx
   where
@@ -434,7 +441,7 @@ reindexAll = do
         field "size" (length (C.result page))
           . msg (val "Reindex: processing C* page")
       unless (null (C.result page)) $
-        updateIndex (IndexUpdateUsers (C.result page))
+        updateIndex (IndexUpdateUsers versionCheck (C.result page))
       when (C.hasMore page) $
         C.liftClient (C.nextPage page) >>= loop idx
 
