@@ -19,14 +19,11 @@ import Data.Aeson
 import Data.Aeson.QQ
 import Data.Aeson.Types as Aeson
 import qualified Data.Map as Map
-import Data.Typeable (typeOf)
 import Galley.Types.Teams
 import Imports
 import Test.Brig.Roundtrip
-import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
