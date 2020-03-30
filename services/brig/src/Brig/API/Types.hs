@@ -89,7 +89,7 @@ data ConnectionError
   | -- | An invalid connection status change.
     InvalidTransition UserId Relation
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
-    InvalidUser UserId
+    InvalidUser OpaqueUserId
   | -- | An attempt at updating a non-existent connection.
     NotConnected UserId UserId
   | -- | An attempt at creating a connection from an account with
@@ -155,7 +155,7 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !UserId
+  | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
 

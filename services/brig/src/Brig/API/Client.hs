@@ -7,8 +7,8 @@ module Brig.API.Client
     pubClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
-    Data.lookupClient,
-    Data.lookupClients,
+    lookupClient,
+    lookupClients,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
 
@@ -41,7 +41,7 @@ import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.IP (IP)
 import qualified Data.Id as Id
-import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
 import Data.IdMapping
 import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
@@ -54,11 +54,34 @@ import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 
+lookupClient :: MappedOrLocalId Id.U -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
+lookupClient mappedOrLocalUserId clientId =
+  case mappedOrLocalUserId of
+    Local u ->
+      lift $ lookupLocalClient u clientId
+    Mapped IdMapping {idMappingLocal} ->
+      -- FUTUREWORK(federation): look up remote clients
+      throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
+
+lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
+lookupLocalClient = Data.lookupClient
+
+lookupClients :: MappedOrLocalId Id.U -> ExceptT ClientError AppIO [Client]
+lookupClients = \case
+  Local u ->
+    lift $ lookupLocalClients u
+  Mapped IdMapping {idMappingLocal} ->
+    -- FUTUREWORK(federation): look up remote clients
+    throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
+
+lookupLocalClients :: UserId -> AppIO [Client]
+lookupLocalClients = Data.lookupClients
+
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound (makeIdOpaque u))) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
@@ -101,17 +124,31 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = do
+claimPrekey :: MappedOrLocalId Id.U -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey u c = case u of
+  Local localUser ->
+    claimLocalPrekey localUser c
+  Mapped _ ->
+    pure Nothing
+
+claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimLocalPrekey u c = do
   prekey <- Data.claimPrekey u c
   case prekey of
     Nothing -> noPrekeys u c >> return Nothing
     pk@(Just _) -> return pk
 
-claimPrekeyBundle :: UserId -> AppIO PrekeyBundle
-claimPrekeyBundle u = do
+claimPrekeyBundle :: MappedOrLocalId Id.U -> AppIO PrekeyBundle
+claimPrekeyBundle = \case
+  Local localUser ->
+    claimLocalPrekeyBundle localUser
+  Mapped IdMapping {idMappingLocal} ->
+    pure $ PrekeyBundle (makeMappedIdOpaque idMappingLocal) []
+
+claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
+claimLocalPrekeyBundle u = do
   clients <- map clientId <$> Data.lookupClients u
-  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+  PrekeyBundle (makeIdOpaque u) . catMaybes <$> mapM (Data.claimPrekey u) clients
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do

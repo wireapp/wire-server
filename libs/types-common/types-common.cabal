@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7092aa277e1be77c0621c4f6d0d8f06c53268ae73e283ce08b6033b78e6ab422
+-- hash: 6524c012b9c2b417de7d0c9d6462811a09880449bbac320e48c098532860eb86
 
 name:           types-common
 version:        0.16.0
@@ -35,6 +35,7 @@ library
       Data.SizedHashMap
       Data.Text.Ascii
       Data.UUID.Tagged
+      Util.Attoparsec
       Util.Options
       Util.Options.Common
       Util.Test
@@ -62,7 +63,6 @@ library
     , data-default >=0.5
     , deepseq >=1.4
     , directory >=1.2
-    , email-validate >=2.3
     , errors >=2.0
     , ghc-prim
     , hashable >=1.2
@@ -100,6 +100,8 @@ test-suite tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Domain
+      Test.Handle
       Test.Properties
       Test.Qualified
       Test.SizedHashMap
@@ -119,6 +121,7 @@ test-suite tests
     , cereal
     , imports
     , protobuf
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

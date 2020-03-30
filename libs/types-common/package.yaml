@@ -29,7 +29,6 @@ library:
   - data-default >=0.5
   - deepseq >=1.4
   - directory >=1.2
-  - email-validate >=2.3
   - errors >=2.0
   - ghc-prim
   - hashable >=1.2
@@ -77,6 +76,7 @@ tests:
     - bytestring-conversion
     - protobuf
     - QuickCheck
+    - string-conversions
     - tasty
     - tasty-hunit
     - tasty-quickcheck

@@ -6,7 +6,7 @@ import Control.Lens ((.~), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
-import Data.IdMapping (IdMapping (..), MappedOrLocalId (Local, Mapped))
+import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Set as Set
@@ -267,8 +267,3 @@ resolveOpaqueConvId (Id opaque) = do
     True ->
       -- FUTUREWORK(federation): implement database lookup
       pure . Local $ Id opaque
-
-partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
-partitionMappedOrLocalIds = foldMap $ \case
-  Mapped mapping -> (mempty, [mapping])
-  Local localId -> ([localId], mempty)

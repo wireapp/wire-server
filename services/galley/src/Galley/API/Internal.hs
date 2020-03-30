@@ -10,7 +10,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Id
-import Data.IdMapping (MappedOrLocalId (Local))
+import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Metrics.Middleware as Metrics
@@ -19,7 +19,7 @@ import Data.String.Conversions (cs)
 import Galley.API.Error (federationNotImplemented)
 import Galley.API.Teams (uncheckedRemoveTeamMember)
 import qualified Galley.API.Teams as Teams
-import Galley.API.Util (isMember, partitionMappedOrLocalIds, resolveOpaqueConvId)
+import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra

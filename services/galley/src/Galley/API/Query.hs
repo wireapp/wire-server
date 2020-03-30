@@ -13,7 +13,7 @@ where
 import Cassandra (hasMore, result)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.IdMapping (MappedOrLocalId (Local))
+import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.Range
 import Galley.API.Error
 import Galley.API.Mapping

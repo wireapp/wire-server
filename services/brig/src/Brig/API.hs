@@ -12,6 +12,7 @@ import Brig.API.Handler
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
+import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -37,10 +38,12 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle, parseHandle)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>), IpAddr (..))
+import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
@@ -878,15 +881,24 @@ listPropertyKeysH (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
 listPropertyKeysAndValuesH (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
 
-getPrekeyH :: UserId ::: ClientId ::: JSON -> Handler Response
+getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
-  prekey <- lift $ API.claimPrekey u c
-  return $ case prekey of
+  getPrekey u c <&> \case
     Just pk -> json pk
     Nothing -> setStatus status404 empty
 
-getPrekeyBundleH :: UserId ::: JSON -> Handler Response
-getPrekeyBundleH (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
+getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe ClientPrekey)
+getPrekey u c = do
+  resolvedUserId <- resolveOpaqueUserId u
+  lift $ API.claimPrekey resolvedUserId c
+
+getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
+getPrekeyBundleH (u ::: _) = json <$> getPrekeyBundle u
+
+getPrekeyBundle :: OpaqueUserId -> Handler PrekeyBundle
+getPrekeyBundle u = do
+  resolvedUserId <- resolveOpaqueUserId u
+  lift $ API.claimPrekeyBundle resolvedUserId
 
 getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
@@ -952,8 +964,14 @@ updateClient :: UpdateClient -> UserId -> ClientId -> Handler ()
 updateClient body usr clt = do
   API.updateClient usr clt body !>> clientError
 
-listClientsH :: UserId ::: JSON -> Handler Response
-listClientsH (usr ::: _) = json <$> lift (API.lookupClients usr)
+listClientsH :: OpaqueUserId ::: JSON -> Handler Response
+listClientsH (opaqueUserId ::: _) =
+  json <$> listClients opaqueUserId
+
+listClients :: OpaqueUserId -> Handler [Client]
+listClients opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.lookupClients resolvedUserId !>> clientError
 
 internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListClientsH (_ ::: req) = do
@@ -964,28 +982,34 @@ internalListClients (UserSet usrs) = do
   UserClients . Map.mapKeys makeIdOpaque . Map.fromList
     <$> (API.lookupUsersClientIds $ Set.toList usrs)
 
-getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientH (usr ::: clt ::: _) = lift $ do
-  client <- API.lookupClient usr clt
-  return $ case client of
+getClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
+getClientH (usr ::: clt ::: _) =
+  getClient usr clt <&> \case
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-getUserClientsH :: UserId ::: JSON -> Handler Response
+getClient :: OpaqueUserId -> ClientId -> Handler (Maybe Client)
+getClient opaqueUserId clientId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.lookupClient resolvedUserId clientId !>> clientError
+
+getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
-  json <$> lift (getUserClients user)
+  json <$> getUserClients user
 
-getUserClients :: UserId -> AppIO [PubClient]
-getUserClients user =
-  API.pubClient <$$> API.lookupClients user
+getUserClients :: OpaqueUserId -> Handler [PubClient]
+getUserClients opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
 
-getUserClientH :: UserId ::: ClientId ::: JSON -> Handler Response
+getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getUserClientH (user ::: cid ::: _) = do
-  maybe (setStatus status404 empty) json <$> lift (getUserClient user cid)
+  maybe (setStatus status404 empty) json <$> getUserClient user cid
 
-getUserClient :: UserId -> ClientId -> AppIO (Maybe PubClient)
-getUserClient user cid = do
-  API.pubClient <$$> API.lookupClient user cid
+getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe PubClient)
+getUserClient opaqueUserId clientId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do
@@ -1101,14 +1125,14 @@ deleteUserNoVerify uid = do
 changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
 
-checkUserExistsH :: UserId ::: UserId -> Handler Response
+checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
 checkUserExistsH (self ::: uid) = do
-  exists <- lift $ checkUserExists self uid
+  exists <- checkUserExists self uid
   if exists then return empty else throwStd userNotFound
 
-checkUserExists :: UserId -> UserId -> AppIO Bool
-checkUserExists self uid = do
-  isJust <$> API.lookupProfile self uid
+checkUserExists :: UserId -> OpaqueUserId -> Handler Bool
+checkUserExists self opaqueUserId =
+  isJust <$> getUser self opaqueUserId
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
@@ -1118,13 +1142,14 @@ getSelf :: UserId -> Handler SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: UserId -> Handler Response
+getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
-  json <$> getUser self uid
+  fmap json . ifNothing userNotFound =<< getUser self uid
 
-getUser :: UserId -> UserId -> Handler UserProfile
-getUser self uid = do
-  lift (API.lookupProfile self uid) >>= ifNothing userNotFound
+getUser :: UserId -> OpaqueUserId -> Handler (Maybe UserProfile)
+getUser self opaqueUserId = do
+  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  lift $ API.lookupProfile self resolvedUserId
 
 getUserNameH :: JSON ::: UserId -> Handler Response
 getUserNameH (_ ::: self) = do
@@ -1133,7 +1158,7 @@ getUserNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List UserId) (List Handle) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1141,22 +1166,32 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List UserId) (List Handle) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler [UserProfile]
 listUsers self = \case
-  Left us -> byIds (fromList us)
+  Left us -> do
+    resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
+    byIds resolvedUserIds
   Right hs -> do
-    us <- catMaybes <$> mapM (lift . API.lookupHandle) (fromList hs)
+    us <- getIds (fromList hs)
     sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
     if sameTeamSearchOnly
-      then sameTeamOnly =<< byIds us
+      then filterSameTeamOnly =<< byIds us
       else byIds us
   where
-    sameTeamOnly :: [UserProfile] -> Handler [UserProfile]
-    sameTeamOnly us = do
+    getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
+    getIds hs = do
+      -- we might be able to do something smarter if the domain is our own
+      let (localHandles, _remoteHandles) = partitionEithers (map eitherQualifiedOrNot hs)
+      localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
+      -- FUTUREWORK(federation): resolve remote handles, too
+      pure (Local <$> localUsers)
+    filterSameTeamOnly :: [UserProfile] -> Handler [UserProfile]
+    filterSameTeamOnly us = do
       selfTeam <- lift $ Data.lookupUserTeam self
       return $ case selfTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
+    byIds :: [MappedOrLocalId Id.U] -> Handler [UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response

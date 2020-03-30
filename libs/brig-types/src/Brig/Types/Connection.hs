@@ -64,7 +64,7 @@ data UserConnection
 data ConnectionRequest
   = ConnectionRequest
       { -- | Connection recipient
-        crUser :: !UserId,
+        crUser :: !OpaqueUserId,
         -- | Name of the conversation to be created
         crName :: !Text,
         -- | Initial message

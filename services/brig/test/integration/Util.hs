@@ -312,7 +312,7 @@ postConnection brig from to =
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest (makeIdOpaque to) "some conv name" (Message "some message")
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
 putConnection brig from to r =
