@@ -238,7 +238,7 @@ internal-libraries:
     - types-common
     - uri-bytestring
 tests:
-  brig-types-tests:
+  brig-tests:
     main: Main.hs
     source-dirs: test/unit
     ghc-options:
