@@ -216,7 +216,9 @@ createConnectConversation usr conn j = do
     update n conv =
       let mems = Data.convMembers conv
        in conversationExisted usr
-            =<< if | makeIdOpaque usr `isMember` mems -> connect n conv
+            =<< if | makeIdOpaque usr `isMember` mems ->
+                     -- we already were in the conversation, maybe also other
+                     connect n conv
                    | otherwise -> do
                      now <- liftIO getCurrentTime
                      mm <- snd <$> Data.addMember now (Data.convId conv) usr
@@ -225,8 +227,11 @@ createConnectConversation usr conn j = do
                              { Data.convMembers = Data.convMembers conv <> toList mm
                              }
                      if null mems
-                       then connect n conv'
+                       then do
+                         -- the conversation was empty
+                         connect n conv'
                        else do
+                         -- we were not in the conversation, but someone else
                          conv'' <- acceptOne2One usr conv' conn
                          if Data.convType conv'' == ConnectConv
                            then connect n conv''

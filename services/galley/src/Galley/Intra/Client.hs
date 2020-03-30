@@ -31,6 +31,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Logger
 
+-- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> Galley UserClients
 lookupClients uids = do
   (brigHost, brigPort) <- brigReq
@@ -43,6 +44,7 @@ lookupClients uids = do
   clients <- parseResponse (Error status502 "server-error") r
   return $ filterClients (not . Set.null) clients
 
+-- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
   (brigHost, brigPort) <- brigReq
@@ -54,6 +56,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
       . json (LegalHoldClientRequest requesterUid lastPrekey')
       . expect2xx
 
+-- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   (brigHost, brigPort) <- brigReq
@@ -72,6 +75,7 @@ getLegalHoldAuthToken uid pw = do
       throwM internalError
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
+-- | Calls 'Brig.API.addClientInternalH'.
 addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
@@ -87,6 +91,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
         Nothing
 
+-- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser :: UserId -> Galley ()
 removeLegalHoldClientFromUser targetUid = do
   (brigHost, brigPort) <- brigReq
@@ -98,6 +103,7 @@ removeLegalHoldClientFromUser targetUid = do
       . contentJson
       . expect2xx
 
+-- | Calls 'Brig.API.addClientInternalH'.
 brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
 brigAddClient uid connId client = do
   (brigHost, brigPort) <- brigReq
