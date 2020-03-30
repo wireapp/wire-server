@@ -58,7 +58,7 @@ newtype MemberJoin
 
 newtype QualifiedSimpleMembers
   = QualifiedSimpleMembers
-      { qsmMembers :: [SimpleMember]
+      { qsmMembers :: [QualifiedSimpleMember]
       }
   deriving stock (Eq, Show)
 
