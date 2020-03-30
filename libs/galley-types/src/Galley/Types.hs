@@ -460,9 +460,6 @@ deriving instance Show Invite
 
 -- Events -------------------------------------------------------------------
 
--- FUTUREWORK(federation, #1213):
--- Conversation and user ID can be remote IDs, but the receiver might be on
--- another backend, so mapped IDs don't work for them.
 data Event
   = Event
       { evtType :: !EventType,
@@ -490,9 +487,6 @@ data EventType
   | Typing
   deriving (Eq, Show, Generic)
 
--- FUTUREWORK(federation, #1213):
--- A lot of information in the events can contain remote IDs, but the
--- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
   = EdMembersJoin !SimpleMembers
   | EdMembersLeave !UserIdList
