@@ -64,9 +64,9 @@ mkEnv l es cas =
         $ C.defSettings
     initLogger = pure l
 
-createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m) => MigrationActionT m ()
+createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => m ()
 createMigrationsIndexIfNotPresent =
-  liftBH $ do
+  do
     unlessM (ES.indexExists indexName) $
       ES.createIndexWith [] 1 indexName
         >>= throwIfNotCreated CreateMigrationIndexFailed
@@ -78,12 +78,11 @@ createMigrationsIndexIfNotPresent =
         $ throwM
         $ err (show response)
 
-failIfIndexAbsent :: (MonadThrow m, MonadIO m) => ES.IndexName -> MigrationActionT m ()
+failIfIndexAbsent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => ES.IndexName -> m ()
 failIfIndexAbsent targetIndex =
-  liftBH $
-    unlessM
-      (ES.indexExists targetIndex)
-      (throwM $ TargetIndexAbsent targetIndex)
+  unlessM
+    (ES.indexExists targetIndex)
+    (throwM $ TargetIndexAbsent targetIndex)
 
 -- | Runs only the migrations which need to run
 runMigrations :: [Migration] -> MigrationActionT IO ()

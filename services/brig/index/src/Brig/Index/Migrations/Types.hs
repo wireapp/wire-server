@@ -76,11 +76,6 @@ runMigrationAction :: Env -> MigrationActionT m a -> m a
 runMigrationAction env action =
   runReaderT (unMigrationAction action) env
 
-liftBH :: Monad m => ES.BH m a -> MigrationActionT m a
-liftBH m = do
-  env <- ask
-  lift $ ES.runBH (bhEnv env) m
-
 liftCassandra :: MonadIO m => C.Client a -> MigrationActionT m a
 liftCassandra m = do
   env <- ask
