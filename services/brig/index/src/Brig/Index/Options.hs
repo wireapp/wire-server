@@ -36,7 +36,7 @@ data Command
   = Create ElasticSettings
   | Reset ElasticSettings
   | Reindex ElasticSettings CassandraSettings
-  | ReindexForce ElasticSettings CassandraSettings
+  | ReindexSameOrNewer ElasticSettings CassandraSettings
   | UpdateMapping (URIRef Absolute) ES.IndexName
   | Migrate ElasticSettings CassandraSettings
   deriving (Show)
@@ -216,9 +216,9 @@ commandParser =
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
-          "reindex-force"
+          "reindex-if-same-or-newer"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command

@@ -52,8 +52,8 @@ routes = do
   -- (e.g. integration testing -- prefer the `brig-index` executable
   -- for actual operations!)
   post
-    "/i/index/reindex-force"
-    (continue . const $ lift reindexAllForce *> pure empty)
+    "/i/index/reindex-if-same-or-newer"
+    (continue . const $ lift reindexAllIfSameOrNewer *> pure empty)
     true
 
 -- Handlers

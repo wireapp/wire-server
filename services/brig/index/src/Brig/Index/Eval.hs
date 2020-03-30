@@ -31,10 +31,10 @@ runCommand l = \case
     e <- initIndex es
     c <- initDb cas
     runReindexIO e c reindexAll
-  ReindexForce es cas -> do
+  ReindexSameOrNewer es cas -> do
     e <- initIndex es
     c <- initDb cas
-    runReindexIO e c reindexAllForce
+    runReindexIO e c reindexAllIfSameOrNewer
   UpdateMapping esURI indexName -> do
     e <- initIndex' esURI indexName
     runIndexIO e updateMapping

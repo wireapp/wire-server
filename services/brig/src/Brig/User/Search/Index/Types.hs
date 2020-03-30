@@ -11,9 +11,13 @@ import Data.Id
 import Database.V5.Bloodhound hiding (key)
 import Imports
 
+data IndexDocUpdateType
+  = IndexUpdateIfNewerVersion
+  | IndexUpdateIfSameOrNewerVersion
+
 data IndexUpdate
-  = IndexUpdateUser IndexUser
-  | IndexUpdateUsers Text [IndexUser]
+  = IndexUpdateUser IndexDocUpdateType IndexUser
+  | IndexUpdateUsers IndexDocUpdateType [IndexUser]
   | IndexDeleteUser UserId
 
 -- | Represents the ES *index*, ie. the attributes of a user searchable in ES.  See also:

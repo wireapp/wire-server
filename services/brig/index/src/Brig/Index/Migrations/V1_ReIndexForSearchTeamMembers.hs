@@ -8,4 +8,4 @@ migration = Types.Migration ver txt mig
   where
     ver = Types.MigrationVersion 1
     txt = "Reindex all users for search within team"
-    mig = Search.reindexAllForce
+    mig = Search.reindexAllIfSameOrNewer

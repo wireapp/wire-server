@@ -19,7 +19,7 @@ module Brig.User.Search.Index
     createIndexIfNotPresent,
     resetIndex,
     reindexAll,
-    reindexAllForce,
+    reindexAllIfSameOrNewer,
     refreshIndex,
     updateMapping,
 
@@ -267,10 +267,10 @@ matchNonTeamMemberUsers =
 reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- C.liftClient (lookupForIndex u)
-  updateIndex (maybe (IndexDeleteUser u) IndexUpdateUser ixu)
+  updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
 updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
-updateIndex (IndexUpdateUser iu) = liftIndexIO $ do
+updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
   m <- asks idxMetrics
   counterIncr (path "user.index.update.count") m
   info $
@@ -285,10 +285,10 @@ updateIndex (IndexUpdateUser iu) = liftIndexIO $ do
   where
     versioning =
       ES.defaultIndexDocumentSettings
-        { ES.idsVersionControl = ES.ExternalGT (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
+        { ES.idsVersionControl = (indexUpdateToVersionControl updateType) (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
-updateIndex (IndexUpdateUsers versionCheck ius) = liftIndexIO $ do
+updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
   m <- asks idxMetrics
   counterIncr (path "user.index.update.bulk.count") m
   info $
@@ -332,7 +332,8 @@ updateIndex (IndexUpdateUsers versionCheck ius) = liftIndexIO $ do
       fromEncoding . pairs . pair "index" . pairs $
         "_id" .= docId
           <> "_version" .= v
-          <> "_version_type" .= versionCheck -- "external or external_gt"
+          <> "_version_type" .= (indexUpdateToVersionControlText updateType)
+                              -- ^ "external_gt or external_gte"
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -350,7 +351,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
   case statusCode (responseStatus r) of
     200 -> case preview (key "_version" . _Integer) (responseBody r) of
       Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
-      Just v -> updateIndex . IndexUpdateUser . mkIndexUser u =<< mkIndexVersion (v + 1)
+      Just v -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u =<< mkIndexVersion (v + 1)
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
@@ -425,14 +426,14 @@ resetIndex settings shardCount = liftIndexIO $ do
     then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
 
-reindexAllForce :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
-reindexAllForce = reindexAllWith "external_gte"
+reindexAllIfSameOrNewer :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
+reindexAllIfSameOrNewer = reindexAllWith IndexUpdateIfSameOrNewerVersion
 
 reindexAll :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
-reindexAll = reindexAllWith "external"
+reindexAll = reindexAllWith IndexUpdateIfNewerVersion
 
-reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => Text -> m ()
-reindexAllWith versionCheck = do
+reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => IndexDocUpdateType -> m ()
+reindexAllWith updateType = do
   idx <- liftIndexIO $ asks idxName
   C.liftClient (scanForIndex 100) >>= loop idx
   where
@@ -441,12 +442,21 @@ reindexAllWith versionCheck = do
         field "size" (length (C.result page))
           . msg (val "Reindex: processing C* page")
       unless (null (C.result page)) $
-        updateIndex (IndexUpdateUsers versionCheck (C.result page))
+        updateIndex (IndexUpdateUsers updateType (C.result page))
       when (C.hasMore page) $
         C.liftClient (C.nextPage page) >>= loop idx
 
 --------------------------------------------------------------------------------
 -- Internal
+
+-- This is useful and necessary due to the lack of expressiveness in the bulk API
+indexUpdateToVersionControlText :: IndexDocUpdateType -> Text
+indexUpdateToVersionControlText IndexUpdateIfNewerVersion       = "external_gt"
+indexUpdateToVersionControlText IndexUpdateIfSameOrNewerVersion = "external_gte"
+
+indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> ES.VersionControl)
+indexUpdateToVersionControl IndexUpdateIfNewerVersion       = ES.ExternalGT
+indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
 traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply
 traceES descr act = liftIndexIO $ do
