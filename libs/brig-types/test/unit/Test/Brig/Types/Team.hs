@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Test.Brig.Types.Team where
 
 import Brig.Types.Team
