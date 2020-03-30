@@ -435,7 +435,10 @@ joinLocalConversation zusr zcon cnv access = do
   addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
 
 joinRemoteConversation :: UserId -> ConnId -> Qualified ConvId -> Access -> Galley UpdateResult
-joinRemoteConversation _zusr _zcon cnv _access =
+joinRemoteConversation _zusr _zcon cnv _access = do
+  -- we might not have a mapping for this conversation yet, so we need to create it
+  -- FUTUREWORK: how can we ensure that this can't be forgotten anywhere?
+  _idMapping <- createConvIdMapping cnv
   -- FUTUREWORK(federation): send request to remote backend
   -- question: how can this backend prove to the remote one that the user is activated?
   throwM $ federationNotImplemented' (pure (Nothing, cnv))

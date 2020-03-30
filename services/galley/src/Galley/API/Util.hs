@@ -23,9 +23,10 @@ import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
+import Data.IdMapping (IdMapping, MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified (OptionallyQualified, Qualified, eitherQualifiedOrNot)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -259,6 +260,23 @@ getConversationAndCheckMembershipWithError ex zusr = \case
       throwM ex
     return c
 
+-- | Deletion requires a permission check, but also a 'Role' comparison:
+-- Owners can only be deleted by another owner (and not themselves).
+--
+-- FUTUREWORK: do not do this with 'Role', but introduce permissions "can delete owner", "can
+-- delete admin", etc.
+canDeleteMember :: TeamMember -> TeamMember -> Bool
+canDeleteMember deleter deletee
+  | getRole deletee == RoleOwner =
+    getRole deleter == RoleOwner -- owners can only be deleted by another owner
+      && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
+  | otherwise =
+    True
+  where
+    -- (team members having no role is an internal error, but we don't want to deal with that
+    -- here, so we pick a reasonable default.)
+    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
@@ -285,19 +303,14 @@ resolveOpaqueConvId (Id opaque) = do
       -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
 
--- | Deletion requires a permission check, but also a 'Role' comparison:
--- Owners can only be deleted by another owner (and not themselves).
---
--- FUTUREWORK: do not do this with 'Role', but introduce permissions "can delete owner", "can
--- delete admin", etc.
-canDeleteMember :: TeamMember -> TeamMember -> Bool
-canDeleteMember deleter deletee
-  | getRole deletee == RoleOwner =
-    getRole deleter == RoleOwner -- owners can only be deleted by another owner
-      && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
-  | otherwise =
-    True
-  where
-    -- (team members having no role is an internal error, but we don't want to deal with that
-    -- here, so we pick a reasonable default.)
-    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+createConvIdMappingIfQualified :: OptionallyQualified ConvId -> Galley (MappedOrLocalId Id.C)
+createConvIdMappingIfQualified optQualified =
+  case eitherQualifiedOrNot optQualified of
+    Left localConvId -> Local <$> pure localConvId
+    Right qualifiedConvId -> Mapped <$> createConvIdMapping qualifiedConvId
+
+-- TODO: only access table if federation feature flag is enabled
+createConvIdMapping :: Qualified ConvId -> Galley (IdMapping Id.C)
+createConvIdMapping qualifiedConvId =
+  -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
+  throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
