@@ -110,20 +110,17 @@ persistVersion v =
           True -> pure ()
 
 latestMigrationVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
-latestMigrationVersion =
-  (ES.searchByIndex indexName (ES.mkSearch Nothing Nothing))
-    >>= ES.parseEsResponse
-    >>= \case
-      Left err -> throwM $ FetchMigrationVersionsFailed $ show err
-      Right searchResult ->
-        let versions = map ES.hitSource $ ES.hits . ES.searchHits $ searchResult
-         in case versions of
-              [] ->
-                pure $ MigrationVersion 0
-              vs ->
-                if any isNothing vs
-                  then throwM $ VersionSourceMissing searchResult
-                  else pure $ maximum $ catMaybes vs
+latestMigrationVersion = do
+  resp <- ES.parseEsResponse =<< ES.searchByIndex indexName (ES.mkSearch Nothing Nothing)
+  result <- either (throwM . FetchMigrationVersionsFailed . show) pure resp
+  let versions = map ES.hitSource $ ES.hits . ES.searchHits $ result
+  case versions of
+    [] ->
+      pure $ MigrationVersion 0
+    vs ->
+      if any isNothing vs
+        then throwM $ VersionSourceMissing result
+        else pure $ maximum $ catMaybes vs
 
 data MigrationException
   = CreateMigrationIndexFailed String
