@@ -37,7 +37,8 @@ data Command
   | Reset ElasticSettings
   | Reindex ElasticSettings CassandraSettings
   | ReindexSameOrNewer ElasticSettings CassandraSettings
-  | UpdateMapping (URIRef Absolute) ES.IndexName
+  | -- | 'ElasticSettings' has shards and other settings that are not needed here.
+    UpdateMapping (URIRef Absolute) ES.IndexName
   | Migrate ElasticSettings CassandraSettings
   deriving (Show)
 
