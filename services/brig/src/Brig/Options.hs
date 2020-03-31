@@ -450,10 +450,10 @@ data Settings
   deriving (Show, Generic)
 
 defMaxKeyLen :: Int64
-defMaxKeyLen = 256
+defMaxKeyLen = 1024
 
 defMaxValueLen :: Int64
-defMaxValueLen = 512
+defMaxValueLen = 524288
 
 defDeleteThrottleMillis :: Int
 defDeleteThrottleMillis = 100
