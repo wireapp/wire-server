@@ -133,7 +133,7 @@ teamSize t = liftIndexIO $ do
     query =
       ES.TermQuery
         ES.Term
-          { ES.termField = "team_id",
+          { ES.termField = "team",
             ES.termValue = idToText t
           }
         Nothing
