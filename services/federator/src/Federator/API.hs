@@ -52,7 +52,7 @@ data API route
             :> Capture "fqu" (Qualified UserId)
             :> "prekeys"
             :> Get '[JSON] PrekeyBundle,
-        _gapiJoin ::
+        _gapiJoinConversation ::
           route
             :- "i"
             :> "conversations"

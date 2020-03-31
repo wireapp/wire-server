@@ -34,7 +34,10 @@ import Network.Wai.Utilities.Error
 import Type.Reflection (Typeable, typeRep)
 
 internalError :: Error
-internalError = Error status500 "internal-error" "internal error"
+internalError = internalErrorWithDescription "internal error"
+
+internalErrorWithDescription :: LText -> Error
+internalErrorWithDescription = Error status500 "internal-error"
 
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"

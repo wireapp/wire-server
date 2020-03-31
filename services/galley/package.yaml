@@ -39,6 +39,7 @@ library:
   - errors >=2.0
   - exceptions >=0.4
   - extra >=1.3
+  - federator
   - galley-types >=0.65.0
   - gundeck-types >=1.35.2
   - HsOpenSSL >=0.11
@@ -63,6 +64,8 @@ library:
   - safe-exceptions >=0.1
   - semigroups >=0.12
   - servant
+  - servant-client
+  - servant-client-core
   - servant-swagger
   - singletons >=1.0
   - split >=0.2

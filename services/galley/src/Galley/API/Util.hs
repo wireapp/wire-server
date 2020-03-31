@@ -23,7 +23,7 @@ import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
-import Data.IdMapping (IdMapping, MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
+import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (OptionallyQualified, Qualified, eitherQualifiedOrNot)
@@ -311,6 +311,14 @@ createConvIdMappingIfQualified optQualified =
 
 -- TODO: only access table if federation feature flag is enabled
 createConvIdMapping :: Qualified ConvId -> Galley (IdMapping Id.C)
-createConvIdMapping qualifiedConvId =
-  -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
-  throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
+createConvIdMapping qualifiedConvId = do
+  mEnabled <- view (options . optSettings . setEnableFederation)
+  case fromMaybe defEnableFederation mEnabled of
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      -- TODO: different error "federation-not-enabled"?
+      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
+    True -> do
+      mappedId <- Id.randomId
+      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
+      pure (IdMapping mappedId qualifiedConvId)

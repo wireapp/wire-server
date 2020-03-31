@@ -84,6 +84,8 @@ data Opts
         _optCassandra :: !CassandraOpts,
         -- | Brig endpoint
         _optBrig :: !Endpoint,
+        -- | Federator endpoint
+        _optFederator :: !(Maybe Endpoint),
         -- | Gundeck endpoint
         _optGundeck :: !Endpoint,
         -- | Spar endpoint
