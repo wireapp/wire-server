@@ -420,6 +420,12 @@ teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
   property "role" role $ do
     description "Role of the invited user"
     optional
+  property "name" string' $ do
+    description "Name of the invitee (1 - 128 characters)"
+    optional
+  property "phone" string' $ do
+    description "Phone number of the invitee, in the E.164 format"
+    optional
 
 -- | This is *not* the swagger model for the 'TeamInvitation' type (which does not exist), but
 -- for the use of 'Invitation' under @/teams/{tid}/invitations@.
@@ -443,8 +449,12 @@ teamInvitation = defineModel "TeamInvitation" $ do
   property "created_by" bytes' $ do
     description "ID of the inviting user"
     optional
-  property "name" string' $
-    description "Name of the invitee"
+  property "name" string' $ do
+    description "Name of the invitee (1 - 128 characters)"
+    optional
+  property "phone" string' $ do
+    description "Phone number of the invitee, in the E.164 format"
+    optional
 
 teamInvitationList :: Model
 teamInvitationList = defineModel "TeamInvitationList" $ do
