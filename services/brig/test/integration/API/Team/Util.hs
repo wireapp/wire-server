@@ -7,7 +7,7 @@ import Brig.Types.Connection
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
-import Control.Lens ((^?), view)
+import Control.Lens ((^.), (^?), view)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -24,6 +24,38 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
+import Web.Cookie (parseSetCookie, setCookieName)
+
+createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeam brig galley numMembers = do
+  names <- forM [1 .. numMembers] $ \_ -> randomName
+  createPopulatedBindingTeamWithNames brig galley names
+
+createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeamWithNames brig galley names = do
+  (inviter, tid) <- createUserWithTeam brig galley
+  invitees <- forM names $ \name -> do
+    inviteeEmail <- randomEmail
+    let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
+    inv <- responseJsonError =<< postInvitation brig tid inviter invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <-
+      post
+        ( brig . path "/register"
+            . contentJson
+            . body (acceptWithName name inviteeEmail inviteeCode)
+        )
+        <!! const 201 === statusCode
+    let invitee :: User = responseJsonUnsafe rsp2
+    do
+      let invmeta = Just (inviter, inCreatedAt inv)
+      mem <- getTeamMember (userId invitee) tid galley
+      liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+    do
+      let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
+      liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
+    pure invitee
+  pure (tid, inviter, invitees)
 
 createTeam :: UserId -> Galley -> Http TeamId
 createTeam u galley = do
@@ -201,10 +233,13 @@ putLegalHoldEnabled tid enabled g = do
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
-accept email code =
+accept email code = acceptWithName (Name "Bob") email code
+
+acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
+acceptWithName name email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= ("Bob" :: Text),
+      [ "name" .= fromName name,
         "email" .= fromEmail email,
         "password" .= defPassword,
         "team_code" .= code

@@ -13,22 +13,6 @@ import Imports
 import Test.Tasty.HUnit
 import Util
 
-optIn, optOut :: SearchableStatus
-optIn = SearchableStatus True
-optOut = SearchableStatus False
-
-updateSearchableStatus :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> SearchableStatus -> m ()
-updateSearchableStatus brig uid status =
-  put
-    ( brig
-        . path "/self/searchable"
-        . zUser uid
-        . contentJson
-        . body (RequestBodyLBS (encode status))
-    )
-    !!! const 200
-    === statusCode
-
 executeSearch :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (Maybe (SearchResult Contact))
 executeSearch brig self q = do
   r <-
@@ -42,6 +26,7 @@ executeSearch brig self q = do
       === statusCode
   return . decode . fromMaybe "" $ responseBody r
 
+-- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 refreshIndex brig =
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
@@ -83,12 +68,6 @@ assertCanFind brig self expected q = do
 assertCan'tFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
   Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
-  liftIO . assertBool ("User unexpectedly in results for query: " <> show q)
+  liftIO . assertBool ("User shouldn't be present in results for query: " <> show q)
     $ notElem expected . map contactUserId
     $ r
-
-assertSearchable :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => String -> (Request -> Request) -> UserId -> Bool -> m ()
-assertSearchable label brig uid status = do
-  response <- get (brig . path "/self/searchable" . zUser uid)
-  liftIO $ assertEqual (label ++ ", statuscode") 200 (statusCode response)
-  liftIO $ assertEqual label (Just status) (isSearchable <$> responseJsonMaybe response)

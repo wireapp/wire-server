@@ -74,7 +74,7 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.PasswordReset as Data
 import qualified Brig.Data.Properties as Data
-import Brig.Data.User hiding (updateSearchableStatus)
+import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -150,15 +150,13 @@ createUser new@NewUser {..} = do
       throwE (BlacklistedUserKey uk)
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
-  -- team members are by default not searchable
-  let searchable = SearchableStatus $ isNothing tid
   -- Create account
   (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
   activatedTeam <- lift $ do
-    Data.insertAccount account Nothing pw False searchable
+    Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated account)
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
@@ -822,7 +820,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Wipe data
   Data.clearProperties uid
   tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False (SearchableStatus False)
+  Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   Intra.onUserEvent uid Nothing (UserDeleted uid)

@@ -1,6 +1,5 @@
 module API.Team (tests) where
 
-import API.Search.Util
 import API.Team.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
@@ -14,7 +13,6 @@ import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Handle (fromHandle)
 import Data.Id hiding (client)
 import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.Text.Ascii as Ascii
@@ -66,11 +64,6 @@ tests conf m b c g aws = do
             test m "put /self - 200 update events" $ testUpdateEvents b g c,
             test m "delete /self - 200 (ensure no orphan teams)" $ testDeleteTeamUser b g,
             test m "post /connections - 403 (same binding team)" $ testConnectionSameTeam b g
-          ],
-        testGroup
-          "search"
-          [ test m "post /register members are unsearchable" $ testNonSearchableDefault b g,
-            test m "team members may only search within team if set" $ testNonSearchableAcrossTeam conf b g
           ],
         testGroup
           "sso"
@@ -194,13 +187,11 @@ testInvitationEmailAndPhoneAccepted brig galley = do
   -- Prepare the extended invitation
   let stdInvite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
       inviteeName = Name "Invited Member"
-      extInvite = stdInvite { irPhone = Just inviteePhone, irInviteeName = Just inviteeName }
-
+      extInvite = stdInvite {irPhone = Just inviteePhone, irInviteeName = Just inviteeName}
   -- Register the same (pre verified) phone number
   let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone inviteePhone]
   post (brig . path "/activate/send" . contentJson . body phoneReq) !!! (const 200 === statusCode)
   Just (_, phoneCode) <- getActivationCode brig (Right inviteePhone)
-
   -- Register the user with the extra supplied information
   (profile, invitation) <- createAndVerifyInvitation (extAccept inviteeEmail inviteeName inviteePhone phoneCode) extInvite brig galley
   liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userName . selfUser <$> profile)
@@ -208,13 +199,15 @@ testInvitationEmailAndPhoneAccepted brig galley = do
   liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) (join (userPhone . selfUser <$> profile))
   liftIO $ assertEqual "Wrong phone number in invitation" (Just inviteePhone) (inPhone invitation)
 
+-- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
+-- added concurrently, and the two should probably be consolidated.
 createAndVerifyInvitation :: (InvitationCode -> RequestBody) -> InvitationRequest -> Brig -> Galley -> HttpT IO ((Maybe SelfProfile), Invitation)
 createAndVerifyInvitation acceptFn invite brig galley = do
   (inviter, tid) <- createUserWithTeam brig galley
   inv <- responseJsonError =<< postInvitation brig tid inviter invite
   let invmeta = Just (inviter, inCreatedAt inv)
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-  Just invitation  <- getInvitation brig inviteeCode
+  Just invitation <- getInvitation brig inviteeCode
   rsp2 <-
     post
       ( brig . path "/register"
@@ -604,116 +597,6 @@ testConnectionSameTeam brig galley = do
   -- Externals are also ok
   postConnection brig creatorA external !!! const 201 === statusCode
   postConnection brig creatorB external !!! const 201 === statusCode
-
--------------------------------------------------------------------------------
--- Search
-
-testNonSearchableDefault :: Brig -> Galley -> Http ()
-testNonSearchableDefault brig galley = do
-  nonMember <- randomUserWithHandle brig
-  email <- randomEmail
-  rsp <- register email newTeam brig
-  act <- getActivationCode brig (Left email)
-  case act of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creator = responseJsonMaybe rsp
-  [team] <- view Team.teamListTeams <$> getTeams (userId creator) galley
-  let tid = view Team.teamId team
-  invitee <- inviteAndRegisterUser (userId creator) tid brig
-  creatorWithHandle <- setRandomHandle brig creator
-  inviteeWithHandle <- setRandomHandle brig invitee
-  refreshIndex brig
-  let uid1 = userId nonMember
-      uid2 = userId creatorWithHandle
-      uid3 = userId inviteeWithHandle
-      Just uHandle = fromHandle <$> userHandle nonMember
-      Just cHandle = fromHandle <$> userHandle creatorWithHandle
-      Just iHandle = fromHandle <$> userHandle inviteeWithHandle
-  -- users are searchable by default
-  assertSearchable "user is searchable" brig uid1 True
-  assertCanFind brig uid2 uid1 uHandle
-  -- team owners are not searchable by default
-  assertSearchable "owner isn't searchable" brig uid2 False
-  assertCan'tFind brig uid1 uid2 cHandle
-  -- team members are not searchable by default
-  assertSearchable "member isn't searchable" brig uid3 False
-  assertCan'tFind brig uid1 uid3 iHandle
-
-testNonSearchableAcrossTeam :: Opt.Opts -> Brig -> Galley -> Http ()
-testNonSearchableAcrossTeam opts brig galley = do
-  nonMember <- randomUserWithHandle brig
-  email <- randomEmail
-  rsp <- register email newTeam brig
-  act <- getActivationCode brig (Left email)
-  case act of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creator = responseJsonMaybe rsp
-  [team] <- view Team.teamListTeams <$> getTeams (userId creator) galley
-  let tid = view Team.teamId team
-  invitee <- inviteAndRegisterUser (userId creator) tid brig
-  creatorWithHandle <- setRandomHandle brig creator
-  inviteeWithHandle <- setRandomHandle brig invitee
-  -- Separate team creator
-  emailOther <- randomEmail
-  rspOther <- register emailOther newTeam brig
-  actOther <- getActivationCode brig (Left emailOther)
-  case actOther of
-    Nothing -> liftIO $ assertFailure "activation key/code not found"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  let Just creatorOther = responseJsonMaybe rspOther
-  creatorOtherWithHandle <- setRandomHandle brig creatorOther
-  refreshIndex brig
-  let uid1 = userId nonMember
-      uid2 = userId creatorWithHandle
-      uid3 = userId inviteeWithHandle
-      uid4 = userId creatorOtherWithHandle
-      Just uHandle = fromHandle <$> userHandle nonMember
-      uName = fromName $ userName nonMember
-      Just cHandle = fromHandle <$> userHandle creatorWithHandle
-      cName = fromName $ userName creatorWithHandle
-      Just iHandle = fromHandle <$> userHandle inviteeWithHandle
-      Just oHandle = fromHandle <$> userHandle creatorOtherWithHandle
-      oName = fromName $ userName creatorOtherWithHandle
-  -- users are searchable by default
-  assertSearchable "user is searchable" brig uid1 True
-  assertCanFind brig uid2 uid1 uHandle
-  -- users are also searcheable by name
-  assertCanFind brig uid3 uid1 uName
-  -- team users can also be made searchable
-  updateSearchableStatus brig uid4 optIn
-  assertSearchable "user is searchable" brig uid4 True
-  refreshIndex brig
-  assertCanFind brig uid2 uid4 oHandle
-  assertCanFind brig uid3 uid4 oName
-  -- team owners are not searchable by default
-  assertSearchable "owner isn't searchable" brig uid2 False
-  assertCan'tFind brig uid1 uid2 cHandle
-  -- team members are not searchable by default
-  assertSearchable "member isn't searchable" brig uid3 False
-  assertCan'tFind brig uid1 uid3 iHandle
-  -- make the creator searchable
-  updateSearchableStatus brig uid2 optIn
-  refreshIndex brig
-  -- uid2 is searchable for uid1, uid3 and uid4 now
-  assertCanFind brig uid1 uid2 cHandle
-  assertCanFind brig uid1 uid2 cName
-  assertCanFind brig uid3 uid2 cHandle
-  assertCanFind brig uid3 uid2 cName
-  assertCanFind brig uid4 uid2 cHandle
-  assertCanFind brig uid4 uid2 cName
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
-  withSettingsOverrides newOpts $ do
-    -- team users cannot search by name nor handle if not a team user
-    assertCan'tFind brig uid2 uid1 uHandle
-    assertCan'tFind brig uid2 uid1 uName
-    -- and also not across
-    assertCan'tFind brig uid3 uid4 oHandle
-    assertCan'tFind brig uid3 uid4 oName
-    -- uid3 can find uid2 because uid2 is visible and they are on the same team
-    assertCanFind brig uid3 uid2 cHandle
-    assertCanFind brig uid3 uid2 cName
 
 ----------------------------------------------------------------------
 -- SSO

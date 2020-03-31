@@ -40,7 +40,7 @@ import Cassandra.Exec as C
     Client,
     ClientState,
     MonadClient,
-    Page,
+    Page (..),
     PrepQuery,
     Row,
     addPrepQuery,

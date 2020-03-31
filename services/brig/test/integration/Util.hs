@@ -90,15 +90,6 @@ test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> 
 randomUser :: HasCallStack => Brig -> Http User
 randomUser = randomUser' True
 
-randomUserWithTeam :: HasCallStack => Brig -> Http User
-randomUserWithTeam brig = do
-  name <- fromName <$> randomName
-  tid <- Id <$> liftIO UUID.nextRandom
-  r <-
-    postUser' False True name True False Nothing (Just tid) brig
-      <!! const 201 === statusCode
-  responseJsonError r
-
 randomUser' :: HasCallStack => Bool -> Brig -> Http User
 randomUser' hasPwd brig = do
   n <- fromName <$> randomName

@@ -10,7 +10,6 @@ module Brig.User.Search.Index
 
     -- * Queries
     searchIndex,
-    checkIndex,
 
     -- * Updates
     reindex,
@@ -20,7 +19,12 @@ module Brig.User.Search.Index
     createIndexIfNotPresent,
     resetIndex,
     reindexAll,
+    reindexAllIfSameOrNewer,
     refreshIndex,
+    updateMapping,
+
+    -- * exported for testin gonly
+    userDoc,
 
     -- * Re-exports
     module Types,
@@ -38,12 +42,12 @@ import qualified Cassandra as C
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
 import Control.Monad.Except
-import Data.Aeson
+import Data.Aeson as Aeson
 import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
-import Data.Handle (Handle, fromHandle)
+import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
@@ -121,30 +125,15 @@ searchIndex ::
   MonadIndexIO m =>
   -- | The user performing the search.
   UserId ->
+  TeamSearchInfo ->
   -- | The search query
   Text ->
   -- | The maximum number of results.
   Range 1 100 Int32 ->
   m (SearchResult Contact)
-searchIndex u q = queryIndex (defaultUserQuery u q)
+searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
-checkIndex :: MonadIndexIO m => UserId -> m SearchableStatus
-checkIndex u = liftIndexIO $ fmap SearchableStatus $ do
-  idx <- asks idxName
-  r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
-  case statusCode (responseStatus r) of
-    404 -> pure False
-    _ ->
-      ES.parseEsResponse r
-        >>= either
-          (throwM . IndexLookupError)
-          (pure . maybe False searchable . fmap ES._source . ES.foundResult)
-  where
-    -- NOTE: This only holds when using 'defaultUserQuery'.
-    searchable (UserDoc _ _ Nothing Nothing _) = False
-    searchable _ = True
-
--- [Note: suspended]
+-- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
 -- ~~~~~~~~~~~~~~~~~
 --
 -- The suspended field in the ES index is an artifact of the legacy system,
@@ -160,11 +149,9 @@ queryIndex ::
   m (SearchResult r)
 queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
   idx <- asks idxName
+  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
   r <-
-    ES.searchByType
-      idx
-      mappingName
-      ((ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)})
+    ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
   either (throwM . IndexLookupError) (pure . mkResult) r
   where
@@ -181,50 +168,61 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
--- Note, however, that the result of 'isSearchableUser' depends on which fields
--- are queried, and thus can only be correct for the canonical query.
-defaultUserQuery :: UserId -> Text -> IndexQuery Contact
-defaultUserQuery u (normalized -> term') =
-  mkUserQuery u $
-    ES.QueryBoolQuery
-      boolQuery
-        { ES.boolQueryMustMatch =
-            [ ES.QueryBoolQuery
-                boolQuery
-                  { ES.boolQueryShouldMatch =
-                      [ ES.QueryMultiMatchQuery $
-                          ( ES.mkMultiMatchQuery
-                              [ ES.FieldName "handle^2",
-                                ES.FieldName "normalized"
-                              ]
-                              (ES.QueryString term')
-                          )
-                            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix
-                            },
-                        ES.QueryMultiMatchQuery $
-                          ( ES.mkMultiMatchQuery
-                              [ ES.FieldName "handle^3",
-                                ES.FieldName "normalized^2"
-                              ]
-                              (ES.QueryString term')
-                          )
-                            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase
-                            }
-                      ]
-                  }
-            ],
-          ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
-        }
+defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
+defaultUserQuery u teamSearchInfo (normalized -> term') =
+  let matchPrefix =
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle^2",
+                ES.FieldName "normalized"
+              ]
+              (ES.QueryString term')
+          )
+            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix
+            }
+      matchPhrase =
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle^3",
+                ES.FieldName "normalized^2"
+              ]
+              (ES.QueryString term')
+          )
+            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase
+            }
+      query =
+        ES.QueryBoolQuery
+          boolQuery
+            { ES.boolQueryMustMatch =
+                [ ES.QueryBoolQuery
+                    boolQuery {ES.boolQueryShouldMatch = [matchPrefix, matchPhrase]}
+                ],
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
+            }
+      -- This reduces relevance on non-team users by 90%, there was no science
+      -- put behind the negative boost value.
+      -- It is applied regardless of a teamId being present as users without a
+      -- team anyways don't see any users with team and hence it won't affect
+      -- results if a non team user does the search.
+      queryWithBoost =
+        ES.QueryBoostingQuery
+          ES.BoostingQuery
+            { ES.positiveQuery = query,
+              ES.negativeQuery = matchNonTeamMemberUsers,
+              ES.negativeBoost = ES.Boost 0.1
+            }
+   in mkUserQuery u teamSearchInfo queryWithBoost
 
-mkUserQuery :: UserId -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) q =
+mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
+mkUserQuery (review _TextId -> self) teamSearchInfo q =
   IndexQuery q
     $ ES.Filter . ES.QueryBoolQuery
     $ boolQuery
       { ES.boolQueryMustNotMatch =
           [ termQ "suspended" "1", -- [Note: suspended]
             termQ "_id" self
-          ]
+          ],
+        ES.boolQueryMustMatch = [optionallySearchWithinTeam teamSearchInfo]
       }
   where
     termQ f v =
@@ -235,16 +233,44 @@ mkUserQuery (review _TextId -> self) q =
           }
         Nothing
 
+-- | This query will make sure that: if teamId is absent, only users without a teamId are
+-- returned.  if teamId is present, only users with the *same* teamId or users without a
+-- teamId are returned.
+optionallySearchWithinTeam :: TeamSearchInfo -> ES.Query
+optionallySearchWithinTeam =
+  \case
+    NoTeam ->
+      matchNonTeamMemberUsers
+    TeamOnly teamId ->
+      matchTeamMembersOf teamId
+    TeamAndNonMembers teamId ->
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryShouldMatch =
+              [ matchTeamMembersOf teamId,
+                matchNonTeamMemberUsers
+              ]
+          }
+  where
+    matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
+
+matchNonTeamMemberUsers :: ES.Query
+matchNonTeamMemberUsers =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
+      }
+
 --------------------------------------------------------------------------------
 -- Updates
 
 reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- C.liftClient (lookupForIndex u)
-  updateIndex (maybe (IndexDeleteUser u) IndexUpdateUser ixu)
+  updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
 updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
-updateIndex (IndexUpdateUser iu) = liftIndexIO $ do
+updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
   m <- asks idxMetrics
   counterIncr (path "user.index.update.count") m
   info $
@@ -259,10 +285,10 @@ updateIndex (IndexUpdateUser iu) = liftIndexIO $ do
   where
     versioning =
       ES.defaultIndexDocumentSettings
-        { ES.idsVersionControl = ES.ExternalGT (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
+        { ES.idsVersionControl = (indexUpdateToVersionControl updateType) (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
-updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
+updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
   m <- asks idxMetrics
   counterIncr (path "user.index.update.bulk.count") m
   info $
@@ -294,17 +320,20 @@ updateIndex (IndexUpdateUsers ius) = liftIndexIO $ do
       (path ("user.index.update.bulk.status." <> review builder (decimal s)))
       m
   where
+    encodeJSONToString :: ToJSON a => a -> Builder
+    encodeJSONToString = fromEncoding . toEncoding
     bulkEncode iu =
       bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
         <> "\n"
-        <> fromEncoding (toEncoding (userDoc iu))
+        <> encodeJSONToString (userDoc iu)
         <> "\n"
     bulkMeta :: Text -> ES.DocVersion -> Builder
     bulkMeta docId v =
       fromEncoding . pairs . pair "index" . pairs $
         "_id" .= docId
           <> "_version" .= v
-          <> "_version_type" .= ("external" :: Text)
+          <> "_version_type" .= (indexUpdateToVersionControlText updateType)
+                              -- ^ "external_gt or external_gte"
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -322,9 +351,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
   case statusCode (responseStatus r) of
     200 -> case preview (key "_version" . _Integer) (responseBody r) of
       Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
-      Just v ->
-        updateIndex . IndexUpdateUser $
-          mkIndexUser u (mkIndexVersion (v + 1))
+      Just v -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u =<< mkIndexVersion (v + 1)
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
@@ -375,6 +402,15 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
 
+updateMapping :: MonadIndexIO m => m ()
+updateMapping = liftIndexIO $ do
+  idx <- asks idxName
+  ex <- ES.indexExists idx
+  unless ex $
+    throwM (IndexError "Index does not exist.")
+  void $ traceES "Put mapping" $
+    ES.putMapping idx (ES.MappingName "user") indexMapping
+
 resetIndex ::
   MonadIndexIO m =>
   [ES.UpdatableIndexSetting] ->
@@ -390,8 +426,14 @@ resetIndex settings shardCount = liftIndexIO $ do
     then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
 
+reindexAllIfSameOrNewer :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
+reindexAllIfSameOrNewer = reindexAllWith IndexUpdateIfSameOrNewerVersion
+
 reindexAll :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
-reindexAll = do
+reindexAll = reindexAllWith IndexUpdateIfNewerVersion
+
+reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => IndexDocUpdateType -> m ()
+reindexAllWith updateType = do
   idx <- liftIndexIO $ asks idxName
   C.liftClient (scanForIndex 100) >>= loop idx
   where
@@ -400,12 +442,21 @@ reindexAll = do
         field "size" (length (C.result page))
           . msg (val "Reindex: processing C* page")
       unless (null (C.result page)) $
-        updateIndex (IndexUpdateUsers (C.result page))
+        updateIndex (IndexUpdateUsers updateType (C.result page))
       when (C.hasMore page) $
         C.liftClient (C.nextPage page) >>= loop idx
 
 --------------------------------------------------------------------------------
 -- Internal
+
+-- This is useful and necessary due to the lack of expressiveness in the bulk API
+indexUpdateToVersionControlText :: IndexDocUpdateType -> Text
+indexUpdateToVersionControlText IndexUpdateIfNewerVersion       = "external_gt"
+indexUpdateToVersionControlText IndexUpdateIfSameOrNewerVersion = "external_gte"
+
+indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> ES.VersionControl)
+indexUpdateToVersionControl IndexUpdateIfNewerVersion       = ES.ExternalGT
+indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
 traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply
 traceES descr act = liftIndexIO $ do
@@ -418,23 +469,38 @@ userDoc :: IndexUser -> UserDoc
 userDoc iu =
   UserDoc
     { udId = _iuUserId iu,
-      udName = fromName <$> _iuName iu,
+      udTeam = _iuTeam iu,
+      udName = _iuName iu,
       udNormalized = normalized . fromName <$> _iuName iu,
-      udHandle = fromHandle <$> _iuHandle iu,
+      udHandle = _iuHandle iu,
       udColourId = _iuColourId iu
     }
 
+-- | Name is set to not be indexed, as the search is meant to happen on the normalized name.
 indexMapping :: Value
 indexMapping =
   object
     [ "properties"
         .= object
-          [ "normalized" .= object ["type" .= ("text" :: Text), "store" .= False],
-            "name" .= object ["type" .= ("keyword" :: Text), "index" .= False],
-            "handle" .= object ["type" .= ("text" :: Text)],
-            "accent_id" .= object ["type" .= ("byte" :: Text), "index" .= False]
+          [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True}, -- normalized user name
+            "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False},
+            "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True},
+            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True},
+            "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False}
           ]
     ]
+
+data MappingProperty = MappingProperty {mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool}
+
+data MappingPropertyType = MPText | MPKeyword | MPByte
+
+instance ToJSON MappingProperty where
+  toJSON mp = object ["type" .= mpType mp, "store" .= mpStore mp, "index" .= mpIndex mp]
+
+instance ToJSON MappingPropertyType where
+  toJSON MPText = Aeson.String "text"
+  toJSON MPKeyword = Aeson.String "keyword"
+  toJSON MPByte = Aeson.String "byte"
 
 -- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
 --       yet this will require a data migration.
@@ -450,23 +516,22 @@ _TextId = prism' (UUID.toText . toUUID) (fmap Id . UUID.fromText)
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
 
-lookupForIndex :: C.MonadClient m => UserId -> m (Maybe IndexUser)
-lookupForIndex u =
-  fmap reindexRowToIndexUser
-    <$> C.retry C.x1 (C.query1 cql (C.params C.Quorum (Identity u)))
+lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
+lookupForIndex u = do
+  result <- C.retry C.x1 (C.query1 cql (C.params C.Quorum (Identity u)))
+  sequence $ reindexRowToIndexUser <$> result
   where
     cql :: C.PrepQuery C.R (Identity UserId) ReindexRow
     cql =
       "SELECT \
       \id, \
+      \team, \
       \name, \
       \writetime(name), \
       \status, \
       \writetime(status), \
       \handle, \
       \writetime(handle), \
-      \searchable, \
-      \writetime(searchable), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
@@ -476,23 +541,27 @@ lookupForIndex u =
       \FROM user \
       \WHERE id = ?"
 
-scanForIndex :: C.MonadClient m => Int32 -> m (C.Page IndexUser)
-scanForIndex num =
-  fmap reindexRowToIndexUser
-    <$> C.paginate cql (C.paramsP C.One () (num + 1))
+-- | FUTUREWORK: make a PR to cql-io with a 'Traversable' instance.
+traversePage :: forall a. C.Page (C.Client a) -> C.Client (C.Page a)
+traversePage (C.Page hasmore result nextpage) = do
+  C.Page hasmore <$> sequence result <*> (traversePage <$> nextpage)
+
+scanForIndex :: Int32 -> C.Client (C.Page IndexUser)
+scanForIndex num = do
+  result :: C.Page ReindexRow <- C.paginate cql (C.paramsP C.One () (num + 1))
+  traversePage $ reindexRowToIndexUser <$> result
   where
     cql :: C.PrepQuery C.R () ReindexRow
     cql =
       "SELECT \
       \id, \
+      \team, \
       \name, \
       \writetime(name), \
       \status, \
       \writetime(status), \
       \handle, \
       \writetime(handle), \
-      \searchable, \
-      \writetime(searchable), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
@@ -507,14 +576,13 @@ type Writetime a = Int64
 
 type ReindexRow =
   ( UserId,
+    Maybe TeamId,
     Name,
     Writetime Name,
     Maybe AccountStatus,
     Maybe (Writetime AccountStatus),
     Maybe Handle,
     Maybe (Writetime Handle),
-    Maybe SearchableStatus,
-    Maybe (Writetime SearchableStatus),
     ColourId,
     Writetime ColourId,
     Activated,
@@ -523,25 +591,29 @@ type ReindexRow =
     Maybe (Writetime ServiceId)
   )
 
-reindexRowToIndexUser :: ReindexRow -> IndexUser
-reindexRowToIndexUser (u, name, t0, status, t1, handle, t2, searchable, t3, colour, t4, activated, t5, service, t6) =
-  let iu = mkIndexUser u (version [Just t0, t1, t2, t3, Just t4, Just t5, t6])
-   in if shouldIndex
+reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
+reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, activated, t5, service, t6) =
+  do
+    iu <- mkIndexUser u <$> version [Just t0, t1, t2, Just t4, Just t5, t6]
+    pure $
+      if shouldIndex
         then
-          iu & set iuName (Just name)
+          iu & set iuTeam mteam
+            . set iuName (Just name)
             . set iuHandle handle
             . set iuColourId (Just colour)
         else iu
   where
+    version :: [Maybe (Writetime Name)] -> m IndexVersion
     version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
     shouldIndex =
       and
-        [ fromMaybe True (isSearchable <$> searchable), -- implicit opt-in
-          not suspended,
-          activated,
+        [ case status of
+            Just Active -> True
+            Nothing -> True
+            Just Suspended -> False
+            Just Deleted -> False
+            Just Ephemeral -> False,
+          activated, -- FUTUREWORK: how is this adding to the first case?
           isNothing service
         ]
-    suspended = case status of
-      Just Active -> False
-      Nothing -> False
-      _ -> True

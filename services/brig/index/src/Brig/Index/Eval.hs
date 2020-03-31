@@ -5,6 +5,7 @@ module Brig.Index.Eval
   )
 where
 
+import Brig.Index.Migrations
 import Brig.Index.Options
 import Brig.User.Search.Index
 import qualified Cassandra as C
@@ -12,13 +13,11 @@ import qualified Cassandra.Settings as C
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Metrics as Metrics
-import Data.Text.Strict.Lens
 import qualified Database.V5.Bloodhound as ES
 import Imports
 import Network.HTTP.Client
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
-import URI.ByteString
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
@@ -32,16 +31,27 @@ runCommand l = \case
     e <- initIndex es
     c <- initDb cas
     runReindexIO e c reindexAll
+  ReindexSameOrNewer es cas -> do
+    e <- initIndex es
+    c <- initDb cas
+    runReindexIO e c reindexAllIfSameOrNewer
+  UpdateMapping esURI indexName -> do
+    e <- initIndex' esURI indexName
+    runIndexIO e updateMapping
+  Migrate es cas -> do
+    migrate l es cas
   where
     initIndex es =
+      initIndex' (es ^. esServer) (es ^. esIndex)
+    initIndex' esURI indexName =
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> initES es
+        <*> initES esURI
         <*> pure Nothing
-        <*> pure (view esIndex es)
-    initES es =
-      ES.mkBHEnv (view (esServer . re _ESServer) es)
+        <*> pure indexName
+    initES esURI =
+      ES.mkBHEnv (toESServer esURI)
         <$> newManager defaultManagerSettings
     initDb cas =
       C.init
@@ -51,21 +61,6 @@ runCommand l = \case
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
         $ C.defSettings
-
-_ESServer :: Prism' ES.Server (URIRef Absolute)
-_ESServer = prism toS fromS
-  where
-    toS =
-      ES.Server
-        . view utf8
-        . serializeURIRef'
-        . set pathL mempty
-        . set queryL mempty
-        . set fragmentL mempty
-    fromS x@(ES.Server s) =
-      set _Left x
-        . parseURI strictURIParserOptions
-        $ review utf8 s
 
 --------------------------------------------------------------------------------
 -- ReindexIO command monad

@@ -4,8 +4,7 @@
 module Brig.Types.Search where
 
 import Data.Aeson
-import Data.Id (UserId)
-import Data.Json.Util
+import Data.Id (TeamId, UserId)
 import Imports
 
 data SearchResult a
@@ -17,18 +16,24 @@ data SearchResult a
       }
   deriving (Show)
 
+-- | This is a subset of 'User' and json instances should reflect that.
 data Contact
   = Contact
       { contactUserId :: UserId,
         contactName :: Text,
         contactColorId :: Maybe Int,
-        contactHandle :: Maybe Text
+        contactHandle :: Maybe Text,
+        contactTeam :: Maybe TeamId
       }
   deriving (Show)
 
--- | Encodes whether the (current) user has opted in/out of search
-newtype SearchableStatus = SearchableStatus {isSearchable :: Bool}
-  deriving (Show)
+data TeamSearchInfo
+  = -- | When searching user is not part of a team.
+    NoTeam
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
+    TeamOnly TeamId
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
+    TeamAndNonMembers TeamId
 
 instance ToJSON a => ToJSON (SearchResult a) where
   toJSON r =
@@ -48,24 +53,20 @@ instance FromJSON a => FromJSON (SearchResult a) where
 
 instance ToJSON Contact where
   toJSON c =
-    object $
-      "id" .= contactUserId c
-        # "name" .= contactName c
-        # "accent_id" .= contactColorId c
-        # "handle" .= contactHandle c
-        # []
+    object
+      [ "id" .= contactUserId c,
+        "name" .= contactName c,
+        "accent_id" .= contactColorId c,
+        "handle" .= contactHandle c,
+        "team" .= contactTeam c
+      ]
 
 instance FromJSON Contact where
-  parseJSON = withObject "Contact" $ \o ->
-    Contact <$> o .: "id"
-      <*> o .: "name"
-      <*> o .:? "accent_id"
-      <*> o .:? "handle"
-
-instance ToJSON SearchableStatus where
-  toJSON (SearchableStatus onoff) = object ["searchable" .= onoff]
-
-instance FromJSON SearchableStatus where
   parseJSON =
-    withObject "SearchableStatus" $
-      fmap SearchableStatus . (.: "searchable")
+    withObject "Contact" $ \o ->
+      Contact
+        <$> o .: "id"
+        <*> o .: "name"
+        <*> o .:? "accent_id"
+        <*> o .:? "handle"
+        <*> o .:? "team"

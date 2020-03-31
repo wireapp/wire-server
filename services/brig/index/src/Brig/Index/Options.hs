@@ -17,6 +17,7 @@ module Brig.Index.Options
     localCassandraSettings,
     commandParser,
     mkCreateIndexSettings,
+    toESServer,
   )
 where
 
@@ -35,6 +36,10 @@ data Command
   = Create ElasticSettings
   | Reset ElasticSettings
   | Reindex ElasticSettings CassandraSettings
+  | ReindexSameOrNewer ElasticSettings CassandraSettings
+  | -- | 'ElasticSettings' has shards and other settings that are not needed here.
+    UpdateMapping (URIRef Absolute) ES.IndexName
+  | Migrate ElasticSettings CassandraSettings
   deriving (Show)
 
 data ElasticSettings
@@ -105,6 +110,17 @@ restrictedElasticSettingsParser = do
   server <- elasticServerParser
   pure $ localElasticSettings & esServer .~ server
 
+indexNameParser :: Parser ES.IndexName
+indexNameParser =
+  ES.IndexName . view packed
+    <$> strOption
+      ( long "elasticsearch-index"
+          <> metavar "STRING"
+          <> help "Elasticsearch Index Name."
+          <> value (view (esIndex . _IndexName . unpacked) localElasticSettings)
+          <> showDefault
+      )
+
 elasticSettingsParser :: Parser ElasticSettings
 elasticSettingsParser =
   ElasticSettings
@@ -114,15 +130,6 @@ elasticSettingsParser =
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
   where
-    indexNameParser =
-      ES.IndexName . view packed
-        <$> strOption
-          ( long "elasticsearch-index"
-              <> metavar "STRING"
-              <> help "Elasticsearch Index Name."
-              <> value (view (esIndex . _IndexName . unpacked) localElasticSettings)
-              <> showDefault
-          )
     indexShardCountParser =
       option
         auto
@@ -192,6 +199,12 @@ commandParser =
             (progDesc ("Create the ES user index, if it doesn't already exist. "))
         )
         <> command
+          "update-mapping"
+          ( info
+              (UpdateMapping <$> elasticServerParser <*> indexNameParser)
+              (progDesc "Update mapping of the user index.")
+          )
+        <> command
           "reset"
           ( info
               (Reset <$> restrictedElasticSettingsParser)
@@ -201,7 +214,19 @@ commandParser =
           "reindex"
           ( info
               (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser)
-              (progDesc "Reindex all users from Cassandra.")
+              (progDesc "Reindex all users from Cassandra if there is a new version.")
+          )
+        <> command
+          "reindex-if-same-or-newer"
+          ( info
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
+          )
+        <> command
+          "migrate-data"
+          ( info
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (progDesc "Migrate data in elastic search")
           )
     )
 
@@ -210,3 +235,12 @@ _IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
 
 _Keyspace :: Iso' C.Keyspace Text
 _Keyspace = iso C.unKeyspace C.Keyspace
+
+toESServer :: URIRef Absolute -> ES.Server
+toESServer =
+  ES.Server
+    . view utf8
+    . serializeURIRef'
+    . set pathL mempty
+    . set queryL mempty
+    . set fragmentL mempty

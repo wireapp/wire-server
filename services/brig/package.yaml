@@ -12,31 +12,121 @@ ghc-options:
 - -funbox-strict-fields
 dependencies:
 - aeson >=0.11
+- amazonka >=1.3.7
+- amazonka-dynamodb >=1.3.7
+- amazonka-ses >=1.3.7
+- amazonka-sns >=1.3.7
+- amazonka-sqs >=1.3.7
+- async >=2.1
+- attoparsec >=0.12
+- auto-update >=0.1
+- base16-bytestring >=0.1
 - base ==4.*
 - base64-bytestring >=1.0
+- base-prelude
+- bilge >=0.21.1
+- blaze-builder >=0.3
 - bloodhound >=0.13
+- brig-types >=0.91.1
+- bytestring >=0.10
 - bytestring-conversion >=0.2
-- cookie >=0.4
+- cassandra-util >=0.16.2
+- conduit >=1.2.8
 - containers >=0.5
+- cookie >=0.4
+- cryptobox-haskell >=0.1.1
+- currency-codes >=2.0
+- data-default >=0.5
+- data-timeout >=0.3
 - directory >=1.2
+- either >=4.3
+- email-validate >=2.0
+- enclosed-exceptions >=1.0
 - errors >=1.4
 - exceptions >=0.5
 - extended
-- imports
-- http-types >=0.8
+- extra >=1.3
+- filepath >=1.3
+- fsnotify >=0.2
+- galley-types >=0.75.3
+- geoip2 >=0.3.1.0
+- gundeck-types >=1.32.1
+- hashable >=1.2
+- HaskellNet >=0.3
+- HaskellNet-SSL >=0.3
 - HsOpenSSL >=0.10
+- HsOpenSSL-x509-system >=0.1
+- html-entities >=1.1
+- http-client >=0.5
+- http-client-openssl >=0.2
+- http-types >=0.8
+- imports
+- iproute >=1.5
+- iso639 >=0.1
+- lens >=3.8
 - lens-aeson >=1.0
+- lifted-base >=0.2
+- metrics-core >=0.3
+- metrics-wai >=0.3
+- mime
+- mime-mail >=0.4
+- monad-control >=1.0
+- MonadRandom >=0.5
 - mtl >=2.1
+- multihash >=0.1.3
+- mwc-random
+- network >=2.4
+- network-conduit-tls
+- network-uri >=2.6
 - optparse-applicative >=0.11
+- pem >=0.2
 - prometheus-client
+- proto-lens >=0.1
+- random-shuffle >=0.0.3
+- resource-pool >=0.2
+- resourcet >=1.1
+- retry >=0.7
+- ropes >=0.4.20
 - safe >=0.3
+- scientific >=0.3.4
+- scrypt >=0.5
+- semigroups >=0.15
+- singletons >=2.0
+- smtp-mail >=0.1
+- sodium-crypto-sign >=0.1
+- split >=0.2
+- ssl-util
+- statistics >=0.13
+- stomp-queue >=0.3
+- string-conversions
+- swagger >=0.1
+- tagged >=0.7
+- template >=0.2
 - text >=0.11
-- transformers >=0.3
+- text-icu-translit >=0.1
+- time >=1.1
 - tinylog >=0.10
+- tls >=1.3.4
+- transformers >=0.3
+- transformers-base >=0.4
+- types-common >=0.16
 - types-common-journal >=0.1
+- unliftio >=0.2
+- unliftio-core >=0.1
+- unordered-containers >=0.2
+- uri-bytestring >=0.2
 - uuid >=1.3.5
+- vault >=0.3
+- vector >=0.11
+- wai >=3.0
 - wai-extra >=3.0
+- wai-middleware-gunzip >=0.0.2
+- wai-predicates >=0.8
+- wai-routing >=0.12
+- wai-utilities >=0.16
+- warp >=3.0.12.1
 - yaml >=0.8.22
+- zauth >=0.10.3
 library:
   source-dirs: src
   dependencies:
@@ -147,6 +237,17 @@ internal-libraries:
     - time
     - types-common
     - uri-bytestring
+tests:
+  brig-tests:
+    main: Main.hs
+    source-dirs: test/unit
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    dependencies:
+    - brig
+    - tasty
+    - tasty-hunit
 executables:
   brig-schema:
     main: Main.hs
