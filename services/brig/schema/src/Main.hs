@@ -51,6 +51,7 @@ import qualified V55
 import qualified V56
 import qualified V57
 import qualified V58
+import qualified V59
 import qualified V9
 
 main :: IO ()
@@ -108,7 +109,8 @@ main = do
       V55.migration,
       V56.migration,
       V57.migration,
-      V58.migration
+      V58.migration,
+      V59.migration
       -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
       -- https://github.com/wireapp/wire-server/pull/964
     ]

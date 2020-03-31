@@ -113,7 +113,7 @@ createTeamMember brig galley owner tid perm = do
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
-  let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+  let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
   inv <- responseJsonError =<< postInvitation brig tid u invite
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
@@ -245,6 +245,19 @@ acceptWithName name email code =
         "team_code" .= code
       ]
 
+extAccept :: Email -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
+extAccept email name phone phoneCode code =
+  RequestBodyLBS . encode $
+    object
+      [ "name" .= name,
+        "email" .= fromEmail email,
+        "password" .= defPassword,
+        "team_code" .= code,
+        "phone" .= phone,
+        "phone_code" .= phoneCode,
+        "team_code" .= code
+      ]
+
 register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
@@ -351,3 +364,7 @@ isActivatedUser uid brig = do
   pure $ case responseJsonMaybe @[User] resp of
     Just (_ : _) -> True
     _ -> False
+
+stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
+stdInvitationRequest e inviterName loc role =
+  InvitationRequest e inviterName loc role Nothing Nothing

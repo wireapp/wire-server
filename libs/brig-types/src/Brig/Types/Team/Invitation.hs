@@ -14,7 +14,9 @@ data InvitationRequest
       { irEmail :: !Email,
         irName :: !Name,
         irLocale :: !(Maybe Locale),
-        irRole :: !(Maybe Role)
+        irRole :: !(Maybe Role),
+        irInviteeName :: !(Maybe Name),
+        irPhone :: !(Maybe Phone)
       }
   deriving (Eq, Show)
 
@@ -27,7 +29,9 @@ data Invitation
         inCreatedAt :: !UTCTimeMillis,
         -- | this is always 'Just' for new invitations, but for
         -- migration it is allowed to be 'Nothing'.
-        inCreatedBy :: !(Maybe UserId)
+        inCreatedBy :: !(Maybe UserId),
+        inInviteeName :: !(Maybe Name),
+        inPhone :: !(Maybe Phone)
       }
   deriving (Eq, Show)
 
@@ -44,6 +48,8 @@ instance FromJSON InvitationRequest where
       <*> o .: "inviter_name"
       <*> o .:? "locale"
       <*> o .:? "role"
+      <*> o .:? "name"
+      <*> o .:? "phone"
 
 instance ToJSON InvitationRequest where
   toJSON i =
@@ -51,7 +57,9 @@ instance ToJSON InvitationRequest where
       [ "email" .= irEmail i,
         "inviter_name" .= irName i,
         "locale" .= irLocale i,
-        "role" .= irRole i
+        "role" .= irRole i,
+        "name" .= irInviteeName i,
+        "phone" .= irPhone i
       ]
 
 instance FromJSON Invitation where
@@ -63,6 +71,8 @@ instance FromJSON Invitation where
       <*> o .: "email"
       <*> o .: "created_at"
       <*> o .:? "created_by"
+      <*> o .:? "name"
+      <*> o .:? "phone"
 
 instance ToJSON Invitation where
   toJSON i =
@@ -72,7 +82,9 @@ instance ToJSON Invitation where
         "id" .= inInvitation i,
         "email" .= inIdentity i,
         "created_at" .= inCreatedAt i,
-        "created_by" .= inCreatedBy i
+        "created_by" .= inCreatedBy i,
+        "name" .= inInviteeName i,
+        "phone" .= inPhone i
       ]
 
 instance ToJSON InvitationList where

@@ -265,6 +265,9 @@ userKeyExists = Wai.Error status409 "key-exists" "The given e-mail address or ph
 emailExists :: Wai.Error
 emailExists = Wai.Error status409 "email-exists" "The given e-mail address is in use."
 
+phoneExists :: Wai.Error
+phoneExists = Wai.Error status409 "phone-exists" "The given phone number is in use."
+
 handleExists :: Wai.Error
 handleExists = Wai.Error status409 "handle-exists" "The given handle is already taken."
 

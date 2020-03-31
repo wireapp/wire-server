@@ -283,6 +283,9 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
+  -- This endpoint can lead to the following events being sent:
+  -- - ClientRemoved event to members with a legalhold client (via brig)
+  -- - UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)
   delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettingsH) $
     zauthUserId
       .&. capture "tid"
@@ -293,17 +296,27 @@ sitemap = do
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
+  -- This endpoint can lead to the following events being sent:
+  -- - LegalHoldClientRequested event to contacts of the user the device is requested for,
+  --   if they didn't already have a legalhold client (via brig)
   post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDeviceH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
+  -- This endpoint can lead to the following events being sent:
+  -- - ClientRemoved event to the user owning the client (via brig)
+  -- - UserLegalHoldDisabled event to contacts of the user owning the client (via brig)
   delete "/teams/:tid/legalhold/:uid" (continue LegalHold.disableForUserH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. jsonRequest @DisableLegalHoldForUserRequest
       .&. accept "application" "json"
+  -- This endpoint can lead to the following events being sent:
+  -- - ClientAdded event to the user owning the client (via brig)
+  -- - UserLegalHoldEnabled event to contacts of the user owning the client (via brig)
+  -- - ClientRemoved event to the user, if removing old client due to max number (via brig)
   put "/teams/:tid/legalhold/:uid/approve" (continue LegalHold.approveDeviceH) $
     zauthUserId
       .&. capture "tid"
@@ -318,6 +331,8 @@ sitemap = do
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
+  -- This endpoint can lead to the following events being sent:
+  -- - OtrMessageAdd event to recipients
   post "/bot/messages" (continue Update.postBotMessageH) $
     zauth ZAuthBot
       .&> zauthBotId
@@ -392,6 +407,8 @@ sitemap = do
       description "Max. number of conversations to return"
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCreate event to members
   post "/conversations" (continue Create.createGroupConversationH) $
     zauthUserId
       .&. zauthConnId
@@ -415,6 +432,8 @@ sitemap = do
     response 201 "Conversation created" end
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCreate event to members
   post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
     zauthUserId
       .&. zauthConnId
@@ -428,6 +447,8 @@ sitemap = do
     errorResponse Error.noManagedTeamConv
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvRename event to members
   put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
     zauthUserId
       .&. zauthConnId
@@ -443,6 +464,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvRename event to members
   put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
     zauthUserId
       .&. zauthConnId
@@ -458,6 +481,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to members
   post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
     zauthUserId
       .&. zauthConnId
@@ -480,6 +505,8 @@ sitemap = do
     body (ref Model.conversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to members
   post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $
     zauthUserId
       .&. zauthConnId
@@ -495,6 +522,8 @@ sitemap = do
     errorResponse Error.tooManyMembers
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCodeUpdate event to members, if code didn't exist before
   post "/conversations/:cnv/code" (continue Update.addCodeH) $
     zauthUserId
       .&. zauthConnId
@@ -511,6 +540,8 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCodeDelete event to members
   delete "/conversations/:cnv/code" (continue Update.rmCodeH) $
     zauthUserId
       .&. zauthConnId
@@ -538,6 +569,9 @@ sitemap = do
     errorResponse Error.invalidAccessOp
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberLeave event to members, if members get removed
+  -- - ConvAccessUpdate event to members
   put "/conversations/:cnv/access" (continue Update.updateConversationAccessH) $
     zauthUserId
       .&. zauthConnId
@@ -560,6 +594,8 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvReceiptModeUpdate event to members
   put "/conversations/:cnv/receipt-mode" (continue Update.updateConversationReceiptModeH) $
     zauthUserId
       .&. zauthConnId
@@ -579,6 +615,8 @@ sitemap = do
     errorResponse Error.convAccessDenied
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvMessageTimerUpdate event to members
   put "/conversations/:cnv/message-timer" (continue Update.updateConversationMessageTimerH) $
     zauthUserId
       .&. zauthConnId
@@ -600,6 +638,8 @@ sitemap = do
     errorResponse Error.invalidConnectOp
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to members
   post "/conversations/:cnv/members" (continue Update.addMembersH) $
     zauthUserId
       .&. zauthConnId
@@ -631,6 +671,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberStateUpdate event to self
   put "/conversations/:cnv/self" (continue Update.updateSelfMemberH) $
     zauthUserId
       .&. zauthConnId
@@ -646,6 +688,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberStateUpdate event to members
   put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
     zauthUserId
       .&. zauthConnId
@@ -666,6 +710,8 @@ sitemap = do
     errorResponse Error.invalidTargetUserOp
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - Typing event to members
   post "/conversations/:cnv/typing" (continue Update.isTypingH) $
     zauthUserId
       .&. zauthConnId
@@ -680,6 +726,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberLeave event to members
   delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
     zauthUserId
       .&. zauthConnId
@@ -698,6 +746,8 @@ sitemap = do
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - OtrMessageAdd event to recipients
   post "/broadcast/otr/messages" (continue Update.postOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
@@ -717,6 +767,8 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - OtrMessageAdd event to recipients
   post "/broadcast/otr/messages" (continue Update.postProtoOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
@@ -749,6 +801,8 @@ sitemap = do
     errorResponse Error.nonBindingTeam
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - OtrMessageAdd event to recipients
   post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
     zauthUserId
       .&. zauthConnId
@@ -782,6 +836,8 @@ sitemap = do
     errorResponse Error.convNotFound
   ---
 
+  -- This endpoint can lead to the following events being sent:
+  -- - OtrMessageAdd event to recipients
   post "/conversations/:cnv/otr/messages" (continue Update.postProtoOtrMessageH) $
     zauthUserId
       .&. zauthConnId
@@ -850,14 +906,23 @@ sitemap = do
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
     capture "cnv"
       .&. capture "usr"
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCreate event to members
   post "/i/conversations/managed" (continue Create.internalCreateManagedConversationH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
+  -- This endpoint can lead to the following events being sent:
+  -- - ConvCreate event to self, if conversation did not exist before
+  -- - ConvConnect event to self, if other didn't join the connect conversation before
   post "/i/conversations/connect" (continue Create.createConnectConversationH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @Connect
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+  -- - MemberJoin event to other, if the conversation existed and only the other was member
+  --   before
   put "/i/conversations/:cnv/accept/v2" (continue Update.acceptConvH) $
     zauthUserId
       .&. opt zauthConnId
@@ -865,6 +930,10 @@ sitemap = do
   put "/i/conversations/:cnv/block" (continue Update.blockConvH) $
     zauthUserId
       .&. capture "cnv"
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+  -- - MemberJoin event to other, if the conversation existed and only the other was member
+  --   before
   put "/i/conversations/:cnv/unblock" (continue Update.unblockConvH) $
     zauthUserId
       .&. opt zauthConnId
@@ -936,16 +1005,22 @@ sitemap = do
   delete "/i/clients/:client" (continue Clients.rmClientH) $
     zauthUserId
       .&. capture "client"
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberLeave event to members for all conversations the user was in
   delete "/i/user" (continue Internal.rmUserH) $
     zauthUserId .&. opt zauthConnId
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
   delete "/i/services" (continue Update.rmServiceH) $
     jsonRequest @ServiceRef
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to members
   post "/i/bots" (continue Update.addBotH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @AddBot
+  -- This endpoint can lead to the following events being sent:
+  -- - MemberLeave event to members
   delete "/i/bots" (continue Update.rmBotH) $
     zauthUserId
       .&. opt zauthConnId
