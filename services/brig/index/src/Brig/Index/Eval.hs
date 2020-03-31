@@ -13,7 +13,6 @@ import qualified Cassandra.Settings as C
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Metrics as Metrics
-import Data.Text.Strict.Lens
 import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client

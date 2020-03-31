@@ -6,7 +6,7 @@ import qualified Brig.Options as BrigOpts
 import Control.Lens ((.~))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as Log

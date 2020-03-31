@@ -10,7 +10,7 @@ import Control.Monad.Catch (Exception, MonadThrow, finally, throwM)
 import Data.Aeson ((.=), Value, object)
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import System.Logger.Class (Logger)
