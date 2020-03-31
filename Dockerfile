@@ -1,7 +1,7 @@
 FROM alpine:3.10
 
 RUN echo "**** install Python, make ****" && \
-    apk add --no-cache python3 make && \
+    apk add --no-cache bash python3 make && \
     if [ ! -e /usr/bin/python ]; then ln -sf python3 /usr/bin/python ; fi && \
     \
     echo "**** install pip ****" && \
