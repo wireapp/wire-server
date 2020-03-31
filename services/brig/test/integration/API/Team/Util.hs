@@ -36,7 +36,7 @@ createPopulatedBindingTeamWithNames brig galley names = do
   (inviter, tid) <- createUserWithTeam brig galley
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail name Nothing Nothing
+    let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
     inv <- responseJsonError =<< postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-

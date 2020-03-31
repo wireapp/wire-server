@@ -29,6 +29,7 @@ import Test.Tasty.HUnit
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
+import Web.Cookie (parseSetCookie, setCookieName)
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
@@ -175,14 +176,9 @@ testInvitationRoles brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
-  -- 'createPopulatedBindingTeam' also runs some tests.  Go read it!
-  (_tid, _inviter, [invitee]) <- createPopulatedBindingTeam brig galley 1
-  -- Verify that the invited user is active
-  login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
-  -- Verify that the user is part of the team
-  conns <- listConnections (userId invitee) brig
-  liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
-  return (responseJsonMaybe rsp2, invitation)
+  inviteeEmail <- randomEmail
+  let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+  void $ createAndVerifyInvitation (accept (irEmail invite)) invite brig galley
 
 testInvitationEmailAndPhoneAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAndPhoneAccepted brig galley = do
