@@ -23,7 +23,9 @@ Generate docs (using docker, so you don't need to install python dependencies yo
 make
 ```
 
-(Alternatively, if you have python dependencies installed, run `make html`).
+You can also install the dependencies (requires `python3`) locally with `make dev-install` and
+enter a *development mode* by executing `make dev-srun` to start a local server and file watcher.
+Alternatively, if you already have all python dependencies installed globally, run `make html`.
 
 Look at results by opening build/html/index.html
 
