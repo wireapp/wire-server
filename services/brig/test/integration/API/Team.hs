@@ -70,7 +70,7 @@ tests conf m b c g aws = do
             test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
             test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
           ],
-        testGroup "size" $ [test m "post /i/teams/:tid/size" $ testTeamSize b g]
+        testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b g]
       ]
 
 testTeamSize :: Brig -> Galley -> Http ()
