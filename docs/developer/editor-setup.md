@@ -2,6 +2,16 @@
 
 This page provides tips for setting up editors to work with the Wire codebase.
 
+## Using Haskell IDE Engine
+
+See [official documentation](https://github.com/haskell/haskell-ide-engine)
+
+In addition, you can generate (and re-generate after changes to stack.yaml) a `hie.yaml` configuration file with
+
+```
+make hie.yaml
+```
+
 ## Emacs {#DevEmacs}
 
 ### Jump-to-definition {#DevEmacsJump}

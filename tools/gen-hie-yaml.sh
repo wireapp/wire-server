@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 
+# Run with `make hie.yaml` in the top-level directory.
+#
+# Useful when using Haskell IDE Engine
+# https://github.com/haskell/haskell-ide-engine
+#
+# requires 'yq' executable on your path.
+# Install from either
+# https://github.com/mikefarah/yq
+# or
+# https://github.com/kislyuk/yq
+
 set -euo pipefail
 
 echo "cradle:"
