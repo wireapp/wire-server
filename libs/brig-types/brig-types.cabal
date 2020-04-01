@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a62f86504d402390c1812a93cd5098c8e800fdeb4e5f8ed330a75b8451c59071
+-- hash: 67eab80b4b772b485785e77f0ba45811541ed4ac1eac935cf47bfaee4837ec55
 
 name:           brig-types
 version:        1.35.0
@@ -34,6 +34,7 @@ library
       Brig.Types.Provider.Tag
       Brig.Types.Search
       Brig.Types.Swagger
+      Brig.Types.Team
       Brig.Types.Team.Invitation
       Brig.Types.Team.LegalHold
       Brig.Types.Test.Arbitrary
@@ -90,7 +91,9 @@ test-suite brig-types-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.Roundtrip
       Test.Brig.Types.Common
+      Test.Brig.Types.Team
       Test.Brig.Types.TURN
       Test.Brig.Types.User
       Paths_brig_types
