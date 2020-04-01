@@ -459,7 +459,7 @@ legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold mus
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
 federationNotImplemented qualified =
   Wai.Error
-    status501
+    status403
     "federation-not-implemented"
     ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
   where

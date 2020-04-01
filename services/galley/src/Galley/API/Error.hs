@@ -198,7 +198,7 @@ customBackendNotFound domain =
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
 federationNotImplemented qualified =
   Error
-    status501
+    status403
     "federation-not-implemented"
     ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
   where
