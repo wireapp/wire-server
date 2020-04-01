@@ -14,14 +14,14 @@ import qualified Federator.API as API
 import Galley.API.Error (internalErrorWithDescription)
 import Galley.App (Galley, manager, options)
 import Galley.Options (optFederator)
-import Galley.Types.QualifiedEvent (MemberJoin, QualifiedEvent)
 import Imports
 import Servant.Client (ClientError (FailureResponse), ClientM, mkClientEnv, runClientM)
 import Servant.Client.Core (BaseUrl (BaseUrl), Scheme (Http))
 import Servant.Client.Generic (AsClientT, genericClientHoist)
 import Util.Options (Endpoint (Endpoint, _epHost, _epPort))
+import qualified Wire.API.Federation.Types.Event as Fdr -- TODO: import this through Federator?
 
-joinConversationById :: Qualified ConvId -> Galley (QualifiedEvent MemberJoin)
+joinConversationById :: Qualified ConvId -> Galley (Fdr.Event Fdr.MemberJoin)
 joinConversationById convId =
   API._gapiJoinConversationById client convId
 

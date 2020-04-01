@@ -38,6 +38,7 @@ dependencies:
 - wai
 - wai-utilities
 - warp
+- wire-api-federation
 library:
   source-dirs: src
 executables:

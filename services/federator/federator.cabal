@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03ec0f9a11f05b34c7cf2216747ff7a75c79d30a243ea9b589393ce04e89fc89
+-- hash: 3279c92d74b572d9f049509a46df3402acd5b707a8c267c0c46ba2ddc75e1507
 
 name:           federator
 version:        1.0.0
@@ -60,6 +60,7 @@ library
     , wai
     , wai-utilities
     , warp
+    , wire-api-federation
   default-language: Haskell2010
 
 executable federator
@@ -101,4 +102,5 @@ executable federator
     , wai
     , wai-utilities
     , warp
+    , wire-api-federation
   default-language: Haskell2010

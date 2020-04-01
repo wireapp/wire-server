@@ -96,6 +96,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.0
+  - wire-api-federation
   - zauth
 executables:
   galley:

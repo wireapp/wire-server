@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 660763fd46216cd8cf6a65342c22c93bb29febce2a834a22c1ccbfa95a73a73a
+-- hash: 9281b423ba97431371c5bdca3d94d3435b132302c9f9b1e4aabc19a493a02cb7
 
 name:           galley
 version:        0.83.0
@@ -153,6 +153,7 @@ library
     , wai-routing >=0.12
     , wai-utilities >=0.16
     , warp >=3.0
+    , wire-api-federation
     , zauth
   default-language: Haskell2010
 
