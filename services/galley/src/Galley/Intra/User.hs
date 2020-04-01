@@ -136,22 +136,23 @@ getContactList uid = do
   cUsers <$> parseResponse (Error status502 "server-error") r
 
 -- | An admin can delete other admins.  An owner can delete admins, and if she has an email
--- address, she can delete other owners.  (The last condition makes sure that no team will
--- ever end up without an owner with an email; this is useful for customer suppor and
--- billing.)  Admins and owners can delete all members with other roles.
-canDeleteMember :: TeamMember -> UserId -> TeamMember -> Galley Bool
-canDeleteMember deleterMember deleterUid deleteeMember = do
+-- address, she can delete other owners (not themselves).  (The last condition makes sure that
+-- no team will ever end up without an owner with an email; this is useful for customer suppor
+-- and billing.)  Admins and owners can delete all members with other roles.
+canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
+canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
-  pure $ deleterHasRole && (deleterHasEmail || deleterRole /= RoleOwner)
+  pure
+    if  | deleterRole > RoleAdmin -> False
+        | deleterRole < deleteeRole -> False
+        | deleterHasEmail && deleterRole == RoleOwner -> False
+        | otherwise -> True
   where
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     deleterRole = getRole deleterMember
     deleteeRole = getRole deleteeMember
-    --
-    deleterHasRole :: Bool
-    deleterHasRole = deleterRole <= RoleAdmin && deleterRole >= deleteeRole
     --
     checkDeleterHasEmail :: Galley Bool
     checkDeleterHasEmail = do
@@ -165,11 +166,11 @@ canDeleteMember deleterMember deleterUid deleteeMember = do
                 . host h
                 . port p
                 . paths ["/i/users"]
-                . query [("ids", Just $ toByteString' deleterUid)]
+                . query [("ids", Just . toByteString' $ deleterMember ^. userId)]
             )
       case euser of
         Right [user] ->
           return . isJust . userEmail $ user
         bad ->
           throwM $ Error status500 "server-error" $
-            "delete or downgrade team owner: deleting user has disappeared.  brig: " <> cs (show bad)
+            "delete or downgrade team owner: brig unexpectedly responded with: " <> cs (show bad)

@@ -426,7 +426,7 @@ updateTeamMember zusr zcon tid targetMember = do
     Nothing -> throwM teamMemberNotFound
     _ -> pure ()
   -- cannot demote only owner (effectively removing the last owner)
-  okToDelete <- canDeleteMember user zusr targetMember
+  okToDelete <- canDeleteMember user targetMember
   when (not okToDelete && targetPermissions /= fullPermissions) $
     throwM youMustBeOwnerWithEmail
   -- update target in Cassandra
@@ -477,7 +477,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
   okToDelete <- do
     dm <- maybe (throwM teamMemberNotFound) pure zusrMember
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
-    canDeleteMember dm zusr tm
+    canDeleteMember dm tm
   unless okToDelete $ throwM youMustBeOwnerWithEmail
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
