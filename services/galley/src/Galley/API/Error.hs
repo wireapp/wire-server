@@ -112,15 +112,6 @@ actionDenied a =
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
--- @@@ TODO: deprecated in favor of 'youMustBeOwnerWithEmail'
-noOtherOwner :: Error
-noOtherOwner =
-  Error
-    status403
-    "no-other-owner"
-    "You are trying to remove or downgrade\
-    \ an owner. Promote another team member before proceeding."
-
 youMustBeOwnerWithEmail :: Error
 youMustBeOwnerWithEmail =
   Error

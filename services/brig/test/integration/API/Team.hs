@@ -50,6 +50,7 @@ import Test.Tasty.HUnit
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
+import Web.Cookie (parseSetCookie, setCookieName)
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
@@ -248,9 +249,12 @@ createAndVerifyInvitation acceptFn invite brig galley = do
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   -- Verify that the invited user is active
-  login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
+  login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
   -- Verify that the user is part of the team
-  conns <- listConnections (userId invitee) brig
+  mem <- getTeamMember invitee tid galley
+  liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
+  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+  conns <- listConnections invitee brig
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   return (responseJsonMaybe rsp2, invitation)
 
