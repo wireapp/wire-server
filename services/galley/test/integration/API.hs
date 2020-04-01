@@ -446,7 +446,7 @@ postConvertTeamConv = do
   -- Create a team conversation with team-alice, team-bob, activated-eve
   -- Non-activated mallory can join
   alice <- randomUser
-  tid <- createTeamInternal "foo" alice
+  tid <- createBindingTeamInternal "foo" alice
   assertQueue "create team" tActivate
   let p1 = symmPermissions [Teams.DoNotUseDeprecatedAddRemoveConvMember]
   bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser
