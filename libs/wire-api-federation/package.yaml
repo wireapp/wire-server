@@ -24,6 +24,7 @@ dependencies:
 - time >=1.8
 - transformers >=0.3
 - types-common
+- QuickCheck >=2.13
 library:
   source-dirs: src
 

@@ -22,6 +22,7 @@ import Data.Time
 import Galley.Types ()
 import Galley.Types.Conversations.Roles ()
 import Imports
+import Test.QuickCheck (Arbitrary (arbitrary))
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- | Similar to 'Galley.Types.Event', but all IDs are qualified, to allow this
@@ -38,13 +39,17 @@ data Event a
         eventData :: a
       }
   deriving stock (Foldable, Functor, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded (Event a))
 
 -- FUTUREWORK(federation): Extend with the other Event types that need to be
 -- sent across backends.
 data AnyEventData
   = DataMemberJoin MemberJoin
   deriving stock (Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded AnyEventData)
 
+-- TODO when putting this into Event, we don't get a tag, making the representation
+-- different to the one wrapped into AnyEventData
 newtype MemberJoin
   = MemberJoin
       { smUsers :: [SimpleMember]
@@ -64,3 +69,22 @@ newtype RoleName
   = RoleName {roleNameText :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, FromJSON)
+
+-- Arbitrary
+
+instance Arbitrary (Event MemberJoin) where
+  arbitrary =
+    Event
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary MemberJoin where
+  arbitrary = MemberJoin <$> arbitrary
+
+instance Arbitrary SimpleMember where
+  arbitrary = SimpleMember <$> arbitrary <*> arbitrary
+
+instance Arbitrary RoleName where
+  arbitrary = RoleName <$> arbitrary

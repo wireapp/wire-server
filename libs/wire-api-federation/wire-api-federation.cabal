@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 04e5c74cf10ea0a8c6d65e93d713f38f2cc7b351672aa6d0b24d4af71a120c26
+-- hash: e227bd8d8c4063d335dc507e5eb45dccf35567306bc3031a3bc5ef898949e190
 
 name:           wire-api-federation
 version:        0.1.0
@@ -31,7 +31,8 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=1.4
+      QuickCheck >=2.13
+    , aeson >=1.4
     , base >=4.6 && <5.0
     , bytestring >=0.10
     , bytestring-conversion >=0.3
