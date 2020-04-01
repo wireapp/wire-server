@@ -494,7 +494,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
--- TODO/@@@: rename to 'uncheckedDeleteTeamMember' for consistency.
+-- FUTUREWORK: rename to 'uncheckedDeleteTeamMember' for consistency.
 uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> Maybe [TeamMember] -> Galley ()
 uncheckedRemoveTeamMember zusr zcon tid remove mmems = do
   now <- liftIO getCurrentTime

@@ -514,12 +514,12 @@ testRemoveBindingTeamOwner = do
     assertQueue "create team" tActivate
     pure tid
   do
-    Util.addTeamMemberInternal tid
-      `mapM_` [ newTeamMember ownerB (rolePermissions RoleOwner) Nothing,
-                newTeamMember ownerWithoutEmail (rolePermissions RoleOwner) Nothing,
-                newTeamMember admin (rolePermissions RoleAdmin) Nothing
-              ]
-    assertQueue "team member join" $ tUpdate 2 [ownerA]
+    Util.addTeamMemberInternal tid $ newTeamMember ownerB (rolePermissions RoleOwner) Nothing
+    assertQueue "team member join" $ tUpdate 2 [ownerB, ownerA]
+    Util.addTeamMemberInternal tid $ newTeamMember ownerWithoutEmail (rolePermissions RoleOwner) Nothing
+    assertQueue "team member join" $ tUpdate 3 [ownerWithoutEmail, ownerB, ownerA]
+    Util.addTeamMemberInternal tid $ newTeamMember admin (rolePermissions RoleAdmin) Nothing
+    assertQueue "team member join" $ tUpdate 4 [ownerWithoutEmail, ownerB, ownerA]
   check tid ownerA ownerA False
   check tid ownerWithoutEmail ownerA False
   check tid admin ownerA False
