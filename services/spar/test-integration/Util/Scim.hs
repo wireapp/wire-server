@@ -532,7 +532,7 @@ instance IsUser (WrappedScimUser SparTag) where
 instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
-  maybeName = Just (Just . userName)
+  maybeName = Just (Just . userDisplayName)
   maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
   maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
   maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)

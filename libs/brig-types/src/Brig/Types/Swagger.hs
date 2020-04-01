@@ -15,7 +15,7 @@ brigModels =
   [ -- User
     self,
     user,
-    userName,
+    userDisplayName,
     newUser,
     userUpdate,
     emailUpdate,
@@ -197,8 +197,8 @@ richInfo = defineModel "RichInfo" $ do
   property "version" int32' $
     description "Format version (the current version is 0)"
 
-userName :: Model
-userName = defineModel "UserName" $ do
+userDisplayName :: Model
+userDisplayName = defineModel "UserDisplayName" $ do
   description "User name"
   property "name" string' $
     description "User name"

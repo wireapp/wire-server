@@ -68,7 +68,7 @@ toUser _ acc [i, e, p] = do
       pw
       User
         { userId = ui,
-          userName = Name $ "Fakebot-" <> Text.toStrict (Text.strip i),
+          userDisplayName = Name $ "Fakebot-" <> Text.toStrict (Text.strip i),
           userPict = Pict [],
           userAssets = [],
           userIdentity = Just (EmailIdentity em),

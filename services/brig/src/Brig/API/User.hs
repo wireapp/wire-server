@@ -599,7 +599,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           then sendActivationCall ph p loc
           else sendActivationSms ph p loc
   where
-    notFound = throwM . UserNameNotFound
+    notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
       timeout <- setActivationTimeout <$> view settings
       case c of
@@ -616,7 +616,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       u <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
       p <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
-          name = userName u
+          name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
       void . forEmailKey ek $ \em -> lift $ do
         -- Get user's team, if any.
@@ -786,7 +786,7 @@ deleteUser uid pwd = do
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
-          let n = userName (accountUser a)
+          let n = userDisplayName (accountUser a)
           either
             (\e -> lift $ sendDeletionEmail n e k v l)
             (\p -> lift $ sendDeletionSms p k v l)
@@ -836,7 +836,7 @@ deleteAccount account@(accountUser -> user) = do
           { accountStatus = Deleted,
             accountUser =
               user
-                { userName = Name "default",
+                { userDisplayName = Name "default",
                   userAccentId = defaultAccentId,
                   userPict = noPict,
                   userAssets = [],

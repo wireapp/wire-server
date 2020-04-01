@@ -968,7 +968,7 @@ mkBotUserView :: User -> Ext.BotUserView
 mkBotUserView u =
   Ext.BotUserView
     { Ext.botUserViewId = userId u,
-      Ext.botUserViewName = userName u,
+      Ext.botUserViewName = userDisplayName u,
       Ext.botUserViewColour = userAccentId u,
       Ext.botUserViewHandle = userHandle u,
       Ext.botUserViewTeam = userTeam u

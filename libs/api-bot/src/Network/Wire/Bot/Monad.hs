@@ -354,7 +354,7 @@ botId :: Bot -> UserId
 botId = userId . botUser
 
 botName :: Bot -> Text
-botName = fromName . userName . botUser
+botName = fromName . userDisplayName . botUser
 
 botEmail :: Bot -> Maybe Text
 botEmail = fmap fromEmail . userEmail . botUser
@@ -949,7 +949,7 @@ randUser (Email loc dom) (BotTag tag) = do
   let passw = PlainTextPassword (pack (toString pwdUuid))
   return
     ( NewUser
-        { newUserName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),
+        { newUserDisplayName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),
           newUserUUID = Nothing,
           newUserIdentity = Just (EmailIdentity email),
           newUserPassword = Just passw,
@@ -974,4 +974,4 @@ randMailbox = do
   return $ botNetMailboxes e !! i
 
 tagged :: BotTag -> User -> User
-tagged t u = u {userName = Name $ unTag t <> "-" <> fromName (userName u)}
+tagged t u = u {userDisplayName = Name $ unTag t <> "-" <> fromName (userDisplayName u)}

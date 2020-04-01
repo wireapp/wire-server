@@ -226,7 +226,7 @@ instance Arbitrary NewUser where
     let isTeamUser = case newUserOrigin of
           Just (NewUserOriginTeamUser _) -> True
           _ -> False
-    newUserName <- arbitrary
+    newUserDisplayName <- arbitrary
     newUserUUID <- elements [Just nil, Nothing]
     newUserPict <- arbitrary
     newUserAssets <- arbitrary

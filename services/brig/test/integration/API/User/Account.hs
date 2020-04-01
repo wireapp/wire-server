@@ -384,9 +384,9 @@ testMultipleUsers brig = do
       -- on this endpoint, only from the self profile (/self).
       expected =
         Set.fromList
-          [ (Just $ userName u1, Nothing :: Maybe Email),
-            (Just $ userName u2, Nothing),
-            (Just $ userName u3, Nothing)
+          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+            (Just $ userDisplayName u2, Nothing),
+            (Just $ userDisplayName u3, Nothing)
           ]
   get (brig . zUser (userId u1) . path "users" . queryItem "ids" uids) !!! do
     const 200 === statusCode
@@ -470,7 +470,7 @@ testUserUpdate brig cannon aws = do
     const 200 === statusCode
     const (newName, newColId, newAssets)
       === ( \u ->
-              ( fmap userName u,
+              ( fmap userDisplayName u,
                 fmap userAccentId u,
                 fmap userAssets u
               )
@@ -598,13 +598,13 @@ testSuspendUser brig = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid (fromName (userName u))
+  Search.assertCan'tFind brig suid uid (fromName (userDisplayName u))
   -- re-activate
   setStatus brig uid Active
   chkStatus brig uid Active
   -- should appear in search again
   Search.refreshIndex brig
-  Search.assertCanFind brig suid uid (fromName (userName u))
+  Search.assertCanFind brig suid uid (fromName (userDisplayName u))
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
@@ -1020,7 +1020,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
     get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
-    Search.assertCan'tFind brig usr uid (fromName (userName u))
+    Search.assertCan'tFind brig usr uid (fromName (userDisplayName u))
     Search.assertCan'tFind brig usr uid hdl
   -- Email address is available again
   let Object o =

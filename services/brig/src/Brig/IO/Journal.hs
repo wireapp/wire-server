@@ -31,7 +31,7 @@ import qualified Proto.UserEvents_Fields as U
 -- without journaling arguments for user updates
 
 userActivate :: User -> AppIO ()
-userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE userId (userEmail u) (Just userLocale) userTeam (Just userName)
+userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE userId (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
 
 userUpdate :: UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> AppIO ()
 userUpdate uid em loc nm = journalEvent UserEvent'USER_UPDATE uid em loc Nothing nm

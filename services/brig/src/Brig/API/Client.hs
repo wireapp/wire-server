@@ -94,7 +94,7 @@ addClient u con ip new = do
     when (count > 1)
       $ for_ (userEmail usr)
       $ \email ->
-        sendNewClientEmail (userName usr) email clt (userLocale usr)
+        sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
   return clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
