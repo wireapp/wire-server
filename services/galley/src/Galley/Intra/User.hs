@@ -165,7 +165,7 @@ canDeleteMember deleterMember deleteeMember = do
                 . method GET
                 . host h
                 . port p
-                . paths ["/i/users"]
+                . paths ["i", "users"]
                 . query [("ids", Just . toByteString' $ deleterMember ^. userId)]
             )
       case euser of
