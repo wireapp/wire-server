@@ -37,7 +37,6 @@ import qualified Brig.Provider.API as Provider
 import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
-import qualified Brig.Team.Util as Team
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.Types.Swagger as Doc
@@ -168,7 +167,6 @@ sitemap o = do
       .&. jsonRequest @ExcludedPrefix
   -- is :uid not team owner, or there are other team owners?
   get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeletedH) $
-    -- @@@ remove this.  track 'TeamOwnershipStatus' and try to remove / reduce that as well.
     capture "uid"
       .&. capture "tid"
   put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
@@ -1565,17 +1563,10 @@ addPhonePrefixH (_ ::: req) = do
 
 canBeDeletedH :: UserId ::: TeamId -> Handler Response
 canBeDeletedH (uid ::: tid) = do
-  onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
-  if canBeDeleted onlyOwner
+  okToDelete <- lift $ API.userCanBeDeleted uid tid
+  if okToDelete
     then pure empty
-    else throwStd noOtherOwner
-
-canBeDeleted :: Team.TeamOwnershipStatus -> Bool
-canBeDeleted = \case
-  Team.IsOnlyTeamOwnerWithEmail -> False
-  Team.IsOneOfManyTeamOwnersWithEmail -> True
-  Team.IsTeamOwnerWithoutEmail -> True
-  Team.IsNotTeamOwner -> True
+    else throwStd youMustNotBeOwnerWithEmail
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do

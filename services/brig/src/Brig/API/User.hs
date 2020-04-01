@@ -45,6 +45,7 @@ module Brig.API.User
     removePhone,
     revokeIdentity,
     deleteUserNoVerify,
+    userCanBeDeleted,
     Brig.API.User.deleteUser,
     verifyDeleteUser,
     deleteAccount,
@@ -732,6 +733,14 @@ mkPasswordResetKey ident = case ident of
 -------------------------------------------------------------------------------
 -- User Deletion
 
+-- | Return False if user is a team owner with an email address; True otherwise.
+userCanBeDeleted :: UserId -> TeamId -> AppIO Bool
+userCanBeDeleted uid tid = do
+  isOwner <- Intra.memberIsTeamOwner tid uid
+  muser <- Data.lookupUser uid
+  let hasEmail = isJust $ userEmail =<< muser
+  pure . not $ isOwner && hasEmail
+
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
@@ -750,18 +759,13 @@ deleteUser uid pwd = do
   where
     ensureNotOwnerWithEmail :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
     ensureNotOwnerWithEmail acc = do
-      _ -- move this to the can-be-deleted end-point, then we can also use it in stern, and don't need to change anything there.
       let muid = userId . accountUser <$> acc
           mtid = userTeam =<< (accountUser <$> acc)
-      isOwnerWithEmail <- case (muid, mtid) of
+      okToDelete <- case (muid, mtid) of
         (Nothing, _) -> pure False
         (_, Nothing) -> pure False
-        (Just u, Just t) -> do
-          isOwner <- lift $ Intra.isTeamOwner t u
-          muser <- lift (Data.lookupUser uid)
-          let hasEmail = isJust $ userEmail =<< muser
-          pure $ isOwner && hasEmail
-      when isOwnerWithEmail (throwE DeleteUserOwnerWithEmail)
+        (Just u, Just t) -> lift $ userCanBeDeleted u t
+      unless okToDelete (throwE DeleteUserOwnerWithEmail)
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
