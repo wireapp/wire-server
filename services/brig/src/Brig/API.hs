@@ -126,6 +126,9 @@ sitemap o = do
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
   get "/i/users" (continue listActivatedAccountsH) $
+    -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
+    -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
+    -- different.
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
   get "/i/users" (continue listAccountsByIdentityH) $
