@@ -82,6 +82,7 @@ tests s =
       test s "remove aka delete team member" testRemoveNonBindingTeamMember,
       test s "remove aka delete team member (binding, owner has passwd)" (testRemoveBindingTeamMember True),
       test s "remove aka delete team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False),
+      test s "remove aka delete team owner (binding)" testRemoveBindingTeamOwner,
       test s "add team conversation (no role as argument)" testAddTeamConvLegacy,
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
@@ -501,6 +502,40 @@ testRemoveBindingTeamMember ownerHasPassword = do
     WS.assertNoEvent timeout [wsMext]
     -- Mem1 is now gone from Wire
     Util.ensureDeletedState True owner (mem1 ^. userId)
+
+testRemoveBindingTeamOwner :: TestM ()
+testRemoveBindingTeamOwner = do
+  ownerA <- Util.randomUser
+  ownerB <- Util.randomUser
+  ownerWithoutEmail <- Util.randomUser' True False
+  admin <- Util.randomUser
+  tid <- do
+    tid <- Util.createBindingTeamInternal "foo" ownerA
+    assertQueue "create team" tActivate
+    pure tid
+  do
+    Util.addTeamMemberInternal tid
+      `mapM_` [ newTeamMember ownerB (rolePermissions RoleOwner) Nothing,
+                newTeamMember ownerWithoutEmail (rolePermissions RoleOwner) Nothing,
+                newTeamMember admin (rolePermissions RoleAdmin) Nothing
+              ]
+    assertQueue "team member join" $ tUpdate 2 [ownerA]
+  check tid ownerA ownerA False
+  check tid ownerWithoutEmail ownerA False
+  check tid admin ownerA False
+  check tid ownerB ownerA True
+  where
+    check :: TeamId -> UserId -> UserId -> Bool -> TestM ()
+    check tid deleter deletee works = do
+      g <- view tsGalley
+      delete
+        ( g
+            . paths ["teams", toByteString' tid, "members", toByteString' deletee]
+            . zUser deleter
+            . zConn "conn"
+            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+        )
+        !!! (if works then const 202 else const 403) === statusCode
 
 testAddTeamConvLegacy :: TestM ()
 testAddTeamConvLegacy = do
