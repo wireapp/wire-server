@@ -525,7 +525,7 @@ testRemoveBindingTeamOwner = do
   check tid admin ownerA False
   check tid ownerB ownerA True
   where
-    check :: TeamId -> UserId -> UserId -> Bool -> TestM ()
+    check :: HasCallStack => TeamId -> UserId -> UserId -> Bool -> TestM ()
     check tid deleter deletee works = do
       g <- view tsGalley
       delete
@@ -535,7 +535,7 @@ testRemoveBindingTeamOwner = do
             . zConn "conn"
             . json (newTeamMemberDeleteData (Just $ Util.defPassword))
         )
-        !!! (if works then const 202 else const 403) === statusCode
+        !!! const (if works then 202 else 403) === statusCode
 
 testAddTeamConvLegacy :: TestM ()
 testAddTeamConvLegacy = do

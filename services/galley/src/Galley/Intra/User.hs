@@ -138,11 +138,11 @@ getContactList uid = do
 -- | An admin can delete other admins.  An owner can delete admins, and if she has an email
 -- address, she can delete other owners.  (The last condition makes sure that no team will
 -- ever end up without an owner with an email; this is useful for customer suppor and
--- billing.)
+-- billing.)  Admins and owners can delete all members with other roles.
 canDeleteMember :: TeamMember -> UserId -> TeamMember -> Galley Bool
 canDeleteMember deleterMember deleterUid deleteeMember = do
-  deleterHasEmailIfOwner <- checkDeleterHasEmailIfOwner
-  pure $ deleterHasRole || deleterHasEmailIfOwner
+  deleterHasEmail <- checkDeleterHasEmail
+  pure $ deleterHasRole && (deleterHasEmail || deleterRole /= RoleOwner)
   where
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
     -- (team members having no role is an internal error, but we don't want to deal with that
@@ -151,29 +151,25 @@ canDeleteMember deleterMember deleterUid deleteeMember = do
     deleteeRole = getRole deleteeMember
     --
     deleterHasRole :: Bool
-    deleterHasRole = deleterRole > RoleAdmin && deleterRole >= deleteeRole
+    deleterHasRole = deleterRole <= RoleAdmin && deleterRole >= deleteeRole
     --
-    checkDeleterHasEmailIfOwner :: Galley Bool
-    checkDeleterHasEmailIfOwner
-      | (deleterRole /= RoleOwner) = pure True
-      | (deleteeRole /= RoleOwner) = pure True
-      | otherwise = do
-        (h, p) <- brigReq
-        euser :: Either String User <-
-          responseJsonEither
-            <$> call
-              "brig"
-              ( check [status200]
-                  . method GET
-                  . host h
-                  . port p
-                  . paths ["/i/users", toByteString' deleterUid]
-              )
-        case euser of
-          Right user -> return (isJust $ userEmail user)
-          Left msg ->
-            throwM $
-              Error
-                status500
-                "server-error"
-                ("delete or downgrade team owner: deleting user has disappeared.  brig: " <> cs msg)
+    checkDeleterHasEmail :: Galley Bool
+    checkDeleterHasEmail = do
+      (h, p) <- brigReq
+      euser :: Either String [User] <-
+        responseJsonEither
+          <$> call
+            "brig"
+            ( check [status200]
+                . method GET
+                . host h
+                . port p
+                . paths ["/i/users"]
+                . query [("ids", Just $ toByteString' deleterUid)]
+            )
+      case euser of
+        Right [user] ->
+          return . isJust . userEmail $ user
+        bad ->
+          throwM $ Error status500 "server-error" $
+            "delete or downgrade team owner: deleting user has disappeared.  brig: " <> cs (show bad)
