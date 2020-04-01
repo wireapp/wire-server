@@ -63,7 +63,7 @@ rmUser user conn = do
   Data.eraseClients user
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
-      Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user
+      Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user . Just
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)
     leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()

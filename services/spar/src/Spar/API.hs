@@ -61,7 +61,7 @@ import Spar.API.Types
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Error
-import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
@@ -222,7 +222,7 @@ idpGetRaw zusr idpid = do
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- Intra.getZUsrOwnedTeam zusr
+  teamid <- Brig.getZUsrOwnedTeam zusr
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList {..}
 
@@ -250,7 +250,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
 idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Intra.getZUsrOwnedTeam zusr
+  teamid <- Brig.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
   idp <- validateNewIdP idpmeta teamid
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
@@ -272,12 +272,12 @@ withDebugLog msg showval action = do
 
 -- | Called by get, put, delete handlers.
 authorizeIdP ::
-  (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m) =>
+  (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m, Galley.MonadSparToGalley m) =>
   Maybe UserId ->
   IdP ->
   m ()
 authorizeIdP zusr idp = do
-  teamid <- Intra.getZUsrOwnedTeam zusr
+  teamid <- Brig.getZUsrOwnedTeam zusr
   when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 -- | Check that issuer is fresh (see longer comment in source) and request URI is https.

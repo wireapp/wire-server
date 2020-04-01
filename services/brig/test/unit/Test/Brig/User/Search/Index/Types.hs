@@ -42,6 +42,11 @@ tests =
       testCase "aeson half-roundtrip: UserDoc" $
         assertEqual
           "failed"
+          (encode userDoc1)
+          userDoc1ByteString,
+      testCase "aeson roundtrip: UserDoc" $
+        assertEqual
+          "failed"
           (fromJust . decode @Value . encode $ userDoc1)
           (fromJust . decode @Value $ userDoc1ByteString),
       testCase "IndexUser to UserDoc" $

@@ -45,13 +45,12 @@ module Brig.IO.Intra
     createTeam,
     getTeamMember,
     getTeamMembers,
+    memberIsTeamOwner,
     getTeam,
     getTeamConv,
     getTeamName,
     getTeamId,
     getTeamContacts,
-    getTeamOwners,
-    getTeamOwnersWithEmail,
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTruncatedTeamSize,
@@ -64,7 +63,6 @@ import Bilge.Retry
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
-import Brig.Data.User (lookupUsers)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
@@ -86,7 +84,6 @@ import Data.Json.Util ((#), UTCTimeMillis)
 import Data.Json.Util ()
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
-import qualified Data.Map as Map
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
@@ -729,6 +726,7 @@ getTeamMember u tid = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
+-- | TODO/@@@: this is now truncated.  this is only used for team suspension / unsuspension.
 getTeamMembers :: TeamId -> AppIO Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
@@ -737,6 +735,13 @@ getTeamMembers tid = do
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
+
+memberIsTeamOwner :: TeamId -> UserId -> AppIO Bool
+memberIsTeamOwner tid uid = do
+  r <-
+    galleyRequest GET $
+      (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
+  pure $ responseStatus r /= status403
 
 -- | Calls 'Galley.API.getTruncatedTeamSizeH'.
 getTruncatedTeamSize :: TeamId -> Range 1 Team.HardTruncationLimit Int32 -> AppIO Team.TruncatedTeamSize
@@ -762,34 +767,6 @@ getTeamContacts u = do
     req =
       paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
-
--- | 'Nothing' means no team could be found.  'Just' contains all members of the team that have full
--- permissions.
---
--- TODO: This could arguably also live in galley, since it is about teams.  But it also needs emails
--- of users, so no matter whether it lives in galley or brig, one has to call the other for this to
--- be decided.  A small refactoring to improve on this: split up 'getTeamOwners' into the part that
--- fetches the team members from galley, and the part that filters them for permissions and email
--- addresses.  When galley wants to know, the second part can be called from
--- /i/users/:uid/can-be-deleted directly with a list of team members passed to that end-point in the
--- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
--- if we introduce a deletion service in the future.
-getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
-getTeamOwners tid = filter Team.isTeamOwner . view Team.teamMembers <$> getTeamMembers tid
-
--- | Like 'getTeamOwners', but only returns owners with an flag indicating whether they have
--- an email address.
-getTeamOwnersWithEmail :: TeamId -> AppIO [(Team.TeamMember, Bool)]
-getTeamOwnersWithEmail tid = do
-  mems <- getTeamOwners tid
-  usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
-  let usrMap :: Map.Map UserId Bool
-      usrMap = Map.fromList $ mkListItem <$> usrList
-      mkListItem :: User -> (UserId, Bool)
-      mkListItem usr = (userId usr, isJust $ userEmail usr)
-      hasEmail :: Team.TeamMember -> Bool
-      hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
-  pure $ (\mem -> (mem, hasEmail mem)) <$> mems
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId :: UserId -> AppIO (Maybe TeamId)

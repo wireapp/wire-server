@@ -192,7 +192,7 @@ deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
 deleteUserError DeleteUserMissingPassword = StdError missingAuthError
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
-deleteUserError DeleteUserOnlyOwner = StdError noOtherOwner
+deleteUserError DeleteUserOwnerWithEmail = StdError youMustNotBeOwnerWithEmail
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
@@ -425,13 +425,13 @@ noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
 
-noOtherOwner :: Wai.Error
-noOtherOwner =
+youMustNotBeOwnerWithEmail :: Wai.Error
+youMustNotBeOwnerWithEmail =
   Wai.Error
     status403
-    "no-other-owner"
-    "You are trying to remove or downgrade\
-    \ an owner. Promote another team member before proceeding."
+    "must-not-be-owner-with-email"
+    "You are trying to remove yourself, but you are an owner.  This is not allowed; \
+    \you need to ask another owner to delete you, or delete your entire team."
 
 tooManyTeamInvitations :: Wai.Error
 tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too many team invitations for this team."

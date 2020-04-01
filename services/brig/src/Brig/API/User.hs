@@ -101,7 +101,6 @@ import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
-import qualified Brig.Team.Util as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
@@ -745,20 +744,24 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> ensureNotOnlyOwner account >> go a
-      Active -> ensureNotOnlyOwner account >> go a
+      Suspended -> ensureNotOwnerWithEmail account >> go a
+      Active -> ensureNotOwnerWithEmail account >> go a
       Ephemeral -> go a
   where
-    ensureNotOnlyOwner :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
-    ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
-      Nothing -> pure ()
-      Just tid -> do
-        ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
-        case ownerSituation of
-          Team.IsOnlyTeamOwnerWithEmail -> throwE DeleteUserOnlyOwner
-          Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
-          Team.IsTeamOwnerWithoutEmail -> pure ()
-          Team.IsNotTeamOwner -> pure ()
+    ensureNotOwnerWithEmail :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOwnerWithEmail acc = do
+      _ -- move this to the can-be-deleted end-point, then we can also use it in stern, and don't need to change anything there.
+      let muid = userId . accountUser <$> acc
+          mtid = userTeam =<< (accountUser <$> acc)
+      isOwnerWithEmail <- case (muid, mtid) of
+        (Nothing, _) -> pure False
+        (_, Nothing) -> pure False
+        (Just u, Just t) -> do
+          isOwner <- lift $ Intra.isTeamOwner t u
+          muser <- lift (Data.lookupUser uid)
+          let hasEmail = isJust $ userEmail =<< muser
+          pure $ isOwner && hasEmail
+      when isOwnerWithEmail (throwE DeleteUserOwnerWithEmail)
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e

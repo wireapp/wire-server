@@ -112,6 +112,7 @@ actionDenied a =
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
+-- @@@ TODO: deprecated in favor of 'youMustBeOwnerWithEmail'
 noOtherOwner :: Error
 noOtherOwner =
   Error
@@ -119,6 +120,15 @@ noOtherOwner =
     "no-other-owner"
     "You are trying to remove or downgrade\
     \ an owner. Promote another team member before proceeding."
+
+youMustBeOwnerWithEmail :: Error
+youMustBeOwnerWithEmail =
+  Error
+    status403
+    "must-be-owner-with-email"
+    "You are trying to remove or downgrade\
+    \ an owner. You must own the team to do that, and you must\
+    \ have an email address associated with your user."
 
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."

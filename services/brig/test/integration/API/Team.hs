@@ -50,7 +50,6 @@ import Test.Tasty.HUnit
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
-import Web.Cookie (parseSetCookie, setCookieName)
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
@@ -88,7 +87,7 @@ tests conf m b c g aws = do
         testGroup "sso" $
           [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
             test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
-            test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
+            test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g
           ],
         testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b g]
       ]
@@ -249,12 +248,9 @@ createAndVerifyInvitation acceptFn invite brig galley = do
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   -- Verify that the invited user is active
-  login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
+  login brig (defEmailLogin (fromJust $ userEmail invitee)) PersistentCookie !!! const 200 === statusCode
   -- Verify that the user is part of the team
-  mem <- getTeamMember invitee tid galley
-  liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
-  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
-  conns <- listConnections invitee brig
+  conns <- listConnections (userId invitee) brig
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   return (responseJsonMaybe rsp2, invitation)
 
@@ -604,9 +600,9 @@ testSSOIsTeamOwner brig galley = do
   (creator, tid) <- createUserWithTeam brig galley
   stranger <- userId <$> randomUser brig
   invitee <- userId <$> inviteAndRegisterUser creator tid brig
-  let check expectWhat uid = void $ get (brig . paths opath . expectWhat)
+  let check expectWhat uid = void $ get (galley . paths opath . expectWhat)
         where
-          opath = ["i", "users", toByteString' uid, "is-team-owner", toByteString' tid]
+          opath = ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   check expect2xx creator
   check expect4xx stranger
   check expect4xx invitee

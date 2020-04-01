@@ -992,6 +992,10 @@ sitemap = do
     capture "tid"
       .&. capture "size"
       .&. accept "application" "json"
+  get "/i/teams/:tid/is-team-owner/:uid" (continue Teams.userIsTeamOwnerH) $
+    capture "tid"
+      .&. capture "uid"
+      .&. accept "application" "json"
   -- Start of team features (internal); enabling this should only be
   -- possible internally. Viewing the status should be allowed
   -- for any admin

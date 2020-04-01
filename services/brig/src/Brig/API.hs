@@ -168,10 +168,7 @@ sitemap o = do
       .&. jsonRequest @ExcludedPrefix
   -- is :uid not team owner, or there are other team owners?
   get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeletedH) $
-    capture "uid"
-      .&. capture "tid"
-  -- is :uid team owner (the only one or one of several)?
-  get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwnerH) $
+    -- @@@ remove this.  track 'TeamOwnershipStatus' and try to remove / reduce that as well.
     capture "uid"
       .&. capture "tid"
   put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
@@ -1579,20 +1576,6 @@ canBeDeleted = \case
   Team.IsOneOfManyTeamOwnersWithEmail -> True
   Team.IsTeamOwnerWithoutEmail -> True
   Team.IsNotTeamOwner -> True
-
-isTeamOwnerH :: UserId ::: TeamId -> Handler Response
-isTeamOwnerH (uid ::: tid) = do
-  onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
-  if isTeamOwner onlyOwner
-    then pure empty
-    else throwStd insufficientTeamPermissions
-
-isTeamOwner :: Team.TeamOwnershipStatus -> Bool
-isTeamOwner = \case
-  Team.IsOnlyTeamOwnerWithEmail -> True
-  Team.IsOneOfManyTeamOwnersWithEmail -> True
-  Team.IsTeamOwnerWithoutEmail -> True
-  Team.IsNotTeamOwner -> False
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do

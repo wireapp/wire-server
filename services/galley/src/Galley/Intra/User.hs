@@ -22,7 +22,7 @@ module Galley.Intra.User
     lookupActivatedUsers,
     deleteUser,
     getContactList,
-    canBeDeleted,
+    canDeleteMember,
   )
 where
 
@@ -31,13 +31,14 @@ import Bilge.RPC
 import Brig.Types.Connection (UserIds (..))
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..))
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
-import Brig.Types.User (User)
+import Brig.Types.User (User, userEmail)
 import Control.Lens
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
+import Data.String.Conversions (cs)
 import Galley.App
 import Galley.Intra.Util
 import Galley.Types.Teams
@@ -134,26 +135,45 @@ getContactList uid = do
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
 
--- | Calls 'Brig.API.canBeDeletedH'.
-canBeDeleted :: [TeamMember] -> UserId -> TeamId -> Galley Bool
-canBeDeleted members uid tid = if askGalley then pure True else askBrig
+-- | An admin can delete other admins.  An owner can delete admins, and if she has an email
+-- address, she can delete other owners.  (The last condition makes sure that no team will
+-- ever end up without an owner with an email; this is useful for customer suppor and
+-- billing.)
+canDeleteMember :: TeamMember -> UserId -> TeamMember -> Galley Bool
+canDeleteMember deleterMember deleterUid deleteeMember = do
+  deleterHasEmailIfOwner <- checkDeleterHasEmailIfOwner
+  pure $ deleterHasRole || deleterHasEmailIfOwner
   where
-    -- team members without full permissions can always be deleted.
-    askGalley = case filter ((== uid) . (^. userId)) members of
-      (mem : _) -> not (isTeamOwner mem)
-      _ -> False -- e.g., if caller has no members and passes an empty list.
-
-    -- only if still in doubt, ask brig.
-    askBrig = do
-      (h, p) <- brigReq
-      st <-
-        statusCode . responseStatus
-          <$> call
-            "brig"
-            ( check [status200, status403]
-                . method GET
-                . host h
-                . port p
-                . paths ["/i/users", toByteString' uid, "can-be-deleted", toByteString' tid]
-            )
-      return $ st == 200
+    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+    -- (team members having no role is an internal error, but we don't want to deal with that
+    -- here, so we pick a reasonable default.)
+    deleterRole = getRole deleterMember
+    deleteeRole = getRole deleteeMember
+    --
+    deleterHasRole :: Bool
+    deleterHasRole = deleterRole > RoleAdmin && deleterRole >= deleteeRole
+    --
+    checkDeleterHasEmailIfOwner :: Galley Bool
+    checkDeleterHasEmailIfOwner
+      | (deleterRole /= RoleOwner) = pure True
+      | (deleteeRole /= RoleOwner) = pure True
+      | otherwise = do
+        (h, p) <- brigReq
+        euser :: Either String User <-
+          responseJsonEither
+            <$> call
+              "brig"
+              ( check [status200]
+                  . method GET
+                  . host h
+                  . port p
+                  . paths ["/i/users", toByteString' deleterUid]
+              )
+        case euser of
+          Right user -> return (isJust $ userEmail user)
+          Left msg ->
+            throwM $
+              Error
+                status500
+                "server-error"
+                ("delete or downgrade team owner: deleting user has disappeared.  brig: " <> cs msg)
