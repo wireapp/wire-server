@@ -1,5 +1,5 @@
 module Galley.Intra.Federator
-  ( joinConversation,
+  ( joinConversationById,
   )
 where
 
@@ -21,9 +21,9 @@ import Servant.Client.Core (BaseUrl (BaseUrl), Scheme (Http))
 import Servant.Client.Generic (AsClientT, genericClientHoist)
 import Util.Options (Endpoint (Endpoint, _epHost, _epPort))
 
-joinConversation :: Qualified ConvId -> Galley (QualifiedEvent MemberJoin)
-joinConversation convId =
-  API._gapiJoinConversation client convId
+joinConversationById :: Qualified ConvId -> Galley (QualifiedEvent MemberJoin)
+joinConversationById convId =
+  API._gapiJoinConversationById client convId
 
 client :: API (AsClientT Galley)
 client = genericClientHoist nat
