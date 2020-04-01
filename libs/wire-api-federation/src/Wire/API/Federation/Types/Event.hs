@@ -72,13 +72,8 @@ newtype RoleName
 
 -- Arbitrary
 
-instance Arbitrary (Event MemberJoin) where
-  arbitrary =
-    Event
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+instance Arbitrary a => Arbitrary (Event a) where
+  arbitrary = Event <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary MemberJoin where
   arbitrary = MemberJoin <$> arbitrary

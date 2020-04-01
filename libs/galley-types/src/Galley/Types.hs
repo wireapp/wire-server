@@ -463,8 +463,8 @@ deriving instance Show Invite
 data Event
   = Event
       { evtType :: !EventType,
-        evtConv :: !ConvId,
-        evtFrom :: !UserId,
+        evtConv :: !OpaqueConvId,
+        evtFrom :: !OpaqueUserId,
         evtTime :: !UTCTime,
         evtData :: !(Maybe EventData)
       }

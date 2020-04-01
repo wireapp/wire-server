@@ -22,6 +22,7 @@ import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
@@ -37,7 +38,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Options (defEnableFederation, optSettings, setEnableFederation)
+import Galley.Options (optSettings, setEnableFederationWithDomain)
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -279,11 +280,16 @@ canDeleteMember deleter deletee
 
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
+viewFederationDomain :: Galley (Maybe Domain)
+viewFederationDomain = view (options . optSettings . setEnableFederationWithDomain)
+
+isFederationEnabled :: Galley Bool
+isFederationEnabled = isJust <$> viewFederationDomain
+
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
 resolveOpaqueUserId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
+  isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
@@ -294,8 +300,7 @@ resolveOpaqueUserId (Id opaque) = do
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
 resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
 resolveOpaqueConvId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
+  isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
@@ -303,17 +308,21 @@ resolveOpaqueConvId (Id opaque) = do
       -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
 
-createConvIdMappingIfQualified :: OptionallyQualified ConvId -> Galley (MappedOrLocalId Id.C)
-createConvIdMappingIfQualified optQualified =
-  case eitherQualifiedOrNot optQualified of
-    Left localConvId -> Local <$> pure localConvId
-    Right qualifiedConvId -> Mapped <$> createConvIdMapping qualifiedConvId
+createUserIdMapping :: Qualified UserId -> Galley (IdMapping Id.U)
+createUserIdMapping qualifiedUserId = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      -- TODO: different error "federation-not-enabled"?
+      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedUserId)
+    True -> do
+      mappedId <- Id.randomId
+      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
+      pure (IdMapping mappedId qualifiedUserId)
 
--- TODO: only access table if federation feature flag is enabled
 createConvIdMapping :: Qualified ConvId -> Galley (IdMapping Id.C)
 createConvIdMapping qualifiedConvId = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
+  isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
       -- TODO: different error "federation-not-enabled"?

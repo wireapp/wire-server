@@ -65,7 +65,7 @@ import Data.List (delete)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import Data.Qualified (OptionallyQualified, Qualified, eitherQualifiedOrNot, unqualified)
+import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, unqualified)
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
@@ -78,6 +78,7 @@ import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
+import qualified Galley.Intra.Federator as Intra.Fed
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
@@ -95,6 +96,8 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, failure, setStatus)
 import Network.Wai.Utilities
+import qualified Wire.API.Federation.Conversation as Fed
+import qualified Wire.API.Federation.Types.Event as Fed
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -406,23 +409,48 @@ joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
 joinConversationByReusableCode :: UserId -> ConnId -> ConversationCode -> Galley UpdateResult
 joinConversationByReusableCode zusr zcon convCode = do
   c <- verifyReusableCode convCode
-  joinConversation zusr zcon (unqualified (codeConversation c)) CodeAccess
+  joinConversation zusr zcon (codeConversation c) CodeAccess
 
 joinConversationByIdH :: UserId ::: ConnId ::: OptionallyQualified ConvId ::: JSON -> Galley Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
   handleUpdateResult <$> joinConversationById zusr zcon cnv
 
 joinConversationById :: UserId -> ConnId -> OptionallyQualified ConvId -> Galley UpdateResult
-joinConversationById zusr zcon cnv =
-  joinConversation zusr zcon cnv LinkAccess
+joinConversationById zusr zcon cnv = case eitherQualifiedOrNot cnv of
+  Left localCnv -> joinConversation zusr zcon localCnv LinkAccess
+  Right qualifiedCnv -> joinRemoteConversationById zusr zcon qualifiedCnv
 
-joinConversation :: UserId -> ConnId -> OptionallyQualified ConvId -> Access -> Galley UpdateResult
-joinConversation zusr zcon cnv = case eitherQualifiedOrNot cnv of
-  Left localCnv -> joinLocalConversation zusr zcon localCnv
-  Right qualifiedCnv -> joinRemoteConversation zusr zcon qualifiedCnv
+joinRemoteConversationById :: UserId -> ConnId -> Qualified ConvId -> Galley UpdateResult
+joinRemoteConversationById zusr zcon cnv = do
+  viewFederationDomain >>= \case
+    Nothing ->
+      throwM (federationNotEnabled (pure cnv))
+    Just federationDomain ->
+      mapConversationUpdateResult . fmap Fed.DataMemberJoin
+        =<< Intra.Fed.joinConversationById cnv (Qualified zusr federationDomain)
 
-joinLocalConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
-joinLocalConversation zusr zcon cnv access = do
+-- TODO: pull out into separate module
+mapConversationUpdateResult :: Fed.ConversationUpdateResult Fed.AnyEventData -> Galley UpdateResult
+mapConversationUpdateResult = \case
+  Fed.ConversationUnchanged -> pure Unchanged
+  Fed.ConversationUpdated ev -> Updated <$> mapEvent ev
+
+mapEvent :: Fed.Event Fed.AnyEventData -> Galley Event
+mapEvent ev =
+  Event
+    <$> pure (toEventType (Fed.eventData ev))
+    <*> (makeMappedIdOpaque . idMappingLocal <$> createConvIdMapping (Fed.eventConversation ev))
+    <*> createUserIdMapping (Fed.eventFrom ev)
+    <*> pure (Fed.eventTime ev)
+    <*> mapEventData (Fed.eventData ev)
+  where
+    toEventType Fed.DataMemberJoin = MemberJoin
+
+mapEventData :: Fed.AnyEventData -> Galley (Maybe EventData)
+mapEventData = undefined
+
+joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
+joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)

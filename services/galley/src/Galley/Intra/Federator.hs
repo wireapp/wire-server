@@ -5,7 +5,7 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
-import Data.Id (ConvId)
+import Data.Id (ConvId, UserId)
 import Data.Qualified (Qualified)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
@@ -19,11 +19,12 @@ import Servant.Client (ClientError (FailureResponse), ClientM, mkClientEnv, runC
 import Servant.Client.Core (BaseUrl (BaseUrl), Scheme (Http))
 import Servant.Client.Generic (AsClientT, genericClientHoist)
 import Util.Options (Endpoint (Endpoint, _epHost, _epPort))
+import qualified Wire.API.Federation.Conversation as Fdr -- TODO: import this through Federator?
 import qualified Wire.API.Federation.Types.Event as Fdr -- TODO: import this through Federator?
 
-joinConversationById :: Qualified ConvId -> Galley (Fdr.Event Fdr.MemberJoin)
-joinConversationById convId =
-  API._gapiJoinConversationById client convId
+joinConversationById :: Qualified ConvId -> Qualified UserId -> Galley (Fdr.ConversationUpdateResult Fdr.MemberJoin)
+joinConversationById convId userId =
+  API._gapiJoinConversationById client convId (API.JoinConversationByIdRequest userId)
 
 client :: API (AsClientT Galley)
 client = genericClientHoist nat

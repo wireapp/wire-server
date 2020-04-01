@@ -17,6 +17,8 @@
 
 module Galley.API.Error where
 
+import Data.Aeson (ToJSON)
+import qualified Data.Aeson.Text as Aeson
 import Data.Domain (Domain, domainText)
 import Data.Id (idToText)
 import Data.Id (Id, Mapped)
@@ -214,6 +216,16 @@ customBackendNotFound domain =
     status404
     "custom-backend-not-found"
     ("custom backend not found for domain: " <> cs (domainText domain))
+
+federationNotEnabled :: forall a. (Typeable a, ToJSON (Qualified a)) => NonEmpty (Qualified a) -> Error
+federationNotEnabled qualifiedIds =
+  Error
+    status403
+    "federation-not-enabled"
+    ("Federation is not enabled, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = Aeson.encodeToLazyText qualifiedIds
 
 federationNotImplemented' :: forall a. Typeable a => NonEmpty (Maybe (Id (Mapped a)), Qualified (Id a)) -> Error
 federationNotImplemented' qualifiedIds =
