@@ -89,6 +89,7 @@ module Galley.Types.Teams
     Role (..),
     defaultRole,
     rolePermissions,
+    permissionsRole,
     BindingNewTeam (..),
     NonBindingNewTeam (..),
     NewTeam,
@@ -321,6 +322,15 @@ defaultRole = RoleMember
 
 rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p where p = rolePerms role
+
+permissionsRole :: Permissions -> Maybe Role
+permissionsRole (Permissions p p') | p /= p' = Nothing
+permissionsRole (Permissions p _) = permsRole p
+  where
+    permsRole :: Set Perm -> Maybe Role
+    permsRole perms =
+      Maybe.listToMaybe
+        [role | role <- [minBound ..], rolePerms role == perms]
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
 -- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
@@ -555,14 +565,6 @@ hiddenPermissionsFromPermissions :: Permissions -> HiddenPermissions
 hiddenPermissionsFromPermissions =
   maybe (HiddenPermissions mempty mempty) roleHiddenPermissions . permissionsRole
   where
-    permissionsRole :: Permissions -> Maybe Role
-    permissionsRole (Permissions p p') | p /= p' = Nothing
-    permissionsRole (Permissions p _) = permsRole p
-      where
-        permsRole :: Set Perm -> Maybe Role
-        permsRole perms =
-          Maybe.listToMaybe
-            [role | role <- [minBound ..], rolePerms role == perms]
     roleHiddenPermissions :: Role -> HiddenPermissions
     roleHiddenPermissions role = HiddenPermissions p p
       where
