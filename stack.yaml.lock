@@ -63,6 +63,13 @@ packages:
   original:
     hackage: ormolu-0.0.3.1
 - completed:
+    hackage: weeder-1.0.8@sha256:1719ce1572042ff9230b0126112e89cd294e5daac50d49f5730858f6ca7f86a1,1633
+    pantry-tree:
+      size: 776
+      sha256: 7945ff373af939c4490517650de12c84ad858cd46a0affe76c608f012be306fc
+  original:
+    hackage: weeder-1.0.8
+- completed:
     hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
     pantry-tree:
       size: 18102
