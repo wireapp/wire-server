@@ -753,18 +753,15 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> ensureNotOwnerWithEmail account >> go a
-      Active -> ensureNotOwnerWithEmail account >> go a
+      Suspended -> ensureNotOwnerWithEmail a >> go a
+      Active -> ensureNotOwnerWithEmail a >> go a
       Ephemeral -> go a
   where
-    ensureNotOwnerWithEmail :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOwnerWithEmail :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
     ensureNotOwnerWithEmail acc = do
-      let muid = userId . accountUser <$> acc
-          mtid = userTeam =<< (accountUser <$> acc)
-      okToDelete <- case (muid, mtid) of
-        (Nothing, _) -> pure False
-        (_, Nothing) -> pure False
-        (Just u, Just t) -> lift $ userCanBeDeleted u t
+      okToDelete <- case userTeam (accountUser acc) of
+        Nothing -> pure True
+        Just tid -> lift $ userCanBeDeleted (userId $ accountUser acc) tid
       unless okToDelete (throwE DeleteUserOwnerWithEmail)
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
