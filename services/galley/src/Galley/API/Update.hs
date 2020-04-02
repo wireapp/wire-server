@@ -77,6 +77,7 @@ import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
+import Galley.Federation (UpdateResult (Unchanged, Updated), mapConversationUpdateResult)
 import qualified Galley.Intra.Client as Intra
 import qualified Galley.Intra.Federator as Intra.Fed
 import Galley.Intra.Push
@@ -86,7 +87,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
-import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireAdmin, roleNameWireMember)
+import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
 import qualified Galley.Types.Proto as Proto
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -96,7 +97,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, failure, setStatus)
 import Network.Wai.Utilities
-import qualified Wire.API.Federation.Conversation as Fed
 import qualified Wire.API.Federation.Types.Event as Fed
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -136,10 +136,6 @@ unblockConv usr conn cnv = do
   conversationView usr conv'
 
 -- conversation updates
-
-data UpdateResult
-  = Updated Event
-  | Unchanged
 
 handleUpdateResult :: UpdateResult -> Response
 handleUpdateResult = \case
@@ -441,40 +437,6 @@ joinRemoteConversationById zusr _zcon cnv = do
     Just federationDomain ->
       mapConversationUpdateResult . fmap Fed.DataMemberJoin
         =<< Intra.Fed.joinConversationById cnv (Qualified zusr federationDomain)
-
--- TODO(federation): pull out into separate module
-mapConversationUpdateResult :: Fed.ConversationUpdateResult Fed.AnyEventData -> Galley UpdateResult
-mapConversationUpdateResult = \case
-  Fed.ConversationUnchanged -> pure Unchanged
-  Fed.ConversationUpdated ev -> Updated <$> mapEvent ev
-
-mapEvent :: Fed.Event Fed.AnyEventData -> Galley Event
-mapEvent ev =
-  Event
-    <$> pure (toEventType (Fed.eventData ev))
-    <*> (makeMappedIdOpaque . idMappingLocal <$> createConvIdMapping (Fed.eventConversation ev))
-    <*> (makeMappedIdOpaque . idMappingLocal <$> createUserIdMapping (Fed.eventFrom ev))
-    <*> pure (Fed.eventTime ev)
-    <*> mapEventData (Fed.eventData ev)
-  where
-    toEventType = \case
-      Fed.DataMemberJoin _ -> MemberJoin
-
-mapEventData :: Fed.AnyEventData -> Galley (Maybe EventData)
-mapEventData = \case
-  Fed.DataMemberJoin (Fed.MemberJoin simpleMembers) ->
-    Just . EdMembersJoin . SimpleMembers <$> traverse mapSimpleMember simpleMembers
-
-mapSimpleMember :: Fed.SimpleMember -> Galley SimpleMember
-mapSimpleMember m =
-  SimpleMember
-    <$> (makeMappedIdOpaque . idMappingLocal <$> createUserIdMapping (Fed.smId m))
-    <*> pure (mapConversationRole (Fed.smConversationRole m))
-
-mapConversationRole :: Fed.ConversationRole -> RoleName
-mapConversationRole = \case
-  Fed.ConversationRoleAdmin -> roleNameWireAdmin
-  Fed.ConversationRoleMember -> roleNameWireMember
 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
