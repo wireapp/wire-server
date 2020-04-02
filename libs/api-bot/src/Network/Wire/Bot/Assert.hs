@@ -20,7 +20,7 @@
 
 module Network.Wire.Bot.Assert where
 
-import Data.Id (ConvId, UserId)
+import Data.Id (ConvId, UserId, makeIdOpaque)
 import qualified Data.Set as Set
 import Imports
 import Network.Wire.Bot.Monad
@@ -129,6 +129,6 @@ connStatus from to rel = \case
 memberJoined :: UserId -> UserId -> Event -> Bool
 memberJoined from other = \case
   EMemberJoin m ->
-    null (toList (fmap smId $ mMembers (convEvtData m)) \\ [other, from])
+    null (toList (fmap smId $ mMembers (convEvtData m)) \\ [makeIdOpaque other, makeIdOpaque from])
       && convEvtFrom m == from
   _ -> False

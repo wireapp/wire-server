@@ -1676,7 +1676,7 @@ wsAssertMemberJoin ws conv usr new = void $ liftIO
     evtConv e @?= makeIdOpaque conv
     evtType e @?= MemberJoin
     evtFrom e @?= makeIdOpaque usr
-    evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
+    evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember (makeIdOpaque u) roleNameWireAdmin) new)))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $ liftIO
@@ -1716,7 +1716,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) -> do
-      let msg = SimpleMembers $ fmap (\u -> SimpleMember u roleNameWireAdmin) new
+      let msg = SimpleMembers $ fmap (\u -> SimpleMember (makeIdOpaque u) roleNameWireAdmin) new
       assertEqual "event type" MemberJoin (evtType e)
       assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
       assertEqual "user" (makeIdOpaque usr) (evtFrom e)
