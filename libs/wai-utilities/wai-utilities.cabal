@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f808f36e1c2521e5e53b24e784dcc177e7079eab0ab2856fa8e7358f92369cdf
+-- hash: db939f5c08cf218fd958c82633cf53a05b93a7577f4cdacc26c706410e64c747
 
 name:           wai-utilities
 version:        0.16.1
@@ -39,7 +39,6 @@ library
     , base >=4.6 && <5.0
     , bytestring >=0.10
     , bytestring-conversion >=0.3
-    , containers >=0.5
     , errors >=2.0
     , exceptions >=0.6
     , http-types >=0.8

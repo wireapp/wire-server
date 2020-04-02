@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 247f19b4a4ffffe1eea1492b7c28f299df43c7203d768cda26b1f87f64142f80
+-- hash: 534ffab86c458b8ba88a6ca5a9b31152b83eda81c9451f50b0314c0cf07a4d4a
 
 name:           api-client
 version:        0.4.2
@@ -41,7 +41,6 @@ library
       aeson >=0.11
     , async >=2.0
     , base >=4.6 && <5
-    , base64-bytestring >=1.0
     , bilge >=0.21
     , brig-types >=0.84
     , bytestring >=0.10
@@ -49,20 +48,15 @@ library
     , cargohold-types >=0.25.6
     , connection >=0.2
     , cookie >=0.4
-    , cryptobox-haskell >=0.1.1
-    , cryptonite >=0.17
     , data-default-class >=0.0
     , errors >=2.1
     , exceptions >=0.8
     , galley-types >=0.66
-    , gundeck-types >=1.24
     , http-client >=0.4
     , http-types >=0.8
     , imports
-    , memory >=0.12
     , mime >=0.4
     , mtl >=2.1
-    , network >=2.4
     , retry >=0.7
     , semigroups >=0.10
     , text >=1.2
