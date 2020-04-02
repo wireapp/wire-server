@@ -1049,14 +1049,13 @@ updateClient :: UpdateClient -> UserId -> ClientId -> Handler ()
 updateClient body usr clt = do
   API.updateClient usr clt body !>> clientError
 
-listClientsH :: OpaqueUserId ::: JSON -> Handler Response
-listClientsH (opaqueUserId ::: _) =
-  json <$> listClients opaqueUserId
+listClientsH :: UserId ::: JSON -> Handler Response
+listClientsH (zusr ::: _) =
+  json <$> listClients zusr
 
-listClients :: OpaqueUserId -> Handler [Client]
-listClients opaqueUserId = do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
-  API.lookupClients resolvedUserId !>> clientError
+listClients :: UserId -> Handler [Client]
+listClients zusr = do
+  API.lookupClients (Local zusr) !>> clientError
 
 internalListClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
 internalListClientsH (_ ::: req) = do
@@ -1067,16 +1066,15 @@ internalListClients (UserSet usrs) = do
   UserClients . Map.mapKeys makeIdOpaque . Map.fromList
     <$> (API.lookupUsersClientIds $ Set.toList usrs)
 
-getClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
-getClientH (usr ::: clt ::: _) =
-  getClient usr clt <&> \case
+getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientH (zusr ::: clt ::: _) =
+  getClient zusr clt <&> \case
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-getClient :: OpaqueUserId -> ClientId -> Handler (Maybe Client)
-getClient opaqueUserId clientId = do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
-  API.lookupClient resolvedUserId clientId !>> clientError
+getClient :: UserId -> ClientId -> Handler (Maybe Client)
+getClient zusr clientId = do
+  API.lookupClient (Local zusr) clientId !>> clientError
 
 getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
