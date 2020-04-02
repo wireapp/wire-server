@@ -488,7 +488,7 @@ createConnectConversation a b name conn = do
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
-  let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
+  let e = Event ConvConnect (makeIdOpaque conv) (makeIdOpaque a') now (Just $ EdConnect conn)
   return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
 createOne2OneConversation ::
@@ -648,7 +648,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
       for_ chunk $ \(u, r) -> do
         addPrepQuery Cql.insertUserConv (u, conv)
         addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
-  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
+  let e = Event MemberJoin (makeIdOpaque conv) (makeIdOpaque orig) t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
   return (e, fmap (uncurry newMemberWithRole) usrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
@@ -696,7 +696,7 @@ removeMembers conv orig victims = do
         Mapped _ ->
           -- the user's conversation has to be deleted on their own backend
           pure ()
-  return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
+  return $ Event MemberLeave (makeIdOpaque (convId conv)) (makeIdOpaque orig) t (Just (EdMembersLeave leavingMembers))
   where
     -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
     leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims

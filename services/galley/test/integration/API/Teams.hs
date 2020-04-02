@@ -1149,14 +1149,14 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
-  evtConv e @?= cid
+  evtConv e @?= makeIdOpaque cid
   evtData e @?= Nothing
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  evtConv e @?= cid
+  evtConv e @?= makeIdOpaque cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
     Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIdList [usr]

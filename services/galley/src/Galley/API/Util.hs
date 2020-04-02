@@ -27,7 +27,7 @@ import Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (OptionallyQualified, Qualified, eitherQualifiedOrNot)
+import Data.Qualified (Qualified)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -180,7 +180,8 @@ acceptOne2One usr conv conn = case Data.convType conv of
       (e, mm) <- Data.addMember now cid usr
       conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
+      -- we rely on the fact that `evtFrom e` is `usr` (but opaque)
+      for_ (newPush (Local usr) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
       return $ conv' {Data.convMembers = mems'}
   _ -> throwM $ invalidOp "accept: invalid conversation type"

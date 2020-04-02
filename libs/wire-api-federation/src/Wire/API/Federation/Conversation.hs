@@ -27,7 +27,7 @@ data Api routes
 data ConversationUpdateResult a
   = ConversationUpdated (Event a)
   | ConversationUnchanged
-  deriving (Show, Generic)
+  deriving stock (Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationUpdateResult a))
 
 instance Arbitrary a => Arbitrary (ConversationUpdateResult a) where

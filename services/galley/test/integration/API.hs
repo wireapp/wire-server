@@ -165,9 +165,9 @@ postConvOk = do
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnvId cnv
+      evtConv e @?= makeIdOpaque (cnvId cnv)
       evtType e @?= ConvCreate
-      evtFrom e @?= alice
+      evtFrom e @?= makeIdOpaque alice
       case evtData e of
         Just (EdConversation c') -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
@@ -951,9 +951,9 @@ putConvRenameOk = do
     void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= ConvRename
-      evtFrom e @?= bob
+      evtFrom e @?= makeIdOpaque bob
       evtData e @?= Just (EdConvRename (ConversationRename "gossip++"))
 
 putMemberOtrMuteOk :: TestM ()
@@ -1013,9 +1013,9 @@ putMemberOk update = do
     void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= bob
+      evtFrom e @?= makeIdOpaque bob
       case evtData e of
         Just (EdMemberUpdate mis) -> do
           assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
@@ -1075,9 +1075,9 @@ putReceiptModeOk = do
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnv
+      evtConv e @?= makeIdOpaque cnv
       evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= alice
+      evtFrom e @?= makeIdOpaque alice
       case evtData e of
         Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode))) ->
           assertEqual "modes should match" mode 0
@@ -1140,7 +1140,7 @@ removeUser = do
     matchMemberLeave conv u n = do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= MemberLeave
-      evtFrom e @?= u
+      evtFrom e @?= makeIdOpaque u
       evtData e @?= Just (EdMembersLeave (UserIdList [u]))

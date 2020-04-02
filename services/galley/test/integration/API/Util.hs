@@ -847,9 +847,9 @@ wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Noti
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= OtrMessageAdd
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
 
 -- | This assumes the default role name
@@ -860,18 +860,18 @@ wsAssertMemberJoinWithRole :: ConvId -> UserId -> [UserId] -> RoleName -> Notifi
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberJoin
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberStateUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   case evtData e of
     Just (Galley.Types.EdMemberUpdate mis) -> do
       assertEqual "target" (Just target) (misTarget mis)
@@ -882,27 +882,27 @@ wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Noti
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= ConvAccessUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdConvAccessUpdate new)
 
 wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= ConvMessageTimerUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdConvMessageTimerUpdate new)
 
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberLeave
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   sorted (evtData e) @?= sorted (Just (EdMembersLeave (UserIdList old)))
   where
     sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))

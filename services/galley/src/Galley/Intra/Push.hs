@@ -54,7 +54,8 @@ import Control.Lens ((&), (.~), (^.), makeLenses, set, view)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (IdMapping (IdMapping, idMappingLocal), MappedOrLocalId (Local, Mapped))
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
 import Data.List1
@@ -105,14 +106,15 @@ data Push
         _pushRoute :: Gundeck.Route,
         _pushNativePriority :: Maybe Gundeck.Priority,
         _pushAsync :: Bool,
-        pushOrigin :: UserId,
+        -- | could also be 'Data.Id.OpaqueUserId', but keeping more information around might prove useful
+        pushOrigin :: MappedOrLocalId Id.U,
         pushRecipients :: List1 Recipient,
         pushJson :: Object
       }
 
 makeLenses ''Push
 
-newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 :: MappedOrLocalId Id.U -> PushEvent -> List1 Recipient -> Push
 newPush1 from e rr =
   Push
     { _pushConn = Nothing,
@@ -125,7 +127,7 @@ newPush1 from e rr =
       pushRecipients = rr
     }
 
-newPush :: UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush :: MappedOrLocalId Id.U -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ [] = Nothing
 newPush u e (r : rr) = Just $ newPush1 u e (list1 r rr)
 
@@ -164,10 +166,14 @@ push ps = do
     recipientList p = map (toRecipient p) . toList $ pushRecipients p
     toPush p r =
       let pload = Gundeck.singletonPayload (pushJson p)
-       in Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
+       in Gundeck.newPush (unsafeAssumeIdIsLocal (pushOrigin p)) (unsafeRange (Set.fromList r)) pload
             & Gundeck.pushOriginConnection .~ _pushConn p
             & Gundeck.pushTransient .~ _pushTransient p
             & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
+    unsafeAssumeIdIsLocal = \case
+      Local i -> i
+      -- TODO(federation): remove
+      Mapped IdMapping {idMappingLocal = Id i} -> Id i
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r

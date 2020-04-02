@@ -224,7 +224,8 @@ createConnectConversation usr conn j = do
     create x y n = do
       (c, e) <- Data.createConnectConversation x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
+      -- we rely on the fact that `evtFrom e` is `usr` (but opaque)
+      for_ (newPush (Local usr) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -261,8 +262,8 @@ createConnectConversation usr conn j = do
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
-        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
+        let e = Event ConvConnect (makeIdOpaque (Data.convId conv)) (makeIdOpaque usr) t (Just $ EdConnect j)
+        for_ (newPush (Local usr) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -298,9 +299,9 @@ notifyCreatedConversation dtime usr conn c = do
       | otherwise = RouteDirect
     toPush t m = do
       c' <- conversationView (memId m) c
-      let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
+      let e = Event ConvCreate (makeIdOpaque (Data.convId c)) (makeIdOpaque usr) t (Just $ EdConversation c')
       return $
-        newPush1 (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
+        newPush1 (Local usr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

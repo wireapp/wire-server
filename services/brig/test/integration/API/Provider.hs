@@ -1673,9 +1673,9 @@ wsAssertMemberJoin ws conv usr new = void $ liftIO
   $ \n -> do
     let e = List1.head (unpackEvents n)
     ntfTransient n @?= False
-    evtConv e @?= conv
+    evtConv e @?= makeIdOpaque conv
     evtType e @?= MemberJoin
-    evtFrom e @?= usr
+    evtFrom e @?= makeIdOpaque usr
     evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
@@ -1684,9 +1684,9 @@ wsAssertMemberLeave ws conv usr old = void $ liftIO
   $ \n -> do
     let e = List1.head (unpackEvents n)
     ntfTransient n @?= False
-    evtConv e @?= conv
+    evtConv e @?= makeIdOpaque conv
     evtType e @?= MemberLeave
-    evtFrom e @?= usr
+    evtFrom e @?= makeIdOpaque usr
     evtData e @?= Just (EdMembersLeave (UserIdList old))
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
@@ -1695,9 +1695,9 @@ wsAssertConvDelete ws conv from = void $ liftIO
   $ \n -> do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
-    evtConv e @?= conv
+    evtConv e @?= makeIdOpaque conv
     evtType e @?= ConvDelete
-    evtFrom e @?= from
+    evtFrom e @?= makeIdOpaque from
     evtData e @?= Nothing
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
@@ -1706,9 +1706,9 @@ wsAssertMessage ws conv fromu fromc to txt = void $ liftIO
   $ \n -> do
     let e = List1.head (unpackEvents n)
     ntfTransient n @?= False
-    evtConv e @?= conv
+    evtConv e @?= makeIdOpaque conv
     evtType e @?= OtrMessageAdd
-    evtFrom e @?= fromu
+    evtFrom e @?= makeIdOpaque fromu
     evtData e @?= Just (EdOtrMessage (OtrMessage fromc to txt (Just "data")))
 
 svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
@@ -1718,8 +1718,8 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
     Just (TestBotMessage e) -> do
       let msg = SimpleMembers $ fmap (\u -> SimpleMember u roleNameWireAdmin) new
       assertEqual "event type" MemberJoin (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque usr) (evtFrom e)
       assertEqual "event data" (Just (EdMembersJoin msg)) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
@@ -1730,8 +1730,8 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
     Just (TestBotMessage e) -> do
       let msg = UserIdList gone
       assertEqual "event type" MemberLeave (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque usr) (evtFrom e)
       assertEqual "event data" (Just (EdMembersLeave msg)) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
@@ -1741,8 +1741,8 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
   case evt of
     Just (TestBotMessage e) -> do
       assertEqual "event type" ConvAccessUpdate (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque usr) (evtFrom e)
       assertEqual "event data" (Just (EdConvAccessUpdate upd)) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
@@ -1752,8 +1752,8 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
   case evt of
     Just (TestBotMessage e) -> do
       assertEqual "event type" ConvDelete (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque usr) (evtFrom e)
       assertEqual "event data" Nothing (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
@@ -1775,8 +1775,8 @@ svcAssertMessage buf from msg cnv = liftIO $ do
   case evt of
     Just (TestBotMessage e) -> do
       assertEqual "event type" OtrMessageAdd (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" from (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque from) (evtFrom e)
       assertEqual "event data" (Just (EdOtrMessage msg)) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
@@ -1786,8 +1786,8 @@ svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
   case evt of
     Just (TestBotMessage e) | evtType e == ConvDelete -> do
       assertEqual "event type" ConvDelete (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
+      assertEqual "conv" (makeIdOpaque cnv) (evtConv e)
+      assertEqual "user" (makeIdOpaque usr) (evtFrom e)
       assertEqual "event data" Nothing (evtData e)
     -- We ignore every other message type
     Just (TestBotMessage _) ->

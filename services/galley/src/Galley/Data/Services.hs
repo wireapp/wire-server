@@ -66,7 +66,7 @@ addBotMember orig s bot cnv now = do
     setConsistency Quorum
     addPrepQuery insertUserConv (botUserId bot, cnv)
     addPrepQuery insertBot (cnv, bot, sid, pid)
-  let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
+  let e = Event MemberJoin (makeIdOpaque cnv) (makeIdOpaque orig) now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
   let mem = (newMember (botUserId bot)) {memService = Just s}
   return (e, BotMember mem)
   where

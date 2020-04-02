@@ -65,7 +65,7 @@ import Data.List (delete)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot, unqualified)
+import Data.Qualified (OptionallyQualified, Qualified (Qualified), eitherQualifiedOrNot)
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
@@ -237,9 +237,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       _ -> return ()
   -- Update Cassandra & send an event
   now <- liftIO getCurrentTime
-  let accessEvent = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
+  let accessEvent = Event ConvAccessUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
-  pushEvent accessEvent users bots zcon
+  pushEventFrom usr accessEvent users bots zcon
   -- Remove users and bots
   let removedUsers = map memId users \\ map memId newUsers
       removedBots = map botMemId bots \\ map botMemId newBots
@@ -250,7 +250,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       e <- Data.removeMembers conv usr (Local <$> list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      --
+      -- we rely on the fact that `evtFrom e` is `usr` (but opaque)
+      for_ (newPush (Local usr) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -278,8 +280,8 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceip
       -- Update Cassandra & send an event
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
-      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
-      pushEvent receiptEvent users bots zcon
+      let receiptEvent = Event ConvReceiptModeUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
+      pushEventFrom usr receiptEvent users bots zcon
       pure receiptEvent
 
 updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
@@ -302,14 +304,19 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
     update users bots = do
       -- update cassandra & send event
       now <- liftIO getCurrentTime
-      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate timerUpdate)
+      let timerEvent = Event ConvMessageTimerUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
-      pushEvent timerEvent users bots zcon
+      pushEventFrom usr timerEvent users bots zcon
       pure timerEvent
 
-pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
-pushEvent e users bots zcon = do
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+-- | The 'UserId' is redundant with the 'evtFrom' field of the 'Event',
+-- but that one is an `OpaqueUserId`, while we need a `UserId`.
+-- Doing this conversion is not safe in general, so we require to pass the
+-- 'UserId' manually.
+-- This could be avoided if we make 'newPush' take an 'OpaqueUserId' instead.
+pushEventFrom :: UserId -> Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
+pushEventFrom orig e users bots zcon = do
+  for_ (newPush (Local orig) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -337,8 +344,8 @@ addCode usr zcon cnv = do
       Data.insertCode code
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
-      let event = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate conversationCode)
-      pushEvent event users bots zcon
+      let event = Event ConvCodeUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvCodeUpdate conversationCode)
+      pushEventFrom usr event users bots zcon
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -362,8 +369,8 @@ rmCode usr zcon cnv = do
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
-  let event = Event ConvCodeDelete cnv usr now Nothing
-  pushEvent event users bots zcon
+  let event = Event ConvCodeDelete (makeIdOpaque cnv) (makeIdOpaque usr) now Nothing
+  pushEventFrom usr event users bots zcon
   pure event
 
 getCodeH :: UserId ::: ConvId -> Galley Response
@@ -421,7 +428,13 @@ joinConversationById zusr zcon cnv = case eitherQualifiedOrNot cnv of
   Right qualifiedCnv -> joinRemoteConversationById zusr zcon qualifiedCnv
 
 joinRemoteConversationById :: UserId -> ConnId -> Qualified ConvId -> Galley UpdateResult
-joinRemoteConversationById zusr zcon cnv = do
+-- TODO(federation): how is ConnId used in Gundeck? Implications for federation?
+joinRemoteConversationById zusr _zcon cnv = do
+  -- we might not have a mapping for this conversation yet, so we need to create it
+  -- FUTUREWORK: how can we ensure that this can't be forgotten anywhere?
+  _idMapping <- createConvIdMapping cnv
+  -- TODO(federation):
+  -- question: how can this backend prove to the remote one that the user is activated?
   viewFederationDomain >>= \case
     Nothing ->
       throwM (federationNotEnabled (pure cnv))
@@ -429,7 +442,7 @@ joinRemoteConversationById zusr zcon cnv = do
       mapConversationUpdateResult . fmap Fed.DataMemberJoin
         =<< Intra.Fed.joinConversationById cnv (Qualified zusr federationDomain)
 
--- TODO: pull out into separate module
+-- TODO(federation): pull out into separate module
 mapConversationUpdateResult :: Fed.ConversationUpdateResult Fed.AnyEventData -> Galley UpdateResult
 mapConversationUpdateResult = \case
   Fed.ConversationUnchanged -> pure Unchanged
@@ -440,14 +453,15 @@ mapEvent ev =
   Event
     <$> pure (toEventType (Fed.eventData ev))
     <*> (makeMappedIdOpaque . idMappingLocal <$> createConvIdMapping (Fed.eventConversation ev))
-    <*> createUserIdMapping (Fed.eventFrom ev)
+    <*> (makeMappedIdOpaque . idMappingLocal <$> createUserIdMapping (Fed.eventFrom ev))
     <*> pure (Fed.eventTime ev)
     <*> mapEventData (Fed.eventData ev)
   where
-    toEventType Fed.DataMemberJoin = MemberJoin
+    toEventType = \case
+      Fed.DataMemberJoin _ -> MemberJoin
 
 mapEventData :: Fed.AnyEventData -> Galley (Maybe EventData)
-mapEventData = undefined
+mapEventData = undefined -- TODO(federation)
 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
@@ -461,15 +475,6 @@ joinConversation zusr zcon cnv access = do
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
   addToConversation (botsAndUsers (Data.convMembers conv)) (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
-
-joinRemoteConversation :: UserId -> ConnId -> Qualified ConvId -> Access -> Galley UpdateResult
-joinRemoteConversation _zusr _zcon cnv _access = do
-  -- we might not have a mapping for this conversation yet, so we need to create it
-  -- FUTUREWORK: how can we ensure that this can't be forgotten anywhere?
-  _idMapping <- createConvIdMapping cnv
-  -- FUTUREWORK(federation): send request to remote backend
-  -- question: how can this backend prove to the remote one that the user is activated?
-  throwM $ federationNotImplemented' (pure (Nothing, cnv))
 
 addMembersH :: UserId ::: ConnId ::: OpaqueConvId ::: JsonRequest Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -580,7 +585,8 @@ removeMember zusr zcon cid victim = do
             Mapped _ -> do
               -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
-          for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+          -- we rely on the fact that `evtFrom event` is `zusr` (but opaque)
+          for_ (newPush (Local zusr) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
           pure $ Updated event
@@ -694,13 +700,13 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
             otrData = newOtrData msg
           }
       conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
-      e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
+      e = Event OtrMessageAdd (makeIdOpaque conv) (makeIdOpaque usr) now (Just $ EdOtrMessage o)
       r = recipient m & recipientClients .~ (RecipientClientsSome $ singleton c)
    in case newBotMember m of
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush (evtFrom e) (ConvEvent e) [r]
+                newPush (Local usr) (ConvEvent e) [r]
                   <&> set pushConn con
                   . set pushNativePriority (newOtrNativePriority msg)
                   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -728,8 +734,8 @@ updateConversationName zusr zcon cnv convRename = do
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
-  let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  let e = Event ConvRename (makeIdOpaque cnv) (makeIdOpaque zusr) now (Just $ EdConvRename convRename)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -746,8 +752,8 @@ isTyping zusr zcon cnv typingData = do
   unless (makeIdOpaque zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
-  let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
+  let e = Event Typing (makeIdOpaque cnv) (makeIdOpaque zusr) now (Just $ EdTyping typingData)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -778,7 +784,8 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  -- we rely on the fact that `evtFrom e` is `zusr` (but opaque)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -813,8 +820,8 @@ rmBot zusr zcon b = do
     else do
       t <- liftIO getCurrentTime
       let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
-      let e = Event MemberLeave (Data.convId c) zusr t evd
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      let e = Event MemberLeave (makeIdOpaque (Data.convId c)) (makeIdOpaque zusr) t evd
+      for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -831,7 +838,7 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   mems <- checkedMemberAddSize xs
   now <- liftIO getCurrentTime
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+  for_ (newPush (Local usr) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
@@ -892,9 +899,9 @@ processUpdateMemberEvent ::
 processUpdateMemberEvent zusr zcon cid users target update = do
   up <- Data.updateMember cid (memId target) update
   now <- liftIO getCurrentTime
-  let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+  let e = Event MemberStateUpdate (makeIdOpaque cid) (makeIdOpaque zusr) now (Just $ EdMemberUpdate up)
   let ms = applyMemUpdateChanges target up
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
