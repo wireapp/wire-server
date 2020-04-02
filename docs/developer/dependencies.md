@@ -84,7 +84,12 @@ wget -qO- https://get.haskellstack.org/ | sh
 
 ## Rust
 
+Cargo should at least be on version 1.31, since this provides the
+[rename-dependency](https://github.com/rust-lang/cargo/blob/master/CHANGELOG.md#cargo-131-2018-12-06)
+feature.
+
 ### Ubuntu / Debian
+
 ```bash
 sudo apt install rustc cargo -y
 ```
@@ -95,6 +100,7 @@ sudo apt install rustc cargo -y
 curl https://sh.rustup.rs -sSf | sh
 source $HOME/.cargo/env
 ```
+
 ## makedeb
 
 This is a tool to create debian-style binary packages. It is optional, and is only used if you want to install debian-style packages on your debian or ubuntu system.
