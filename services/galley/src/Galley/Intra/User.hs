@@ -139,6 +139,7 @@ getContactList uid = do
 -- address, she can delete other owners (not themselves).  (The last condition makes sure that
 -- no team will ever end up without an owner with an email; this is useful for customer suppor
 -- and billing.)  Admins and owners can delete all members with other roles.
+-- TODO/@@@ can't we just call get "/i/users/:uid/can-be-deleted/:tid"?
 canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
 canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
