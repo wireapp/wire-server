@@ -498,8 +498,11 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
   resolveOpaqueConvId cid >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> removeMemberOfLocalConversation localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      removeMemberOfLocalConversation localConvId
   where
     removeMemberOfLocalConversation convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
@@ -515,7 +518,7 @@ removeMember zusr zcon cid victim = do
           case resolvedVictim of
             Local _ -> pure () -- nothing to do
             Mapped _ -> do
-              -- FUTUREWORK(federation): users can be on other backend, how to notify it?
+              -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
           for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
@@ -596,7 +599,7 @@ postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing 
 postNewOtrMessage usr con cnv val msg = do
   resolveOpaqueConvId cnv >>= \case
     Mapped idMapping ->
-      -- FUTUREWORK(federation): forward message to backend owning the conversation
+      -- FUTUREWORK(federation, #1261): forward message to backend owning the conversation
       throwM . federationNotImplemented $ pure idMapping
     Local localConvId ->
       postToLocalConv localConvId

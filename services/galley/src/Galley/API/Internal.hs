@@ -52,7 +52,7 @@ rmUser user conn = do
     leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()
     leaveConversations u ids = do
       (localConvIds, remoteConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId (result ids)
-      -- FUTUREWORK(federation): leave remote conversations.
+      -- FUTUREWORK(federation, #1275): leave remote conversations.
       -- If we could just get all conversation IDs at once and then leave conversations
       -- in batches, it would make everything much easier.
       for_ (nonEmpty remoteConvIds) $

@@ -19,7 +19,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
--- FUTUREWORK(federation): implement function to resolve IDs in batch
+-- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: MonadReader Env m => OpaqueUserId -> m (MappedOrLocalId Id.U)
@@ -30,5 +30,5 @@ resolveOpaqueUserId (Id opaque) = do
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
     True ->
-      -- FUTUREWORK(federation): implement database lookup
+      -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque

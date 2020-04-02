@@ -60,7 +60,7 @@ lookupClient mappedOrLocalUserId clientId =
     Local u ->
       lift $ lookupLocalClient u clientId
     Mapped IdMapping {idMappingLocal} ->
-      -- FUTUREWORK(federation): look up remote clients
+      -- FUTUREWORK(federation, #1271): look up remote clients
       throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
@@ -71,7 +71,7 @@ lookupClients = \case
   Local u ->
     lift $ lookupLocalClients u
   Mapped IdMapping {idMappingLocal} ->
-    -- FUTUREWORK(federation): look up remote clients
+    -- FUTUREWORK(federation, #1271): look up remote clients
     throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
 
 lookupLocalClients :: UserId -> AppIO [Client]
@@ -129,6 +129,7 @@ claimPrekey u c = case u of
   Local localUser ->
     claimLocalPrekey localUser c
   Mapped _ ->
+    -- FUTUREWORK(federation, #1272): claim key from other backend
     pure Nothing
 
 claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
@@ -143,6 +144,7 @@ claimPrekeyBundle = \case
   Local localUser ->
     claimLocalPrekeyBundle localUser
   Mapped IdMapping {idMappingLocal} ->
+    -- FUTUREWORK(federation, #1272): claim keys from other backend
     pure $ PrekeyBundle (makeMappedIdOpaque idMappingLocal) []
 
 claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
@@ -156,7 +158,7 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
-  -- FUTUREWORK(federation): claim keys from other backends, merge maps
+  -- FUTUREWORK(federation, #1272): claim keys from other backends, merge maps
   lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
   where
     localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)

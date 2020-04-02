@@ -1266,9 +1266,9 @@ listUsers self = \case
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
       -- we might be able to do something smarter if the domain is our own
-      let (localHandles, _remoteHandles) = partitionEithers (map eitherQualifiedOrNot hs)
+      let (localHandles, _qualifiedHandles) = partitionEithers (map eitherQualifiedOrNot hs)
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
-      -- FUTUREWORK(federation): resolve remote handles, too
+      -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       pure (Local <$> localUsers)
     filterSameTeamOnly :: [UserProfile] -> Handler [UserProfile]
     filterSameTeamOnly us = do
