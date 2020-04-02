@@ -55,7 +55,7 @@ where
 
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (hasMore, result)
-import Control.Lens hiding (from, to)
+import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
@@ -177,7 +177,7 @@ updateTeamStatusH (tid ::: req ::: _) = do
 updateTeamStatus :: TeamId -> TeamStatusUpdate -> Galley ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
-  valid <- validateTransition oldStatus newStatus
+  valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
     journal newStatus cur
     Data.updateTeamStatus tid newStatus
@@ -186,7 +186,8 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     journal Active c = Data.teamMembersUnsafeForLargeTeams tid >>= \mems ->
       Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
     journal _ _ = throwM invalidTeamStatusUpdate
-    validateTransition from to = case (from, to) of
+    validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
+    validateTransition = \case
       (PendingActive, Active) -> return True
       (Active, Active) -> return False
       (Active, Suspended) -> return True
