@@ -184,7 +184,7 @@ validateHandle txt = case parseHandle txt of
 --
 --   * @userName@ is mapped to our 'userHandle'.
 --
---   * @displayName@ is mapped to our 'userName'. We don't use the @name@ field, as it
+--   * @displayName@ is mapped to our 'userDisplayName'. We don't use the @name@ field, as it
 --     provides a rather poor model for names.
 --
 --   * The @externalId@ is used to construct a 'SAML.UserRef'. If it looks like an email
@@ -589,7 +589,7 @@ getOrCreateScimUser stiTeam brigUser = do
     createScimUser' brigUser' = do
       let uid = BrigTypes.userId brigUser'
       handle <- getUserHandle' brigUser'
-      let name = userName brigUser'
+      let name = userDisplayName brigUser'
       richInfo <- getRichInfo' uid
       -- NOTE: If user is not an SSO User; this returns Nothing
       -- Hence; we should only set managedByScim if this _succeeds_

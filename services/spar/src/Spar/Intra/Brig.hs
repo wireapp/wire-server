@@ -122,7 +122,7 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
   let newUser :: NewUser
       newUser =
         NewUser
-          { newUserName = uname,
+          { newUserDisplayName = uname,
             newUserUUID = Just buid,
             newUserIdentity = Just $ SSOIdentity (toUserSSOId suid) Nothing Nothing,
             newUserPict = Nothing,

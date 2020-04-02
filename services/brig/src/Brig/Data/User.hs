@@ -106,7 +106,7 @@ newAccount u inv tid = do
   where
     ident = newUserIdentity u
     pass = newUserPassword u
-    name = newUserName u
+    name = newUserDisplayName u
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
     status = case ident of
@@ -166,7 +166,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 $ batc
   addPrepQuery
     userInsert
     ( userId u,
-      userName u,
+      userDisplayName u,
       userPict u,
       userAssets u,
       userEmail u,
@@ -208,7 +208,7 @@ updateUser :: UserId -> UserUpdate -> AppIO ()
 updateUser u UserUpdate {..} = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
-  for_ uupName $ \n -> addPrepQuery userNameUpdate (n, u)
+  for_ uupName $ \n -> addPrepQuery userDisplayNameUpdate (n, u)
   for_ uupPict $ \p -> addPrepQuery userPictUpdate (p, u)
   for_ uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, u)
   for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
@@ -512,8 +512,8 @@ userInsert =
   \country, provider, service, handle, team, managed_by) \
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userNameUpdate :: PrepQuery W (Name, UserId) ()
-userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
+userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
+userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
 
 userPictUpdate :: PrepQuery W (Pict, UserId) ()
 userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?"

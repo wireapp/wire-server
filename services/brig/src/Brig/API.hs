@@ -395,12 +395,12 @@ sitemap o = do
     Doc.response 200 "Update successful." Doc.end
   ---
 
-  get "/self/name" (continue getUserNameH) $
+  get "/self/name" (continue getUserDisplayNameH) $
     accept "application" "json"
       .&. header "Z-User"
   document "GET" "selfName" $ do
     Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Doc.userName)
+    Doc.returns (Doc.ref Doc.userDisplayName)
     Doc.response 200 "Profile name found." Doc.end
   ---
 
@@ -1155,7 +1155,7 @@ createUser (NewUserPublic new) = do
   let lang = userLocale usr
   lift $ do
     for_ (liftM2 (,) (userEmail usr) epair) $ \(e, p) ->
-      sendActivationEmail e (userName usr) p (Just lang) (newUserTeam new)
+      sendActivationEmail e (userDisplayName usr) p (Just lang) (newUserTeam new)
     for_ (liftM2 (,) (userPhone usr) ppair) $ \(p, c) ->
       sendActivationSms p c (Just lang)
     for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
@@ -1236,8 +1236,8 @@ getUser self opaqueUserId = do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
   lift $ API.lookupProfile self resolvedUserId
 
-getUserNameH :: JSON ::: UserId -> Handler Response
-getUserNameH (_ ::: self) = do
+getUserDisplayNameH :: JSON ::: UserId -> Handler Response
+getUserDisplayNameH (_ ::: self) = do
   name :: Maybe Name <- lift $ API.lookupName self
   return $ case name of
     Just n -> json $ object ["name" .= n]
@@ -1706,7 +1706,7 @@ changeEmail u req sendOutEmail = do
     handleActivation usr adata en = do
       when sendOutEmail $ do
         let apair = (activationKey adata, activationCode adata)
-        let name = userName usr
+        let name = userDisplayName usr
         let ident = userIdentity usr
         let lang = userLocale usr
         lift $ sendActivationMail en name apair (Just lang) ident

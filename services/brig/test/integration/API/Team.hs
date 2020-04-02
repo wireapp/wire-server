@@ -204,7 +204,7 @@ testInvitationEmailAndPhoneAccepted brig galley = do
   Just (_, phoneCode) <- getActivationCode brig (Right inviteePhone)
   -- Register the user with the extra supplied information
   (profile, invitation) <- createAndVerifyInvitation (extAccept inviteeEmail inviteeName inviteePhone phoneCode) extInvite brig galley
-  liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userName . selfUser <$> profile)
+  liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userDisplayName . selfUser <$> profile)
   liftIO $ assertEqual "Wrong name in invitation" (Just inviteeName) (inInviteeName invitation)
   liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) (join (userPhone . selfUser <$> profile))
   liftIO $ assertEqual "Wrong phone number in invitation" (Just inviteePhone) (inPhone invitation)

@@ -51,7 +51,7 @@ userActivateJournaled u l (Just ev) = do
   assertEventType l PU.UserEvent'USER_ACTIVATE ev
   assertUserId l (userId u) ev
   assertTeamId l (userTeam u) ev
-  assertName l (Just $ userName u) ev
+  assertName l (Just $ userDisplayName u) ev
   assertEmail l (userEmail u) ev
   assertLocale l (Just $ userLocale u) ev
 userActivateJournaled _ l Nothing = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"

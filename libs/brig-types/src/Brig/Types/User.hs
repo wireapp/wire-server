@@ -107,7 +107,7 @@ connectedProfile u =
   UserProfile
     { profileId = userId u,
       profileHandle = userHandle u,
-      profileName = userName u,
+      profileName = userDisplayName u,
       profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
@@ -162,7 +162,7 @@ data User
         -- verified. {#RefActivation}
         userIdentity :: !(Maybe UserIdentity),
         -- | required; non-unique
-        userName :: !Name,
+        userDisplayName :: !Name,
         -- | DEPRECATED
         userPict :: !Pict,
         userAssets :: [Asset],
@@ -221,7 +221,7 @@ instance ToJSON User where
   toJSON u =
     object $
       "id" .= userId u
-        # "name" .= userName u
+        # "name" .= userDisplayName u
         # "picture" .= userPict u
         # "assets" .= userAssets u
         # "email" .= userEmail u
@@ -454,7 +454,7 @@ emptyRichInfoAssocList = RichInfoAssocList []
 
 data NewUser
   = NewUser
-      { newUserName :: !Name,
+      { newUserDisplayName :: !Name,
         -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
         newUserUUID :: !(Maybe UUID),
         newUserIdentity :: !(Maybe UserIdentity),
@@ -536,7 +536,7 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 instance FromJSON NewUser where
   parseJSON = withObject "new-user" $ \o -> do
     ssoid <- o .:? "sso_id"
-    newUserName <- o .: "name"
+    newUserDisplayName <- o .: "name"
     newUserUUID <- o .:? "uuid"
     newUserIdentity <- parseIdentity ssoid o
     newUserPict <- o .:? "picture"
@@ -558,7 +558,7 @@ instance FromJSON NewUser where
 instance ToJSON NewUser where
   toJSON u =
     object $
-      "name" .= newUserName u
+      "name" .= newUserDisplayName u
         # "uuid" .= newUserUUID u
         # "email" .= newUserEmail u
         # "email_code" .= newUserEmailCode u
