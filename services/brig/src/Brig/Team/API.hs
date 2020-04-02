@@ -17,8 +17,10 @@ import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..))
 import qualified Brig.Types.Swagger as Doc
+import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
+import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens ((^.), view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -133,6 +135,15 @@ routes = do
   post "/i/teams/:tid/unsuspend" (continue unsuspendTeamH) $
     accept "application" "json"
       .&. capture "tid"
+  get "/i/teams/:tid/size" (continue teamSizeH) $
+    accept "application" "json"
+      .&. capture "tid"
+
+teamSizeH :: JSON ::: TeamId -> Handler Response
+teamSizeH (_ ::: t) = json <$> teamSize t
+
+teamSize :: TeamId -> Handler TeamSize
+teamSize t = lift $ ESIndex.teamSize t
 
 getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 getInvitationCodeH (_ ::: t ::: r) = do

@@ -90,6 +90,9 @@ extra-deps:
 - git: https://github.com/wireapp/hspec-wai
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
+- git: https://github.com/bitemyapp/bloodhound
+  commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+
 # amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # Therefore we pin an unreleased commit directly.
 #
@@ -135,7 +138,6 @@ extra-deps:
   - http-conduit
 
 # Dropped from upstream snapshot
-- bloodhound-0.16.0.0
 - template-0.2.0.10
 - HaskellNet-0.5.1
 - HaskellNet-SSL-0.3.4.1

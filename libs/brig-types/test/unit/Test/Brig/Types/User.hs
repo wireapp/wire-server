@@ -19,13 +19,11 @@ import Data.Aeson
 import Data.Aeson.QQ
 import Data.Aeson.Types as Aeson
 import qualified Data.Map as Map
-import Data.Typeable (typeOf)
 import Galley.Types.Teams
 import Imports
-import Test.QuickCheck
+import Test.Brig.Roundtrip
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
@@ -176,45 +174,34 @@ unitTests =
 
 roundtripTests :: [TestTree]
 roundtripTests =
-  [ run @BindingNewTeamUser,
-    run @CheckHandles,
-    run @CompletePasswordReset,
-    run @DeleteUser,
-    run @DeletionCodeTimeout,
-    run @EmailRemove,
-    run @EmailUpdate,
-    run @HandleUpdate,
-    run @InvitationList,
-    run @Invitation,
-    run @InvitationRequest,
-    run @LocaleUpdate,
-    run @NewPasswordReset,
-    run @NewUser,
-    run @PasswordChange,
-    run @PhoneRemove,
-    run @PhoneUpdate,
-    run @ManagedByUpdate,
-    run @ReAuthUser,
-    run @SelfProfile,
-    run @TeamMember,
-    run @UpdateServiceWhitelist,
-    run @UserHandleInfo,
-    run @UserIdentity,
-    run @UserProfile,
-    run @User,
-    run @RichInfo,
-    run @UserUpdate,
-    run @RichInfoUpdate,
-    run @VerifyDeleteUser
+  [ testRoundTrip @BindingNewTeamUser,
+    testRoundTrip @CheckHandles,
+    testRoundTrip @CompletePasswordReset,
+    testRoundTrip @DeleteUser,
+    testRoundTrip @DeletionCodeTimeout,
+    testRoundTrip @EmailRemove,
+    testRoundTrip @EmailUpdate,
+    testRoundTrip @HandleUpdate,
+    testRoundTrip @InvitationList,
+    testRoundTrip @Invitation,
+    testRoundTrip @InvitationRequest,
+    testRoundTrip @LocaleUpdate,
+    testRoundTrip @NewPasswordReset,
+    testRoundTrip @NewUser,
+    testRoundTrip @PasswordChange,
+    testRoundTrip @PhoneRemove,
+    testRoundTrip @PhoneUpdate,
+    testRoundTrip @ManagedByUpdate,
+    testRoundTrip @ReAuthUser,
+    testRoundTrip @SelfProfile,
+    testRoundTrip @TeamMember,
+    testRoundTrip @UpdateServiceWhitelist,
+    testRoundTrip @UserHandleInfo,
+    testRoundTrip @UserIdentity,
+    testRoundTrip @UserProfile,
+    testRoundTrip @User,
+    testRoundTrip @RichInfo,
+    testRoundTrip @UserUpdate,
+    testRoundTrip @RichInfoUpdate,
+    testRoundTrip @VerifyDeleteUser
   ]
-  where
-    run ::
-      forall a.
-      (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
-      TestTree
-    run = testProperty msg trip
-      where
-        msg = show $ typeOf (undefined :: a)
-        trip (v :: a) =
-          counterexample (show $ toJSON v) $
-            Right v === (parseEither parseJSON . toJSON) v

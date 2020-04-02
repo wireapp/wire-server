@@ -9,7 +9,7 @@ import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
 import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object, withObject)
 import Data.Metrics (Metrics)
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import Numeric.Natural (Natural)
 import qualified System.Logger as Logger

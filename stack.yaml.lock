@@ -154,6 +154,20 @@ packages:
     git: https://github.com/wireapp/hspec-wai
     commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 - completed:
+    cabal-file:
+      size: 3259
+      sha256: ab576560da2c4a87de631543f22e00cfec4ce545554220e4cf1033816b7695cd
+    name: bloodhound
+    version: 0.17.0.0
+    git: https://github.com/bitemyapp/bloodhound
+    pantry-tree:
+      size: 4116
+      sha256: 75111095142cc0f7bce196bc89c7494ba0576d0f63039a4953de6cda73ac38ba
+    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+  original:
+    git: https://github.com/bitemyapp/bloodhound
+    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+- completed:
     size: 11137527
     subdir: amazonka
     url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
@@ -363,13 +377,6 @@ packages:
     subdir: http-conduit
     git: https://github.com/wireapp/http-client
     commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
-- completed:
-    hackage: bloodhound-0.16.0.0@sha256:b7be3a83e7b914fbe80a9b9de29009ad60cff072f5f8d4af4ee64de8e6406d32,5508
-    pantry-tree:
-      size: 4812
-      sha256: 7f21ce00e92f7fd24a91dd19a82aab38f62047c1b93f2cc070481760b41a4d37
-  original:
-    hackage: bloodhound-0.16.0.0
 - completed:
     hackage: template-0.2.0.10@sha256:f822de4d34c45bc84b33a61bc112c15fedee6fa6dc414c62b10456395a868f85,987
     pantry-tree:
