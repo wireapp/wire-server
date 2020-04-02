@@ -386,10 +386,8 @@ testRemoveNonBindingTeamMember = do
   c <- view tsCannon
   g <- view tsGalley
   owner <- Util.randomUser
-  let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember, RemoveTeamMember]
-  mem1 <- newTeamMember' p1 <$> Util.randomUser
-  mem2 <- newTeamMember' p2 <$> Util.randomUser
+  mem1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+  mem2 <- newTeamMember' (rolePermissions RoleAdmin) <$> Util.randomUser
   mext1 <- Util.randomUser
   mext2 <- Util.randomUser
   mext3 <- Util.randomUser
@@ -437,8 +435,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   mext <- Util.randomUser
-  let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  mem1 <- newTeamMember' p1 <$> Util.randomUser
+  mem1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
   Util.addTeamMemberInternal tid mem1
   assertQueue "team member join" $ tUpdate 2 [owner]
   Util.connectUsers owner (singleton mext)
@@ -840,12 +837,9 @@ testDeleteBindingTeam ownerHasPassword = do
   owner <- Util.randomUser' ownerHasPassword True Nothing
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  mem1 <- newTeamMember' p1 <$> Util.randomUser
-  let p2 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  mem2 <- newTeamMember' p2 <$> Util.randomUser
-  let p3 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
-  mem3 <- newTeamMember' p3 <$> Util.randomUser
+  mem1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+  mem2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+  mem3 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
   Util.addTeamMemberInternal tid mem1
   assertQueue "team member join 2" $ tUpdate 2 [owner]
   Util.addTeamMemberInternal tid mem2
@@ -1018,8 +1012,7 @@ testUpdateTeamMember = do
   g <- view tsGalley
   c <- view tsCannon
   owner <- Util.randomUser
-  let p = Util.symmPermissions [SetMemberPermissions]
-  member <- newTeamMember' p <$> Util.randomUser
+  member <- newTeamMember' (rolePermissions RoleAdmin) <$> Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   -- Must have at least 1 member with full permissions
