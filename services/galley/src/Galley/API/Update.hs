@@ -86,7 +86,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
-import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
+import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireAdmin, roleNameWireMember)
 import qualified Galley.Types.Proto as Proto
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -461,7 +461,20 @@ mapEvent ev =
       Fed.DataMemberJoin _ -> MemberJoin
 
 mapEventData :: Fed.AnyEventData -> Galley (Maybe EventData)
-mapEventData = undefined -- TODO(federation)
+mapEventData = \case
+  Fed.DataMemberJoin (Fed.MemberJoin simpleMembers) ->
+    Just . EdMembersJoin . SimpleMembers <$> traverse mapSimpleMember simpleMembers
+
+mapSimpleMember :: Fed.SimpleMember -> Galley SimpleMember
+mapSimpleMember m =
+  SimpleMember
+    <$> (makeMappedIdOpaque . idMappingLocal <$> createUserIdMapping (Fed.smId m))
+    <*> pure (mapConversationRole (Fed.smConversationRole m))
+
+mapConversationRole :: Fed.ConversationRole -> RoleName
+mapConversationRole = \case
+  Fed.ConversationRoleAdmin -> roleNameWireAdmin
+  Fed.ConversationRoleMember -> roleNameWireMember
 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do

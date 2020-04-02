@@ -12,6 +12,7 @@ module Wire.API.Federation.Types.Event
     AnyEventData (..),
     MemberJoin (..),
     SimpleMember (..),
+    ConversationRole (..),
   )
 where
 
@@ -22,6 +23,7 @@ import Data.Time
 import Galley.Types ()
 import Galley.Types.Conversations.Roles ()
 import Imports
+import qualified Test.QuickCheck as QC
 import Test.QuickCheck (Arbitrary (arbitrary))
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
@@ -60,15 +62,16 @@ newtype MemberJoin
 data SimpleMember
   = SimpleMember
       { smId :: Qualified UserId,
-        smConversationRole :: RoleName
+        smConversationRole :: ConversationRole
       }
   deriving stock (Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded SimpleMember)
 
-newtype RoleName
-  = RoleName {roleNameText :: Text}
+data ConversationRole
+  = ConversationRoleAdmin
+  | ConversationRoleMember
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, FromJSON)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationRole)
 
 -- Arbitrary
 
@@ -81,5 +84,5 @@ instance Arbitrary MemberJoin where
 instance Arbitrary SimpleMember where
   arbitrary = SimpleMember <$> arbitrary <*> arbitrary
 
-instance Arbitrary RoleName where
-  arbitrary = RoleName <$> arbitrary
+instance Arbitrary ConversationRole where
+  arbitrary = QC.elements [ConversationRoleAdmin, ConversationRoleMember]

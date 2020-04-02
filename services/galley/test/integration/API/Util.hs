@@ -863,7 +863,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberJoin
   evtFrom e @?= makeIdOpaque usr
-  evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+  evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember (makeIdOpaque x) role) new))
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do

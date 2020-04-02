@@ -652,7 +652,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   return (e, fmap (uncurry newMemberWithRole) usrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
-    toSimpleMembers = fmap (uncurry SimpleMember)
+    toSimpleMembers = fmap (uncurry (SimpleMember . makeIdOpaque))
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

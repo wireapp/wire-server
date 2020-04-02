@@ -381,7 +381,7 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
 
 data SimpleMember
   = SimpleMember
-      { smId :: !UserId,
+      { smId :: !OpaqueUserId,
         smConvRoleName :: !RoleName
       }
   deriving (Eq, Show, Generic)

@@ -71,7 +71,7 @@ addBotMember orig s bot cnv now = do
   return (e, BotMember mem)
   where
     toSimpleMember :: UserId -> SimpleMember
-    toSimpleMember u = SimpleMember u roleNameWireAdmin
+    toSimpleMember u = SimpleMember (makeIdOpaque u) roleNameWireAdmin
 
 -- Service --------------------------------------------------------------------
 
