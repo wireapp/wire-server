@@ -448,7 +448,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zUser owner
           . zConn "conn"
       )
-      !!! const 400
+      !!! const 400 -- 403
       === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete
@@ -471,6 +471,8 @@ testRemoveBindingTeamMember ownerHasPassword = do
     !!! do
       const 403 === statusCode
       const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  -- "access-denied" =/= "must-be-owner-with-email"
+
   -- Mem1 is still part of Wire
   Util.ensureDeletedState False owner (mem1 ^. userId)
   WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
@@ -1016,7 +1018,7 @@ testUpdateTeamMember = do
   Util.connectUsers owner (list1 (member ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   -- Must have at least 1 member with full permissions
-  let changeOwner = newNewTeamMember (newTeamMember' p owner)
+  let changeOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
   put
     ( g
         . paths ["teams", toByteString' tid, "members"]
@@ -1057,8 +1059,8 @@ testUpdateTeamMember = do
     owner' <- Util.getTeamMember (member ^. userId) tid owner
     liftIO $ assertEqual "permissions" (owner' ^. permissions) (changeOwner ^. ntmNewTeamMember . permissions)
     -- owner no longer has GetPermissions, but she can still see the update because it's about her!
-    checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
-    checkTeamMemberUpdateEvent tid owner wsMember (pure p)
+    checkTeamMemberUpdateEvent tid owner wsOwner (pure (rolePermissions RoleAdmin))
+    checkTeamMemberUpdateEvent tid owner wsMember (pure (rolePermissions RoleAdmin))
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertQueueEmpty
   where

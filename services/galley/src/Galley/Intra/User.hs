@@ -48,6 +48,7 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import qualified System.Logger.Class as Log
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
@@ -143,6 +144,16 @@ getContactList uid = do
 canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
 canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
+  Log.err . Log.msg $
+    show
+      ( deleterMember,
+        deleteeMember,
+        deleterHasEmail,
+        deleterRole > RoleAdmin,
+        deleterRole > deleteeRole,
+        deleterHasEmail,
+        deleterRole == RoleOwner
+      )
   pure
     if  | deleterRole > RoleAdmin -> False
         | deleterRole > deleteeRole -> False
