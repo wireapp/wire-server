@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d75605e990ced662e68a90ee59831680ff15d186c31a1e37c95f7783cb96b1b
+-- hash: 44e248395f7481555f32ca65a3b6eb87688e963d7aecb87ad3416d717f0dd308
 
 name:           brig
 version:        1.35.0
@@ -437,6 +437,25 @@ executable brig-schema
       schema/src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      base
+    , cassandra-util >=0.12
+    , directory >=1.3
+    , extended
+    , imports
+    , optparse-applicative >=0.10
+    , raw-strings-qq >=1.0
+    , text
+    , tinylog
+    , types-common
+  default-language: Haskell2010
+
+executable brig-schema-check
+  main-is: schema-check/Main.hs
+  other-modules:
+      Paths_brig
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
       base
     , cassandra-util >=0.12

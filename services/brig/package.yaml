@@ -278,3 +278,21 @@ executables:
     - imports
     - optparse-applicative >=0.10
     - types-common
+  brig-schema-check:
+    main: schema-check/Main.hs
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N1
+    - -with-rtsopts=-T
+    - -rtsopts
+    dependencies:
+    - base
+    - cassandra-util >=0.12
+    - directory >=1.3
+    - extended
+    - optparse-applicative >=0.10
+    - raw-strings-qq >=1.0
+    - imports
+    - text
+    - tinylog
+    - types-common
