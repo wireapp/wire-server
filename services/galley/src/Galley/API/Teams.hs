@@ -422,14 +422,14 @@ updateTeamMember zusr zcon tid targetMember = do
       >>= permissionCheck SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  -- target user must be in same team
   Data.teamMember tid targetId >>= \case
-    Nothing -> throwM teamMemberNotFound
-    _ -> pure ()
-  -- cannot demote only owner (effectively removing the last owner)
-  okToDelete <- canDeleteMember user targetMember
-  when (not okToDelete && targetPermissions /= fullPermissions) $
-    throwM youMustBeOwnerWithEmail
+    Nothing -> do
+      -- target user must be in same team
+      throwM teamMemberNotFound
+    Just previousMember -> do
+      -- cannot demote only owner (effectively removing the last owner)
+      okToDowngrade <- canDowngradeTeamMember user previousMember targetPermissions
+      unless okToDowngrade $ throwM youMustBeOwnerWithEmail
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
   (updatedMembers, tooMany) <- Data.teamMembers' tid Nothing
@@ -437,6 +437,14 @@ updateTeamMember zusr zcon tid targetMember = do
   unless tooMany $ do
     updatePeers targetId targetPermissions updatedMembers
   where
+    canDowngradeTeamMember :: TeamMember -> TeamMember -> Permissions -> Galley Bool
+    canDowngradeTeamMember downgrader previousMember targetPermissions = do
+      if ( permissionsRole (previousMember ^. permissions) == Just RoleOwner
+             && permissionsRole targetPermissions /= Just RoleOwner
+         )
+        then canDeleteMember downgrader previousMember
+        else pure True
+    --
     updateJournal :: Team -> [TeamMember] -> Galley ()
     updateJournal team updatedMembers = do
       when (team ^. teamBinding == Binding) $ Journal.teamUpdate tid updatedMembers

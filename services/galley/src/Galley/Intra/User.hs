@@ -144,7 +144,7 @@ canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
   pure
     if  | deleterRole > RoleAdmin -> False
-        | deleterRole < deleteeRole -> False
+        | deleterRole > deleteeRole -> False
         | deleterHasEmail && deleterRole == RoleOwner -> False
         | otherwise -> True
   where

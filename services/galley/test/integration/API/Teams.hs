@@ -25,7 +25,10 @@ import API.Util
 import qualified API.Util as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
+import Brig.Types.Common (UserSSOId (UserSSOId))
+import Brig.Types.Intra (accountUser)
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
+import qualified Brig.Types.User as User
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
@@ -34,6 +37,7 @@ import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
+import Data.Misc ((<$$>))
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
@@ -48,7 +52,7 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
 import Gundeck.Types.Notification
 import Imports
-import Network.HTTP.Types.Status (status403)
+import Network.HTTP.Types.Status (status200, status403)
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -56,7 +60,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers (test)
-import TestSetup (TestM, TestSetup, tsCannon, tsGConf, tsGalley)
+import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
 tests :: IO TestSetup -> TestTree
@@ -429,7 +433,7 @@ testRemoveBindingTeamMember :: Bool -> TestM ()
 testRemoveBindingTeamMember ownerHasPassword = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser' ownerHasPassword True
+  owner <- Util.randomUser' ownerHasPassword True Nothing
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   mext <- Util.randomUser
@@ -506,24 +510,52 @@ testRemoveBindingTeamMember ownerHasPassword = do
 testRemoveBindingTeamOwner :: TestM ()
 testRemoveBindingTeamOwner = do
   ownerA <- Util.randomUser
-  ownerB <- Util.randomUser
-  ownerWithoutEmail <- Util.randomUser' True False
-  admin <- Util.randomUser
-  tid <- do
-    tid <- Util.createBindingTeamInternal "foo" ownerA
-    assertQueue "create team" tActivate
-    pure tid
-  do
-    Util.addTeamMemberInternal tid $ newTeamMember ownerB (rolePermissions RoleOwner) Nothing
-    assertQueue "team member join" $ tUpdate 2 [ownerB, ownerA]
-    Util.addTeamMemberInternal tid $ newTeamMember ownerWithoutEmail (rolePermissions RoleOwner) Nothing
-    assertQueue "team member join" $ tUpdate 3 [ownerWithoutEmail, ownerB, ownerA]
-    Util.addTeamMemberInternal tid $ newTeamMember admin (rolePermissions RoleAdmin) Nothing
-    assertQueue "team member join" $ tUpdate 4 [ownerWithoutEmail, ownerB, ownerA]
+  tid <- Util.createBindingTeamInternal "foo" ownerA
+  ownerB <- do
+    u <- Util.randomUser
+    Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleOwner) Nothing
+    pure u
+  ownerWithoutEmail <- do
+    -- users must have a 'UserIdentity', or @get /i/users@ won't find it, so we use
+    -- 'UserSSOId'.
+    Util.randomUser' True False (Just (ownerA, tid, RoleOwner, UserSSOId "t" "s"))
+  admin <- do
+    u <- Util.randomUser
+    Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleAdmin) Nothing
+    pure u
+  let assertUsers :: HasCallStack => TestM ()
+      assertUsers = do
+        b <- view tsBrig
+        let -- via get /self
+            ensureFound :: HasCallStack => UserId -> TestM ()
+            ensureFound uid = do
+              get (b . path "/self" . zUser uid) !!! const status200 === responseStatus
+        ensureFound ownerA
+        ensureFound ownerB
+        ensureFound ownerWithoutEmail
+        ensureFound admin
+        let -- via get /i/users
+            ensureFound2 :: HasCallStack => UserId -> TestM ()
+            ensureFound2 uid =
+              get
+                ( b . paths ["i", "users"]
+                    . query [("ids", Just $ toByteString' uid)]
+                )
+                !!! const (Just [uid])
+                === ((User.userId . accountUser) <$$>) . responseJsonMaybe
+        ensureFound2 ownerA
+        ensureFound2 ownerB
+        ensureFound2 ownerWithoutEmail
+        ensureFound2 admin
+  assertUsers
   check tid ownerA ownerA False
-  check tid ownerWithoutEmail ownerA False
+  assertUsers
+  check tid ownerB ownerA False
+  assertUsers
   check tid admin ownerA False
-  check tid ownerB ownerA True
+  assertUsers
+  check tid ownerWithoutEmail ownerA True
+  ensureQueueEmpty
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Bool -> TestM ()
     check tid deleter deletee works = do
@@ -805,7 +837,7 @@ testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser' ownerHasPassword True
+  owner <- Util.randomUser' ownerHasPassword True Nothing
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   let p1 = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]

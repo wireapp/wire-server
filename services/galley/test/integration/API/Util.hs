@@ -901,19 +901,27 @@ randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
 
 randomUser :: HasCallStack => TestM UserId
-randomUser = randomUser' True True
+randomUser = randomUser' True True Nothing
 
-randomUser' :: HasCallStack => Bool -> Bool -> TestM UserId
-randomUser' hasPassword hasEmail = do
+randomUser' :: HasCallStack => Bool -> Bool -> Maybe (UserId, TeamId, Role, UserSSOId) -> TestM UserId
+randomUser' hasPassword hasEmail teamInfo = do
   b <- view tsBrig
+  g <- view tsGalley
   e <- liftIO randomEmail
   let p =
         object $
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
+            <> ["team_id" .= view _2 (fromJust teamInfo) | isJust teamInfo]
+            <> ["sso_id" .= view _4 (fromJust teamInfo) | isJust teamInfo]
   r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
+  uid <- fromBS (getHeader' "Location" r)
+  forM_ teamInfo $ \(ownerid, tid, role, _) -> do
+    let upd = newNewTeamMember $ newTeamMember uid (rolePermissions role) Nothing
+    put (g . zUser ownerid . zConn "conn" . paths ["teams", toByteString' tid, "members"] . json upd)
+      !!! const 200 === statusCode
+  pure uid
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
