@@ -1,0 +1,11 @@
+run-mode: add
+source-paths:
+- libs
+- services
+template-paths:
+- headroom-templates
+variables:
+  author: Wire Swiss GmbH
+  email: opensource@wire.com
+  project: wire-server
+  year: '2020'
