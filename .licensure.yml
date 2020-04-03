@@ -23,7 +23,7 @@ licenses:
   # based on their file paths.
   #
   # If "any" is provided all files will match this license.
-  - files: .*\.(hs|rs)
+  - files: .*\.(hs|hsc|rs)
     ident: AGPL-3.0
     authors:
       - name: Wire Swiss GmbH
@@ -50,6 +50,7 @@ comments:
   - columns: 80
     extensions:
       - hs
+      - hsc
     commenter:
       type: line
       comment_char: "--"
