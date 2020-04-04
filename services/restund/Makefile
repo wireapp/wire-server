@@ -8,7 +8,7 @@ RE_TARBALL      := re-$(RE_VERSION).tar.gz
 RE_SRC          := src/re-$(RE_VERSION)/Makefile
 RE_URL          := https://github.com/creytiv/re/archive
 
-RESTUND_VERSION := 0.4.13
+RESTUND_VERSION := 0.4.14
 RESTUND_TARBALL := restund-$(RESTUND_VERSION).tar.gz
 RESTUND_SRC     := src/restund-$(RESTUND_VERSION)/Makefile
 RESTUND_URL     := https://github.com/wireapp/restund/archive
