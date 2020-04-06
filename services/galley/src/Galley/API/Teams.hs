@@ -605,7 +605,8 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   o <- view options
-  unless (length mems < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+  (TeamSize teamSize) <- BrigTeam.getSize tid
+  unless (teamSize < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwM tooManyTeamMembers
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
@@ -613,10 +614,10 @@ addTeamMemberInternal tid origin originConn newMem mems = do
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  push1 $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
+  push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   where
-    r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
-    r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
+    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
+    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
