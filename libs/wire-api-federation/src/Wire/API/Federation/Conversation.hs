@@ -3,10 +3,10 @@
 module Wire.API.Federation.Conversation where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (ConvId)
+import Data.Id (ConvId, UserId)
 import Data.Qualified (Qualified)
 import Imports
-import Servant.API ((:>), Capture, JSON, Post)
+import Servant.API ((:>), Capture, JSON, Post, ReqBody)
 import Servant.API.Generic ((:-))
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
@@ -21,8 +21,17 @@ data Api routes
             :> "conversation"
             :> Capture "cnv" (Qualified ConvId)
             :> "join"
+            :> ReqBody '[JSON] JoinConversationByIdRequest
             :> Post '[JSON] (ConversationUpdateResult MemberJoin)
       }
+  deriving (Generic)
+
+data JoinConversationByIdRequest
+  = JoinConversationByIdRequest
+      { joinUserId :: Qualified UserId
+      }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded JoinConversationByIdRequest)
 
 data ConversationUpdateResult a
   = ConversationUpdated (Event a)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 66412545e3dadead048688decadfc395644cf28b6894ed8ddf73c534eafc8ef2
+-- hash: db92f7a6dc7ed1fe8af1443a3a1064806529c8d9634f1053b9e017596f033edf
 
 name:           federator
 version:        1.0.0
@@ -20,8 +20,10 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Error
       Federator.Impl
       Federator.Options
+      Federator.Remote
       Federator.Run
       Federator.Types
       Federator.Util
@@ -32,26 +34,36 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
     , brig-types
     , bytestring-conversion
     , data-default
+    , dns
     , email-validate
     , errors
     , exceptions
     , extended
+    , federation-util
     , galley-types
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog
@@ -72,27 +84,37 @@ executable federator
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
     , brig-types
     , bytestring-conversion
     , data-default
+    , dns
     , email-validate
     , errors
     , exceptions
     , extended
+    , federation-util
     , federator
     , galley-types
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog

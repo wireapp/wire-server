@@ -29,26 +29,15 @@ where
 import Bilge (RequestId (unRequestId))
 import Bilge.RPC (HasRequestId (..))
 import Control.Error (ExceptT)
-import Control.Lens ((^.), view)
+import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT, runResourceT, transResourceT)
-import Data.Default (def)
-import qualified Data.Metrics.Middleware as Metrics
-import Data.Proxy
-import Data.Text (unpack)
-import qualified Federator.Options as Opt
 import Federator.Types (Env, applog, requestId)
 import Imports
-import Network.Wai (Application)
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Utilities.Server as Server
 import Servant.API.Generic ()
 import Servant.Server ()
-import Servant.Server.Generic (AsServerT, genericServe)
 import System.Logger.Class as LC
-import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
-import Util.Options
 
 -- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.

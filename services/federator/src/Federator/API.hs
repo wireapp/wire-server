@@ -59,7 +59,7 @@ data API route
             :> "conversations"
             :> Capture "cnv" (Qualified ConvId)
             :> "join"
-            :> ReqBody '[JSON] JoinConversationByIdRequest
+            :> ReqBody '[JSON] Fed.JoinConversationByIdRequest
             :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin)
       }
   deriving (Generic)
@@ -72,12 +72,6 @@ data API route
 -- TODO: the client ids in the 'PrekeyBundle' aren't really needed here.  do we want to make a
 -- new type for that, then?
 
-data JoinConversationByIdRequest
-  = JoinConversationByIdRequest
-      { joinUserId :: Qualified UserId
-      }
-  deriving (Eq, Show, Generic)
-
 data FUser
   = FUser
       { _fuGlobalHandle :: !(Qualified Handle),
@@ -86,8 +80,6 @@ data FUser
   deriving (Eq, Show, Generic)
 
 -- TODO: use Generics
-deriveJSON wireJsonOptions ''JoinConversationByIdRequest
-
 deriveJSON wireJsonOptions ''FUser
 
 instance Arbitrary FUser where
