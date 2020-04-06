@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Team.API where
 
 import Brig.API.Error
@@ -177,7 +194,6 @@ createInvitation uid tid body = do
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   ensurePermissionToAddUser uid tid inviteePerms
-
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
@@ -190,24 +206,21 @@ createInvitation uid tid body = do
   emailTaken <- lift $ isJust <$> Data.lookupKey uke
   when emailTaken $
     throwStd emailExists
-
   -- Validate phone
   phone <- for (irPhone body) $ \p -> do
-      validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
-      let ukp = userPhoneKey validatedPhone
-      blacklistedPh <- lift $ Blacklist.exists ukp
-      when blacklistedPh $
-        throwStd blacklistedPhone
-      phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
-      when phoneTaken $
-        throwStd phoneExists
-      return validatedPhone
-
+    validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
+    let ukp = userPhoneKey validatedPhone
+    blacklistedPh <- lift $ Blacklist.exists ukp
+    when blacklistedPh $
+      throwStd blacklistedPhone
+    phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+    when phoneTaken $
+      throwStd phoneExists
+    return validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-
   doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
   where
     doInvite role toEmail from lc toName toPhone = lift $ do
