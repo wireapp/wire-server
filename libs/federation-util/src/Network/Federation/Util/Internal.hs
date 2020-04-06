@@ -57,16 +57,17 @@
 
 module Network.Federation.Util.Internal where
 
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Imports
 import Network.DNS
 import System.Random
+import Util.Options (Endpoint (Endpoint))
 
 -- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
 -- provides a list of A(AAA) names and port numbers upon a successful
 -- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
 -- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp
-srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [(Domain, Word16)])
+srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [Endpoint])
 srvLookup' = srvLookup'' lookupSRV
 
 -- internal version for testing
@@ -75,19 +76,24 @@ srvLookup'' ::
   Text ->
   Text ->
   ResolvSeed ->
-  IO (Maybe [(Domain, Word16)])
+  IO (Maybe [Endpoint])
 srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
   srvResult <- lookupF resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
   case srvResult of
+    -- The service is not available at this domain.
+    Left _ -> return Nothing
     Right [] -> return Nothing
     Right [(_, _, _, ".")] -> return Nothing -- "not available" as in RFC2782
     Right srvResult' -> do
       -- Get [(Domain, PortNumber)] of SRV request, if any.
       -- Sorts the records based on the priority value.
       orderedSrvResult <- orderSrvResult srvResult'
-      return $ Just $ fmap (\(_, _, port, domain) -> (domain, port)) orderedSrvResult
-    -- The service is not available at this domain.
-    Left _ -> return Nothing
+      return $ traverse mkEndpoint orderedSrvResult
+  where
+    mkEndpoint (_, _, port, target) =
+      case decodeUtf8' target of
+        Right t -> Just (Endpoint t port)
+        Left _ -> Nothing
 
 -- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)
 --

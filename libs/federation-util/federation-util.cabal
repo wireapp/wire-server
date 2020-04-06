@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 312f8e843a350a0a87c70b3b868a3e29f0ec6d30aaa8913ec0a40e33ba30e6bd
+-- hash: 9438984434170e165097d8814a9487882a8158adbacecd7fad9e2603e113ba3d
 
 name:           federation-util
 version:        0.1.0
@@ -47,6 +47,7 @@ library
     , text >=0.11
     , tinylog >=0.8
     , transformers >=0.3
+    , types-common
   default-language: Haskell2010
 
 test-suite spec
@@ -81,5 +82,6 @@ test-suite spec
     , text >=0.11
     , tinylog >=0.8
     , transformers >=0.3
+    , types-common
     , uri-bytestring
   default-language: Haskell2010
