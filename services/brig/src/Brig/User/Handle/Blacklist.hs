@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.User.Handle.Blacklist (isBlacklistedHandle) where
+module Brig.User.Handle.Blacklist
+  ( isBlacklistedHandle,
+  )
+where
 
 import Data.Handle (Handle (Handle))
 import qualified Data.HashSet as HashSet

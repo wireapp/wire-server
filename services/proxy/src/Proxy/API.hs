@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.API (sitemap) where
+module Proxy.API
+  ( sitemap,
+  )
+where
 
 import qualified Bilge.Request as Req
 import qualified Bilge.Response as Res

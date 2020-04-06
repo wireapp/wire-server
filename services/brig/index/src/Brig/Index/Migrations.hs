@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Index.Migrations (migrate) where
+module Brig.Index.Migrations
+  ( migrate,
+  )
+where
 
 import Brig.Index.Migrations.Types
 import qualified Brig.Index.Migrations.V1_ReIndexForSearchTeamMembers as V1_ReIndexForSearchTeamMembers

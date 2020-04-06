@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Client (tests) where
+module API.User.Client
+  ( tests,
+  )
+where
 
 import API.User.Util
 import Bilge hiding (accept, head, timeout)

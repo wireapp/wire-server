@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Handles (tests) where
+module API.User.Handles
+  ( tests,
+  )
+where
 
 import qualified API.Search.Util as Search
 import API.Team.Util

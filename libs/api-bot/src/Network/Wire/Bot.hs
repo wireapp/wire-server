@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Network.Wire.Bot (module M) where
+module Network.Wire.Bot
+  ( module M,
+  )
+where
 
 import Network.Wire.Bot.Email as M
 import Network.Wire.Bot.Monad as M
