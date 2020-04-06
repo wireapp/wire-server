@@ -110,42 +110,6 @@ executables:
     when:
     - condition: flag(static)
       ld-options: -static
-  galley-journaler:
-    main: Main.hs
-    source-dirs: journaler/src
-    ghc-options:
-    - -funbox-strict-fields
-    - -threaded
-    - -with-rtsopts=-N1
-    - -with-rtsopts=-T
-    - -rtsopts
-    dependencies:
-    - amazonka
-    - amazonka-sqs
-    - base
-    - galley
-    - HsOpenSSL
-    - optparse-applicative
-    - cassandra-util
-    - lens
-    - text
-    - mtl
-    - galley-types
-    - proto-lens
-    - HsOpenSSL
-    - HsOpenSSL-x509-system
-    - http-client
-    - http-client-openssl
-    - proto-lens-protoc
-    - bytestring
-    - bytestring-conversion
-    - types-common
-    - types-common-journal
-    - time
-    - tinylog
-    - bytestring
-    - uuid
-    - unliftio
   galley-integration:
     main: Main.hs
     source-dirs: test/integration

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 530e664bcf56e67fb62c37e7d96cb9edeede0c1bc157838f5dc08eed23291dff
+-- hash: dc8ff3c5811a0699ddcb505d315b8917f0d0a0bd8a6fd07e280c8816bfa2a235
 
 name:           galley
 version:        0.83.0
@@ -262,48 +262,6 @@ executable galley-integration
     , warp
     , warp-tls >=3.2
     , yaml
-  default-language: Haskell2010
-
-executable galley-journaler
-  main-is: Main.hs
-  other-modules:
-      Journal
-      Options
-      Paths_galley
-  hs-source-dirs:
-      journaler/src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
-  build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , amazonka
-    , amazonka-sqs
-    , base
-    , bytestring
-    , bytestring-conversion
-    , cassandra-util
-    , extended
-    , galley
-    , galley-types
-    , http-client
-    , http-client-openssl
-    , imports
-    , lens
-    , mtl
-    , optparse-applicative
-    , proto-lens
-    , proto-lens-protoc
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , ssl-util
-    , text
-    , time
-    , tinylog
-    , types-common
-    , types-common-journal
-    , unliftio
-    , uuid
   default-language: Haskell2010
 
 executable galley-schema
