@@ -12,9 +12,8 @@ where
 import Data.Bits
 import qualified Data.UUID as D
 import qualified Data.UUID.V4 as D4
-import Test.QuickCheck (arbitrary, Arbitrary)
-
 import Imports
+import Test.QuickCheck (Arbitrary, arbitrary)
 
 -- | Versioned UUID.
 newtype UUID v = UUID D.UUID deriving (Eq, Ord, Show)
@@ -65,7 +64,6 @@ addv4 (UUID a) (UUID b) =
           (retainVersion 4 (x1 + y1))
           (retainVariant 2 (x2 + y2))
           (x3 + y3)
-
 
 -- | Tell the version number of a 'D.UUID' value.
 version :: D.UUID -> Word32

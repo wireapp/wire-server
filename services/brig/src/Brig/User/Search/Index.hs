@@ -349,8 +349,8 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
       fromEncoding . pairs . pair "index" . pairs $
         "_id" .= docId
           <> "_version" .= v
+          -- "external_gt or external_gte"
           <> "_version_type" .= (indexUpdateToVersionControlText updateType)
-                              -- ^ "external_gt or external_gte"
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -468,11 +468,11 @@ reindexAllWith updateType = do
 
 -- This is useful and necessary due to the lack of expressiveness in the bulk API
 indexUpdateToVersionControlText :: IndexDocUpdateType -> Text
-indexUpdateToVersionControlText IndexUpdateIfNewerVersion       = "external_gt"
+indexUpdateToVersionControlText IndexUpdateIfNewerVersion = "external_gt"
 indexUpdateToVersionControlText IndexUpdateIfSameOrNewerVersion = "external_gte"
 
 indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> ES.VersionControl)
-indexUpdateToVersionControl IndexUpdateIfNewerVersion       = ES.ExternalGT
+indexUpdateToVersionControl IndexUpdateIfNewerVersion = ES.ExternalGT
 indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
 traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply
