@@ -49,6 +49,9 @@ data API route
             :> "users"
             :> Capture "fqu" (Qualified UserId)
             :> "prekeys"
+            -- FUTUREWORK(federation):
+            -- this should return a version of PrekeyBundle with qualified UserId,
+            -- defined in wire-api-federation
             :> Get '[JSON] PrekeyBundle,
         _gapiJoinConversationById ::
           route

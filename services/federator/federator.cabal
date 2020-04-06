@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3279c92d74b572d9f049509a46df3402acd5b707a8c267c0c46ba2ddc75e1507
+-- hash: 66412545e3dadead048688decadfc395644cf28b6894ed8ddf73c534eafc8ef2
 
 name:           federator
 version:        1.0.0
@@ -20,6 +20,7 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Impl
       Federator.Options
       Federator.Run
       Federator.Types
@@ -49,7 +50,6 @@ library
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
     , servant-server
     , servant-swagger
     , string-conversions
@@ -91,7 +91,6 @@ executable federator
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
     , servant-server
     , servant-swagger
     , string-conversions

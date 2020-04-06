@@ -27,7 +27,6 @@ dependencies:
 - QuickCheck
 - resourcet
 - servant
-- servant-mock
 - servant-server
 - servant-swagger
 - string-conversions

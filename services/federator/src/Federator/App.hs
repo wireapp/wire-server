@@ -1,5 +1,5 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,19 +19,78 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.App
-  ( app,
+  ( AppT,
+    AppIO,
+    runAppT,
+    runAppResourceT,
   )
 where
 
+import Bilge (RequestId (unRequestId))
+import Bilge.RPC (HasRequestId (..))
+import Control.Error (ExceptT)
+import Control.Lens ((^.), view)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT, runResourceT, transResourceT)
+import Data.Default (def)
+import qualified Data.Metrics.Middleware as Metrics
 import Data.Proxy
-import qualified Federator.API as API
-import Federator.Types
-import Network.Wai
-import Servant.API.Generic
-import Servant.Mock
-import Servant.Server
+import Data.Text (unpack)
+import qualified Federator.Options as Opt
+import Federator.Types (Env, applog, requestId)
+import Imports
+import Network.Wai (Application)
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Utilities.Server as Server
+import Servant.API.Generic ()
+import Servant.Server ()
+import Servant.Server.Generic (AsServerT, genericServe)
+import System.Logger.Class as LC
+import qualified System.Logger.Class as LC
+import qualified System.Logger.Extended as Log
+import Util.Options
 
-app :: Env -> Application
-app _ = serve api (mock api Proxy)
-  where
-    api = Proxy @(ToServantApi API.API)
+-- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
+-- takes 'Env' as one more argument.
+newtype AppT m a
+  = AppT
+      { unAppT :: ReaderT Env m a
+      }
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadReader Env
+    )
+
+type AppIO = AppT IO
+
+instance MonadIO m => LC.MonadLogger (AppT m) where
+  log l m = do
+    g <- view applog
+    r <- view requestId
+    Log.log g l $ field "request" (unRequestId r) ~~ m
+
+instance MonadIO m => LC.MonadLogger (ExceptT err (AppT m)) where
+  log l m = lift (LC.log l m)
+
+instance Monad m => HasRequestId (AppT m) where
+  getRequestId = view requestId
+
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+  withRunInIO inner =
+    AppT $ ReaderT $ \r ->
+      withRunInIO $ \runner ->
+        inner (runner . flip runReaderT r . unAppT)
+
+runAppT :: Env -> AppT m a -> m a
+runAppT e (AppT ma) = runReaderT ma e
+
+runAppResourceT :: ResourceT AppIO a -> AppIO a
+runAppResourceT ma = do
+  e <- ask
+  liftIO . runResourceT $ transResourceT (runAppT e) ma
