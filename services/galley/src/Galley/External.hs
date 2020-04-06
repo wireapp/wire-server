@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.External (deliver) where
+module Galley.External
+  ( deliver,
+  )
+where
 
 import Bilge.Request
 import Bilge.Retry (httpHandlers)

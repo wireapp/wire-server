@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cassandra.Util (writeTimeToUTC, defInitCassandra, Writetime) where
+module Cassandra.Util
+  ( writeTimeToUTC,
+    defInitCassandra,
+    Writetime,
+  )
+where
 
 import Cassandra (ClientState, Keyspace (Keyspace), init)
 import Cassandra.Settings (defSettings, setContacts, setKeyspace, setLogger, setPortNumber)

@@ -1,3 +1,8 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -14,11 +19,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | This is 'MockGundeck', a re-implementation of the 'Gundeck' monad with mock effects.  This has
 -- been developed to test 'Gundeck.Push.pushAll' and 'Gundeck.Push.Websocket.bulkPush', but can be

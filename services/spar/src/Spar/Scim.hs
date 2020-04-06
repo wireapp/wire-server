@@ -1,3 +1,9 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-missing-methods
+    -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -14,12 +20,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-missing-methods
-    -Wno-orphans #-}
 
 -- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
 -- in the instance near the Spar type; alternatively, @hscim@ could be changed)

@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware) where
+module Data.Metrics.Middleware.Prometheus
+  ( waiPrometheusMiddleware,
+  )
+where
 
 import Data.Maybe (fromMaybe)
 import Data.Metrics.Types (Paths)

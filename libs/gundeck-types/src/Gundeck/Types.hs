@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Types (module G) where
+module Gundeck.Types
+  ( module G,
+  )
+where
 
 import Gundeck.Types.Event as G
 import Gundeck.Types.Notification as G

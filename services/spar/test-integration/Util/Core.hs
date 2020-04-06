@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -14,8 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-{-# LANGUAGE RecordWildCards #-}
 
 -- | Two (weak) reasons why I implemented the clients without the help of servant-client: (1) I
 -- wanted smooth integration in 'HttpMonad'; (2) I wanted the choice of receiving the unparsed

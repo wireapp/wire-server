@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main (main) where
+module Main
+  ( main,
+  )
+where
 
 import Imports
 import qualified Test.Domain as Domain
