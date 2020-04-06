@@ -177,7 +177,6 @@ createInvitation uid tid body = do
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   ensurePermissionToAddUser uid tid inviteePerms
-
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
@@ -190,24 +189,21 @@ createInvitation uid tid body = do
   emailTaken <- lift $ isJust <$> Data.lookupKey uke
   when emailTaken $
     throwStd emailExists
-
   -- Validate phone
   phone <- for (irPhone body) $ \p -> do
-      validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
-      let ukp = userPhoneKey validatedPhone
-      blacklistedPh <- lift $ Blacklist.exists ukp
-      when blacklistedPh $
-        throwStd blacklistedPhone
-      phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
-      when phoneTaken $
-        throwStd phoneExists
-      return validatedPhone
-
+    validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
+    let ukp = userPhoneKey validatedPhone
+    blacklistedPh <- lift $ Blacklist.exists ukp
+    when blacklistedPh $
+      throwStd blacklistedPhone
+    phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+    when phoneTaken $
+      throwStd phoneExists
+    return validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-
   doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
   where
     doInvite role toEmail from lc toName toPhone = lift $ do
