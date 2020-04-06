@@ -36,19 +36,29 @@ haddock-shallow:
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
 format:
-	licensure -p
 	./tools/ormolu.sh
 
 # formats all Haskell files even if local changes are not committed to git
 .PHONY: formatf
 formatf:
-	licensure -p
 	./tools/ormolu.sh -f
 
 # checks that all Haskell files are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
 formatc:
 	./tools/ormolu.sh -c
+
+.PHONY: add-license
+add-license:
+	# For any Haskell or Rust file that doesn't mention AGPL yet,
+	#   add a license header.
+	# It's your own reponsibility to keep ormolu happy.
+	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.rs$$'); do \
+		echo "Adding license to $${file}."; \
+		licensure -i $${file}; \
+	done;
+	@echo ""
+	@echo "you most probably want to run 'make formatf' now to keep ormolu happy"
 
 # Clean
 .PHONY: clean
