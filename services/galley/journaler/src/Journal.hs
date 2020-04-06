@@ -50,7 +50,8 @@ runCommand l env c start = void $ C.runClient c $ do
     journalTeamActivate :: TeamId -> Maybe TeamCreationTime -> C.Client ()
     journalTeamActivate tid time = do
       mems <- Data.teamMembersUnsafeForLargeTeams tid
-      let dat = Journal.evData mems Nothing
+      -- TODO(akshay): Figure out how to call brig from here
+      let dat = Journal.evData (fromIntegral $ length mems) mems Nothing
       publish tid TeamEvent'TEAM_ACTIVATE time (Just dat)
     publish :: TeamId -> TeamEvent'EventType -> Maybe TeamCreationTime -> Maybe TeamEvent'EventData -> C.Client ()
     publish tid typ time dat = do

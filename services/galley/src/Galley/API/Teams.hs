@@ -35,6 +35,7 @@ module Galley.API.Teams
   )
 where
 
+import Brig.Types.Team (TeamSize (..))
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (hasMore, result)
 import Control.Lens hiding (from, to)
@@ -60,6 +61,7 @@ import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import qualified Galley.Intra.Spar as Spar
+import qualified Galley.Intra.Team as BrigTeam
 import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -165,8 +167,11 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     Data.updateTeamStatus tid newStatus
   where
     journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = Data.teamMembersUnsafeForLargeTeams tid >>= \mems ->
-      Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
+    journal Active c = do
+      mems <- Data.teamMembersUnsafeForLargeTeams tid
+      teamCreationTime <- Data.teamCreationTime tid
+      (TeamSize size) <- BrigTeam.getSize tid
+      Journal.teamActivate tid size mems c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition from to = case (from, to) of
       (PendingActive, Active) -> return True
@@ -379,8 +384,9 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersUnsafeForLargeTeams tid
+  (TeamSize sizeBeforeAdd) <- BrigTeam.getSize tid
   addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -417,7 +423,9 @@ updateTeamMember zusr zcon tid targetMember = do
   let otherMembers = filter (\u -> u ^. userId /= targetId) members
       updatedMembers = targetMember : otherMembers
   -- note the change in the journal
-  when (team ^. teamBinding == Binding) $ Journal.teamUpdate tid updatedMembers
+  when (team ^. teamBinding == Binding) $ do
+    (TeamSize size) <- BrigTeam.getSize tid
+    Journal.teamUpdate tid size updatedMembers
   -- inform members of the team about the change
   -- some (privileged) users will be informed about which change was applied
   let privileged = filter (`canSeePermsOf` targetMember) updatedMembers
@@ -458,8 +466,9 @@ deleteTeamMember zusr zcon tid remove mBody = do
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
+      (TeamSize sizeBeforeDelete) <- BrigTeam.getSize tid
       deleteUser remove
-      Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
+      Journal.teamUpdate tid (sizeBeforeDelete - 1) (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
       uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
