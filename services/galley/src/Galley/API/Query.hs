@@ -100,7 +100,7 @@ getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) Opa
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
     (localConvIds, _qualifiedConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId ids
-    -- FUTUREWORK(federation): fetch remote conversations from other backend
+    -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
     cs <-
       Data.conversations localConvIds
         >>= filterM removeDeleted

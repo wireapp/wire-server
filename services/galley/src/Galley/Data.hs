@@ -698,7 +698,7 @@ removeMembers conv orig victims = do
           pure ()
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
-    -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
+    -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
     leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims
     localIdOrNothing = \case
       Local localId -> Just localId

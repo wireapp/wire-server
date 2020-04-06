@@ -74,7 +74,7 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  -- FUTUREWORK(federation): handle remote users (can't be part of the same team, just check connections)
+  -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
   ensureConnected u (Local <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
@@ -86,7 +86,7 @@ ensureConnected :: UserId -> [MappedOrLocalId Id.U] -> Galley ()
 ensureConnected _ [] = pure ()
 ensureConnected u mappedOrLocalUserIds = do
   let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
-  -- FUTUREWORK(federation): check remote connections
+  -- FUTUREWORK(federation, #1262): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
   ensureConnectedToLocals u localUserIds
@@ -259,7 +259,7 @@ getConversationAndCheckMembershipWithError ex zusr = \case
       throwM ex
     return c
 
--- FUTUREWORK(federation): implement function to resolve IDs in batch
+-- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
@@ -270,7 +270,7 @@ resolveOpaqueUserId (Id opaque) = do
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
     True ->
-      -- FUTUREWORK(federation): implement database lookup
+      -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
@@ -282,5 +282,5 @@ resolveOpaqueConvId (Id opaque) = do
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
     True ->
-      -- FUTUREWORK(federation): implement database lookup
+      -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque

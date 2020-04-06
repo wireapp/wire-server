@@ -83,6 +83,9 @@ searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
 
 search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (SearchResult Contact)
 search searcherId searchTerm maxResults = do
+  -- FUTUREWORK(federation, #1269):
+  -- If the query contains a qualified handle, forward the search to the remote
+  -- backend.
   searcherTeamId <- DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
   let teamSearchInfo =
