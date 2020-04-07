@@ -4,10 +4,13 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import Brig.Types.Team.Invitation
+import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import Data.Aeson.Lens (key)
+import Data.Aeson.Lens (_String, key)
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -23,12 +26,14 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
+import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Proto as Proto
+import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification hiding (target)
@@ -38,6 +43,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import Web.Cookie
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -47,11 +53,27 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  ownerid <- randomUser
-  let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
-  teamid <- createTeamInternal tname ownerid
+  ownerid <- randomUserWithTeam
+  teams <- getTeams ownerid
+  let [team] = view (teamListTeams) teams
+  let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
-  pure (ownerid, teamid)
+  refreshIndex
+  pure (ownerid, tid)
+
+getTeams :: UserId -> TestM TeamList
+getTeams u = do
+  g <- view tsGalley
+  r <-
+    get
+      ( g
+          . paths ["teams"]
+          . zUser u
+          . zConn "conn"
+          . zType "access"
+          . expect2xx
+      )
+  return $ responseJsonUnsafe r
 
 createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
 createBindingTeamWithNMembers n = do
@@ -179,6 +201,98 @@ addTeamMemberInternal tid mem = do
   let payload = json (newNewTeamMember mem)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
     !!! const 200 === statusCode
+
+stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
+stdInvitationRequest e inviterName loc role =
+  InvitationRequest e inviterName loc role Nothing Nothing
+
+addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
+addUserToTeam = addUserToTeamWithRole Nothing
+
+addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
+addUserToTeamWithRole role inviter tid = do
+  brig <- view tsBrig
+  inviteeEmail <- randomEmail
+  let name = Name $ fromEmail inviteeEmail
+  let invite = stdInvitationRequest inviteeEmail name Nothing role
+  invResponse <- postInvitation tid inviter invite
+  inv <- responseJsonError invResponse
+  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  rsp2 <-
+    post
+      ( brig . path "/register"
+          . contentJson
+          . body (acceptInviteBody name inviteeEmail inviteeCode)
+      )
+      <!! const 201 === statusCode
+  let invitee :: User = responseJsonUnsafe rsp2
+      inviteeId = Brig.Types.userId invitee
+  let invmeta = Just (inviter, inCreatedAt inv)
+  mem <- getTeamMember inviteeId tid inviteeId
+  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+  let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
+  liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
+  pure mem
+
+addUserToTeamWithSSO :: HasCallStack => TeamId -> TestM TeamMember
+addUserToTeamWithSSO tid = do
+  let ssoid = UserSSOId "nil" "nil"
+  user <- responseJsonError =<< postUser "SSO User" True (Just ssoid) (Just tid)
+  let uid = Brig.Types.userId user
+  getTeamMember uid tid uid
+
+makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
+makeOwner owner mem tid = do
+  galley <- view tsGalley
+  let changeMember = newNewTeamMember (mem & permissions .~ fullPermissions)
+  put
+    ( galley
+        . paths ["teams", toByteString' tid, "members"]
+        . zUser owner
+        . zConn "conn"
+        . json changeMember
+    )
+    !!! const 200
+    === statusCode
+
+acceptInviteBody :: Name -> Email -> InvitationCode -> RequestBody
+acceptInviteBody name email code =
+  RequestBodyLBS . encode $
+    object
+      [ "name" .= fromName name,
+        "email" .= fromEmail email,
+        "password" .= defPassword,
+        "team_code" .= code
+      ]
+
+postInvitation :: TeamId -> UserId -> InvitationRequest -> TestM ResponseLBS
+postInvitation t u i = do
+  brig <- view tsBrig
+  post $
+    brig
+      . paths ["teams", toByteString' t, "invitations"]
+      . contentJson
+      . body (RequestBodyLBS $ encode i)
+      . zAuthAccess u "conn"
+
+zAuthAccess :: UserId -> ByteString -> (Request -> Request)
+zAuthAccess u conn =
+  zUser u
+    . zConn conn
+    . zType "access"
+
+getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM (Maybe InvitationCode)
+getInvitationCode t ref = do
+  brig <- view tsBrig
+  r <-
+    get
+      ( brig
+          . path "/i/teams/invitation-code"
+          . queryItem "team" (toByteString' t)
+          . queryItem "invitation_id" (toByteString' ref)
+      )
+  let lbs = fromMaybe "" $ responseBody r
+  return $ fromByteString . fromMaybe (error "No code?") $ Text.encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 -- Note that here we don't make use of the datatype because NewConv has a default
 -- and therefore cannot be unset. However, given that this is to test the legacy
@@ -888,13 +1002,22 @@ randomUsers n = replicateM n randomUser
 randomUser :: HasCallStack => TestM UserId
 randomUser = randomUser' True
 
+randomUserWithTeam :: HasCallStack => TestM UserId
+randomUserWithTeam = randomUser'' True True
+
 randomUser' :: HasCallStack => Bool -> TestM UserId
-randomUser' hasPassword = do
+randomUser' = randomUser'' False
+
+randomUser'' :: HasCallStack => Bool -> Bool -> TestM UserId
+randomUser'' isCreator hasPassword = do
   b <- view tsBrig
   e <- liftIO randomEmail
   let p =
         object $
-          ["name" .= fromEmail e, "email" .= fromEmail e]
+          [ "name" .= fromEmail e,
+            "email" .= fromEmail e
+          ]
+            <> ["team" .= (Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
             <> ["password" .= defPassword | hasPassword]
   r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
@@ -1113,3 +1236,45 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFggtNO/hrwzt9M/1X6eK2sG6YFmA7BDqlFMEipbZOsg0vcDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==",
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
+
+-- | ES is only refreshed occasionally; we don't want to wait for that in tests.
+refreshIndex :: TestM ()
+refreshIndex = do
+  brig <- view tsBrig
+  post (brig . path "/i/index/refresh") !!! const 200 === statusCode
+
+-- | More flexible variant of 'createUser' (see above).
+postUser :: Text -> Bool -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
+postUser = postUser' False True
+
+-- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
+-- messages.  Or @postUser' False True@ if you want to validate the body, but not set a password.
+postUser' :: Bool -> Bool -> Text -> Bool -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
+postUser' hasPassword validateBody name haveEmail ssoid teamid = do
+  email <-
+    if haveEmail
+      then Just <$> randomEmail
+      else pure Nothing
+  postUserWithEmail hasPassword validateBody name email ssoid teamid
+
+-- | More flexible variant of 'createUserUntrustedEmail' (see above).
+postUserWithEmail :: Bool -> Bool -> Text -> Maybe Email -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
+postUserWithEmail hasPassword validateBody name email ssoid teamid = do
+  brig <- view tsBrig
+  let o =
+        object $
+          [ "name" .= name,
+            "email" .= (fromEmail <$> email),
+            "cookie" .= defCookieLabel,
+            "sso_id" .= ssoid,
+            "team_id" .= teamid
+          ]
+            <> ["password" .= defPassword | hasPassword]
+      p = case Aeson.parse parseJSON o of
+        Aeson.Success (p_ :: NewUser) -> p_
+        bad -> error $ show (bad, o)
+      bdy = if validateBody then Bilge.json p else Bilge.json o
+  post (brig . path "/i/users" . bdy)
+
+defCookieLabel :: CookieLabel
+defCookieLabel = CookieLabel "auth"

@@ -130,6 +130,7 @@ executables:
     - cassandra-util
     - cereal
     - containers
+    - cookie
     - currency-codes
     - metrics-wai
     - data-default-class

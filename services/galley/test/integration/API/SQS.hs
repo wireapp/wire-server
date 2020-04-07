@@ -10,6 +10,7 @@ import Data.ByteString.Lazy (toStrict)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.ProtoLens.Encoding
+import qualified Data.Set as Set
 import Data.Text (pack)
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
@@ -81,9 +82,9 @@ tSuspend l Nothing = assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing
 
 tUpdate :: HasCallStack => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
 tUpdate c uids l (Just e) = do
-  assertEqual (l <> "eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
-  assertEqual "count" c (e ^. eventData . memberCount)
-  assertEqual "billing users" (toStrict . UUID.toByteString . toUUID <$> uids) (e ^. eventData . billingUser)
+  assertEqual (l <> ": eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
+  assertEqual (l <> ": count") c (e ^. eventData . memberCount)
+  assertEqual (l <> ": billing users") (Set.fromList $ toStrict . UUID.toByteString . toUUID <$> uids) (Set.fromList $ e ^. eventData . billingUser)
 tUpdate _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
 ensureNoMessages :: HasCallStack => Amazon ()

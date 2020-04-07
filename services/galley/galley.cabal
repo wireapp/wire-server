@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc8ff3c5811a0699ddcb505d315b8917f0d0a0bd8a6fd07e280c8816bfa2a235
+-- hash: f9b73dc91aaa155bf8b00144f15d626fe9b79885c56a796a1171182756d06366
 
 name:           galley
 version:        0.83.0
@@ -209,6 +209,7 @@ executable galley-integration
     , cassandra-util
     , cereal
     , containers
+    , cookie
     , currency-codes
     , data-default-class
     , data-timeout

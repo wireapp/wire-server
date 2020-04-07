@@ -170,8 +170,10 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     journal Active c = do
       mems <- Data.teamMembersUnsafeForLargeTeams tid
       teamCreationTime <- Data.teamCreationTime tid
-      (TeamSize size) <- BrigTeam.getSize tid
-      Journal.teamActivate tid size mems c teamCreationTime
+      -- TODO(Akshay): Figure out if this is required to be live data
+      -- a lot of tests assert this by using `createBindingTeam`
+      -- (TeamSize size) <- BrigTeam.getSize tid
+      Journal.teamActivate tid (fromIntegral $ length mems) mems c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition from to = case (from, to) of
       (PendingActive, Active) -> return True
