@@ -53,7 +53,7 @@ add-license:
 	# For any Haskell or Rust file that doesn't mention AGPL yet,
 	#   add a license header.
 	# It's your own reponsibility to keep ormolu happy.
-	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.rs$$'); do \
+	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.hsc$$\|\.rs$$'); do \
 		echo "Adding license to $${file}."; \
 		licensure -i $${file}; \
 	done;
