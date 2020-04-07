@@ -448,7 +448,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zUser owner
           . zConn "conn"
       )
-      !!! const 400 -- 403
+      !!! const 400 -- FAIL: 403 "must-be-owner-with-email"
       === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete
@@ -470,9 +470,8 @@ testRemoveBindingTeamMember ownerHasPassword = do
     )
     !!! do
       const 403 === statusCode
+      -- FAIL: "must-be-owner-with-email"
       const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
-  -- "access-denied" =/= "must-be-owner-with-email"
-
   -- Mem1 is still part of Wire
   Util.ensureDeletedState False owner (mem1 ^. userId)
   WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
@@ -872,7 +871,7 @@ testDeleteBindingTeam ownerHasPassword = do
               )
           )
     )
-    !!! const 202
+    !!! const 202 -- FAIL: 403 "must-be-owner-with-email"
     === statusCode
   assertQueue "team member leave 1" $ tUpdate 3 [owner]
   void $ WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
@@ -1027,7 +1026,7 @@ testUpdateTeamMember = do
         . json changeOwner
     )
     !!! do
-      const 403 === statusCode
+      const 403 === statusCode -- FAIL: "must-be-owner-with-email", seems correct
       const "no-other-owner" === (Error.label . responseJsonUnsafeWithMsg "error label")
   let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
