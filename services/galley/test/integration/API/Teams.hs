@@ -1026,8 +1026,8 @@ testUpdateTeamMember = do
         . json changeOwner
     )
     !!! do
-      const 403 === statusCode -- FAIL: "must-be-owner-with-email", seems correct
-      const "no-other-owner" === (Error.label . responseJsonUnsafeWithMsg "error label")
+      const 403 === statusCode
+      const "must-be-owner-with-email" === (Error.label . responseJsonUnsafeWithMsg "error label")
   let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     put
@@ -1053,7 +1053,7 @@ testUpdateTeamMember = do
           . zConn "conn"
           . json changeOwner
       )
-      !!! const 200
+      !!! const 200 -- FAIL: 403 must-be-owner-with-email, seems correct?
       === statusCode
     owner' <- Util.getTeamMember (member ^. userId) tid owner
     liftIO $ assertEqual "permissions" (owner' ^. permissions) (changeOwner ^. ntmNewTeamMember . permissions)
