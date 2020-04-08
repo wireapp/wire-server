@@ -48,7 +48,6 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import qualified System.Logger.Class as Log
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
@@ -140,20 +139,14 @@ getContactList uid = do
 -- address, she can delete other owners (not themselves).  (The last condition makes sure that
 -- no team will ever end up without an owner with an email; this is useful for customer suppor
 -- and billing.)  Admins and owners can delete all members with other roles.
--- TODO/@@@ can't we just call get "/i/users/:uid/can-be-deleted/:tid"?
+--
+-- FUTUREWORK: we may be able to simplify this funciton by getting
+-- "/i/users/:uid/can-be-deleted/:tid".  we do a little more here, and that would create a
+-- roundtrip call from galley to brig and back to galley, which is not very efficient, but the
+-- logic may become simpler.
 canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
 canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
-  Log.err . Log.msg $
-    show
-      ( deleterMember,
-        deleteeMember,
-        deleterHasEmail,
-        deleterRole > RoleAdmin,
-        deleterRole > deleteeRole,
-        deleterHasEmail,
-        deleterRole == RoleOwner
-      )
   pure
     if  | deleterRole > RoleAdmin -> False
         | deleterRole > deleteeRole -> False
