@@ -725,8 +725,9 @@ getTeamMember u tid = do
         . zUser u
         . expect [status200, status404]
 
--- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
--- | TODO/@@@: this is now truncated.  this is only used for team suspension / unsuspension.
+-- | This is now truncated. this is only used for team suspension / unsuspension.
+--
+-- Calls 'Galley.API.uncheckedGetTeamMembersH'.
 getTeamMembers :: TeamId -> AppIO Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
