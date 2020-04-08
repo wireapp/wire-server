@@ -22,7 +22,6 @@ module Galley.Intra.User
     lookupActivatedUsers,
     deleteUser,
     getContactList,
-    canDeleteMember,
   )
 where
 
@@ -31,17 +30,14 @@ import Bilge.RPC
 import Brig.Types.Connection (UserIds (..))
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..))
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
-import Brig.Types.User (User, userEmail)
-import Control.Lens
+import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
-import Data.String.Conversions (cs)
 import Galley.App
 import Galley.Intra.Util
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
@@ -134,50 +130,3 @@ getContactList uid = do
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
-
--- | An admin can delete other admins.  An owner can delete admins, and if she has an email
--- address, she can delete other owners (not themselves).  (The last condition makes sure that
--- no team will ever end up without an owner with an email; this is useful for customer suppor
--- and billing.)  Admins and owners can delete all members with other roles.
---
--- FUTUREWORK: we may be able to simplify this funciton by getting
--- "/i/users/:uid/can-be-deleted/:tid".  we do a little more here, and that would create a
--- roundtrip call from galley to brig and back to galley, which is not very efficient, but the
--- logic may become simpler.
-canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
-canDeleteMember deleterMember deleteeMember = do
-  deleterHasEmail <- checkDeleterHasEmail
-  pure
-    -- FUTUREWORK: do not check roles here, but introduce permissions "can delete owner", "can
-    -- delete admin", etc.
-    if  | deleterRole `notElem` [RoleOwner, RoleAdmin] -> False
-        | deleterRole == RoleAdmin && deleteeRole == RoleOwner -> False
-        | deleteeRole == RoleOwner && not deleterHasEmail -> False -- TODO/@@@:  && deleterRole == RoleOwner ? less consistent with team settings, but maybe easier to keep our tests.
-        | otherwise -> True
-  where
-    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
-    -- (team members having no role is an internal error, but we don't want to deal with that
-    -- here, so we pick a reasonable default.)
-    deleterRole = getRole deleterMember
-    deleteeRole = getRole deleteeMember
-    --
-    checkDeleterHasEmail :: Galley Bool
-    checkDeleterHasEmail = do
-      (h, p) <- brigReq
-      euser :: Either String [User] <-
-        responseJsonEither
-          <$> call
-            "brig"
-            ( check [status200]
-                . method GET
-                . host h
-                . port p
-                . paths ["i", "users"]
-                . query [("ids", Just . toByteString' $ deleterMember ^. userId)]
-            )
-      case euser of
-        Right [user] ->
-          return . isJust . userEmail $ user
-        bad ->
-          throwM $ Error status500 "server-error" $
-            "delete or downgrade team owner: brig unexpectedly responded with: " <> cs (show bad)

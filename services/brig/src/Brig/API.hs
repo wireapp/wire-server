@@ -168,10 +168,6 @@ sitemap o = do
   post "/i/users/phone-prefixes" (continue addPhonePrefixH) $
     accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
-  -- is :uid not team owner, or there are other team owners?
-  get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeletedH) $
-    capture "uid"
-      .&. capture "tid"
   put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
     capture "uid"
       .&. accept "application" "json"
@@ -1563,13 +1559,6 @@ addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix
   return empty
-
-canBeDeletedH :: UserId ::: TeamId -> Handler Response
-canBeDeletedH (uid ::: tid) = do
-  okToDelete <- lift $ API.userCanBeDeleted uid tid
-  if okToDelete
-    then pure empty
-    else throwStd youMustNotBeOwnerWithEmail
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do

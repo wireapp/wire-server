@@ -45,7 +45,6 @@ module Brig.API.User
     removePhone,
     revokeIdentity,
     deleteUserNoVerify,
-    userCanBeDeleted,
     Brig.API.User.deleteUser,
     verifyDeleteUser,
     deleteAccount,
@@ -733,14 +732,6 @@ mkPasswordResetKey ident = case ident of
 -------------------------------------------------------------------------------
 -- User Deletion
 
--- | Return False if user is a team owner with an email address; True otherwise.
-userCanBeDeleted :: UserId -> TeamId -> AppIO Bool
-userCanBeDeleted uid tid = do
-  isOwner <- Intra.memberIsTeamOwner tid uid
-  muser <- Data.lookupUser uid
-  let hasEmail = isJust $ userEmail =<< muser
-  pure . not $ isOwner && hasEmail
-
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
@@ -753,16 +744,10 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> ensureNotOwnerWithEmail a >> go a
-      Active -> ensureNotOwnerWithEmail a >> go a
+      Suspended -> go a
+      Active -> go a
       Ephemeral -> go a
   where
-    ensureNotOwnerWithEmail :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
-    ensureNotOwnerWithEmail acc = do
-      okToDelete <- case userTeam (accountUser acc) of
-        Nothing -> pure True
-        Just tid -> lift $ userCanBeDeleted (userId $ accountUser acc) tid
-      unless okToDelete (throwE DeleteUserOwnerWithEmail)
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
@@ -827,9 +812,8 @@ verifyDeleteUser d = do
   for_ account $ lift . deleteAccount
   lift $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
--- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
--- in the team.
+-- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
+-- via deleting self.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user

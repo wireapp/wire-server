@@ -427,7 +427,6 @@ updateTeamMember zusr zcon tid targetMember = do
       -- target user must be in same team
       throwM teamMemberNotFound
     Just previousMember -> do
-      -- cannot demote only owner (effectively removing the last owner)
       okToDowngrade <- canDowngradeTeamMember user previousMember targetPermissions
       unless okToDowngrade $ throwM youMustBeOwnerWithEmail
   -- update target in Cassandra
@@ -442,7 +441,7 @@ updateTeamMember zusr zcon tid targetMember = do
       if ( permissionsRole (previousMember ^. permissions) == Just RoleOwner
              && permissionsRole targetPermissions /= Just RoleOwner
          )
-        then canDeleteMember downgrader previousMember
+        then pure $ canDeleteMember downgrader previousMember
         else pure True
     --
     updateJournal :: Team -> [TeamMember] -> Galley ()
@@ -483,11 +482,10 @@ deleteTeamMember zusr zcon tid remove mBody = do
   zusrMember <- Data.teamMember tid zusr
   targetMember <- Data.teamMember tid remove
   void $ permissionCheck RemoveTeamMember zusrMember
-  okToDelete <- do
+  do
     dm <- maybe (throwM teamMemberNotFound) pure zusrMember
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
-    canDeleteMember dm tm
-  unless okToDelete $ throwM youMustBeOwnerWithEmail
+    unless (canDeleteMember dm tm) $ throwM youMustBeOwnerWithEmail
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
   (mems, tooMany) <- Data.teamMembers' tid Nothing

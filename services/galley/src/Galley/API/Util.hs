@@ -19,7 +19,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Lens ((.~), view)
+import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id as Id
@@ -284,3 +284,18 @@ resolveOpaqueConvId (Id opaque) = do
     True ->
       -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
+
+-- | Deletion requires a permission check, but also a 'Role' comparison: admins can only
+-- delete non-owners.
+--
+-- FUTUREWORK: do not do this with 'Role', but introduce permissions "can delete owner", "can
+-- delete admin", etc.
+canDeleteMember :: TeamMember -> TeamMember -> Bool
+canDeleteMember deleterMember deleteeMember =
+  not (deleterRole == RoleAdmin && deleteeRole == RoleOwner)
+  where
+    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+    -- (team members having no role is an internal error, but we don't want to deal with that
+    -- here, so we pick a reasonable default.)
+    deleterRole = getRole deleterMember
+    deleteeRole = getRole deleteeMember
