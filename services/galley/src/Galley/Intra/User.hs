@@ -150,7 +150,7 @@ canDeleteMember deleterMember deleteeMember = do
   pure
     if  | deleterRole > RoleAdmin -> False
         | deleterRole > deleteeRole -> False
-        | deleteeRole == RoleOwner && deleterHasEmail && deleterRole == RoleOwner -> False
+        | deleteeRole == RoleOwner && not deleterHasEmail -> False -- TODO/@@@:  && deleterRole == RoleOwner ? less consistent with team settings, but maybe easier to keep our tests.
         | otherwise -> True
   where
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
