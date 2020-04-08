@@ -285,17 +285,19 @@ resolveOpaqueConvId (Id opaque) = do
       -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
 
--- | Deletion requires a permission check, but also a 'Role' comparison: admins can only
--- delete non-owners.
+-- | Deletion requires a permission check, but also a 'Role' comparison:
+-- Owners can only be deleted by another owner (and not themselves).
 --
 -- FUTUREWORK: do not do this with 'Role', but introduce permissions "can delete owner", "can
 -- delete admin", etc.
 canDeleteMember :: TeamMember -> TeamMember -> Bool
-canDeleteMember deleterMember deleteeMember =
-  not (deleterRole == RoleAdmin && deleteeRole == RoleOwner)
+canDeleteMember deleter deletee
+  | getRole deletee == RoleOwner =
+    getRole deleter == RoleOwner -- owners can only be deleted by another owner
+      && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
+  | otherwise =
+    True
   where
-    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
-    deleterRole = getRole deleterMember
-    deleteeRole = getRole deleteeMember
+    getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
