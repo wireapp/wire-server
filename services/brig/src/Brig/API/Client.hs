@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
   ( -- * Clients
@@ -60,7 +77,7 @@ lookupClient mappedOrLocalUserId clientId =
     Local u ->
       lift $ lookupLocalClient u clientId
     Mapped IdMapping {idMappingLocal} ->
-      -- FUTUREWORK(federation): look up remote clients
+      -- FUTUREWORK(federation, #1271): look up remote clients
       throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
@@ -71,7 +88,7 @@ lookupClients = \case
   Local u ->
     lift $ lookupLocalClients u
   Mapped IdMapping {idMappingLocal} ->
-    -- FUTUREWORK(federation): look up remote clients
+    -- FUTUREWORK(federation, #1271): look up remote clients
     throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
 
 lookupLocalClients :: UserId -> AppIO [Client]
@@ -129,6 +146,7 @@ claimPrekey u c = case u of
   Local localUser ->
     claimLocalPrekey localUser c
   Mapped _ ->
+    -- FUTUREWORK(federation, #1272): claim key from other backend
     pure Nothing
 
 claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
@@ -143,6 +161,7 @@ claimPrekeyBundle = \case
   Local localUser ->
     claimLocalPrekeyBundle localUser
   Mapped IdMapping {idMappingLocal} ->
+    -- FUTUREWORK(federation, #1272): claim keys from other backend
     pure $ PrekeyBundle (makeMappedIdOpaque idMappingLocal) []
 
 claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
@@ -156,7 +175,7 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
-  -- FUTUREWORK(federation): claim keys from other backends, merge maps
+  -- FUTUREWORK(federation, #1272): claim keys from other backends, merge maps
   lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
   where
     localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)

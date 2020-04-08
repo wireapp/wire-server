@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
@@ -57,7 +74,7 @@ ensureConnectedOrSameTeam u uids = do
   sameTeamUids <- forM uTeams $ \team ->
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
-  -- FUTUREWORK(federation): handle remote users (can't be part of the same team, just check connections)
+  -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
   ensureConnected u (Local <$> uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
@@ -69,7 +86,7 @@ ensureConnected :: UserId -> [MappedOrLocalId Id.U] -> Galley ()
 ensureConnected _ [] = pure ()
 ensureConnected u mappedOrLocalUserIds = do
   let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
-  -- FUTUREWORK(federation): check remote connections
+  -- FUTUREWORK(federation, #1262): check remote connections
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
   ensureConnectedToLocals u localUserIds
@@ -242,7 +259,7 @@ getConversationAndCheckMembershipWithError ex zusr = \case
       throwM ex
     return c
 
--- FUTUREWORK(federation): implement function to resolve IDs in batch
+-- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
@@ -253,7 +270,7 @@ resolveOpaqueUserId (Id opaque) = do
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
     True ->
-      -- FUTUREWORK(federation): implement database lookup
+      -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
@@ -265,5 +282,5 @@ resolveOpaqueConvId (Id opaque) = do
       -- don't check the ID mapping, just assume it's local
       pure . Local $ Id opaque
     True ->
-      -- FUTUREWORK(federation): implement database lookup
+      -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque

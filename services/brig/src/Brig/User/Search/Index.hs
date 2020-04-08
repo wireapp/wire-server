@@ -1,6 +1,23 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.User.Search.Index
   ( -- * Monad
     IndexEnv (..),
@@ -349,8 +366,8 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
       fromEncoding . pairs . pair "index" . pairs $
         "_id" .= docId
           <> "_version" .= v
+          -- "external_gt or external_gte"
           <> "_version_type" .= (indexUpdateToVersionControlText updateType)
-                              -- ^ "external_gt or external_gte"
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -468,11 +485,11 @@ reindexAllWith updateType = do
 
 -- This is useful and necessary due to the lack of expressiveness in the bulk API
 indexUpdateToVersionControlText :: IndexDocUpdateType -> Text
-indexUpdateToVersionControlText IndexUpdateIfNewerVersion       = "external_gt"
+indexUpdateToVersionControlText IndexUpdateIfNewerVersion = "external_gt"
 indexUpdateToVersionControlText IndexUpdateIfSameOrNewerVersion = "external_gte"
 
 indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> ES.VersionControl)
-indexUpdateToVersionControl IndexUpdateIfNewerVersion       = ES.ExternalGT
+indexUpdateToVersionControl IndexUpdateIfNewerVersion = ES.ExternalGT
 indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
 traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply

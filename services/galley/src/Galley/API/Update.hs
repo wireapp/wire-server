@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Update
   ( -- * Managing Conversations
     acceptConvH,
@@ -498,8 +515,11 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
   resolveOpaqueConvId cid >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> removeMemberOfLocalConversation localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      removeMemberOfLocalConversation localConvId
   where
     removeMemberOfLocalConversation convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
@@ -515,7 +535,7 @@ removeMember zusr zcon cid victim = do
           case resolvedVictim of
             Local _ -> pure () -- nothing to do
             Mapped _ -> do
-              -- FUTUREWORK(federation): users can be on other backend, how to notify it?
+              -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
           for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
@@ -596,7 +616,7 @@ postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing 
 postNewOtrMessage usr con cnv val msg = do
   resolveOpaqueConvId cnv >>= \case
     Mapped idMapping ->
-      -- FUTUREWORK(federation): forward message to backend owning the conversation
+      -- FUTUREWORK(federation, #1261): forward message to backend owning the conversation
       throwM . federationNotImplemented $ pure idMapping
     Local localConvId ->
       postToLocalConv localConvId
