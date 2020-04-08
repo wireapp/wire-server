@@ -736,6 +736,9 @@ mkPasswordResetKey ident = case ident of
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
 --
+-- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- delete them in the team settings.  This protects teams against orphanhood.
+--
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
@@ -744,10 +747,17 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> go a
-      Active -> go a
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
       Ephemeral -> go a
   where
+    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- lift $ Intra.memberIsTeamOwner tid uid
+          when isOwner $ throwE DeleteUserIsOwner
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e

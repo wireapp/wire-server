@@ -192,6 +192,7 @@ deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
 deleteUserError DeleteUserMissingPassword = StdError missingAuthError
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
+deleteUserError DeleteUserIsOwner = StdError deleteeIsOwner
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
@@ -423,6 +424,13 @@ noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
+
+deleteeIsOwner :: Wai.Error
+deleteeIsOwner =
+  Wai.Error
+    status403
+    "no-self-delete-for-team-owner"
+    "Team owners are not allowed to delete themselves.  Ask a fellow owner."
 
 tooManyTeamInvitations :: Wai.Error
 tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too many team invitations for this team."

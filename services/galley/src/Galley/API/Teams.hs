@@ -428,7 +428,7 @@ updateTeamMember zusr zcon tid targetMember = do
       throwM teamMemberNotFound
     Just previousMember -> do
       okToDowngrade <- canDowngradeTeamMember user previousMember targetPermissions
-      unless okToDowngrade $ throwM youMustBeOwnerWithEmail
+      unless okToDowngrade $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
   (updatedMembers, tooMany) <- Data.teamMembers' tid Nothing
@@ -485,7 +485,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
   do
     dm <- maybe (throwM teamMemberNotFound) pure zusrMember
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
-    unless (canDeleteMember dm tm) $ throwM youMustBeOwnerWithEmail
+    unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
   (mems, tooMany) <- Data.teamMembers' tid Nothing
