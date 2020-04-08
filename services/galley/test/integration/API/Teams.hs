@@ -450,7 +450,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zUser owner
           . zConn "conn"
       )
-      !!! const 400 -- FAIL: 403 "must-be-owner-with-email"
+      !!! const 400
       === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete
@@ -460,8 +460,9 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zConn "conn"
           . json (newTeamMemberDeleteData Nothing)
       )
-      !!! const 403
-      === statusCode
+      !!! do
+        const 403 === statusCode
+        const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   -- Deleting from a binding team with wrong password
   delete
     ( g
@@ -472,7 +473,6 @@ testRemoveBindingTeamMember ownerHasPassword = do
     )
     !!! do
       const 403 === statusCode
-      -- FAIL: "must-be-owner-with-email"
       const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   -- Mem1 is still part of Wire
   Util.ensureDeletedState False owner (mem1 ^. userId)
@@ -873,7 +873,7 @@ testDeleteBindingTeam ownerHasPassword = do
               )
           )
     )
-    !!! const 202 -- FAIL: 403 "must-be-owner-with-email"
+    !!! const 202
     === statusCode
   assertQueue "team member leave 1" $ tUpdate 3 [owner]
   void $ WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
