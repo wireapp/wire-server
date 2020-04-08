@@ -520,15 +520,15 @@ testRemoveBindingTeamOwner = do
     u <- Util.randomUser
     Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleAdmin) Nothing
     pure u
-  let mkDeletee :: HasCallStack => TestM UserId
-      mkDeletee = do
-        u <- Util.randomUser
-        Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleOwner) Nothing
-        pure u
-  mkDeletee >>= \deletee -> check tid ownerA deletee True
-  mkDeletee >>= \deletee -> check tid ownerB deletee True
-  mkDeletee >>= \deletee -> check tid admin deletee False
-  mkDeletee >>= \deletee -> check tid ownerWithoutEmail deletee True
+  -- non-owner can NOT delete owner
+  check tid admin ownerWithoutEmail False
+  -- owners can NOT delete themselves
+  check tid ownerA ownerA False
+  check tid ownerWithoutEmail ownerWithoutEmail False
+  -- owners can delete other owners (no matter who has emails)
+  check tid ownerWithoutEmail ownerA True
+  check tid ownerB ownerWithoutEmail True
+  --
   ensureQueueEmpty
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Bool -> TestM ()
@@ -985,6 +985,12 @@ testUpdateTeam = do
       e ^. eventTeam @?= tid
       e ^. eventData @?= Just (EdTeamUpdate upd)
 
+-- TODO/@@@
+-- 3. same for demoting an owner:
+--     - [ ] non-owner can **NOT** delete owner
+--     - [ ] owner can demote non-owner
+--     - [ ] owner can demote other owner
+--     - [ ] owner can **NOT** demote herself
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
