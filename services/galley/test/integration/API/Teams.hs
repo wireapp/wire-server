@@ -434,12 +434,14 @@ testRemoveBindingTeamMember ownerHasPassword = do
   owner <- Util.randomUser' ownerHasPassword True Nothing
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  mext <- Util.randomUser
-  mem1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
-  Util.addTeamMemberInternal tid mem1
-  assertQueue "team member join" $ tUpdate 2 [owner]
-  Util.connectUsers owner (singleton mext)
-  cid1 <- Util.createTeamConv owner tid [(mem1 ^. userId), mext] (Just "blaa") Nothing Nothing
+  (uid1, mem1) <- do
+    uid <- Util.randomUser
+    mem <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser
+    Util.addTeamMemberInternal tid mem
+    assertQueue "team member join" $ tUpdate 2 [owner]
+    pure (uid, mem)
+  Util.connectUsers owner (singleton uid1)
+  cid1 <- Util.createTeamConv owner tid [(mem1 ^. userId), uid1] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
     -- Deleting from a binding team with empty body is invalid
     delete
