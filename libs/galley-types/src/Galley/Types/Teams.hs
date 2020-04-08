@@ -104,22 +104,16 @@ module Galley.Types.Teams
     newTeamDeleteData,
     HardTruncationLimit,
     hardTruncationLimit,
-    TruncatedTeamSize,
-    mkTruncatedTeamSize,
-    mkLargeTeamSize,
-    ttsLimit,
-    ttsSize,
-    isBiggerThanLimit,
   )
 where
 
 import qualified Cassandra as Cql
 import qualified Control.Error.Util as Err
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((.~), (^.), generateUpdateableOptics, lensRules, makeLenses, makeLensesWith, to, view)
+import Control.Lens ((^.), makeLenses, to, view)
 import Control.Monad.Catch
 import Data.Aeson
-import Data.Aeson.Types (Pair, Parser, typeMismatch)
+import Data.Aeson.Types (Pair, Parser)
 import Data.Bits ((.|.), testBit)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
@@ -135,7 +129,6 @@ import Data.Time (UTCTime)
 import GHC.TypeLits
 import Galley.Types.Teams.Internal
 import Imports
-import Numeric.Natural (Natural)
 
 data Event
   = Event
@@ -236,25 +229,6 @@ type HardTruncationLimit = (2000 :: Nat)
 
 hardTruncationLimit :: Integral a => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
-
-data TruncatedTeamSize
-  = TruncatedTeamSize
-      { _ttsLimit :: Natural,
-        _ttsSize :: Maybe Natural
-      }
-  deriving (Eq, Show)
-
-mkTruncatedTeamSize :: Natural -> Natural -> TruncatedTeamSize
-mkTruncatedTeamSize limit n =
-  if n > limit
-    then TruncatedTeamSize limit Nothing
-    else TruncatedTeamSize limit (Just n)
-
-mkLargeTeamSize :: Natural -> TruncatedTeamSize
-mkLargeTeamSize limit = TruncatedTeamSize limit Nothing
-
-isBiggerThanLimit :: TruncatedTeamSize -> Bool
-isBiggerThanLimit = isNothing . _ttsSize
 
 data TeamConversation
   = TeamConversation
@@ -499,8 +473,6 @@ makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
 
 makeLenses ''FeatureFlags
-
-makeLensesWith (lensRules & generateUpdateableOptics .~ False) ''TruncatedTeamSize
 
 -- Note [hidden team roles]
 --
@@ -966,26 +938,6 @@ instance ToJSON TeamDeleteData where
     object
       [ "password" .= _tdAuthPassword tdd
       ]
-
-instance ToJSON TruncatedTeamSize where
-  toJSON limitedSize =
-    let sizePairs =
-          case _ttsSize limitedSize of
-            Nothing -> ["within-limit" .= False]
-            Just n -> ["within-limit" .= True, "size" .= n]
-     in object (["limit" .= _ttsLimit limitedSize] ++ sizePairs)
-
-instance FromJSON TruncatedTeamSize where
-  parseJSON = withObject "TruncatedTeamSize" $ \o -> do
-    withinLimit <- o .: "within-limit"
-    limit <- o .: "limit"
-    case withinLimit of
-      (Bool True) -> (o .: "size") >>= \s ->
-        if s <= limit
-          then pure $ TruncatedTeamSize limit (Just s)
-          else fail $ "expected size to be less than " ++ show limit ++ ", encountered " ++ show s
-      (Bool False) -> pure $ TruncatedTeamSize limit Nothing
-      v -> typeMismatch "Boolean" v
 
 instance Cql.Cql Role where
   ctype = Cql.Tagged Cql.IntColumn

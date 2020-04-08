@@ -83,11 +83,7 @@ tests s =
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
       test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam,
       test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns,
-      test s "feature flags" testFeatureFlags,
-      testGroup "get team size" $
-        [ test s "it should return the team size when it is less than the limit" testTeamSize,
-          test s "it should return that the team size is larger when it is more than the truncation limit" testTeamSizeTruncated
-        ]
+      test s "feature flags" testFeatureFlags
     ]
 
 timeout :: WS.Timeout
@@ -206,18 +202,6 @@ testUncheckedListTeamMembers = do
     assertBool
       "member list does not indicate that there are more members"
       (listFromServer ^. teamMemberListHasMore)
-
-testTeamSize :: TestM ()
-testTeamSize = do
-  (_, tid, _) <- Util.createBindingTeamWithNMembers 4
-  sizeFromServer <- getTruncatedTeamSize tid hardTruncationLimit
-  liftIO $ assertEqual "team size" (mkTruncatedTeamSize hardTruncationLimit 5) sizeFromServer
-
-testTeamSizeTruncated :: TestM ()
-testTeamSizeTruncated = do
-  (_, tid, _) <- Util.createBindingTeamWithNMembers 4
-  sizeFromServer <- getTruncatedTeamSize tid 2
-  liftIO $ assertEqual "team size is larger than limit" (mkLargeTeamSize 2) sizeFromServer
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do

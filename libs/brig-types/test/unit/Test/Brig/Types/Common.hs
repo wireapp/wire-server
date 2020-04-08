@@ -55,7 +55,6 @@ tests =
       testRoundTrip @SSOTeamConfig,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
-      testRoundTrip @TruncatedTeamSize,
       testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -80,9 +79,3 @@ instance Arbitrary FeatureFlags where
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
-
-instance Arbitrary TruncatedTeamSize where
-  arbitrary =
-    mkTruncatedTeamSize
-      <$> arbitrary
-      <*> arbitrary
