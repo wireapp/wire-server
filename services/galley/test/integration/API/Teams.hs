@@ -476,7 +476,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
       const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   -- Mem1 is still part of Wire
   Util.ensureDeletedState False owner (mem1 ^. userId)
-  WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
+  WS.bracketR2 c owner uid1 $ \(wsOwner, wsMext) -> do
     if ownerHasPassword
       then do
         delete
