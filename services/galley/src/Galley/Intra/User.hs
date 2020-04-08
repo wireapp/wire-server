@@ -148,8 +148,10 @@ canDeleteMember :: TeamMember -> TeamMember -> Galley Bool
 canDeleteMember deleterMember deleteeMember = do
   deleterHasEmail <- checkDeleterHasEmail
   pure
-    if  | deleterRole > RoleAdmin -> False
-        | deleterRole > deleteeRole -> False
+    -- FUTUREWORK: do not check roles here, but introduce permissions "can delete owner", "can
+    -- delete admin", etc.
+    if  | deleterRole `notElem` [RoleOwner, RoleAdmin] -> False
+        | deleterRole == RoleAdmin && deleteeRole == RoleOwner -> False
         | deleteeRole == RoleOwner && not deleterHasEmail -> False -- TODO/@@@:  && deleterRole == RoleOwner ? less consistent with team settings, but maybe easier to keep our tests.
         | otherwise -> True
   where

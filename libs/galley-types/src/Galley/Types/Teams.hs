@@ -315,8 +315,7 @@ data Perm
 
 -- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
-  -- FUTUREWORK: relying on the Ord instance seems error-prone, remove it?
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Show, Enum, Bounded, Generic)
 
 defaultRole :: Role
 defaultRole = RoleMember
