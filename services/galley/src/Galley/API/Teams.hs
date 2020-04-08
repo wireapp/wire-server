@@ -427,8 +427,11 @@ updateTeamMember zusr zcon tid targetMember = do
       -- target user must be in same team
       throwM teamMemberNotFound
     Just previousMember -> do
-      okToDowngrade <- canDowngradeTeamMember user previousMember targetPermissions
-      unless okToDowngrade $ throwM accessDenied
+      when (downgradesOwner previousMember targetPermissions)
+        $
+        -- owner can be downgraded IFF it can be deleted
+        unless (canDeleteMember user previousMember)
+        $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
   (updatedMembers, tooMany) <- Data.teamMembers' tid Nothing
@@ -436,13 +439,10 @@ updateTeamMember zusr zcon tid targetMember = do
   unless tooMany $ do
     updatePeers targetId targetPermissions updatedMembers
   where
-    canDowngradeTeamMember :: TeamMember -> TeamMember -> Permissions -> Galley Bool
-    canDowngradeTeamMember downgrader previousMember targetPermissions = do
-      if ( permissionsRole (previousMember ^. permissions) == Just RoleOwner
-             && permissionsRole targetPermissions /= Just RoleOwner
-         )
-        then pure $ canDeleteMember downgrader previousMember
-        else pure True
+    downgradesOwner :: TeamMember -> Permissions -> Bool
+    downgradesOwner previousMember targetPermissions =
+      permissionsRole (previousMember ^. permissions) == Just RoleOwner
+        && permissionsRole targetPermissions /= Just RoleOwner
     --
     updateJournal :: Team -> [TeamMember] -> Galley ()
     updateJournal team updatedMembers = do
