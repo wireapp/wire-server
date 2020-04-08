@@ -985,12 +985,6 @@ testUpdateTeam = do
       e ^. eventTeam @?= tid
       e ^. eventData @?= Just (EdTeamUpdate upd)
 
--- TODO/@@@
--- 3. same for demoting an owner:
---     - [ ] non-owner can **NOT** delete owner
---     - [ ] owner can demote non-owner
---     - [ ] owner can demote other owner
---     - [ ] owner can **NOT** demote herself
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
@@ -999,53 +993,54 @@ testUpdateTeamMember = do
   member <- newTeamMember' (rolePermissions RoleAdmin) <$> Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [member]
-  -- Must have at least 1 member with full permissions
-  let changeOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
-  put
-    ( g
-        . paths ["teams", toByteString' tid, "members"]
-        . zUser (member ^. userId)
-        . zConn "conn"
-        . json changeOwner
-    )
-    !!! do
-      const 403 === statusCode
-      const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
-  let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
+  -- non-owner can **NOT** demote owner
+  let demoteOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
+  updateTeamMember g tid (member ^. userId) demoteOwner !!! do
+    const 403 === statusCode
+    const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  -- owner can demote non-owner
+  let demoteMember = newNewTeamMember (member & permissions .~ noPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
-    put
-      ( g
-          . paths ["teams", toByteString' tid, "members"]
-          . zUser owner
-          . zConn "conn"
-          . json changeMember
-      )
-      !!! const 200
-      === statusCode
+    updateTeamMember g tid owner demoteMember !!! do
+      const 200 === statusCode
     member' <- Util.getTeamMember owner tid (member ^. userId)
-    liftIO $ assertEqual "permissions" (member' ^. permissions) (changeMember ^. ntmNewTeamMember . permissions)
+    liftIO $ assertEqual "permissions" (member' ^. permissions) (demoteMember ^. ntmNewTeamMember . permissions)
+    checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure noPermissions)
+    checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure noPermissions)
+    WS.assertNoEvent timeout [wsOwner, wsMember]
+  -- owner can promote non-owner
+  let promoteMember = newNewTeamMember (member & permissions .~ fullPermissions)
+  WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
+    updateTeamMember g tid owner promoteMember !!! do
+      const 200 === statusCode
+    member' <- Util.getTeamMember owner tid (member ^. userId)
+    liftIO $ assertEqual "permissions" (member' ^. permissions) (promoteMember ^. ntmNewTeamMember . permissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure fullPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure fullPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
-  -- Now that the other member has full permissions, it can demote the owner
+  -- owner can **NOT** demote herself, even when another owner exists
+  updateTeamMember g tid owner demoteOwner !!! do
+    const 403 === statusCode
+  -- Now that the other member has full permissions, she can demote the owner
   WS.bracketR2 c (member ^. userId) owner $ \(wsMember, wsOwner) -> do
-    put
-      ( g
-          . paths ["teams", toByteString' tid, "members"]
-          . zUser (member ^. userId)
-          . zConn "conn"
-          . json changeOwner
-      )
-      !!! const 200
-      === statusCode
+    updateTeamMember g tid (member ^. userId) demoteOwner !!! do
+      const 200 === statusCode
     owner' <- Util.getTeamMember (member ^. userId) tid owner
-    liftIO $ assertEqual "permissions" (owner' ^. permissions) (changeOwner ^. ntmNewTeamMember . permissions)
+    liftIO $ assertEqual "permissions" (owner' ^. permissions) (demoteOwner ^. ntmNewTeamMember . permissions)
     -- owner no longer has GetPermissions, but she can still see the update because it's about her!
     checkTeamMemberUpdateEvent tid owner wsOwner (pure (rolePermissions RoleAdmin))
     checkTeamMemberUpdateEvent tid owner wsMember (pure (rolePermissions RoleAdmin))
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertQueueEmpty
   where
+    updateTeamMember g tid zusr change =
+      put
+        ( g
+            . paths ["teams", toByteString' tid, "members"]
+            . zUser zusr
+            . zConn "conn"
+            . json change
+        )
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
       ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
