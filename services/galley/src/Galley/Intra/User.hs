@@ -150,7 +150,7 @@ canDeleteMember deleterMember deleteeMember = do
   pure
     if  | deleterRole > RoleAdmin -> False
         | deleterRole > deleteeRole -> False
-        | deleterHasEmail && deleterRole == RoleOwner -> False
+        | deleteeRole == RoleOwner && deleterHasEmail && deleterRole == RoleOwner -> False
         | otherwise -> True
   where
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
