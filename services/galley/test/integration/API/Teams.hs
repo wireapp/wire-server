@@ -559,6 +559,7 @@ testAddTeamConvLegacy = do
     mapM_ (checkConvCreateEvent cid) wss
     -- All members become admin by default
     mapM_ (assertConvMemberWithRole roleNameWireAdmin cid) allUserIds
+  ensureQueueEmpty
 
 testAddTeamConvWithRole :: TestM ()
 testAddTeamConvWithRole = do
