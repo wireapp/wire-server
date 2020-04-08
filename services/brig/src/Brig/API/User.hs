@@ -824,6 +824,8 @@ verifyDeleteUser d = do
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.
+-- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
+-- other owner left.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
