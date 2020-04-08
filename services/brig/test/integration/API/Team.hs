@@ -687,6 +687,8 @@ testDeleteUserSSO brig galley = do
   -- create sso user without email, make an owner
   Just (userId -> user3) <- mkuser False
   updatePermissions creator' tid (user3, Team.fullPermissions) galley
+  -- can't delete herself, even without email
+  deleteUser user3 (Just defPassword) brig !!! const 403 === statusCode
   -- delete second owner now, we don't enforce existence of emails in the backend
   updatePermissions user3 tid (creator', Team.rolePermissions Team.RoleMember) galley
   deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
