@@ -485,8 +485,15 @@ deleteTeamMember zusr zcon tid remove mBody = do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
       (TeamSize sizeBeforeDelete) <- BrigTeam.getSize tid
+      -- TeamSize is 'Natural' and subtracting from  0 is an error
+      -- TeamSize could be reported as 0 if team members are added and removed very quickly,
+      -- which happens in tests
+      let sizeAfterDelete =
+            if sizeBeforeDelete == 0
+              then 0
+              else sizeBeforeDelete - 1
       deleteUser remove
-      Journal.teamUpdate tid (sizeBeforeDelete - 1) (filter (\u -> u ^. userId /= remove) mems)
+      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
       uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
