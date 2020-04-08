@@ -1001,9 +1001,7 @@ testUpdateTeamMember = do
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
   g <- view tsGalley
-  owner <- Util.randomUser
-  tid <- Util.createTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  (_, tid) <- Util.createBindingTeam
   -- Check for idempotency
   Util.changeTeamStatus tid Active
   assertQueueEmpty
