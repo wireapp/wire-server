@@ -1004,7 +1004,7 @@ testUpdateTeamMember = do
     )
     !!! do
       const 403 === statusCode
-      const "must-be-owner-with-email" === (Error.label . responseJsonUnsafeWithMsg "error label")
+      const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     put
