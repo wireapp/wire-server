@@ -37,7 +37,6 @@ module Stern.Intra
     deleteAccount,
     getTeamInfo,
     getUserBindingTeam,
-    canBeDeleted,
     isBlacklisted,
     setBlacklistStatus,
     getLegalholdStatus,
@@ -374,23 +373,6 @@ setTeamBillingInfo tid tbu = do
           . contentJson
           . expect2xx
       )
-
-canBeDeleted :: UserId -> TeamId -> Handler Bool
-canBeDeleted uid tid = do
-  info $ msg "Checking if a member can be deleted"
-  b <- view brig
-  r <-
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method GET
-            . paths ["/i/users", toByteString' uid, "can-be-deleted", toByteString' tid]
-        )
-  case Bilge.statusCode r of
-    200 -> return True
-    403 -> return False
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
 
 isBlacklisted :: Either Email Phone -> Handler Bool
 isBlacklisted emailOrPhone = do

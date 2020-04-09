@@ -66,7 +66,7 @@ createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
   ownerid <- randomUser
   let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
-  teamid <- createTeamInternal tname ownerid
+  teamid <- createBindingTeamInternal tname ownerid
   SQS.assertQueue "create team" SQS.tActivate
   pure (ownerid, teamid)
 
@@ -101,16 +101,14 @@ changeTeamStatus tid s = do
     !!! const 200
     === statusCode
 
--- | This creates a binding team.
--- TODO: Rename to createBindingTeamInternal
-createTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
-createTeamInternal name owner = do
-  tid <- createTeamInternalNoActivate name owner
+createBindingTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
+createBindingTeamInternal name owner = do
+  tid <- createBindingTeamInternalNoActivate name owner
   changeTeamStatus tid Active
   return tid
 
-createTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM TeamId
-createTeamInternalNoActivate name owner = do
+createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM TeamId
+createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
@@ -119,10 +117,10 @@ createTeamInternalNoActivate name owner = do
     const True === isJust . getHeader "Location"
   return tid
 
-createTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
-createTeamInternalWithCurrency name owner cur = do
+createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
+createBindingTeamInternalWithCurrency name owner cur = do
   g <- view tsGalley
-  tid <- createTeamInternalNoActivate name owner
+  tid <- createBindingTeamInternalNoActivate name owner
   _ <-
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
       !!! const 200 === statusCode
@@ -903,18 +901,27 @@ randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
 
 randomUser :: HasCallStack => TestM UserId
-randomUser = randomUser' True
+randomUser = randomUser' True True Nothing
 
-randomUser' :: HasCallStack => Bool -> TestM UserId
-randomUser' hasPassword = do
+randomUser' :: HasCallStack => Bool -> Bool -> Maybe (UserId, TeamId, Role, UserSSOId) -> TestM UserId
+randomUser' hasPassword hasEmail teamInfo = do
   b <- view tsBrig
+  g <- view tsGalley
   e <- liftIO randomEmail
   let p =
         object $
-          ["name" .= fromEmail e, "email" .= fromEmail e]
+          ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
+            <> ["email" .= fromEmail e | hasEmail]
+            <> ["team_id" .= view _2 (fromJust teamInfo) | isJust teamInfo]
+            <> ["sso_id" .= view _4 (fromJust teamInfo) | isJust teamInfo]
   r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
+  uid <- fromBS (getHeader' "Location" r)
+  forM_ teamInfo $ \(ownerid, tid, role, _) -> do
+    let upd = newNewTeamMember $ newTeamMember uid (rolePermissions role) Nothing
+    put (g . zUser ownerid . zConn "conn" . paths ["teams", toByteString' tid, "members"] . json upd)
+      !!! const 200 === statusCode
+  pure uid
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
