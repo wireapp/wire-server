@@ -70,6 +70,10 @@ tests s =
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
           test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
         ],
+      testGroup "List Team Members (by ids)" $
+        [ test s "a member should be able to list their team" testListTeamMembersDefaultLimitByIds,
+          test s "id list length limit is enforced" testListTeamMembersTruncatedByIds
+        ],
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
@@ -209,6 +213,34 @@ testListTeamMembersTruncated = do
     assertBool
       "member list does not indicate that there are more members"
       (listFromServer ^. teamMemberListHasMore)
+
+testListTeamMembersDefaultLimitByIds :: TestM ()
+testListTeamMembersDefaultLimitByIds = do
+  (owner, tid, [member1, member2]) <- Util.createBindingTeamWithNMembers 2
+  check owner tid [owner, member1, member2]
+  check owner tid [member1, member2]
+  check owner tid [member1]
+  check owner tid [] -- a bit silly, but hey.
+  where
+    check :: UserId -> TeamId -> [UserId] -> TestM ()
+    check owner tid uids = do
+      listFromServer <- Util.bulkGetTeamMembers owner tid uids
+      liftIO $
+        assertEqual
+          "list members"
+          (Set.fromList uids)
+          (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+      liftIO $
+        assertBool
+          "has_more is always false"
+          (not $ listFromServer ^. teamMemberListHasMore)
+
+testListTeamMembersTruncatedByIds :: TestM ()
+testListTeamMembersTruncatedByIds = do
+  (owner, tid, mems) <- Util.createBindingTeamWithNMembers 4
+  Util.bulkGetTeamMembersTruncated owner tid (owner : mems) 3 !!! do
+    const 400 === statusCode
+    const "too-many-uids" === Error.label . responseJsonUnsafeWithMsg "error label"
 
 testUncheckedListTeamMembers :: TestM ()
 testUncheckedListTeamMembers = do

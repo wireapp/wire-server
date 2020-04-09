@@ -178,6 +178,31 @@ getTeamMembersInternalTruncated tid n = do
       === statusCode
   responseJsonError r
 
+bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
+bulkGetTeamMembers usr tid uids = do
+  g <- view tsGalley
+  r <-
+    post
+      ( g
+          . paths ["teams", toByteString' tid, "members"]
+          . zUser usr
+          . json (UserIdList uids)
+      )
+      <!! const 200
+      === statusCode
+  responseJsonError r
+
+bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
+bulkGetTeamMembersTruncated usr tid uids trnc = do
+  g <- view tsGalley
+  post
+    ( g
+        . paths ["teams", toByteString' tid, "members"]
+        . zUser usr
+        . queryItem "maxResults" (C.pack $ show trnc)
+        . json (UserIdList uids)
+    )
+
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember usr tid mid = do
   g <- view tsGalley
