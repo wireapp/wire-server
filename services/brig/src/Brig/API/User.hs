@@ -757,7 +757,7 @@ deleteUser uid pwd = do
         Nothing -> pure ()
         Just tid -> do
           isOwner <- lift $ Intra.memberIsTeamOwner tid uid
-          when isOwner $ throwE DeleteUserIsOwner
+          when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e

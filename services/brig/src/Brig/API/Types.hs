@@ -187,7 +187,7 @@ data DeleteUserError
   | DeleteUserInvalidPassword
   | DeleteUserMissingPassword
   | DeleteUserPendingCode Timeout
-  | DeleteUserIsOwner
+  | DeleteUserOwnerDeletingSelf
 
 data AccountStatusError
   = InvalidAccountStatus
