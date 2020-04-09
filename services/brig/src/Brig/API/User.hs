@@ -101,7 +101,6 @@ import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
-import qualified Brig.Team.Util as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
@@ -727,6 +726,9 @@ mkPasswordResetKey ident = case ident of
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
 --
+-- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- delete them in the team settings.  This protects teams against orphanhood.
+--
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
@@ -735,20 +737,17 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> ensureNotOnlyOwner account >> go a
-      Active -> ensureNotOnlyOwner account >> go a
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
       Ephemeral -> go a
   where
-    ensureNotOnlyOwner :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
-    ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
-      Nothing -> pure ()
-      Just tid -> do
-        ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
-        case ownerSituation of
-          Team.IsOnlyTeamOwnerWithEmail -> throwE DeleteUserOnlyOwner
-          Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
-          Team.IsTeamOwnerWithoutEmail -> pure ()
-          Team.IsNotTeamOwner -> pure ()
+    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- lift $ Intra.memberIsTeamOwner tid uid
+          when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
@@ -813,9 +812,10 @@ verifyDeleteUser d = do
   for_ account $ lift . deleteAccount
   lift $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
--- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
--- in the team.
+-- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
+-- via deleting self.
+-- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
+-- other owner left.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user

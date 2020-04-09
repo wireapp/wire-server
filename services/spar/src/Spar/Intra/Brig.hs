@@ -65,6 +65,7 @@ import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Web.Cookie
 
 ----------------------------------------------------------------------
@@ -359,23 +360,11 @@ getBrigUserTeam buid = do
   usr <- getBrigUser buid
   pure $ userTeam =<< usr
 
--- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
--- 'SparNotTeamOwner'; otherwise, return.
-assertIsTeamOwner :: (HasCallStack, MonadSparToBrig m) => UserId -> TeamId -> m ()
-assertIsTeamOwner buid tid = do
-  self <- maybe (throwSpar SparNotInTeam) pure =<< getBrigUser buid
-  when (userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
-  resp :: Response (Maybe LBS) <-
-    call $
-      method GET
-        . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
-  when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
-
 -- | Get the team that the user is an owner of.
 --
 -- Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam ::
-  (HasCallStack, SAML.SP m, MonadSparToBrig m) =>
+  (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) =>
   Maybe UserId ->
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
@@ -383,7 +372,7 @@ getZUsrOwnedTeam (Just uid) = do
   usr <- getBrigUser uid
   case userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ assertIsTeamOwner uid teamid
+    Just teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::

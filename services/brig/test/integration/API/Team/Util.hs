@@ -147,7 +147,7 @@ inviteAndRegisterUser u tid brig = do
   liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
   return invitee
 
-updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
+updatePermissions :: HasCallStack => UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
 updatePermissions from tid (to, perm) galley =
   put
     ( galley

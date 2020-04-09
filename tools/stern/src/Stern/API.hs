@@ -32,7 +32,7 @@ import Brig.Types.Intra
 import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens ((^.))
-import Control.Monad (liftM, unless, void, when)
+import Control.Monad (liftM, void, when)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.Types (emptyArray)
@@ -466,16 +466,6 @@ deleteUser (uid ::: emailOrPhone) = do
     ((accountUser -> u) : _) ->
       if checkUUID u
         then do
-          canBeDeleted <- Intra.getUserBindingTeam uid >>= \case
-            Nothing -> pure True
-            Just tid -> Intra.canBeDeleted uid tid
-          unless canBeDeleted
-            $ throwE
-            $ Error
-              status403
-              "no-other-owner"
-              "You are trying to remove or downgrade the last owner. \
-              \Promote another team member before proceeding."
           info $ userMsg uid . msg (val "Deleting account")
           void $ Intra.deleteAccount uid
           return empty

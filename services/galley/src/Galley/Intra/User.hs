@@ -22,7 +22,6 @@ module Galley.Intra.User
     lookupActivatedUsers,
     deleteUser,
     getContactList,
-    canBeDeleted,
   )
 where
 
@@ -32,7 +31,6 @@ import Brig.Types.Connection (UserIds (..))
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..))
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
 import Brig.Types.User (User)
-import Control.Lens
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
@@ -40,7 +38,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Galley.App
 import Galley.Intra.Util
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
@@ -133,27 +130,3 @@ getContactList uid = do
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
-
--- | Calls 'Brig.API.canBeDeletedH'.
-canBeDeleted :: [TeamMember] -> UserId -> TeamId -> Galley Bool
-canBeDeleted members uid tid = if askGalley then pure True else askBrig
-  where
-    -- team members without full permissions can always be deleted.
-    askGalley = case filter ((== uid) . (^. userId)) members of
-      (mem : _) -> not (isTeamOwner mem)
-      _ -> False -- e.g., if caller has no members and passes an empty list.
-
-    -- only if still in doubt, ask brig.
-    askBrig = do
-      (h, p) <- brigReq
-      st <-
-        statusCode . responseStatus
-          <$> call
-            "brig"
-            ( check [status200, status403]
-                . method GET
-                . host h
-                . port p
-                . paths ["/i/users", toByteString' uid, "can-be-deleted", toByteString' tid]
-            )
-      return $ st == 200

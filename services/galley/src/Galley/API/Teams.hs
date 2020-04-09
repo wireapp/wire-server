@@ -48,13 +48,14 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
+    userIsTeamOwnerH,
   )
 where
 
 import Brig.Types.Team (TeamSize (..))
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (hasMore, result)
-import Control.Lens hiding (from, to)
+import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
@@ -177,7 +178,7 @@ updateTeamStatusH (tid ::: req ::: _) = do
 updateTeamStatus :: TeamId -> TeamStatusUpdate -> Galley ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
-  valid <- validateTransition oldStatus newStatus
+  valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
     journal newStatus cur
     Data.updateTeamStatus tid newStatus
@@ -196,7 +197,8 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               else possiblyStaleSize
       Journal.teamActivate tid size mems c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
-    validateTransition from to = case (from, to) of
+    validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
+    validateTransition = \case
       (PendingActive, Active) -> return True
       (Active, Active) -> return False
       (Active, Suspended) -> return True
@@ -432,34 +434,46 @@ updateTeamMember zusr zcon tid targetMember = do
       >>= permissionCheck SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  -- target user must be in same team
   Data.teamMember tid targetId >>= \case
-    Nothing -> throwM teamMemberNotFound
-    _ -> pure ()
-  -- cannot demote only owner (effectively removing the last owner)
-  members <- Data.teamMembersUnsafeForLargeTeams tid
-  okToDelete <- canBeDeleted members targetId tid
-  when (not okToDelete && targetPermissions /= fullPermissions) $
-    throwM noOtherOwner
+    Nothing -> do
+      -- target user must be in same team
+      throwM teamMemberNotFound
+    Just previousMember -> do
+      when (downgradesOwner previousMember targetPermissions)
+        $
+        -- owner can be downgraded IFF it can be deleted
+        unless (canDeleteMember user previousMember)
+        $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  let otherMembers = filter (\u -> u ^. userId /= targetId) members
-      updatedMembers = targetMember : otherMembers
-  -- note the change in the journal
-  when (team ^. teamBinding == Binding) $ do
-    (TeamSize size) <- BrigTeam.getSize tid
-    Journal.teamUpdate tid size updatedMembers
-  -- inform members of the team about the change
-  -- some (privileged) users will be informed about which change was applied
-  let privileged = filter (`canSeePermsOf` targetMember) updatedMembers
-      mkUpdate = EdMemberUpdate targetId
-      privilegedUpdate = mkUpdate $ Just targetPermissions
-      privilegedRecipients = membersToRecipients Nothing privileged
-  now <- liftIO getCurrentTime
-  let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
-  -- push to all members (user is privileged)
-  let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
-  for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
+  updatedMembers <- Data.teamMembersUnsafeForLargeTeams tid
+  updateJournal team updatedMembers
+  updatePeers targetId targetPermissions updatedMembers
+  where
+    downgradesOwner :: TeamMember -> Permissions -> Bool
+    downgradesOwner previousMember targetPermissions =
+      permissionsRole (previousMember ^. permissions) == Just RoleOwner
+        && permissionsRole targetPermissions /= Just RoleOwner
+    --
+    updateJournal :: Team -> [TeamMember] -> Galley ()
+    updateJournal team updatedMembers = do
+      when (team ^. teamBinding == Binding) $ do
+        (TeamSize size) <- BrigTeam.getSize tid
+        Journal.teamUpdate tid size updatedMembers
+    --
+    updatePeers :: UserId -> Permissions -> [TeamMember] -> Galley ()
+    updatePeers targetId targetPermissions updatedMembers = do
+      -- inform members of the team about the change
+      -- some (privileged) users will be informed about which change was applied
+      let privileged = filter (`canSeePermsOf` targetMember) updatedMembers
+          mkUpdate = EdMemberUpdate targetId
+          privilegedUpdate = mkUpdate $ Just targetPermissions
+          privilegedRecipients = membersToRecipients Nothing privileged
+      now <- liftIO getCurrentTime
+      let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
+      -- push to all members (user is privileged)
+      let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
+      for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
@@ -478,10 +492,13 @@ deleteTeamMember zusr zcon tid remove mBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
-  zusrMembership <- Data.teamMember tid zusr
-  void $ permissionCheck RemoveTeamMember zusrMembership
-  okToDelete <- canBeDeleted [] remove tid
-  unless okToDelete $ throwM noOtherOwner
+  zusrMember <- Data.teamMember tid zusr
+  targetMember <- Data.teamMember tid remove
+  void $ permissionCheck RemoveTeamMember zusrMember
+  do
+    dm <- maybe (throwM teamMemberNotFound) pure zusrMember
+    tm <- maybe (throwM teamMemberNotFound) pure targetMember
+    unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
   mems <- Data.teamMembersUnsafeForLargeTeams tid
@@ -505,25 +522,36 @@ deleteTeamMember zusr zcon tid remove mBody = do
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
+-- FUTUREWORK: rename to 'uncheckedDeleteTeamMember' for consistency.
 uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
 uncheckedRemoveTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
-  let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+  pushMemberLeaveEvent now
   Data.removeTeamMember tid remove
-  let tmids = Set.fromList $ map (view userId) mems
-  let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
-  cc <- Data.teamConversations tid
-  for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
-    for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
-      Data.removeMember remove (c ^. conversationId)
-      unless (c ^. managedConversation) $
-        pushEvent tmids edata now dc
+  pushConvLeaveEvent now
   where
-    pushEvent tmids edata now dc = do
+    -- notify all team members.
+    pushMemberLeaveEvent :: UTCTime -> Galley ()
+    pushMemberLeaveEvent now = do
+      let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
+      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
+      push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+    -- notify all conversation members not in this team.
+    pushConvLeaveEvent :: UTCTime -> Galley ()
+    pushConvLeaveEvent now = do
+      let tmids = Set.fromList $ map (view userId) mems
+      let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
+      cc <- Data.teamConversations tid
+      for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
+        for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
+          Data.removeMember remove (c ^. conversationId)
+          unless (c ^. managedConversation) $
+            pushEvent tmids edata now dc
+    --
+    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Conversation -> Galley ()
+    pushEvent exceptTo edata now dc = do
       let (bots, users) = botsAndUsers (Data.convMembers dc)
-      let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) users
+      let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
       for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
@@ -774,3 +802,14 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+
+userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
+userIsTeamOwnerH (tid ::: uid ::: _) = do
+  userIsTeamOwner tid uid >>= \case
+    True -> pure empty
+    False -> throwM accessDenied
+
+userIsTeamOwner :: TeamId -> UserId -> Galley Bool
+userIsTeamOwner tid uid = do
+  let asking = uid
+  isTeamOwner . fst <$> getTeamMember asking tid uid

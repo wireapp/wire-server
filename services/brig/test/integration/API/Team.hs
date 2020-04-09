@@ -88,7 +88,7 @@ tests conf m b c g aws = do
         testGroup "sso" $
           [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
             test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
-            test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
+            test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g
           ],
         testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b g]
       ]
@@ -573,28 +573,32 @@ testDeleteTeamUser brig galley = do
   -- Cannot delete the user since it will make the team orphan
   deleteUser creator (Just defPassword) brig !!! do
     const 403 === statusCode
-    const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
+    const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   -- We need to invite another user to a full permission member
   invitee <- userId <$> inviteAndRegisterUser creator tid brig
-  -- Still cannot delete, need to make this a full permission member
+  updatePermissions creator tid (invitee, Team.fullPermissions) galley
+  -- Still cannot delete, must be demoted first
   deleteUser creator (Just defPassword) brig !!! do
     const 403 === statusCode
-    const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
-  -- Let's promote the other user
-  updatePermissions creator tid (invitee, Team.fullPermissions) galley
+    const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
+  -- Demote creator
+  updatePermissions invitee tid (creator, Team.rolePermissions Team.RoleAdmin) galley
   -- Now the creator can delete the account
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
   -- The new full permission member cannot
   deleteUser invitee (Just defPassword) brig !!! const 403 === statusCode
-  -- We can still invite new users who can delete their account, regardless of status
+  -- We can still invite new users who can delete their account only if they are not an owner
   inviteeFull <- userId <$> inviteAndRegisterUser invitee tid brig
   updatePermissions invitee tid (inviteeFull, Team.fullPermissions) galley
-  deleteUser inviteeFull (Just defPassword) brig !!! const 200 === statusCode
+  deleteUser inviteeFull (Just defPassword) brig !!! do
+    const 403 === statusCode
+    const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   inviteeMember <- userId <$> inviteAndRegisterUser invitee tid brig
   deleteUser inviteeMember (Just defPassword) brig !!! const 200 === statusCode
+  -- still cannot delete invitee
   deleteUser invitee (Just defPassword) brig !!! do
     const 403 === statusCode
-    const (Just "no-other-owner") === fmap Error.label . responseJsonMaybe
+    const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   -- Ensure internal endpoints are also exercised
   deleteUserInternal invitee brig !!! const 202 === statusCode
   -- Eventually the user will be deleted, leaving the team orphan
@@ -606,9 +610,9 @@ testSSOIsTeamOwner brig galley = do
   (creator, tid) <- createUserWithTeam brig galley
   stranger <- userId <$> randomUser brig
   invitee <- userId <$> inviteAndRegisterUser creator tid brig
-  let check expectWhat uid = void $ get (brig . paths opath . expectWhat)
+  let check expectWhat uid = void $ get (galley . paths opath . expectWhat)
         where
-          opath = ["i", "users", toByteString' uid, "is-team-owner", toByteString' tid]
+          opath = ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   check expect2xx creator
   check expect4xx stranger
   check expect4xx invitee
@@ -676,15 +680,20 @@ testDeleteUserSSO brig galley = do
   -- create and delete sso user (with email)
   Just (userId -> user1) <- mkuser True
   deleteUser user1 (Just defPassword) brig !!! const 200 === statusCode
-  -- create sso user with email, delete owner, delete user
+  -- create sso user with email
   Just (userId -> creator') <- mkuser True
   updatePermissions creator tid (creator', Team.fullPermissions) galley
+  -- demote and delete creator, but cannot do it for second owner yet (as someone needs to demote them)
+  updatePermissions creator' tid (creator, Team.rolePermissions Team.RoleMember) galley
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
-  deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
-  -- create sso user without email, delete owner
+  -- create sso user without email, make an owner
   Just (userId -> user3) <- mkuser False
   updatePermissions creator' tid (user3, Team.fullPermissions) galley
-  deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
+  -- can't delete herself, even without email
+  deleteUser user3 (Just defPassword) brig !!! const 403 === statusCode
+  -- delete second owner now, we don't enforce existence of emails in the backend
+  updatePermissions user3 tid (creator', Team.rolePermissions Team.RoleMember) galley
+  deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
 -- TODO:
 -- add sso service.  (we'll need a name for that now.)
 -- brig needs to notify the sso service about deletions!
