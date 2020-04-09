@@ -70,7 +70,7 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  ownerid <- randomUserWithTeam
+  ownerid <- randomTeamCreator
   teams <- getTeams ownerid
   let [team] = view (teamListTeams) teams
   let tid = view teamId team
@@ -1005,8 +1005,8 @@ randomUsers n = replicateM n randomUser
 randomUser :: HasCallStack => TestM UserId
 randomUser = randomUser'' False True True Nothing
 
-randomUserWithTeam :: HasCallStack => TestM UserId
-randomUserWithTeam = randomUser'' True True True Nothing
+randomTeamCreator :: HasCallStack => TestM UserId
+randomTeamCreator = randomUser'' True True True Nothing
 
 randomUser' :: HasCallStack => Bool -> Bool -> Maybe (UserId, TeamId, Role, UserSSOId) -> TestM UserId
 randomUser' = randomUser'' False
