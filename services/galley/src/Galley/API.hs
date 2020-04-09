@@ -162,6 +162,28 @@ sitemap = do
     errorResponse Error.notATeamMember
   --
 
+  post "/teams/:tid/members" (continue Teams.bulkGetTeamMembersH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
+      .&. jsonRequest @UserIdList
+      .&. accept "application" "json"
+  document "POST" "bulkGetTeamMembers" $ do
+    summary
+      "Get team members by user id list\n\
+      \NOTE: `has_more` field in response body is always `false`."
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
+      description "Maximum Results to be returned"
+    body (ref TeamsModel.userIdList) $
+      description "JSON body"
+    returns (ref TeamsModel.teamMemberList)
+    response 200 "Team members" end
+    errorResponse Error.notATeamMember
+    errorResponse Error.bulkGetMemberLimitExceeded
+  --
+
   get "/teams/:tid/members/:uid" (continue Teams.getTeamMemberH) $
     zauthUserId
       .&. capture "tid"
