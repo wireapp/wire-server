@@ -27,7 +27,6 @@ import Control.Lens hiding ((#), (.=), from, to)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (_String, key)
-import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -240,7 +239,7 @@ addUserToTeamWithRole role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId "nil" "nil"
-  user <- responseJsonError =<< postUser "SSO User" hasEmail (Just ssoid) (Just tid)
+  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   let uid = Brig.Types.userId user
   getTeamMember uid tid uid
 
@@ -1242,37 +1241,19 @@ refreshIndex = do
   brig <- view tsBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
--- | More flexible variant of 'createUser' (see above).
-postUser :: Text -> Bool -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
-postUser = postUser' False True
-
--- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
--- messages.  Or @postUser' False True@ if you want to validate the body, but not set a password.
-postUser' :: Bool -> Bool -> Text -> Bool -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
-postUser' hasPassword validateBody name haveEmail ssoid teamid = do
-  email <-
-    if haveEmail
-      then Just <$> randomEmail
-      else pure Nothing
-  postUserWithEmail hasPassword validateBody name email ssoid teamid
-
--- | More flexible variant of 'createUserUntrustedEmail' (see above).
-postUserWithEmail :: Bool -> Bool -> Text -> Maybe Email -> Maybe UserSSOId -> Maybe TeamId -> TestM ResponseLBS
-postUserWithEmail hasPassword validateBody name email ssoid teamid = do
+postSSOUser :: Text -> Bool -> UserSSOId -> TeamId -> TestM ResponseLBS
+postSSOUser name hasEmail ssoid teamid = do
   brig <- view tsBrig
+  email <- randomEmail
   let o =
         object $
           [ "name" .= name,
-            "email" .= (fromEmail <$> email),
             "cookie" .= defCookieLabel,
             "sso_id" .= ssoid,
             "team_id" .= teamid
           ]
-            <> ["password" .= defPassword | hasPassword]
-      p = case Aeson.parse parseJSON o of
-        Aeson.Success (p_ :: NewUser) -> p_
-        bad -> error $ show (bad, o)
-      bdy = if validateBody then Bilge.json p else Bilge.json o
+            <> ["email" .= fromEmail email | hasEmail]
+      bdy = Bilge.json o
   post (brig . path "/i/users" . bdy)
 
 defCookieLabel :: CookieLabel
