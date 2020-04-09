@@ -434,10 +434,9 @@ updateTeamMember zusr zcon tid targetMember = do
         $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  (updatedMembers, tooMany) <- Data.teamMembers' tid Nothing
+  updatedMembers <- Data.teamMembersUnsafeForLargeTeams tid
   updateJournal team updatedMembers
-  unless tooMany $ do
-    updatePeers targetId targetPermissions updatedMembers
+  updatePeers targetId targetPermissions updatedMembers
   where
     downgradesOwner :: TeamMember -> Permissions -> Bool
     downgradesOwner previousMember targetPermissions =
@@ -488,7 +487,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
-  (mems, tooMany) <- Data.teamMembers' tid Nothing
+  mems <- Data.teamMembersUnsafeForLargeTeams tid
   if team ^. teamBinding == Binding && isJust removeMembership
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
@@ -497,27 +496,27 @@ deleteTeamMember zusr zcon tid remove mBody = do
       Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
-      uncheckedRemoveTeamMember zusr (Just zcon) tid remove (if tooMany then Nothing else Just mems)
+      uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 -- FUTUREWORK: rename to 'uncheckedDeleteTeamMember' for consistency.
-uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> Maybe [TeamMember] -> Galley ()
-uncheckedRemoveTeamMember zusr zcon tid remove mmems = do
+uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
+uncheckedRemoveTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
-  mapM_ (pushMemberLeaveEvent now) mmems
+  pushMemberLeaveEvent now
   Data.removeTeamMember tid remove
-  pushConvLeaveEvent now (fromMaybe [] mmems)
+  pushConvLeaveEvent now
   where
     -- notify all team members.
-    pushMemberLeaveEvent :: UTCTime -> [TeamMember] -> Galley ()
-    pushMemberLeaveEvent now mems = do
+    pushMemberLeaveEvent :: UTCTime -> Galley ()
+    pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
       push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
-    pushConvLeaveEvent :: UTCTime -> [TeamMember] -> Galley ()
-    pushConvLeaveEvent now mems = do
+    pushConvLeaveEvent :: UTCTime -> Galley ()
+    pushConvLeaveEvent now = do
       let tmids = Set.fromList $ map (view userId) mems
       let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
       cc <- Data.teamConversations tid

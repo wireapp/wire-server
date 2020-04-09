@@ -34,7 +34,6 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
-    teamMembers',
     teamMembersUnsafeForLargeTeams,
     teamMembersLimited,
     userTeams,
@@ -205,10 +204,7 @@ teamConversations t =
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
 teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], Bool)
-teamMembers t = teamMembers' t . Just
-
-teamMembers' :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Maybe (Range 1 HardTruncationLimit Int32) -> m ([TeamMember], Bool)
-teamMembers' t (maybe hardTruncationLimit fromRange -> limit) = do
+teamMembers t (fromRange -> limit) = do
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
   ms <- mapM newTeamMember' $ result pageTuple
   pure (ms, hasMore pageTuple)
