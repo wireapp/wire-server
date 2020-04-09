@@ -350,8 +350,18 @@ bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
   (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
   pure . json $ teamMemberListJson withPerms memberList
 
+-- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> [UserId] -> Galley (TeamMemberList, TeamMember -> Bool)
-bulkGetTeamMembers = undefined
+bulkGetTeamMembers zusr tid maxResults uids = do
+  unless (length uids <= fromIntegral (fromRange maxResults)) $
+    throwM bulkGetMemberLimitExceeded
+  mems <- Data.teamMembersLimited tid uids
+  Data.teamMember tid zusr >>= \case
+    Nothing -> throwM notATeamMember
+    Just m -> do
+      let withPerms = (m `canSeePermsOf`)
+          hasMore = False
+      pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
