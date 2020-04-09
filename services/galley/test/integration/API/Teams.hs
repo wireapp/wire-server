@@ -25,7 +25,6 @@ import API.Util
 import qualified API.Util as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Brig.Types.Common (UserSSOId (UserSSOId))
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson hiding (json)
@@ -415,7 +414,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
   ownerMem <-
     if ownerHasPassword
       then Util.addUserToTeam ownerWithPassword tid
-      else Util.addUserToTeamWithSSO tid
+      else Util.addUserToTeamWithSSO True tid
   Util.makeOwner ownerWithPassword ownerMem tid
   let owner = view userId ownerMem
   ensureQueueEmpty
@@ -493,42 +492,45 @@ testRemoveBindingTeamMember ownerHasPassword = do
 
 testRemoveBindingTeamOwner :: TestM ()
 testRemoveBindingTeamOwner = do
-  ownerA <- Util.randomUser
-  tid <- Util.createBindingTeamInternal "foo" ownerA
-  ownerB <- do
-    u <- Util.randomUser
-    Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleOwner) Nothing
-    pure u
+  (ownerA, tid) <- Util.createBindingTeam
+  ownerB <-
+    view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) ownerA tid
   ownerWithoutEmail <- do
     -- users must have a 'UserIdentity', or @get /i/users@ won't find it, so we use
     -- 'UserSSOId'.
-    Util.randomUser' True False (Just (ownerA, tid, RoleOwner, UserSSOId "t" "s"))
-  admin <- do
-    u <- Util.randomUser
-    Util.addTeamMemberInternal tid $ newTeamMember u (rolePermissions RoleAdmin) Nothing
-    pure u
+    mem <- Util.addUserToTeamWithSSO False tid
+    Util.makeOwner ownerA mem tid
+    pure $ view userId mem
+  admin <-
+    view userId <$> Util.addUserToTeamWithRole (Just RoleAdmin) ownerA tid
   -- non-owner can NOT delete owner
-  check tid admin ownerWithoutEmail False
+  check tid admin ownerWithoutEmail (Just $ Util.defPassword) (Just "access-denied")
   -- owners can NOT delete themselves
-  check tid ownerA ownerA False
-  check tid ownerWithoutEmail ownerWithoutEmail False
+  check tid ownerA ownerA (Just $ Util.defPassword) (Just "access-denied")
+  check tid ownerWithoutEmail ownerWithoutEmail Nothing (Just "access-denied")
   -- owners can delete other owners (no matter who has emails)
-  check tid ownerWithoutEmail ownerA True
-  check tid ownerB ownerWithoutEmail True
+  check tid ownerWithoutEmail ownerA Nothing Nothing
+  check tid ownerB ownerWithoutEmail (Just $ Util.defPassword) Nothing
   --
   ensureQueueEmpty
   where
-    check :: HasCallStack => TeamId -> UserId -> UserId -> Bool -> TestM ()
-    check tid deleter deletee works = do
+    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
+    check tid deleter deletee pass maybeError = do
       g <- view tsGalley
       delete
         ( g
             . paths ["teams", toByteString' tid, "members", toByteString' deletee]
             . zUser deleter
             . zConn "conn"
-            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+            . json (newTeamMemberDeleteData pass)
         )
-        !!! const (if works then 202 else 403) === statusCode
+        !!! do
+          case maybeError of
+            Nothing ->
+              const 202 === statusCode
+            Just label -> do
+              const 403 === statusCode
+              const label === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddTeamConvLegacy :: TestM ()
 testAddTeamConvLegacy = do
@@ -801,7 +803,7 @@ testDeleteBindingTeam ownerHasPassword = do
   ownerMem <-
     if ownerHasPassword
       then Util.addUserToTeam ownerWithPassword tid
-      else Util.addUserToTeamWithSSO tid
+      else Util.addUserToTeamWithSSO True tid
   Util.makeOwner ownerWithPassword ownerMem tid
   let owner = view userId ownerMem
   ensureQueueEmpty

@@ -237,10 +237,10 @@ addUserToTeamWithRole role inviter tid = do
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   pure mem
 
-addUserToTeamWithSSO :: HasCallStack => TeamId -> TestM TeamMember
-addUserToTeamWithSSO tid = do
+addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
+addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId "nil" "nil"
-  user <- responseJsonError =<< postUser "SSO User" True (Just ssoid) (Just tid)
+  user <- responseJsonError =<< postUser "SSO User" hasEmail (Just ssoid) (Just tid)
   let uid = Brig.Types.userId user
   getTeamMember uid tid uid
 
@@ -1003,18 +1003,14 @@ randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
 
 randomUser :: HasCallStack => TestM UserId
-randomUser = randomUser'' False True True Nothing
+randomUser = randomUser' False True True
 
 randomTeamCreator :: HasCallStack => TestM UserId
-randomTeamCreator = randomUser'' True True True Nothing
+randomTeamCreator = randomUser' True True True
 
-randomUser' :: HasCallStack => Bool -> Bool -> Maybe (UserId, TeamId, Role, UserSSOId) -> TestM UserId
-randomUser' = randomUser'' False
-
-randomUser'' :: HasCallStack => Bool -> Bool -> Bool -> Maybe (UserId, TeamId, Role, UserSSOId) -> TestM UserId
-randomUser'' isCreator hasPassword hasEmail teamInfo = do
+randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM UserId
+randomUser' isCreator hasPassword hasEmail = do
   b <- view tsBrig
-  g <- view tsGalley
   e <- liftIO randomEmail
   let p =
         object $
@@ -1022,15 +1018,8 @@ randomUser'' isCreator hasPassword hasEmail teamInfo = do
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= (Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
-            <> ["team_id" .= view _2 (fromJust teamInfo) | isJust teamInfo]
-            <> ["sso_id" .= view _4 (fromJust teamInfo) | isJust teamInfo]
   r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
-  uid <- fromBS (getHeader' "Location" r)
-  forM_ teamInfo $ \(ownerid, tid, role, _) -> do
-    let upd = newNewTeamMember $ newTeamMember uid (rolePermissions role) Nothing
-    put (g . zUser ownerid . zConn "conn" . paths ["teams", toByteString' tid, "members"] . json upd)
-      !!! const 200 === statusCode
-  pure uid
+  fromBS (getHeader' "Location" r)
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
