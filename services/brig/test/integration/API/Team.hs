@@ -435,10 +435,9 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   (creator, tid) <- createUserWithTeam brig galley
-  SearchUtil.refreshIndex brig
   pooledForConcurrentlyN_ 16 [1 .. limit -1] $ \_ -> do
     void $ createTeamMember brig galley creator tid Team.fullPermissions
-    SearchUtil.refreshIndex brig
+  SearchUtil.refreshIndex brig
   em <- randomEmail
   let invite = stdInvitationRequest em (Name "Bob") Nothing Nothing
   inv <- responseJsonError =<< postInvitation brig tid creator invite
