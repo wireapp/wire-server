@@ -48,11 +48,11 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedRemoveTeamMember,
     withBindingTeam,
-    getTruncatedTeamSizeH,
     userIsTeamOwnerH,
   )
 where
 
+import Brig.Types.Team (TeamSize (..))
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Cassandra (hasMore, result)
 import Control.Lens
@@ -78,6 +78,7 @@ import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import qualified Galley.Intra.Spar as Spar
+import qualified Galley.Intra.Team as BrigTeam
 import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -183,8 +184,18 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     Data.updateTeamStatus tid newStatus
   where
     journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = Data.teamMembersUnsafeForLargeTeams tid >>= \mems ->
-      Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
+    journal Active c = do
+      mems <- Data.teamMembersUnsafeForLargeTeams tid
+      teamCreationTime <- Data.teamCreationTime tid
+      -- When teams are created, they are activated immediately. In this situation, Brig will
+      -- most likely report team size as 0 due to ES taking some time to index the team creator.
+      -- This is also very difficult to test, so is not tested.
+      (TeamSize possiblyStaleSize) <- BrigTeam.getSize tid
+      let size =
+            if possiblyStaleSize == 0
+              then 1
+              else possiblyStaleSize
+      Journal.teamActivate tid size mems c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -398,8 +409,9 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersUnsafeForLargeTeams tid
+  (TeamSize sizeBeforeAdd) <- BrigTeam.getSize tid
   addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (nmem ^. ntmNewTeamMember : mems)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -445,7 +457,9 @@ updateTeamMember zusr zcon tid targetMember = do
     --
     updateJournal :: Team -> [TeamMember] -> Galley ()
     updateJournal team updatedMembers = do
-      when (team ^. teamBinding == Binding) $ Journal.teamUpdate tid updatedMembers
+      when (team ^. teamBinding == Binding) $ do
+        (TeamSize size) <- BrigTeam.getSize tid
+        Journal.teamUpdate tid size updatedMembers
     --
     updatePeers :: UserId -> Permissions -> [TeamMember] -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -492,8 +506,16 @@ deleteTeamMember zusr zcon tid remove mBody = do
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
+      (TeamSize sizeBeforeDelete) <- BrigTeam.getSize tid
+      -- TeamSize is 'Natural' and subtracting from  0 is an error
+      -- TeamSize could be reported as 0 if team members are added and removed very quickly,
+      -- which happens in tests
+      let sizeAfterDelete =
+            if sizeBeforeDelete == 0
+              then 0
+              else sizeBeforeDelete - 1
       deleteUser remove
-      Journal.teamUpdate tid (filter (\u -> u ^. userId /= remove) mems)
+      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
       uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
@@ -641,7 +663,8 @@ addTeamMemberInternal tid origin originConn newMem mems = do
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   o <- view options
-  unless (length mems < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+  (TeamSize teamSize) <- BrigTeam.getSize tid
+  unless (teamSize < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwM tooManyTeamMembers
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
@@ -649,10 +672,10 @@ addTeamMemberInternal tid origin originConn newMem mems = do
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  push1 $ newPush1 (new ^. userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
+  push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   where
-    r (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
-    r Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
+    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
+    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
@@ -779,17 +802,6 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldDisabled -> removeSettings' tid Nothing
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
-
-getTruncatedTeamSizeH :: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
-getTruncatedTeamSizeH (tid ::: r ::: _) = json <$> getTruncatedTeamSize tid r
-
-getTruncatedTeamSize :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TruncatedTeamSize
-getTruncatedTeamSize tid r = do
-  (members, hasMore) <- Data.teamMembers tid r
-  pure $
-    if hasMore
-      then mkLargeTeamSize $ fromIntegral $ fromRange r
-      else mkTruncatedTeamSize (fromIntegral $ fromRange r) (fromIntegral $ length members)
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

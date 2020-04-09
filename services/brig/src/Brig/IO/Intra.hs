@@ -53,7 +53,6 @@ module Brig.IO.Intra
     getTeamContacts,
     getTeamLegalHoldStatus,
     changeTeamStatus,
-    getTruncatedTeamSize,
   )
 where
 
@@ -745,16 +744,6 @@ memberIsTeamOwner tid uid = do
     galleyRequest GET $
       (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   pure $ responseStatus r /= status403
-
--- | Calls 'Galley.API.getTruncatedTeamSizeH'.
-getTruncatedTeamSize :: TeamId -> Range 1 Team.HardTruncationLimit Int32 -> AppIO Team.TruncatedTeamSize
-getTruncatedTeamSize tid limit = do
-  debug $ remote "galley" . msg (val "Get limited team size")
-  galleyRequest GET req >>= decodeBody "galley"
-  where
-    req =
-      paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' limit]
-        . expect2xx
 
 -- | Only works on 'BindingTeam's!
 --

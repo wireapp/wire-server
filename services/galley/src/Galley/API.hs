@@ -988,10 +988,6 @@ sitemap = do
     capture "uid"
   get "/i/users/:uid/team" (continue Teams.getBindingTeamIdH) $
     capture "uid"
-  get "/i/teams/:tid/truncated-size/:size" (continue Teams.getTruncatedTeamSizeH) $
-    capture "tid"
-      .&. capture "size"
-      .&. accept "application" "json"
   get "/i/teams/:tid/is-team-owner/:uid" (continue Teams.userIsTeamOwnerH) $
     capture "tid"
       .&. capture "uid"

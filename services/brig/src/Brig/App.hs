@@ -462,6 +462,9 @@ instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT m) where
 instance MonadIndexIO AppIO where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
+instance (MonadIndexIO (AppT m), Monad m) => MonadIndexIO (ExceptT err (AppT m)) where
+  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+
 instance Monad m => HasRequestId (AppT m) where
   getRequestId = view requestId
 
