@@ -23,14 +23,13 @@ where
 import Bilge
 import Brig.Types.User
 import Control.Lens hiding ((.=))
-import Text.XML.DSig (mkSignCredsWithCert)
 import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
 import qualified Data.ByteString.Builder as LB
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
@@ -46,6 +45,7 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
 import Spar.Types
+import Text.XML.DSig (mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
 import Util.Core
 import qualified Util.Scim as ScimT
@@ -486,54 +486,54 @@ checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither 
 
 testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
 testGetPutDelete whichone = do
-        context "unknown IdP" $ do
-          it "responds with 'not found'" $ do
-            env <- ask
-            whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
-              `shouldRespondWith` checkErr (== 404) "not-found"
-        context "no zuser" $ do
-          it "responds with 'client error'" $ do
-            env <- ask
-            (_, _, (^. idpId) -> idpid) <- registerTestIdP
-            whichone (env ^. teSpar) Nothing idpid
-              `shouldRespondWith` checkErr (== 400) "client-error"
-        context "zuser has no team" $ do
-          it "responds with 'no team member'" $ do
-            env <- ask
-            (_, _, (^. idpId) -> idpid) <- registerTestIdP
-            (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-            whichone (env ^. teSpar) (Just uid) idpid
-              `shouldRespondWith` checkErr (== 403) "no-team-member"
-        context "zuser has wrong team" $ do
-          it "responds with 'no team member'" $ do
-            env <- ask
-            (_, _, (^. idpId) -> idpid) <- registerTestIdP
-            (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            whichone (env ^. teSpar) (Just uid) idpid
-              `shouldRespondWith` checkErr (== 403) "no-team-member"
-        context "zuser is a team member, but not a team owner" $ do
-          it "responds with 'insufficient-permissions' and a helpful message" $ do
-            env <- ask
-            (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
-            newmember <-
-              let Just perms = Galley.newPermissions mempty mempty
-               in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
-            whichone (env ^. teSpar) (Just newmember) idpid
-              `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+  context "unknown IdP" $ do
+    it "responds with 'not found'" $ do
+      env <- ask
+      whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
+        `shouldRespondWith` checkErr (== 404) "not-found"
+  context "no zuser" $ do
+    it "responds with 'client error'" $ do
+      env <- ask
+      (_, _, (^. idpId) -> idpid) <- registerTestIdP
+      whichone (env ^. teSpar) Nothing idpid
+        `shouldRespondWith` checkErr (== 400) "client-error"
+  context "zuser has no team" $ do
+    it "responds with 'no team member'" $ do
+      env <- ask
+      (_, _, (^. idpId) -> idpid) <- registerTestIdP
+      (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+      whichone (env ^. teSpar) (Just uid) idpid
+        `shouldRespondWith` checkErr (== 403) "no-team-member"
+  context "zuser has wrong team" $ do
+    it "responds with 'no team member'" $ do
+      env <- ask
+      (_, _, (^. idpId) -> idpid) <- registerTestIdP
+      (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      whichone (env ^. teSpar) (Just uid) idpid
+        `shouldRespondWith` checkErr (== 403) "no-team-member"
+  context "zuser is a team member, but not a team owner" $ do
+    it "responds with 'insufficient-permissions' and a helpful message" $ do
+      env <- ask
+      (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
+      newmember <-
+        let Just perms = Galley.newPermissions mempty mempty
+         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+      whichone (env ^. teSpar) (Just newmember) idpid
+        `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
 -- Authenticate via sso, and assign owner status to the thus created user.  (This doesn't work
 -- via the cookie, since we don't talk to nginz here, so we assume there is only one user in
 -- the team, which is the original owner.)
 mkSsoOwner :: UserId -> TeamId -> IdP -> TestSpar UserId
 mkSsoOwner firstOwner tid idp = do
-        spmeta <- getTestSPMetadata
-        (privcreds, authnreq) <- negotiateAuthnRequest idp
-        authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-        loginresp <- submitAuthnResponse authnresp
-        liftIO $ responseStatus loginresp `shouldBe` status200
-        [ssoOwner] <- filter (/= firstOwner) <$> getTeamMembers firstOwner tid
-        promoteTeamMember firstOwner tid ssoOwner
-        pure ssoOwner
+  spmeta <- getTestSPMetadata
+  (privcreds, authnreq) <- negotiateAuthnRequest idp
+  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+  loginresp <- submitAuthnResponse authnresp
+  liftIO $ responseStatus loginresp `shouldBe` status200
+  [ssoOwner] <- filter (/= firstOwner) <$> getTeamMembers firstOwner tid
+  promoteTeamMember firstOwner tid ssoOwner
+  pure ssoOwner
 
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
@@ -618,7 +618,6 @@ specCRUDIdentityProvider = do
               requri = [uri|https://auth.example.com/|]
           pure $ IdPMetadataValue (cs $ SAML.encode xml) xml
     testGetPutDelete (\s u i -> callIdpUpdate' s u i =<< liftIO mdinfo)
-
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and updates IdP" $ do
         pendingWith "TODO/@@@"
@@ -628,7 +627,6 @@ specCRUDIdentityProvider = do
       context "invalid signature" $ do
         it "rejects" $ do
           pendingWith "TODO/@@@"
-
     describe "unknown issuer" $ do
       it "rejects" $ do
         pendingWith "TODO/@@@"
@@ -646,7 +644,6 @@ specCRUDIdentityProvider = do
         pendingWith "TODO/@@@"
       it "removes all old certs (even if there were more before)" $ do
         pendingWith "TODO/@@@"
-
   describe "POST /identity-providers" $ do
     context "sso disabled for team" $ do
       it "responds with 403 forbidden" $ do
