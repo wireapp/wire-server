@@ -264,7 +264,12 @@ idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML
   SAML.storeIdPConfig idp
   pure idp
 
--- | Check that issuer is fresh (see longer comment in source) and request URI is https.
+-- | Check that issuer is not used for any team in the system (it is a database keys for
+-- finding IdPs), and request URI is https.
+--
+-- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
+-- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
+-- issuer is our only way of finding the team in which the user must be created.
 --
 -- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
@@ -281,17 +286,6 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
-  -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
-  -- idp(s), either use put, or delete the old one before creating a new one
-  -- (*may* already work, even though it may create a brief time window in which users experience
-  -- broken login behavior).
-  --
-  -- rationale: the issuer is how the idp self-identifies.  we can't allow the same idp to serve
-  -- two teams because of implicit user creation: if an unknown user arrives, we use the
-  -- idp-to-team mapping to decide which team to create the user in.  if we wanted to trust the
-  -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
-  -- creating users in victim teams.
-
   pure SAML.IdPConfig {..}
 
 idpUpdate :: Maybe UserId -> SAML.IdPId -> IdPMetadataInfo -> Spar IdP
