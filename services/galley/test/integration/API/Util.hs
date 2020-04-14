@@ -182,9 +182,9 @@ bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM Team
 bulkGetTeamMembers usr tid uids = do
   g <- view tsGalley
   r <-
-    get
+    post
       ( g
-          . paths ["teams", toByteString' tid, "members-by-ids"]
+          . paths ["teams", toByteString' tid, "get-members-by-ids-using-post"]
           . zUser usr
           . json (UserIdList uids)
       )
@@ -195,9 +195,9 @@ bulkGetTeamMembers usr tid uids = do
 bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
 bulkGetTeamMembersTruncated usr tid uids trnc = do
   g <- view tsGalley
-  get
+  post
     ( g
-        . paths ["teams", toByteString' tid, "members-by-ids"]
+        . paths ["teams", toByteString' tid, "get-members-by-ids-using-post"]
         . zUser usr
         . queryItem "maxResults" (C.pack $ show trnc)
         . json (UserIdList uids)

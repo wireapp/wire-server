@@ -162,13 +162,13 @@ sitemap = do
     errorResponse Error.notATeamMember
   --
 
-  get "/teams/:tid/members-by-ids" (continue Teams.bulkGetTeamMembersH) $
+  post "/teams/:tid/get-members-by-ids-using-post" (continue Teams.bulkGetTeamMembersH) $
     zauthUserId
       .&. capture "tid"
       .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
       .&. jsonRequest @UserIdList
       .&. accept "application" "json"
-  document "GET" "bulkGetTeamMembers" $ do
+  document "POST" "bulkGetTeamMembers" $ do
     summary
       "Get team members by user id list\n\
       \NOTE: `has_more` field in response body is always `false`."
