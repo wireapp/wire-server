@@ -217,18 +217,23 @@ testListTeamMembersTruncated = do
 testListTeamMembersDefaultLimitByIds :: TestM ()
 testListTeamMembersDefaultLimitByIds = do
   (owner, tid, [member1, member2]) <- Util.createBindingTeamWithNMembers 2
-  check owner tid [owner, member1, member2]
-  check owner tid [member1, member2]
-  check owner tid [member1]
-  check owner tid [] -- a bit silly, but hey.
+  (_, _, [alien]) <- Util.createBindingTeamWithNMembers 1
+  let phantom :: UserId = read "686f427a-7e56-11ea-a639-07a531a95937"
+  check owner tid [owner, member1, member2] [owner, member1, member2]
+  check owner tid [member1, member2] [member1, member2]
+  check owner tid [member1] [member1]
+  check owner tid [] [] -- a bit silly, but hey.
+  check owner tid [alien] []
+  check owner tid [phantom] []
+  check owner tid [owner, alien, phantom] [owner]
   where
-    check :: UserId -> TeamId -> [UserId] -> TestM ()
-    check owner tid uids = do
-      listFromServer <- Util.bulkGetTeamMembers owner tid uids
+    check :: UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
+    check owner tid uidsIn uidsOut = do
+      listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
       liftIO $
         assertEqual
           "list members"
-          (Set.fromList uids)
+          (Set.fromList uidsOut)
           (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
       liftIO $
         assertBool
