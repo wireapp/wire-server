@@ -29,18 +29,18 @@ packages:
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
     cabal-file:
-      size: 8017
-      sha256: d65ad9f5d25e5ac40afeb6de695b9fc8fc9e1220c04ac59f506dcfad23d62524
+      size: 8428
+      sha256: fe2cb8e7ce1a52a945af37523411732004952ceedddaeb10927722c46c96aa9e
     name: saml2-web-sso
     version: '0.18'
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
-      size: 4593
-      sha256: 127f0e4c67697f8eed57b9675cca6bfaff7ac028d7c0907a110f2974a66b017f
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+      size: 4678
+      sha256: 507fbe582b9517897239c51afc2aa51eb25d0c0e3980c442bb9863692dbe88ef
+    commit: 0d40f08b36b221b970560090316bb9ca6964e79f
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+    commit: 0d40f08b36b221b970560090316bb9ca6964e79f
 - completed:
     cabal-file:
       size: 9076
