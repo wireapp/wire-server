@@ -40,12 +40,13 @@ import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Credentials (sampleIdPCert2, sampleIdPPrivkey, sampleIdPPrivkey2)
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
 import Spar.Types
-import Text.XML.DSig (mkSignCredsWithCert)
+import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
 import Util.Core
 import qualified Util.Scim as ScimT
@@ -484,41 +485,35 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
 checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
 
-testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> Http ResponseLBS) -> SpecWith TestEnv
 testGetPutDelete whichone = do
   context "unknown IdP" $ do
     it "responds with 'not found'" $ do
       env <- ask
-      whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
+      (_, _, _, idpmeta) <- registerTestIdPWithMeta
+      whichone (env ^. teSpar) Nothing (IdPId UUID.nil) idpmeta
         `shouldRespondWith` checkErr (== 404) "not-found"
   context "no zuser" $ do
     it "responds with 'client error'" $ do
       env <- ask
-      (_, _, (^. idpId) -> idpid) <- registerTestIdP
-      whichone (env ^. teSpar) Nothing idpid
+      (_, _, (^. idpId) -> idpid, idpmeta) <- registerTestIdPWithMeta
+      whichone (env ^. teSpar) Nothing idpid idpmeta
         `shouldRespondWith` checkErr (== 400) "client-error"
   context "zuser has no team" $ do
     it "responds with 'no team member'" $ do
       env <- ask
-      (_, _, (^. idpId) -> idpid) <- registerTestIdP
+      (_, _, (^. idpId) -> idpid, idpmeta) <- registerTestIdPWithMeta
       (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-      whichone (env ^. teSpar) (Just uid) idpid
-        `shouldRespondWith` checkErr (== 403) "no-team-member"
-  context "zuser has wrong team" $ do
-    it "responds with 'no team member'" $ do
-      env <- ask
-      (_, _, (^. idpId) -> idpid) <- registerTestIdP
-      (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-      whichone (env ^. teSpar) (Just uid) idpid
+      whichone (env ^. teSpar) (Just uid) idpid idpmeta
         `shouldRespondWith` checkErr (== 403) "no-team-member"
   context "zuser is a team member, but not a team owner" $ do
     it "responds with 'insufficient-permissions' and a helpful message" $ do
       env <- ask
-      (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
+      (_, teamid, (^. idpId) -> idpid, idpmeta) <- registerTestIdPWithMeta
       newmember <-
         let Just perms = Galley.newPermissions mempty mempty
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
-      whichone (env ^. teSpar) (Just newmember) idpid
+      whichone (env ^. teSpar) (Just newmember) idpid idpmeta
         `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
 -- Authenticate via sso, and assign owner status to the thus created user.  (This doesn't work
@@ -538,7 +533,14 @@ mkSsoOwner firstOwner tid idp = do
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
   describe "GET /identity-providers/:idp" $ do
-    testGetPutDelete callIdpGet'
+    testGetPutDelete (\o t i _ -> callIdpGet' o t i)
+    context "zuser has wrong team" $ do
+      it "responds with 'no team member'" $ do
+        env <- ask
+        (_, _, (^. idpId) -> idpid) <- registerTestIdP
+        (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        callIdpGet' (env ^. teSpar) (Just uid) idpid
+          `shouldRespondWith` checkErr (== 403) "no-team-member"
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
@@ -588,7 +590,14 @@ specCRUDIdentityProvider = do
           callIdpGetAll (env ^. teSpar) (Just ssoOwner)
             `shouldRespondWith` (not . null . _idplProviders)
   describe "DELETE /identity-providers/:idp" $ do
-    testGetPutDelete callIdpDelete'
+    testGetPutDelete (\o t i _ -> callIdpDelete' o t i)
+    context "zuser has wrong team" $ do
+      it "responds with 'no team member'" $ do
+        env <- ask
+        (_, _, (^. idpId) -> idpid) <- registerTestIdP
+        (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        callIdpDelete' (env ^. teSpar) (Just uid) idpid
+          `shouldRespondWith` checkErr (== 403) "no-team-member"
     context "known IdP, IdP empty, client is team owner" $ do
       context "without email" $ it "responds with 2xx and removes IdP" $ do
         env <- ask
@@ -608,42 +617,84 @@ specCRUDIdentityProvider = do
         callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
   describe "PUT /identity-providers/:idp" $ do
-    let mdinfo :: IO IdPMetadataInfo
-        mdinfo = do
-          -- @mkinfo@ is needed because put (in contrast to get, delete) requires a changed
-          -- metatadata file in the body.
-          (_, _, cert) <- mkSignCredsWithCert Nothing 96
-          let xml = IdPMetadata issuer requri (cert :| [])
-              issuer = Issuer [uri|https://idp.example.com/|]
-              requri = [uri|https://auth.example.com/|]
-          pure $ IdPMetadataValue (cs $ SAML.encode xml) xml
-    testGetPutDelete (\s u i -> callIdpUpdate' s u i =<< liftIO mdinfo)
+    testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and updates IdP" $ do
-        pendingWith "TODO/@@@"
+        env <- ask
+        (owner, _, (^. idpId) -> idpid, IdPMetadataValue _ idpmeta) <- registerTestIdPWithMeta
+        (_, _, cert1) <- liftIO $ mkSignCredsWithCert Nothing 96
+        (_, _, cert2) <- liftIO $ mkSignCredsWithCert Nothing 96
+        let idpmeta' = idpmeta & edCertAuthnResponse .~ (cert1 :| [cert2])
+        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        callIdpGet (env ^. teSpar) (Just owner) idpid
+          `shouldRespondWith` ((== idpmeta') . view idpMetadata)
       context "invalid body" $ do
         it "rejects" $ do
-          pendingWith "TODO/@@@"
-      context "invalid signature" $ do
-        it "rejects" $ do
-          pendingWith "TODO/@@@"
-    describe "unknown issuer" $ do
+          env <- ask
+          (owner, _, (^. idpId) -> idpid) <- registerTestIdP
+          callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
+            `shouldRespondWith` ((== 400) . statusCode)
+    describe "issuer changed to one that already exists in another team" $ do
       it "rejects" $ do
-        pendingWith "TODO/@@@"
-    describe "issuer from other team" $ do
+        env <- ask
+        (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
+        (_, _, _, IdPMetadataValue _ idpmeta2) <- registerTestIdPWithMeta
+        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
+          `shouldRespondWith` checkErr (== 400) "idp-used-in-other-team"
+    describe "issuer changed to one that is new" $ do
       it "rejects" $ do
-        pendingWith "TODO/@@@"
-    describe "issuer and idp do not refer to the same idp" $ do
-      it "rejects" $ do
-        pendingWith "TODO/@@@"
+        env <- ask
+        (owner, _, (^. idpId) -> idpid, IdPMetadataValue _ idpmeta) <- registerTestIdPWithMeta
+        let idpmeta' = idpmeta & edIssuer .~ Issuer [uri|https://www.example.com|]
+        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+          `shouldRespondWith` checkErr (== 400) "cannot-update-idp-issuer"
     describe "new request uri" $ do
       it "uses it on next auth handshake" $ do
-        pendingWith "TODO/@@@"
+        env <- ask
+        (owner, _, (^. idpId) -> idpid, IdPMetadataValue _ idpmeta) <- registerTestIdPWithMeta
+        let idpmeta' = idpmeta & edRequestURI .~ [uri|https://www.example.com|]
+        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        (requri, _) <- call $ callAuthnReq (env ^. teSpar) idpid
+        liftIO $ requri `shouldBe` idpmeta' ^. edRequestURI
     describe "new certs" $ do
+      let -- Create a team, idp, and update idp with 'sampleIdPCert2'.
+          initidp :: HasCallStack => TestSpar IdP
+          initidp = do
+            env <- ask
+            (owner, _, idp, IdPMetadataValue _ idpmeta) <- registerTestIdPWithMeta
+            let idpmeta' = idpmeta & edCertAuthnResponse .~ (sampleIdPCert2 :| [])
+            callIdpUpdate' (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+              `shouldRespondWith` ((== 200) . statusCode)
+            pure idp
+          -- Sign authn response with a given private key (which may be the one matching
+          -- 'sampleIdPCert2' or not), and check the status of spars response.
+          check :: HasCallStack => SignPrivCreds -> Int -> String -> Either String () -> TestSpar ()
+          check privkey expectedStatus expectedHtmlTitle expectedCookie = do
+            idp <- initidp
+            env <- ask
+            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. idpId)
+            spmeta <- getTestSPMetadata
+            idpresp <- runSimpleSP $ mkAuthnResponse privkey idp spmeta authnreq True
+            sparresp <- submitAuthnResponse idpresp
+            liftIO $ do
+              statusCode sparresp `shouldBe` expectedStatus
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` expectedHtmlTitle
+              hasPersistentCookieHeader sparresp `shouldBe` expectedCookie
       it "uses those certs on next auth handshake" $ do
-        pendingWith "TODO/@@@"
+        check
+          sampleIdPPrivkey2
+          200
+          "<title>wire:sso:success</title>"
+          (Right ())
       it "removes all old certs (even if there were more before)" $ do
-        pendingWith "TODO/@@@"
+        check
+          sampleIdPPrivkey
+          400
+          "<title>wire:sso:error:bad-response-signature</title>"
+          (Left "no set-cookie header")
   describe "POST /identity-providers" $ do
     context "sso disabled for team" $ do
       it "responds with 403 forbidden" $ do
@@ -741,6 +792,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
   -- saml login; remove it via brig leaving a dangling entry in @spar.user@; create it via saml
   -- login once more.  This should work despite the dangling database entry.
   it "re-create previously deleted, dangling users" $ do
+    -- TODO: https://github.com/zinfra/backend-issues/issues/1200
     (_ownerid, _teamid, idp) <- registerTestIdP
     uname :: SAML.UnqualifiedNameID <- do
       suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))

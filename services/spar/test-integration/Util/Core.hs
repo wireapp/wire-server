@@ -70,6 +70,7 @@ module Util.Core
     makeTestIdPMetadata,
     getTestSPMetadata,
     registerTestIdP,
+    registerTestIdPWithMeta,
     registerTestIdPFrom,
     negotiateAuthnRequest,
     negotiateAuthnRequest',
@@ -631,15 +632,24 @@ getTestSPMetadata = do
   where
     crash_ = liftIO . throwIO . ErrorCall
 
--- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
--- idp in the resulting team.  The user returned is the owner of the team.
+-- | See 'registerTestIdPWithMeta'
 registerTestIdP ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   m (UserId, TeamId, IdP)
 registerTestIdP = do
+  (uid, tid, idp, _) <- registerTestIdPWithMeta
+  pure (uid, tid, idp)
+
+-- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
+-- idp in the resulting team.  The user returned is the owner of the team.
+registerTestIdPWithMeta ::
+  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
+  m (UserId, TeamId, IdP, IdPMetadataInfo)
+registerTestIdPWithMeta = do
   idpmeta <- makeTestIdPMetadata
   env <- ask
-  registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  pure (uid, tid, idp, IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta)
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
