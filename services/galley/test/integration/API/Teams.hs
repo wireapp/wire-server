@@ -70,6 +70,10 @@ tests s =
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
           test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
         ],
+      testGroup "List Team Members (by ids)" $
+        [ test s "a member should be able to list their team" testListTeamMembersDefaultLimitByIds,
+          test s "id list length limit is enforced" testListTeamMembersTruncatedByIds
+        ],
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
@@ -209,6 +213,39 @@ testListTeamMembersTruncated = do
     assertBool
       "member list does not indicate that there are more members"
       (listFromServer ^. teamMemberListHasMore)
+
+testListTeamMembersDefaultLimitByIds :: TestM ()
+testListTeamMembersDefaultLimitByIds = do
+  (owner, tid, [member1, member2]) <- Util.createBindingTeamWithNMembers 2
+  (_, _, [alien]) <- Util.createBindingTeamWithNMembers 1
+  let phantom :: UserId = read "686f427a-7e56-11ea-a639-07a531a95937"
+  check owner tid [owner, member1, member2] [owner, member1, member2]
+  check owner tid [member1, member2] [member1, member2]
+  check owner tid [member1] [member1]
+  check owner tid [] [] -- a bit silly, but hey.
+  check owner tid [alien] []
+  check owner tid [phantom] []
+  check owner tid [owner, alien, phantom] [owner]
+  where
+    check :: HasCallStack => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
+    check owner tid uidsIn uidsOut = do
+      listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
+      liftIO $
+        assertEqual
+          "list members"
+          (Set.fromList uidsOut)
+          (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+      liftIO $
+        assertBool
+          "has_more is always false"
+          (not $ listFromServer ^. teamMemberListHasMore)
+
+testListTeamMembersTruncatedByIds :: TestM ()
+testListTeamMembersTruncatedByIds = do
+  (owner, tid, mems) <- Util.createBindingTeamWithNMembers 4
+  Util.bulkGetTeamMembersTruncated owner tid (owner : mems) 3 !!! do
+    const 400 === statusCode
+    const "too-many-uids" === Error.label . responseJsonUnsafeWithMsg "error label"
 
 testUncheckedListTeamMembers :: TestM ()
 testUncheckedListTeamMembers = do
