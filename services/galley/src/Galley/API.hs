@@ -169,9 +169,8 @@ sitemap = do
       .&. jsonRequest @UserIdList
       .&. accept "application" "json"
   document "POST" "bulkGetTeamMembers" $ do
-    summary
-      "Get team members by user id list\n\
-      \NOTE: `has_more` field in response body is always `false`."
+    summary "Get team members by user id list"
+    notes "The `has_more` field in the response body is always `false`."
     parameter Path "tid" bytes' $
       description "Team ID"
     parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
