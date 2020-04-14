@@ -28,6 +28,7 @@ import Brig.Types
 import Control.Lens ((.~))
 import Data.Handle (fromHandle)
 import Data.List (elemIndex)
+import qualified Data.Text as Text
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty
@@ -48,8 +49,11 @@ tests opts mgr galley brig =
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
             test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
             test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
-            test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMemeber galley brig,
-            test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
+            test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig,
+            testGroup "order" $
+              [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch galley brig,
+                test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch galley brig
+              ]
           ]
       ]
 
@@ -127,17 +131,31 @@ testSeachNonMemberAsTeamMember galley brig = do
   refreshIndex brig
   assertCanFind brig (userId teamMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
 
-testSearchOrderingAsTeamMemeber :: Galley -> Brig -> Http ()
-testSearchOrderingAsTeamMemeber galley brig = do
+testSearchOrderingAsTeamMemberExactMatch :: Galley -> Brig -> Http ()
+testSearchOrderingAsTeamMemberExactMatch galley brig = do
   searchedName <- randomName
-  nonTeamSearchee <- createUser' True (fromName searchedName) brig
+  mapM_ (\(_ :: Int) -> createUser' True (fromName searchedName) brig) [0 .. 99]
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", searchedName]
   refreshIndex brig
   (Just result) <- executeSearch brig (userId searcher) (fromName searchedName)
   let resultUserIds = contactUserId <$> searchResults result
-      (Just nonTeamSearcheeIndex) = elemIndex (userId nonTeamSearchee) resultUserIds
-      (Just teamSearcheeIndex) = elemIndex (userId teamSearchee) resultUserIds
-  liftIO $ assertBool "teammate is not ordered before non teammate" (nonTeamSearcheeIndex > teamSearcheeIndex)
+  liftIO $ do
+    case elemIndex (userId teamSearchee) resultUserIds of
+      Nothing -> assertFailure "team mate not found in search"
+      Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
+
+testSearchOrderingAsTeamMemberPrefixMatch :: Galley -> Brig -> Http ()
+testSearchOrderingAsTeamMemberPrefixMatch galley brig = do
+  searchedName <- randomName
+  mapM_ (\(i :: Int) -> createUser' True (fromName searchedName <> Text.pack (show i)) brig) [0 .. 99]
+  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", Name $ fromName searchedName <> "suffix"]
+  refreshIndex brig
+  (Just result) <- executeSearch brig (userId searcher) (fromName searchedName)
+  let resultUserIds = contactUserId <$> searchResults result
+  liftIO $ do
+    case elemIndex (userId teamSearchee) resultUserIds of
+      Nothing -> assertFailure "team mate not found in search"
+      Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
 
 testSearchSameTeamOnly :: Opt.Opts -> Galley -> Brig -> Http ()
 testSearchSameTeamOnly opts galley brig = do
