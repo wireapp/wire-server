@@ -105,8 +105,5 @@ getByDomainIsCaseInsensitive = do
     const jsonBody === responseJsonUnsafe
   delete (galley . path "/i/custom-backend/by-domain/AB.ab")
     !!! const 200 === statusCode
-  -- not just the matching is done in a case-insensitive way,
-  -- but we actually store the normalized domain.
   get (galley . path "/custom-backend/by-domain/Ab.Ab") !!! do
     const 404 === statusCode
-    const ("ab.ab" :: ByteString) =~= (cs . fold . responseBody)
