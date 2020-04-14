@@ -38,7 +38,8 @@ tests s =
     [ test s "GET by-domain (404)" getByDomainNotFound,
       test s "GET by-domain (400)" getByDomainInvalidDomain,
       test s "PUT, GET by-domain (200)" getByDomainFound,
-      test s "PUT, DELETE, GET by-domain (404)" getByDomainDeleted
+      test s "PUT, DELETE, GET by-domain (404)" getByDomainDeleted,
+      test s "domain is case-insensitive" getByDomainIsCaseInsensitive
     ]
 
 getByDomainNotFound :: TestM ()
@@ -87,3 +88,25 @@ getByDomainDeleted = do
   get (galley . path "/custom-backend/by-domain/domain.no3") !!! do
     const 404 === statusCode
     const ("domain.no3" :: ByteString) =~= (cs . fold . responseBody)
+
+getByDomainIsCaseInsensitive :: TestM ()
+getByDomainIsCaseInsensitive = do
+  galley <- view tsGalley
+  let jsonBody :: Value
+      jsonBody =
+        [aesonQQ|{
+          "config_json_url": "https://wire-rest.https.no2.com/config.json",
+          "webapp_welcome_url": "https://app.wire.no2.com/"
+          }|]
+  put (galley . path "/i/custom-backend/by-domain/Ab.Ab" . json jsonBody)
+    !!! const 201 === statusCode
+  get (galley . path "/custom-backend/by-domain/aB.aB") !!! do
+    const 200 === statusCode
+    const jsonBody === responseJsonUnsafe
+  delete (galley . path "/i/custom-backend/by-domain/AB.ab")
+    !!! const 200 === statusCode
+  -- not just the matching is done in a case-insensitive way,
+  -- but we actually store the normalized domain.
+  get (galley . path "/custom-backend/by-domain/Ab.Ab") !!! do
+    const 404 === statusCode
+    const ("ab.ab" :: ByteString) =~= (cs . fold . responseBody)
