@@ -227,7 +227,7 @@ testListTeamMembersDefaultLimitByIds = do
   check owner tid [phantom] []
   check owner tid [owner, alien, phantom] [owner]
   where
-    check :: UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
+    check :: HasCallStack => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
     check owner tid uidsIn uidsOut = do
       listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
       liftIO $
