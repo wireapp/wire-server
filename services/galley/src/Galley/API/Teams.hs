@@ -337,10 +337,10 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
 
 getTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
-  (mems, hasMore) <- Data.teamMembers tid maxResults
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
     Just m -> do
+      (mems, hasMore) <- Data.teamMembers tid maxResults
       let withPerms = (m `canSeePermsOf`)
       pure (newTeamMemberList mems hasMore, withPerms)
 
@@ -355,10 +355,10 @@ bulkGetTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> [
 bulkGetTeamMembers zusr tid maxResults uids = do
   unless (length uids <= fromIntegral (fromRange maxResults)) $
     throwM bulkGetMemberLimitExceeded
-  mems <- Data.teamMembersLimited tid uids
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
     Just m -> do
+      mems <- Data.teamMembersLimited tid uids
       let withPerms = (m `canSeePermsOf`)
           hasMore = False
       pure (newTeamMemberList mems hasMore, withPerms)
