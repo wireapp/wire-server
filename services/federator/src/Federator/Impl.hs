@@ -39,7 +39,6 @@ import Network.Wai (Application)
 import Servant.Client.Core (BaseUrl (..), Scheme (Https))
 import Servant.Server (Handler)
 import Servant.Server.Generic (AsServerT, genericServeT)
-import Util.Options (Endpoint (Endpoint))
 import qualified Wire.API.Federation.Conversation as Fed
 import qualified Wire.API.Federation.Types.Event as Fed
 

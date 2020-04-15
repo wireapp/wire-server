@@ -18,7 +18,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.API where
+module Federator.API
+  ( API (..),
+    FUser (..),
+    module Fed,
+  )
+where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Test.Arbitrary ()
@@ -31,8 +36,8 @@ import Imports
 import Servant.API
 import Servant.API.Generic
 import Test.QuickCheck (Arbitrary, arbitrary)
-import qualified Wire.API.Federation.Conversation as Fed
-import qualified Wire.API.Federation.Types.Event as Fed
+import Wire.API.Federation.Conversation as Fed hiding (Api)
+import Wire.API.Federation.Types.Event as Fed
 
 data API route
   = API
