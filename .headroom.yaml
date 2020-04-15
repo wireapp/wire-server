@@ -9,3 +9,8 @@ variables:
   email: opensource@wire.com
   project: This file is part of the Wire Server implementation.
   year: '2020'
+license-headers:
+  haskell:
+    put-after: ["^{-#"]
+    line-comment:
+      prefixed-by: "--"
