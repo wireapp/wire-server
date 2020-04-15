@@ -159,14 +159,14 @@ packages:
       sha256: ab576560da2c4a87de631543f22e00cfec4ce545554220e4cf1033816b7695cd
     name: bloodhound
     version: 0.17.0.0
-    git: https://github.com/bitemyapp/bloodhound
+    git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4116
-      sha256: 75111095142cc0f7bce196bc89c7494ba0576d0f63039a4953de6cda73ac38ba
-    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+      sha256: 74670e260cdbf4c4f433de921c746d0ba0347e66153a72745f87b84261c2787b
+    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
   original:
-    git: https://github.com/bitemyapp/bloodhound
-    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+    git: https://github.com/wireapp/bloodhound
+    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
 - completed:
     size: 11137527
     subdir: amazonka

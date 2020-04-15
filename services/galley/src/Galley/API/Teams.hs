@@ -30,6 +30,7 @@ module Galley.API.Teams
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamMembersH,
+    bulkGetTeamMembersH,
     getTeamMemberH,
     deleteTeamMemberH,
     updateTeamMemberH,
@@ -82,6 +83,7 @@ import qualified Galley.Intra.Team as BrigTeam
 import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Queue as Q
+import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -335,11 +337,30 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
 
 getTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
-  (mems, hasMore) <- Data.teamMembers tid maxResults
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
     Just m -> do
+      (mems, hasMore) <- Data.teamMembers tid maxResults
       let withPerms = (m `canSeePermsOf`)
+      pure (newTeamMemberList mems hasMore, withPerms)
+
+bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JsonRequest UserIdList ::: JSON -> Galley Response
+bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
+  UserIdList uids <- fromJsonBody body
+  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
+  pure . json $ teamMemberListJson withPerms memberList
+
+-- | like 'getTeamMembers', but with an explicit list of users we are to return.
+bulkGetTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> [UserId] -> Galley (TeamMemberList, TeamMember -> Bool)
+bulkGetTeamMembers zusr tid maxResults uids = do
+  unless (length uids <= fromIntegral (fromRange maxResults)) $
+    throwM bulkGetMemberLimitExceeded
+  Data.teamMember tid zusr >>= \case
+    Nothing -> throwM notATeamMember
+    Just m -> do
+      mems <- Data.teamMembersLimited tid uids
+      let withPerms = (m `canSeePermsOf`)
+          hasMore = False
       pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response

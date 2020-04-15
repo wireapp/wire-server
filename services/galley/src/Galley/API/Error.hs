@@ -26,7 +26,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
 import Galley.Types.Conversations.Roles (Action)
-import Galley.Types.Teams (IsPerm)
+import Galley.Types.Teams (IsPerm, hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -111,6 +111,13 @@ actionDenied a =
 
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
+
+bulkGetMemberLimitExceeded :: Error
+bulkGetMemberLimitExceeded =
+  Error
+    status400
+    "too-many-uids"
+    ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."

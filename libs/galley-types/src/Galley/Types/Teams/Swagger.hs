@@ -166,6 +166,12 @@ teamConversationList = defineModel "TeamConversationListList" $ do
   property "conversations" (unique $ array (ref teamConversation)) $
     description "the array of team conversations"
 
+userIdList :: Model
+userIdList = defineModel "UserIdList" $ do
+  description "list of user ids"
+  property "user_ids" (unique $ array bytes') $
+    description "the array of team conversations"
+
 event :: Model
 event = defineModel "TeamEvent" $ do
   description "team event data"
