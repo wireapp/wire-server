@@ -823,10 +823,10 @@ sitemap = do
       description "JSON body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
-    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -858,10 +858,10 @@ sitemap = do
       description "Protobuf body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
-    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -895,9 +895,9 @@ sitemap = do
       description "JSON body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
-    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -932,9 +932,9 @@ sitemap = do
       description "Protobuf body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
-    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
+    errorResponse Error.unknownClient
   ---
 
   get "/conversations/api-docs" (continue docs) $
