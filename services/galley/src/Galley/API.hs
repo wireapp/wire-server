@@ -93,6 +93,15 @@ sitemap = do
       .&. def (unsafeRange 100) (query "size")
       .&. accept "application" "json"
   document "GET" "getManyTeams" $ do
+    parameter Query "ids" (array string') $ do
+      optional
+      description "At most 32 team IDs per request. Mutually exclusive with `start`."
+    parameter Query "start" string' $ do
+      optional
+      description "Team ID to start from (exclusive). Mutually exclusive with `ids`."
+    parameter Query "size" (int32Between 1 100) $ do
+      optional
+      description "Max. number of teams to return"
     summary "Get teams"
     returns (ref TeamsModel.teamList)
     response 200 "Teams list" end
