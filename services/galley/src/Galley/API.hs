@@ -155,7 +155,8 @@ sitemap = do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+      optional
       description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
@@ -173,7 +174,8 @@ sitemap = do
     notes "The `has_more` field in the response body is always `false`."
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+      optional
       description "Maximum Results to be returned"
     body (ref TeamsModel.userIdList) $
       description "JSON body"
