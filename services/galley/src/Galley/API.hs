@@ -93,6 +93,15 @@ sitemap = do
       .&. def (unsafeRange 100) (query "size")
       .&. accept "application" "json"
   document "GET" "getManyTeams" $ do
+    parameter Query "ids" (array string') $ do
+      optional
+      description "At most 32 team IDs per request. Mutually exclusive with `start`."
+    parameter Query "start" string' $ do
+      optional
+      description "Team ID to start from (exclusive). Mutually exclusive with `ids`."
+    parameter Query "size" (int32Between 1 100) $ do
+      optional
+      description "Max. number of teams to return"
     summary "Get teams"
     returns (ref TeamsModel.teamList)
     response 200 "Teams list" end
@@ -155,7 +164,8 @@ sitemap = do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+      optional
       description "Maximum Results to be returned"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
@@ -173,7 +183,8 @@ sitemap = do
     notes "The `has_more` field in the response body is always `false`."
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $
+    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+      optional
       description "Maximum Results to be returned"
     body (ref TeamsModel.userIdList) $
       description "JSON body"
@@ -794,7 +805,19 @@ sitemap = do
   document "POST" "postOtrBroadcast" $ do
     summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
     parameter Query "ignore_missing" bool' $ do
-      description "Force message delivery even when clients are missing."
+      description
+        "Force message delivery even when clients are missing. \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is allowed to \
+        \have missing clients."
+      optional
+    parameter Query "report_missing" bool' $ do
+      description
+        "Don't allow message delivery when clients are missing \
+        \('ignore_missing' takes precedence when present). \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is forbidden from \
+        \having missing clients."
       optional
     body (ref Model.newOtrMessage) $
       description "JSON body"
@@ -803,6 +826,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -837,6 +861,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -872,6 +897,7 @@ sitemap = do
     response 201 "Message posted" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
+    errorResponse Error.unknownClient
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -888,15 +914,27 @@ sitemap = do
     parameter Path "cnv" bytes' $
       description "Conversation ID"
     parameter Query "ignore_missing" bool' $ do
-      description "Force message delivery even when clients are missing."
+      description
+        "Force message delivery even when clients are missing. \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is allowed to \
+        \have missing clients."
+      optional
+    parameter Query "report_missing" bool' $ do
+      description
+        "Don't allow message delivery when clients are missing \
+        \('ignore_missing' takes precedence when present). \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is forbidden from \
+        \having missing clients."
       optional
     body (ref Model.newOtrMessage) $
       description "Protobuf body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
-    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
+    errorResponse Error.unknownClient
   ---
 
   get "/conversations/api-docs" (continue docs) $
