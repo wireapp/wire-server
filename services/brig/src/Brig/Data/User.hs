@@ -1,6 +1,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- for Show UserRowInsert
 
 -- TODO: Move to Brig.User.Account.DB
@@ -40,7 +57,6 @@ module Brig.Data.User
     updateLocale,
     updatePassword,
     updateStatus,
-    updateSearchableStatus,
     updateHandle,
     updateRichInfo,
 
@@ -107,7 +123,7 @@ newAccount u inv tid = do
   where
     ident = newUserIdentity u
     pass = newUserPassword u
-    name = newUserName u
+    name = newUserDisplayName u
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
     status = case ident of
@@ -159,16 +175,15 @@ insertAccount ::
   Maybe Password ->
   -- | Whether the user is activated
   Bool ->
-  SearchableStatus ->
   AppIO ()
-insertAccount (UserAccount u status) mbConv password activated searchable = retry x5 $ batch $ do
+insertAccount (UserAccount u status) mbConv password activated = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
   let Locale l c = userLocale u
   addPrepQuery
     userInsert
     ( userId u,
-      userName u,
+      userDisplayName u,
       userPict u,
       userAssets u,
       userEmail u,
@@ -184,7 +199,6 @@ insertAccount (UserAccount u status) mbConv password activated searchable = retr
       view serviceRefProvider <$> userService u,
       view serviceRefId <$> userService u,
       userHandle u,
-      searchable,
       userTeam u,
       userManagedBy u
     )
@@ -211,7 +225,7 @@ updateUser :: UserId -> UserUpdate -> AppIO ()
 updateUser u UserUpdate {..} = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
-  for_ uupName $ \n -> addPrepQuery userNameUpdate (n, u)
+  for_ uupName $ \n -> addPrepQuery userDisplayNameUpdate (n, u)
   for_ uupPict $ \p -> addPrepQuery userPictUpdate (p, u)
   for_ uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, u)
   for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
@@ -273,10 +287,6 @@ deleteServiceUser pid sid bid = do
 
 updateStatus :: UserId -> AccountStatus -> AppIO ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params Quorum (s, u))
-
-updateSearchableStatus :: UserId -> SearchableStatus -> AppIO ()
-updateSearchableStatus u s =
-  retry x5 $ write userSearchableStatusUpdate (params Quorum (s, u))
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
@@ -440,7 +450,6 @@ type UserRowInsert =
     Maybe ProviderId,
     Maybe ServiceId,
     Maybe Handle,
-    SearchableStatus,
     Maybe TeamId,
     ManagedBy
   )
@@ -517,11 +526,11 @@ userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, searchable, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, handle, team, managed_by) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userNameUpdate :: PrepQuery W (Name, UserId) ()
-userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
+userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
+userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
 
 userPictUpdate :: PrepQuery W (Pict, UserId) ()
 userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?"
@@ -552,9 +561,6 @@ userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
 userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
-
-userSearchableStatusUpdate :: PrepQuery W (SearchableStatus, UserId) ()
-userSearchableStatusUpdate = "UPDATE user SET searchable = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"

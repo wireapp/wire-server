@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.Intra.User
   ( getConnections,
     deleteBot,
@@ -36,6 +53,7 @@ import Network.Wai.Utilities.Error
 -- several users to one).
 --
 -- When a connection does not exist, it is skipped.
+-- Calls 'Brig.API.getConnectionsStatusH'.
 getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
@@ -50,6 +68,7 @@ getConnections uFrom uTo rlt = do
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
+-- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()
 deleteBot cid bot = do
   (h, p) <- brigReq
@@ -61,6 +80,7 @@ deleteBot cid bot = do
       . header "Z-Conversation" (toByteString' cid)
       . expect2xx
 
+-- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser :: UserId -> ReAuthUser -> Galley Bool
 reAuthUser uid auth = do
   (h, p) <- brigReq
@@ -80,6 +100,7 @@ check allowed r =
            in throwM $ HttpExceptionRequest rq ex
     }
 
+-- | Calls 'Brig.API.listActivatedAccountsH'.
 lookupActivatedUsers :: [UserId] -> Galley [User]
 lookupActivatedUsers uids = do
   (h, p) <- brigReq
@@ -93,6 +114,7 @@ lookupActivatedUsers uids = do
   where
     users = BSC.intercalate "," $ toByteString' <$> uids
 
+-- | Calls 'Brig.API.deleteUserNoVerifyH'.
 deleteUser :: UserId -> Galley ()
 deleteUser uid = do
   (h, p) <- brigReq
@@ -101,6 +123,7 @@ deleteUser uid = do
       . paths ["/i/users", toByteString' uid]
       . expect2xx
 
+-- | Calls 'Brig.API.getContactListH'.
 getContactList :: UserId -> Galley [UserId]
 getContactList uid = do
   (h, p) <- brigReq
@@ -111,6 +134,7 @@ getContactList uid = do
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
 
+-- | Calls 'Brig.API.canBeDeletedH'.
 canBeDeleted :: [TeamMember] -> UserId -> TeamId -> Galley Bool
 canBeDeleted members uid tid = if askGalley then pure True else askBrig
   where

@@ -1,0 +1,176 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 08cc6d357674ea09cd3e2563aa63d778f4dbac1c4f1d722d7edae22148750c79
+
+name:           bonanza
+version:        3.6.0
+synopsis:       Log Processing.
+description:    Parsing, transforming, and forwarding of log data.
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Bonanza.Anon
+      Bonanza.App
+      Bonanza.Geo
+      Bonanza.Metrics
+      Bonanza.Parser.CommonLog
+      Bonanza.Parser.Internal
+      Bonanza.Parser.IP
+      Bonanza.Parser.Journald
+      Bonanza.Parser.Netstrings
+      Bonanza.Parser.Nginz
+      Bonanza.Parser.Rkt
+      Bonanza.Parser.Socklog
+      Bonanza.Parser.Svlogd
+      Bonanza.Parser.Time
+      Bonanza.Parser.Tinylog
+      Bonanza.Streaming.Binary
+      Bonanza.Streaming.Kibana
+      Bonanza.Streaming.Parser
+      Bonanza.Streaming.Protobuf
+      Bonanza.Streaming.Snappy
+      Bonanza.Types
+  other-modules:
+      Paths_bonanza
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-small-strict-fields -fno-warn-unused-do-bind
+  build-depends:
+      aeson >=1.0
+    , attoparsec >=0.10
+    , base ==4.*
+    , base16-bytestring >=0.1.1.6 && <0.2
+    , base64-bytestring ==1.0.*
+    , bifunctors
+    , binary
+    , bytestring
+    , bytestring-conversion
+    , cereal
+    , cereal-conduit
+    , conduit
+    , conduit-extra
+    , containers
+    , ekg-core
+    , exceptions
+    , hs-GeoIP ==0.3.*
+    , http-client
+    , http-types
+    , imports
+    , lens
+    , lens-aeson
+    , mtl
+    , network
+    , optparse-applicative >=0.11
+    , protobuf >=0.2.1.1
+    , resourcet
+    , scientific
+    , snappy
+    , snappy-framing
+    , text
+    , time >=1.5 && <1.9
+    , types-common >=0.14.1
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
+
+executable bonanza
+  main-is: main/Main.hs
+  other-modules:
+      Paths_bonanza
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-small-strict-fields -fno-warn-unused-do-bind -threaded -rtsopts -with-rtsopts=-T -with-rtsopts=-N
+  build-depends:
+      base ==4.*
+    , bonanza
+    , bytestring
+    , conduit
+    , conduit-extra
+    , imports
+    , text
+  default-language: Haskell2010
+
+executable kibana-raw
+  main-is: main/KibanaRaw.hs
+  other-modules:
+      Paths_bonanza
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-small-strict-fields -rtsopts
+  build-depends:
+      aeson >=1.0
+    , base
+    , bytestring
+    , clock
+    , conduit
+    , conduit-extra
+    , cryptonite
+    , imports
+    , optparse-applicative
+    , text
+    , time
+  default-language: Haskell2010
+
+executable kibanana
+  main-is: main/Kibanana.hs
+  other-modules:
+      Paths_bonanza
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-small-strict-fields -fno-warn-unused-do-bind -threaded -rtsopts -with-rtsopts=-T -with-rtsopts=-N
+  build-depends:
+      async
+    , base
+    , bytestring
+    , conduit
+    , conduit-extra
+    , containers
+    , errors
+    , http-client >=0.4.18 && <5
+    , http-client-tls
+    , http-conduit
+    , imports
+    , optparse-applicative
+    , stm
+    , text
+  default-language: Haskell2010
+
+test-suite bonanza-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Bonanza.Arbitrary
+      Test.Bonanza.Parser
+      Test.Bonanza.Streaming
+      Paths_bonanza
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson
+    , attoparsec
+    , base
+    , bonanza
+    , bytestring
+    , conduit
+    , conduit-extra
+    , http-types
+    , imports
+    , lens
+    , scientific
+    , tasty
+    , tasty-quickcheck
+    , text
+    , time
+    , vector
+  default-language: Haskell2010

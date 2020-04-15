@@ -1,0 +1,47 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 46140b9b362cced4d847a47014015a2517bfaaa4203a1d359d61963e7be044cd
+
+name:           imports
+version:        0.1.0
+synopsis:       Very common imports
+description:    A single module combining some common imports. Designed to be
+                usable as a drop-in Prelude replacement.
+                .
+                Also exports common orphan instances.
+category:       Utilities
+stability:      experimental
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Imports
+  other-modules:
+      Paths_imports
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , deepseq
+    , extra
+    , mtl
+    , text
+    , tinylog
+    , transformers
+    , unliftio
+    , unliftio-core
+    , unordered-containers
+  default-language: Haskell2010

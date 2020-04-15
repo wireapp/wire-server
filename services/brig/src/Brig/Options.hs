@@ -1,6 +1,23 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Options where
 
 import Brig.Queue.Types (Queue (..))
@@ -441,21 +458,28 @@ data Settings
         setDeleteThrottleMillis :: !(Maybe Int),
         -- | When true, search only
         -- returns users from the same team
-        setSearchSameTeamOnly :: !(Maybe Bool)
+        setSearchSameTeamOnly :: !(Maybe Bool),
+        -- | When false, assume there are no other backends and IDs are always local.
+        -- This means we don't run any queries on federation-related tables and don't
+        -- make any calls to the federator service.
+        setEnableFederation :: !(Maybe Bool)
       }
   deriving (Show, Generic)
 
 defMaxKeyLen :: Int64
-defMaxKeyLen = 256
+defMaxKeyLen = 1024
 
 defMaxValueLen :: Int64
-defMaxValueLen = 512
+defMaxValueLen = 524288
 
 defDeleteThrottleMillis :: Int
 defDeleteThrottleMillis = 100
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
+
+defEnableFederation :: Bool
+defEnableFederation = False
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
@@ -483,3 +507,5 @@ Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Setting
 Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
 
 Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
+
+Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings

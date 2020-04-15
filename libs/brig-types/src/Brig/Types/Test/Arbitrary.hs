@@ -12,6 +12,23 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Types.Test.Arbitrary where
 
 import Brig.Types.Activation
@@ -226,7 +243,7 @@ instance Arbitrary NewUser where
     let isTeamUser = case newUserOrigin of
           Just (NewUserOriginTeamUser _) -> True
           _ -> False
-    newUserName <- arbitrary
+    newUserDisplayName <- arbitrary
     newUserUUID <- elements [Just nil, Nothing]
     newUserPict <- arbitrary
     newUserAssets <- arbitrary
@@ -381,7 +398,7 @@ instance Arbitrary InvitationList where
   arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
 
 instance Arbitrary Invitation where
-  arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Permissions where
   arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
@@ -393,7 +410,7 @@ instance Arbitrary Perm where
   arbitrary = elements [minBound ..]
 
 instance Arbitrary InvitationRequest where
-  arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Role where
   arbitrary = elements [minBound ..]

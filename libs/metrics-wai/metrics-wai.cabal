@@ -1,0 +1,53 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 5ae11aea0f562def1900e89b7cec0809fbd3e10edc7eef00cfbfe752b06a147f
+
+name:           metrics-wai
+version:        0.5.7
+synopsis:       Metrics WAI integration
+category:       Data
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Data.Metrics.Middleware
+      Data.Metrics.Middleware.Prometheus
+      Data.Metrics.Servant
+      Data.Metrics.Test
+      Data.Metrics.Types
+      Data.Metrics.WaiRoute
+  other-modules:
+      Paths_metrics_wai
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-prof-options: -fprof-auto
+  build-depends:
+      base ==4.*
+    , bytestring >=0.10
+    , clock >=0.6
+    , containers
+    , exceptions >=0.6
+    , http-types >=0.8
+    , imports
+    , metrics-core >=0.3
+    , prometheus-client
+    , servant
+    , string-conversions
+    , text >=0.11
+    , transformers >=0.3
+    , wai >=3
+    , wai-middleware-prometheus
+    , wai-route >=0.3
+    , wai-routing
+  default-language: Haskell2010

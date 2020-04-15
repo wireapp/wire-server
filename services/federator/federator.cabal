@@ -1,0 +1,104 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 03ec0f9a11f05b34c7cf2216747ff7a75c79d30a243ea9b589393ce04e89fc89
+
+name:           federator
+version:        1.0.0
+synopsis:       Federation Service
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2020 Wire Swiss GmbH
+license:        AGPL-3
+build-type:     Simple
+
+library
+  exposed-modules:
+      Federator.API
+      Federator.App
+      Federator.Options
+      Federator.Run
+      Federator.Types
+      Federator.Util
+  other-modules:
+      Paths_federator
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , bilge
+    , brig-types
+    , bytestring-conversion
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , galley-types
+    , imports
+    , lens
+    , metrics-core
+    , metrics-wai
+    , resourcet
+    , servant
+    , servant-mock
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , text
+    , tinylog
+    , types-common
+    , uuid
+    , wai
+    , wai-utilities
+    , warp
+  default-language: Haskell2010
+
+executable federator
+  main-is: Main.hs
+  other-modules:
+      Paths_federator
+  hs-source-dirs:
+      exec
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , bilge
+    , brig-types
+    , bytestring-conversion
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , federator
+    , galley-types
+    , imports
+    , lens
+    , metrics-core
+    , metrics-wai
+    , resourcet
+    , servant
+    , servant-mock
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , text
+    , tinylog
+    , types-common
+    , uuid
+    , wai
+    , wai-utilities
+    , warp
+  default-language: Haskell2010

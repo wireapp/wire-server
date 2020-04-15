@@ -1,4 +1,24 @@
-module Main (main) where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Main
+  ( main,
+  )
+where
 
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
@@ -22,6 +42,7 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Imports hiding (local)
+import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
@@ -74,11 +95,12 @@ runTests iConf bConf otherArgs = do
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts mg b c ch g n awsEnv
   providerApi <- Provider.tests (provider <$> iConf) mg db b c g
-  searchApis <- Search.tests mg b
+  searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg b c g awsEnv
   turnApi <- TURN.tests mg b turnFile turnFileV2
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
+  createIndex <- Index.Create.spec brigOpts
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -93,7 +115,8 @@ runTests iConf bConf otherArgs = do
         teamApis,
         turnApi,
         metricsApi,
-        settingsApi
+        settingsApi,
+        createIndex
       ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

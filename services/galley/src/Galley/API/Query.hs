@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Query
   ( getBotConversationH,
     getConversationH,
@@ -13,6 +30,7 @@ where
 import Cassandra (hasMore, result)
 import Data.ByteString.Conversion
 import Data.Id
+import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.Range
 import Galley.API.Error
 import Galley.API.Mapping
@@ -35,7 +53,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (makeIdOpaque zcnv)
+  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (Local zcnv)
   let cmems = mapMaybe mkMember (toList (Data.convMembers c))
   pure $ botConvView zcnv (Data.convName c) cmems
   where
@@ -48,7 +66,8 @@ getConversationH (zusr ::: cnv ::: _) = do
   json <$> getConversation zusr cnv
 
 getConversation :: UserId -> OpaqueConvId -> Galley Conversation
-getConversation zusr cnv = do
+getConversation zusr opaqueCnv = do
+  cnv <- resolveOpaqueConvId opaqueCnv
   c <- getConversationAndCheckMembership zusr cnv
   conversationView zusr c
 
@@ -57,7 +76,8 @@ getConversationRolesH (zusr ::: cnv ::: _) = do
   json <$> getConversationRoles zusr cnv
 
 getConversationRoles :: UserId -> OpaqueConvId -> Galley ConversationRolesList
-getConversationRoles zusr cnv = do
+getConversationRoles zusr opaqueCnv = do
+  cnv <- resolveOpaqueConvId opaqueCnv
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
@@ -79,9 +99,8 @@ getConversationsH (zusr ::: range ::: size ::: _) =
 getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (ConversationList Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
-    -- FUTUREWORK(federation): resolve IDs in batch
     (localConvIds, _qualifiedConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId ids
-    -- FUTUREWORK(federation): fetch remote conversations from other backend
+    -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
     cs <-
       Data.conversations localConvIds
         >>= filterM removeDeleted

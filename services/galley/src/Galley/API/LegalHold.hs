@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.LegalHold
   ( createSettingsH,
     getSettingsH,
@@ -54,12 +71,12 @@ createSettingsH (zusr ::: tid ::: req ::: _) = do
 createSettings :: UserId -> TeamId -> NewLegalHoldService -> Galley ViewLegalHoldService
 createSettings zusr tid newService = do
   assertLegalHoldEnabled tid
-  membs <- Data.teamMembers tid
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "LegalHold.createSettings")
-  void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+  zusrMembership <- Data.teamMember tid zusr
+  -- let zothers = map (view userId) membs
+  -- Log.debug $
+  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+  --     . Log.field "action" (Log.val "LegalHold.createSettings")
+  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
     LHService.validateServiceKey (newLegalHoldServiceKey newService)
       >>= maybe (throwM legalHoldServiceInvalidKey) pure
@@ -74,8 +91,8 @@ getSettingsH (zusr ::: tid ::: _) = do
 
 getSettings :: UserId -> TeamId -> Galley ViewLegalHoldService
 getSettings zusr tid = do
-  membs <- Data.teamMembers tid
-  void $ permissionCheck zusr ViewLegalHoldTeamSettings membs
+  zusrMembership <- Data.teamMember tid zusr
+  void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of
@@ -92,13 +109,14 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
 removeSettings :: UserId -> TeamId -> RemoveLegalHoldSettingsRequest -> Galley ()
 removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
   assertLegalHoldEnabled tid
-  membs <- Data.teamMembers tid
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "LegalHold.removeSettings")
-  void $ permissionCheck zusr ChangeLegalHoldTeamSettings membs
+  zusrMembership <- Data.teamMember tid zusr
+  -- let zothers = map (view userId) membs
+  -- Log.debug $
+  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+  --     . Log.field "action" (Log.val "LegalHold.removeSettings")
+  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   removeSettings' tid (Just membs)
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
@@ -108,7 +126,7 @@ removeSettings' ::
   Maybe [TeamMember] ->
   Galley ()
 removeSettings' tid mMembers = do
-  membs <- maybe (Data.teamMembers tid) pure mMembers
+  membs <- maybe (Data.teamMembersUnsafeForLargeTeams tid) pure mMembers
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -172,8 +190,8 @@ requestDevice zusr tid uid = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.requestDevice")
-  membs <- Data.teamMembers tid
-  void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
+  zusrMembership <- Data.teamMember tid zusr
+  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
   userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
   case userLHStatus of
     Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
@@ -261,15 +279,15 @@ disableForUser zusr tid uid (DisableLegalHoldForUserRequest mPassword) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.disableForUser")
-  membs <- Data.teamMembers tid
-  void $ permissionCheck zusr ChangeLegalHoldUserSettings membs
-  if userLHNotDisabled membs
+  zusrMembership <- Data.teamMember tid zusr
+  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
+  uidMembership <- Data.teamMember tid uid
+  if userLHNotDisabled uidMembership
     then disableLH >> pure DisableLegalHoldSuccess
     else pure DisableLegalHoldWasNotEnabled
   where
     -- If not enabled nor pending, then it's disabled
-    userLHNotDisabled mems = do
-      let target = findTeamMember uid mems
+    userLHNotDisabled target = do
       case fmap (view legalHoldStatus) target of
         Just UserLegalHoldEnabled -> True
         Just UserLegalHoldPending -> True

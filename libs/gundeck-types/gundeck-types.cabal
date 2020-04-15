@@ -1,0 +1,53 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: cd6d96d914d3ccd3f3fd20c1e49ad4233088e531421fa53faff209525b523702
+
+name:           gundeck-types
+version:        1.45.0
+description:    API types of Gundeck.
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Gundeck.Types
+      Gundeck.Types.BulkPush
+      Gundeck.Types.Common
+      Gundeck.Types.Event
+      Gundeck.Types.Notification
+      Gundeck.Types.Presence
+      Gundeck.Types.Push
+      Gundeck.Types.Push.V2
+      Gundeck.Types.Swagger
+  other-modules:
+      Paths_gundeck_types
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.6
+    , attoparsec >=0.10
+    , base >=4 && <5
+    , base64-bytestring >=1.0
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , containers >=0.5
+    , imports
+    , lens >=4.11
+    , network-uri >=2.6
+    , swagger >=0.1
+    , text >=0.11
+    , time >=1.5
+    , types-common >=0.16
+    , unordered-containers >=0.2
+  default-language: Haskell2010

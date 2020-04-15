@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.Intra.Client
   ( lookupClients,
     notifyClientsAboutLegalHoldRequest,
@@ -31,6 +48,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Logger
 
+-- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> Galley UserClients
 lookupClients uids = do
   (brigHost, brigPort) <- brigReq
@@ -43,6 +61,7 @@ lookupClients uids = do
   clients <- parseResponse (Error status502 "server-error") r
   return $ filterClients (not . Set.null) clients
 
+-- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
   (brigHost, brigPort) <- brigReq
@@ -54,6 +73,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
       . json (LegalHoldClientRequest requesterUid lastPrekey')
       . expect2xx
 
+-- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken :: UserId -> Maybe PlainTextPassword -> Galley OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   (brigHost, brigPort) <- brigReq
@@ -72,6 +92,7 @@ getLegalHoldAuthToken uid pw = do
       throwM internalError
     Just c -> pure . OpaqueAuthToken . decodeUtf8 $ c
 
+-- | Calls 'Brig.API.addClientInternalH'.
 addLegalHoldClientToUser :: UserId -> ConnId -> [Prekey] -> LastPrekey -> Galley ClientId
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
   clientId <$> brigAddClient uid connId lhClient
@@ -87,6 +108,7 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
         Nothing
 
+-- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser :: UserId -> Galley ()
 removeLegalHoldClientFromUser targetUid = do
   (brigHost, brigPort) <- brigReq
@@ -98,6 +120,7 @@ removeLegalHoldClientFromUser targetUid = do
       . contentJson
       . expect2xx
 
+-- | Calls 'Brig.API.addClientInternalH'.
 brigAddClient :: UserId -> ConnId -> NewClient -> Galley Client
 brigAddClient uid connId client = do
   (brigHost, brigPort) <- brigReq

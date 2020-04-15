@@ -48,6 +48,17 @@ formatf:
 formatc:
 	./tools/ormolu.sh -c
 
+# For any Haskell or Rust file that doesn't mention AGPL yet, add a license header.
+# It's your own reponsibility to keep ormolu happy.
+.PHONY: add-license
+add-license:
+	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.hsc$$\|\.rs$$'); do \
+		echo "Adding license to $${file}."; \
+		licensure -i $${file}; \
+	done;
+	@echo ""
+	@echo "you most probably want to run 'make formatf' now to keep ormolu happy"
+
 # Clean
 .PHONY: clean
 clean:
@@ -181,3 +192,7 @@ db-reset:
 
 libzauth:
 	$(MAKE) -C libs/libzauth install
+
+.PHONY: hie.yaml
+hie.yaml:
+	./tools/gen-hie-yaml.sh > hie.yaml

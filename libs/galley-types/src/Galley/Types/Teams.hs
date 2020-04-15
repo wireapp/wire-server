@@ -7,6 +7,23 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.Types.Teams
   ( Team,
     TeamBinding (..),
@@ -43,6 +60,7 @@ module Galley.Types.Teams
     isTeamMember,
     newTeamMemberList,
     teamMembers,
+    teamMemberListHasMore,
     teamMemberListJson,
     TeamConversation,
     newTeamConversation,
@@ -101,16 +119,24 @@ module Galley.Types.Teams
     TeamDeleteData,
     tdAuthPassword,
     newTeamDeleteData,
+    HardTruncationLimit,
+    hardTruncationLimit,
+    TruncatedTeamSize,
+    mkTruncatedTeamSize,
+    mkLargeTeamSize,
+    ttsLimit,
+    ttsSize,
+    isBiggerThanLimit,
   )
 where
 
 import qualified Cassandra as Cql
 import qualified Control.Error.Util as Err
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((^.), makeLenses, to, view)
+import Control.Lens ((.~), (^.), generateUpdateableOptics, lensRules, makeLenses, makeLensesWith, to, view)
 import Control.Monad.Catch
 import Data.Aeson
-import Data.Aeson.Types (Pair, Parser)
+import Data.Aeson.Types (Pair, Parser, typeMismatch)
 import Data.Bits ((.|.), testBit)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
@@ -118,12 +144,15 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.Maybe as Maybe
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
+import GHC.TypeLits
 import Galley.Types.Teams.Internal
 import Imports
+import Numeric.Natural (Natural)
 
 data Event
   = Event
@@ -213,11 +242,36 @@ data TeamMember
       }
   deriving (Eq, Ord, Show, Generic)
 
-newtype TeamMemberList
+data TeamMemberList
   = TeamMemberList
-      { _teamMembers :: [TeamMember]
+      { _teamMembers :: [TeamMember],
+        _teamMemberListHasMore :: Bool
       }
-  deriving (Semigroup, Monoid, Generic)
+  deriving (Generic)
+
+type HardTruncationLimit = (2000 :: Nat)
+
+hardTruncationLimit :: Integral a => a
+hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
+
+data TruncatedTeamSize
+  = TruncatedTeamSize
+      { _ttsLimit :: Natural,
+        _ttsSize :: Maybe Natural
+      }
+  deriving (Eq, Show)
+
+mkTruncatedTeamSize :: Natural -> Natural -> TruncatedTeamSize
+mkTruncatedTeamSize limit n =
+  if n > limit
+    then TruncatedTeamSize limit Nothing
+    else TruncatedTeamSize limit (Just n)
+
+mkLargeTeamSize :: Natural -> TruncatedTeamSize
+mkLargeTeamSize limit = TruncatedTeamSize limit Nothing
+
+isBiggerThanLimit :: TruncatedTeamSize -> Bool
+isBiggerThanLimit = isNothing . _ttsSize
 
 data TeamConversation
   = TeamConversation
@@ -406,7 +460,7 @@ newTeamMemberRaw uid perms Nothing Nothing lhStatus =
   pure $ TeamMember uid perms Nothing lhStatus
 newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-newTeamMemberList :: [TeamMember] -> TeamMemberList
+newTeamMemberList :: [TeamMember] -> Bool -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
@@ -462,6 +516,8 @@ makeLenses ''TeamDeleteData
 makeLenses ''TeamCreationTime
 
 makeLenses ''FeatureFlags
+
+makeLensesWith (lensRules & generateUpdateableOptics .~ False) ''TruncatedTeamSize
 
 -- Note [hidden team roles]
 --
@@ -716,14 +772,17 @@ instance ToJSON TeamMemberList where
 -- | Show a list of team members using 'teamMemberJson'.
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
 teamMemberListJson withPerms l =
-  object ["members" .= map (teamMemberJson withPerms) (_teamMembers l)]
+  object
+    [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
+      "hasMore" .= _teamMemberListHasMore l
+    ]
 
 instance FromJSON TeamMember where
   parseJSON = parseTeamMember
 
 instance FromJSON TeamMemberList where
   parseJSON = withObject "team member list" $ \o ->
-    TeamMemberList <$> o .: "members"
+    TeamMemberList <$> o .: "members" <*> o .: "hasMore"
 
 instance ToJSON TeamConversation where
   toJSON t =
@@ -924,6 +983,26 @@ instance ToJSON TeamDeleteData where
     object
       [ "password" .= _tdAuthPassword tdd
       ]
+
+instance ToJSON TruncatedTeamSize where
+  toJSON limitedSize =
+    let sizePairs =
+          case _ttsSize limitedSize of
+            Nothing -> ["within-limit" .= False]
+            Just n -> ["within-limit" .= True, "size" .= n]
+     in object (["limit" .= _ttsLimit limitedSize] ++ sizePairs)
+
+instance FromJSON TruncatedTeamSize where
+  parseJSON = withObject "TruncatedTeamSize" $ \o -> do
+    withinLimit <- o .: "within-limit"
+    limit <- o .: "limit"
+    case withinLimit of
+      (Bool True) -> (o .: "size") >>= \s ->
+        if s <= limit
+          then pure $ TruncatedTeamSize limit (Just s)
+          else fail $ "expected size to be less than " ++ show limit ++ ", encountered " ++ show s
+      (Bool False) -> pure $ TruncatedTeamSize limit Nothing
+      v -> typeMismatch "Boolean" v
 
 instance Cql.Cql Role where
   ctype = Cql.Tagged Cql.IntColumn

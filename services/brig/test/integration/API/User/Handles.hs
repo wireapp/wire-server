@@ -1,4 +1,24 @@
-module API.User.Handles (tests) where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module API.User.Handles
+  ( tests,
+  )
+where
 
 import qualified API.Search.Util as Search
 import API.Team.Util
@@ -131,7 +151,10 @@ testHandleQuery opts brig galley = do
   -- Query user profiles by handles
   get (brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (>>= (listToMaybe >=> userHandle)) . responseJsonMaybe
+    const (Just (Handle hdl)) === (userHandle <=< listToMaybe <=< responseJsonMaybe)
+  -- Qualified handles get accepted, but don't have any matches (federation)
+  get (brig . path "/users" . queryItem "handles" (toByteString' hdl <> "@wire.com") . zUser uid) !!! do
+    const 404 === statusCode
   -- Bulk availability check
   hdl2 <- randomHandle
   hdl3 <- randomHandle

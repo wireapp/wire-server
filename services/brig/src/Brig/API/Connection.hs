@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
 
 -- | > docs/reference/user/connection.md {#RefConnection}
@@ -18,6 +35,7 @@ module Brig.API.Connection
 where
 
 import Brig.API.Types
+import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
@@ -28,8 +46,9 @@ import Brig.Types.Intra
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import Control.Error
-import Control.Lens ((^.), view)
-import Data.Id
+import Control.Lens (view)
+import Data.Id as Id
+import Data.IdMapping (IdMapping (IdMapping, idMappingLocal), MappedOrLocalId (Local, Mapped))
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
@@ -43,17 +62,31 @@ createConnection ::
   ConnectionRequest ->
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
-createConnection self ConnectionRequest {..} conn = do
+createConnection self req conn = do
+  resolveOpaqueUserId (crUser req) >>= \case
+    Local u ->
+      createConnectionToLocalUser self u req conn
+    Mapped IdMapping {idMappingLocal} ->
+      -- FUTUREWORK(federation, #1262): allow creating connections to remote users
+      throwE $ InvalidUser (makeMappedIdOpaque idMappingLocal)
+
+createConnectionToLocalUser ::
+  UserId ->
+  UserId ->
+  ConnectionRequest ->
+  ConnId ->
+  ExceptT ConnectionError AppIO ConnectionResult
+createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
   when (self == crUser)
     $ throwE
-    $ InvalidUser crUser
+    $ InvalidUser (makeIdOpaque crUser)
   selfActive <- lift $ Data.isActivated self
   unless selfActive $
     throwE ConnectNoIdentity
   otherActive <- lift $ Data.isActivated crUser
   unless otherActive
     $ throwE
-    $ InvalidUser crUser
+    $ InvalidUser (makeIdOpaque crUser)
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift $ belongSameTeam
@@ -115,9 +148,10 @@ createConnection self ConnectionRequest {..} conn = do
       s2o' <- insert (Just s2o) (Just o2s)
       return $ ConnectionExists s2o'
     change c s = ConnectionExists <$> lift (Data.updateConnection c s)
-    belongSameTeam = Intra.getTeamContacts self >>= \case
-      Just mems -> return $ Team.isTeamMember crUser (mems ^. Team.teamMembers)
-      _ -> return False
+    belongSameTeam = do
+      selfTeam <- Intra.getTeamId self
+      crTeam <- Intra.getTeamId crUser
+      pure $ isJust selfTeam && selfTeam == crTeam
 
 -- | Change the status of a connection from one user to another.
 --

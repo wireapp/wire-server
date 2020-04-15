@@ -1,5 +1,23 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Util where
 
+import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
@@ -44,9 +62,27 @@ import TestSetup
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
+createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
+createBindingTeam = do
+  ownerid <- randomUser
+  let tname :: Text = cs $ show ownerid -- doesn't matter what, but needs to be unique!
+  teamid <- createTeamInternal tname ownerid
+  SQS.assertQueue "create team" SQS.tActivate
+  pure (ownerid, teamid)
+
+createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
+createBindingTeamWithNMembers n = do
+  (owner, tid) <- createBindingTeam
+  mems <- replicateM n $ do
+    member1 <- randomUser
+    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    pure member1
+  SQS.ensureQueueEmpty
+  pure (owner, tid, mems)
+
 -- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
-createTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
-createTeam name owner mems = do
+createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
+createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
   let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
@@ -65,6 +101,8 @@ changeTeamStatus tid s = do
     !!! const 200
     === statusCode
 
+-- | This creates a binding team.
+-- TODO: Rename to createBindingTeamInternal
 createTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
 createTeamInternal name owner = do
   tid <- createTeamInternalNoActivate name owner
@@ -100,6 +138,37 @@ getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
   g <- view tsGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
+  responseJsonError r
+
+getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
+getTeamMembersTruncated usr tid n = do
+  g <- view tsGalley
+  r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
+  responseJsonError r
+
+getTeamMembersInternalTruncated :: HasCallStack => TeamId -> Int -> TestM TeamMemberList
+getTeamMembersInternalTruncated tid n = do
+  g <- view tsGalley
+  r <-
+    get
+      ( g
+          . paths ["i", "teams", toByteString' tid, "members"]
+          . queryItem "maxResults" (C.pack $ show n)
+      )
+      <!! const 200
+      === statusCode
+  responseJsonError r
+
+getTruncatedTeamSize :: TeamId -> Int -> TestM TruncatedTeamSize
+getTruncatedTeamSize tid n = do
+  g <- view tsGalley
+  r <-
+    get
+      ( g
+          . paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' n]
+      )
+      <!! const 200
+      === statusCode
   responseJsonError r
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
@@ -802,7 +871,7 @@ connectUsersWith fn u us = mapM connectTo us
               . zUser u
               . zConn "conn"
               . path "/connections"
-              . json (ConnectionRequest v "chat" (Message "Y"))
+              . json (ConnectionRequest (makeIdOpaque v) "chat" (Message "Y"))
               . fn
           )
       r2 <-

@@ -1,0 +1,196 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: c099a6dbe0bf83cbcf7c78845289ea6a74205ce9bad9fa717b2f17bd8d138df1
+
+name:           cargohold
+version:        1.5.0
+synopsis:       Asset Storage API
+description:    API for asset storage.
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+flag static
+  description: Enable static linking
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      CargoHold.API
+      CargoHold.API.Error
+      CargoHold.API.Legacy
+      CargoHold.API.V3
+      CargoHold.API.V3.Resumable
+      CargoHold.App
+      CargoHold.CloudFront
+      CargoHold.Metrics
+      CargoHold.Options
+      CargoHold.Run
+      CargoHold.S3
+      CargoHold.TUS
+      CargoHold.Util
+      Main
+  other-modules:
+      Paths_cargohold
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      HsOpenSSL >=0.11
+    , HsOpenSSL-x509-system >=0.1
+    , aeson >=0.11
+    , attoparsec >=0.12
+    , auto-update >=0.1.4
+    , aws >=0.18
+    , base >=4 && <5
+    , base16-bytestring >=0.1
+    , base64-bytestring >=1.0
+    , bilge >=0.21
+    , byteable >=0.1
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , cargohold-types >=0.5
+    , case-insensitive >=1.0
+    , cereal >=0.4
+    , conduit >=1.2
+    , conduit-extra >=1.1.5
+    , containers >=0.5
+    , cryptonite >=0.20
+    , data-default >=0.5
+    , either >=4.3
+    , errors >=1.4
+    , exceptions >=0.6
+    , extended
+    , http-client >=0.4
+    , http-client-openssl >=0.2
+    , http-conduit >=2.1
+    , http-types >=0.8
+    , imports
+    , lens >=4.1
+    , metrics-wai >=0.4
+    , mime >=0.4
+    , mtl >=2.1
+    , network >=2.4
+    , optparse-applicative >=0.10
+    , prometheus-client
+    , random >=1.1
+    , resourcet >=1.1
+    , retry >=0.5
+    , ropes >=0.3
+    , safe >=0.3
+    , split >=0.2
+    , swagger >=0.2
+    , text >=1.1
+    , time >=1.4
+    , tinylog >=0.10
+    , transformers >=0.3
+    , types-common >=0.16
+    , uri-bytestring >=0.2
+    , uuid >=1.3.5
+    , wai >=3.0
+    , wai-conduit >=3.0
+    , wai-extra >=3.0
+    , wai-predicates >=0.8
+    , wai-routing >=0.12
+    , wai-utilities >=0.16.1
+    , warp >=3.0
+    , xml-conduit >=1.3
+    , yaml >=0.8
+  default-language: Haskell2010
+
+executable cargohold
+  main-is: src/Main.hs
+  other-modules:
+      Paths_cargohold
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
+  build-depends:
+      HsOpenSSL >=0.11
+    , aeson >=0.11
+    , base
+    , base64-bytestring >=1.0
+    , bilge >=0.21
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , cargohold
+    , cereal >=0.4
+    , containers >=0.5
+    , data-default >=0.5
+    , errors >=1.4
+    , exceptions >=0.6
+    , extended
+    , http-client >=0.4
+    , http-types >=0.8
+    , imports
+    , mime >=0.4
+    , mtl >=2.1
+    , prometheus-client
+    , safe >=0.3
+    , text >=1.1
+    , transformers >=0.3
+    , types-common
+    , yaml >=0.8
+  if flag(static)
+    ld-options: -static
+  default-language: Haskell2010
+
+executable cargohold-integration
+  main-is: Main.hs
+  other-modules:
+      API.V3
+      Metrics
+      TestSetup
+      Paths_cargohold
+  hs-source-dirs:
+      test/integration
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      HsOpenSSL >=0.11
+    , aeson >=0.11
+    , base ==4.*
+    , base64-bytestring >=1.0
+    , bilge >=0.21
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , cargohold
+    , cargohold-types
+    , cereal >=0.4
+    , containers >=0.5
+    , cryptohash-md5 >=0.11.7.2
+    , data-default >=0.5
+    , errors >=1.4
+    , exceptions >=0.6
+    , extended
+    , http-client >=0.4
+    , http-client-tls >=0.2
+    , http-types >=0.8
+    , imports
+    , lens >=3.8
+    , metrics-wai
+    , mime >=0.4
+    , mtl >=2.1
+    , optparse-applicative
+    , prometheus-client
+    , safe >=0.3
+    , tagged >=0.8
+    , tasty >=1.0
+    , tasty-hunit >=0.9
+    , text >=1.1
+    , time >=1.5
+    , transformers >=0.3
+    , types-common >=0.7
+    , uuid >=1.3
+    , wai-utilities >=0.12
+    , yaml >=0.8
+  default-language: Haskell2010

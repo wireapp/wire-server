@@ -1,5 +1,22 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.API.Types
   ( module Brig.API.Types,
     Activation (..),
@@ -89,7 +106,7 @@ data ConnectionError
   | -- | An invalid connection status change.
     InvalidTransition UserId Relation
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
-    InvalidUser UserId
+    InvalidUser OpaqueUserId
   | -- | An attempt at updating a non-existent connection.
     NotConnected UserId UserId
   | -- | An attempt at creating a connection from an account with
@@ -155,7 +172,7 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !UserId
+  | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
 
@@ -179,13 +196,13 @@ data AccountStatusError
 -- Exceptions
 
 -- | A user name was unexpectedly not found for an existing user ID.
-data UserNameNotFound = UserNameNotFound !UserId
+data UserDisplayNameNotFound = UserDisplayNameNotFound !UserId
   deriving (Typeable)
 
-instance Exception UserNameNotFound
+instance Exception UserDisplayNameNotFound
 
-instance Show UserNameNotFound where
-  show (UserNameNotFound uid) = "User name not found for user: " ++ show uid
+instance Show UserDisplayNameNotFound where
+  show (UserDisplayNameNotFound uid) = "User name not found for user: " ++ show uid
 
 data UserProfileNotFound = UserProfileNotFound !UserId
   deriving (Typeable)

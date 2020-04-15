@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
   ( -- * Clients
@@ -7,8 +24,8 @@ module Brig.API.Client
     pubClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
-    Data.lookupClient,
-    Data.lookupClients,
+    lookupClient,
+    lookupClients,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
 
@@ -41,7 +58,7 @@ import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.IP (IP)
 import qualified Data.Id as Id
-import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
 import Data.IdMapping
 import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
@@ -54,11 +71,34 @@ import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 
+lookupClient :: MappedOrLocalId Id.U -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
+lookupClient mappedOrLocalUserId clientId =
+  case mappedOrLocalUserId of
+    Local u ->
+      lift $ lookupLocalClient u clientId
+    Mapped IdMapping {idMappingLocal} ->
+      -- FUTUREWORK(federation, #1271): look up remote clients
+      throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
+
+lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
+lookupLocalClient = Data.lookupClient
+
+lookupClients :: MappedOrLocalId Id.U -> ExceptT ClientError AppIO [Client]
+lookupClients = \case
+  Local u ->
+    lift $ lookupLocalClients u
+  Mapped IdMapping {idMappingLocal} ->
+    -- FUTUREWORK(federation, #1271): look up remote clients
+    throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingLocal)
+
+lookupLocalClients :: UserId -> AppIO [Client]
+lookupLocalClients = Data.lookupClients
+
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound (makeIdOpaque u))) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
@@ -71,7 +111,7 @@ addClient u con ip new = do
     when (count > 1)
       $ for_ (userEmail usr)
       $ \email ->
-        sendNewClientEmail (userName usr) email clt (userLocale usr)
+        sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
   return clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
@@ -101,17 +141,33 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = do
+claimPrekey :: MappedOrLocalId Id.U -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey u c = case u of
+  Local localUser ->
+    claimLocalPrekey localUser c
+  Mapped _ ->
+    -- FUTUREWORK(federation, #1272): claim key from other backend
+    pure Nothing
+
+claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimLocalPrekey u c = do
   prekey <- Data.claimPrekey u c
   case prekey of
     Nothing -> noPrekeys u c >> return Nothing
     pk@(Just _) -> return pk
 
-claimPrekeyBundle :: UserId -> AppIO PrekeyBundle
-claimPrekeyBundle u = do
+claimPrekeyBundle :: MappedOrLocalId Id.U -> AppIO PrekeyBundle
+claimPrekeyBundle = \case
+  Local localUser ->
+    claimLocalPrekeyBundle localUser
+  Mapped IdMapping {idMappingLocal} ->
+    -- FUTUREWORK(federation, #1272): claim keys from other backend
+    pure $ PrekeyBundle (makeMappedIdOpaque idMappingLocal) []
+
+claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
+claimLocalPrekeyBundle u = do
   clients <- map clientId <$> Data.lookupClients u
-  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+  PrekeyBundle (makeIdOpaque u) . catMaybes <$> mapM (Data.claimPrekey u) clients
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
@@ -119,7 +175,7 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
-  -- FUTUREWORK(federation): claim keys from other backends, merge maps
+  -- FUTUREWORK(federation, #1272): claim keys from other backends, merge maps
   lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
   where
     localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)

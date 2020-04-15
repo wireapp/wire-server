@@ -1,10 +1,30 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.Types.Swagger where
 
-import qualified "types-common" Data.Swagger as Swagger
+import Data.Aeson (encode)
+import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api as Swagger
+import Galley.Types (Access)
 import Imports
+import qualified Wire.Swagger as Swagger
 
 galleyModels :: [Model]
 galleyModels =
@@ -293,8 +313,13 @@ conversationUpdateName = defineModel "ConversationUpdateName" $ do
 conversationAccessUpdate :: Model
 conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
   description "Contains conversation properties to update"
-  property "access" (unique $ array bytes') $
-    description "List of conversation access modes: []|[invite]|[invite,code]"
+  property "access" (unique $ array access) $
+    description "List of conversation access modes."
+  property "access_role" (bytes') $
+    description "Conversation access role: private|team|activated|non_activated"
+
+access :: DataType
+access = string . enum $ cs . encode <$> [(minBound :: Access) ..]
 
 conversationReceiptModeUpdate :: Model
 conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do

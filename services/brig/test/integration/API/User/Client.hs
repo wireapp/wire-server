@@ -1,4 +1,24 @@
-module API.User.Client (tests) where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module API.User.Client
+  ( tests,
+  )
+where
 
 import API.User.Util
 import Bilge hiding (accept, head, timeout)
@@ -151,13 +171,13 @@ testGetUserPrekeys brig = do
   let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
   get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
-    const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
+    const (Just $ PrekeyBundle (makeIdOpaque uid) [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
   let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
   replicateM_ 2 $
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
       const 200 === statusCode
-      const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
+      const (Just $ PrekeyBundle (makeIdOpaque uid) [lpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do

@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- TODO: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
@@ -37,6 +54,7 @@ module Brig.IO.Intra
     getTeamOwnersWithEmail,
     getTeamLegalHoldStatus,
     changeTeamStatus,
+    getTruncatedTeamSize,
   )
 where
 
@@ -64,8 +82,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
-import Data.Json.Util ((#))
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util ((#), UTCTimeMillis)
+import Data.Json.Util ()
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map as Map
@@ -156,8 +174,7 @@ updateSearchIndex orig e = case e of
           or
             [ isJust eupName,
               isJust eupAccentId,
-              isJust eupHandle,
-              isJust eupSearchable
+              isJust eupHandle
             ]
     when (interesting) $ Search.reindex orig
 
@@ -333,7 +350,7 @@ toPushFormat (UserEvent (UserActivated (UserAccount u _))) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb _)) =
+toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb)) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),
@@ -470,6 +487,7 @@ toApsData _ = Nothing
 -------------------------------------------------------------------------------
 -- Conversation Management
 
+-- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv :: UserId -> AppIO ()
 createSelfConv u = do
   debug $
@@ -482,6 +500,7 @@ createSelfConv u = do
         . zUser u
         . expect2xx
 
+-- | Calls 'Galley.API.createConnectConversationH'.
 createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
 createConnectConv from to cname mess conn = do
   debug $
@@ -501,6 +520,7 @@ createConnectConv from to cname mess conn = do
         . lbytes (encode $ Connect to (messageText <$> mess) cname Nothing)
         . expect2xx
 
+-- | Calls 'Galley.API.acceptConvH'.
 acceptConnectConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
 acceptConnectConv from conn cnv = do
   debug $
@@ -515,6 +535,7 @@ acceptConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+-- | Calls 'Galley.API.blockConvH'.
 blockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO ()
 blockConv usr conn cnv = do
   debug $
@@ -529,6 +550,7 @@ blockConv usr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+-- | Calls 'Galley.API.unblockConvH'.
 unblockConv :: UserId -> Maybe ConnId -> ConvId -> AppIO Conversation
 unblockConv usr conn cnv = do
   debug $
@@ -543,6 +565,7 @@ unblockConv usr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
+-- | Calls 'Galley.API.getConversationH'.
 getConv :: UserId -> ConvId -> AppIO (Maybe Conversation)
 getConv usr cnv = do
   debug $
@@ -559,6 +582,7 @@ getConv usr cnv = do
         . zUser usr
         . expect [status200, status404]
 
+-- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
@@ -578,6 +602,7 @@ getTeamConv usr tid cnv = do
 -------------------------------------------------------------------------------
 -- User management
 
+-- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
 rmUser :: UserId -> [Asset] -> AppIO ()
 rmUser usr asts = do
   debug $
@@ -603,6 +628,7 @@ rmUser usr asts = do
 -------------------------------------------------------------------------------
 -- Client management
 
+-- | Calls 'Galley.API.addClientH'.
 newClient :: UserId -> ClientId -> AppIO ()
 newClient u c = do
   debug $
@@ -613,6 +639,7 @@ newClient u c = do
   let p = paths ["i", "clients", toByteString' c]
   void $ galleyRequest POST (p . zUser u . expect2xx)
 
+-- | Calls 'Galley.API.rmClientH', as well as gundeck.
 rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
   let cid = toByteString' c
@@ -645,6 +672,7 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
+-- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
 addTeamMember u tid (minvmeta, role) = do
   debug $
@@ -664,6 +692,7 @@ addTeamMember u tid (minvmeta, role) = do
         . expect [status200, status403]
         . lbytes (encode bdy)
 
+-- | Calls 'Galley.API.createBindingTeamH'.
 createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> AppIO CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do
   debug $
@@ -683,6 +712,7 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
         . expect2xx
         . lbytes (encode t)
 
+-- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
 getTeamMember :: UserId -> TeamId -> AppIO (Maybe Team.TeamMember)
 getTeamMember u tid = do
   debug $
@@ -698,6 +728,7 @@ getTeamMember u tid = do
         . zUser u
         . expect [status200, status404]
 
+-- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
 getTeamMembers :: TeamId -> AppIO Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
@@ -707,7 +738,19 @@ getTeamMembers tid = do
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
+-- | Calls 'Galley.API.getTruncatedTeamSizeH'.
+getTruncatedTeamSize :: TeamId -> Range 1 Team.HardTruncationLimit Int32 -> AppIO Team.TruncatedTeamSize
+getTruncatedTeamSize tid limit = do
+  debug $ remote "galley" . msg (val "Get limited team size")
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "truncated-size", toByteString' limit]
+        . expect2xx
+
 -- | Only works on 'BindingTeam's!
+--
+-- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")
@@ -748,6 +791,7 @@ getTeamOwnersWithEmail tid = do
       hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
   pure $ (\mem -> (mem, hasEmail mem)) <$> mems
 
+-- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do
   debug $ remote "galley" . msg (val "Get team from user")
@@ -760,6 +804,7 @@ getTeamId u = do
       paths ["i", "users", toByteString' u, "team"]
         . expect [status200, status404]
 
+-- | Calls 'Galley.API.getTeamInternalH'.
 getTeam :: TeamId -> AppIO Team.TeamData
 getTeam tid = do
   debug $ remote "galley" . msg (val "Get team info")
@@ -769,6 +814,7 @@ getTeam tid = do
       paths ["i", "teams", toByteString' tid]
         . expect2xx
 
+-- | Calls 'Galley.API.getTeamInternalH'.
 getTeamName :: TeamId -> AppIO Team.TeamName
 getTeamName tid = do
   debug $ remote "galley" . msg (val "Get team info")
@@ -778,6 +824,7 @@ getTeamName tid = do
       paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
+-- | Calls 'Galley.API.getLegalholdStatusInternalH'.
 getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
@@ -787,6 +834,7 @@ getTeamLegalHoldStatus tid = do
       paths ["i", "teams", toByteString' tid, "features", "legalhold"]
         . expect2xx
 
+-- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()
 changeTeamStatus tid s cur = do
   debug $ remote "galley" . msg (val "Change Team status")

@@ -7,6 +7,23 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Types.User
   ( module Brig.Types.User,
     module C,
@@ -107,7 +124,7 @@ connectedProfile u =
   UserProfile
     { profileId = userId u,
       profileHandle = userHandle u,
-      profileName = userName u,
+      profileName = userDisplayName u,
       profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
@@ -162,7 +179,7 @@ data User
         -- verified. {#RefActivation}
         userIdentity :: !(Maybe UserIdentity),
         -- | required; non-unique
-        userName :: !Name,
+        userDisplayName :: !Name,
         -- | DEPRECATED
         userPict :: !Pict,
         userAssets :: [Asset],
@@ -221,7 +238,7 @@ instance ToJSON User where
   toJSON u =
     object $
       "id" .= userId u
-        # "name" .= userName u
+        # "name" .= userDisplayName u
         # "picture" .= userPict u
         # "assets" .= userAssets u
         # "email" .= userEmail u
@@ -454,7 +471,7 @@ emptyRichInfoAssocList = RichInfoAssocList []
 
 data NewUser
   = NewUser
-      { newUserName :: !Name,
+      { newUserDisplayName :: !Name,
         -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
         newUserUUID :: !(Maybe UUID),
         newUserIdentity :: !(Maybe UserIdentity),
@@ -536,7 +553,7 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 instance FromJSON NewUser where
   parseJSON = withObject "new-user" $ \o -> do
     ssoid <- o .:? "sso_id"
-    newUserName <- o .: "name"
+    newUserDisplayName <- o .: "name"
     newUserUUID <- o .:? "uuid"
     newUserIdentity <- parseIdentity ssoid o
     newUserPict <- o .:? "picture"
@@ -558,7 +575,7 @@ instance FromJSON NewUser where
 instance ToJSON NewUser where
   toJSON u =
     object $
-      "name" .= newUserName u
+      "name" .= newUserDisplayName u
         # "uuid" .= newUserUUID u
         # "email" .= newUserEmail u
         # "email_code" .= newUserEmailCode u

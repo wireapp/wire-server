@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.Data
   ( ResultSet (..),
     schemaVersion,
@@ -17,6 +34,7 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
+    teamMembersUnsafeForLargeTeams,
     teamMembersLimited,
     userTeams,
     oneUserTeam,
@@ -185,8 +203,22 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
-teamMembers t =
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], Bool)
+teamMembers t (fromRange -> limit) = do
+  pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
+  ms <- mapM newTeamMember' $ result pageTuple
+  pure (ms, hasMore pageTuple)
+  where
+    newTeamMember' ::
+      (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
+      m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+      newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- | TODO: This operation gets **all** members of a team, this should go away before
+-- we roll out large teams
+teamMembersUnsafeForLargeTeams :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
+teamMembersUnsafeForLargeTeams t =
   mapM newTeamMember'
     =<< retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
   where
@@ -269,7 +301,7 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do
   retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
-  mm <- teamMembers tid
+  mm <- teamMembersUnsafeForLargeTeams tid
   for_ mm $ removeTeamMember tid . view userId
   cc <- teamConversations tid
   for_ cc $ removeTeamConv tid . view conversationId
@@ -505,6 +537,10 @@ deleteConversation cid = do
 acceptConnect :: MonadClient m => ConvId -> m ()
 acceptConnect cid = retry x5 $ write Cql.updateConvType (params Quorum (One2OneConv, cid))
 
+-- | We deduce the conversation ID by adding the 4 components of the V4 UUID
+-- together pairwise, and then setting the version bits (v4) and variant bits
+-- (variant 2). This means that we always know what the UUID is for a
+-- one-to-one conversation which hopefully makes them unique.
 one2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
 one2OneConvId a b = Id . U.unpack $ U.addv4 a b
 
@@ -662,7 +698,7 @@ removeMembers conv orig victims = do
           pure ()
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
-    -- FUTUREWORK(federation): We need to tell clients about remote members leaving, too.
+    -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
     leavingMembers = UserIdList . mapMaybe localIdOrNothing . toList $ victims
     localIdOrNothing = \case
       Local localId -> Just localId

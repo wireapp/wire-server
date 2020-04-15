@@ -1,0 +1,103 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 81125daf636e3a223f61c427a999cc9dad34256ac9c1fea63e8863e0c0acaf27
+
+name:           zauth
+version:        0.10.3
+synopsis:       Creation and validation of signed tokens.
+description:    Creation and validation of signed tokens.
+category:       Data
+stability:      experimental
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+library
+  exposed-modules:
+      Data.ZAuth.Creation
+      Data.ZAuth.Token
+      Data.ZAuth.Validation
+  other-modules:
+      Paths_zauth
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      attoparsec >=0.11
+    , base >=4.6 && <5
+    , base64-bytestring >=1.0
+    , bytestring >=0.10.2
+    , bytestring-conversion >=0.1.1
+    , errors >=2.0
+    , exceptions >=0.4
+    , imports
+    , lens >=4.4
+    , mtl >=2.2
+    , mwc-random >=0.12
+    , sodium-crypto-sign >=0.1
+    , time >=1.4
+    , transformers >=0.4
+    , uuid >=1.3
+    , vector >=0.10
+  default-language: Haskell2010
+
+executable zauth
+  main-is: Main.hs
+  other-modules:
+      Paths_zauth
+  hs-source-dirs:
+      main
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , base64-bytestring
+    , bytestring
+    , bytestring-conversion
+    , errors
+    , imports
+    , lens
+    , optparse-applicative >=0.11
+    , sodium-crypto-sign
+    , transformers
+    , uuid
+    , zauth
+  default-language: Haskell2010
+
+test-suite zauth-unit
+  type: exitcode-stdio-1.0
+  main-is: Unit.hs
+  other-modules:
+      Arbitraries
+      ZAuth
+      Paths_zauth
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , bytestring
+    , bytestring-conversion
+    , errors
+    , imports
+    , lens
+    , sodium-crypto-sign
+    , tasty >=0.9
+    , tasty-hunit >=0.9
+    , tasty-quickcheck >=0.8
+    , transformers
+    , types-common
+    , uuid
+    , zauth
+  default-language: Haskell2010

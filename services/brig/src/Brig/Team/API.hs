@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Team.API where
 
 import Brig.API.Error
@@ -6,18 +23,21 @@ import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.App (currentTime, settings)
 import qualified Brig.Data.Blacklist as Blacklist
-import Brig.Data.UserKey (userEmailKey)
+import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
-import Brig.Email
+import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
+import qualified Brig.Phone as Phone
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..))
 import qualified Brig.Types.Swagger as Doc
+import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
+import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens ((^.), view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -132,6 +152,15 @@ routes = do
   post "/i/teams/:tid/unsuspend" (continue unsuspendTeamH) $
     accept "application" "json"
       .&. capture "tid"
+  get "/i/teams/:tid/size" (continue teamSizeH) $
+    accept "application" "json"
+      .&. capture "tid"
+
+teamSizeH :: JSON ::: TeamId -> Handler Response
+teamSizeH (_ ::: t) = json <$> teamSize t
+
+teamSize :: TeamId -> Handler TeamSize
+teamSize t = lift $ ESIndex.teamSize t
 
 getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 getInvitationCodeH (_ ::: t ::: r) = do
@@ -165,25 +194,40 @@ createInvitation uid tid body = do
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   ensurePermissionToAddUser uid tid inviteePerms
-  email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
-  let uk = userEmailKey email
-  blacklisted <- lift $ Blacklist.exists uk
-  when blacklisted $
+  -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
+  --             sendActivationCode. Refactor this to a single place
+
+  -- Validate e-mail
+  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irEmail body))
+  let uke = userEmailKey email
+  blacklistedEm <- lift $ Blacklist.exists uke
+  when blacklistedEm $
     throwStd blacklistedEmail
+  emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  when emailTaken $
+    throwStd emailExists
+  -- Validate phone
+  phone <- for (irPhone body) $ \p -> do
+    validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
+    let ukp = userPhoneKey validatedPhone
+    blacklistedPh <- lift $ Blacklist.exists ukp
+    when blacklistedPh $
+      throwStd blacklistedPhone
+    phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+    when phoneTaken $
+      throwStd phoneExists
+    return validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  user <- lift $ Data.lookupKey uk
-  case user of
-    Just _ -> throwStd emailExists
-    Nothing -> doInvite inviteeRole email from (irLocale body)
+  doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
   where
-    doInvite role to from lc = lift $ do
+    doInvite role toEmail from lc toName toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role to now (Just uid) timeout
-      void $ sendInvitationMail to tid from code lc
+      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone timeout
+      void $ sendInvitationMail toEmail tid from code lc
       return newInv
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response

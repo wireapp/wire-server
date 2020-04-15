@@ -1,0 +1,75 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 1d709501a762db52880e7e0ab3c268832b6bee36371162d6caf4bd91536fba3b
+
+name:           types-common-aws
+version:        0.16.0
+synopsis:       Shared AWS type definitions.
+description:    AWS Types shared with many other projects.
+category:       System
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+flag arbitrary
+  description: Enable quickcheck's arbitrary instances
+  manual: True
+  default: False
+
+flag protobuf
+  description: Enable protocol buffers instances
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      Util.Test.SQS
+  other-modules:
+      Paths_types_common_aws
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-prof-options: -fprof-auto-exported
+  build-depends:
+      amazonka
+    , amazonka-core
+    , amazonka-sqs
+    , base ==4.*
+    , base64-bytestring >=1.0
+    , errors >=2.0
+    , exceptions
+    , imports
+    , lens >=4.10
+    , monad-control
+    , mtl
+    , proto-lens
+    , resourcet
+    , safe >=0.3
+    , tasty
+    , tasty-hunit
+    , text >=0.11
+    , transformers >=0.3
+    , transformers-base
+    , types-common
+    , unordered-containers >=0.2
+    , uri-bytestring >=0.2
+    , uuid >=1.3.11
+  if impl(ghc >=8)
+    ghc-options: -fno-warn-redundant-constraints
+  if flag(protobuf)
+    cpp-options: -DWITH_PROTOBUF
+    build-depends:
+        protobuf >=0.2
+  if flag(arbitrary)
+    cpp-options: -DWITH_ARBITRARY
+    build-depends:
+        QuickCheck >=2.9
+  default-language: Haskell2010

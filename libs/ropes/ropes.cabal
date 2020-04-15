@@ -1,0 +1,103 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 3f789e5caaf99371aeab04b920b5b7a1a3ea71687eeb7b49cbaeec83c6b8ed3d
+
+name:           ropes
+version:        0.4.20
+synopsis:       Various ropes to tie together with external web services.
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Ropes.Aws
+      Ropes.Aws.Ses
+      Ropes.Nexmo
+      Ropes.Twilio
+  other-modules:
+      Paths_ropes
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.6
+    , aws >=0.10.2
+    , base ==4.*
+    , bytestring >=0.9
+    , errors >=2.0
+    , exceptions >=0.6
+    , http-client >=0.5
+    , http-types >=0.7
+    , imports
+    , iso3166-country-codes >=0.20140203.7
+    , mime-mail >=0.4
+    , resourcet >=1.1
+    , retry >=0.7
+    , semigroups >=0.11
+    , text >=0.11
+    , time >=1.1
+    , tinylog >=0.10.2
+    , transformers >=0.3
+    , yaml >=0.8.22
+  default-language: Haskell2010
+
+executable ropes-aws-auth-test
+  main-is: Main.hs
+  other-modules:
+      Paths_ropes
+  hs-source-dirs:
+      test/integration-aws-auth
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+  build-depends:
+      aws
+    , base >=4 && <5
+    , bytestring >=0.9
+    , errors >=2.0
+    , http-client
+    , imports
+    , mime-mail >=0.4
+    , ropes
+    , semigroups >=0.11
+    , time
+    , tinylog
+  default-language: Haskell2010
+
+executable ropes-aws-test
+  main-is: Main.hs
+  other-modules:
+      Tests.Ropes.Aws.Ses
+      Paths_ropes
+  hs-source-dirs:
+      test/integration-aws
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+  build-depends:
+      aws
+    , base >=4 && <5
+    , bytestring >=0.9
+    , errors >=2.0
+    , exceptions
+    , http-client
+    , http-client-tls
+    , imports
+    , mime-mail >=0.4
+    , resourcet
+    , ropes
+    , semigroups >=0.11
+    , tasty >=0.2
+    , tasty-hunit >=0.2
+    , text >=0.11.3
+    , tinylog
+    , transformers
+  default-language: Haskell2010

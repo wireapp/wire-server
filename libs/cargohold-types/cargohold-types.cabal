@@ -1,0 +1,52 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 7edcd36d24f5398798920a6ee316d3174d152a77fb531b3d3f8561286506d295
+
+name:           cargohold-types
+version:        1.5.0
+synopsis:       Asset Storage API Types
+description:    API Types for the CargoHold service.
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      CargoHold.Types
+      CargoHold.Types.V3
+      CargoHold.Types.V3.Resumable
+  other-modules:
+      Paths_cargohold_types
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      aeson >=0.6
+    , attoparsec >=0.10
+    , base ==4.*
+    , base16-bytestring >=0.1
+    , base64-bytestring >=1.0
+    , byteable >=0.1
+    , bytestring >=0.9
+    , bytestring-conversion >=0.2
+    , containers >=0.5
+    , cryptonite >=0.11
+    , data-default >=0.5
+    , imports
+    , lens >=4.13
+    , memory >=0.11
+    , mime >=0.4
+    , text >=0.11
+    , time >=1.5
+    , types-common >=0.16
+    , unordered-containers >=0.2
+    , uuid >=1.2
+  default-language: Haskell2010

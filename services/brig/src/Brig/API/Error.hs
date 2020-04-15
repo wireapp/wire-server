@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.API.Error where
 
 import Brig.API.Types
@@ -11,7 +28,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id (idToText)
 import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (renderQualified)
+import Data.Qualified (renderQualifiedId)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
@@ -265,6 +282,9 @@ userKeyExists = Wai.Error status409 "key-exists" "The given e-mail address or ph
 emailExists :: Wai.Error
 emailExists = Wai.Error status409 "email-exists" "The given e-mail address is in use."
 
+phoneExists :: Wai.Error
+phoneExists = Wai.Error status409 "phone-exists" "The given phone number is in use."
+
 handleExists :: Wai.Error
 handleExists = Wai.Error status409 "handle-exists" "The given handle is already taken."
 
@@ -456,11 +476,11 @@ legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold mus
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
 federationNotImplemented qualified =
   Wai.Error
-    status501
+    status403
     "federation-not-implemented"
     ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
   where
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
-      idToText idMappingLocal <> " -> " <> renderQualified idToText idMappingGlobal
+      idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal

@@ -1,0 +1,134 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 6524c012b9c2b417de7d0c9d6462811a09880449bbac320e48c098532860eb86
+
+name:           types-common
+version:        0.16.0
+synopsis:       Shared type definitions.
+description:    Types shared with many other projects.
+category:       System
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Data.Code
+      Data.Domain
+      Data.ETag
+      Data.Handle
+      Data.Id
+      Data.IdMapping
+      Data.Json.Util
+      Data.LegalHold
+      Data.List1
+      Data.Misc
+      Data.Qualified
+      Data.Range
+      Data.SizedHashMap
+      Data.Text.Ascii
+      Data.UUID.Tagged
+      Util.Attoparsec
+      Util.Options
+      Util.Options.Common
+      Util.Test
+      Wire.Swagger
+  other-modules:
+      Paths_types_common
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  ghc-prof-options: -fprof-auto-exported
+  build-depends:
+      QuickCheck >=2.9
+    , aeson >=1.0
+    , attoparsec >=0.11
+    , base ==4.*
+    , base16-bytestring >=0.1
+    , base64-bytestring >=1.0
+    , bytestring >=0.10
+    , bytestring-conversion >=0.2
+    , cassandra-util
+    , containers >=0.5
+    , cryptohash-md5 >=0.11.7.2
+    , cryptohash-sha1 >=0.11.7.2
+    , data-default >=0.5
+    , deepseq >=1.4
+    , directory >=1.2
+    , errors >=2.0
+    , ghc-prim
+    , hashable >=1.2
+    , imports
+    , iproute >=1.5
+    , lens >=4.10
+    , lens-datetime >=0.3
+    , optparse-applicative >=0.10
+    , protobuf >=0.2
+    , quickcheck-instances >=0.3.16
+    , safe >=0.3
+    , scientific >=0.3.4
+    , semigroups >=0.12
+    , servant >=0.16
+    , singletons >=2.0
+    , string-conversions
+    , swagger >=0.3
+    , tagged >=0.8
+    , tasty >=0.11
+    , text >=0.11
+    , time >=1.6
+    , time-locale-compat >=0.1
+    , transformers >=0.3
+    , unix
+    , unordered-containers >=0.2
+    , uri-bytestring >=0.2
+    , uuid >=1.3.11
+    , vector >=0.11
+    , yaml >=0.8.22
+  if impl(ghc >=8)
+    ghc-options: -fno-warn-redundant-constraints
+  default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Domain
+      Test.Handle
+      Test.Properties
+      Test.Qualified
+      Test.SizedHashMap
+      Paths_types_common
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , base16-bytestring
+    , base64-bytestring
+    , bytestring
+    , bytestring-conversion
+    , cereal
+    , imports
+    , protobuf
+    , string-conversions
+    , tasty
+    , tasty-hunit
+    , tasty-quickcheck
+    , text
+    , text-format
+    , time
+    , types-common
+    , unordered-containers
+    , uuid
+  default-language: Haskell2010

@@ -1,47 +1,74 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Eval
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Brig.Index.Eval
   ( runCommand,
   )
 where
 
+import Brig.Index.Migrations
+import Brig.Index.Options
 import Brig.User.Search.Index
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Metrics as Metrics
-import Data.Text.Strict.Lens
-import qualified Database.V5.Bloodhound as ES
+import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client
-import Options
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
-import URI.ByteString
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es -> do
     e <- initIndex es
-    runIndexIO e (createIndex (es ^. esIndexSettings))
+    runIndexIO e $ uncurry createIndexIfNotPresent $ mkCreateIndexSettings es
   Reset es -> do
     e <- initIndex es
-    runIndexIO e (resetIndex (es ^. esIndexSettings))
+    runIndexIO e $ uncurry resetIndex $ mkCreateIndexSettings es
   Reindex es cas -> do
     e <- initIndex es
     c <- initDb cas
     runReindexIO e c reindexAll
+  ReindexSameOrNewer es cas -> do
+    e <- initIndex es
+    c <- initDb cas
+    runReindexIO e c reindexAllIfSameOrNewer
+  UpdateMapping esURI indexName -> do
+    e <- initIndex' esURI indexName
+    runIndexIO e updateMapping
+  Migrate es cas -> do
+    migrate l es cas
   where
     initIndex es =
+      initIndex' (es ^. esServer) (es ^. esIndex)
+    initIndex' esURI indexName =
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> initES es
+        <*> initES esURI
         <*> pure Nothing
-        <*> pure (view esIndex es)
-    initES es =
-      ES.mkBHEnv (view (esServer . re _ESServer) es)
+        <*> pure indexName
+    initES esURI =
+      ES.mkBHEnv (toESServer esURI)
         <$> newManager defaultManagerSettings
     initDb cas =
       C.init
@@ -51,21 +78,6 @@ runCommand l = \case
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
         $ C.defSettings
-
-_ESServer :: Prism' ES.Server (URIRef Absolute)
-_ESServer = prism toS fromS
-  where
-    toS =
-      ES.Server
-        . view utf8
-        . serializeURIRef'
-        . set pathL mempty
-        . set queryL mempty
-        . set fragmentL mempty
-    fromS x@(ES.Server s) =
-      set _Left x
-        . parseURI strictURIParserOptions
-        $ review utf8 s
 
 --------------------------------------------------------------------------------
 -- ReindexIO command monad

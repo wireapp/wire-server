@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Internal
   ( rmUserH,
     deleteLoop,
@@ -10,7 +27,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Id
-import Data.IdMapping (MappedOrLocalId (Local))
+import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Metrics.Middleware as Metrics
@@ -19,7 +36,7 @@ import Data.String.Conversions (cs)
 import Galley.API.Error (federationNotImplemented)
 import Galley.API.Teams (uncheckedRemoveTeamMember)
 import qualified Galley.API.Teams as Teams
-import Galley.API.Util (isMember, partitionMappedOrLocalIds, resolveOpaqueConvId)
+import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -46,13 +63,13 @@ rmUser user conn = do
   Data.eraseClients user
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
-      Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
+      Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)
     leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()
     leaveConversations u ids = do
       (localConvIds, remoteConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId (result ids)
-      -- FUTUREWORK(federation): leave remote conversations.
+      -- FUTUREWORK(federation, #1275): leave remote conversations.
       -- If we could just get all conversation IDs at once and then leave conversations
       -- in batches, it would make everything much easier.
       for_ (nonEmpty remoteConvIds) $

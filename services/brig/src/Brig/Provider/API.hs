@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Provider.API
   ( -- * Main stuff
     routes,
@@ -31,7 +48,6 @@ import Brig.Types.Client
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.Provider
 import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.Search
 import Brig.Types.User (Pict (..), User (..), UserProfile, publicProfile)
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (throwE)
@@ -792,7 +808,7 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)
+  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <-
     User.addClient (botUserId bid) bcl newClt maxPermClients Nothing
@@ -969,7 +985,7 @@ mkBotUserView :: User -> Ext.BotUserView
 mkBotUserView u =
   Ext.BotUserView
     { Ext.botUserViewId = userId u,
-      Ext.botUserViewName = userName u,
+      Ext.botUserViewName = userDisplayName u,
       Ext.botUserViewColour = userAccentId u,
       Ext.botUserViewHandle = userHandle u,
       Ext.botUserViewTeam = userTeam u

@@ -7,6 +7,23 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Brig.Types.User where
 
 import Brig.Types.Activation
@@ -19,13 +36,11 @@ import Data.Aeson
 import Data.Aeson.QQ
 import Data.Aeson.Types as Aeson
 import qualified Data.Map as Map
-import Data.Typeable (typeOf)
 import Galley.Types.Teams
 import Imports
-import Test.QuickCheck
+import Test.Brig.Roundtrip
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
@@ -176,45 +191,34 @@ unitTests =
 
 roundtripTests :: [TestTree]
 roundtripTests =
-  [ run @BindingNewTeamUser,
-    run @CheckHandles,
-    run @CompletePasswordReset,
-    run @DeleteUser,
-    run @DeletionCodeTimeout,
-    run @EmailRemove,
-    run @EmailUpdate,
-    run @HandleUpdate,
-    run @InvitationList,
-    run @Invitation,
-    run @InvitationRequest,
-    run @LocaleUpdate,
-    run @NewPasswordReset,
-    run @NewUser,
-    run @PasswordChange,
-    run @PhoneRemove,
-    run @PhoneUpdate,
-    run @ManagedByUpdate,
-    run @ReAuthUser,
-    run @SelfProfile,
-    run @TeamMember,
-    run @UpdateServiceWhitelist,
-    run @UserHandleInfo,
-    run @UserIdentity,
-    run @UserProfile,
-    run @User,
-    run @RichInfo,
-    run @UserUpdate,
-    run @RichInfoUpdate,
-    run @VerifyDeleteUser
+  [ testRoundTrip @BindingNewTeamUser,
+    testRoundTrip @CheckHandles,
+    testRoundTrip @CompletePasswordReset,
+    testRoundTrip @DeleteUser,
+    testRoundTrip @DeletionCodeTimeout,
+    testRoundTrip @EmailRemove,
+    testRoundTrip @EmailUpdate,
+    testRoundTrip @HandleUpdate,
+    testRoundTrip @InvitationList,
+    testRoundTrip @Invitation,
+    testRoundTrip @InvitationRequest,
+    testRoundTrip @LocaleUpdate,
+    testRoundTrip @NewPasswordReset,
+    testRoundTrip @NewUser,
+    testRoundTrip @PasswordChange,
+    testRoundTrip @PhoneRemove,
+    testRoundTrip @PhoneUpdate,
+    testRoundTrip @ManagedByUpdate,
+    testRoundTrip @ReAuthUser,
+    testRoundTrip @SelfProfile,
+    testRoundTrip @TeamMember,
+    testRoundTrip @UpdateServiceWhitelist,
+    testRoundTrip @UserHandleInfo,
+    testRoundTrip @UserIdentity,
+    testRoundTrip @UserProfile,
+    testRoundTrip @User,
+    testRoundTrip @RichInfo,
+    testRoundTrip @UserUpdate,
+    testRoundTrip @RichInfoUpdate,
+    testRoundTrip @VerifyDeleteUser
   ]
-  where
-    run ::
-      forall a.
-      (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
-      TestTree
-    run = testProperty msg trip
-      where
-        msg = show $ typeOf (undefined :: a)
-        trip (v :: a) =
-          counterexample (show $ toJSON v) $
-            Right v === (parseEither parseJSON . toJSON) v

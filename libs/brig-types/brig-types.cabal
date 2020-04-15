@@ -1,0 +1,134 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 67eab80b4b772b485785e77f0ba45811541ed4ac1eac935cf47bfaee4837ec55
+
+name:           brig-types
+version:        1.35.0
+synopsis:       User Service
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Brig.Types
+      Brig.Types.Activation
+      Brig.Types.Client
+      Brig.Types.Client.Prekey
+      Brig.Types.Code
+      Brig.Types.Common
+      Brig.Types.Connection
+      Brig.Types.Instances
+      Brig.Types.Intra
+      Brig.Types.Properties
+      Brig.Types.Provider
+      Brig.Types.Provider.External
+      Brig.Types.Provider.Tag
+      Brig.Types.Search
+      Brig.Types.Swagger
+      Brig.Types.Team
+      Brig.Types.Team.Invitation
+      Brig.Types.Team.LegalHold
+      Brig.Types.Test.Arbitrary
+      Brig.Types.TURN
+      Brig.Types.TURN.Internal
+      Brig.Types.User
+      Brig.Types.User.Auth
+  other-modules:
+      Paths_brig_types
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  build-depends:
+      QuickCheck >=2.9
+    , aeson >=0.11
+    , attoparsec >=0.10
+    , base ==4.*
+    , base64-bytestring >=1.0
+    , bytestring >=0.9
+    , bytestring-conversion >=0.2
+    , case-insensitive
+    , cassandra-util
+    , containers >=0.5
+    , currency-codes >=2.0
+    , errors >=1.4
+    , extra
+    , galley-types >=0.45.7
+    , hashable
+    , hostname-validate
+    , imports
+    , iproute >=1.5
+    , iso3166-country-codes >=0.2
+    , iso639 >=0.1
+    , lens
+    , lens-aeson
+    , network-uri >=2.6
+    , pem >=0.2
+    , quickcheck-instances >=0.3.16
+    , random
+    , safe >=0.3
+    , scientific >=0.3.4
+    , singletons >=2.0
+    , swagger >=0.1
+    , text >=0.11
+    , time >=1.1
+    , types-common >=0.16
+    , unordered-containers >=0.2
+    , uri-bytestring
+    , uuid >=1.3
+  default-language: Haskell2010
+
+test-suite brig-types-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Brig.Roundtrip
+      Test.Brig.Types.Common
+      Test.Brig.Types.Team
+      Test.Brig.Types.TURN
+      Test.Brig.Types.User
+      Paths_brig_types
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson
+    , aeson-qq
+    , attoparsec
+    , base
+    , brig-types
+    , bytestring
+    , containers
+    , currency-codes
+    , extra
+    , galley-types
+    , hostname-validate
+    , imports
+    , iproute
+    , iso639
+    , lens
+    , pem
+    , quickcheck-instances
+    , random
+    , tasty
+    , tasty-hunit
+    , tasty-quickcheck
+    , text
+    , time
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , vector
+  default-language: Haskell2010

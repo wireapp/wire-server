@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
   ( -- * User Accounts / Profiles
@@ -74,7 +91,7 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.PasswordReset as Data
 import qualified Brig.Data.Properties as Data
-import Brig.Data.User hiding (updateSearchableStatus)
+import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -104,12 +121,14 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
-import Data.Id
+import Data.Id as Id
+import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>))
 import Data.Misc (PlainTextPassword (..))
+import qualified Data.Range as Range
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -148,15 +167,13 @@ createUser new@NewUser {..} = do
       throwE (BlacklistedUserKey uk)
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
-  -- team members are by default not searchable
-  let searchable = SearchableStatus $ isNothing tid
   -- Create account
   (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
   activatedTeam <- lift $ do
-    Data.insertAccount account Nothing pw False searchable
+    Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated account)
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
@@ -246,10 +263,21 @@ createUser new@NewUser {..} = do
           _ -> throwE InvalidInvitationCode
       Nothing -> throwE InvalidInvitationCode
     ensureMemberCanJoin tid = do
+      -- TODO: the logic in this block is mixing 'setMaxTeamSize' (the maximum number of
+      -- members suppored for teams) with 'HardTruncationLimit' (the maximum number of members
+      -- that can be efficiently retrieved from the database and passed to clients).  the
+      -- straight-forward solution here would be to keep track of the team size in galley in a
+      -- more efficient way and return it on a different end-point.  for now, the
+      -- implementation enforces that the maximum configured team size never exceeds the
+      -- hard-coded truncation limit (which is silly, but works, since larger values don't
+      -- work).
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      mems <- lift $ Intra.getTeamMembers tid
-      when (length (mems ^. Team.teamMembers) >= maxSize) $
-        throwE TooManyTeamMembers
+      case Range.checked maxSize of
+        Nothing -> throwE TooManyTeamMembers
+        Just rangedSize -> do
+          teamSize <- lift $ Intra.getTruncatedTeamSize tid rangedSize
+          when (Team.isBiggerThanLimit teamSize) $
+            throwE TooManyTeamMembers
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
@@ -588,7 +616,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           then sendActivationCall ph p loc
           else sendActivationSms ph p loc
   where
-    notFound = throwM . UserNameNotFound
+    notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
       timeout <- setActivationTimeout <$> view settings
       case c of
@@ -605,7 +633,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       u <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
       p <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
-          name = userName u
+          name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
       void . forEmailKey ek $ \em -> lift $ do
         -- Get user's team, if any.
@@ -775,7 +803,7 @@ deleteUser uid pwd = do
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
-          let n = userName (accountUser a)
+          let n = userDisplayName (accountUser a)
           either
             (\e -> lift $ sendDeletionEmail n e k v l)
             (\p -> lift $ sendDeletionSms p k v l)
@@ -809,7 +837,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Wipe data
   Data.clearProperties uid
   tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False (SearchableStatus False)
+  Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   Intra.onUserEvent uid Nothing (UserDeleted uid)
@@ -825,7 +853,7 @@ deleteAccount account@(accountUser -> user) = do
           { accountStatus = Deleted,
             accountUser =
               user
-                { userName = Name "default",
+                { userDisplayName = Name "default",
                   userAccentId = defaultAccentId,
                   userPict = noPict,
                   userAssets = [],
@@ -873,7 +901,7 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> UserId -> AppIO (Maybe UserProfile)
+lookupProfile :: UserId -> MappedOrLocalId Id.U -> AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -885,9 +913,22 @@ lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
-  [UserId] ->
+  [MappedOrLocalId Id.U] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
+  let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
+  localProfiles <- lookupProfilesOfLocalUsers self localUsers
+  -- FUTUREWORK(federation, #1267): fetch remote profiles
+  remoteProfiles <- pure []
+  pure (localProfiles <> remoteProfiles)
+
+lookupProfilesOfLocalUsers ::
+  -- | User 'self' on whose behalf the profiles are requested.
+  UserId ->
+  -- | The users ('others') for which to obtain the profiles.
+  [UserId] ->
+  AppIO [UserProfile]
+lookupProfilesOfLocalUsers self others = do
   users <- Data.lookupUsers others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)

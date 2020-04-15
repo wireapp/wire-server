@@ -1,21 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Types.Swagger where
 
-import Data.Swagger
 import Data.Swagger.Build.Api
 import qualified Data.Swagger.Model.Api as Model
 import qualified Galley.Types.Swagger as Galley
 import Galley.Types.Teams (defaultRole)
 import qualified Galley.Types.Teams.Swagger as Galley
 import Imports
+import Wire.Swagger
 
 brigModels :: [Model]
 brigModels =
   [ -- User
     self,
     user,
-    userName,
+    userDisplayName,
     newUser,
     userUpdate,
     emailUpdate,
@@ -73,7 +90,6 @@ brigModels =
     -- Search
     searchResult,
     searchContact,
-    searchableStatus,
     -- Team invitations
     teamInvitation,
     teamInvitationList,
@@ -145,6 +161,9 @@ user = defineModel "User" $ do
   property "handle" string' $ do
     description "Unique user handle."
     optional
+  property "team" string' $ do
+    description "Team ID"
+    optional
 
 managedBy :: DataType
 managedBy =
@@ -195,8 +214,8 @@ richInfo = defineModel "RichInfo" $ do
   property "version" int32' $
     description "Format version (the current version is 0)"
 
-userName :: Model
-userName = defineModel "UserName" $ do
+userDisplayName :: Model
+userDisplayName = defineModel "UserDisplayName" $ do
   description "User name"
   property "name" string' $
     description "User name"
@@ -417,6 +436,12 @@ teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
   property "role" role $ do
     description "Role of the invited user"
     optional
+  property "name" string' $ do
+    description "Name of the invitee (1 - 128 characters)"
+    optional
+  property "phone" string' $ do
+    description "Phone number of the invitee, in the E.164 format"
+    optional
 
 -- | This is *not* the swagger model for the 'TeamInvitation' type (which does not exist), but
 -- for the use of 'Invitation' under @/teams/{tid}/invitations@.
@@ -440,8 +465,12 @@ teamInvitation = defineModel "TeamInvitation" $ do
   property "created_by" bytes' $ do
     description "ID of the inviting user"
     optional
-  property "name" string' $
-    description "Name of the invitee"
+  property "name" string' $ do
+    description "Name of the invitee (1 - 128 characters)"
+    optional
+  property "phone" string' $ do
+    description "Phone number of the invitee, in the E.164 format"
+    optional
 
 teamInvitationList :: Model
 teamInvitationList = defineModel "TeamInvitationList" $ do
@@ -725,7 +754,7 @@ client = defineModel "Client" $ do
   property "time" dateTime' $
     description "The date and time when this client was registered."
   property "class" clientClass $
-    description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
+    description "The device class this client belongs to."
   property "cookie" string' $
     description "The cookie label of this client."
   property "address" string' $ do
@@ -860,12 +889,9 @@ searchContact = defineModel "Contact" $ do
   property "accent_id" int32' $ do
     description "Accent color"
     optional
-
-searchableStatus :: Model
-searchableStatus = defineModel "SearchableStatus" $ do
-  description "Whether the user is discoverable via search"
-  property "searchable" bool' $
-    description "'true' if discoverable, 'false' otherwise"
+  property "team" string' $ do
+    description "Team ID"
+    optional
 
 --------------------------------------------------------------------------------
 -- TURN

@@ -3,18 +3,37 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- for UUID instances
 
 module Data.Id where
 
 import Cassandra hiding (S)
-import Data.Aeson
+import Data.Aeson hiding ((<?>))
 import Data.Aeson.Encoding (text)
 import Data.Aeson.Types (Parser)
-import Data.Attoparsec.ByteString (takeByteString)
+import Data.Attoparsec.ByteString ((<?>))
+import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
@@ -24,7 +43,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
-import Data.UUID
+import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Imports
@@ -112,20 +131,32 @@ newtype Id a
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
 instance Show (Id a) where
-  show = toString . toUUID
+  show = UUID.toString . toUUID
 
 instance Read (Id a) where
   readsPrec n = map (\(a, x) -> (Id a, x)) . readsPrec n
 
 instance FromByteString (Id a) where
   parser = do
-    x <- takeByteString
-    case fromASCIIBytes x of
+    match <-
+      -- we only want the matching part of the ByteString, so the parser doesn't
+      -- consume additional input.
+      -- This allows the parser to be composed.
+      matching $ do
+        void $ Atto.count 8 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 4 hexDigit <* Atto.char '-'
+        void $ Atto.count 12 hexDigit
+    case UUID.fromASCIIBytes match of
       Nothing -> fail "Invalid UUID"
       Just ui -> return (Id ui)
+    where
+      matching = fmap fst . Atto.match
+      hexDigit = Atto.satisfy Char.isHexDigit <?> "hexadecimal digit"
 
 instance ToByteString (Id a) where
-  builder = byteString . toASCIIBytes . toUUID
+  builder = byteString . UUID.toASCIIBytes . toUUID
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
@@ -221,7 +252,7 @@ clientIdFromByteString txt =
 
 instance FromByteString ClientId where
   parser = do
-    bs <- takeByteString
+    bs <- Atto.takeByteString
     either fail pure $ clientIdFromByteString (cs bs)
 
 instance FromJSON ClientId where

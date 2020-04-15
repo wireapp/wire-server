@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Update
   ( -- * Managing Conversations
     acceptConvH,
@@ -199,6 +216,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   -- removed from the conversation. We keep track of them using 'State'.
   (newUsers, newBots) <- flip execStateT (users, bots) $ do
     -- We might have to remove non-activated members
+    -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
+    -- to make assumption about the order of roles and implement policy
+    -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
       activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
@@ -206,8 +226,9 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
-        tMembers <- map (view userId) <$> lift (Data.teamMembers tid)
-        usersL %= filter (\user -> memId user `elem` tMembers)
+        currentUsers <- use usersL
+        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (memId user)) currentUsers
+        assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
   -- Update Cassandra & send an event
@@ -398,8 +419,8 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv access
-  mbTms <- traverse Data.teamMembers $ Data.convTeam conv
-  ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
+  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv . makeIdOpaque) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
   -- NOTE: When joining conversations, all users become members
@@ -415,8 +436,14 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
 addMembers :: UserId -> ConnId -> OpaqueConvId -> Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
   resolveOpaqueConvId cid >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> addMembersToLocalConv localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation): if the conversation is on another backend, send request there.
+      -- in the case of a non-team conversation, we need to think about `ensureConnectedOrSameTeam`,
+      -- specifically whether teams from another backend than the conversation should have any
+      -- relevance here.
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      addMembersToLocalConv localConvId
   where
     addMembersToLocalConv convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
@@ -425,24 +452,26 @@ addMembers zusr zcon cid invite = do
       ensureActionAllowed AddConversationMember self
       toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
       let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
+      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
+      ensureAccess conv InviteAccess
+      ensureConvRoleNotElevated self (invRoleName invite)
       (newUsers, newQualifiedUsers) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId newOpaqueUsers
       -- FUTUREWORK(federation): allow adding remote members
       -- this one is a bit tricky because all of the checks that need to be done,
       -- some of them on remote backends.
       for_ (nonEmpty newQualifiedUsers) $
         throwM . federationNotImplemented
-      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
-      ensureAccess conv InviteAccess
-      ensureConvRoleNotElevated self (invRoleName invite)
       case Data.convTeam conv of
         Nothing -> do
-          ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
+          ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
           ensureConnectedOrSameTeam zusr newUsers
         Just ti -> teamConvChecks ti newUsers convId conv
       addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+    userIsMember u = (^. userId . to (== u))
     teamConvChecks tid newUsers convId conv = do
       tms <- Data.teamMembersLimited tid newUsers
-      ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
+      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+      ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
@@ -456,7 +485,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 
 updateSelfMember :: UserId -> ConnId -> ConvId -> MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
-  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
+  conv <- getConversationAndCheckMembership zusr (Local cid)
   m <- getSelfMember zusr (Data.convMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
@@ -472,7 +501,7 @@ updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> OtherMemberUpdate -
 updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
-  conv <- getConversationAndCheckMembership zusr (makeIdOpaque cid)
+  conv <- getConversationAndCheckMembership zusr (Local cid)
   let (bots, users) = botsAndUsers (Data.convMembers conv)
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
@@ -486,8 +515,11 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid victim = do
   resolveOpaqueConvId cid >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> removeMemberOfLocalConversation localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      removeMemberOfLocalConversation localConvId
   where
     removeMemberOfLocalConversation convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
@@ -501,9 +533,10 @@ removeMember zusr zcon cid victim = do
           resolvedVictim <- resolveOpaqueUserId victim
           event <- Data.removeMembers conv zusr (singleton resolvedVictim)
           case resolvedVictim of
-            Mapped _ -> pure () -- FUTUREWORK(federation): notify victim
             Local _ -> pure () -- nothing to do
-                -- FUTUREWORK(federation): users can be on other backend, how to notify it?
+            Mapped _ -> do
+              -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
+              pure ()
           for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
@@ -582,8 +615,11 @@ postNewOtrBroadcast usr con val msg = do
 postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
   resolveOpaqueConvId cnv >>= \case
-    Mapped idMapping -> throwM . federationNotImplemented $ pure idMapping
-    Local localConvId -> postToLocalConv localConvId
+    Mapped idMapping ->
+      -- FUTUREWORK(federation, #1261): forward message to backend owning the conversation
+      throwM . federationNotImplemented $ pure idMapping
+    Local localConvId ->
+      postToLocalConv localConvId
   where
     postToLocalConv localConvId = do
       let sender = newOtrSender msg
@@ -845,7 +881,7 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-  tMembers <- fmap (view userId) <$> Data.teamMembers tid
+  tMembers <- fmap (view userId) <$> Data.teamMembersUnsafeForLargeTeams tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing

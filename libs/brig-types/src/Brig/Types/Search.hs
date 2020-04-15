@@ -1,11 +1,27 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Brig.Types.Search where
 
 import Data.Aeson
-import Data.Id (UserId)
-import Data.Json.Util
+import Data.Id (TeamId, UserId)
 import Imports
 
 data SearchResult a
@@ -17,18 +33,24 @@ data SearchResult a
       }
   deriving (Show)
 
+-- | This is a subset of 'User' and json instances should reflect that.
 data Contact
   = Contact
       { contactUserId :: UserId,
         contactName :: Text,
         contactColorId :: Maybe Int,
-        contactHandle :: Maybe Text
+        contactHandle :: Maybe Text,
+        contactTeam :: Maybe TeamId
       }
   deriving (Show)
 
--- | Encodes whether the (current) user has opted in/out of search
-newtype SearchableStatus = SearchableStatus {isSearchable :: Bool}
-  deriving (Show)
+data TeamSearchInfo
+  = -- | When searching user is not part of a team.
+    NoTeam
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
+    TeamOnly TeamId
+  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
+    TeamAndNonMembers TeamId
 
 instance ToJSON a => ToJSON (SearchResult a) where
   toJSON r =
@@ -48,24 +70,20 @@ instance FromJSON a => FromJSON (SearchResult a) where
 
 instance ToJSON Contact where
   toJSON c =
-    object $
-      "id" .= contactUserId c
-        # "name" .= contactName c
-        # "accent_id" .= contactColorId c
-        # "handle" .= contactHandle c
-        # []
+    object
+      [ "id" .= contactUserId c,
+        "name" .= contactName c,
+        "accent_id" .= contactColorId c,
+        "handle" .= contactHandle c,
+        "team" .= contactTeam c
+      ]
 
 instance FromJSON Contact where
-  parseJSON = withObject "Contact" $ \o ->
-    Contact <$> o .: "id"
-      <*> o .: "name"
-      <*> o .:? "accent_id"
-      <*> o .:? "handle"
-
-instance ToJSON SearchableStatus where
-  toJSON (SearchableStatus onoff) = object ["searchable" .= onoff]
-
-instance FromJSON SearchableStatus where
   parseJSON =
-    withObject "SearchableStatus" $
-      fmap SearchableStatus . (.: "searchable")
+    withObject "Contact" $ \o ->
+      Contact
+        <$> o .: "id"
+        <*> o .: "name"
+        <*> o .:? "accent_id"
+        <*> o .:? "handle"
+        <*> o .:? "team"

@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Team.Util where
 
 import Bilge hiding (accept, head, timeout)
@@ -7,7 +24,7 @@ import Brig.Types.Connection
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
-import Control.Lens ((^?), view)
+import Control.Lens ((^.), (^?), view)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -24,6 +41,38 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
+import Web.Cookie (parseSetCookie, setCookieName)
+
+createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeam brig galley numMembers = do
+  names <- forM [1 .. numMembers] $ \_ -> randomName
+  createPopulatedBindingTeamWithNames brig galley names
+
+createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeamWithNames brig galley names = do
+  (inviter, tid) <- createUserWithTeam brig galley
+  invitees <- forM names $ \name -> do
+    inviteeEmail <- randomEmail
+    let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
+    inv <- responseJsonError =<< postInvitation brig tid inviter invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <-
+      post
+        ( brig . path "/register"
+            . contentJson
+            . body (acceptWithName name inviteeEmail inviteeCode)
+        )
+        <!! const 201 === statusCode
+    let invitee :: User = responseJsonUnsafe rsp2
+    do
+      let invmeta = Just (inviter, inCreatedAt inv)
+      mem <- getTeamMember (userId invitee) tid galley
+      liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+    do
+      let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
+      liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
+    pure invitee
+  pure (tid, inviter, invitees)
 
 createTeam :: UserId -> Galley -> Http TeamId
 createTeam u galley = do
@@ -81,7 +130,7 @@ createTeamMember brig galley owner tid perm = do
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
-  let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+  let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
   inv <- responseJsonError =<< postInvitation brig tid u invite
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
@@ -201,12 +250,28 @@ putLegalHoldEnabled tid enabled g = do
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
-accept email code =
+accept email code = acceptWithName (Name "Bob") email code
+
+acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
+acceptWithName name email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= ("Bob" :: Text),
+      [ "name" .= fromName name,
         "email" .= fromEmail email,
         "password" .= defPassword,
+        "team_code" .= code
+      ]
+
+extAccept :: Email -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
+extAccept email name phone phoneCode code =
+  RequestBodyLBS . encode $
+    object
+      [ "name" .= name,
+        "email" .= fromEmail email,
+        "password" .= defPassword,
+        "team_code" .= code,
+        "phone" .= phone,
+        "phone_code" .= phoneCode,
         "team_code" .= code
       ]
 
@@ -316,3 +381,7 @@ isActivatedUser uid brig = do
   pure $ case responseJsonMaybe @[User] resp of
     Just (_ : _) -> True
     _ -> False
+
+stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
+stdInvitationRequest e inviterName loc role =
+  InvitationRequest e inviterName loc role Nothing Nothing
