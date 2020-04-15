@@ -18,9 +18,12 @@
 module Federator.Error
   ( internalError,
     internalErrorWithDescription,
+    remoteBackendNotFound,
   )
 where
 
+import Data.Domain (Domain, domainText)
+import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types (status500)
 import Network.Wai.Utilities.Error (Error (Error))
@@ -30,3 +33,10 @@ internalError = internalErrorWithDescription "internal error"
 
 internalErrorWithDescription :: LText -> Error
 internalErrorWithDescription = Error status500 "internal-error"
+
+remoteBackendNotFound :: Domain -> Error
+remoteBackendNotFound domain =
+  Error
+    status500
+    "federation-backend-not-found"
+    ("No SRV record for the domain " <> cs (domainText domain))

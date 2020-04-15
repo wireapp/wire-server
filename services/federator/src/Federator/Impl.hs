@@ -23,6 +23,7 @@ module Federator.Impl
 where
 
 import Brig.Types (PrekeyBundle (PrekeyBundle))
+import Control.Monad.Catch (throwM)
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle)
 import Data.Id (ConvId, UserId, makeIdOpaque, randomId)
@@ -30,6 +31,7 @@ import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text as Text
 import qualified Federator.API as API
 import Federator.App (AppIO, runAppT)
+import Federator.Error (remoteBackendNotFound)
 import qualified Federator.Remote as Remote
 import Federator.Types (Env)
 import Imports
@@ -87,8 +89,7 @@ withRemoteBackend domainName action =
       -- FUTUREWORK: we could retry with multiple matches instead of just the first
       action (toBaseUrl match)
     _ ->
-      -- TODO: error
-      undefined
+      throwM $ remoteBackendNotFound domainName
   where
     -- TODO(federation): make resolv conf configurable?
     resolve = do
