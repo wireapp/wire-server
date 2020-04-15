@@ -17,13 +17,13 @@
 
 module Network.Federation.Util.DNS
   ( srvLookup,
+    SrvTarget (..),
   )
 where
 
 import Imports
 import Network.DNS
 import Network.Federation.Util.Internal
-import Util.Options (Endpoint)
 
 -- | Looks up a SRV record given a domain, returning A(AAA) records with their
 -- ports (ordered by priority and weight according to RFC 2782). Connection
@@ -38,7 +38,7 @@ import Util.Options (Endpoint)
 -- > main = do
 -- >   rs <- makeResolvSeed defaultResolvConf
 -- >   x <- srvLookup "staging.zinfra.io" rs
-srvLookup :: Text -> ResolvSeed -> IO (Maybe [Endpoint])
+srvLookup :: Text -> ResolvSeed -> IO (Maybe [SrvTarget])
 srvLookup = srvLookup' srvDefaultPrefix
 
 srvDefaultPrefix :: Text

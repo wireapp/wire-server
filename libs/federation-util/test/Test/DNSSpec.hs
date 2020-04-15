@@ -62,7 +62,7 @@ spec = do
     it "returns the expected result for wire.com" $ do
       rs <- makeResolvSeed defaultResolvConf
       wire <- srvLookup'' mockLookupSRV "_wire-server" "wire.com" rs
-      wire `shouldBe` Just [("wire.com", 443)]
+      wire `shouldBe` Just [SrvTarget "wire.com" 443]
     it "filters out single '.' results" $ do
       rs <- makeResolvSeed defaultResolvConf
       exampleDotCom <- srvLookup'' mockLookupSRV "_wire-server" "example.com" rs

@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -59,24 +61,34 @@ module Network.Federation.Util.Internal where
 
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Imports
-import Network.DNS
-import System.Random
-import Util.Options (Endpoint (Endpoint))
+import Network.DNS (DNSError, Domain, ResolvSeed, Resolver, lookupSRV, withResolver)
+import System.Random (randomRIO)
+
+data SrvTarget
+  = SrvTarget
+      { -- | the hostname on which the service is offered
+        srvTargetDomain :: Text,
+        -- | the port on which the service is offered
+        srvTargetPort :: Word16
+      }
+  deriving (Eq, Show)
 
 -- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
 -- provides a list of A(AAA) names and port numbers upon a successful
 -- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
 -- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp
-srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [Endpoint])
+srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [SrvTarget])
 srvLookup' = srvLookup'' lookupSRV
 
 -- internal version for testing
+--
+-- FUTUREWORK: return more precise errors than 'Nothing'.
 srvLookup'' ::
   (Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)])) ->
   Text ->
   Text ->
   ResolvSeed ->
-  IO (Maybe [Endpoint])
+  IO (Maybe [SrvTarget])
 srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
   srvResult <- lookupF resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
   case srvResult of
@@ -88,11 +100,11 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
       -- Get [(Domain, PortNumber)] of SRV request, if any.
       -- Sorts the records based on the priority value.
       orderedSrvResult <- orderSrvResult srvResult'
-      return $ traverse mkEndpoint orderedSrvResult
+      return $ traverse mkSrvTarget orderedSrvResult
   where
-    mkEndpoint (_, _, port, target) =
-      case decodeUtf8' target of
-        Right t -> Just (Endpoint t port)
+    mkSrvTarget (_, _, port, domain) =
+      case decodeUtf8' domain of
+        Right t -> Just (SrvTarget t port)
         Left _ -> Nothing
 
 -- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)

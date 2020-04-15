@@ -97,12 +97,13 @@ withRemoteBackend domainName action =
       DNS.Fed.srvLookup (domainText domainName) resolvSeed
     -- TODO(federation): extract this and test it thoroughly, based on docs for
     -- https://www.stackage.org/haddock/lts-14.27/dns/Network-DNS-Types.html#t:Domain
-    toBaseUrl :: Endpoint -> BaseUrl
-    toBaseUrl (Endpoint host port) =
+    toBaseUrl :: DNS.Fed.SrvTarget -> BaseUrl
+    toBaseUrl (DNS.Fed.SrvTarget domain port) =
       -- TODO: remove trailing dot?
+      -- TODO: should we allow custom ports?
       BaseUrl
         { baseUrlScheme = Https,
-          baseUrlHost = Text.unpack host,
+          baseUrlHost = Text.unpack domain,
           baseUrlPort = fromIntegral port,
           baseUrlPath = ""
         }
