@@ -805,12 +805,25 @@ sitemap = do
   document "POST" "postOtrBroadcast" $ do
     summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
     parameter Query "ignore_missing" bool' $ do
-      description "Force message delivery even when clients are missing."
+      description
+        "Force message delivery even when clients are missing. \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is allowed to \
+        \have missing clients."
+      optional
+    parameter Query "report_missing" bool' $ do
+      description
+        "Don't allow message delivery when clients are missing \
+        \('ignore_missing' takes precedence when present). \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is forbidden from \
+        \having missing clients."
       optional
     body (ref Model.newOtrMessage) $
       description "JSON body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
+    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
@@ -845,6 +858,7 @@ sitemap = do
       description "Protobuf body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
+    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
@@ -881,6 +895,7 @@ sitemap = do
       description "JSON body"
     returns (ref Model.clientMismatch)
     response 201 "Message posted" end
+    response 403 "Unknown sending client" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
   ---
@@ -899,7 +914,19 @@ sitemap = do
     parameter Path "cnv" bytes' $
       description "Conversation ID"
     parameter Query "ignore_missing" bool' $ do
-      description "Force message delivery even when clients are missing."
+      description
+        "Force message delivery even when clients are missing. \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is allowed to \
+        \have missing clients."
+      optional
+    parameter Query "report_missing" bool' $ do
+      description
+        "Don't allow message delivery when clients are missing \
+        \('ignore_missing' takes precedence when present). \
+        \NOTE: can also be a comma-separated list of user IDs, \
+        \in which case it specifies who exactly is forbidden from \
+        \having missing clients."
       optional
     body (ref Model.newOtrMessage) $
       description "Protobuf body"
