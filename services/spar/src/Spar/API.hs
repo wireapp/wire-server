@@ -317,8 +317,16 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
   _idpExtraInfo <- authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
     throwError errUnknownIdP
-  unless (previousIdP ^. SAML.idpMetadata . SAML.edIssuer == _idpMetadata ^. SAML.edIssuer) $
-    throwError errUnknownIdP
+  unless (previousIdP ^. SAML.idpMetadata . SAML.edIssuer == _idpMetadata ^. SAML.edIssuer) $ do
+    -- if issuer has changed, but into one that's already used in a different team: bad.
+    midp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer))
+    case midp of
+      Nothing -> pure ()
+      Just idp -> unless (idp ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
+        throwSpar SparIdPUsedInOtherTeam
+    -- all other cases: we *should* support them, but we don't.
+    -- https://github.com/zinfra/backend-issues/issues/929
+    throwSpar SparIdPIssuerCannotBeUpdated
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
   pure (_idpExtraInfo, SAML.IdPConfig {..})

@@ -92,6 +92,8 @@ data SparCustomError
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
+  | SparIdPUsedInOtherTeam
+  | SparIdPIssuerCannotBeUpdated
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
@@ -175,6 +177,8 @@ renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.Error 
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
+renderSparError (SAML.CustomError SparIdPUsedInOtherTeam) = Right $ Wai.Error status400 "idp-used-in-other-team" "The issuer of your IdP is used in a different team.  You can use each IdP for one team only."
+renderSparError (SAML.CustomError SparIdPIssuerCannotBeUpdated) = Right $ Wai.Error status400 "cannot-update-idp-issuer" "Updating the issuer of an existing IdP is currently not supported."
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg)) = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
