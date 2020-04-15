@@ -24,19 +24,19 @@ data Api routes
             :> ReqBody '[JSON] JoinConversationByIdRequest
             :> Post '[JSON] (ConversationUpdateResult MemberJoin)
       }
-  deriving (Generic)
+  deriving stock (Generic)
 
 data JoinConversationByIdRequest
   = JoinConversationByIdRequest
       { joinUserId :: Qualified UserId
       }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded JoinConversationByIdRequest)
 
 data ConversationUpdateResult a
   = ConversationUpdated (Event a)
   | ConversationUnchanged
-  deriving stock (Show, Generic, Functor)
+  deriving stock (Show, Generic, Foldable, Functor, Traversable)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationUpdateResult a))
 
 instance Arbitrary a => Arbitrary (ConversationUpdateResult a) where

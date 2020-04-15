@@ -2,6 +2,7 @@ module Galley.Federation
   ( -- * translating server-server API response to Galley types
     mapConversationUpdateResult,
     mapEvent,
+    qualifyConversationUpdateResult,
     UpdateResult (..),
   )
 where
@@ -20,6 +21,8 @@ import qualified Wire.API.Federation.Types.Event as Fed
 data UpdateResult
   = Updated Event
   | Unchanged
+
+-- qualified -> unqualified
 
 mapConversationUpdateResult :: Fed.ConversationUpdateResult Fed.AnyEventData -> Galley UpdateResult
 mapConversationUpdateResult = \case
@@ -53,3 +56,13 @@ mapConversationRole :: Fed.ConversationRole -> RoleName
 mapConversationRole = \case
   Fed.ConversationRoleAdmin -> roleNameWireAdmin
   Fed.ConversationRoleMember -> roleNameWireMember
+
+-- unqualified -> qualified
+
+qualifyConversationUpdateResult :: UpdateResult -> Galley (Fed.ConversationUpdateResult Fed.AnyEventData)
+qualifyConversationUpdateResult = \case
+  Unchanged -> pure Fed.ConversationUnchanged
+  Updated _ev ->
+    -- TODO/FUTUREWORK(federation): write this code instead
+    -- Fed.ConversationUpdated <$> qualifyEvent ev
+    pure Fed.ConversationUnchanged

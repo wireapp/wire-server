@@ -22,6 +22,7 @@ module Galley.API.Update
     unblockConvH,
     checkReusableCodeH,
     joinConversationByIdH,
+    joinConversationById,
     joinConversationByReusableCodeH,
     addCodeH,
     rmCodeH,
@@ -60,6 +61,7 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
+import qualified Data.Id as Id
 import Data.IdMapping
 import Data.List (delete)
 import Data.List.NonEmpty (nonEmpty)
@@ -416,12 +418,16 @@ joinConversationByReusableCode zusr zcon convCode = do
 
 joinConversationByIdH :: UserId ::: ConnId ::: OptionallyQualified ConvId ::: JSON -> Galley Response
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
-  handleUpdateResult <$> joinConversationById zusr zcon cnv
+  handleUpdateResult <$> joinConversationById (Local zusr) zcon cnv
 
-joinConversationById :: UserId -> ConnId -> OptionallyQualified ConvId -> Galley UpdateResult
-joinConversationById zusr zcon cnv = case eitherQualifiedOrNot cnv of
-  Left localCnv -> joinConversation zusr zcon localCnv LinkAccess
-  Right qualifiedCnv -> joinRemoteConversationById zusr zcon qualifiedCnv
+joinConversationById :: MappedOrLocalId Id.U -> ConnId -> OptionallyQualified ConvId -> Galley UpdateResult
+joinConversationById usr zcon cnv =
+  case eitherQualifiedOrNot cnv of
+    Left localCnv -> joinConversation zusr zcon localCnv LinkAccess
+    Right qualifiedCnv -> joinRemoteConversationById zusr zcon qualifiedCnv
+  where
+    -- TODO: we need to handle non-local users here!
+    zusr = undefined usr
 
 joinRemoteConversationById :: UserId -> ConnId -> Qualified ConvId -> Galley UpdateResult
 -- TODO(federation): how is ConnId used in Gundeck? Implications for federation?

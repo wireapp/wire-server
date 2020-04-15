@@ -216,7 +216,7 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley ResponseReceived -> IO ResponseReceived
+runGalley :: Env -> Request -> Galley a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m

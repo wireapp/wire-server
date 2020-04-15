@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7fcf79b31cc90bb5a2a3e9b1501c92e55652300c3daa39e50807fcac185daabc
+-- hash: bb94b01726d43f1adc05ecdddfef456418d081f75aecd309e0eb0ee995ea0069
 
 name:           galley
 version:        0.83.0
@@ -29,6 +29,7 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
+      Galley.API.Federation
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
@@ -124,6 +125,7 @@ library
     , servant
     , servant-client
     , servant-client-core
+    , servant-server
     , servant-swagger
     , singletons >=1.0
     , split >=0.2

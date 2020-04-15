@@ -39,6 +39,7 @@ import Test.QuickCheck (Arbitrary, arbitrary)
 import Wire.API.Federation.Conversation as Fed hiding (Api)
 import Wire.API.Federation.Types.Event as Fed
 
+-- TODO: rename to Api
 data API route
   = API
       { _gapiSearch ::
@@ -77,6 +78,7 @@ data API route
 -- TODO: the client ids in the 'PrekeyBundle' aren't really needed here.  do we want to make a
 -- new type for that, then?
 
+-- TODO: rename
 data FUser
   = FUser
       { _fuGlobalHandle :: !(Qualified Handle),

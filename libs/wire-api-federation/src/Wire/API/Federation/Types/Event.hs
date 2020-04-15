@@ -6,6 +6,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
+-- TODO: do we need all these extensions?
+-- TODO: add license headers
+
 module Wire.API.Federation.Types.Event
   ( AnyEvent,
     Event (..),
@@ -40,7 +43,7 @@ data Event a
         eventTime :: UTCTime,
         eventData :: a
       }
-  deriving stock (Foldable, Functor, Show, Generic)
+  deriving stock (Show, Generic, Foldable, Functor, Traversable)
   deriving (ToJSON, FromJSON) via (CustomEncoded (Event a))
 
 -- FUTUREWORK(federation): Extend with the other Event types that need to be

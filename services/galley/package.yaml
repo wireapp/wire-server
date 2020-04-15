@@ -66,6 +66,7 @@ library:
   - servant
   - servant-client
   - servant-client-core
+  - servant-server
   - servant-swagger
   - singletons >=1.0
   - split >=0.2
