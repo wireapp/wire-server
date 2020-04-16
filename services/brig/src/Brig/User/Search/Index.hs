@@ -656,5 +656,5 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
             Just Ephemeral -> False,
           fromMaybe False activated,
           isNothing service,
-          isNothing name -- This is not supposed to be possible, yet we have it in production
+          isJust name -- This always supposed to be true, yet we have it in production
         ]
