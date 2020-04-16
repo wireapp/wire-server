@@ -33,6 +33,29 @@ between your SAML IdP and the wire service.  All communication happens
 via the browser or app.
 
 
+Why does the team owner have to keep using password?
+----------------------------------------------------
+
+The user who creates the team cannot be authenticated via SSO.  There
+is fundamentally no easy way around that: we need somebody to give us
+the IdP credentials, and we need to trust that somebody.  For now,
+that's the team owner with their password.
+
+(It is also unwise to bind that owner to SAML once it's installed.  If
+there is every any issue with SAML authentication that can only be
+resolved by updating the IdP metadata in team settings, the owner must
+still have a way to authenticate in order to do that.)
+
+There is a good workaround, though: you can create a team with user A
+and use A for registering the IdP.  All the users for everyday use and
+maintenance of the team, including admins and owners, can then be created
+via SSO (either IdP or SCIM).  The original user A is only ever used
+for IdP registration and upgrade of IdP-authenticated owners / admins.
+
+In practice, user A and some owner authenticated via IdP would then be
+controlled by the same person, probably.
+
+
 What should the SAML response look like?
 ----------------------------------------
 
