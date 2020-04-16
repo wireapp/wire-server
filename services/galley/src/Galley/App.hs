@@ -47,6 +47,8 @@ module Galley.App
     fromOptionalJsonBody,
     fromProtoBody,
     initExtEnv,
+
+    currentTruncationLimit
   )
 where
 
@@ -66,11 +68,13 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import qualified Data.ProtocolBuffers as Proto
+import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
+import Galley.Types.Teams (HardTruncationLimit)
 import qualified Galley.Queue as Q
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -128,6 +132,11 @@ newtype Galley a
       MonadReader Env,
       MonadClient
     )
+
+currentTruncationLimit :: Galley (Range 1 HardTruncationLimit Int32)
+currentTruncationLimit = do
+  truncationLimit <- view $ options . optSettings . setTruncationLimit
+  return $ fromMaybe defTruncationLimit truncationLimit
 
 instance MonadUnliftIO Galley where
   askUnliftIO =

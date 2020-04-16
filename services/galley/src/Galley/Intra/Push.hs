@@ -22,6 +22,7 @@ module Galley.Intra.Push
     Push,
     newPush,
     newPush1,
+    newPushLimited,
     newPush1Limited,
     push,
     push1,
@@ -44,7 +45,7 @@ module Galley.Intra.Push
 
     -- * Re-Exports
     Gundeck.Route (..),
-    Gundeck.Priority (..),
+    Gundeck.Priority (..)
   )
 where
 
@@ -67,6 +68,7 @@ import qualified Data.Text.Lazy as LT
 import Galley.App
 import Galley.Options
 import Galley.Types
+import qualified Galley.Data as Data
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
@@ -99,9 +101,6 @@ recipient m = Recipient (memId m) RecipientClientsAll
 userRecipient :: UserId -> Recipient
 userRecipient u = Recipient u RecipientClientsAll
 
--- data SizedPush = TooLargeToFanout Push
---                | OKToFanOut Push
-
 data Push
   = Push
       { _pushConn :: Maybe ConnId,
@@ -112,28 +111,32 @@ data Push
         pushOrigin :: UserId,
         pushRecipients :: List1 Recipient,
         pushJson :: Object,
-        pushTooLargeToFanout :: Bool
+        pushRecipientListTooLargeToFanout :: Bool
       }
 
 makeLenses ''Push
 
-newPush1Limited :: Bool -> UserId -> PushEvent -> List1 Recipient -> Push
-newPush1Limited b from e rr =
+newPush1Limited :: Data.ResultSetType -> Range 1 Teams.HardTruncationLimit Int32 -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1Limited recipientsType hardLimit from e rr =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
-      pushTooLargeToFanout = b,
+      pushRecipientListTooLargeToFanout = isTooLargeToFanout,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
     }
+  where
+    -- The second check is redudant but we are paranoid... and it does not hurt
+    isTooLargeToFanout = recipientsType == Data.ResultSetTruncated
+                      || length rr > (fromIntegral $ fromRange hardLimit)
 
--- newPushLimited :: Bool -> UserId -> PushEvent -> [Recipient] -> Maybe Push
--- newPushLimited _ _ _ [] = Nothing
--- newPushLimited b u e (r : rr) = Just $ newPush1Limited b u e (list1 r rr)
+newPushLimited :: Data.ResultSetType -> Range 1 Teams.HardTruncationLimit Int32 -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLimited _  _ _ _ [] = Nothing
+newPushLimited rs l u e (r : rr) = Just $ newPush1Limited rs l u e (list1 r rr)
 
 newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 from e rr =
@@ -143,7 +146,7 @@ newPush1 from e rr =
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
-      pushTooLargeToFanout = False,
+      pushRecipientListTooLargeToFanout = False,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
@@ -199,7 +202,8 @@ pushInternal ps = do
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
-    removeIfLargeFanout = filter (not . pushTooLargeToFanout)
+
+    removeIfLargeFanout = filter (not . pushRecipientListTooLargeToFanout)
 
 -----------------------------------------------------------------------------
 -- Helpers

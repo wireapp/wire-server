@@ -20,7 +20,8 @@ module Galley.Options where
 import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Misc
-import Galley.Types.Teams (FeatureFlags (..))
+import Data.Range
+import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit)
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -32,6 +33,8 @@ data Settings
         _setHttpPoolSize :: !Int,
         -- | Max number of members in a team. NOTE: This must be in sync with Brig
         _setMaxTeamSize :: !Word16,
+        -- | Max number of users to fetch when doing a DB lookup
+        _setTruncationLimit :: !(Maybe (Range 1 HardTruncationLimit Int32)),
         -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
         _setMaxConvSize :: !Word16,
         -- | Whether to call Brig for device listing
@@ -59,6 +62,9 @@ defConcurrentDeletionEvents = 128
 
 defDeleteConvThrottleMillis :: Int
 defDeleteConvThrottleMillis = 20
+
+defTruncationLimit :: Range 1 HardTruncationLimit Int32
+defTruncationLimit = unsafeRange 2000
 
 defEnableFederation :: Bool
 defEnableFederation = False

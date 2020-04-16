@@ -82,8 +82,9 @@ rmUser user conn = do
         RegularConv
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
+            limit <- currentTruncationLimit
             return $
-              (Intra.newPush (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPushLimited Data.ResultSetComplete limit (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

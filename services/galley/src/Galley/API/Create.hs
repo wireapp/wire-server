@@ -224,7 +224,8 @@ createConnectConversation usr conn j = do
     create x y n = do
       (c, e) <- Data.createConnectConversation x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
+      truncationLimit <- currentTruncationLimit
+      for_ (newPushLimited Data.ResultSetComplete truncationLimit (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -262,7 +263,8 @@ createConnectConversation usr conn j = do
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
         let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
-        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
+        limit <- currentTruncationLimit
+        for_ (newPushLimited Data.ResultSetComplete limit (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -299,8 +301,9 @@ notifyCreatedConversation dtime usr conn c = do
     toPush t m = do
       c' <- conversationView (memId m) c
       let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
+      limit <- currentTruncationLimit
       return $
-        newPush1 (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
+        newPush1Limited Data.ResultSetComplete limit (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

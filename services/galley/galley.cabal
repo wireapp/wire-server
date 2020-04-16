@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f9b73dc91aaa155bf8b00144f15d626fe9b79885c56a796a1171182756d06366
+-- hash: 72c14b592c984ac0b7deed3cdce6003efd01f2e1bcd284af8553c4844284cdfb
 
 name:           galley
 version:        0.83.0
@@ -258,6 +258,7 @@ executable galley-integration
     , uri-bytestring
     , uuid
     , wai
+    , wai-extra
     , wai-route
     , wai-utilities
     , warp

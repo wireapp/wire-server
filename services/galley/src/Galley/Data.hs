@@ -92,10 +92,7 @@ module Galley.Data
     defRole,
     defRegularConvAccess,
 
-    -- * TODO: move to types package later
-    -- SizedTeamMembers (..),
-    -- teamMembersTyped
-    -- getTeamMembers
+    ResultSetType (..)
   )
 where
 
@@ -149,15 +146,13 @@ import UnliftIO (async, mapConcurrently, wait)
 -- we would miss a value on every page size.
 newtype ResultSet a = ResultSet {page :: Page a}
 
--- TODO: Move to types-package later
--- data SizedTeamMembers = SmallTeam [TeamMember]
---                       | LargeTeam [TeamMember]
-
--- getTeamMembers :: SizedTeamMembers -> [TeamMember]
--- getTeamMembers =
-
 schemaVersion :: Int32
 schemaVersion = 37
+
+-- A more descriptive type than using a simple bool to represent `hasMore`
+data ResultSetType = ResultSetComplete
+                   | ResultSetTruncated
+                   deriving Eq
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -215,31 +210,23 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], Bool)
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], ResultSetType)
 teamMembers t (fromRange -> limit) = do
-  pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
-  ms <- mapM newTeamMember' $ result pageTuple
-  pure (ms, hasMore pageTuple)
+  -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
+  pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
+  ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
+  pure (ms, toResultSetType pageTuple)
   where
+    toResultSetType :: Page a -> ResultSetType
+    toResultSetType p = if hasMore p
+                            then ResultSetTruncated
+                            else ResultSetComplete
+
     newTeamMember' ::
       (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
       m TeamMember
     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
       newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
-
--- teamMembersTyped :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m SizedTeamMembers
--- teamMembersTyped t (fromRange -> limit) = do
---   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
---   ms <- mapM newTeamMember' $ result pageTuple
---   pure $ if hasMore pageTuple
---               then LargeTeam ms
---               else SmallTeam ms
---   where
---     newTeamMember' ::
---       (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
---       m TeamMember
---     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
---       newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
 -- | TODO: This operation gets **all** members of a team, this should go away before
 -- we roll out large teams

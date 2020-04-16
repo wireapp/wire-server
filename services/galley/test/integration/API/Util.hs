@@ -48,6 +48,8 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
+import qualified Galley.Options as Opts
+import qualified Galley.Run as Run
 import qualified Galley.Types.Proto as Proto
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (EventType (..))
@@ -59,6 +61,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import qualified Network.Wai.Test as WaiTest
 import Web.Cookie
 
 -------------------------------------------------------------------------------
@@ -1283,3 +1286,11 @@ postSSOUser name hasEmail ssoid teamid = do
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
+
+-- | This allows you to run requests against a brig instantiated using the given options.
+--   Note that ONLY 'galley' calls should occur within the provided action, calls to other
+--   services will fail.
+withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides opts action = liftIO $ do
+  (galleyApp, _) <- Run.mkApp opts
+  WaiTest.runSession action galleyApp

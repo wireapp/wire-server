@@ -17,6 +17,7 @@
 
 module Galley.Run
   ( run,
+    mkApp
   )
 where
 
@@ -36,7 +37,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import Imports
-import Network.Wai (Middleware)
+import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
@@ -45,8 +46,7 @@ import Util.Options
 
 run :: Opts -> IO ()
 run o = do
-  m <- M.metrics
-  e <- App.createEnv m o
+  (app, e) <- mkApp o
   let l = e ^. App.applog
   s <-
     newSettings $
@@ -54,22 +54,29 @@ run o = do
         (unpack $ o ^. optGalley . epHost)
         (portNumber $ fromIntegral $ o ^. optGalley . epPort)
         l
-        m
-  runClient (e ^. cstate) $
-    versionCheck Data.schemaVersion
+        (e ^. monitor)
   deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
   refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
-  let rtree = compile sitemap
-      app r k = runGalley e r (route rtree r k)
-      middlewares :: Middleware
-      middlewares =
-        waiPrometheusMiddleware sitemap
-          . catchErrors l [Right m]
-          . GZip.gunzip
-          . GZip.gzip GZip.def
-  runSettingsWithShutdown s (middlewares app) 5 `finally` do
+  runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
     Log.flush l
     Log.close l
+
+mkApp :: Opts -> IO (Application, Env)
+mkApp o = do
+  m <- M.metrics
+  e <- App.createEnv m o
+  let l = e ^. App.applog
+  runClient (e ^. cstate) $
+    versionCheck Data.schemaVersion
+  return (middlewares l m $ app e, e)
+ where
+  rtree = compile sitemap
+  app e r k = runGalley e r (route rtree r k)
+  middlewares l m =
+    waiPrometheusMiddleware sitemap
+      . catchErrors l [Right m]
+      . GZip.gunzip
+      . GZip.gzip GZip.def

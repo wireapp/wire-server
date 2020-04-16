@@ -224,10 +224,11 @@ updateTeam zusr zcon tid updateData = do
   void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  (membs, tooLargeTeam) <- Data.teamMembers tid (unsafeRange hardTruncationLimit)
+  limit <- currentTruncationLimit
+  (membs, truncated) <- Data.teamMembers tid limit
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  push1 $ newPush1Limited tooLargeTeam zusr (TeamEvent e) r & pushConn .~ Just zcon
+  push1 $ newPush1Limited truncated limit zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -340,9 +341,9 @@ getTeamMembers zusr tid maxResults = do
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
     Just m -> do
-      (mems, hasMore) <- Data.teamMembers tid maxResults
+      (mems, resultSetType) <- Data.teamMembers tid maxResults
       let withPerms = (m `canSeePermsOf`)
-      pure (newTeamMemberList mems hasMore, withPerms)
+      pure (newTeamMemberList mems (resultSetType == Data.ResultSetTruncated), withPerms)
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JsonRequest UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
@@ -393,8 +394,8 @@ uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
 
 uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TeamMemberList
 uncheckedGetTeamMembers tid maxResults = do
-  (mems, hasMore) <- Data.teamMembers tid maxResults
-  return $ newTeamMemberList mems hasMore
+  (mems, resultSetType) <- Data.teamMembers tid maxResults
+  return $ newTeamMemberList mems (resultSetType == Data.ResultSetTruncated)
 
 addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do

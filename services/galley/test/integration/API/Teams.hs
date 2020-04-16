@@ -40,6 +40,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options as Opt
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -103,6 +104,7 @@ tests s =
       test s "update team data" testUpdateTeam,
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
+      test s "update team - no events, too large team XXX" testUpdateTeamNoEvents,
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
       test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
@@ -1014,6 +1016,45 @@ testUpdateTeam = do
       e ^. eventType @?= TeamUpdate
       e ^. eventTeam @?= tid
       e ^. eventData @?= Just (EdTeamUpdate upd)
+
+testUpdateTeamNoEvents :: TestM ()
+testUpdateTeamNoEvents = do
+  g <- view tsGalley
+  c <- view tsCannon
+  owner <- Util.randomUser
+  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
+  member <- newTeamMember' p <$> Util.randomUser
+  Util.connectUsers owner (list1 (member ^. userId) [])
+  tid <- Util.createNonBindingTeam "foo" owner [member]
+  let bad = object ["name" .= T.replicate 100 "too large"]
+  put
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json bad
+    )
+    !!! const 400
+    === statusCode
+  let u =
+        newTeamUpdateData
+          & nameUpdate .~ (Just $ unsafeRange "bar")
+          & iconUpdate .~ (Just $ unsafeRange "xxx")
+          & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
+  WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
+    -- let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just 1
+    -- withSettingsOverrides (error "newOpts") $ do
+    put
+      ( g
+          . paths ["teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+          . json u
+      )
+      !!! const 200
+      === statusCode
+    -- Due to the fact that the team is too large, we expect no events!
+    WS.assertNoEvent timeout [wsOwner, wsMember]
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
