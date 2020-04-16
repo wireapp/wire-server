@@ -186,7 +186,7 @@ sitemap = do
     parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
-    body (ref TeamsModel.userIdList) $
+    body (ref Model.userIdList) $
       description "JSON body"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
