@@ -278,6 +278,7 @@ instance DecodeWire ClientId where
 newtype BotId
   = BotId
       {botUserId :: UserId}
+  -- FUTUREWORK: use DerivingStrategies to clarify how the instances are derived
   deriving
     ( Eq,
       Ord,
@@ -290,6 +291,7 @@ newtype BotId
       Generic
     )
 
+-- FUTUREWORK: use GeneralizedNewtypeDeriving for these instances.
 instance Show BotId where
   show = show . botUserId
 

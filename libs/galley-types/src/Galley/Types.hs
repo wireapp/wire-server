@@ -42,7 +42,7 @@ module Galley.Types
     Event (..),
     EventType (..),
     EventData (..),
-    UserIdList (..),
+    OpaqueUserIdList (..),
     SimpleMember (..),
     SimpleMembers (..),
     MemberUpdateData (..),
@@ -73,6 +73,7 @@ module Galley.Types
     TypingStatus (..),
     UserClientMap (..),
     UserClients (..),
+    UserIdList (..),
     filterClients,
     newInvite,
     memberUpdate,
@@ -85,7 +86,7 @@ import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.HashMap.Strict as HashMap
-import Data.Id
+import Data.Id (ClientId (ClientId), ConvId, Id (Id, toUUID), OpaqueConvId, OpaqueUserId, TeamId, UserId)
 import Data.Json.Util
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -108,7 +109,7 @@ import URI.ByteString
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation
   = Conversation
-      { cnvId :: !ConvId,
+      { cnvId :: !ConvId, -- FUTUREWORK(federation): make opaque
         cnvType :: !ConvType,
         cnvCreator :: !UserId,
         cnvAccess :: ![Access],
@@ -386,14 +387,14 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
 
 data SimpleMember
   = SimpleMember
-      { smId :: !UserId,
+      { smId :: !OpaqueUserId,
         smConvRoleName :: !RoleName
       }
   deriving (Eq, Show, Generic)
 
 data Member
   = Member
-      { memId :: !UserId,
+      { memId :: !OpaqueUserId,
         memService :: !(Maybe ServiceRef),
         -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
         memOtrMuted :: !Bool,
@@ -409,7 +410,7 @@ data Member
 
 data OtherMember
   = OtherMember
-      { omId :: !UserId,
+      { omId :: !OpaqueUserId,
         omService :: !(Maybe ServiceRef),
         omConvRoleName :: !RoleName
       }
@@ -471,8 +472,8 @@ deriving instance Show Invite
 data Event
   = Event
       { evtType :: !EventType,
-        evtConv :: !ConvId,
-        evtFrom :: !UserId,
+        evtConv :: !OpaqueConvId,
+        evtFrom :: !OpaqueUserId,
         evtTime :: !UTCTime,
         evtData :: !(Maybe EventData)
       }
@@ -500,7 +501,7 @@ data EventType
 -- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
   = EdMembersJoin !SimpleMembers
-  | EdMembersLeave !UserIdList
+  | EdMembersLeave !OpaqueUserIdList
   | EdConnect !Connect
   | EdConvReceiptModeUpdate !ConversationReceiptModeUpdate
   | EdConvRename !ConversationRename
@@ -535,13 +536,21 @@ newtype SimpleMembers
 -- definition represents better what information it carries
 newtype UserIdList
   = UserIdList
-      { mUsers :: [UserId]
+      { uilUsers :: [UserId]
+      }
+  deriving (Eq, Show, Generic)
+
+newtype OpaqueUserIdList
+  = OpaqueUserIdList
+      { ouilUsers :: [OpaqueUserId]
       }
   deriving (Eq, Show, Generic)
 
 data Connect
   = Connect
-      { cRecipient :: !UserId,
+      { -- | There is no clear plan for connections across backends
+        -- yet, so we leave this user Id local for now.
+        cRecipient :: !UserId,
         cMessage :: !(Maybe Text),
         cName :: !(Maybe Text),
         cEmail :: !(Maybe Text)
@@ -555,7 +564,7 @@ data Connect
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData
   = MemberUpdateData
-      { misTarget :: !(Maybe UserId), -- Target user of this action
+      { misTarget :: !(Maybe OpaqueUserId), -- Target user of this action
         misOtrMuted :: !(Maybe Bool),
         misOtrMutedStatus :: !(Maybe MutedStatus),
         misOtrMutedRef :: !(Maybe Text),
@@ -1181,7 +1190,14 @@ instance FromJSON UserIdList where
     UserIdList <$> o .: "user_ids"
 
 instance ToJSON UserIdList where
-  toJSON e = object ["user_ids" .= mUsers e]
+  toJSON e = object ["user_ids" .= uilUsers e]
+
+instance FromJSON OpaqueUserIdList where
+  parseJSON = withObject "user-ids-payload" $ \o ->
+    OpaqueUserIdList <$> o .: "user_ids"
+
+instance ToJSON OpaqueUserIdList where
+  toJSON e = object ["user_ids" .= ouilUsers e]
 
 instance FromJSON SimpleMembers where
   parseJSON = withObject "simple-members-payload" $ \o -> do

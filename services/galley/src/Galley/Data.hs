@@ -651,7 +651,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
   return (e, fmap (uncurry newMemberWithRole) usrs)
   where
-    toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
+    toSimpleMembers :: [(OpaqueUserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
