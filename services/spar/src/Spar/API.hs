@@ -211,13 +211,13 @@ ssoSettings = do
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP_ zusr idp
+  _ <- authorizeIdP zusr idp
   pure idp
 
 idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP_ zusr idp
+  _ <- authorizeIdP zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar SparNotFound
@@ -231,7 +231,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
-  authorizeIdP_ zusr idp
+  _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo
   -- fail if idp is not empty
@@ -344,14 +344,6 @@ withDebugLog msg showval action = do
   let mshowedval = showval val
   SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
-
--- | Called by get, put, delete handlers.
-authorizeIdP_ ::
-  (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
-  Maybe UserId ->
-  IdP ->
-  m ()
-authorizeIdP_ zusr idp = void $ authorizeIdP zusr idp
 
 authorizeIdP ::
   (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
