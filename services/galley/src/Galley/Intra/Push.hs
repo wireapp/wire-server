@@ -22,6 +22,7 @@ module Galley.Intra.Push
     Push,
     newPush,
     newPush1,
+    newPush1Limited,
     push,
     push1,
     pushSome,
@@ -98,6 +99,9 @@ recipient m = Recipient (memId m) RecipientClientsAll
 userRecipient :: UserId -> Recipient
 userRecipient u = Recipient u RecipientClientsAll
 
+-- data SizedPush = TooLargeToFanout Push
+--                | OKToFanOut Push
+
 data Push
   = Push
       { _pushConn :: Maybe ConnId,
@@ -107,10 +111,29 @@ data Push
         _pushAsync :: Bool,
         pushOrigin :: UserId,
         pushRecipients :: List1 Recipient,
-        pushJson :: Object
+        pushJson :: Object,
+        pushTooLargeToFanout :: Bool
       }
 
 makeLenses ''Push
+
+newPush1Limited :: Bool -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1Limited b from e rr =
+  Push
+    { _pushConn = Nothing,
+      _pushTransient = False,
+      _pushRoute = Gundeck.RouteAny,
+      _pushNativePriority = Nothing,
+      _pushAsync = False,
+      pushTooLargeToFanout = b,
+      pushJson = pushEventJson e,
+      pushOrigin = from,
+      pushRecipients = rr
+    }
+
+-- newPushLimited :: Bool -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+-- newPushLimited _ _ _ [] = Nothing
+-- newPushLimited b u e (r : rr) = Just $ newPush1Limited b u e (list1 r rr)
 
 newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 from e rr =
@@ -120,6 +143,7 @@ newPush1 from e rr =
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
+      pushTooLargeToFanout = False,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
@@ -132,18 +156,22 @@ newPush u e (r : rr) = Just $ newPush1 u e (list1 r rr)
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
 push1 :: Push -> Galley ()
-push1 p = push (list1 p [])
+push1 p = pushInternal (list1 p [])
 
 pushSome :: [Push] -> Galley ()
 pushSome [] = return ()
-pushSome (x : xs) = push (list1 x xs)
+pushSome (x : xs) = pushInternal (list1 x xs)
 
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
 push :: List1 Push -> Galley ()
-push ps = do
-  let (async, sync) = partition _pushAsync (toList ps)
+push ps = pushInternal ps
+
+pushInternal :: List1 Push -> Galley ()
+pushInternal ps = do
+  -- Do not fan out for very large teams
+  let (async, sync) = partition _pushAsync (removeIfLargeFanout $ toList ps)
   forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
   void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
   return ()
@@ -171,6 +199,7 @@ push ps = do
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
+    removeIfLargeFanout = filter (not . pushTooLargeToFanout)
 
 -----------------------------------------------------------------------------
 -- Helpers

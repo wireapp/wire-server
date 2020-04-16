@@ -224,10 +224,10 @@ updateTeam zusr zcon tid updateData = do
   void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
+  (membs, tooLargeTeam) <- Data.teamMembers tid (unsafeRange hardTruncationLimit)
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
+  push1 $ newPush1Limited tooLargeTeam zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do

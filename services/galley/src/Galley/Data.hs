@@ -91,6 +91,11 @@ module Galley.Data
     -- * Defaults
     defRole,
     defRegularConvAccess,
+
+    -- * TODO: move to types package later
+    -- SizedTeamMembers (..),
+    -- teamMembersTyped
+    -- getTeamMembers
   )
 where
 
@@ -143,6 +148,13 @@ import UnliftIO (async, mapConcurrently, wait)
 -- necessary. This means however that 'nextPage' does not work properly as
 -- we would miss a value on every page size.
 newtype ResultSet a = ResultSet {page :: Page a}
+
+-- TODO: Move to types-package later
+-- data SizedTeamMembers = SmallTeam [TeamMember]
+--                       | LargeTeam [TeamMember]
+
+-- getTeamMembers :: SizedTeamMembers -> [TeamMember]
+-- getTeamMembers =
 
 schemaVersion :: Int32
 schemaVersion = 37
@@ -214,6 +226,20 @@ teamMembers t (fromRange -> limit) = do
       m TeamMember
     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
       newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- teamMembersTyped :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m SizedTeamMembers
+-- teamMembersTyped t (fromRange -> limit) = do
+--   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) limit))
+--   ms <- mapM newTeamMember' $ result pageTuple
+--   pure $ if hasMore pageTuple
+--               then LargeTeam ms
+--               else SmallTeam ms
+--   where
+--     newTeamMember' ::
+--       (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
+--       m TeamMember
+--     newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
+--       newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
 -- | TODO: This operation gets **all** members of a team, this should go away before
 -- we roll out large teams
