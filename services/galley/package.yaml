@@ -63,6 +63,7 @@ library:
   - safe-exceptions >=0.1
   - semigroups >=0.12
   - servant
+  - servant-server
   - servant-swagger
   - singletons >=1.0
   - split >=0.2

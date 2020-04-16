@@ -36,10 +36,14 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import Imports
-import Network.Wai (Middleware)
+import Network.Wai (Application, Middleware)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
+import Servant (Proxy (Proxy))
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.API as Servant
+import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
 
@@ -60,14 +64,24 @@ run o = do
   deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
   refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
   let rtree = compile sitemap
+      app :: Application
       app r k = runGalley e r (route rtree r k)
+      -- the servant API wraps the one defined using wai-routing
+      servantApp :: Application
+      servantApp r =
+        Servant.serve
+          -- we don't host any Servant endpoints yet, but will add some for the
+          -- federation API, replacing the empty API.
+          (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
+          (Servant.emptyServer :<|> Servant.Tagged app)
+          r
       middlewares :: Middleware
       middlewares =
         waiPrometheusMiddleware sitemap
           . catchErrors l [Right m]
           . GZip.gunzip
           . GZip.gzip GZip.def
-  runSettingsWithShutdown s (middlewares app) 5 `finally` do
+  runSettingsWithShutdown s (middlewares servantApp) 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
