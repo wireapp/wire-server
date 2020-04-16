@@ -60,6 +60,7 @@ galleyModels =
     otrRecipients,
     otrClientMap,
     userClients,
+    userIdList,
     clientMismatch,
     serviceRef,
     teamInfo,
@@ -297,6 +298,12 @@ userClients =
   defineModel "UserClients"
     $ property "" (unique $ array bytes')
     $ description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
+
+userIdList :: Model
+userIdList = defineModel "UserIdList" $ do
+  description "list of user ids"
+  property "user_ids" (unique $ array bytes') $
+    description "the array of team conversations"
 
 members :: Model
 members =
