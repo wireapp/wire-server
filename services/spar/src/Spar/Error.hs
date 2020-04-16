@@ -92,6 +92,8 @@ data SparCustomError
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
+  | SparIdPUsedInOtherTeam
+  | SparIdPIssuerCannotBeUpdated
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
@@ -148,7 +150,7 @@ renderSparError (SAML.CustomError (SparGalleyError msg)) = Right $ Wai.Error sta
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 renderSparError (SAML.CustomError (SparCassandraError msg)) = Right $ Wai.Error status500 "server-error" msg -- TODO: should we be more specific here and make it 'db-error'?
 renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)
-renderSparError (SAML.UnknownIdP _msg) = Right $ Wai.Error status404 "not-found" "IdP not found."
+renderSparError (SAML.UnknownIdP msg) = Right $ Wai.Error status404 "not-found" ("IdP not found: " <> msg)
 renderSparError (SAML.Forbidden msg) = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
 renderSparError (SAML.BadSamlResponseBase64Error msg) = Right $ Wai.Error status400 "bad-response-encoding" ("Bad response: base64 error: " <> cs msg)
 renderSparError (SAML.BadSamlResponseXmlError msg) = Right $ Wai.Error status400 "bad-response-xml" ("Bad response: XML parse error: " <> cs msg)
@@ -175,6 +177,8 @@ renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.Error 
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
+renderSparError (SAML.CustomError SparIdPUsedInOtherTeam) = Right $ Wai.Error status400 "idp-used-in-other-team" "The issuer of your IdP is used in a different team.  You can use each IdP for one team only."
+renderSparError (SAML.CustomError SparIdPIssuerCannotBeUpdated) = Right $ Wai.Error status400 "cannot-update-idp-issuer" "Updating the issuer of an existing IdP is currently not supported."
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg)) = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
