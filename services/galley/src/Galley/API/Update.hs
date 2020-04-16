@@ -103,7 +103,7 @@ acceptConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
 acceptConv usr conn cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conversationView (makeIdOpaque usr) conv'
 
 blockConvH :: UserId ::: ConvId -> Galley Response
 blockConvH (zusr ::: cnv) = do
@@ -129,7 +129,7 @@ unblockConv usr conn cnv = do
     $ throwM
     $ invalidOp "unblock: invalid conversation type"
   conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conversationView (makeIdOpaque usr) conv'
 
 -- conversation updates
 
@@ -162,7 +162,7 @@ updateConversationAccess usr zcon cnv update = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   -- The conversation has to be a group conversation
   ensureGroupConv conv
-  self <- getSelfMember usr users
+  self <- getSelfMember (makeIdOpaque usr) users
   ensureActionAllowed ModifyConversationAccess self
   -- Team conversations incur another round of checks
   case Data.convTeam conv of
@@ -220,33 +220,42 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- to make assumption about the order of roles and implement policy
     -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
-      mIds <- map memId <$> use usersL
+      opaqueMemberIds <- map memId <$> use usersL
+      -- FUTUREWORK(federation): how do we check if remote users are activated?
+      -- for now we only consider local users activated.
+      -- It's safe here to just pass opaque Ids as local ones, as mapped ones will just
+      -- not match any users in the query and count as unactivated.
+      let mIds = unsafeAssumeIdIsLocal <$> opaqueMemberIds
       activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
-      usersL %= filter (\user -> memId user `elem` activated)
+      usersL %= filter (\user -> memId user `elem` (makeIdOpaque <$> activated))
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
         currentUsers <- use usersL
-        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (memId user)) currentUsers
+        -- It's safe here to just pass opaque Ids as local ones, as mapped ones will just
+        -- not match any users in the query and count as unactivated.
+        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (unsafeAssumeIdIsLocal (memId user))) currentUsers
         assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
   -- Update Cassandra & send an event
   now <- liftIO getCurrentTime
-  let accessEvent = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
+  let accessEvent = Event ConvAccessUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
-  pushEvent accessEvent users bots zcon
+  pushEventFrom usr accessEvent users bots zcon
   -- Remove users and bots
   let removedUsers = map memId users \\ map memId newUsers
       removedBots = map botMemId bots \\ map botMemId newBots
   mapM_ (deleteBot cnv) removedBots
-  case removedUsers of
+  traverse resolveOpaqueUserId removedUsers >>= \case
     [] -> return ()
     x : xs -> do
-      e <- Data.removeMembers conv usr (Local <$> list1 x xs)
+      e <- Data.removeMembers conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      --
+      -- we rely on the fact that `evtFrom e` is `usr` (but opaque)
+      for_ (newPush (Local usr) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -255,6 +264,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     usersL = _1
     botsL :: Lens' ([Member], [BotMember]) [BotMember]
     botsL = _2
+    unsafeAssumeIdIsLocal (Id i) = Id i
 
 updateConversationReceiptModeH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationReceiptModeUpdate ::: JSON -> Galley Response
 updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
@@ -264,7 +274,7 @@ updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
 updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> ConversationReceiptModeUpdate -> Galley UpdateResult
 updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceiptModeUpdate target) = do
   (bots, users) <- botsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
+  ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember (makeIdOpaque usr) users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
     then pure Unchanged
@@ -274,8 +284,8 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(ConversationReceip
       -- Update Cassandra & send an event
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
-      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
-      pushEvent receiptEvent users bots zcon
+      let receiptEvent = Event ConvReceiptModeUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
+      pushEventFrom usr receiptEvent users bots zcon
       pure receiptEvent
 
 updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest ConversationMessageTimerUpdate -> Galley Response
@@ -287,7 +297,7 @@ updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> ConversationMess
 updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTimerUpdate target) = do
   -- checks and balances
   (bots, users) <- botsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
+  ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember (makeIdOpaque usr) users
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureGroupConv conv
   let currentTimer = Data.convMessageTimer conv
@@ -298,14 +308,19 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
     update users bots = do
       -- update cassandra & send event
       now <- liftIO getCurrentTime
-      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate timerUpdate)
+      let timerEvent = Event ConvMessageTimerUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
-      pushEvent timerEvent users bots zcon
+      pushEventFrom usr timerEvent users bots zcon
       pure timerEvent
 
-pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
-pushEvent e users bots zcon = do
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+-- | The 'UserId' is redundant with the 'evtFrom' field of the 'Event',
+-- but that one is an `OpaqueUserId`, while we need a `UserId`.
+-- Doing this conversion is not safe in general, so we require to pass the
+-- 'UserId' manually.
+-- This could be avoided if we make 'newPush' take an 'OpaqueUserId' instead.
+pushEventFrom :: UserId -> Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
+pushEventFrom orig e users bots zcon = do
+  for_ (newPush (Local orig) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -333,8 +348,8 @@ addCode usr zcon cnv = do
       Data.insertCode code
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
-      let event = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate conversationCode)
-      pushEvent event users bots zcon
+      let event = Event ConvCodeUpdate (makeIdOpaque cnv) (makeIdOpaque usr) now (Just $ EdConvCodeUpdate conversationCode)
+      pushEventFrom usr event users bots zcon
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -358,8 +373,8 @@ rmCode usr zcon cnv = do
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
-  let event = Event ConvCodeDelete cnv usr now Nothing
-  pushEvent event users bots zcon
+  let event = Event ConvCodeDelete (makeIdOpaque cnv) (makeIdOpaque usr) now Nothing
+  pushEventFrom usr event users bots zcon
   pure event
 
 getCodeH :: UserId ::: ConvId -> Galley Response
@@ -448,7 +463,7 @@ addMembers zusr zcon cid invite = do
     addMembersToLocalConv convId = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
       let mems = botsAndUsers (Data.convMembers conv)
-      self <- getSelfMember zusr (snd mems)
+      self <- getSelfMember (makeIdOpaque zusr) (snd mems)
       ensureActionAllowed AddConversationMember self
       toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
       let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
@@ -486,7 +501,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 updateSelfMember :: UserId -> ConnId -> ConvId -> MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr (Local cid)
-  m <- getSelfMember zusr (Data.convMembers conv)
+  m <- getSelfMember (makeIdOpaque zusr) (Data.convMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
   void $ processUpdateMemberEvent zusr zcon cid [m] m update
@@ -503,8 +518,8 @@ updateOtherMember zusr zcon cid victim update = do
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr (Local cid)
   let (bots, users) = botsAndUsers (Data.convMembers conv)
-  ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
-  memTarget <- getOtherMember victim users
+  ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember (makeIdOpaque zusr) users
+  memTarget <- getOtherMember (makeIdOpaque victim) users
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -537,7 +552,8 @@ removeMember zusr zcon cid victim = do
             Mapped _ -> do
               -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
-          for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+          -- we rely on the fact that `evtFrom event` is `zusr` (but opaque)
+          for_ (newPush (Local zusr) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
           pure $ Updated event
@@ -545,8 +561,8 @@ removeMember zusr zcon cid victim = do
     genConvChecks conv usrs = do
       ensureGroupConv conv
       if makeIdOpaque zusr == victim
-        then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
-        else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
+        then ensureActionAllowed LeaveConversation =<< getSelfMember (makeIdOpaque zusr) usrs
+        else ensureActionAllowed RemoveConversationMember =<< getSelfMember (makeIdOpaque zusr) usrs
     teamConvChecks convId tid = do
       tcv <- Data.teamConversation tid convId
       when (maybe False (view managedConversation) tcv) $
@@ -663,14 +679,20 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
             otrCiphertext = t,
             otrData = newOtrData msg
           }
-      conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
-      e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
+      -- use recipient's client's self conversation on broadcast
+      conv = fromMaybe (unsafeSelfConvId $ memId m) cnv
+      -- TODO/FUTUREWORK(federation):
+      -- we currently assume that self conv ID is the same as the user's ID
+      -- how does this work with ID mapping?
+      -- we can't just assume mapped IDs for these will also be the same.
+      unsafeSelfConvId (Id i) = selfConv (Id i)
+      e = Event OtrMessageAdd (makeIdOpaque conv) (makeIdOpaque usr) now (Just $ EdOtrMessage o)
       r = recipient m & recipientClients .~ (RecipientClientsSome $ singleton c)
    in case newBotMember m of
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush (evtFrom e) (ConvEvent e) [r]
+                newPush (Local usr) (ConvEvent e) [r]
                   <&> set pushConn con
                   . set pushNativePriority (newOtrNativePriority msg)
                   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -694,12 +716,12 @@ updateConversationName zusr zcon cnv convRename = do
     Data.deleteConversation cnv
     throwM convNotFound
   (bots, users) <- botsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
+  ensureActionAllowed ModifyConversationName =<< getSelfMember (makeIdOpaque zusr) users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
-  let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  let e = Event ConvRename (makeIdOpaque cnv) (makeIdOpaque zusr) now (Just $ EdConvRename convRename)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -716,8 +738,8 @@ isTyping zusr zcon cnv typingData = do
   unless (makeIdOpaque zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
-  let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
+  let e = Event Typing (makeIdOpaque cnv) (makeIdOpaque zusr) now (Just $ EdTyping typingData)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -748,7 +770,8 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  -- we rely on the fact that `evtFrom e` is `zusr` (but opaque)
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -758,7 +781,7 @@ addBot zusr zcon b = do
       unless (makeIdOpaque zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
-      ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
+      ensureActionAllowed AddConversationMember =<< getSelfMember (makeIdOpaque zusr) users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
         ensureMemberLimit (toList $ Data.convMembers c) [makeIdOpaque (botUserId (b ^. addBotId))]
       return (bots, users)
@@ -782,9 +805,9 @@ rmBot zusr zcon b = do
     then pure Unchanged
     else do
       t <- liftIO getCurrentTime
-      let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
-      let e = Event MemberLeave (Data.convId c) zusr t evd
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      let evd = Just (EdMembersLeave (OpaqueUserIdList [makeIdOpaque (botUserId (b ^. rmBotId))]))
+      let e = Event MemberLeave (makeIdOpaque (Data.convId c)) (makeIdOpaque zusr) t evd
+      for_ (newPush (Local zusr) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -801,7 +824,7 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   mems <- checkedMemberAddSize xs
   now <- liftIO getCurrentTime
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+  for_ (newPush (Local usr) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
@@ -862,9 +885,9 @@ processUpdateMemberEvent ::
 processUpdateMemberEvent zusr zcon cid users target update = do
   up <- Data.updateMember cid (memId target) update
   now <- liftIO getCurrentTime
-  let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+  let e = Event MemberStateUpdate (makeIdOpaque cid) (makeIdOpaque zusr) now (Just $ EdMemberUpdate up)
   let ms = applyMemUpdateChanges target up
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+  for_ (newPush (Local zusr) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -902,7 +925,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     if isInternal
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
-  let membs = Data.newMember <$> users
+  let membs = Data.newMember . makeIdOpaque <$> users
   handleOtrResponse usr clt rcps membs clts val now go
 
 withValidOtrRecipients ::
@@ -920,12 +943,16 @@ withValidOtrRecipients usr clt cnv rcps val now go = do
     Data.deleteConversation cnv
     throwM convNotFound
   membs <- Data.members cnv
-  let memIds = (memId <$> membs)
+  (localMemIds, remoteMemIds) <-
+    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (memId <$> membs)
+  for_ (nonEmpty remoteMemIds) $
+    -- FUTUREWORK(federation, #1271): allow fetching clients from remote users
+    throwM . federationNotImplemented
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
     if isInternal
-      then Clients.fromUserClients <$> Intra.lookupClients memIds
-      else Data.lookupClients memIds
+      then Clients.fromUserClients <$> Intra.lookupClients localMemIds
+      else Data.lookupClients localMemIds
   handleOtrResponse usr clt rcps membs clts val now go
 
 handleOtrResponse ::
@@ -989,7 +1016,7 @@ checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
         Just m
       | otherwise = Nothing
     -- Valid recipient members & clients
-    vmembers = Map.fromList $ map (\m -> (makeIdOpaque (memId m), m)) vms
+    vmembers = Map.fromList $ map (\m -> (memId m, m)) vms
     vclients = Clients.rmClient usr sid vcs
     -- Proposed (given) recipients
     recipients = userClientMap (otrRecipientsMap prs)

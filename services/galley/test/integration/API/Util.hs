@@ -765,14 +765,14 @@ assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> Test
 assertConvMemberWithRole r c u =
   getSelfMember u c !!! do
     const 200 === statusCode
-    const (Right u) === (fmap memId <$> responseJsonEither)
+    const (Right (makeIdOpaque u)) === (fmap memId <$> responseJsonEither)
     const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
 
 assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =
   getSelfMember u c !!! do
     const 200 === statusCode
-    const (Right u) === (fmap memId <$> responseJsonEither)
+    const (Right (makeIdOpaque u)) === (fmap memId <$> responseJsonEither)
 
 assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertNotConvMember u c =
@@ -831,8 +831,8 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "type" (Just t) (cnvType <$> cnv)
     assertEqual "creator" (Just c) (cnvCreator <$> cnv)
     assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
-    assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
+    assertEqual "self" (Just (makeIdOpaque s)) (memId <$> _self)
+    assertEqual "others" (Just $ Set.fromList $ makeIdOpaque <$> us) (Set.fromList . map omId . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
     assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -853,9 +853,9 @@ wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Noti
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= OtrMessageAdd
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
 
 -- | This assumes the default role name
@@ -866,21 +866,21 @@ wsAssertMemberJoinWithRole :: ConvId -> UserId -> [UserId] -> RoleName -> Notifi
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberJoin
-  evtFrom e @?= usr
-  evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+  evtFrom e @?= makeIdOpaque usr
+  evtData e @?= Just (EdMembersJoin $ SimpleMembers $ flip SimpleMember role . makeIdOpaque <$> new)
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberStateUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   case evtData e of
     Just (Galley.Types.EdMemberUpdate mis) -> do
-      assertEqual "target" (Just target) (misTarget mis)
+      assertEqual "target" (Just (makeIdOpaque target)) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
@@ -888,30 +888,30 @@ wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Noti
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= ConvAccessUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdConvAccessUpdate new)
 
 wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= ConvMessageTimerUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= makeIdOpaque usr
   evtData e @?= Just (EdConvMessageTimerUpdate new)
 
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= conv
+  evtConv e @?= makeIdOpaque conv
   evtType e @?= MemberLeave
-  evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (Just (EdMembersLeave (UserIdList old)))
+  evtFrom e @?= makeIdOpaque usr
+  sorted (evtData e) @?= sorted (Just (EdMembersLeave (OpaqueUserIdList (makeIdOpaque <$> old))))
   where
-    sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))
+    sorted (Just (EdMembersLeave (OpaqueUserIdList m))) = Just (EdMembersLeave (OpaqueUserIdList (sort m)))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()

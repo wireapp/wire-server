@@ -789,7 +789,7 @@ addBot zuid zcon cid add = do
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = newClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
-  let origmem = OtherMember zuid Nothing roleNameWireAdmin
+  let origmem = OtherMember (makeIdOpaque zuid) Nothing roleNameWireAdmin
   let members = origmem : (cmOthers mems)
   let bcnv = Ext.botConvView (cnvId cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
@@ -838,7 +838,7 @@ removeBot zusr zcon cid bid = do
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
   -- Find the bot in the member list and delete it
-  let busr = botUserId bid
+  let busr = makeIdOpaque (botUserId bid)
   let bot = List.find ((== busr) . omId) (cmOthers mems)
   case bot >>= omService of
     Nothing -> return Nothing

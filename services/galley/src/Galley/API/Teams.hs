@@ -60,6 +60,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
+import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import Data.Range as Range
@@ -226,8 +227,8 @@ updateTeam zusr zcon tid updateData = do
   now <- liftIO getCurrentTime
   membs <- Data.teamMembersUnsafeForLargeTeams tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
-  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
+  let r = list1 (userRecipient (makeIdOpaque zusr)) (membersToRecipients (Just zusr) membs)
+  push1 $ newPush1 (Local zusr) (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -284,14 +285,14 @@ uncheckedDeleteTeam zusr zcon tid = do
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
     pushDeleteEvents membs e ue = do
       o <- view $ options . optSettings
-      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
+      let r = list1 (userRecipient (makeIdOpaque zusr)) (membersToRecipients (Just zusr) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \chunk -> case chunk of
         [] -> return ()
         -- push TeamDelete events
-        x : xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        x : xs -> push1 (newPush1 (Local zusr) (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
@@ -310,8 +311,8 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-      let p = newPush zusr (ConvEvent e) (map recipient mm)
+      let e = Conv.Event Conv.ConvDelete (makeIdOpaque (c ^. conversationId)) (makeIdOpaque zusr) now Nothing
+      let p = newPush (Local zusr) (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
@@ -493,7 +494,7 @@ updateTeamMember zusr zcon tid targetMember = do
       now <- liftIO getCurrentTime
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
-      let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
+      let pushPriv = newPush (Local zusr) (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
@@ -555,13 +556,13 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-      push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+      let r = list1 (userRecipient (makeIdOpaque zusr)) (membersToRecipients (Just zusr) mems)
+      push1 $ newPush1 (Local zusr) (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
     pushConvLeaveEvent :: UTCTime -> Galley ()
     pushConvLeaveEvent now = do
-      let tmids = Set.fromList $ map (view userId) mems
-      let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
+      let tmids = Set.fromList $ map (makeIdOpaque . view userId) mems
+      let edata = Conv.EdMembersLeave (Conv.OpaqueUserIdList [makeIdOpaque remove])
       cc <- Data.teamConversations tid
       for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
         for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
@@ -569,12 +570,12 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
           unless (c ^. managedConversation) $
             pushEvent tmids edata now dc
     --
-    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Conversation -> Galley ()
+    pushEvent :: Set OpaqueUserId -> Conv.EventData -> UTCTime -> Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       let (bots, users) = botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
-      for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
+      let y = Conv.Event Conv.MemberLeave (makeIdOpaque (Data.convId dc)) (makeIdOpaque zusr) now (Just edata)
+      for_ (newPush (Local zusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
@@ -608,12 +609,12 @@ deleteTeamConversationH (zusr ::: zcon ::: tid ::: cid ::: _) = do
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
+  ensureActionAllowed Roles.DeleteConversation =<< getSelfMember (makeIdOpaque zusr) cmems
   flip Data.deleteCode ReusableCode =<< mkKey cid
   now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
+  let ce = Conv.Event Conv.ConvDelete (makeIdOpaque cid) (makeIdOpaque zusr) now Nothing
   let recps = fmap recipient cmems
-  let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+  let convPush = newPush (Local zusr) (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
   void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
   -- TODO: we don't delete bots here, but we should do that, since every
@@ -693,10 +694,10 @@ addTeamMemberInternal tid origin originConn newMem mems = do
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  push1 $ newPush1 (Local (new ^. userId)) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   where
-    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
-    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
+    recipients (Just o) n = list1 (userRecipient (makeIdOpaque o)) (membersToRecipients (Just o) (n : mems))
+    recipients Nothing n = list1 (userRecipient (makeIdOpaque (n ^. userId))) (membersToRecipients Nothing (n : mems))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
@@ -706,7 +707,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
   let r = membersToRecipients Nothing others
-  push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  push1 $ newPush1 (Local zusr) (TeamEvent e) (list1 (userRecipient (makeIdOpaque zusr)) r) & pushConn .~ zcon
   pure (team ^. teamId)
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b

@@ -423,7 +423,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (usr == memId m)
+    Just m -> return (makeIdOpaque usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
 getStatus brig u =

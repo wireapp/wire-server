@@ -165,9 +165,9 @@ postConvOk = do
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnvId cnv
+      evtConv e @?= makeIdOpaque (cnvId cnv)
       evtType e @?= ConvCreate
-      evtFrom e @?= alice
+      evtFrom e @?= makeIdOpaque alice
       case evtData e of
         Just (EdConversation c') -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
@@ -856,7 +856,7 @@ postMembersOk2 = do
   postMembers bob (singleton chuck) conv !!! const 204 === statusCode
   chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
   liftIO $
-    assertEqual "wrong self member" (memId <$> chuck') (Just chuck)
+    assertEqual "wrong self member" (memId <$> chuck') (Just (makeIdOpaque chuck))
 
 postMembersOk3 :: TestM ()
 postMembersOk3 = do
@@ -951,9 +951,9 @@ putConvRenameOk = do
     void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= ConvRename
-      evtFrom e @?= bob
+      evtFrom e @?= makeIdOpaque bob
       evtData e @?= Just (EdConvRename (ConversationRename "gossip++"))
 
 putMemberOtrMuteOk :: TestM ()
@@ -996,7 +996,7 @@ putMemberOk update = do
   -- Expected member state
   let memberBob =
         Member
-          { memId = bob,
+          { memId = makeIdOpaque bob,
             memService = Nothing,
             memOtrMuted = fromMaybe False (mupOtrMute update),
             memOtrMutedStatus = mupOtrMuteStatus update,
@@ -1013,9 +1013,9 @@ putMemberOk update = do
     void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= bob
+      evtFrom e @?= makeIdOpaque bob
       case evtData e of
         Just (EdMemberUpdate mis) -> do
           assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
@@ -1075,9 +1075,9 @@ putReceiptModeOk = do
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnv
+      evtConv e @?= makeIdOpaque cnv
       evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= alice
+      evtFrom e @?= makeIdOpaque alice
       case evtData e of
         Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode))) ->
           assertEqual "modes should match" mode 0
@@ -1129,18 +1129,18 @@ removeUser = do
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
   mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
-  let other u = find ((== u) . omId) . cmOthers
+  let other u = find ((== makeIdOpaque u) . omId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
     (mems2 >>= other bob) @?= Nothing
-    (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+    (mems2 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
-    (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+    (mems3 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
   where
     matchMemberLeave conv u n = do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= makeIdOpaque conv
       evtType e @?= MemberLeave
-      evtFrom e @?= u
-      evtData e @?= Just (EdMembersLeave (UserIdList [u]))
+      evtFrom e @?= makeIdOpaque u
+      evtData e @?= Just (EdMembersLeave (OpaqueUserIdList [makeIdOpaque u]))

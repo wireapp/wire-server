@@ -58,8 +58,10 @@ getBotConversation zbot zcnv = do
   pure $ botConvView zcnv (Data.convName c) cmems
   where
     mkMember m
-      | memId m /= botUserId zbot = Just (OtherMember (memId m) (memService m) (memConvRoleName m))
-      | otherwise = Nothing
+      | memId m /= makeIdOpaque (botUserId zbot) =
+        Just (OtherMember (memId m) (memService m) (memConvRoleName m))
+      | otherwise =
+        Nothing
 
 getConversationH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
 getConversationH (zusr ::: cnv ::: _) = do
@@ -69,7 +71,7 @@ getConversation :: UserId -> OpaqueConvId -> Galley Conversation
 getConversation zusr opaqueCnv = do
   cnv <- resolveOpaqueConvId opaqueCnv
   c <- getConversationAndCheckMembership zusr cnv
-  conversationView zusr c
+  conversationView (makeIdOpaque zusr) c
 
 getConversationRolesH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
 getConversationRolesH (zusr ::: cnv ::: _) = do
@@ -105,7 +107,7 @@ getConversations zusr range size =
       Data.conversations localConvIds
         >>= filterM removeDeleted
         >>= filterM (pure . isMember (makeIdOpaque zusr) . Data.convMembers)
-    flip ConversationList more <$> mapM (conversationView zusr) cs
+    flip ConversationList more <$> mapM (conversationView (makeIdOpaque zusr)) cs
   where
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False

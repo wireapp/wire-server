@@ -41,7 +41,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
-import Galley.Types (ConvType (..), evtFrom)
+import Galley.Types (ConvType (..))
 import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (err, result)
@@ -83,7 +83,8 @@ rmUser user conn = do
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
-              (Intra.newPush (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              -- we rely on the fact that `evtFrom e` is `user` (but opaque)
+              (Intra.newPush (Local user) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

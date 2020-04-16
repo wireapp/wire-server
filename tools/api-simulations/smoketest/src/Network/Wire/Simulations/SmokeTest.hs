@@ -93,7 +93,7 @@ mainBotNet n = do
   runBotSession bill $ do
     let update =
           MemberUpdateData
-            { misTarget = Just $ botId bill,
+            { misTarget = Just . makeIdOpaque $ botId bill,
               misOtrMuted = Nothing,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Nothing,

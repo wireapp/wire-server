@@ -162,27 +162,29 @@ permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if makeIdOpaque usr `isMember` mems
+    if opaqueUsr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | makeIdOpaque usr `isMember` mems -> promote
+    [_, _] | opaqueUsr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
         throwM badConvState
       now <- liftIO getCurrentTime
       (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+      conv' <- if isJust (find ((opaqueUsr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
+      -- we rely on the fact that `evtFrom e` is `usr` (but opaque)
+      for_ (newPush (Local usr) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
       return $ conv' {Data.convMembers = mems'}
   _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
+    opaqueUsr = makeIdOpaque usr
     cid = Data.convId conv
     mems = Data.convMembers conv
     promote = do
@@ -197,10 +199,10 @@ isBot :: Member -> Bool
 isBot = isJust . memService
 
 isMember :: Foldable m => OpaqueUserId -> m Member -> Bool
-isMember u = isJust . find ((u ==) . makeIdOpaque . memId)
+isMember u = isJust . find ((u ==) . memId)
 
 findMember :: Data.Conversation -> UserId -> Maybe Member
-findMember c u = find ((u ==) . memId) (Data.convMembers c)
+findMember c u = find ((makeIdOpaque u ==) . memId) (Data.convMembers c)
 
 botsAndUsers :: Foldable t => t Member -> ([BotMember], [Member])
 botsAndUsers = foldr fn ([], [])
@@ -213,29 +215,37 @@ location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
 
 nonTeamMembers :: [Member] -> [TeamMember] -> [Member]
-nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
+nonTeamMembers cm tm =
+  filter (not . flip isTeamMember tm . unsafeAssumeIdIsLocal . memId) cm
+  where
+    -- this is fine here, since a remote ID would simple result in not finding
+    -- a matching TeamMember entry and thus being counted as a non-member.
+    unsafeAssumeIdIsLocal (Id i) = Id i
 
 convMembsAndTeamMembs :: [Member] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
+  fmap userRecipient . setnub $
+    map memId convMembs <> map (makeIdOpaque . view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . view userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+membersToRecipients Nothing =
+  map (userRecipient . makeIdOpaque . view userId)
+membersToRecipients (Just u) =
+  map (userRecipient . makeIdOpaque) . filter (/= u) . map (view userId)
 
 -- Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMember`, if that user is _not_ part of
 -- the conversation, we don't want to disclose that such a conversation
 -- with that id exists.
-getSelfMember :: Foldable t => UserId -> t Member -> Galley Member
+getSelfMember :: Foldable t => OpaqueUserId -> t Member -> Galley Member
 getSelfMember = getMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t Member -> Galley Member
+getOtherMember :: Foldable t => OpaqueUserId -> t Member -> Galley Member
 getOtherMember = getMember convMemberNotFound
 
-getMember :: Foldable t => Error -> UserId -> t Member -> Galley Member
+getMember :: Foldable t => Error -> OpaqueUserId -> t Member -> Galley Member
 getMember ex u ms = do
   let member = find ((u ==) . memId) ms
   case member of

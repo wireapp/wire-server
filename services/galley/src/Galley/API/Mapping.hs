@@ -32,7 +32,7 @@ import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((+++), msg, val)
 
-conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView :: OpaqueUserId -> Data.Conversation -> Galley Conversation
 conversationView u Data.Conversation {..} = do
   let mm = toList convMembers
   let (me, them) = List.partition ((u ==) . memId) mm

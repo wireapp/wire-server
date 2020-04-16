@@ -52,7 +52,10 @@ newBotMember :: Member -> Maybe BotMember
 newBotMember m = const (BotMember m) <$> memService m
 
 botMemId :: BotMember -> BotId
-botMemId = BotId . memId . fromBotMember
+botMemId = BotId . unsafeAssumeIdIsLocal . memId . fromBotMember
+  where
+    -- TODO/FUTUREWORK(federation)
+    unsafeAssumeIdIsLocal (Id i) = Id i
 
 botMemService :: BotMember -> ServiceRef
 botMemService = fromJust . memService . fromBotMember
@@ -66,11 +69,11 @@ addBotMember orig s bot cnv now = do
     setConsistency Quorum
     addPrepQuery insertUserConv (botUserId bot, cnv)
     addPrepQuery insertBot (cnv, bot, sid, pid)
-  let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
-  let mem = (newMember (botUserId bot)) {memService = Just s}
+  let e = Event MemberJoin (makeIdOpaque cnv) (makeIdOpaque orig) now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [makeIdOpaque (botUserId bot)]))
+  let mem = (newMember (makeIdOpaque (botUserId bot))) {memService = Just s}
   return (e, BotMember mem)
   where
-    toSimpleMember :: UserId -> SimpleMember
+    toSimpleMember :: OpaqueUserId -> SimpleMember
     toSimpleMember u = SimpleMember u roleNameWireAdmin
 
 -- Service --------------------------------------------------------------------
