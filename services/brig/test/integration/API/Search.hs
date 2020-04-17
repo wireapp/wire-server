@@ -44,6 +44,8 @@ tests opts mgr galley brig =
       [ test mgr "by-name" $ testSearchByName brig,
         test mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
+        test mgr "no match" $ testSearchNoMatch brig,
+        test mgr "no extra results" $ testSearchNoExtraResults brig,
         testGroup "team-members" $
           [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
@@ -52,7 +54,8 @@ tests opts mgr galley brig =
             test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig,
             testGroup "order" $
               [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch galley brig,
-                test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch galley brig
+                test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch galley brig,
+                test mgr "team-mates are listed before team-outsiders (worse match)" $ testSearchOrderingAsTeamMemberWorseMatch galley brig
               ]
           ]
       ]
@@ -79,6 +82,27 @@ testSearchByHandle brig = do
       uid2 = userId u2
       Just h = fromHandle <$> userHandle u1
   assertCanFind brig uid2 uid1 h
+
+testSearchNoMatch :: Brig -> Http ()
+testSearchNoMatch brig = do
+  u1 <- randomUser brig
+  _ <- randomUser brig
+  let uid1 = userId u1
+  -- _uid2 = userId u2
+  refreshIndex brig
+  (Just result) <- fmap searchResults <$> executeSearch brig uid1 "nomatch"
+  liftIO $ assertEqual "Expected 0 results" 0 (length result)
+
+testSearchNoExtraResults :: Brig -> Http ()
+testSearchNoExtraResults brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  let uid1 = userId u1
+      uid2 = userId u2
+  refreshIndex brig
+  (Just resultUIds) <- fmap (map contactUserId . searchResults) <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
+  liftIO $ do
+    assertEqual "Expected search returns only the searched" [uid2] resultUIds
 
 testReindex :: Brig -> Http ()
 testReindex brig = do
@@ -151,6 +175,20 @@ testSearchOrderingAsTeamMemberPrefixMatch galley brig = do
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", Name $ fromName searchedName <> "suffix"]
   refreshIndex brig
   (Just result) <- executeSearch brig (userId searcher) (fromName searchedName)
+  let resultUserIds = contactUserId <$> searchResults result
+  liftIO $ do
+    case elemIndex (userId teamSearchee) resultUserIds of
+      Nothing -> assertFailure "team mate not found in search"
+      Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
+
+testSearchOrderingAsTeamMemberWorseMatch :: Galley -> Brig -> Http ()
+testSearchOrderingAsTeamMemberWorseMatch galley brig = do
+  searchedName <- randomHandle
+  user <- createUser' True searchedName brig
+  void $ putHandle brig (userId user) searchedName
+  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", Name (searchedName <> "Suffix")]
+  refreshIndex brig
+  (Just result) <- executeSearch brig (userId searcher) searchedName
   let resultUserIds = contactUserId <$> searchResults result
   liftIO $ do
     case elemIndex (userId teamSearchee) resultUserIds of
