@@ -268,6 +268,9 @@ newOtrMessage = defineModel "NewOtrMessage" $ do
       "Extra (symmetric) data (i.e. ciphertext) that is replicated \
       \for each recipient."
     optional
+  property "report_missing" (unique $ array bytes') $ do
+    description "List of user IDs"
+    optional
 
 otrRecipients :: Model
 otrRecipients = defineModel "OtrRecipients" $ do

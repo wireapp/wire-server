@@ -276,7 +276,8 @@ toNewOtrMessage msg =
       Galley.newOtrNativePush = view newOtrMessageNativePush msg,
       Galley.newOtrTransient = view newOtrMessageTransient msg,
       Galley.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg
+      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
+      Galley.newOtrReportMissing = Nothing
     }
 
 -- Utilities ----------------------------------------------------------------
