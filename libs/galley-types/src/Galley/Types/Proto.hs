@@ -50,6 +50,7 @@ module Galley.Types.Proto
     newOtrMessageNativePriority,
     newOtrMessageData,
     newOtrMessageTransient,
+    newOtrMessageReportMissing,
     toNewOtrMessage,
   )
 where
