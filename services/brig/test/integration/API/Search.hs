@@ -48,6 +48,7 @@ tests opts mgr galley brig =
         test mgr "no extra results" $ testSearchNoExtraResults brig,
         test mgr "order" $ testOrder brig,
         test mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
+        test mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testGroup "team-members" $
           [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
@@ -86,6 +87,14 @@ testSearchByLastOrMiddleName brig = do
   assertCanFind brig searcher searched firstName
   assertCanFind brig searcher searched middleName
   assertCanFind brig searcher searched lastName
+
+testSearchNonAsciiNames :: Brig -> Http ()
+testSearchNonAsciiNames brig = do
+  searcher <- userId <$> randomUser brig
+  searched <- userId <$> createUser' True "अक्षय" brig
+  refreshIndex brig
+  -- This is pathetic transliteration, but it is what we have.
+  assertCanFind brig searcher searched "aksaya"
 
 testSearchByHandle :: Brig -> Http ()
 testSearchByHandle brig = do
