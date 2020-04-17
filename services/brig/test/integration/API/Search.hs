@@ -93,6 +93,7 @@ testSearchNonAsciiNames brig = do
   searcher <- userId <$> randomUser brig
   searched <- userId <$> createUser' True "अक्षय" brig
   refreshIndex brig
+  assertCanFind brig searcher searched "अक्षय"
   -- This is pathetic transliteration, but it is what we have.
   assertCanFind brig searcher searched "aksaya"
 
