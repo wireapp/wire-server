@@ -342,7 +342,12 @@ data NewOtrMessage
         newOtrNativePush :: !Bool,
         newOtrTransient :: !Bool,
         newOtrNativePriority :: !(Maybe Priority),
-        newOtrData :: !(Maybe Text)
+        newOtrData :: !(Maybe Text),
+        newOtrReportMissing :: !(Maybe [OpaqueUserId])
+        -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
+        -- be the list of uids we could also extract from the messages' recipients field, we
+        -- should do the latter, for two reasons: (1) no need for an artificial limit on the
+        -- body field length, because it'd be just a boolean; (2) less network consumption.
       }
 
 newtype UserClients
@@ -717,6 +722,7 @@ instance ToJSON NewOtrMessage where
         # "transient" .= newOtrTransient otr
         # "native_priority" .= newOtrNativePriority otr
         # "data" .= newOtrData otr
+        # "report_missing" .= newOtrReportMissing otr
         # []
 
 instance FromJSON NewOtrMessage where
@@ -727,6 +733,7 @@ instance FromJSON NewOtrMessage where
       <*> o .:? "transient" .!= False
       <*> o .:? "native_priority"
       <*> o .:? "data"
+      <*> o .:? "report_missing"
 
 instance FromJSON Accept where
   parseJSON = withObject "accept" $ \o ->

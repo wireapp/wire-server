@@ -566,7 +566,8 @@ handleOtrResult = \case
 postBotMessageH :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postBotMessage zbot zcnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postBotMessage zbot zcnv val' message
 
 postBotMessage :: BotId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
@@ -580,7 +581,8 @@ postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
 postOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
 postOtrMessage :: UserId -> ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
@@ -594,13 +596,22 @@ postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
 postOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postOtrBroadcast zusr zcon val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast :: UserId -> ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrBroadcast zusr zcon val message =
   postNewOtrBroadcast zusr (Just zcon) val message
 
 -- internal OTR helpers
+
+-- This is a work-around for the fact that we sometimes want to send larger lists of user ids
+-- in the filter query than fits the url length limit.  for details, see
+-- https://github.com/zinfra/backend-issues/issues/1248
+allowOtrFilterMissingInBody :: OtrFilterMissing -> NewOtrMessage -> OtrFilterMissing
+allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrepmiss of
+  Nothing -> val
+  Just uids -> OtrReportMissing $ Set.fromList uids
 
 -- | bots are not supported on broadcast
 postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
