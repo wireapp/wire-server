@@ -59,6 +59,7 @@ module Util.Core
     promoteTeamMember,
     getSelfProfile,
     nextWireId,
+    nextWireIdP,
     nextHandle,
     nextSAMLID,
     nextSubject,
@@ -395,6 +396,9 @@ deleteUserNoWait brigreq uid =
 -- 'UUID.nextRandom'.
 nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
+
+nextWireIdP :: MonadIO m => m WireIdP
+nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure []
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom

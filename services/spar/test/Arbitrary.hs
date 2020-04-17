@@ -39,6 +39,9 @@ instance Arbitrary IdPList where
     _idplProviders <- arbitrary
     pure $ IdPList {..}
 
+instance Arbitrary WireIdP where
+  arbitrary = WireIdP <$> arbitrary <*> arbitrary
+
 deriving instance Arbitrary ScimToken
 
 instance Arbitrary ScimTokenInfo where

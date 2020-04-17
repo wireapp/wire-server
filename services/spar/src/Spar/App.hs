@@ -121,15 +121,15 @@ instance SPStoreID Assertion Spar where
   isAliveID r = wrapMonadClient $ Data.isAliveAssID r
 
 instance SPStoreIdP SparError Spar where
-  type IdPConfigExtra Spar = TeamId
+  type IdPConfigExtra Spar = WireIdP
 
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+  storeIdPConfig :: IdP -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
+  getIdPConfig :: IdPId -> Spar IdP
   getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
+  getIdPConfigByIssuer :: Issuer -> Spar IdP
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
@@ -191,7 +191,7 @@ createSamlUser suid mbName managedBy = do
 -- | Like 'createSamlUser', but for an already existing 'UserId'.
 createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid mbName managedBy = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
@@ -207,7 +207,7 @@ autoprovisionSamlUser suid mbName managedBy = do
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
 autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 autoprovisionSamlUserWithId buid suid mbName managedBy = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy
@@ -220,7 +220,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
   uteamid <- Intra.getBrigUserTeam buid
   unless
     (uteamid == Just teamid)

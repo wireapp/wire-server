@@ -100,7 +100,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 7
+schemaVersion = 8
 
 ----------------------------------------------------------------------
 -- helpers
@@ -315,12 +315,12 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer])
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPConfig TeamId ->
+  IdP ->
   m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
@@ -333,7 +333,8 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiOldIssuers
     )
   addPrepQuery
     byIssuer
@@ -343,11 +344,11 @@ storeIdPConfig idp = retry x5 . batch $ do
   addPrepQuery
     byTeam
     ( idp ^. SAML.idpId,
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers) VALUES (?, ?, ?, ?, ?, ?, ?)"
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
@@ -370,13 +371,15 @@ getIdPConfig idpid =
         certsHead,
         certsTail,
         -- extras
-        _idpExtraInfo
+        teamId,
+        oldIssuers
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
+            _idpExtraInfo = WireIdP teamId oldIssuers
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>

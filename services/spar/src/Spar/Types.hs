@@ -69,7 +69,18 @@ setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 -- Identity provider
 
 -- | The identity provider type used in Spar.
-type IdP = IdPConfig TeamId
+type IdP = IdPConfig WireIdP
+
+data WireIdP
+  = WireIdP
+      { _wiTeam :: TeamId,
+        _wiOldIssuers :: [SAML.Issuer]
+      }
+  deriving (Eq, Show, Generic)
+
+makeLenses ''WireIdP
+
+deriveJSON deriveJSONOptions ''WireIdP
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.

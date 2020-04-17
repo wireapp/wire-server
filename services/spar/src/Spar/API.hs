@@ -233,7 +233,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      team = idp ^. SAML.idpExtraInfo
+      team = idp ^. SAML.idpExtraInfo . wiTeam
   -- fail if idp is not empty
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
   unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
@@ -279,9 +279,10 @@ validateNewIdP ::
   SAML.IdPMetadata ->
   TeamId ->
   m IdP
-validateNewIdP _idpMetadata _idpExtraInfo = do
+validateNewIdP _idpMetadata teamId = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   let requri = _idpMetadata ^. SAML.edRequestURI
+      _idpExtraInfo = WireIdP teamId []
   enforceHttps requri
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
@@ -314,22 +315,22 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
   previousIdP <- wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
     Nothing -> throwError errUnknownIdPId
     Just idp -> pure idp
-  _idpExtraInfo <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
+  teamId <- authorizeIdP zusr previousIdP
+  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
     throwError errUnknownIdP
-  unless (previousIdP ^. SAML.idpMetadata . SAML.edIssuer == _idpMetadata ^. SAML.edIssuer) $ do
-    -- if issuer has changed, but into one that's already used in a different team: bad.
-    midp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer))
-    case midp of
-      Nothing -> pure ()
-      Just idp -> unless (idp ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
-        throwSpar SparIdPUsedInOtherTeam
-    -- all other cases: we *should* support them, but we don't.
-    -- https://github.com/zinfra/backend-issues/issues/929
-    throwSpar SparIdPIssuerCannotBeUpdated
+  _idpExtraInfo <- do
+    let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
+        newIssuer = _idpMetadata ^. SAML.edIssuer
+    if previousIssuer == newIssuer
+      then pure $ previousIdP ^. SAML.idpExtraInfo
+      else do
+        notInUse <- isNothing <$> wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
+        if notInUse
+          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ (previousIssuer :)
+          else throwSpar SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (_idpExtraInfo, SAML.IdPConfig {..})
+  pure (teamId, SAML.IdPConfig {..})
   where
     errUnknownIdP = SAML.UnknownIdP $ enc uri
       where
@@ -352,7 +353,7 @@ authorizeIdP ::
   m TeamId
 authorizeIdP zusr idp = do
   teamid <- Brig.getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
+  when (teamid /= idp ^. SAML.idpExtraInfo . wiTeam) $ throwSpar SparNotInTeam
   pure teamid
 
 enforceHttps :: URI.URI -> Spar ()

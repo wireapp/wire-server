@@ -159,29 +159,29 @@ spec = do
       testDeleteTeam
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPIdByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure teamid
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [])
         () <- runSparCass $ Data.storeIdPConfig idp
         idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure teamid
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [])
         () <- runSparCass $ Data.storeIdPConfig idp
         do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
