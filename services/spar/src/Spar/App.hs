@@ -167,7 +167,7 @@ getUser uref = do
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
--- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
+-- create user on brig.  See also: 'Spar.App.getUser'.
 --
 -- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
 -- then delete it on the team admin page in wire.  If a user is deleted in wire but not in the IdP,
@@ -182,13 +182,6 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-{-createSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
-createSamlUser suid mbName managedBy = do
-  buid <- Id <$> liftIO UUID.nextRandom
-  createSamlUserWithId buid suid mbName managedBy
-  pure buid-}
-
--- | Like 'createSamlUser', but for an already existing 'UserId'.
 createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
