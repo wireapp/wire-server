@@ -475,10 +475,14 @@ postOtrMessage f u d c rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec)
+      . json (mkOtrPayload d rec Nothing)
 
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage f u d rec = do
+postOtrBroadcastMessage f u d rec = postOtrBroadcastMessage' f u d rec Nothing
+
+-- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
+postOtrBroadcastMessage' :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> TestM ResponseLBS
+postOtrBroadcastMessage' f u d rec reportMissingBody = do
   g <- view tsGalley
   post $
     g
@@ -487,14 +491,15 @@ postOtrBroadcastMessage f u d rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec)
+      . json (mkOtrPayload d rec reportMissingBody)
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Value
-mkOtrPayload sender rec =
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
+mkOtrPayload sender rec reportMissingBody =
   object
     [ "sender" .= sender,
       "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec),
-      "data" .= Just ("data" :: Text)
+      "data" .= Just ("data" :: Text),
+      "report_missing" .= reportMissingBody
     ]
 
 mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
