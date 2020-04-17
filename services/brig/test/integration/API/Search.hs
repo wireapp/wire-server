@@ -166,7 +166,7 @@ testOrder brig = do
   let expectedOrder = [handleMatch, nameMatch, handlePrefixMatch, namePrefixMatch]
   liftIO $ do
     assertEqual
-      "Expected handle match to be better than name match"
+      "Expected order: handle match, name match, handle prefix match, name prefix match"
       expectedOrder
       resultUIds
 
