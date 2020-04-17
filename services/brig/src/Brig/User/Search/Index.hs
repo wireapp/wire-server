@@ -611,16 +611,16 @@ type Writetime a = Int64
 type ReindexRow =
   ( UserId,
     Maybe TeamId,
-    Maybe Name,
-    Maybe (Writetime Name),
+    Name,
+    Writetime Name,
     Maybe AccountStatus,
     Maybe (Writetime AccountStatus),
     Maybe Handle,
     Maybe (Writetime Handle),
-    Maybe ColourId,
-    Maybe (Writetime ColourId),
-    Maybe Activated,
-    Maybe (Writetime Activated),
+    ColourId,
+    Writetime ColourId,
+    Activated,
+    Writetime Activated,
     Maybe ServiceId,
     Maybe (Writetime ServiceId)
   )
@@ -628,24 +628,18 @@ type ReindexRow =
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
 reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, activated, t5, service, t6) =
   do
-    iu <- mkIndexUser u <$> version [t0, t1, t2, t4, t5, t6]
+    iu <- mkIndexUser u <$> version [Just t0, t1, t2, Just t4, Just t5, t6]
     pure $
       if shouldIndex
         then
-          iu
-            & set iuTeam mteam
-            . set iuName name
+          iu & set iuTeam mteam
+            . set iuName (Just name)
             . set iuHandle handle
-            . set iuColourId colour
+            . set iuColourId (Just colour)
         else iu
   where
     version :: [Maybe (Writetime Name)] -> m IndexVersion
-    version writetimes =
-      let selectedVersion = getMax . mconcat . fmap Max . catMaybes $ writetimes
-       in mkIndexVersion $
-            if selectedVersion <= 0 -- This can be zero if all write times are null
-              then 1 -- ES versions can be between 1 and (2^63 - 1)
-              else selectedVersion
+    version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
     shouldIndex =
       and
         [ case status of
@@ -654,7 +648,6 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
             Just Suspended -> False
             Just Deleted -> False
             Just Ephemeral -> False,
-          fromMaybe False activated,
-          isNothing service,
-          isJust name -- This always supposed to be true, yet we have it in production
+          activated, -- FUTUREWORK: how is this adding to the first case?
+          isNothing service
         ]
