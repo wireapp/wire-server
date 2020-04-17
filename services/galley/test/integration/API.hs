@@ -341,6 +341,8 @@ postCryptoMessage5 = do
   -- Report missing clients of a specific user only
   postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv m
     !!! const 201 === statusCode
+  postOtrMessage' (Just [makeIdOpaque bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
+    !!! const 201 === statusCode
   _rs <-
     postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv []
       <!! const 412 === statusCode
