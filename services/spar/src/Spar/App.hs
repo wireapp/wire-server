@@ -302,6 +302,12 @@ catchVerdictErrors = (`catchError` hndlr)
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
+findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
+findUserWithOldIssuer _ = pure Nothing
+
+moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar UserId
+moveUserToNewIssuer = undefined
+
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
   SAML.AccessDenied reasons -> do
@@ -313,17 +319,18 @@ verdictHandlerResultCore bindCky = \case
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
-
-      case (viaBindCookie, viaSparCass) of
+      viaSparCassOldIssuer <- findUserWithOldIssuer userref
+      case (viaBindCookie, viaSparCass, viaSparCassOldIssuer) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid
         -- SSO reauthentication
-        (Nothing, Just uid) -> pure uid
+        (Nothing, Just uid, _) -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
-        (Just uid, Nothing) -> bindUser uid userref
-        (Just uid, Just uid')
+        (Just uid, Nothing, _) -> bindUser uid userref
+        (Just uid, Just uid', _)
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
           -- Attempt to use ssoid for a second Wire user
