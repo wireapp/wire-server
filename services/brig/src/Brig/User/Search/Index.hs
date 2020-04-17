@@ -212,25 +212,13 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
               ]
               (ES.QueryString term')
           )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix
-            }
-      matchPhrase =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle^3",
-                ES.FieldName "normalized^2"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase
+            { ES.multiMatchQueryType = Just ES.MultiMatchBestFields,
+              ES.multiMatchQueryOperator = ES.And
             }
       query =
         ES.QueryBoolQuery
           boolQuery
-            { ES.boolQueryMustMatch =
-                [ ES.QueryBoolQuery
-                    boolQuery {ES.boolQueryShouldMatch = [matchPrefix, matchPhrase]}
-                ],
+            { ES.boolQueryMustMatch = [matchPrefix],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on non-team users by 90%, there was no science
@@ -427,7 +415,10 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
-    cr <- traceES "Create index" $ ES.createIndexWith settings shardCount idx
+    let analyzer = Map.fromList [("autocomplete", ES.AnalyzerDefinition (Just (ES.Tokenizer "autocomplete")) [] [])]
+    let tokenizer = Map.fromList [("autocomplete", ES.TokenizerDefinitionEdgeNgram (ES.Ngram 1 30 [ES.TokenLetter, ES.TokenDigit]))]
+    let fullSettings = settings ++ [ES.AnalysisSetting (ES.Analysis analyzer tokenizer mempty mempty)]
+    cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
     mr <-
@@ -516,20 +507,27 @@ indexMapping =
   object
     [ "properties"
         .= object
-          [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True}, -- normalized user name
-            "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False},
-            "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True},
-            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True},
-            "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False}
+          [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True, mpAnalyzer = Just "autocomplete"}, -- normalized user name
+            "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False, mpAnalyzer = Nothing},
+            "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True, mpAnalyzer = Just "autocomplete"},
+            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True, mpAnalyzer = Nothing},
+            "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False, mpAnalyzer = Nothing}
           ]
     ]
 
-data MappingProperty = MappingProperty {mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool}
+data MappingProperty = MappingProperty {mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool, mpAnalyzer :: Maybe Text}
 
 data MappingPropertyType = MPText | MPKeyword | MPByte
 
 instance ToJSON MappingProperty where
-  toJSON mp = object ["type" .= mpType mp, "store" .= mpStore mp, "index" .= mpIndex mp]
+  toJSON mp =
+    object
+      ( [ "type" .= mpType mp,
+          "store" .= mpStore mp,
+          "index" .= mpIndex mp
+        ]
+          <> ["analyzer" .= mpAnalyzer mp | isJust $ mpAnalyzer mp]
+      )
 
 instance ToJSON MappingPropertyType where
   toJSON MPText = Aeson.String "text"
