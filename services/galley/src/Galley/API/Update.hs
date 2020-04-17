@@ -576,7 +576,8 @@ postBotMessage zbot zcnv val message = do
 postProtoOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
 postOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
@@ -591,7 +592,8 @@ postOtrMessage zusr zcon cnv val message =
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  handleOtrResult <$> postOtrBroadcast zusr zcon val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
