@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module API.Teams
-  ( tests,
+  ( tests
   )
 where
 
@@ -102,9 +102,9 @@ tests s =
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
+      test s "update team - no events, too large team" testUpdateTeamNoEvents,
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
-      test s "update team - no events, too large team XXX" testUpdateTeamNoEvents,
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
       test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
@@ -1041,20 +1041,45 @@ testUpdateTeamNoEvents = do
           & nameUpdate .~ (Just $ unsafeRange "bar")
           & iconUpdate .~ (Just $ unsafeRange "xxx")
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
+  opts <- view tsGConf
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
-    -- let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just 1
-    -- withSettingsOverrides (error "newOpts") $ do
-    put
-      ( g
-          . paths ["teams", toByteString' tid]
-          . zUser owner
-          . zConn "conn"
-          . json u
-      )
-      !!! const 200
-      === statusCode
-    -- Due to the fact that the team is too large, we expect no events!
-    WS.assertNoEvent timeout [wsOwner, wsMember]
+    let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
+    withSettingsOverrides newOpts $ do
+      put
+        ( g
+            . paths ["teams", toByteString' tid]
+            . zUser owner
+            . zConn "conn"
+            . json u
+        )
+        !!! const 200
+        === statusCode
+      -- Due to the fact that the team is too large, we expect no events!
+      WS.assertNoEvent timeout [wsOwner, wsMember]
+
+    -- The team has 2 users, so if we truncate at 2, we should still receive events!
+    let newOpts2 = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 2)
+    withSettingsOverrides newOpts2 $ do
+      put
+        ( g
+            . paths ["teams", toByteString' tid]
+            . zUser owner
+            . zConn "conn"
+            . json u
+        )
+        !!! const 200
+        === statusCode
+
+      checkTeamUpdateEvent tid u wsOwner
+      checkTeamUpdateEvent tid u wsMember
+      WS.assertNoEvent timeout [wsOwner, wsMember]
+  where
+    checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
+      ntfTransient notif @?= False
+      let e = List1.head (WS.unpackPayload notif)
+      e ^. eventType @?= TeamUpdate
+      e ^. eventTeam @?= tid
+      e ^. eventData @?= Just (EdTeamUpdate upd)
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do

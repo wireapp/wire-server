@@ -43,7 +43,6 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import Galley.Options as Opt
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
