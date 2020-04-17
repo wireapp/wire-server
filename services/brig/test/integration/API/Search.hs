@@ -46,6 +46,8 @@ tests opts mgr galley brig =
         test mgr "reindex" $ testReindex brig,
         test mgr "no match" $ testSearchNoMatch brig,
         test mgr "no extra results" $ testSearchNoExtraResults brig,
+        test mgr "order" $ testOrder brig,
+        test mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testGroup "team-members" $
           [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
@@ -72,6 +74,18 @@ testSearchByName brig = do
   -- Users cannot find themselves
   assertCan'tFind brig uid1 uid1 (fromName (userDisplayName u1))
   assertCan'tFind brig uid2 uid2 (fromName (userDisplayName u2))
+
+testSearchByLastOrMiddleName :: Brig -> Http ()
+testSearchByLastOrMiddleName brig = do
+  searcher <- userId <$> randomUser brig
+  firstName <- randomHandle
+  middleName <- randomHandle
+  lastName <- randomHandle
+  searched <- userId <$> createUser' True (firstName <> " " <> middleName <> " " <> lastName) brig
+  refreshIndex brig
+  assertCanFind brig searcher searched firstName
+  assertCanFind brig searcher searched middleName
+  assertCanFind brig searcher searched lastName
 
 testSearchByHandle :: Brig -> Http ()
 testSearchByHandle brig = do
@@ -127,6 +141,25 @@ testReindex brig = do
     -- happen concurrently to the reindex on a small test database
     delayed = liftIO $ threadDelay 10000
     mkRegularUser = randomUserWithHandle brig
+
+testOrder :: Brig -> Http ()
+testOrder brig = do
+  searcher <- userId <$> randomUser brig
+  searchedWord <- randomHandle
+  handleMatch <- userId <$> createUser' True "handle match" brig
+  void $ putHandle brig handleMatch searchedWord
+  nameMatch <- userId <$> createUser' True searchedWord brig
+  handlePrefixMatch <- userId <$> createUser' True "handle prefix match" brig
+  void $ putHandle brig handlePrefixMatch (searchedWord <> "suffix")
+  namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
+  refreshIndex brig
+  (Just resultUIds) <- fmap (map contactUserId . searchResults) <$> executeSearch brig searcher searchedWord
+  let expectedOrder = [handleMatch, nameMatch, handlePrefixMatch, namePrefixMatch]
+  liftIO $ do
+    assertEqual
+      "Expected handle match to be better than name match"
+      expectedOrder
+      resultUIds
 
 testSearchTeamMemberAsNonMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsNonMember galley brig = do
