@@ -223,31 +223,31 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember :: PrepQuery R (ConvId, OpaqueUserId) (OpaqueUserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMember = "select user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, OpaqueUserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
+insertMember :: PrepQuery W (ConvId, OpaqueUserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
 removeMember :: PrepQuery W (ConvId, OpaqueUserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
-updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
+updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
 updateOtrMemberMuted = "update member set otr_muted = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
-updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, OpaqueUserId) ()
 updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
-updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
+updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
 updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
-updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
+updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
 updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
+updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, OpaqueUserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
