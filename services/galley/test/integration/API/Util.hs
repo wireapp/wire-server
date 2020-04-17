@@ -477,6 +477,7 @@ postOtrMessage f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec Nothing)
 
+-- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
 postOtrBroadcastMessage f u d rec = postOtrBroadcastMessage' f u d rec Nothing
 
