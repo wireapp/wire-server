@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.MessageTimer (tests) where
+module API.MessageTimer
+  ( tests,
+  )
+where
 
 import API.Util
 import Bilge hiding (timeout)

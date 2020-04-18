@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Util (module U) where
+module Util
+  ( module U,
+  )
+where
 
 import Util.Core as U
 import Util.Scim as U

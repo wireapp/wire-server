@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.Run (run) where
+module CargoHold.Run
+  ( run,
+  )
+where
 
 import CargoHold.API (sitemap)
 import CargoHold.App

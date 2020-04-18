@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.Run (run) where
+module Proxy.Run
+  ( run,
+  )
+where
 
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch

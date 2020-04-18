@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.AWS.SesNotification (onEvent) where
+module Brig.AWS.SesNotification
+  ( onEvent,
+  )
+where
 
 import Brig.AWS.Types
 import Brig.App

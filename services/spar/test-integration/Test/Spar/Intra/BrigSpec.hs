@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Spar.Intra.BrigSpec (spec) where
+module Test.Spar.Intra.BrigSpec
+  ( spec,
+  )
+where
 
 import Imports hiding (head)
 import Util
