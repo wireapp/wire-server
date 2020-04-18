@@ -187,7 +187,9 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
-      mems <- Data.teamMembersUnsafeForLargeTeams tid
+      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
+      -- TODO LARGE TEAM JOURNAL
+      mems <- Data.teamMembersMaybeTruncated tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -197,7 +199,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
             if possiblyStaleSize == 0
               then 1
               else possiblyStaleSize
-      Journal.teamActivate tid size mems c teamCreationTime
+      Journal.teamActivate tid size (mems ^. teamMembers) c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -469,7 +471,9 @@ updateTeamMember zusr zcon tid targetMember = do
         $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  updatedMembers <- Data.teamMembersUnsafeForLargeTeams tid
+  -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
+  -- TODO LARGE TEAM JOURNAL
+  updatedMembers <- Data.teamMembersMaybeTruncated tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
@@ -478,24 +482,25 @@ updateTeamMember zusr zcon tid targetMember = do
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
     --
-    updateJournal :: Team -> [TeamMember] -> Galley ()
+    updateJournal :: Team -> TeamMemberList -> Galley ()
     updateJournal team updatedMembers = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        Journal.teamUpdate tid size updatedMembers
+        Journal.teamUpdate tid size (updatedMembers ^. teamMembers)
     --
-    updatePeers :: UserId -> Permissions -> [TeamMember] -> Galley ()
+    updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
       -- inform members of the team about the change
       -- some (privileged) users will be informed about which change was applied
-      let privileged = filter (`canSeePermsOf` targetMember) updatedMembers
+      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
           mkUpdate = EdMemberUpdate targetId
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
       now <- liftIO getCurrentTime
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
-      let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
+      let pushPriv = newPushLimited (updatedMembers ^. teamMemberListHasMore) zusr (TeamEvent ePriv) $ privilegedRecipients
+
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response

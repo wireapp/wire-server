@@ -213,7 +213,7 @@ teamConversations t =
 
 teamMembersMaybeTruncated :: TeamId -> Galley TeamMemberList
 teamMembersMaybeTruncated t = do
-  (mems, truncated) <- teamMembers t =<< currentTruncationLimit
+  (mems, truncated) <- teamMembers t =<< truncationLimit
   case truncated of
     ResultSetTruncated -> return $ newTeamMemberList mems True
     ResultSetComplete  -> return $ newTeamMemberList mems False

@@ -48,7 +48,7 @@ module Galley.App
     fromProtoBody,
     initExtEnv,
 
-    currentTruncationLimit
+    truncationLimit
   )
 where
 
@@ -133,10 +133,24 @@ newtype Galley a
       MonadClient
     )
 
-currentTruncationLimit :: Galley (Range 1 HardTruncationLimit Int32)
-currentTruncationLimit = do
-  truncationLimit <- view $ options . optSettings . setTruncationLimit
-  return $ fromMaybe defTruncationLimit truncationLimit
+truncationLimit :: Galley (Range 1 HardTruncationLimit Int32)
+truncationLimit = view options >>= return . currentTruncationLimit
+
+currentTruncationLimit :: Opts -> Range 1 HardTruncationLimit Int32
+currentTruncationLimit o = fromMaybe defTruncationLimit (o ^. optSettings ^. setTruncationLimit)
+
+-- Define some invariants:
+-- Journal MUST be disabled if maxTeamSize > HardTruncationLimit
+-- MaxConvSize MUST be < HardTruncationLimit
+validateOptions :: Opts -> IO ()
+validateOptions o = do
+  let settings = view optSettings o
+  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > truncLimit)) $
+    error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled"
+  when (settings ^. setMaxConvSize > truncLimit) $
+    error "setMaxConvSize cannot be > setTruncationLimit"
+ where
+  truncLimit = fromIntegral $ fromRange (currentTruncationLimit o)
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
@@ -161,6 +175,7 @@ createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager o
+  validateOptions o
   Env def m o l mgr <$> initCassandra o l
     <*> Q.new 16000
     <*> initExtEnv

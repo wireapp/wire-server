@@ -68,7 +68,6 @@ import qualified Data.Text.Lazy as LT
 import Galley.App
 import Galley.Options
 import Galley.Types
-import qualified Galley.Data as Data
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
@@ -169,7 +168,7 @@ push ps = pushInternal ps
 
 pushInternal :: List1 Push -> Galley ()
 pushInternal ps = do
-  limit <- currentTruncationLimit
+  limit <- truncationLimit
   -- Do not fan out for very large teams
   let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
