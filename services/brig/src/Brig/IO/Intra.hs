@@ -71,7 +71,6 @@ import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
 import Control.Lens ((.~), (?~), (^.), view)
-import Control.Lens.Prism (_Just)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -327,9 +326,12 @@ notifyContacts events orig route conn = do
     contacts :: AppIO [UserId]
     contacts = lookupContactList orig
     teamContacts :: AppIO [UserId]
-    teamContacts = getUids <$> getTeamContacts orig
-    getUids :: Maybe Team.TeamMemberList -> [UserId]
-    getUids = fmap (view Team.userId) . view (_Just . Team.teamMembers)
+    teamContacts = screenMemberList =<< getTeamContacts orig
+    -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
+    screenMemberList :: Maybe Team.TeamMemberList -> AppIO [UserId]
+    screenMemberList (Just mems) | not (mems ^. Team.teamMemberListHasMore) =
+      return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
+    screenMemberList _ = return []
 
 -- Event Serialisation:
 
@@ -748,6 +750,7 @@ memberIsTeamOwner tid uid = do
 -- | Only works on 'BindingTeam's!
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
+-- | This is now truncated.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")

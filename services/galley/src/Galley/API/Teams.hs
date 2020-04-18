@@ -734,8 +734,8 @@ getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers :: UserId -> Galley TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
-  members <- Data.teamMembersUnsafeForLargeTeams tid
-  pure $ newTeamMemberList members False
+  members <- Data.teamMembersMaybeTruncated tid
+  pure members
 
 -- Public endpoints for feature checks
 
