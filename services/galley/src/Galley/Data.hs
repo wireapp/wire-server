@@ -211,6 +211,14 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
+teamConversationsFrom :: MonadClient m => TeamId -> Maybe OpaqueConvId -> Range 1 HardTruncationLimit Int32 -> m (ResultSet TeamConversation)
+teamConversationsFrom tid start (fromRange -> max) =
+  ResultSet . strip . fmap (uncurry newTeamConversation) <$> case start of
+    Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) (max + 1))
+    Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) (max + 1))
+  where
+    strip p = p {result = take (fromIntegral max) (result p)}
+
 teamMembersMaybeTruncated :: TeamId -> Galley TeamMemberList
 teamMembersMaybeTruncated t = do
   (mems, truncated) <- teamMembers t =<< truncationLimit
@@ -230,11 +238,17 @@ teamMembers t (fromRange -> limit) = do
                             then ResultSetTruncated
                             else ResultSetComplete
 
-    newTeamMember' ::
-      (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
-      m TeamMember
-    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
-      newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+-- This function has a bit of a difficult type to work with because we don't have a pure function of type
+-- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we
+-- cannot fmap over the ResultSet. We don't want to mess around with the Result size nextPage either otherwise
+-- we cannot paginate over it and so creating a new Cassandra Page would be risky
+teamMembersFrom :: MonadClient m => TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> m (ResultSet (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus))
+teamMembersFrom tid start (fromRange -> max) = do
+  ResultSet . strip <$> case start of
+    Just u -> paginate Cql.selectTeamMembersFrom (paramsP Quorum (tid, u) (max + 1))
+    Nothing -> paginate Cql.selectTeamMembers (paramsP Quorum (Identity tid) (max + 1))
+  where
+    strip p = p {result = take (fromIntegral max) (result p)}
 
 -- | TODO: This operation gets **all** members of a team, this should go away before
 -- we roll out large teams
@@ -242,12 +256,6 @@ teamMembersUnsafeForLargeTeams :: forall m. (MonadThrow m, MonadClient m) => Tea
 teamMembersUnsafeForLargeTeams t =
   mapM newTeamMember'
     =<< retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
-  where
-    newTeamMember' ::
-      (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
-      m TeamMember
-    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
-      newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
@@ -256,23 +264,16 @@ teamMembersLimited :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [User
 teamMembersLimited t u =
   mapM newTeamMember'
     =<< retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
-  where
-    newTeamMember' ::
-      (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
-      m TeamMember
-    newTeamMember' (uid, perms, minvu, minvt, mlhStatus) =
-      newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
 teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
-teamMember t u = newTeamMember' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
   where
-    newTeamMember' ::
+    newTeamMember'' ::
       UserId ->
       Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
       m (Maybe TeamMember)
-    newTeamMember' _ Nothing = pure Nothing
-    newTeamMember' uid (Just (perms, minvu, minvt, mulhStatus)) =
-      Just <$> newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mulhStatus)
+    newTeamMember'' _ Nothing = pure Nothing
+    newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) = Just <$> newTeamMember' (uid, perms, minvu, minvt, mulhStatus)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u =
@@ -322,11 +323,22 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do
   retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
-  mm <- teamMembersUnsafeForLargeTeams tid
-  for_ mm $ removeTeamMember tid . view userId
-  cc <- teamConversations tid
-  for_ cc $ removeTeamConv tid . view conversationId
+  ResultSet mems <- teamMembersFrom tid Nothing (unsafeRange 2000)
+  removeTeamMembers mems
+  ResultSet cnvs <- teamConversationsFrom tid Nothing (unsafeRange 2000)
+  removeConvs cnvs
   retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
+ where
+  removeConvs cnvs = do
+    for_ (result cnvs) $ removeTeamConv tid . view conversationId
+    when (hasMore cnvs) $
+      removeConvs =<< liftClient (nextPage cnvs)
+
+  removeTeamMembers mems = do
+    tMembers <- mapM newTeamMember' (result mems)
+    for_ tMembers $ removeTeamMember tid . view userId
+    when (hasMore mems) $
+      removeTeamMembers =<< liftClient (nextPage mems)
 
 -- TODO: delete service_whitelist records that mention this team
 
@@ -805,3 +817,7 @@ lookupClients users =
 
 eraseClients :: MonadClient m => UserId -> m ()
 eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
+
+-- Internal utilities
+newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)

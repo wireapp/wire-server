@@ -123,6 +123,7 @@ removeSettings' ::
   TeamId ->
   Galley ()
 removeSettings' tid = do
+  -- TODO: LARGE TEAMS this might still
   membs <- Data.teamMembersUnsafeForLargeTeams tid
   let zothers = map (view userId) membs
   Log.debug $
