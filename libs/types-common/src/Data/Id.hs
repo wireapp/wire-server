@@ -3,7 +3,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- for UUID instances
+-- license placeholder
 
 module Data.Id where
 

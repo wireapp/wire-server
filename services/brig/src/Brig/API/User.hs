@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- license placeholder
+
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
   ( -- * User Accounts / Profiles

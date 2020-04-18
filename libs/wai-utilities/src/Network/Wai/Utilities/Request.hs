@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-
-{-# OPTIONS -Wno-orphans #-}
--- for "instance HasRequest Request" :(
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Network.Wai.Utilities.Request where
 

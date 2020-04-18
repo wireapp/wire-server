@@ -10,8 +10,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- For @instance UserDB Spar@
-
 -- | Doing operations with users via SCIM.
 --
 -- Provides a 'Scim.Class.User.UserDB' instance.

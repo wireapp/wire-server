@@ -4,8 +4,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- For @instance AuthDB Spar@
-
 -- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
 --
 -- Logic for doing authentication in SCIM routes.

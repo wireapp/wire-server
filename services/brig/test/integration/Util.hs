@@ -1,7 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- for SES notifications
-
 module Util where
 
 import Bilge

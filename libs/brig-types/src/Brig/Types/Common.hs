@@ -5,6 +5,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- license placeholder
+
 -- Brig.Types.Account?
 module Brig.Types.Common where
 

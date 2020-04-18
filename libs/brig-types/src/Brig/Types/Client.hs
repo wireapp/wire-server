@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- license placeholder
+
 -- TODO: Move to Brig.Types.User.Client
 module Brig.Types.Client
   ( module Brig.Types.Client,

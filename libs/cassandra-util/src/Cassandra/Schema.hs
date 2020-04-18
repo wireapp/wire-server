@@ -3,8 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- Additional functionality on top of our cassandra library. Used by brig, brig's schema definitions, Spar, Spar's schema definitions, Galley, Galley's schema definitions, Gundeck, and Gundeck's schema definitions.
-
+-- | Additional functionality on top of our cassandra library. Used by brig, brig's schema definitions, Spar, Spar's schema definitions, Galley, Galley's schema definitions, Gundeck, and Gundeck's schema definitions.
 module Cassandra.Schema
   ( Migration (..),
     MigrationOpts (..),

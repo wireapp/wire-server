@@ -4,6 +4,8 @@
 {-# OPTIONS_GHC -Wno-missing-methods #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- license placeholder
+
 -- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
 -- in the instance near the Spar type; alternatively, @hscim@ could be changed)
 

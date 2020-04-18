@@ -1,4 +1,3 @@
--- Legacy:
 module CargoHold.API.Legacy
   ( download,
     downloadOtr,

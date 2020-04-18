@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- for Show UserRowInsert
+-- license placeholder
 
 -- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User

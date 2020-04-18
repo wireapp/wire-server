@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- license placeholder
+
 -- FUTUREWORK: generate this file
 module Galley.Types.Proto
   ( UserId,

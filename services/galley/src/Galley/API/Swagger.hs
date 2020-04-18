@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-patterns #-}
 
+-- license placeholder
+
 -- it's ok to not warn about unmatched patterns; 'validateEveryToJSON' will crash on them
 -- before too long.
 

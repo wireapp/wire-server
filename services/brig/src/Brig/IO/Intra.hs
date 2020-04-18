@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- license placeholder
+
 -- TODO: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events

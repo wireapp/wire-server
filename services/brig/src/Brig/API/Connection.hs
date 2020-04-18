@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- license placeholder
+
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
 
 -- | > docs/reference/user/connection.md {#RefConnection}
