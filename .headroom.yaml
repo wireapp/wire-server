@@ -11,6 +11,10 @@ variables:
   year: '2020'
 license-headers:
   haskell:
+    file-extensions: ["hs", "hsc"]
     put-after: ["^{-#"]
+    put-before: ["^module", "^-- \\|"]
+    margin-after: 1
+    margin-before: 1
     line-comment:
       prefixed-by: "--"
