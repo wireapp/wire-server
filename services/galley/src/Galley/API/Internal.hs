@@ -34,7 +34,7 @@ import Data.Metrics.Middleware as Metrics
 import Data.Range
 import Data.String.Conversions (cs)
 import Galley.API.Error (federationNotImplemented)
-import Galley.API.Teams (uncheckedRemoveTeamMember)
+import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
@@ -63,7 +63,8 @@ rmUser user conn = do
   Data.eraseClients user
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
-      Data.teamMembersUnsafeForLargeTeams tid >>= uncheckedRemoveTeamMember user conn tid user
+      mems <- Data.teamMembersUnsafeForLargeTeams tid
+      uncheckedDeleteTeamMember user conn tid user mems
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)
     leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()
@@ -82,9 +83,8 @@ rmUser user conn = do
         RegularConv
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
-            limit <- currentTruncationLimit
             return $
-              (Intra.newPushLimited Data.ResultSetComplete limit (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPushLimited False (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

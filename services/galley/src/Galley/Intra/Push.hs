@@ -116,27 +116,23 @@ data Push
 
 makeLenses ''Push
 
-newPush1Limited :: Data.ResultSetType -> Range 1 Teams.HardTruncationLimit Int32 -> UserId -> PushEvent -> List1 Recipient -> Push
-newPush1Limited recipientsType hardLimit from e rr =
+newPush1Limited :: Bool -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1Limited recipientListIncomplete from e rr =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
-      pushRecipientListTooLargeToFanout = isTooLargeToFanout,
+      pushRecipientListTooLargeToFanout = recipientListIncomplete,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
     }
-  where
-    -- The second check is redudant but we are paranoid... and it does not hurt
-    isTooLargeToFanout = recipientsType == Data.ResultSetTruncated
-                      || length rr > (fromIntegral $ fromRange hardLimit)
 
-newPushLimited :: Data.ResultSetType -> Range 1 Teams.HardTruncationLimit Int32 -> UserId -> PushEvent -> [Recipient] -> Maybe Push
-newPushLimited _  _ _ _ [] = Nothing
-newPushLimited rs l u e (r : rr) = Just $ newPush1Limited rs l u e (list1 r rr)
+newPushLimited :: Bool -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLimited _ _ _ [] = Nothing
+newPushLimited b u e (r : rr) = Just $ newPush1Limited b u e (list1 r rr)
 
 newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 from e rr =
@@ -173,8 +169,9 @@ push ps = pushInternal ps
 
 pushInternal :: List1 Push -> Galley ()
 pushInternal ps = do
+  limit <- currentTruncationLimit
   -- Do not fan out for very large teams
-  let (async, sync) = partition _pushAsync (removeIfLargeFanout $ toList ps)
+  let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
   void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
   return ()
@@ -203,7 +200,10 @@ pushInternal ps = do
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
 
-    removeIfLargeFanout = filter (not . pushRecipientListTooLargeToFanout)
+    -- Ensure that under no circumstances we exceed the threshold
+    removeIfLargeFanout limit = filter
+        (\p -> not $ pushRecipientListTooLargeToFanout p
+        && length (pushRecipients p) <= (fromIntegral $ fromRange limit))
 
 -----------------------------------------------------------------------------
 -- Helpers

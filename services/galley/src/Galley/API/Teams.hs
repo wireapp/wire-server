@@ -47,7 +47,7 @@ module Galley.API.Teams
     uncheckedAddTeamMemberH,
     uncheckedGetTeamMemberH,
     uncheckedGetTeamMembersH,
-    uncheckedRemoveTeamMember,
+    uncheckedDeleteTeamMember,
     withBindingTeam,
     userIsTeamOwnerH,
   )
@@ -224,11 +224,10 @@ updateTeam zusr zcon tid updateData = do
   void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  limit <- currentTruncationLimit
-  (membs, truncated) <- Data.teamMembers tid limit
+  memList <- Data.teamMembersMaybeTruncated tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
-  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  push1 $ newPush1Limited truncated limit zusr (TeamEvent e) r & pushConn .~ Just zcon
+  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
+  push1 $ newPush1Limited (memList ^. teamMemberListHasMore) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -269,6 +268,8 @@ uncheckedDeleteTeam zusr zcon tid = do
     Spar.deleteTeam tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
+    -- TODO: LARGE TEAMS we _DO_ want to fetch all team members here because we
+    --       want to generate events for non-team users
     membs <- Data.teamMembersUnsafeForLargeTeams tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
@@ -418,8 +419,8 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
+  memList <- Data.teamMembersMaybeTruncated tid
+  addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -430,10 +431,10 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
+  mems <- Data.teamMembersMaybeTruncated tid
   (TeamSize sizeBeforeAdd) <- BrigTeam.getSize tid
   addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems ^. teamMembers)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -540,13 +541,12 @@ deleteTeamMember zusr zcon tid remove mBody = do
       Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) mems)
       pure TeamMemberDeleteAccepted
     else do
-      uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
+      uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
--- FUTUREWORK: rename to 'uncheckedDeleteTeamMember' for consistency.
-uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
-uncheckedRemoveTeamMember zusr zcon tid remove mems = do
+uncheckedDeleteTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
+uncheckedDeleteTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
   pushMemberLeaveEvent now
   Data.removeTeamMember tid remove
@@ -678,8 +678,8 @@ ensureNotElevated targetPermissions member =
     )
     $ throwM invalidPermissions
 
-addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley ()
-addTeamMemberInternal tid origin originConn newMem mems = do
+addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley ()
+addTeamMemberInternal tid origin originConn newMem memList = do
   let new = newMem ^. ntmNewTeamMember
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
@@ -696,8 +696,8 @@ addTeamMemberInternal tid origin originConn newMem mems = do
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
   push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   where
-    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
-    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
+    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
+    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : memList ^. teamMembers))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
@@ -821,7 +821,7 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
-    LegalHoldDisabled -> removeSettings' tid Nothing
+    LegalHoldDisabled -> removeSettings' tid
     LegalHoldEnabled -> pure ()
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
 

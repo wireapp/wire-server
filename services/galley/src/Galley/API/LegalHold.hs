@@ -116,17 +116,14 @@ removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  removeSettings' tid (Just membs)
+  removeSettings' tid
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
   TeamId ->
-  -- | If you've already got the team members you can pass them in otherwise they'll be looked up.
-  Maybe [TeamMember] ->
   Galley ()
-removeSettings' tid mMembers = do
-  membs <- maybe (Data.teamMembersUnsafeForLargeTeams tid) pure mMembers
+removeSettings' tid = do
+  membs <- Data.teamMembersUnsafeForLargeTeams tid
   let zothers = map (view userId) membs
   Log.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)

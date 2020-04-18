@@ -123,8 +123,9 @@ createTeamGroupConv zusr zcon tinfo body = do
   otherConvMems <-
     if cnvManaged tinfo
       then do
-        allMembers <- Data.teamMembersUnsafeForLargeTeams convTeam
-        let otherConvMems = filter (/= zusr) $ map (view userId) $ allMembers
+        -- ConvMaxSize MUST be < than hardlimit so the conv size check is enough
+        maybeAllMembers <- Data.teamMembersMaybeTruncated convTeam
+        let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
         checkedConvSize otherConvMems
       else do
         otherConvMems <- checkedConvSize localUserIds
@@ -224,8 +225,7 @@ createConnectConversation usr conn j = do
     create x y n = do
       (c, e) <- Data.createConnectConversation x y n j
       notifyCreatedConversation Nothing usr conn c
-      truncationLimit <- currentTruncationLimit
-      for_ (newPushLimited Data.ResultSetComplete truncationLimit (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
+      for_ (newPushLimited False (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -263,8 +263,7 @@ createConnectConversation usr conn j = do
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
         let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
-        limit <- currentTruncationLimit
-        for_ (newPushLimited Data.ResultSetComplete limit (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
+        for_ (newPushLimited False (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -301,9 +300,8 @@ notifyCreatedConversation dtime usr conn c = do
     toPush t m = do
       c' <- conversationView (memId m) c
       let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
-      limit <- currentTruncationLimit
       return $
-        newPush1Limited Data.ResultSetComplete limit (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
+        newPush1Limited False (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

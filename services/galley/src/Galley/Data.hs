@@ -34,6 +34,7 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
+    teamMembersMaybeTruncated,
     teamMembersUnsafeForLargeTeams,
     teamMembersLimited,
     userTeams,
@@ -209,6 +210,13 @@ teamConversations :: MonadClient m => TeamId -> m [TeamConversation]
 teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
+
+teamMembersMaybeTruncated :: TeamId -> Galley TeamMemberList
+teamMembersMaybeTruncated t = do
+  (mems, truncated) <- teamMembers t =<< currentTruncationLimit
+  case truncated of
+    ResultSetTruncated -> return $ newTeamMemberList mems True
+    ResultSetComplete  -> return $ newTeamMemberList mems False
 
 teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], ResultSetType)
 teamMembers t (fromRange -> limit) = do
@@ -450,7 +458,7 @@ conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -
 conversationIdsOf usr (fromList . fromRange -> cids) =
   map runIdentity <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
-createConversation ::
+createConversation :: MonadClient m =>
   UserId ->
   Maybe (Range 1 256 Text) ->
   [Access] ->
@@ -461,7 +469,7 @@ createConversation ::
   Maybe Milliseconds ->
   Maybe ReceiptMode ->
   RoleName ->
-  Galley Conversation
+  m Conversation
 createConversation usr name acc role others tinfo mtimer recpt othersConversationRole = do
   conv <- Id <$> liftIO nextRandom
   now <- liftIO getCurrentTime
@@ -504,12 +512,12 @@ createConnectConversation a b name conn = do
   let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
   return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
-createOne2OneConversation ::
+createOne2OneConversation :: MonadClient m =>
   U.UUID U.V4 ->
   U.UUID U.V4 ->
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
-  Galley Conversation
+  m Conversation
 createOne2OneConversation a b name ti = do
   let conv = one2OneConvId a b
       a' = Id (U.unpack a)

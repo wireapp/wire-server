@@ -881,6 +881,7 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+  -- TODO: LARGE TEAMS broadcast cannot be used in large teams unless targeted
   tMembers <- fmap (view userId) <$> Data.teamMembersUnsafeForLargeTeams tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
