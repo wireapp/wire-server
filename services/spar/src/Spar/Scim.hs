@@ -1,8 +1,8 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-missing-methods
-    -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
 -- in the instance near the Spar type; alternatively, @hscim@ could be changed)
