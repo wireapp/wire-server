@@ -63,7 +63,7 @@ rmUser user conn = do
   Data.eraseClients user
   where
     leaveTeams tids = for_ (result tids) $ \tid -> do
-      mems <- Data.teamMembersUnsafeForLargeTeams tid
+      mems <- Data.teamMembersMaybeTruncated tid
       uncheckedDeleteTeamMember user conn tid user mems
       when (hasMore tids) $
         leaveTeams =<< liftClient (nextPage tids)

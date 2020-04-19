@@ -529,7 +529,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
+  mems <- Data.teamMembersMaybeTruncated tid
   if team ^. teamBinding == Binding && isJust removeMembership
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
@@ -543,44 +543,49 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) mems)
+      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
+      -- TODO LARGE TEAM JOURNAL
+      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers))
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
-uncheckedDeleteTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
+uncheckedDeleteTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> TeamMemberList -> Galley ()
 uncheckedDeleteTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
   pushMemberLeaveEvent now
   Data.removeTeamMember tid remove
-  pushConvLeaveEvent now
+  removeFromConvsAndPushConvLeaveEvent now
   where
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-      push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
+      push1 $ newPush1Limited (mems ^. teamMemberListHasMore) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
-    pushConvLeaveEvent :: UTCTime -> Galley ()
-    pushConvLeaveEvent now = do
-      let tmids = Set.fromList $ map (view userId) mems
+    removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Galley ()
+    removeFromConvsAndPushConvLeaveEvent now = do
+      -- This may not make sense if that list has been truncated. In such cases, we still want to
+      -- remove the user from conversations but never send out any events. We assume that clients
+      -- handle nicely these missing events, regardless of whether they are in the same team or not
+      let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
       let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
       cc <- Data.teamConversations tid
       for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
         for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
           Data.removeMember remove (c ^. conversationId)
-          unless (c ^. managedConversation) $
+          unless (c ^. managedConversation || mems ^. teamMemberListHasMore) $
             pushEvent tmids edata now dc
-    --
+
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       let (bots, users) = botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
-      for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
+      for_ (newPushLimited (mems ^. teamMemberListHasMore) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
