@@ -270,9 +270,12 @@ uncheckedDeleteTeam zusr zcon tid = do
     Spar.deleteTeam tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
-    -- TODO: LARGE TEAMS we _DO_ want to fetch all team members here because we
-    --       want to generate events for non-team users
-    membs <- Data.teamMembersUnsafeForLargeTeams tid
+    -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
+    -- want to generate conversation deletion events for non-team users. This should
+    -- be fine as it is done once during the life team of a team and we still do not
+    -- fanout this particular event to all team members anyway. And this is anyway
+    -- done asynchronously
+    membs <- Data.teamMembersCollectedWithPagination tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
@@ -287,6 +290,8 @@ uncheckedDeleteTeam zusr zcon tid = do
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
     pushDeleteEvents membs e ue = do
+      limit <- truncationLimit
+      let tooLargeFanout = length membs > (fromIntegral $ fromRange limit)
       o <- view $ options . optSettings
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
@@ -295,7 +300,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       forM_ chunks $ \chunk -> case chunk of
         [] -> return ()
         -- push TeamDelete events
-        x : xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        x : xs -> push1 (newPush1Limited tooLargeFanout zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
@@ -315,7 +320,8 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-      let p = newPush zusr (ConvEvent e) (map recipient mm)
+      -- This event always contains all the required recipients
+      let p = newPushLimited False zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)

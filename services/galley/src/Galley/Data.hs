@@ -34,9 +34,11 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
+    teamMembersFrom,
     withTeamMembers,
     teamMembersMaybeTruncated,
     teamMembersUnsafeForLargeTeams,
+    teamMembersCollectedWithPagination,
     teamMembersLimited,
     userTeams,
     oneUserTeam,
@@ -251,6 +253,21 @@ teamMembersFrom tid start (fromRange -> max) = do
     Nothing -> paginate Cql.selectTeamMembers (paramsP Quorum (Identity tid) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
+
+-- TODO: There must be a smarter way to do this with some continuation style
+-- NOTE: Use this function with care... should only be required when deleting a team!
+--       Maybe should be left explicitly for the caller?
+teamMembersCollectedWithPagination :: TeamId -> Galley [TeamMember]
+teamMembersCollectedWithPagination tid = do
+  let acc = []
+  ResultSet mems <- teamMembersFrom tid Nothing (unsafeRange 2000)
+  collectTeamMembersPaginated acc mems
+  return acc
+ where
+  collectTeamMembersPaginated acc mems = do
+    tMembers <- mapM newTeamMember' (result mems)
+    when (hasMore mems) $
+      collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
 
 -- | TODO: This operation gets **all** members of a team, this should go away before
 -- we roll out large teams
