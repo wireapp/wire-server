@@ -123,17 +123,20 @@ removeSettings' ::
   TeamId ->
   Galley ()
 removeSettings' tid = do
-  -- TODO: LARGE TEAMS this might still
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "LegalHold.removeSettings'")
-  let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-  -- I picked this number by fair dice roll, feel free to change it :P
-  pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
+  -- Loop through team members and run this continuation
+  Data.withTeamMembers tid cont
   LegalHoldData.removeSettings tid
   where
+    cont :: [TeamMember] -> Galley ()
+    cont membs = do
+        let zothers = map (view userId) membs
+        let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
+        Log.debug $
+          Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+             . Log.field "action" (Log.val "LegalHold.removeSettings'")
+        -- I picked this number by fair dice roll, feel free to change it :P
+        pooledMapConcurrentlyN_ 8 removeLHForUser lhMembers
+
     removeLHForUser :: TeamMember -> Galley ()
     removeLHForUser member = do
       let uid = member ^. Team.userId

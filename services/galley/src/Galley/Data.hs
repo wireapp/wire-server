@@ -34,6 +34,7 @@ module Galley.Data
     teamIdsOf,
     teamMember,
     teamMembers,
+    withTeamMembers,
     teamMembersMaybeTruncated,
     teamMembersUnsafeForLargeTeams,
     teamMembersLimited,
@@ -93,7 +94,8 @@ module Galley.Data
     defRole,
     defRegularConvAccess,
 
-    ResultSetType (..)
+    ResultSetType (..),
+    TeamMemberRow
   )
 where
 
@@ -242,7 +244,7 @@ teamMembers t (fromRange -> limit) = do
 -- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we
 -- cannot fmap over the ResultSet. We don't want to mess around with the Result size nextPage either otherwise
 -- we cannot paginate over it and so creating a new Cassandra Page would be risky
-teamMembersFrom :: MonadClient m => TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> m (ResultSet (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus))
+teamMembersFrom :: MonadClient m => TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> m (ResultSet TeamMemberRow)
 teamMembersFrom tid start (fromRange -> max) = do
   ResultSet . strip <$> case start of
     Just u -> paginate Cql.selectTeamMembersFrom (paramsP Quorum (tid, u) (max + 1))
@@ -821,3 +823,22 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 -- Internal utilities
 newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- | Invoke the given continuation 'k' with a list of TeamMemberRows IDs
+-- which are looked up based on:
+type TeamMemberRow = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
+
+withTeamMembers ::
+  TeamId ->
+  ([TeamMember] -> Galley ()) ->
+  Galley ()
+withTeamMembers tid k = do
+  ResultSet mems <- teamMembersFrom tid Nothing (unsafeRange 2000)
+  handleMembers mems
+ where
+  handleMembers mems = do
+    tMembers <- mapM newTeamMember' (result mems)
+    k tMembers
+    when (hasMore mems) $
+      handleMembers =<< liftClient (nextPage mems)
+{-# INLINE withTeamMembers #-}
