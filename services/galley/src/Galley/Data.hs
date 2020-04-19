@@ -262,12 +262,12 @@ teamMembersCollectedWithPagination tid = do
   let acc = []
   ResultSet mems <- teamMembersFrom tid Nothing (unsafeRange 2000)
   collectTeamMembersPaginated acc mems
-  return acc
  where
   collectTeamMembersPaginated acc mems = do
     tMembers <- mapM newTeamMember' (result mems)
-    when (hasMore mems) $
-      collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
+    if (hasMore mems)
+      then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
+      else return (tMembers ++ acc)
 
 -- | TODO: This operation gets **all** members of a team, this should go away before
 -- we roll out large teams

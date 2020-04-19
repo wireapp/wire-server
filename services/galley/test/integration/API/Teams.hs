@@ -1043,7 +1043,7 @@ testUpdateTeamNoEvents = do
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
   opts <- view tsGConf
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
-    -- The team has 2 user, so if we truncate at 1, we should not receive events!
+    -- The team has 2 users, so if we truncate at 1, we should not receive events!
     -- We also disable journaling because of the invariant that
     -- setMaxTeamSize cannot be > setTruncationLimit if journal is enabled
     let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
