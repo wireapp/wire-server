@@ -79,7 +79,7 @@ data WireIdP
         -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
         _wiOldIssuers :: [SAML.Issuer],
         -- | the issuer that has replaced this one.  this is set iff a new issuer is created
-        -- with the @"repalces"@ query parameter, and it is used to decide whether users not
+        -- with the @"replaces"@ query parameter, and it is used to decide whether users not
         -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
         _wiReplacedBy :: Maybe SAML.IdPId
       }
