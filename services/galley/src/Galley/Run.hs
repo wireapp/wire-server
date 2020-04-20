@@ -17,6 +17,7 @@
 
 module Galley.Run
   ( run,
+    mkApp,
   )
 where
 
@@ -36,7 +37,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import Imports
-import Network.Wai (Application, Middleware)
+import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
@@ -49,8 +50,7 @@ import Util.Options
 
 run :: Opts -> IO ()
 run o = do
-  m <- M.metrics
-  e <- App.createEnv m o
+  (app, e) <- mkApp o
   let l = e ^. App.applog
   s <-
     newSettings $
@@ -58,32 +58,37 @@ run o = do
         (unpack $ o ^. optGalley . epHost)
         (portNumber $ fromIntegral $ o ^. optGalley . epPort)
         l
-        m
-  runClient (e ^. cstate) $
-    versionCheck Data.schemaVersion
+        (e ^. monitor)
   deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
   refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
-  let rtree = compile sitemap
-      app :: Application
-      app r k = runGalley e r (route rtree r k)
-      -- the servant API wraps the one defined using wai-routing
-      servantApp :: Application
-      servantApp r =
-        Servant.serve
-          -- we don't host any Servant endpoints yet, but will add some for the
-          -- federation API, replacing the empty API.
-          (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
-          (Servant.emptyServer :<|> Servant.Tagged app)
-          r
-      middlewares :: Middleware
-      middlewares =
-        waiPrometheusMiddleware sitemap
-          . catchErrors l [Right m]
-          . GZip.gunzip
-          . GZip.gzip GZip.def
-  runSettingsWithShutdown s (middlewares servantApp) 5 `finally` do
+  runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
     Log.flush l
     Log.close l
+
+mkApp :: Opts -> IO (Application, Env)
+mkApp o = do
+  m <- M.metrics
+  e <- App.createEnv m o
+  let l = e ^. App.applog
+  runClient (e ^. cstate) $
+    versionCheck Data.schemaVersion
+  return (middlewares l m $ servantApp e, e)
+  where
+    rtree = compile sitemap
+    app e r k = runGalley e r (route rtree r k)
+    -- the servant API wraps the one defined using wai-routing
+    servantApp e r =
+      Servant.serve
+        -- we don't host any Servant endpoints yet, but will add some for the
+        -- federation API, replacing the empty API.
+        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
+        (Servant.emptyServer :<|> Servant.Tagged (app e))
+        r
+    middlewares l m =
+      waiPrometheusMiddleware sitemap
+        . catchErrors l [Right m]
+        . GZip.gunzip
+        . GZip.gzip GZip.def
