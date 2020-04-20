@@ -638,21 +638,37 @@ specCRUDIdentityProvider = do
           (owner, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
             `shouldRespondWith` ((== 400) . statusCode)
-    describe "issuer changed to one that already exists in another team" $ do
+    describe "issuer changed to one that already exists in *another* team" $ do
       it "rejects" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
         (_, _, _, (IdPMetadataValue _ idpmeta2, _)) <- registerTestIdPWithMeta
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
           `shouldRespondWith` checkErr (== 400) "idp-used-in-other-team"
-    describe "issuer changed to one that is new" $ do
+    describe "issuer changed to one that already exists in *the same* team" $ do
       it "rejects" $ do
-        env <- ask
-        (owner, _, (^. idpId) -> idpid, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta
-        newissuer <- makeIssuer
-        let idpmeta' = idpmeta & edIssuer .~ newissuer
-        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
-          `shouldRespondWith` checkErr (== 400) "cannot-update-idp-issuer"
+        pendingWith "TODO"
+    describe "issuer changed to one that is new" $ do
+      context "impure (overwrite old idp)" $ do
+        it "updates old idp, setting old_issuer" $ do
+          pendingWith "TODO"
+        it "migrates old users to new idp on their next login" $ do
+          pendingWith "TODO"
+        it "creates non-existent users" $ do
+          pendingWith "TODO"
+        it "logs in users that have already been moved or created in the new idp" $ do
+          pendingWith "TODO"
+      context "impure (create new idp)" $ do
+        it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
+          pendingWith "TODO"
+        it "users can still login on old idp as before" $ do
+          pendingWith "TODO"
+        it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
+          pendingWith "TODO"
+        it "creates non-existent users on new idp" $ do
+          pendingWith "TODO"
+        it "logs in users on new idp that have already been moved or created in the new idp" $ do
+          pendingWith "TODO"
     describe "new request uri" $ do
       it "uses it on next auth handshake" $ do
         env <- ask
