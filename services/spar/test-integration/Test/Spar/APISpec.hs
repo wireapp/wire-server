@@ -971,15 +971,15 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
     let issuer1 = idpmeta1 ^. edIssuer
     issuer2 <- makeIssuer
-    idp2 <-
-      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
     let userSubject = SAML.unspecifiedNameID "bloob"
     uref <- tryLogin privkey1 idp1 userSubject
     uid <- getUserIdViaRef' uref
     liftIO $ do
       uid `shouldSatisfy` isJust
       uref `shouldBe` (SAML.UserRef issuer1 userSubject)
+    idp2 <-
+      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
     call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
     uref' <- tryLogin privkey1 idp1 userSubject
     uid' <- getUserIdViaRef' uref'
