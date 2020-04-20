@@ -693,14 +693,15 @@ specCRUDIdentityProvider = do
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
               privkey2 = privkey1
               idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
-          olduref <- tryLogin privkey1 idp1
+          let userSubject = SAML.unspecifiedNameID "bloob"
+          olduref <- tryLoginWith privkey1 idp1 userSubject
           getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
           _ <-
             let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
              in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
           getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
-          newuref <- tryLogin privkey2 idp2
-          getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isNothing
+          newuref <- tryLoginWith privkey2 idp2 userSubject
+          getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
           getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         it "creates non-existent users" $ do
           env <- ask
@@ -897,7 +898,7 @@ specCRUDIdentityProvider = do
           idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
           idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
           idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-          idp1 ^. idpExtraInfo . wiReplacedBy `shouldBe` (Just $ idp2 ^. idpId)
+          idp1' ^. idpExtraInfo . wiReplacedBy `shouldBe` (Just $ idp2 ^. idpId)
           -- erase everything that is supposed to be different between idp1, idp2, and make
           -- sure the result is equal.
           let erase :: IdP -> IdP
