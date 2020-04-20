@@ -175,13 +175,13 @@ spec = do
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [])
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [])
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> pure (WireIdP teamid [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)

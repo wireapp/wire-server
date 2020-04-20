@@ -398,7 +398,7 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextWireIdP :: MonadIO m => m WireIdP
-nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure []
+nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure [] <*> pure Nothing
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
