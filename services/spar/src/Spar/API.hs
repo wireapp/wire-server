@@ -256,19 +256,19 @@ idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml mid
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
-idpCreateXML zusr raw idpmeta mReplaced = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
-  idp <- validateNewIdP idpmeta teamid mReplaced
+  idp <- validateNewIdP idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
-  forM_ mReplaced $ \replaced -> wrapMonadClient $ Data.markReplacedIdP replaced (idp ^. SAML.idpId)
+  forM_ mReplace $ \replaces -> wrapMonadClient $ Data.markReplacedIdP replaces (idp ^. SAML.idpId)
   pure idp
 
 -- | Check that issuer is not used for any team in the system (it is a database keys for
 -- finding IdPs), and request URI is https.
 --
--- About the @mReplaced@ argument: the information whether the idp is replacing an old one is
+-- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
 -- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
 -- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
 -- changed.
@@ -288,12 +288,12 @@ validateNewIdP ::
   TeamId ->
   Maybe SAML.IdPId ->
   m IdP
-validateNewIdP _idpMetadata teamId mReplaced = do
+validateNewIdP _idpMetadata teamId mReplaces = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
-  oldIssuers :: [SAML.Issuer] <- case mReplaced of
+  oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
-    Just replaced -> do
-      idp <- wrapMonadClient (Data.getIdPConfig replaced) >>= maybe (throwSpar SparNotFound) pure
+    Just replaces -> do
+      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparNotFound) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId oldIssuers Nothing
