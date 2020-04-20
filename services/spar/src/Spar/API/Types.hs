@@ -167,7 +167,10 @@ type IdpUpdate =
     :> Capture "id" SAML.IdPId
     :> Put '[JSON] IdP
 
-type IdpDelete = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpDelete =
+  Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "purge" Bool
+    :> DeleteNoContent '[JSON] NoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
