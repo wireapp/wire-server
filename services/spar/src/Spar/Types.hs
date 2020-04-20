@@ -74,7 +74,8 @@ type IdP = IdPConfig WireIdP
 data WireIdP
   = WireIdP
       { _wiTeam :: TeamId,
-        _wiOldIssuers :: [SAML.Issuer]
+        _wiOldIssuers :: [SAML.Issuer],
+        _wiReplacedBy :: Maybe SAML.IdPId
       }
   deriving (Eq, Show, Generic)
 

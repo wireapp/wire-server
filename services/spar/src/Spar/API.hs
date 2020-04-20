@@ -282,7 +282,7 @@ validateNewIdP ::
 validateNewIdP _idpMetadata teamId = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId []
+      _idpExtraInfo = WireIdP teamId [] Nothing
   enforceHttps requri
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()

@@ -49,7 +49,8 @@ main = do
       V5.migration,
       V6.migration,
       V7.migration,
-      V8.migration
+      V8.migration,
+      V9.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Spar.Data
 

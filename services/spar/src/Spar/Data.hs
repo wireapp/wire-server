@@ -48,6 +48,7 @@ module Spar.Data
 
     -- * IDPs
     storeIdPConfig,
+    markReplacedIdP,
     getIdPConfig,
     getIdPConfigByIssuer,
     getIdPIdByIssuer,
@@ -100,7 +101,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 8
+schemaVersion = 9
 
 ----------------------------------------------------------------------
 -- helpers
@@ -315,9 +316,12 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer])
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
+-- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
+-- legitimate reason to store an IdP that has already been replaced.  and for updating an old
+-- one, call 'markReplacedIdP'.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
   IdP ->
@@ -334,7 +338,8 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
       idp ^. SAML.idpExtraInfo . wiTeam,
-      idp ^. SAML.idpExtraInfo . wiOldIssuers
+      idp ^. SAML.idpExtraInfo . wiOldIssuers,
+      idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
@@ -348,11 +353,22 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
+
+markReplacedIdP ::
+  (HasCallStack, MonadClient m) =>
+  SAML.IdPId ->
+  SAML.IdPId ->
+  m ()
+markReplacedIdP old new = do
+  retry x5 . write ins $ params Quorum (old, new)
+  where
+    ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
+    ins = "INSERT INTO idp (idp, replaced_by) VALUES (?, ?)"
 
 getIdPConfig ::
   forall m.
@@ -372,14 +388,15 @@ getIdPConfig idpid =
         certsTail,
         -- extras
         teamId,
-        oldIssuers
+        oldIssuers,
+        replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId oldIssuers
+            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>
