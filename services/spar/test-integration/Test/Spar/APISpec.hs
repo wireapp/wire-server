@@ -886,7 +886,7 @@ specCRUDIdentityProvider = do
         idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
         idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
         liftIO $ do
-          idp1 `shouldBe` idp1' -- except for replaced_by
+          (idp1 & idpExtraInfo . wiReplacedBy .~ (idp1' ^. idpExtraInfo . wiReplacedBy)) `shouldBe` idp1'
           idp2 `shouldBe` idp2'
           idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
           idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
