@@ -200,7 +200,10 @@ autoprovisionSamlUser suid mbName managedBy = do
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
 autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 autoprovisionSamlUserWithId buid suid mbName managedBy = do
-  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  idp <- getIdPConfigByIssuer (suid ^. uidTenant)
+  unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
+    throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
+  let teamid = idp ^. idpExtraInfo . wiTeam
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy

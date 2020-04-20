@@ -853,7 +853,7 @@ specCRUDIdentityProvider = do
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
     describe "replaces an existing idp" $ do
-      let tryLogin :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+      let tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
           tryLogin privkey idp userSubject = do
             env <- ask
             spmeta <- getTestSPMetadata
@@ -866,8 +866,8 @@ specCRUDIdentityProvider = do
               bdy `shouldContain` "<title>wire:sso:success</title>"
             either (error . show) (pure . view userRefL) $
               SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
-          tryLoginFail :: SignPrivCreds -> IdP -> NameID -> TestSpar ()
-          tryLoginFail privkey idp userSubject = do
+          tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
+          tryLoginFail privkey idp userSubject bodyShouldContain = do
             env <- ask
             spmeta <- getTestSPMetadata
             (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
@@ -875,7 +875,7 @@ specCRUDIdentityProvider = do
             sparresp <- submitAuthnResponse idpresp
             liftIO $ do
               let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-              bdy `shouldContain` "<title>wire:error:forbidden</title>"
+              bdy `shouldContain` bodyShouldContain
       it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
@@ -938,7 +938,7 @@ specCRUDIdentityProvider = do
           olduid `shouldBe` newuid
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer2
-        tryLoginFail privkey1 idp1 userSubject
+        tryLoginFail privkey1 idp1 userSubject "cannont-provision-on-replaced-idp"
       it "creates non-existent users on new idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta

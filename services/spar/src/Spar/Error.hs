@@ -76,6 +76,7 @@ data SparCustomError
   | SparBindFromWrongOrNoTeam LT
   | SparBindUserRefTaken
   | SparBadUserName LT
+  | SparCannotCreateUsersOnReplacedIdP LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
   | SparReAuthRequired
@@ -136,6 +137,7 @@ renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Rig
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.Error status403 "bad-team" ("Forbidden: wrong user team " <> msg)
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
+renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
 -- Brig-specific errors
 renderSparError (SAML.CustomError SparNoBodyInBrigResponse) = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 renderSparError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
