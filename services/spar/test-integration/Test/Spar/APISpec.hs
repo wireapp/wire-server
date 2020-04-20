@@ -657,10 +657,14 @@ specCRUDIdentityProvider = do
     describe "issuer changed to one that is new" $ do
       let tryLogin :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
           tryLogin privkey idp = do
+            userSubject <- SAML.unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
+            tryLoginWith privkey idp userSubject
+          tryLoginWith :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+          tryLoginWith privkey idp userSubject = do
             env <- ask
             spmeta <- getTestSPMetadata
             (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-            idpresp <- runSimpleSP $ mkAuthnResponse privkey idp spmeta authnreq True
+            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
             sparresp <- submitAuthnResponse idpresp
             liftIO $ do
               statusCode sparresp `shouldBe` 200
@@ -720,8 +724,9 @@ specCRUDIdentityProvider = do
           _ <-
             let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
              in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          newuref <- tryLogin privkey2 idp2
-          newuref' <- tryLogin privkey2 idp2
+          let userSubject = SAML.unspecifiedNameID "bloob"
+          newuref <- tryLoginWith privkey2 idp2 userSubject
+          newuref' <- tryLoginWith privkey2 idp2 userSubject
           liftIO $ newuref `shouldBe` newuref'
     describe "new request uri" $ do
       it "uses it on next auth handshake" $ do
