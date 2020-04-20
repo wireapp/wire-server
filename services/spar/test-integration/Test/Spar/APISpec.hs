@@ -890,8 +890,9 @@ specCRUDIdentityProvider = do
           idp2 `shouldBe` idp2'
           idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
           idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
-          idp2 ^. idpId `shouldBe` idp1 ^. idpId
+          idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
           idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+          idp1 ^. idpExtraInfo . wiReplacedBy `shouldBe` (Just $ idp2 ^. idpId)
           -- erase everything that is supposed to be different between idp1, idp2, and make
           -- sure the result is equal.
           let erase :: IdP -> IdP
