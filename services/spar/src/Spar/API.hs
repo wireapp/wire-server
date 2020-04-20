@@ -51,7 +51,6 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
-import Data.UUID.V4 as UUID
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -252,17 +251,18 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar IdP
+idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
-idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
+idpCreateXML zusr raw idpmeta mReplaced = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
-  idp <- validateNewIdP idpmeta teamid
+  idp <- validateNewIdP idpmeta teamid mReplaced
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
+  forM_ mReplaced $ \replaced -> wrapMonadClient $ Data.markReplacedIdP replaced (idp ^. SAML.idpId)
   pure idp
 
 -- | Check that issuer is not used for any team in the system (it is a database keys for
@@ -279,11 +279,17 @@ validateNewIdP ::
   (HasCallStack, m ~ Spar) =>
   SAML.IdPMetadata ->
   TeamId ->
+  Maybe SAML.IdPId ->
   m IdP
-validateNewIdP _idpMetadata teamId = do
+validateNewIdP _idpMetadata teamId mReplaced = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+  oldIssuers :: [SAML.Issuer] <- case mReplaced of
+    Nothing -> pure []
+    Just replaced -> do
+      idp <- wrapMonadClient (Data.getIdPConfig replaced) >>= maybe (throwSpar SparNotFound) pure
+      pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId [] Nothing
+      _idpExtraInfo = WireIdP teamId oldIssuers Nothing
   enforceHttps requri
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
@@ -293,34 +299,23 @@ validateNewIdP _idpMetadata teamId = do
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Maybe Bool -> Spar IdP
-idpUpdate zusr (IdPMetadataValue raw xml) idpid isPure = idpUpdateXML zusr raw xml idpid isPure
+idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar IdP
+idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 -- | The @isPure@ param only has an effect if the issuer changes.  If 'True', a new IdP is
 -- created, and the old one is marked as replaced by the new one. If 'False', the old one is
 -- changed in-place.  In both cases, the old issuer is stored in the extra info of the new
 -- IdP.
-idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Maybe Bool -> Spar IdP
-idpUpdateXML zusr raw idpmeta idpid isPure = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
+idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar IdP
+idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
-  if fromMaybe False isPure
-    then do
-      pureIdP <- impureToPureIdP idp
-      recordIdP pureIdP
-      makeIdPAsReplacedBy (idp ^. SAML.idpId) idp
-      pure pureIdP
-    else do
-      recordIdP idp
-      pure idp
-  where
-    recordIdP :: IdP -> Spar ()
-    recordIdP idp = do
-      wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
-      -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
-      -- structured idp config.  since this will lead to a 5xx response, the client is epected to
-      -- try again, which would clean up cassandra state.)
-      SAML.storeIdPConfig idp
+  wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
+  -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
+  -- structured idp config.  since this will lead to a 5xx response, the client is epected to
+  -- try again, which would clean up cassandra state.)
+  SAML.storeIdPConfig idp
+  pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else; request
@@ -358,16 +353,6 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
         enc = cs . toLazyByteString . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
     errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
-
--- | Get this IdP a new UUID, so it can be stored independently of the one it replaces.
-impureToPureIdP :: IdP -> MonadIO m => m IdP
-impureToPureIdP idp = do
-  uuid <- liftIO UUID.nextRandom
-  pure $ idp & SAML.idpId .~ SAML.IdPId uuid
-
--- | Update @"replaced_by"@ field in a replaced IdP.
-makeIdPAsReplacedBy :: SAML.IdPId -> IdP -> Spar ()
-makeIdPAsReplacedBy new (view SAML.idpId -> old) = wrapMonadClient $ Data.markReplacedIdP old new
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
