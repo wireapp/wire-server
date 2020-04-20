@@ -289,6 +289,9 @@ validateNewIdP _idpMetadata teamId = do
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   pure SAML.IdPConfig {..}
 
+-- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
+-- 'idpCreate', which is not a good reason.  make this one function and pass around
+-- 'IdPMetadataInfo' directly where convenient.
 idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Maybe Bool -> Spar IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid isPure = idpUpdateXML zusr raw xml idpid isPure
 
