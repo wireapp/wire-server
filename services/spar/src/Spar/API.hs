@@ -309,10 +309,6 @@ validateNewIdP _idpMetadata teamId mReplaces = do
 idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
--- | The @isPure@ param only has an effect if the issuer changes.  If 'True', a new IdP is
--- created, and the old one is marked as replaced by the new one. If 'False', the old one is
--- changed in-place.  In both cases, the old issuer is stored in the extra info of the new
--- IdP.
 idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
