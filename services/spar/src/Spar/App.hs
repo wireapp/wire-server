@@ -151,8 +151,12 @@ wrapMonadClient action = do
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
--- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
--- 'Nothing'.  See also: 'Spar.App.createUser'.
+-- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, or
+-- user is not in a team, return 'Nothing'.  See also: 'Spar.App.createUser'.
+--
+-- It makes sense to require that users are required to be team members: the idp is created in
+-- the context of a team, and the only way for users to be created is as team members.  If a
+-- user is not a team member, it cannot have been created using SAML.
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
@@ -161,7 +165,6 @@ getUser uref = do
   muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
-    -- TODO(arianvp): Why does it check if it is a team user? Ask Tiago
     Just uid -> do
       itis <- Intra.isTeamUser uid
       pure $ if itis then Just uid else Nothing
