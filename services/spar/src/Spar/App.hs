@@ -306,12 +306,22 @@ catchVerdictErrors = (`catchError` hndlr)
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
 findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
-findUserWithOldIssuer _ = pure Nothing -- TODO
+findUserWithOldIssuer (SAML.UserRef issuer subject) = do
+  idp <- getIdPConfigByIssuer issuer
+  let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
+      tryFind found@(Just _) _ = pure found
+      tryFind Nothing oldIssuer = (uref,) <$$> getUser uref
+        where
+          uref = SAML.UserRef oldIssuer subject
+  foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
-moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar UserId
-moveUserToNewIssuer = undefined -- TODO
+moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
+moveUserToNewIssuer oldUserRef newUserRef uid = do
+  wrapMonadClient $ Data.insertSAMLUser newUserRef uid
+  Intra.setBrigUserUserRef uid newUserRef
+  wrapMonadClient $ Data.deleteSAMLUser oldUserRef
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
@@ -333,7 +343,7 @@ verdictHandlerResultCore bindCky = \case
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
         (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
-        (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid
+        (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO reauthentication
         (Nothing, Just uid, _) -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
