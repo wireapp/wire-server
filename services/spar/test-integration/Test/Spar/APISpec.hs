@@ -53,6 +53,31 @@ import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
 
+
+tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+tryLogin privkey idp userSubject = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    statusCode sparresp `shouldBe` 200
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` "<title>wire:sso:success</title>"
+  either (error . show) (pure . view userRefL) $
+    SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
+tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
+tryLoginFail privkey idp userSubject bodyShouldContain = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` bodyShouldContain
+
 spec :: SpecWith TestEnv
 spec = do
   specMisc
@@ -655,8 +680,8 @@ specCRUDIdentityProvider = do
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
           `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
-      let tryLogin :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
-          tryLogin privkey idp = do
+      let tryLogin' :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
+          tryLogin' privkey idp = do
             userSubject <- SAML.unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
             tryLoginWith privkey idp userSubject
           tryLoginWith :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
@@ -713,7 +738,7 @@ specCRUDIdentityProvider = do
           _ <-
             let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
              in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          newuref <- tryLogin privkey2 idp2
+          newuref <- tryLogin' privkey2 idp2
           getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         it "logs in users that have already been moved or created in the new idp" $ do
           env <- ask
@@ -859,29 +884,6 @@ specCRUDIdentityProvider = do
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
     describe "replaces an existing idp" $ do
-      let tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
-          tryLogin privkey idp userSubject = do
-            env <- ask
-            spmeta <- getTestSPMetadata
-            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-            sparresp <- submitAuthnResponse idpresp
-            liftIO $ do
-              statusCode sparresp `shouldBe` 200
-              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-              bdy `shouldContain` "<title>wire:sso:success</title>"
-            either (error . show) (pure . view userRefL) $
-              SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
-          tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
-          tryLoginFail privkey idp userSubject bodyShouldContain = do
-            env <- ask
-            spmeta <- getTestSPMetadata
-            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-            sparresp <- submitAuthnResponse idpresp
-            liftIO $ do
-              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-              bdy `shouldContain` bodyShouldContain
       it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
@@ -961,8 +963,47 @@ specCRUDIdentityProvider = do
           newuid `shouldSatisfy` isJust
           (newuref ^. SAML.uidTenant) `shouldBe` issuer2
 
+
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
+  it "deleting the replacing idp2 before it has users does not block logins on idp1" $ do
+    env <- ask
+    (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+    let issuer1 = idpmeta1 ^. edIssuer
+    issuer2 <- makeIssuer
+    idp2 <-
+      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+    let userSubject = SAML.unspecifiedNameID "bloob"
+    uref <- tryLogin privkey1 idp1 userSubject
+    uid <- getUserIdViaRef' uref
+    liftIO $ do
+      uid `shouldSatisfy` isJust
+      (uref ^. SAML.uidTenant) `shouldBe` issuer1
+    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+    uref' <- tryLogin privkey1 idp1 userSubject
+    uid' <- getUserIdViaRef' uref'
+    liftIO $ do
+      uid' `shouldSatisfy` isJust
+      (uref' ^. SAML.uidTenant) `shouldBe` issuer1
+
+  it "deleting the replacing idp2 before it has users does not block registrations on idp1" $ do
+    env <- ask
+    (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+    let issuer1 = idpmeta1 ^. edIssuer
+    issuer2 <- makeIssuer
+    idp2 <-
+      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+    let userSubject = SAML.unspecifiedNameID "bloob"
+    uref <- tryLogin privkey1 idp1 userSubject
+    uid <- getUserIdViaRef' uref
+    liftIO $ do
+      uid `shouldSatisfy` isJust
+      (uref ^. SAML.uidTenant) `shouldBe` issuer1
+
+
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
     pending
   it "create user1 via saml; delete user1; create via scim (in same team)" $ do
