@@ -159,11 +159,7 @@ type IdpGet = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 
 type IdpGetAll = Get '[JSON] IdPList
 
--- | The information whether the idp is replacing an old one is in query parameter, because
--- the body can be both XML and JSON.  The JSON body could carry the replaced idp id fine, but
--- the XML is defined in the SAML standard and cannot be changed.
---
--- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
+-- | See also: 'validateNewIdP', 'idpCreate', 'idpCreateXML'.
 type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId

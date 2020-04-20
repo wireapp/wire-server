@@ -268,6 +268,13 @@ idpCreateXML zusr raw idpmeta mReplaced = withDebugLog "idpCreate" (Just . show 
 -- | Check that issuer is not used for any team in the system (it is a database keys for
 -- finding IdPs), and request URI is https.
 --
+-- About the @mReplaced@ argument: the information whether the idp is replacing an old one is
+-- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
+-- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
+-- changed.
+--
+-- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
+--
 -- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
 -- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
 -- issuer is our only way of finding the team in which the user must be created.
