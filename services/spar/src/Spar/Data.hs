@@ -50,7 +50,8 @@ module Spar.Data
     storeIdPConfig,
     Replaced (..),
     Replacing (..),
-    markReplacedIdP,
+    setReplacedBy,
+    clearReplacedBy,
     getIdPConfig,
     getIdPConfigByIssuer,
     getIdPIdByIssuer,
@@ -365,16 +366,26 @@ newtype Replaced = Replaced SAML.IdPId
 
 newtype Replacing = Replacing SAML.IdPId
 
-markReplacedIdP ::
+setReplacedBy ::
   (HasCallStack, MonadClient m) =>
   Replaced ->
   Replacing ->
   m ()
-markReplacedIdP (Replaced old) (Replacing new) = do
+setReplacedBy (Replaced old) (Replacing new) = do
   retry x5 . write ins $ params Quorum (old, new)
   where
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
     ins = "INSERT INTO idp (idp, replaced_by) VALUES (?, ?)"
+
+clearReplacedBy ::
+  (HasCallStack, MonadClient m) =>
+  Replaced ->
+  m ()
+clearReplacedBy (Replaced old) = do
+  retry x5 . write ins $ params Quorum (Identity old)
+  where
+    ins :: PrepQuery W (Identity SAML.IdPId) ()
+    ins = "INSERT INTO idp (idp, replaced_by) VALUES (?, null)"
 
 getIdPConfig ::
   forall m.
