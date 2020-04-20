@@ -15,6 +15,7 @@ docker pull quay.io/wire/brig-schema
 docker pull quay.io/wire/galley-schema
 docker pull quay.io/wire/gundeck-schema
 docker pull quay.io/wire/spar-schema
+docker pull quay.io/wire/brig-index
 
 # elasticsearch does not do migrations, so the following line is not needed.
 #docker pull quay.io/wire/brig-index
