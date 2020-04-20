@@ -680,24 +680,23 @@ specCRUDIdentityProvider = do
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
           `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
-      let tryLogin' :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
-          tryLogin' privkey idp = do
-            userSubject <- SAML.unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
-            tryLoginWith privkey idp userSubject
-          tryLoginWith :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
-          tryLoginWith privkey idp userSubject = do
-            env <- ask
-            spmeta <- getTestSPMetadata
-            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-            sparresp <- submitAuthnResponse idpresp
-            liftIO $ do
-              statusCode sparresp `shouldBe` 200
-              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-              bdy `shouldContain` "<title>wire:sso:success</title>"
-            either (error . show) (pure . view userRefL) $
-              SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
-      context "impure (overwrite old idp)" $ do
+        let tryLogin' :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
+            tryLogin' privkey idp = do
+              userSubject <- SAML.unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
+              tryLoginWith privkey idp userSubject
+            tryLoginWith :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+            tryLoginWith privkey idp userSubject = do
+              env <- ask
+              spmeta <- getTestSPMetadata
+              (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+              idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+              sparresp <- submitAuthnResponse idpresp
+              liftIO $ do
+                statusCode sparresp `shouldBe` 200
+                let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+                bdy `shouldContain` "<title>wire:sso:success</title>"
+              either (error . show) (pure . view userRefL) $
+                SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
         it "updates old idp, updating both issuer and old_issuer" $ do
           env <- ask
           (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
