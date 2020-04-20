@@ -721,43 +721,6 @@ specCRUDIdentityProvider = do
           newuref <- tryLogin privkey2 idp2
           newuref' <- tryLogin privkey2 idp2
           liftIO $ newuref `shouldBe` newuref'
-      context "impure (create new idp)" $ do
-        it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
-          env <- ask
-          (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
-          issuer2 <- makeIssuer
-          resp <-
-            let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-                metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-             in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) metadata2
-          let idp2 :: IdP = responseJsonUnsafe resp
-          idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
-          idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
-          liftIO $ do
-            statusCode resp `shouldBe` 200
-            idp1 `shouldBe` idp1' -- except for replaced_by
-            idp2 `shouldBe` idp2'
-            idp1 ^. idpMetadata . edIssuer `shouldBe` (idpmeta1 ^. edIssuer)
-            idp2 ^. idpMetadata . edIssuer `shouldBe` issuer2
-            idp2 ^. idpId `shouldBe` idp1 ^. idpId
-            idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-            -- erase everything that is supposed to be different between idp1, idp2, and make
-            -- sure the result is equal.
-            let erase :: IdP -> IdP
-                erase =
-                  (idpId .~ (idp1 ^. idpId))
-                    . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
-                    . (idpExtraInfo . wiOldIssuers .~ (idp1 ^. idpExtraInfo . wiOldIssuers))
-                    . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
-            erase idp1 `shouldBe` erase idp2
-        it "users can still login on old idp as before" $ do
-          pendingWith "TODO"
-        it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
-          pendingWith "TODO"
-        it "creates non-existent users on new idp" $ do
-          pendingWith "TODO"
-        it "logs in users on new idp that have already been moved or created in the new idp" $ do
-          pendingWith "TODO"
     describe "new request uri" $ do
       it "uses it on next auth handshake" $ do
         env <- ask
@@ -887,6 +850,46 @@ specCRUDIdentityProvider = do
             idp `shouldBe` idp'
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
+    describe "replaces an existing idp" $ do
+      it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
+        env <- ask
+        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
+        issuer2 <- makeIssuer
+        resp <-
+          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+              metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) metadata2
+        let idp2 :: IdP = responseJsonUnsafe resp
+        idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+        idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+        liftIO $ do
+          statusCode resp `shouldBe` 201
+          idp1 `shouldBe` idp1' -- except for replaced_by
+          idp2 `shouldBe` idp2'
+          idp1 ^. idpMetadata `shouldBe` idpmeta1
+          idp2 ^. idpMetadata `shouldBe` idpmeta2
+          idp2 ^. idpId `shouldBe` idp1 ^. idpId
+          idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+          -- erase everything that is supposed to be different between idp1, idp2, and make
+          -- sure the result is equal.
+          let erase :: IdP -> IdP
+              erase =
+                (idpId .~ (idp1 ^. idpId))
+                  . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
+                  . (idpExtraInfo . wiOldIssuers .~ (idp1 ^. idpExtraInfo . wiOldIssuers))
+                  . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
+          erase idp1 `shouldBe` erase idp2
+      it "users can still login on old idp as before" $ do
+        pendingWith "TODO"
+      it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
+        pendingWith "TODO"
+      it "creates non-existent users on new idp" $ do
+        pendingWith "TODO"
+      it "logs in users on new idp that have already been moved or created in the new idp" $ do
+        pendingWith "TODO"
+
+callIdpCreateReplace :: a
+callIdpCreateReplace = undefined
 
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
