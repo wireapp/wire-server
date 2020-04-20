@@ -74,7 +74,13 @@ type IdP = IdPConfig WireIdP
 data WireIdP
   = WireIdP
       { _wiTeam :: TeamId,
+        -- | list of issuer names that this idp has replaced, most recent first.  this is used
+        -- for finding users that are still stored under the old issuer, see
+        -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
         _wiOldIssuers :: [SAML.Issuer],
+        -- | the issuer that has replaced this one.  this is set iff a new issuer is created
+        -- with the @"repalces"@ query parameter, and it is used to decide whether users not
+        -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
         _wiReplacedBy :: Maybe SAML.IdPId
       }
   deriving (Eq, Show, Generic)
