@@ -979,13 +979,13 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uid <- getUserIdViaRef' uref
     liftIO $ do
       uid `shouldSatisfy` isJust
-      (uref ^. SAML.uidTenant) `shouldBe` issuer1
+      uref `shouldBe` (SAML.UserRef issuer1 userSubject)
     call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
     uref' <- tryLogin privkey1 idp1 userSubject
     uid' <- getUserIdViaRef' uref'
     liftIO $ do
-      uid' `shouldSatisfy` isJust
-      (uref' ^. SAML.uidTenant) `shouldBe` issuer1
+      uid' `shouldBe` uid
+      uref' `shouldBe` (SAML.UserRef issuer1 userSubject)
 
   it "deleting the replacing idp2 before it has users does not block registrations on idp1" $ do
     env <- ask
