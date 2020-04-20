@@ -73,6 +73,8 @@ module Util.Core
     registerTestIdP,
     registerTestIdPWithMeta,
     registerTestIdPFrom,
+    tryLogin,
+    tryLoginFail,
     negotiateAuthnRequest,
     negotiateAuthnRequest',
     getCookie,
@@ -159,6 +161,7 @@ import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
+import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.App (toLevel)
@@ -175,6 +178,7 @@ import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
+import Text.XML.DSig (SignPrivCreds)
 import qualified Text.XML.DSig as SAML
 import URI.ByteString
 import URI.ByteString.QQ (uri)
@@ -721,6 +725,31 @@ isSetBindCookie (SimpleSetCookie cky) = do
     Left $ "cookie must be secure: " <> show cky
   unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
     Left $ "cookie must be same-site: " <> show cky
+
+tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+tryLogin privkey idp userSubject = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    statusCode sparresp `shouldBe` 200
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` "<title>wire:sso:success</title>"
+  either (error . show) (pure . view userRefL) $
+    SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
+
+tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
+tryLoginFail privkey idp userSubject bodyShouldContain = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` bodyShouldContain
 
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest ::
