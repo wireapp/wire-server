@@ -672,63 +672,62 @@ specCRUDIdentityProvider = do
               bdy `shouldContain` "<title>wire:sso:success</title>"
             either (error . show) (pure . view userRefL) $
               SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
-      context "impure (overwrite old idp)" $ do
-        it "updates old idp, updating both issuer and old_issuer" $ do
-          env <- ask
-          (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
-          issuer2 <- makeIssuer
-          resp <-
-            let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-                metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-             in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          let idp :: IdP = responseJsonUnsafe resp
-          liftIO $ do
-            statusCode resp `shouldBe` 200
-            idp ^. idpMetadata . edIssuer `shouldBe` issuer2
-            idp ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-        it "migrates old users to new idp on their next login" $ do
-          env <- ask
-          (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
-          issuer2 <- makeIssuer
+      it "updates old idp, updating both issuer and old_issuer" $ do
+        env <- ask
+        (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
+        issuer2 <- makeIssuer
+        resp <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-              privkey2 = privkey1
-              idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
-          let userSubject = SAML.unspecifiedNameID "bloob"
-          olduref <- tryLoginWith privkey1 idp1 userSubject
-          getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
-          _ <-
-            let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-             in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
-          newuref <- tryLoginWith privkey2 idp2 userSubject
-          getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
-          getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
-        it "creates non-existent users" $ do
-          env <- ask
-          (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
-          issuer2 <- makeIssuer
-          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-              privkey2 = privkey1
-              idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
-          _ <-
-            let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-             in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          newuref <- tryLogin privkey2 idp2
-          getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
-        it "logs in users that have already been moved or created in the new idp" $ do
-          env <- ask
-          (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
-          issuer2 <- makeIssuer
-          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-              privkey2 = privkey1
-              idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
-          _ <-
-            let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-             in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
-          let userSubject = SAML.unspecifiedNameID "bloob"
-          newuref <- tryLoginWith privkey2 idp2 userSubject
-          newuref' <- tryLoginWith privkey2 idp2 userSubject
-          liftIO $ newuref `shouldBe` newuref'
+              metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+        let idp :: IdP = responseJsonUnsafe resp
+        liftIO $ do
+          statusCode resp `shouldBe` 200
+          idp ^. idpMetadata . edIssuer `shouldBe` issuer2
+          idp ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+      it "migrates old users to new idp on their next login" $ do
+        env <- ask
+        (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        issuer2 <- makeIssuer
+        let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+            privkey2 = privkey1
+            idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
+        let userSubject = SAML.unspecifiedNameID "bloob"
+        olduref <- tryLoginWith privkey1 idp1 userSubject
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+        _ <-
+          let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+        newuref <- tryLoginWith privkey2 idp2 userSubject
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
+        getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+      it "creates non-existent users" $ do
+        env <- ask
+        (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        issuer2 <- makeIssuer
+        let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+            privkey2 = privkey1
+            idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
+        _ <-
+          let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+        newuref <- tryLogin privkey2 idp2
+        getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+      it "logs in users that have already been moved or created in the new idp" $ do
+        env <- ask
+        (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        issuer2 <- makeIssuer
+        let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+            privkey2 = privkey1
+            idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
+        _ <-
+          let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+        let userSubject = SAML.unspecifiedNameID "bloob"
+        newuref <- tryLoginWith privkey2 idp2 userSubject
+        newuref' <- tryLoginWith privkey2 idp2 userSubject
+        liftIO $ newuref `shouldBe` newuref'
     describe "new request uri" $ do
       it "uses it on next auth handshake" $ do
         env <- ask
