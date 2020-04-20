@@ -303,7 +303,9 @@ idpUpdateXML zusr idpid raw idpmeta = withDebugLog "idpUpdate" (Just . show . (^
   -- try again, which would clean up cassandra state.)
   pure idp
 
--- | Check that issuer exists and belongs to the right team and request URI is https.
+-- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
+-- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else; request
+-- uri is https.  Keep track of old issuer in extra info if issuer has changed.
 validateIdPUpdate ::
   forall m.
   (HasCallStack, m ~ Spar) =>

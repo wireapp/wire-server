@@ -302,9 +302,14 @@ catchVerdictErrors = (`catchError` hndlr)
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
+-- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
+-- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
+-- traverse the old IdPs in search for the old entry.  Return that old entry.
 findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
 findUserWithOldIssuer _ = pure Nothing
 
+-- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
+-- the old IdP is not needed any more next time.
 moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar UserId
 moveUserToNewIssuer = undefined
 
