@@ -649,8 +649,10 @@ specCRUDIdentityProvider = do
       it "rejects" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
-        idpmeta2 <- makeIssuer >>= \iss -> pure $ idpmeta1 & edIssuer .~ iss
-        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
+        (idpmeta2, _) <- makeTestIdPMetadata
+        _ <- call $ callIdpCreate (env ^. teSpar) (Just owner1) idpmeta2
+        let idpmeta3 = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
+        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
           `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
       let tryLogin :: SignPrivCreds -> IdP -> TestSpar SAML.UserRef
