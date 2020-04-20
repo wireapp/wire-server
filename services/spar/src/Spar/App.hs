@@ -313,8 +313,6 @@ findUserWithOldIssuer _ = pure Nothing -- TODO
 moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar UserId
 moveUserToNewIssuer = undefined -- TODO
 
--- TODO: tests!
-
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
   SAML.AccessDenied reasons -> do

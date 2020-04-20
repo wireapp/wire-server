@@ -95,8 +95,9 @@ module Util.Core
     callIdpCreate',
     callIdpCreateRaw,
     callIdpCreateRaw',
+    callIdpCreateReplace,
+    callIdpCreateReplace',
     callIdpUpdate',
-    callIdpUpdateWithPureQuery,
     callIdpDelete,
     callIdpDelete',
     initCassandra,
@@ -912,18 +913,30 @@ callIdpCreateRaw' sparreq_ muid ctyp metadata = do
       . body (RequestBodyLBS metadata)
       . header "Content-Type" ctyp
 
-callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
-callIdpUpdate' sparreq_ muid idpid metadata = callIdpUpdateWithPureQuery sparreq_ muid idpid metadata False
+callIdpCreateReplace :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
+callIdpCreateReplace sparreq_ muid metadata idpid = do
+  resp <- callIdpCreateReplace' (sparreq_ . expect2xx) muid metadata idpid
+  either (liftIO . throwIO . ErrorCall . show) pure $
+    responseJsonEither @IdP resp
 
-callIdpUpdateWithPureQuery :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> Bool -> m ResponseLBS
-callIdpUpdateWithPureQuery sparreq_ muid idpid (IdPMetadataValue metadata _) isPure = do
+callIdpCreateReplace' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
+callIdpCreateReplace' sparreq_ muid metadata idpid = do
+  post $
+    sparreq_
+      . maybe id zUser muid
+      . path "/identity-providers/"
+      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . queryItem "replaces" (cs $ idPIdToST idpid)
+      . header "Content-Type" "application/xml"
+
+callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
+callIdpUpdate' sparreq_ muid idpid (IdPMetadataValue metadata _) = do
   put $
     sparreq_
       . maybe id zUser muid
       . paths ["identity-providers", toByteString' $ idPIdToST idpid]
       . body (RequestBodyLBS $ cs metadata)
       . header "Content-Type" "application/xml"
-      . (if isPure then queryItem "pure" "true" else id)
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid

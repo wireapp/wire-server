@@ -851,23 +851,43 @@ specCRUDIdentityProvider = do
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
     describe "replaces an existing idp" $ do
+      let tryLogin :: SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+          tryLogin privkey idp userSubject = do
+            env <- ask
+            spmeta <- getTestSPMetadata
+            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+            sparresp <- submitAuthnResponse idpresp
+            liftIO $ do
+              statusCode sparresp `shouldBe` 200
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` "<title>wire:sso:success</title>"
+            either (error . show) (pure . view userRefL) $
+              SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
+          tryLoginFail :: SignPrivCreds -> IdP -> NameID -> TestSpar ()
+          tryLoginFail privkey idp userSubject = do
+            env <- ask
+            spmeta <- getTestSPMetadata
+            (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+            idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+            sparresp <- submitAuthnResponse idpresp
+            liftIO $ do
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` "<title>wire:error:forbidden</title>"
       it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
         issuer2 <- makeIssuer
-        resp <-
+        idp2 <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-              metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) metadata2
-        let idp2 :: IdP = responseJsonUnsafe resp
+           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
         idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
         idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
         liftIO $ do
-          statusCode resp `shouldBe` 201
           idp1 `shouldBe` idp1' -- except for replaced_by
           idp2 `shouldBe` idp2'
-          idp1 ^. idpMetadata `shouldBe` idpmeta1
-          idp2 ^. idpMetadata `shouldBe` idpmeta2
+          idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
+          idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
           idp2 ^. idpId `shouldBe` idp1 ^. idpId
           idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
           -- erase everything that is supposed to be different between idp1, idp2, and make
@@ -880,16 +900,57 @@ specCRUDIdentityProvider = do
                   . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
           erase idp1 `shouldBe` erase idp2
       it "users can still login on old idp as before" $ do
-        pendingWith "TODO"
+        env <- ask
+        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        let userSubject = SAML.unspecifiedNameID "bloob"
+            issuer1 = idpmeta1 ^. edIssuer
+        olduref <- tryLogin privkey1 idp1 userSubject
+        olduid <- getUserIdViaRef' olduref
+        issuer2 <- makeIssuer
+        _ <-
+          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+        newuref <- tryLogin privkey1 idp1 userSubject
+        newuid <- getUserIdViaRef' newuref
+        liftIO $ do
+          olduid `shouldSatisfy` isJust
+          olduid `shouldBe` newuid
+          (olduref ^. SAML.uidTenant) `shouldBe` issuer1
+          (newuref ^. SAML.uidTenant) `shouldBe` issuer1
       it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
-        pendingWith "TODO"
+        env <- ask
+        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        let userSubject = SAML.unspecifiedNameID "bloob"
+            issuer1 = idpmeta1 ^. edIssuer
+            privkey2 = privkey1
+        olduref <- tryLogin privkey1 idp1 userSubject
+        olduid <- getUserIdViaRef' olduref
+        issuer2 <- makeIssuer
+        idp2 <-
+          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+        newuref <- tryLogin privkey2 idp2 userSubject
+        newuid <- getUserIdViaRef' newuref
+        liftIO $ do
+          olduid `shouldSatisfy` isJust
+          olduid `shouldBe` newuid
+          (olduref ^. SAML.uidTenant) `shouldBe` issuer1
+          (newuref ^. SAML.uidTenant) `shouldBe` issuer2
+        tryLoginFail privkey1 idp1 userSubject
       it "creates non-existent users on new idp" $ do
-        pendingWith "TODO"
-      it "logs in users on new idp that have already been moved or created in the new idp" $ do
-        pendingWith "TODO"
-
-callIdpCreateReplace :: a
-callIdpCreateReplace = undefined
+        env <- ask
+        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
+        let userSubject = SAML.unspecifiedNameID "bloob"
+            privkey2 = privkey1
+        issuer2 <- makeIssuer
+        idp2 <-
+          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+        newuref <- tryLogin privkey2 idp2 userSubject
+        newuid <- getUserIdViaRef' newuref
+        liftIO $ do
+          newuid `shouldSatisfy` isJust
+          (newuref ^. SAML.uidTenant) `shouldBe` issuer2
 
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
