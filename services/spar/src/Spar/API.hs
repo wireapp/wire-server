@@ -262,7 +262,8 @@ idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show 
   idp <- validateNewIdP idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
-  forM_ mReplace $ \replaces -> wrapMonadClient $ Data.markReplacedIdP replaces (idp ^. SAML.idpId)
+  forM_ mReplaces $ \replaces -> wrapMonadClient $ do
+    Data.markReplacedIdP (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
 
 -- | Check that issuer is not used for any team in the system (it is a database keys for

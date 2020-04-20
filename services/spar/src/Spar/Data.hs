@@ -48,6 +48,8 @@ module Spar.Data
 
     -- * IDPs
     storeIdPConfig,
+    Replaced (..),
+    Replacing (..),
     markReplacedIdP,
     getIdPConfig,
     getIdPConfigByIssuer,
@@ -359,12 +361,16 @@ storeIdPConfig idp = retry x5 . batch $ do
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
+newtype Replaced = Replaced SAML.IdPId
+
+newtype Replacing = Replacing SAML.IdPId
+
 markReplacedIdP ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPId ->
-  SAML.IdPId ->
+  Replaced ->
+  Replacing ->
   m ()
-markReplacedIdP old new = do
+markReplacedIdP (Replaced old) (Replacing new) = do
   retry x5 . write ins $ params Quorum (old, new)
   where
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
