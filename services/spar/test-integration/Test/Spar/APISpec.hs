@@ -1001,7 +1001,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uid <- getUserIdViaRef' uref
     liftIO $ do
       uid `shouldSatisfy` isJust
-      (uref ^. SAML.uidTenant) `shouldBe` issuer1
+      uref `shouldBe` (SAML.UserRef issuer1 userSubject)
 
 
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
