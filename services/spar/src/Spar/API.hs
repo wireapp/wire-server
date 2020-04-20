@@ -51,6 +51,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
+import Data.UUID.V4 as UUID
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -360,11 +361,13 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
 
 -- | Get this IdP a new UUID, so it can be stored independently of the one it replaces.
 impureToPureIdP :: IdP -> MonadIO m => m IdP
-impureToPureIdP = undefined -- TODO
+impureToPureIdP idp = do
+  uuid <- liftIO UUID.nextRandom
+  pure $ idp & SAML.idpId .~ SAML.IdPId uuid
 
 -- | Update @"replaced_by"@ field in a replaced IdP.
 makeIdPAsReplacedBy :: SAML.IdPId -> IdP -> Spar ()
-makeIdPAsReplacedBy = undefined -- TODO
+makeIdPAsReplacedBy new (view SAML.idpId -> old) = wrapMonadClient $ Data.markReplacedIdP old new
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
