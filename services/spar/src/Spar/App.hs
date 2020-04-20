@@ -324,7 +324,10 @@ verdictHandlerResultCore bindCky = \case
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
-      viaSparCassOldIssuer <- findUserWithOldIssuer userref
+      viaSparCassOldIssuer <-
+        if isJust viaSparCass
+          then pure Nothing
+          else findUserWithOldIssuer userref
       case (viaBindCookie, viaSparCass, viaSparCassOldIssuer) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
