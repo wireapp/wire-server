@@ -237,6 +237,8 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
   -- fail if idp is not empty
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
   unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
+  updateOldIssuers idp
+  updateReplacingIdP idp
   wrapMonadClient $ do
     -- Delete tokens associated with given IdP (we rely on the fact that
     -- each IdP has exactly one team so we can look up all tokens
@@ -248,6 +250,21 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     Data.deleteIdPConfig idpid issuer team
     Data.deleteIdPRawMetadata idpid
   return NoContent
+  where
+    updateOldIssuers :: IdP -> Spar ()
+    updateOldIssuers _ = pure ()
+    -- we *could* update @idp ^. SAML.idpExtraInfo . wiReplacedBy@ to not keep the idp about
+    -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
+    -- there is little to be gained here: we only use old issuers to find users that have not
+    -- been migrated yet, and if an old user points to a deleted idp, it just means that we
+    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
+    -- leave old issuers dangling for now.
+
+    updateReplacingIdP :: IdP -> Spar ()
+    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
+      wrapMonadClient $ do
+        iid <- Data.getIdPIdByIssuer oldIssuer
+        mapM_ (Data.clearReplacedBy . Data.Replaced) iid
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
