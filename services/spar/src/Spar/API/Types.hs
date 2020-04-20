@@ -166,6 +166,7 @@ type IdpCreate =
 type IdpUpdate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "pure" Bool
     :> Put '[JSON] IdP
 
 type IdpDelete = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent

@@ -289,19 +289,34 @@ validateNewIdP _idpMetadata teamId = do
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   pure SAML.IdPConfig {..}
 
-idpUpdate :: Maybe UserId -> SAML.IdPId -> IdPMetadataInfo -> Spar IdP
-idpUpdate zusr idpid (IdPMetadataValue raw xml) = idpUpdateXML zusr idpid raw xml
+idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Maybe Bool -> Spar IdP
+idpUpdate zusr (IdPMetadataValue raw xml) idpid isPure = idpUpdateXML zusr raw xml idpid isPure
 
-idpUpdateXML :: Maybe UserId -> SAML.IdPId -> Text -> SAML.IdPMetadata -> Spar IdP
-idpUpdateXML zusr idpid raw idpmeta = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
+-- | The @isPure@ param only has an effect if the issuer changes.  If 'True', a new IdP is
+-- created, and the old one is marked as replaced by the new one. If 'False', the old one is
+-- changed in-place.  In both cases, the old issuer is stored in the extra info of the new
+-- IdP.
+idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Maybe Bool -> Spar IdP
+idpUpdateXML zusr raw idpmeta idpid isPure = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
-  wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
-  SAML.storeIdPConfig idp
-  -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
-  -- structured idp config.  since this will lead to a 5xx response, the client is epected to
-  -- try again, which would clean up cassandra state.)
-  pure idp
+  if fromMaybe False isPure
+    then do
+      pureIdP <- impureToPureIdP idp
+      recordIdP pureIdP
+      makeIdPAsReplacedBy (idp ^. SAML.idpId) idp
+      pure pureIdP
+    else do
+      recordIdP idp
+      pure idp
+  where
+    recordIdP :: IdP -> Spar ()
+    recordIdP idp = do
+      wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
+      -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
+      -- structured idp config.  since this will lead to a 5xx response, the client is epected to
+      -- try again, which would clean up cassandra state.)
+      SAML.storeIdPConfig idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else; request
@@ -339,6 +354,14 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
         enc = cs . toLazyByteString . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
     errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
+
+-- | Get this IdP a new UUID, so it can be stored independently of the one it replaces.
+impureToPureIdP :: IdP -> MonadIO m => m IdP
+impureToPureIdP = undefined -- TODO
+
+-- | Update @"replaced_by"@ field in a replaced IdP.
+makeIdPAsReplacedBy :: SAML.IdPId -> IdP -> Spar ()
+makeIdPAsReplacedBy = undefined -- TODO
 
 withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
 withDebugLog msg showval action = do
