@@ -20,8 +20,6 @@
 module Galley.Intra.Push
   ( -- * Push
     Push,
-    newPush,
-    newPush1,
     newPushLimited,
     newPush1Limited,
     push,
@@ -133,24 +131,6 @@ newPushLimited :: Bool -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPushLimited _ _ _ [] = Nothing
 newPushLimited b u e (r : rr) = Just $ newPush1Limited b u e (list1 r rr)
 
-newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
-newPush1 from e rr =
-  Push
-    { _pushConn = Nothing,
-      _pushTransient = False,
-      _pushRoute = Gundeck.RouteAny,
-      _pushNativePriority = Nothing,
-      _pushAsync = False,
-      pushRecipientListTooLargeToFanout = False,
-      pushJson = pushEventJson e,
-      pushOrigin = from,
-      pushRecipients = rr
-    }
-
-newPush :: UserId -> PushEvent -> [Recipient] -> Maybe Push
-newPush _ _ [] = Nothing
-newPush u e (r : rr) = Just $ newPush1 u e (list1 r rr)
-
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
 push1 :: Push -> Galley ()
@@ -201,8 +181,8 @@ pushInternal ps = do
 
     -- Ensure that under no circumstances we exceed the threshold
     removeIfLargeFanout limit = filter
-        (\p -> not $ pushRecipientListTooLargeToFanout p
-        && length (pushRecipients p) <= (fromIntegral $ fromRange limit))
+        (\p -> (not $ pushRecipientListTooLargeToFanout p)
+        && (length (pushRecipients p) <= (fromIntegral $ fromRange limit)))
 
 -----------------------------------------------------------------------------
 -- Helpers

@@ -1075,6 +1075,14 @@ sitemap = do
     zauthUserId
   -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
+  -- This may be useful for tests/QA! It creates very large amount of users in a team but
+  -- these users may not exist in brig
+  post "/i/test/teams/:tid/members" (continue Teams.addTeamMemberUncheckedForTestsOnlyH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. def (unsafeRange 1) (query "size")
+      .&. accept "application" "json"
+
   post "/i/clients/:client" (continue Clients.addClientH) $
     zauthUserId
       .&. capture "client"

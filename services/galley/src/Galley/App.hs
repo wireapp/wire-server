@@ -48,7 +48,8 @@ module Galley.App
     fromProtoBody,
     initExtEnv,
 
-    truncationLimit
+    truncationLimit,
+    currentTruncationLimit
   )
 where
 
@@ -137,7 +138,11 @@ truncationLimit :: Galley (Range 1 HardTruncationLimit Int32)
 truncationLimit = view options >>= return . currentTruncationLimit
 
 currentTruncationLimit :: Opts -> Range 1 HardTruncationLimit Int32
-currentTruncationLimit o = fromMaybe defTruncationLimit (o ^. optSettings ^. setTruncationLimit)
+currentTruncationLimit o = do
+  let optTruncLimit = fromIntegral . fromRange $ fromMaybe defTruncationLimit (o ^. optSettings ^. setTruncationLimit)
+  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+  unsafeRange (min maxTeamSize optTruncLimit)
+
 
 -- Define some invariants:
 -- Journal MUST be disabled if maxTeamSize > HardTruncationLimit
@@ -145,12 +150,14 @@ currentTruncationLimit o = fromMaybe defTruncationLimit (o ^. optSettings ^. set
 validateOptions :: Opts -> IO ()
 validateOptions o = do
   let settings = view optSettings o
-  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > truncLimit)) $
+  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
     error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled"
-  when (settings ^. setMaxConvSize > truncLimit) $
+  when (settings ^. setMaxConvSize > optTruncLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
+  when (settings ^. setMaxTeamSize < optTruncLimit) $
+    error "setMaxTeamSize cannot be < setTruncationLimit"
  where
-  truncLimit = fromIntegral $ fromRange (currentTruncationLimit o)
+  optTruncLimit = fromIntegral $ fromRange (currentTruncationLimit o)
 
 instance MonadUnliftIO Galley where
   askUnliftIO =

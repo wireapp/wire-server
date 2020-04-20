@@ -239,8 +239,8 @@ teamMembers t (fromRange -> limit) = do
   where
     toResultSetType :: Page a -> ResultSetType
     toResultSetType p = if hasMore p
-                            then ResultSetTruncated
-                            else ResultSetComplete
+                          then ResultSetTruncated
+                          else ResultSetComplete
 
 -- This function has a bit of a difficult type to work with because we don't have a pure function of type
 -- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we

@@ -226,11 +226,13 @@ addTeamMember usr tid mem = do
     !!! const 200 === statusCode
 
 addTeamMemberInternal :: HasCallStack => TeamId -> TeamMember -> TestM ()
-addTeamMemberInternal tid mem = do
+addTeamMemberInternal tid mem = addTeamMemberInternal' tid mem !!! const 200 === statusCode
+
+addTeamMemberInternal' :: HasCallStack => TeamId -> TeamMember -> TestM ResponseLBS
+addTeamMemberInternal' tid mem = do
   g <- view tsGalley
   let payload = json (newNewTeamMember mem)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
-    !!! const 200 === statusCode
 
 stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
 stdInvitationRequest e inviterName loc role =

@@ -50,6 +50,8 @@ module Galley.API.Teams
     uncheckedDeleteTeamMember,
     withBindingTeam,
     userIsTeamOwnerH,
+
+    addTeamMemberUncheckedForTestsOnlyH,
   )
 where
 
@@ -64,6 +66,7 @@ import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import Data.Range as Range
 import Data.Set (fromList)
+import qualified Data.Json.Util as Util
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Galley.API.Error
@@ -428,7 +431,7 @@ addTeamMember zusr zcon tid nmem = do
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   memList <- Data.teamMembersMaybeTruncated tid
-  addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
+  void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -440,8 +443,7 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersMaybeTruncated tid
-  (TeamSize sizeBeforeAdd) <- BrigTeam.getSize tid
-  addTeamMemberInternal tid Nothing Nothing nmem mems
+  (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems ^. teamMembers)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -630,7 +632,7 @@ deleteTeamConversation zusr zcon tid cid = do
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
   let recps = fmap recipient cmems
-  let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+  let convPush = newPushLimited False zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
   void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
   -- TODO: we don't delete bots here, but we should do that, since every
@@ -694,26 +696,32 @@ ensureNotElevated targetPermissions member =
     )
     $ throwM invalidPermissions
 
-addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley ()
+ensureNotTooLarge :: TeamId -> Galley TeamSize
+ensureNotTooLarge tid = do
+  o <- view options
+  (TeamSize size) <- BrigTeam.getSize tid
+  unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+    throwM tooManyTeamMembers
+  return $ TeamSize size
+
+addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn newMem memList = do
   let new = newMem ^. ntmNewTeamMember
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
-  o <- view options
-  (TeamSize teamSize) <- BrigTeam.getSize tid
-  unless (teamSize < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
-    throwM tooManyTeamMembers
+  sizeBeforeAdd <- ensureNotTooLarge tid
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  push1 $ newPush1Limited (memList ^. teamMemberListHasMore) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  return sizeBeforeAdd
   where
     recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
-    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : memList ^. teamMembers))
+    recipients Nothing n  = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (memList ^. teamMembers))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do
@@ -723,7 +731,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
   let r = membersToRecipients Nothing others
-  push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  push1 $ newPush1Limited False zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
   pure (team ^. teamId)
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
@@ -851,3 +859,17 @@ userIsTeamOwner :: TeamId -> UserId -> Galley Bool
 userIsTeamOwner tid uid = do
   let asking = uid
   isTeamOwner . fst <$> getTeamMember asking tid uid
+
+
+-- | Use this for tests only when needed to create, from scratch, a VERY large team
+--   These are not REAL users (exist only in Galley) so take that into account in your tests
+addTeamMemberUncheckedForTestsOnlyH :: UserId ::: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
+addTeamMemberUncheckedForTestsOnlyH (zusr ::: tid ::: size ::: _) = do
+  now <- Util.toUTCTimeMillis <$> liftIO getCurrentTime
+  uids <- replicateM (fromIntegral $ fromRange size) (create (rolePermissions RoleMember) (zusr, now))
+  pure . json $ UserIdList uids
+ where
+  create perms inviter = do
+    uid <- randomId
+    Data.addTeamMember tid $ newTeamMember uid perms (Just inviter)
+    return uid

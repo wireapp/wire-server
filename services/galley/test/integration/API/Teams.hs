@@ -27,6 +27,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Control.Lens hiding ((#), (.=))
+import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -102,9 +103,10 @@ tests s =
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
-      test s "update team - no events, too large team" testUpdateTeamNoEvents,
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
+      -- Queue is emptied here to ensure that lingering events do not affect other tests
+      test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
       test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
@@ -389,13 +391,6 @@ testAddTeamMemberInternal = do
     liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1 ^. userId)) [wsOwner, wsMem1]
     assertQueue "team member join" $ tUpdate 2 [owner]
   void $ Util.getTeamMemberInternal tid (mem1 ^. userId)
-  where
-    checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
-      let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= MemberJoin
-      e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdMemberJoin usr)
 
 testRemoveNonBindingTeamMember :: TestM ()
 testRemoveNonBindingTeamMember = do
@@ -1009,86 +1004,82 @@ testUpdateTeam = do
     checkTeamUpdateEvent tid u wsOwner
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
-  where
-    checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
-      let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= TeamUpdate
-      e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdTeamUpdate upd)
 
-testUpdateTeamNoEvents :: TestM ()
-testUpdateTeamNoEvents = do
-  g <- view tsGalley
+testTeamAddRemoveMemberAboveThresholdNoEvents :: TestM ()
+testTeamAddRemoveMemberAboveThresholdNoEvents = do
   c <- view tsCannon
-  owner <- Util.randomUser
-  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
-  member <- newTeamMember' p <$> Util.randomUser
-  Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
-  let bad = object ["name" .= T.replicate 100 "too large"]
-  put
-    ( g
-        . paths ["teams", toByteString' tid]
-        . zUser owner
-        . zConn "conn"
-        . json bad
-    )
-    !!! const 400
-    === statusCode
-  let u =
-        newTeamUpdateData
-          & nameUpdate .~ (Just $ unsafeRange "bar")
-          & iconUpdate .~ (Just $ unsafeRange "xxx")
-          & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
-  opts <- view tsGConf
-  WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
-    -- The team has 2 users, so if we truncate at 1, we should not receive events!
-    -- We also disable journaling because of the invariant that
-    -- setMaxTeamSize cannot be > setTruncationLimit if journal is enabled
-    let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
-                       & Opt.optSettings . Opt.setMaxConvSize .~ 1
-                       & Opt.optJournal .~ Nothing
-    withSettingsOverrides newOpts $ do
+  maxTeamSize <- fromIntegral <$> view (tsGConf . optSettings . setMaxTeamSize)
+  (owner, tid) <- Util.createBindingTeam
+  _member1 <- addTeamMemberAndExpectEvent True tid owner
+  _member2 <- addTeamMemberAndExpectEvent True tid owner
+
+  -- Now last fill the team, -1
+  let perms = Util.symmPermissions [CreateConversation]
+  replicateM_ (maxTeamSize - 4) $ do
+    rand <- newTeamMember' perms <$> Util.randomUser
+    -- These do not create proper users in brig (missing teamID)
+    -- and thus do not count over the team limit, but they will
+    -- count towards the truncation limit
+    Util.addTeamMemberInternal tid rand
+
+  modifyTeamDataAndExpectEvent True tid owner
+  _memLastWithFanout <- addTeamMemberAndExpectEvent True tid owner
+
+  -- We should really wait until we see that the team is of full size
+  -- Due to the async nature of pushes, waiting even a second might not
+  -- be enough...
+  WS.bracketR c owner $ \wsOwner -> WS.assertNoEvent (1 # Second) [wsOwner]
+
+  -- No events are now expected
+
+  -- Team member added also not
+  _memFirstWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
+  -- Team updates are not propagated
+  modifyTeamDataAndExpectEvent False tid owner
+
+  -- TODO:
+  -- Test conversation removal
+  -- Test user update
+  -- Test user removal
+  -- Test team deletion (should contain only conv. removal and user.deletion for non team members)
+
+  --   let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
+  --                    & Opt.optSettings . Opt.setMaxConvSize .~ 1
+  --                    & Opt.optJournal .~ Nothing
+  -- withSettingsOverrides newOpts $ do
+  ensureQueueEmpty
+ where
+  modifyTeamDataAndExpectEvent :: Bool -> TeamId -> UserId -> TestM ()
+  modifyTeamDataAndExpectEvent expect tid origin = do
+    c <- view tsCannon
+    g <- view tsGalley
+    let u = newTeamUpdateData & nameUpdate .~ (Just $ unsafeRange "bar")
+    WS.bracketR c origin $ \wsOrigin -> do
       put
         ( g
             . paths ["teams", toByteString' tid]
-            . zUser owner
+            . zUser origin
             . zConn "conn"
             . json u
         )
         !!! const 200
         === statusCode
       -- Due to the fact that the team is too large, we expect no events!
-      WS.assertNoEvent timeout [wsOwner, wsMember]
+      if expect
+        then checkTeamUpdateEvent tid u wsOrigin
+        else WS.assertNoEvent timeout [wsOrigin]
 
-    -- The team has 2 users, so if we truncate at 2, we should still receive events!
-    -- We also disable journaling because of the invariant that
-    -- setMaxTeamSize cannot be > setTruncationLimit if journal is enabled
-    let newOpts2 = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 2)
-                        & Opt.optSettings . Opt.setMaxConvSize .~ 2
-                        & Opt.optJournal .~ Nothing
-    withSettingsOverrides newOpts2 $ do
-      put
-        ( g
-            . paths ["teams", toByteString' tid]
-            . zUser owner
-            . zConn "conn"
-            . json u
-        )
-        !!! const 200
-        === statusCode
-
-      checkTeamUpdateEvent tid u wsOwner
-      checkTeamUpdateEvent tid u wsMember
-      WS.assertNoEvent timeout [wsOwner, wsMember]
-  where
-    checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
-      let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= TeamUpdate
-      e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdTeamUpdate upd)
+  addTeamMemberAndExpectEvent :: Bool -> TeamId -> UserId -> TestM UserId
+  addTeamMemberAndExpectEvent expect tid origin = do
+    c <- view tsCannon
+    let perms = Util.symmPermissions [CreateConversation]
+    member <- newTeamMember' perms <$> Util.randomUser
+    WS.bracketR c origin $ \wsOrigin -> do
+      Util.addTeamMemberInternal tid member
+      if expect
+        then checkTeamMemberJoin tid (member ^. userId) wsOrigin
+        else WS.assertNoEvent timeout [wsOrigin]
+    return (member ^. userId)
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
@@ -1201,6 +1192,14 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   e ^. eventType @?= MemberLeave
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberLeave usr)
+
+checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
+checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
+      ntfTransient notif @?= False
+      let e = List1.head (WS.unpackPayload notif)
+      e ^. eventType @?= TeamUpdate
+      e ^. eventTeam @?= tid
+      e ^. eventData @?= Just (EdTeamUpdate upd)
 
 checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
@@ -1501,3 +1500,11 @@ testFeatureFlags = do
       getLegalHoldInternal LegalHoldEnabled
     FeatureLegalHoldDisabledPermanently -> do
       putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled
+
+checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
+checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
+      ntfTransient notif @?= False
+      let e = List1.head (WS.unpackPayload notif)
+      e ^. eventType @?= MemberJoin
+      e ^. eventTeam @?= tid
+      e ^. eventData @?= Just (EdMemberJoin usr)
