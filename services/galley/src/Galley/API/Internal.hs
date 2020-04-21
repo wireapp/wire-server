@@ -84,7 +84,7 @@ rmUser user conn = do
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
-              (Intra.newPushLimited Data.ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPush Data.ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

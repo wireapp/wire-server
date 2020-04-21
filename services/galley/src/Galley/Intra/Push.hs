@@ -20,8 +20,8 @@
 module Galley.Intra.Push
   ( -- * Push
     Push,
-    newPushLimited,
-    newPush1Limited,
+    newPush,
+    newPush1,
     push,
     push1,
     pushSome,
@@ -114,8 +114,8 @@ data Push
 
 makeLenses ''Push
 
-newPush1Limited :: Data.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
-newPush1Limited recipientListType from e rr =
+newPush1 :: Data.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
@@ -128,9 +128,9 @@ newPush1Limited recipientListType from e rr =
       pushRecipients = rr
     }
 
-newPushLimited :: Data.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
-newPushLimited _ _ _ [] = Nothing
-newPushLimited t u e (r : rr) = Just $ newPush1Limited t u e (list1 r rr)
+newPush :: Data.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush _ _ _ [] = Nothing
+newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.

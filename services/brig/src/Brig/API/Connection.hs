@@ -282,7 +282,7 @@ autoConnect from (Set.toList -> to) conn = do
   lift $ connectAll nonTeamMembers
   where
     filterOutTeamMembers us = do
-      -- TODO: This is only used for test purposes. If getTeamContacts is truncated
+      -- FUTUREWORK: This is only used for test purposes. If getTeamContacts is truncated
       --       tests might fail in strange ways. Maybe we want to fail hard if this
       --       returns a truncated list
       mems <- lift $ Intra.getTeamContacts from
