@@ -23,6 +23,7 @@ spar:
 settings:
   httpPoolSize: 128
   maxTeamSize: 32
+  truncationLimit: 24
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/

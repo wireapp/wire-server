@@ -41,8 +41,8 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
+import qualified Galley.App as Galley
 import Galley.Options (optSettings, setFeatureFlags)
-import Galley.Options as Opt
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -1008,14 +1008,15 @@ testUpdateTeam = do
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
+  o <- view tsGConf
   c <- view tsCannon
-  maxTeamSize <- fromIntegral <$> view (tsGConf . optSettings . setMaxTeamSize)
+  let truncationLimit = fromIntegral . fromRange $ Galley.currentTruncationLimit o
   (owner, tid) <- Util.createBindingTeam
   member1 <- addTeamMemberAndExpectEvent True tid owner
 
-  -- Now last fill the team, -2
+  -- Now last fill the team until truncationSize - 2
   let perms = Util.symmPermissions [CreateConversation]
-  replicateM_ (maxTeamSize - 4) $ do
+  replicateM_ (truncationLimit - 4) $ do
     rand <- newTeamMember' perms <$> Util.randomUser
     -- These do not create proper users in brig (missing teamID)
     -- and thus do not count over the team limit, but they will
@@ -1067,10 +1068,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
 
   -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
   deleteTeam tid owner [] extern
-  --   let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
-  --                    & Opt.optSettings . Opt.setMaxConvSize .~ 1
-  --                    & Opt.optJournal .~ Nothing
-  -- withSettingsOverrides newOpts $ do
+
   ensureQueueEmpty
  where
   modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
@@ -1166,6 +1164,10 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       -- Ensure users are marked as deleted; since we already
       -- received the event, should _really_ be deleted
       for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
+
+    -- ensure the team has a deleted status
+    void $ retryWhileN 10 ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
+                          (getTeamInternal tid)
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do

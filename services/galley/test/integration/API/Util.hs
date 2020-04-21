@@ -150,6 +150,13 @@ createBindingTeamInternalWithCurrency name owner cur = do
       !!! const 200 === statusCode
   return tid
 
+
+getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
+getTeamInternal tid = do
+  g <- view tsGalley
+  r <- get (g . paths ["i/teams", toByteString' tid]) <!! const 200 === statusCode
+  responseJsonError r
+
 getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
   g <- view tsGalley

@@ -75,7 +75,7 @@ import Data.Text (unpack)
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
-import Galley.Types.Teams (HardTruncationLimit)
+import qualified Galley.Types.Teams as Teams
 import qualified Galley.Queue as Q
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -134,30 +134,34 @@ newtype Galley a
       MonadClient
     )
 
-truncationLimit :: Galley (Range 1 HardTruncationLimit Int32)
+truncationLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
 truncationLimit = view options >>= return . currentTruncationLimit
 
-currentTruncationLimit :: Opts -> Range 1 HardTruncationLimit Int32
+currentTruncationLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
 currentTruncationLimit o = do
   let optTruncLimit = fromIntegral . fromRange $ fromMaybe defTruncationLimit (o ^. optSettings ^. setTruncationLimit)
   let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
   unsafeRange (min maxTeamSize optTruncLimit)
 
-
 -- Define some invariants:
 -- Journal MUST be disabled if maxTeamSize > HardTruncationLimit
 -- MaxConvSize MUST be < HardTruncationLimit
-validateOptions :: Opts -> IO ()
-validateOptions o = do
+validateOptions :: Logger.Logger -> Opts -> IO ()
+validateOptions l o = do
   let settings = view optSettings o
+  let optTruncLimit = fromIntegral . fromRange $ currentTruncationLimit o
+  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
   when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
-    error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled"
+    if settings ^. setMaxTeamSize > hardLimit
+      then error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > 2000"
+      else Logger.warn l (msg $ val "Your journaling events may have some admin user ids missing. \
+                                    \This is fine for testing purposes but NOT for production use!!")
   when (settings ^. setMaxConvSize > optTruncLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optTruncLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
  where
-  optTruncLimit = fromIntegral $ fromRange (currentTruncationLimit o)
+  hardLimit = fromIntegral $ fromRange (unsafeRange Teams.hardTruncationLimit :: Range 1 Teams.HardTruncationLimit Int32)
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
@@ -182,7 +186,7 @@ createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager o
-  validateOptions o
+  validateOptions l o
   Env def m o l mgr <$> initCassandra o l
     <*> Q.new 16000
     <*> initExtEnv
