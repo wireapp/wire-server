@@ -92,11 +92,12 @@ testSearchByLastOrMiddleName brig = do
 testSearchNonAsciiNames :: Brig -> Http ()
 testSearchNonAsciiNames brig = do
   searcher <- userId <$> randomUser brig
-  searched <- userId <$> createUser' True "अक्षय" brig
+  suffix <- randomHandle
+  searched <- userId <$> createUser' True ("शक्तिमान" <> suffix) brig
   refreshIndex brig
-  assertCanFind brig searcher searched "अक्षय"
+  assertCanFind brig searcher searched ("शक्तिमान" <> suffix)
   -- This is pathetic transliteration, but it is what we have.
-  assertCanFind brig searcher searched "aksaya"
+  assertCanFind brig searcher searched ("saktimana" <> suffix)
 
 testSearchByHandle :: Brig -> Http ()
 testSearchByHandle brig = do
