@@ -104,6 +104,7 @@ tests s =
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
+      test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
       test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
       test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam,
@@ -1200,6 +1201,20 @@ postCryptoBroadcastMessageJson = do
         -- Alice's second client should get the broadcast
         void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
 
+postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
+postCryptoBroadcastMessageJsonReportMissingBody = do
+  (alice, tid) <- Util.createBindingTeam
+  bob <- view userId <$> Util.addUserToTeam alice tid
+  _bc <- Util.randomClient bob (someLastPrekeys !! 1) -- this is important!
+  assertQueue "add bob" $ tUpdate 2 [alice]
+  refreshIndex
+  ac <- Util.randomClient alice (someLastPrekeys !! 0)
+  let inbody = Just [makeIdOpaque bob] -- body triggers report
+      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
+      msg = [(alice, ac, "ciphertext0")]
+  Util.postOtrBroadcastMessage' inbody inquery alice ac msg
+    !!! const 412 === statusCode
+
 postCryptoBroadcastMessageJson2 :: TestM ()
 postCryptoBroadcastMessageJson2 = do
   c <- view tsCannon
@@ -1251,7 +1266,7 @@ postCryptoBroadcastMessageJson2 = do
 
 postCryptoBroadcastMessageProto :: TestM ()
 postCryptoBroadcastMessageProto = do
-  -- similar to postCryptoBroadcastMessageJson except uses protobuf
+  -- similar to postCryptoBroadcastMessageJson, postCryptoBroadcastMessageJsonReportMissingBody except uses protobuf
 
   c <- view tsCannon
   -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
@@ -1282,6 +1297,11 @@ postCryptoBroadcastMessageProto = do
     void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (selfConv dan) alice ac dc ciphertext)
     -- Alice should not get her own broadcast
     WS.assertNoEvent timeout ws
+  let inbody = Just [makeIdOpaque bob] -- body triggers report
+      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
+      msg = otrRecipients [(alice, [(ac, ciphertext)])]
+  Util.postProtoOtrBroadcast' inbody inquery alice ac msg
+    !!! const 412 === statusCode
 
 postCryptoBroadcastMessageNoTeam :: TestM ()
 postCryptoBroadcastMessageNoTeam = do

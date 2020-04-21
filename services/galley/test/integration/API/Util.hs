@@ -466,7 +466,17 @@ postOtrMessage ::
   ConvId ->
   [(UserId, ClientId, Text)] ->
   TestM ResponseLBS
-postOtrMessage f u d c rec = do
+postOtrMessage = postOtrMessage' Nothing
+
+postOtrMessage' ::
+  Maybe [OpaqueUserId] ->
+  (Request -> Request) ->
+  UserId ->
+  ClientId ->
+  ConvId ->
+  [(UserId, ClientId, Text)] ->
+  TestM ResponseLBS
+postOtrMessage' reportMissing f u d c rec = do
   g <- view tsGalley
   post $
     g
@@ -475,15 +485,15 @@ postOtrMessage f u d c rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec Nothing)
+      . json (mkOtrPayload d rec reportMissing)
 
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage f u d rec = postOtrBroadcastMessage' f u d rec Nothing
+postOtrBroadcastMessage = postOtrBroadcastMessage' Nothing
 
 -- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
-postOtrBroadcastMessage' :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> TestM ResponseLBS
-postOtrBroadcastMessage' f u d rec reportMissingBody = do
+postOtrBroadcastMessage' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
+postOtrBroadcastMessage' reportMissingBody f u d rec = do
   g <- view tsGalley
   post $
     g
@@ -494,7 +504,7 @@ postOtrBroadcastMessage' f u d rec reportMissingBody = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissingBody)
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [OpaqueUserId] -> Value
 mkOtrPayload sender rec reportMissingBody =
   object
     [ "sender" .= sender,
@@ -512,7 +522,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage u d c rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec Nothing)
    in post $
         g
           . paths ["conversations", toByteString' c, "otr", "messages"]
@@ -523,11 +533,15 @@ postProtoOtrMessage u d c rec = do
           . bytes m
 
 postProtoOtrBroadcast :: UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast u d rec = do
+postProtoOtrBroadcast = postProtoOtrBroadcast' Nothing id
+
+postProtoOtrBroadcast' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrBroadcast' reportMissing modif u d rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
    in post $
         g
+          . modif
           . paths ["broadcast", "otr", "messages"]
           . zUser u
           . zConn "conn"
@@ -535,11 +549,14 @@ postProtoOtrBroadcast u d rec = do
           . contentProtobuf
           . bytes m
 
-mkOtrProtoMessage :: ClientId -> OtrRecipients -> Proto.NewOtrMessage
-mkOtrProtoMessage sender rec =
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [OpaqueUserId] -> Proto.NewOtrMessage
+mkOtrProtoMessage sender rec reportMissing =
   let rcps = Proto.fromOtrRecipients rec
       sndr = Proto.fromClientId sender
-   in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
+      rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
+   in Proto.newOtrMessage sndr rcps
+        & Proto.newOtrMessageData ?~ "data"
+        & Proto.newOtrMessageReportMissing .~ rmis
 
 getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvs u r s = do
