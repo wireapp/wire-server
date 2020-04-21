@@ -655,7 +655,7 @@ specCRUDIdentityProvider = do
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
           `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
-      it "updates old idp, updating both issuer and old_issuer" $ do
+      it "updates old idp, updating both issuer and old_issuers" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
         issuer2 <- makeIssuer
