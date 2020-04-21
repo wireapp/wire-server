@@ -336,15 +336,15 @@ verdictHandlerResultCore bindCky = \case
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCass <- getUser userref
+      viaSparCassandra <- getUser userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
-      viaSparCassOldIssuer <-
-        if isJust viaSparCass
+      viaSparCassandraOldIssuer <-
+        if isJust viaSparCassandra
           then pure Nothing
           else findUserWithOldIssuer userref
-      case (viaBindCookie, viaSparCass, viaSparCassOldIssuer) of
+      case (viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
