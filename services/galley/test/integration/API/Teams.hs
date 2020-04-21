@@ -1046,7 +1046,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   -- No events are now expected
 
   -- Team member added also not
-  _memFirstWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
+  _memWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
   -- Team updates are not propagated
   modifyTeamDataAndExpectEvent False tid owner
   -- User event updates are not propagated in the team
@@ -1054,10 +1054,19 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   -- Let us remove 1 member that exceeds the limit, verify that team users
   -- do not get the deletion event but the connections do!
   removeTeamMemberAndExpectEvent False owner tid member2 [extern]
+  -- Now we are just on the limit, events are back!
+  removeTeamMemberAndExpectEvent True owner tid member1 [extern]
 
-  -- TODO:
-  -- Test team deletion (should contain only conv. removal and user.deletion for non team members)
+  -- Let's go back to having a very large team
+  _memLastWithFanout <- addTeamMemberAndExpectEvent True tid owner
+  -- We should really wait until we see that the team is of full size
+  -- Due to the async nature of pushes, waiting even a second might not
+  -- be enough...
+  WS.bracketR c owner $ \wsOwner -> WS.assertNoEvent (1 # Second) [wsOwner]
+  _memWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
 
+  -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
+  deleteTeam tid owner [] extern
   --   let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
   --                    & Opt.optSettings . Opt.setMaxConvSize .~ 1
   --                    & Opt.optJournal .~ Nothing
@@ -1138,6 +1147,25 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       mapM_ (checkUserDeleteEvent victim) wsOthers
 
       Util.ensureDeletedState True owner victim
+
+  deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> UserId -> TestM ()
+  deleteTeam tid owner otherRealUsersInTeam extern = do
+    c <- view tsCannon
+    g <- view tsGalley
+    void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
+      delete
+        ( g
+            . paths ["teams", toByteString' tid]
+            . zUser owner
+            . zConn "conn"
+            . json (newTeamDeleteData (Just Util.defPassword))
+        )
+        !!! const 202 === statusCode
+
+      for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
+      -- Ensure users are marked as deleted; since we already
+      -- received the event, should _really_ be deleted
+      for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
