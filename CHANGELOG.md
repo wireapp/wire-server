@@ -1,3 +1,25 @@
+# 2020-04-21
+
+## New Features
+
+* Allow for `report_missing` in `NewOtrMessage`. (#1056, #1062)
+* List team members by UserId (#1048)
+* Support idp update.  (#1065 for issuer, #1026 for everything else)
+* Support synchronous purge-deletion of idps (via query param).  (#1068)
+
+## Bug fixes
+
+* Test that custom backend domains are case-insensitive (#1051)
+* Swagger improvements. (#1059, #1054)
+
+## Internal Changes
+
+* Count team members using es (#1046)
+* Make delete or downgrade team owners scale (#1029)
+* services-demo/demo.sh: mkdir zauth (if not exists) (#1055)
+* Use fork of bloodhound to support ES 5.2 (#1050)
+
+
 # 2020-04-15
 
 ## Upgrade steps (IMPORTANT)
