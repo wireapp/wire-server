@@ -366,6 +366,7 @@ newtype Replaced = Replaced SAML.IdPId
 
 newtype Replacing = Replacing SAML.IdPId
 
+-- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
 setReplacedBy ::
   (HasCallStack, MonadClient m) =>
   Replaced ->
@@ -377,6 +378,7 @@ setReplacedBy (Replaced old) (Replacing new) = do
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?"
 
+-- | See also: 'setReplacedBy'.
 clearReplacedBy ::
   (HasCallStack, MonadClient m) =>
   Replaced ->
