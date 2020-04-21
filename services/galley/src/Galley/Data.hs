@@ -38,7 +38,7 @@ module Galley.Data
     teamIdsForPagination,
     teamIdsOf,
     teamMember,
-    withTeamMembers,
+    withTeamMembersWithChunks,
     teamMembersWithLimit,
     teamMembersMaybeTruncated,
     teamMembersCollectedWithPagination,
@@ -853,11 +853,11 @@ newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perm
 
 -- | Invoke the given continuation 'k' with a list of TeamMemberRows IDs
 -- which are looked up based on:
-withTeamMembers ::
+withTeamMembersWithChunks ::
   TeamId ->
   ([TeamMember] -> Galley ()) ->
   Galley ()
-withTeamMembers tid k = do
+withTeamMembersWithChunks tid k = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   handleMembers mems
  where
@@ -866,4 +866,4 @@ withTeamMembers tid k = do
     k tMembers
     unless (null $ result mems) $
       handleMembers =<< liftClient (nextPage mems)
-{-# INLINE withTeamMembers #-}
+{-# INLINE withTeamMembersWithChunks #-}

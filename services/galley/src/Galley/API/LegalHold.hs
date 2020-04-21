@@ -124,7 +124,7 @@ removeSettings' ::
   Galley ()
 removeSettings' tid = do
   -- Loop through team members and run this continuation
-  Data.withTeamMembers tid cont
+  Data.withTeamMembersWithChunks tid cont
   LegalHoldData.removeSettings tid
   where
     cont :: [TeamMember] -> Galley ()
