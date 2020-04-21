@@ -39,6 +39,7 @@ module Spar.Data
     insertSAMLUser,
     getSAMLUser,
     getSAMLAnyUserByIssuer,
+    getSAMLSomeUsersByIssuer,
     deleteSAMLUsersByIssuer,
     deleteSAMLUser,
 
@@ -258,7 +259,7 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
--- | We only need to know if it's none or more, so this function returns the first one.
+-- | Sometimes we only need to know if it's none or more, so this function returns the first one.
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
 getSAMLAnyUserByIssuer issuer =
   runIdentity
@@ -266,6 +267,16 @@ getSAMLAnyUserByIssuer issuer =
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
+
+-- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
+-- IdP, and if we don't get all users we just try again when we're done with these.
+getSAMLSomeUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m [(SAML.UserRef, UserId)]
+getSAMLSomeUsersByIssuer issuer =
+  (_1 %~ SAML.UserRef issuer)
+    <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
+  where
+    sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
+    sel = "SELECT sso_id, uid FROM user WHERE issuer = ? LIMIT 2000"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser (SAML.UserRef tenant subject) =

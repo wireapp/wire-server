@@ -48,6 +48,7 @@ module Util.Core
 
     -- * Other
     defPassword,
+    getUserBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
     getSSOEnabledInternal,
@@ -103,6 +104,7 @@ module Util.Core
     callIdpUpdate',
     callIdpDelete,
     callIdpDelete',
+    callIdpDeletePurge',
     initCassandra,
     ssoToUidSpar,
     runSparCass,
@@ -287,6 +289,24 @@ aFewTimes action good = do
       (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> pure . not . good)
       (\_ -> action `runReaderT` env)
+
+-- | Duplicate of 'Spar.Intra.Brig.getBrigUser'.
+getUserBrig :: HasCallStack => UserId -> TestSpar (Maybe User)
+getUserBrig uid = do
+  env <- ask
+  let req =
+        (env ^. teBrig) . path "/self"
+          . header "Z-User" (toByteString' uid)
+  resp <- call $ get req
+  case statusCode resp of
+    200 -> do
+      let user = selfUser $ responseJsonUnsafe resp
+      pure $
+        if (userDeleted user)
+          then Nothing
+          else Just user
+    404 -> pure Nothing
+    bad -> error $ show bad
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
@@ -976,7 +996,18 @@ callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx)
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+  delete $
+    sparreq_
+      . maybe id zUser muid
+      . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+
+callIdpDeletePurge' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpDeletePurge' sparreq_ muid idpid = do
+  delete $
+    sparreq_
+      . maybe id zUser muid
+      . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+      . queryItem "purge" "true"
 
 callGetDefaultSsoCode :: (MonadIO m, MonadHttp m) => SparReq -> m ResponseLBS
 callGetDefaultSsoCode sparreq_ = do

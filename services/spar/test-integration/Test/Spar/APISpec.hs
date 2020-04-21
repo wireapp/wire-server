@@ -601,8 +601,8 @@ specCRUDIdentityProvider = do
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpDelete' (env ^. teSpar) (Just uid) idpid
           `shouldRespondWith` checkErr (== 403) "no-team-member"
-    context "known IdP, IdP empty, client is team owner" $ do
-      context "without email" $ it "responds with 2xx and removes IdP" $ do
+    context "known IdP, IdP empty, client is team owner, without email" $ do
+      it "responds with 2xx and removes IdP" $ do
         env <- ask
         (userid, _, (^. idpId) -> idpid) <- registerTestIdP
         callIdpDelete' (env ^. teSpar) (Just userid) idpid
@@ -611,7 +611,8 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` checkErr (== 404) "not-found"
         callIdpGetRaw' (env ^. teSpar) (Just userid) idpid
           `shouldRespondWith` checkErr (== 404) "not-found"
-      context "with email, idp non-empty" $ it "responds with 412 and does not remove IdP" $ do
+    context "with email, idp non-empty, purge=false" $ do
+      it "responds with 412 and does not remove IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
@@ -619,6 +620,21 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` checkErr (== 412) "idp-has-bound-users"
         callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
+    context "with email, idp non-empty, purge=true" $ do
+      it "responds with 2xx and removes IdP and users *synchronously*" $ do
+        env <- ask
+        (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
+        callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+          `shouldRespondWith` \resp -> statusCode resp < 300
+        _ <- aFewTimes (getUserBrig ssoOwner) isNothing
+        ssoOwner' <- userId <$$> getUserBrig ssoOwner
+        firstOwner' <- userId <$$> getUserBrig firstOwner
+        liftIO $ do
+          ssoOwner' `shouldBe` Nothing
+          firstOwner' `shouldBe` Just firstOwner
+        callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
+          `shouldRespondWith` checkErr (== 404) "not-found"
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do

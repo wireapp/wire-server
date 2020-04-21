@@ -228,15 +228,33 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList {..}
 
-idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
-idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
+-- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
+-- *synchronously* on brig and spar, and the IdP once it's empty.
+--
+-- The @"purge"@ query parameter is as a quick work-around until we have something better.  It
+-- may very well time out, but it processes the users under the 'IdP' in chunks of 2000, so no
+-- matter what the team size, it shouldn't choke any servers, just the client (which is
+-- probably curl running locally on one of the spar instances).
+-- https://github.com/zinfra/backend-issues/issues/1314
+idpDelete :: Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar NoContent
+idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
-  -- fail if idp is not empty
+  -- if idp is not empty: fail or purge
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
-  unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
+  let doPurge :: Spar ()
+      doPurge = do
+        some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
+        forM_ some $ \(uref, uid) -> do
+          Brig.deleteBrigUser uid
+          wrapMonadClient (Data.deleteSAMLUser uref)
+        unless (null some) doPurge
+  when (not idpIsEmpty) $ do
+    if purge
+      then doPurge
+      else throwSpar SparIdPHasBoundUsers
   updateOldIssuers idp
   updateReplacingIdP idp
   wrapMonadClient $ do
