@@ -70,12 +70,17 @@ data Mapped a
 
 data Opaque a
 
+data Remote a
+
 type AssetId = Id A
 
 type InvitationId = Id I
 
 -- | A local conversation ID
 type ConvId = Id C
+
+-- | A UUID local to another backend, only meaningful together with its domain.
+type RemoteConvId = Id (Remote C)
 
 -- | A UUID local to this backend, for which we know a mapping to a
 -- remote qualified conversation ID exists.
@@ -90,6 +95,9 @@ type OpaqueConvId = Id (Opaque C)
 
 -- | A local user ID
 type UserId = Id U
+
+-- | A UUID local to another backend, only meaningful together with its domain.
+type RemoteUserId = Id (Remote U)
 
 -- | A UUID local to this backend, for which we know a mapping to a
 -- remote qualified user ID exists.
