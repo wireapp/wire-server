@@ -8,12 +8,14 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
+
 dependencies:
 - imports
 - extended
 - safe >=0.3
 - ssl-util
 - raw-strings-qq >=1.0
+
 library:
   source-dirs: src
   dependencies:
@@ -95,6 +97,18 @@ library:
   - wai-utilities >=0.16
   - warp >=3.0
   - zauth
+
+tests:
+  doctests:
+    main: doctest.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - doctest
+      - galley
+
 executables:
   galley:
     main: src/Main.hs
@@ -111,6 +125,7 @@ executables:
     when:
     - condition: flag(static)
       ld-options: -static
+
   galley-integration:
     main: Main.hs
     source-dirs: test/integration
@@ -183,6 +198,7 @@ executables:
     - warp
     - warp-tls >=3.2
     - yaml
+
   galley-schema:
     main: Main.hs
     source-dirs: schema/src
@@ -195,6 +211,7 @@ executables:
     when:
     - condition: flag(static)
       ld-options: -static
+
 flags:
   static:
     description: Enable static linking
