@@ -748,10 +748,9 @@ memberIsTeamOwner tid uid = do
       (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   pure $ responseStatus r /= status403
 
--- | Only works on 'BindingTeam's!
+-- | Only works on 'BindingTeam's! This is now truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
--- | This is now truncated.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")
