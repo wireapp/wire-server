@@ -582,6 +582,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
         for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
           Data.removeMember remove (c ^. conversationId)
+          -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
           unless (c ^. managedConversation || Data.teamMemberListType mems == Data.ListTruncated) $
             pushEvent tmids edata now dc
 

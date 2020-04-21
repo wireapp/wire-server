@@ -135,20 +135,17 @@ newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
 push1 :: Push -> Galley ()
-push1 p = pushInternal (list1 p [])
+push1 p = push (list1 p [])
 
 pushSome :: [Push] -> Galley ()
 pushSome [] = return ()
-pushSome (x : xs) = pushInternal (list1 x xs)
+pushSome (x : xs) = push (list1 x xs)
 
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
 push :: List1 Push -> Galley ()
-push ps = pushInternal ps
-
-pushInternal :: List1 Push -> Galley ()
-pushInternal ps = do
+push ps = do
   limit <- truncationLimit
   -- Do not fan out for very large teams
   let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)

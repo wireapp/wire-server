@@ -301,7 +301,8 @@ teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (pa
       Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
       m (Maybe TeamMember)
     newTeamMember'' _ Nothing = pure Nothing
-    newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) = Just <$> newTeamMember' (uid, perms, minvu, minvt, mulhStatus)
+    newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) =
+      Just <$> newTeamMember' (uid, perms, minvu, minvt, mulhStatus)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u =

@@ -61,10 +61,6 @@ selectTeamConvs = "select conv, managed from team_conv where team = ? order by c
 selectTeamConvsFrom :: PrepQuery R (TeamId, OpaqueConvId) (ConvId, Bool)
 selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
 
--- selectUserConvsFrom :: PrepQuery R (UserId, OpaqueConvId) (Identity OpaqueConvId)
--- selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
-
-
 selectTeamMember ::
   PrepQuery R (TeamId, UserId)
     ( Permissions,
