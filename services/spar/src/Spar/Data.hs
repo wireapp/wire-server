@@ -372,10 +372,10 @@ setReplacedBy ::
   Replacing ->
   m ()
 setReplacedBy (Replaced old) (Replacing new) = do
-  retry x5 . write ins $ params Quorum (old, new)
+  retry x5 . write ins $ params Quorum (new, old)
   where
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
-    ins = "INSERT INTO idp (idp, replaced_by) VALUES (?, ?)"
+    ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?"
 
 clearReplacedBy ::
   (HasCallStack, MonadClient m) =>
@@ -385,7 +385,7 @@ clearReplacedBy (Replaced old) = do
   retry x5 . write ins $ params Quorum (Identity old)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
-    ins = "INSERT INTO idp (idp, replaced_by) VALUES (?, null)"
+    ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
 
 getIdPConfig ::
   forall m.

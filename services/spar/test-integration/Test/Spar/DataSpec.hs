@@ -201,6 +201,7 @@ spec = do
           liftIO $ idps `shouldBe` []
       describe "{set,clear}ReplacedBy" $ do
         it "handle non-existent idps gradefully" $ do
+          pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
           runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
