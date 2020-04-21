@@ -76,6 +76,7 @@ data SparCustomError
   | SparBindFromWrongOrNoTeam LT
   | SparBindUserRefTaken
   | SparBadUserName LT
+  | SparCannotCreateUsersOnReplacedIdP LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
   | SparReAuthRequired
@@ -92,8 +93,7 @@ data SparCustomError
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
-  | SparIdPUsedInOtherTeam
-  | SparIdPIssuerCannotBeUpdated
+  | SparIdPIssuerInUse
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
@@ -137,6 +137,7 @@ renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Rig
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.Error status403 "bad-team" ("Forbidden: wrong user team " <> msg)
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
+renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
 -- Brig-specific errors
 renderSparError (SAML.CustomError SparNoBodyInBrigResponse) = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 renderSparError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
@@ -177,8 +178,7 @@ renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.Error 
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
-renderSparError (SAML.CustomError SparIdPUsedInOtherTeam) = Right $ Wai.Error status400 "idp-used-in-other-team" "The issuer of your IdP is used in a different team.  You can use each IdP for one team only."
-renderSparError (SAML.CustomError SparIdPIssuerCannotBeUpdated) = Right $ Wai.Error status400 "cannot-update-idp-issuer" "Updating the issuer of an existing IdP is currently not supported."
+renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.Error status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg)) = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"

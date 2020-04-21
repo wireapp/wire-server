@@ -30,6 +30,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
+    setBrigUserUserRef,
     setBrigUserRichInfo,
     checkHandleAvailable,
     bindBrigUser,
@@ -275,6 +276,22 @@ setBrigUserManagedBy buid managedBy = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
 
+-- | Set user's UserSSOId.
+setBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
+setBrigUserUserRef buid uref = do
+  resp <-
+    call $
+      method PUT
+        . paths ["i", "users", toByteString' buid, "sso-id"]
+        . json (toUserSSOId uref)
+  let sCode = statusCode resp
+  if  | sCode < 300 ->
+        pure ()
+      | inRange (400, 499) sCode ->
+        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set UserSSOId failed"
+      | otherwise ->
+        throwSpar . SparBrigError . cs $ "set UserSSOId failed with status " <> show sCode
+
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
 setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
@@ -327,6 +344,8 @@ checkHandleAvailable hnd buid = do
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
+--
+-- See also: 'setBrigUserUserRef'.
 bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
 bindBrigUser uid (toUserSSOId -> ussoid) = do
   resp <-

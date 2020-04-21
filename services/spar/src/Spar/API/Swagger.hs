@@ -147,6 +147,9 @@ instance ToSchema IdPMetadataInfo where
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+instance ToSchema WireIdP where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 

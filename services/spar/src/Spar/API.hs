@@ -233,10 +233,12 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      team = idp ^. SAML.idpExtraInfo
+      team = idp ^. SAML.idpExtraInfo . wiTeam
   -- fail if idp is not empty
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
   unless idpIsEmpty $ throwSpar SparIdPHasBoundUsers
+  updateOldIssuers idp
+  updateReplacingIdP idp
   wrapMonadClient $ do
     -- Delete tokens associated with given IdP (we rely on the fact that
     -- each IdP has exactly one team so we can look up all tokens
@@ -248,24 +250,48 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     Data.deleteIdPConfig idpid issuer team
     Data.deleteIdPRawMetadata idpid
   return NoContent
+  where
+    updateOldIssuers :: IdP -> Spar ()
+    updateOldIssuers _ = pure ()
+    -- we *could* update @idp ^. SAML.idpExtraInfo . wiReplacedBy@ to not keep the idp about
+    -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
+    -- there is little to be gained here: we only use old issuers to find users that have not
+    -- been migrated yet, and if an old user points to a deleted idp, it just means that we
+    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
+    -- leave old issuers dangling for now.
+
+    updateReplacingIdP :: IdP -> Spar ()
+    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
+      wrapMonadClient $ do
+        iid <- Data.getIdPIdByIssuer oldIssuer
+        mapM_ (Data.clearReplacedBy . Data.Replaced) iid
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Spar IdP
-idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar IdP
+idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Spar IdP
-idpCreateXML zusr raw idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
+idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
-  idp <- validateNewIdP idpmeta teamid
+  idp <- validateNewIdP idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
+  forM_ mReplaces $ \replaces -> wrapMonadClient $ do
+    Data.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
 
 -- | Check that issuer is not used for any team in the system (it is a database keys for
 -- finding IdPs), and request URI is https.
+--
+-- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
+-- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
+-- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
+-- changed.
+--
+-- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
 --
 -- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
 -- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
@@ -278,31 +304,43 @@ validateNewIdP ::
   (HasCallStack, m ~ Spar) =>
   SAML.IdPMetadata ->
   TeamId ->
+  Maybe SAML.IdPId ->
   m IdP
-validateNewIdP _idpMetadata _idpExtraInfo = do
+validateNewIdP _idpMetadata teamId mReplaces = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+  oldIssuers :: [SAML.Issuer] <- case mReplaces of
+    Nothing -> pure []
+    Just replaces -> do
+      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparNotFound) pure
+      pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
+      _idpExtraInfo = WireIdP teamId oldIssuers Nothing
   enforceHttps requri
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   pure SAML.IdPConfig {..}
 
-idpUpdate :: Maybe UserId -> SAML.IdPId -> IdPMetadataInfo -> Spar IdP
-idpUpdate zusr idpid (IdPMetadataValue raw xml) = idpUpdateXML zusr idpid raw xml
+-- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
+-- 'idpCreate', which is not a good reason.  make this one function and pass around
+-- 'IdPMetadataInfo' directly where convenient.
+idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar IdP
+idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML :: Maybe UserId -> SAML.IdPId -> Text -> SAML.IdPMetadata -> Spar IdP
-idpUpdateXML zusr idpid raw idpmeta = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
+idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar IdP
+idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
-  SAML.storeIdPConfig idp
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)
+  SAML.storeIdPConfig idp
   pure idp
 
--- | Check that issuer exists and belongs to the right team and request URI is https.
+-- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
+-- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else; request
+-- uri is https.  Keep track of old issuer in extra info if issuer has changed.
 validateIdPUpdate ::
   forall m.
   (HasCallStack, m ~ Spar) =>
@@ -314,22 +352,22 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
   previousIdP <- wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
     Nothing -> throwError errUnknownIdPId
     Just idp -> pure idp
-  _idpExtraInfo <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
+  teamId <- authorizeIdP zusr previousIdP
+  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
     throwError errUnknownIdP
-  unless (previousIdP ^. SAML.idpMetadata . SAML.edIssuer == _idpMetadata ^. SAML.edIssuer) $ do
-    -- if issuer has changed, but into one that's already used in a different team: bad.
-    midp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer))
-    case midp of
-      Nothing -> pure ()
-      Just idp -> unless (idp ^. SAML.idpExtraInfo == _idpExtraInfo) $ do
-        throwSpar SparIdPUsedInOtherTeam
-    -- all other cases: we *should* support them, but we don't.
-    -- https://github.com/zinfra/backend-issues/issues/929
-    throwSpar SparIdPIssuerCannotBeUpdated
+  _idpExtraInfo <- do
+    let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
+        newIssuer = _idpMetadata ^. SAML.edIssuer
+    if previousIssuer == newIssuer
+      then pure $ previousIdP ^. SAML.idpExtraInfo
+      else do
+        notInUse <- isNothing <$> wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
+        if notInUse
+          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ (previousIssuer :)
+          else throwSpar SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (_idpExtraInfo, SAML.IdPConfig {..})
+  pure (teamId, SAML.IdPConfig {..})
   where
     errUnknownIdP = SAML.UnknownIdP $ enc uri
       where
@@ -352,7 +390,7 @@ authorizeIdP ::
   m TeamId
 authorizeIdP zusr idp = do
   teamid <- Brig.getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
+  when (teamid /= idp ^. SAML.idpExtraInfo . wiTeam) $ throwSpar SparNotInTeam
   pure teamid
 
 enforceHttps :: URI.URI -> Spar ()

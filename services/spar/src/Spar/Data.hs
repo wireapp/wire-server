@@ -48,6 +48,10 @@ module Spar.Data
 
     -- * IDPs
     storeIdPConfig,
+    Replaced (..),
+    Replacing (..),
+    setReplacedBy,
+    clearReplacedBy,
     getIdPConfig,
     getIdPConfigByIssuer,
     getIdPIdByIssuer,
@@ -100,7 +104,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 7
+schemaVersion = 8
 
 ----------------------------------------------------------------------
 -- helpers
@@ -315,12 +319,15 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
+-- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
+-- legitimate reason to store an IdP that has already been replaced.  and for updating an old
+-- one, call 'markReplacedIdP'.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPConfig TeamId ->
+  IdP ->
   m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
@@ -333,7 +340,9 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiOldIssuers,
+      idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
@@ -343,15 +352,42 @@ storeIdPConfig idp = retry x5 . batch $ do
   addPrepQuery
     byTeam
     ( idp ^. SAML.idpId,
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
+
+newtype Replaced = Replaced SAML.IdPId
+
+newtype Replacing = Replacing SAML.IdPId
+
+-- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
+setReplacedBy ::
+  (HasCallStack, MonadClient m) =>
+  Replaced ->
+  Replacing ->
+  m ()
+setReplacedBy (Replaced old) (Replacing new) = do
+  retry x5 . write ins $ params Quorum (new, old)
+  where
+    ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
+    ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?"
+
+-- | See also: 'setReplacedBy'.
+clearReplacedBy ::
+  (HasCallStack, MonadClient m) =>
+  Replaced ->
+  m ()
+clearReplacedBy (Replaced old) = do
+  retry x5 . write ins $ params Quorum (Identity old)
+  where
+    ins :: PrepQuery W (Identity SAML.IdPId) ()
+    ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
 
 getIdPConfig ::
   forall m.
@@ -370,13 +406,16 @@ getIdPConfig idpid =
         certsHead,
         certsTail,
         -- extras
-        _idpExtraInfo
+        teamId,
+        oldIssuers,
+        replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
+            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>
