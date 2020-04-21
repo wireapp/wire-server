@@ -143,8 +143,8 @@ instance ES.MonadBH IndexIO where
 teamSize :: MonadIndexIO m => TeamId -> m TeamSize
 teamSize t = liftIndexIO $ do
   indexName <- asks idxName
-  countResEither <- ES.countByIndex indexName (ES.CountQuery $ query)
-  countRes <- either (throwM . IndexLookupError) (pure) countResEither
+  countResEither <- ES.countByIndex indexName (ES.CountQuery query)
+  countRes <- either (throwM . IndexLookupError) pure countResEither
   pure . TeamSize $ ES.crCount countRes
   where
     query =
@@ -307,7 +307,7 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
   where
     versioning =
       ES.defaultIndexDocumentSettings
-        { ES.idsVersionControl = (indexUpdateToVersionControl updateType) (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
+        { ES.idsVersionControl = indexUpdateToVersionControl updateType (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
 updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
@@ -355,7 +355,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
         "_id" .= docId
           <> "_version" .= v
           -- "external_gt or external_gte"
-          <> "_version_type" .= (indexUpdateToVersionControlText updateType)
+          <> "_version_type" .= indexUpdateToVersionControlText updateType
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -575,7 +575,7 @@ lookupForIndex u = do
 
 -- | FUTUREWORK: make a PR to cql-io with a 'Traversable' instance.
 traversePage :: forall a. C.Page (C.Client a) -> C.Client (C.Page a)
-traversePage (C.Page hasmore result nextpage) = do
+traversePage (C.Page hasmore result nextpage) =
   C.Page hasmore <$> sequence result <*> (traversePage <$> nextpage)
 
 scanForIndex :: Int32 -> C.Client (C.Page IndexUser)
