@@ -258,14 +258,24 @@ rmCookies uid (RemoveCookies pw lls ids) = do
 renewH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
+-- | renew access for either:
+-- * a user with user token and optional access token, or
+-- * a legalhold user with legalhold user token and optional legalhold access token.
+--
+-- Other combinations of provided inputs will cause an error to be raised.
 renew ::
   Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
-  Nothing -> const $ throwStd authMissingCookie
-  (Just (Right ut)) -> fmap Right . renewAccess ut <=< matchingOrNone rightToMaybe
-  (Just (Left ut)) -> fmap Left . renewAccess ut <=< matchingOrNone leftToMaybe
+  Nothing ->
+    const $ throwStd authMissingCookie
+  (Just (Left userToken)) ->
+    -- normal UserToken, so we want a normal AccessToken
+    fmap Left . renewAccess userToken <=< matchingOrNone leftToMaybe
+  (Just (Right legalholdUserToken)) ->
+    -- LegalholdUserToken, so we want a LegalholdAccessToken
+    fmap Right . renewAccess legalholdUserToken <=< matchingOrNone rightToMaybe
   where
     renewAccess ut mat =
       Auth.renewAccess ut mat !>> zauthError
