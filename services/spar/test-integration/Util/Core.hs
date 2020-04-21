@@ -68,6 +68,7 @@ module Util.Core
     zUser,
     ping,
     makeIssuer,
+    makeTestIdP,
     makeTestIdPMetadata,
     getTestSPMetadata,
     registerTestIdP,
@@ -625,6 +626,9 @@ makeIssuer = do
     (liftIO . throwIO . ErrorCall . show)
     (pure . Issuer)
     (SAML.parseURI' ("https://issuer.net/_" <> UUID.toText uuid))
+
+makeTestIdP :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
+makeTestIdP = IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
 
 -- | Create a cloned new 'IdPMetadata' value from the sample value already registered, but with a
 -- fresh random 'Issuer'.  This is the simplest way to get such a value for registration of a new
