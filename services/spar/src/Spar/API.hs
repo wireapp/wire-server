@@ -229,26 +229,24 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   pure IdPList {..}
 
 idpDelete :: Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar NoContent
-idpDelete zusr idpid purge = withDebugLog "idpDelete" (const Nothing) $ do
+idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
+  let doPurge :: Spar ()
+      doPurge = do
+        some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
+        forM_ some $ \(uref, uid) -> do
+          Brig.deleteBrigUser uid
+          wrapMonadClient (Data.deleteSAMLUser uref)
+        unless (null some) doPurge
   when (not idpIsEmpty) $ do
-    if fromMaybe False purge
-      then do
-        let go :: Spar ()
-            go = do
-              some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
-              forM_ some $ \(uref, uid) -> do
-                Brig.deleteBrigUser uid
-                wrapMonadClient (Data.deleteSAMLUser uref)
-              unless (null some) go
-        go
-      else do
-        throwSpar SparIdPHasBoundUsers
+    if purge
+      then doPurge
+      else throwSpar SparIdPHasBoundUsers
   updateOldIssuers idp
   updateReplacingIdP idp
   wrapMonadClient $ do
