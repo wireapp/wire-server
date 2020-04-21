@@ -119,6 +119,13 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
+broadcastLimitExceeded :: Int -> Error
+broadcastLimitExceeded limit =
+  Error
+    status400
+    "too-many-users-to-broadcast"
+    ("Can only accept process " <> cs (show limit) <> " in a request.")
+
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 

@@ -1380,7 +1380,9 @@ postCryptoBroadcastMessageJson = do
 postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
 postCryptoBroadcastMessageJsonReportMissingBody = do
   (alice, tid) <- Util.createBindingTeam
+  liftIO $ print ("alice is: " ++ show alice)
   bob <- view userId <$> Util.addUserToTeam alice tid
+  liftIO $ print ("bot is: " ++ show bob)
   _bc <- Util.randomClient bob (someLastPrekeys !! 1) -- this is important!
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex

@@ -41,7 +41,6 @@ module Galley.Data
     withTeamMembers,
     teamMembersWithLimit,
     teamMembersMaybeTruncated,
-    teamMembersUnsafeForLargeTeams,
     teamMembersCollectedWithPagination,
     teamMembersLimited,
     userTeams,
@@ -285,13 +284,6 @@ teamMembersCollectedWithPagination tid = do
     if (null $ result mems)
       then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
       else return (tMembers ++ acc)
-
--- | TODO: This operation gets **all** members of a team, this should go away before
--- we roll out large teams
-teamMembersUnsafeForLargeTeams :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
-teamMembersUnsafeForLargeTeams t =
-  mapM newTeamMember'
-    =<< retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
 
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
