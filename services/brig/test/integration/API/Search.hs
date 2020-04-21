@@ -87,6 +87,7 @@ testSearchByLastOrMiddleName brig = do
   assertCanFind brig searcher searched firstName
   assertCanFind brig searcher searched middleName
   assertCanFind brig searcher searched lastName
+  assertCanFind brig searcher searched (firstName <> " " <> lastName)
 
 testSearchNonAsciiNames :: Brig -> Http ()
 testSearchNonAsciiNames brig = do
