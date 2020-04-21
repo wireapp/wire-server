@@ -349,16 +349,24 @@ verdictHandlerResultCore bindCky = \case
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
         (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        -- If the user is only found under an old (previous) issuer, move it here.
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
-        -- SSO reauthentication
+        -- SSO re-authentication (the most common case).
         (Nothing, Just uid, _) -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
-        (Just uid, Nothing, _) -> bindUser uid userref
-        (Just uid, Just uid', _)
+        (Just uid, Nothing, Nothing) -> bindUser uid userref
+        (Just uid, Just uid', Nothing)
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
           -- Attempt to use ssoid for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
+        -- same two cases as above, but between last login and bind there was an issuer update.
+        (Just uid, Nothing, Just (oldUserRef, uid'))
+          | uid == uid' -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
+          | otherwise -> throwSpar SparBindUserRefTaken
+        (Just _, Just _, Just _) ->
+          -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
+          error "impossible."
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
     mcky :: Maybe SetCookie <- Intra.ssoLogin uid
     -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
