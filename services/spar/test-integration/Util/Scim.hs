@@ -42,8 +42,9 @@ import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenList (..))
 import Spar.Scim.Types
-import Spar.Types (IdP, ScimToken (..), ScimTokenInfo (..))
+import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import qualified Text.Email.Parser as Email
+import qualified Text.XML.DSig as SAML
 import Util.Core
 import Util.Types
 import Web.HttpApiData (toHeader)
@@ -62,6 +63,13 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
   team@(_owner, teamid, idp) <- registerTestIdP
+  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
+
+-- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
+-- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
+registerIdPAndScimTokenWithMeta :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds)))
+registerIdPAndScimTokenWithMeta = do
+  team@(_owner, teamid, idp, _) <- registerTestIdPWithMeta
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.

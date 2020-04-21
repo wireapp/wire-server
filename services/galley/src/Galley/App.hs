@@ -150,7 +150,7 @@ validateOptions :: Logger.Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
   let optTruncLimit = fromIntegral . fromRange $ currentTruncationLimit o
-  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+  -- let _maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
   when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
     if settings ^. setMaxTeamSize > hardLimit
       then error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > 2000"
@@ -251,7 +251,7 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley ResponseReceived -> IO ResponseReceived
+runGalley :: Env -> Request -> Galley a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m

@@ -76,11 +76,11 @@ import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
-import Network.Wai.Utilities
-import qualified Network.Wai.Utilities as Utilities
+import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -102,7 +102,7 @@ sitemap o = do
   post "/i/users/:uid/auto-connect" (continue autoConnectH) $
     accept "application" "json"
       .&. capture "uid"
-      .&. opt (header "Z-Connection")
+      .&. opt zauthConnId
       .&. jsonRequest @UserSet
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
@@ -111,7 +111,7 @@ sitemap o = do
     accept "application" "json"
       .&. jsonRequest @NewUser
   put "/i/self/email" (continue changeSelfEmailNoSendH) $
-    header "Z-User"
+    zauthUserId
       .&. jsonRequest @EmailUpdate
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
@@ -190,7 +190,7 @@ sitemap o = do
   post "/i/clients/:uid" (continue addClientInternalH) $
     capture "uid"
       .&. jsonRequest @NewClient
-      .&. opt (header "Z-Connection")
+      .&. opt zauthConnId
       .&. accept "application" "json"
   -- This endpoint can lead to the following events being sent:
   -- - LegalHoldClientRequested event to contacts of the user
@@ -221,7 +221,7 @@ sitemap o = do
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   head "/users/:uid" (continue checkUserExistsH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "uid"
   document "HEAD" "userExists" $ do
     Doc.summary "Check if a user ID exists"
@@ -237,7 +237,7 @@ sitemap o = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   get "/users/:uid" (continue getUserH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. capture "uid"
   document "GET" "user" $ do
     Doc.summary "Get a user by ID"
@@ -250,7 +250,7 @@ sitemap o = do
 
   post "/users/handles" (continue checkHandlesH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. jsonRequest @CheckHandles
   document "POST" "checkUserHandles" $ do
     Doc.summary "Check availability of user handles"
@@ -259,7 +259,7 @@ sitemap o = do
     Doc.returns (Doc.array Doc.string')
     Doc.response 200 "List of free handles" Doc.end
   head "/users/handles/:handle" (continue checkHandleH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "handle"
   document "HEAD" "checkUserHandle" $ do
     Doc.summary "Check whether a user handle can be taken"
@@ -270,7 +270,7 @@ sitemap o = do
     Doc.errorResponse handleNotFound
   get "/users/handles/:handle" (continue getHandleInfoH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. capture "handle"
   document "GET" "getUserHandleInfo" $ do
     Doc.summary "Get information on a user handle"
@@ -287,7 +287,7 @@ sitemap o = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   get "/users" (continue listUsersH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. (param "ids" ||| param "handles")
   document "GET" "users" $ do
     Doc.summary "List users"
@@ -370,7 +370,7 @@ sitemap o = do
   --
 
   get "/users/:uid/rich-info" (continue getRichInfoH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "uid"
       .&. accept "application" "json"
   document "GET" "getRichInfo" $ do
@@ -386,7 +386,7 @@ sitemap o = do
 
   get "/self" (continue getSelfH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
   document "GET" "self" $ do
     Doc.summary "Get your profile"
     Doc.returns (Doc.ref Doc.self)
@@ -396,8 +396,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
   put "/self" (continue updateUserH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @UserUpdate
   document "PUT" "updateSelf" $ do
     Doc.summary "Update your profile"
@@ -408,7 +408,7 @@ sitemap o = do
 
   get "/self/name" (continue getUserDisplayNameH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
   document "GET" "selfName" $ do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Doc.userDisplayName)
@@ -416,8 +416,8 @@ sitemap o = do
   ---
 
   put "/self/email" (continue changeSelfEmailH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @EmailUpdate
   document "PUT" "changeEmail" $ do
     Doc.summary "Change your email address"
@@ -432,8 +432,8 @@ sitemap o = do
   ---
 
   put "/self/phone" (continue changePhoneH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @PhoneUpdate
   document "PUT" "changePhone" $ do
     Doc.summary "Change your phone number"
@@ -444,7 +444,7 @@ sitemap o = do
   ---
 
   head "/self/password" (continue checkPasswordExistsH) $
-    header "Z-User"
+    zauthUserId
   document "HEAD" "checkPassword" $ do
     Doc.summary "Check that your password is set"
     Doc.response 200 "Password is set." Doc.end
@@ -452,7 +452,7 @@ sitemap o = do
   ---
 
   put "/self/password" (continue changePasswordH) $
-    header "Z-User"
+    zauthUserId
       .&. jsonRequest @PasswordChange
   document "PUT" "changePassword" $ do
     Doc.summary "Change your password"
@@ -464,8 +464,8 @@ sitemap o = do
   --
 
   put "/self/locale" (continue changeLocaleH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @LocaleUpdate
   document "PUT" "changeLocale" $ do
     Doc.summary "Change your locale"
@@ -477,8 +477,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
   put "/self/handle" (continue changeHandleH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @HandleUpdate
   document "PUT" "changeHandle" $ do
     Doc.summary "Change your handle"
@@ -492,8 +492,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to self
   delete "/self/phone" (continue removePhoneH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
   document "DELETE" "removePhone" $ do
     Doc.summary "Remove your phone number."
     Doc.notes
@@ -507,8 +507,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to self
   delete "/self/email" (continue removeEmailH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
   document "DELETE" "removeEmail" $ do
     Doc.summary "Remove your email address."
     Doc.notes
@@ -523,7 +523,7 @@ sitemap o = do
   -- - UserDeleted event to contacts of self
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/self" (continue deleteUserH) $
-    header "Z-User"
+    zauthUserId
       .&. jsonRequest @DeleteUser
       .&. accept "application" "json"
   document "DELETE" "deleteUser" $ do
@@ -565,8 +565,8 @@ sitemap o = do
   --   for details see 'Galley.API.Create.createConnectConversation'
   post "/connections" (continue createConnectionH) $
     accept "application" "json"
-      .&. header "Z-User"
-      .&. header "Z-Connection"
+      .&. zauthUserId
+      .&. zauthConnId
       .&. jsonRequest @ConnectionRequest
   document "POST" "createConnection" $ do
     Doc.summary "Create a connection to another user."
@@ -586,7 +586,7 @@ sitemap o = do
 
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. opt (query "start")
       .&. def (unsafeRange 100) (query "size")
   document "GET" "connections" $ do
@@ -609,8 +609,8 @@ sitemap o = do
   -- - MemberJoin event to self and other (via galley)
   put "/connections/:id" (continue updateConnectionH) $
     accept "application" "json"
-      .&. header "Z-User"
-      .&. header "Z-Connection"
+      .&. zauthUserId
+      .&. zauthConnId
       .&. capture "id"
       .&. jsonRequest @ConnectionUpdate
   document "PUT" "updateConnection" $ do
@@ -630,7 +630,7 @@ sitemap o = do
 
   get "/connections/:id" (continue getConnectionH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. capture "id"
   document "GET" "connection" $ do
     Doc.summary "Get an existing connection to another user."
@@ -645,8 +645,8 @@ sitemap o = do
   -- - ClientRemoved event to self, if removing old clients due to max number
   post "/clients" (continue addClientH) $
     jsonRequest @NewClient
-      .&. header "Z-User"
-      .&. header "Z-Connection"
+      .&. zauthUserId
+      .&. zauthConnId
       .&. opt (header "X-Forwarded-For")
       .&. accept "application" "json"
   document "POST" "registerClient" $ do
@@ -662,7 +662,7 @@ sitemap o = do
 
   put "/clients/:client" (continue updateClientH) $
     jsonRequest @UpdateClient
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. capture "client"
       .&. accept "application" "json"
   document "PUT" "updateClient" $ do
@@ -679,8 +679,8 @@ sitemap o = do
   -- - ClientRemoved event to self
   delete "/clients/:client" (continue rmClientH) $
     jsonRequest @RmClient
-      .&. header "Z-User"
-      .&. header "Z-Connection"
+      .&. zauthUserId
+      .&. zauthConnId
       .&. capture "client"
       .&. accept "application" "json"
   document "DELETE" "deleteClient" $ do
@@ -693,7 +693,7 @@ sitemap o = do
   ---
 
   get "/clients" (continue listClientsH) $
-    header "Z-User"
+    zauthUserId
       .&. accept "application" "json"
   document "GET" "listClients" $ do
     Doc.summary "List the registered clients."
@@ -702,7 +702,7 @@ sitemap o = do
   ---
 
   get "/clients/:client" (continue getClientH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "client"
       .&. accept "application" "json"
   document "GET" "getClients" $ do
@@ -714,7 +714,7 @@ sitemap o = do
   ---
 
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "client"
       .&. accept "application" "json"
   document "GET" "listPrekeyIds" $ do
@@ -728,8 +728,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - PropertySet event to self
   put "/properties/:key" (continue setPropertyH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. capture "key"
       .&. jsonRequest @PropertyValue
   document "PUT" "setProperty" $ do
@@ -744,8 +744,8 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - PropertyDeleted event to self
   delete "/properties/:key" (continue deletePropertyH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
       .&. capture "key"
   document "DELETE" "deleteProperty" $ do
     Doc.summary "Delete a property."
@@ -757,15 +757,15 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - PropertiesCleared event to self
   delete "/properties" (continue clearPropertiesH) $
-    header "Z-User"
-      .&. header "Z-Connection"
+    zauthUserId
+      .&. zauthConnId
   document "DELETE" "clearProperties" $ do
     Doc.summary "Clear all properties."
     Doc.response 200 "Properties cleared." Doc.end
   ---
 
   get "/properties/:key" (continue getPropertyH) $
-    header "Z-User"
+    zauthUserId
       .&. capture "key"
       .&. accept "application" "json"
   document "GET" "getProperty" $ do
@@ -777,7 +777,7 @@ sitemap o = do
   ---
 
   get "/properties" (continue listPropertyKeysH) $
-    header "Z-User"
+    zauthUserId
       .&. accept "application" "json"
   document "GET" "listPropertyKeys" $ do
     Doc.summary "List all property keys."
@@ -786,7 +786,7 @@ sitemap o = do
   ---
 
   get "/properties-values" (continue listPropertyKeysAndValuesH) $
-    header "Z-User"
+    zauthUserId
       .&. accept "application" "json"
   document "GET" "listPropertyKeysAndValues" $ do
     Doc.summary "List all properties with key and value."
@@ -911,7 +911,7 @@ sitemap o = do
 
   post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
-      .&. header "Z-User"
+      .&. zauthUserId
       .&. jsonRequest @Value
   document "POST" "onboardingV3" $ do
     Doc.deprecated

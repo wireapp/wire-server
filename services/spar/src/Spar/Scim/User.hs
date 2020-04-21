@@ -43,7 +43,7 @@ where
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
-import Control.Lens ((^.), view)
+import Control.Lens ((^.))
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import Crypto.Hash
@@ -333,7 +333,7 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
   storedUser <- lift $ toScimStoredUser buid user
-  let teamid = view SAML.idpExtraInfo idpConfig
+  let teamid = idpConfig ^. SAML.idpExtraInfo . wiTeam
   buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
   assert (buid == buid') $ pure ()
   -- If we crash now, we have an active user that cannot login. And can not

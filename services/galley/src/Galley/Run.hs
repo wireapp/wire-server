@@ -17,7 +17,7 @@
 
 module Galley.Run
   ( run,
-    mkApp
+    mkApp,
   )
 where
 
@@ -41,6 +41,10 @@ import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
+import Servant (Proxy (Proxy))
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.API as Servant
+import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
 
@@ -71,12 +75,20 @@ mkApp o = do
   let l = e ^. App.applog
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
-  return (middlewares l m $ app e, e)
- where
-  rtree = compile sitemap
-  app e r k = runGalley e r (route rtree r k)
-  middlewares l m =
-    waiPrometheusMiddleware sitemap
-      . catchErrors l [Right m]
-      . GZip.gunzip
-      . GZip.gzip GZip.def
+  return (middlewares l m $ servantApp e, e)
+  where
+    rtree = compile sitemap
+    app e r k = runGalley e r (route rtree r k)
+    -- the servant API wraps the one defined using wai-routing
+    servantApp e r =
+      Servant.serve
+        -- we don't host any Servant endpoints yet, but will add some for the
+        -- federation API, replacing the empty API.
+        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
+        (Servant.emptyServer :<|> Servant.Tagged (app e))
+        r
+    middlewares l m =
+      waiPrometheusMiddleware sitemap
+        . catchErrors l [Right m]
+        . GZip.gunzip
+        . GZip.gzip GZip.def

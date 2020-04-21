@@ -48,6 +48,7 @@ module Util.Core
 
     -- * Other
     defPassword,
+    getUserBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
     getSSOEnabledInternal,
@@ -59,6 +60,7 @@ module Util.Core
     promoteTeamMember,
     getSelfProfile,
     nextWireId,
+    nextWireIdP,
     nextHandle,
     nextSAMLID,
     nextSubject,
@@ -67,10 +69,14 @@ module Util.Core
     zUser,
     ping,
     makeIssuer,
+    makeTestIdP,
     makeTestIdPMetadata,
     getTestSPMetadata,
     registerTestIdP,
+    registerTestIdPWithMeta,
     registerTestIdPFrom,
+    tryLogin,
+    tryLoginFail,
     negotiateAuthnRequest,
     negotiateAuthnRequest',
     getCookie,
@@ -93,8 +99,12 @@ module Util.Core
     callIdpCreate',
     callIdpCreateRaw,
     callIdpCreateRaw',
+    callIdpCreateReplace,
+    callIdpCreateReplace',
+    callIdpUpdate',
     callIdpDelete,
     callIdpDelete',
+    callIdpDeletePurge',
     initCassandra,
     ssoToUidSpar,
     runSparCass,
@@ -126,6 +136,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
+import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString as SBS
@@ -133,6 +144,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Range
@@ -152,7 +164,7 @@ import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
-import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.App (toLevel)
@@ -169,6 +181,7 @@ import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
+import Text.XML.DSig (SignPrivCreds)
 import qualified Text.XML.DSig as SAML
 import URI.ByteString
 import URI.ByteString.QQ (uri)
@@ -276,6 +289,24 @@ aFewTimes action good = do
       (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> pure . not . good)
       (\_ -> action `runReaderT` env)
+
+-- | Duplicate of 'Spar.Intra.Brig.getBrigUser'.
+getUserBrig :: HasCallStack => UserId -> TestSpar (Maybe User)
+getUserBrig uid = do
+  env <- ask
+  let req =
+        (env ^. teBrig) . path "/self"
+          . header "Z-User" (toByteString' uid)
+  resp <- call $ get req
+  case statusCode resp of
+    200 -> do
+      let user = selfUser $ responseJsonUnsafe resp
+      pure $
+        if (userDeleted user)
+          then Nothing
+          else Just user
+    404 -> pure Nothing
+    bad -> error $ show bad
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
@@ -392,6 +423,9 @@ deleteUserNoWait brigreq uid =
 -- 'UUID.nextRandom'.
 nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
+
+nextWireIdP :: MonadIO m => m WireIdP
+nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure [] <*> pure Nothing
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
@@ -613,13 +647,20 @@ makeIssuer = do
     (pure . Issuer)
     (SAML.parseURI' ("https://issuer.net/_" <> UUID.toText uuid))
 
+makeTestIdP :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
+makeTestIdP = IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
+
 -- | Create a cloned new 'IdPMetadata' value from the sample value already registered, but with a
 -- fresh random 'Issuer'.  This is the simplest way to get such a value for registration of a new
 -- 'IdP' (registering the same 'Issuer' twice is an error).
-makeTestIdPMetadata :: (HasCallStack, MonadIO m) => m IdPMetadata
+makeTestIdPMetadata :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPMetadata, SAML.SignPrivCreds)
 makeTestIdPMetadata = do
   issuer <- makeIssuer
-  pure $ sampleIdPMetadata issuer [uri|https://requri.net/|]
+  requri <- do
+    uuid :: ByteString <- UUID.toASCIIBytes <$> liftIO UUID.nextRandom
+    pure $ [uri|https://requri.net/|] & pathL .~ ("/" <> uuid)
+  (privkey, _, cert) <- SAML.mkSignCredsWithCert Nothing 96
+  pure (IdPMetadata issuer requri (cert :| []), privkey)
 
 getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
 getTestSPMetadata = do
@@ -630,15 +671,24 @@ getTestSPMetadata = do
   where
     crash_ = liftIO . throwIO . ErrorCall
 
--- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
--- idp in the resulting team.  The user returned is the owner of the team.
+-- | See 'registerTestIdPWithMeta'
 registerTestIdP ::
-  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
+  (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
   m (UserId, TeamId, IdP)
 registerTestIdP = do
-  idpmeta <- makeTestIdPMetadata
+  (uid, tid, idp, _) <- registerTestIdPWithMeta
+  pure (uid, tid, idp)
+
+-- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
+-- idp in the resulting team.  The user returned is the owner of the team.
+registerTestIdPWithMeta ::
+  (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
+  m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
+registerTestIdPWithMeta = do
+  (idpmeta, privkey) <- makeTestIdPMetadata
   env <- ask
-  registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
@@ -700,14 +750,39 @@ isSetBindCookie (SimpleSetCookie cky) = do
   unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
     Left $ "cookie must be same-site: " <> show cky
 
+tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
+tryLogin privkey idp userSubject = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    statusCode sparresp `shouldBe` 200
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` "<title>wire:sso:success</title>"
+  either (error . show) (pure . view userRefL) $
+    SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
+
+tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
+tryLoginFail privkey idp userSubject bodyShouldContain = do
+  env <- ask
+  spmeta <- getTestSPMetadata
+  (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  sparresp <- submitAuthnResponse idpresp
+  liftIO $ do
+    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    bdy `shouldContain` bodyShouldContain
+
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdP ->
-  m (SAML.SignPrivCreds, SAML.AuthnRequest)
+  m SAML.AuthnRequest
 negotiateAuthnRequest idp = negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
-  (creds, req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
-    Right () -> pure (creds, req)
+  (req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
+    Right () -> pure req
     Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
 
 doInitiatePath :: DoInitiate -> [ST]
@@ -719,7 +794,7 @@ negotiateAuthnRequest' ::
   DoInitiate ->
   IdP ->
   (Request -> Request) ->
-  m (SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SetBindCookie)
+  m (SAML.AuthnRequest, Maybe SetBindCookie)
 negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
   env <- ask
   resp :: ResponseLBS <-
@@ -734,7 +809,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
   let wireCookie =
         SAML.SimpleSetCookie . Web.parseSetCookie
           <$> lookup "Set-Cookie" (responseHeaders resp)
-  pure (sampleIdPPrivkey, authnreq, wireCookie)
+  pure (authnreq, wireCookie)
 
 submitAuthnResponse ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
@@ -753,10 +828,10 @@ submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
     formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
   call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
 
-loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => IdP -> m UserId
-loginSsoUserFirstTime idp = do
+loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => IdP -> SAML.SignPrivCreds -> m UserId
+loginSsoUserFirstTime idp privCreds = do
   env <- ask
-  (privCreds, authnReq) <- negotiateAuthnRequest idp
+  authnReq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata
   authnResp <- runSimpleSP $ mkAuthnResponse privCreds idp spmeta authnReq True
   sparAuthnResp <- submitAuthnResponse authnResp
@@ -891,12 +966,48 @@ callIdpCreateRaw' sparreq_ muid ctyp metadata = do
       . body (RequestBodyLBS metadata)
       . header "Content-Type" ctyp
 
+callIdpCreateReplace :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
+callIdpCreateReplace sparreq_ muid metadata idpid = do
+  resp <- callIdpCreateReplace' (sparreq_ . expect2xx) muid metadata idpid
+  either (liftIO . throwIO . ErrorCall . show) pure $
+    responseJsonEither @IdP resp
+
+callIdpCreateReplace' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
+callIdpCreateReplace' sparreq_ muid metadata idpid = do
+  post $
+    sparreq_
+      . maybe id zUser muid
+      . path "/identity-providers/"
+      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . queryItem "replaces" (cs $ idPIdToST idpid)
+      . header "Content-Type" "application/xml"
+
+callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
+callIdpUpdate' sparreq_ muid idpid (IdPMetadataValue metadata _) = do
+  put $
+    sparreq_
+      . maybe id zUser muid
+      . paths ["identity-providers", toByteString' $ idPIdToST idpid]
+      . body (RequestBodyLBS $ cs metadata)
+      . header "Content-Type" "application/xml"
+
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+  delete $
+    sparreq_
+      . maybe id zUser muid
+      . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+
+callIdpDeletePurge' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpDeletePurge' sparreq_ muid idpid = do
+  delete $
+    sparreq_
+      . maybe id zUser muid
+      . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+      . queryItem "purge" "true"
 
 callGetDefaultSsoCode :: (MonadIO m, MonadHttp m) => SparReq -> m ResponseLBS
 callGetDefaultSsoCode sparreq_ = do

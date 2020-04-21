@@ -26,7 +26,7 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Except
 import Data.Kind (Type)
-import Data.Typeable
+import Data.Typeable (Typeable)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
@@ -34,6 +34,7 @@ import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Intra.Brig (fromUserSSOId)
 import Spar.Types
+import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
 import Util.Scim
@@ -49,7 +50,7 @@ spec = do
           (Cql a, Typeable a, Show a, Eq a) =>
           a ->
           SpecWith TestEnv
-        check x = it (show . typeRep $ (Proxy @a)) . liftIO $ do
+        check x = it (show (typeRep @a)) . liftIO $ do
           (fromCql . toCql) x `shouldBe` Right x
     check (mkXmlText "<>%&'\"")
   -- FUTUREWORK: collect all Cql instance, make them Arbitrary instances, and do this right.
@@ -159,29 +160,29 @@ spec = do
       testDeleteTeam
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPIdByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
@@ -199,6 +200,17 @@ spec = do
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
+      describe "{set,clear}ReplacedBy" $ do
+        it "handle non-existent idps gradefully" $ do
+          pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
+          idp1 <- makeTestIdP
+          idp2 <- makeTestIdP
+          runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
+          idp1' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          liftIO $ idp1' `shouldBe` Nothing
+          runSparCass (Data.clearReplacedBy (Data.Replaced (idp1 ^. idpId)))
+          idp2' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          liftIO $ idp2' `shouldBe` Nothing
 
 testSPStoreID ::
   forall m (a :: Type).
@@ -208,7 +220,7 @@ testSPStoreID ::
   (SAML.ID a -> m Bool) ->
   SpecWith TestEnv
 testSPStoreID store unstore isalive = do
-  describe ("SPStoreID @" <> show (typeOf (undefined :: a))) $ do
+  describe ("SPStoreID @" <> show (typeRep @a)) $ do
     context "within TTL" $ do
       it "isAliveID is True" $ do
         xid :: SAML.ID a <- nextSAMLID

@@ -76,6 +76,7 @@ data SparCustomError
   | SparBindFromWrongOrNoTeam LT
   | SparBindUserRefTaken
   | SparBadUserName LT
+  | SparCannotCreateUsersOnReplacedIdP LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
   | SparReAuthRequired
@@ -92,6 +93,7 @@ data SparCustomError
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
+  | SparIdPIssuerInUse
   | SparProvisioningNoSingleIdP LT
   | SparProvisioningTokenLimitReached
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
@@ -135,6 +137,7 @@ renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Rig
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.Error status403 "bad-team" ("Forbidden: wrong user team " <> msg)
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
+renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
 -- Brig-specific errors
 renderSparError (SAML.CustomError SparNoBodyInBrigResponse) = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 renderSparError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
@@ -148,7 +151,7 @@ renderSparError (SAML.CustomError (SparGalleyError msg)) = Right $ Wai.Error sta
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 renderSparError (SAML.CustomError (SparCassandraError msg)) = Right $ Wai.Error status500 "server-error" msg -- TODO: should we be more specific here and make it 'db-error'?
 renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)
-renderSparError (SAML.UnknownIdP _msg) = Right $ Wai.Error status404 "not-found" "IdP not found."
+renderSparError (SAML.UnknownIdP msg) = Right $ Wai.Error status404 "not-found" ("IdP not found: " <> msg)
 renderSparError (SAML.Forbidden msg) = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
 renderSparError (SAML.BadSamlResponseBase64Error msg) = Right $ Wai.Error status400 "bad-response-encoding" ("Bad response: base64 error: " <> cs msg)
 renderSparError (SAML.BadSamlResponseXmlError msg) = Right $ Wai.Error status400 "bad-response-xml" ("Bad response: XML parse error: " <> cs msg)
@@ -175,6 +178,7 @@ renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.Error 
 renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
+renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.Error status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg)) = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"

@@ -186,7 +186,7 @@ sitemap = do
     parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
-    body (ref TeamsModel.userIdList) $
+    body (ref Model.userIdList) $
       description "JSON body"
     returns (ref TeamsModel.teamMemberList)
     response 200 "Team members" end
@@ -817,7 +817,11 @@ sitemap = do
         \('ignore_missing' takes precedence when present). \
         \NOTE: can also be a comma-separated list of user IDs, \
         \in which case it specifies who exactly is forbidden from \
-        \having missing clients."
+        \having missing clients. \
+        \To support large lists of user IDs exceeding the allowed \
+        \URL length, you can also put this list in the body, in \
+        \the optional field 'report_missing'.  That body field takes \
+        \precedence over both query params."
       optional
     body (ref Model.newOtrMessage) $
       description "JSON body"
@@ -889,7 +893,11 @@ sitemap = do
         \('ignore_missing' takes precedence when present). \
         \NOTE: can also be a comma-separated list of user IDs, \
         \in which case it specifies who exactly is forbidden from \
-        \having missing clients."
+        \having missing clients. \
+        \To support large lists of user IDs exceeding the allowed \
+        \URL length, you can also put this list in the body, in \
+        \the optional field 'report_missing'.  That body field takes \
+        \precedence over both query params."
       optional
     body (ref Model.newOtrMessage) $
       description "JSON body"

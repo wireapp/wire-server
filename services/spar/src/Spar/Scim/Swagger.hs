@@ -36,9 +36,6 @@ import Data.Proxy
 import Data.Swagger hiding (Header (..))
 import Data.Time
 import Imports
--- NB: this package depends on both types-common, swagger2, so there is no away around this name
--- clash other than -XPackageImports.
-
 import qualified SAML2.WebSSO as SAML
 import Spar.Orphans ()
 import Spar.Scim

@@ -121,15 +121,15 @@ instance SPStoreID Assertion Spar where
   isAliveID r = wrapMonadClient $ Data.isAliveAssID r
 
 instance SPStoreIdP SparError Spar where
-  type IdPConfigExtra Spar = TeamId
+  type IdPConfigExtra Spar = WireIdP
 
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+  storeIdPConfig :: IdP -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
+  getIdPConfig :: IdPId -> Spar IdP
   getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
+  getIdPConfigByIssuer :: Issuer -> Spar IdP
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
@@ -151,8 +151,12 @@ wrapMonadClient action = do
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
--- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
--- 'Nothing'.  See also: 'Spar.App.createUser'.
+-- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, or
+-- user is not in a team, return 'Nothing'.  See also: 'Spar.App.createUser'.
+--
+-- It makes sense to require that users are required to be team members: the idp is created in
+-- the context of a team, and the only way for users to be created is as team members.  If a
+-- user is not a team member, it cannot have been created using SAML.
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
@@ -161,13 +165,12 @@ getUser uref = do
   muid <- wrapMonadClient $ Data.getSAMLUser uref
   case muid of
     Nothing -> pure Nothing
-    -- TODO(arianvp): Why does it check if it is a team user? Ask Tiago
     Just uid -> do
       itis <- Intra.isTeamUser uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
--- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
+-- create user on brig.  See also: 'Spar.App.getUser'.
 --
 -- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
 -- then delete it on the team admin page in wire.  If a user is deleted in wire but not in the IdP,
@@ -182,16 +185,9 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-{-createSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
-createSamlUser suid mbName managedBy = do
-  buid <- Id <$> liftIO UUID.nextRandom
-  createSamlUserWithId buid suid mbName managedBy
-  pure buid-}
-
--- | Like 'createSamlUser', but for an already existing 'UserId'.
 createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid mbName managedBy = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
@@ -207,7 +203,10 @@ autoprovisionSamlUser suid mbName managedBy = do
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
 autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
 autoprovisionSamlUserWithId buid suid mbName managedBy = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  idp <- getIdPConfigByIssuer (suid ^. uidTenant)
+  unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
+    throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
+  let teamid = idp ^. idpExtraInfo . wiTeam
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then createSamlUserWithId buid suid mbName managedBy
@@ -220,7 +219,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
   uteamid <- Intra.getBrigUserTeam buid
   unless
     (uteamid == Just teamid)
@@ -309,6 +308,27 @@ catchVerdictErrors = (`catchError` hndlr)
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
+-- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
+-- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
+-- traverse the old IdPs in search for the old entry.  Return that old entry.
+findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
+findUserWithOldIssuer (SAML.UserRef issuer subject) = do
+  idp <- getIdPConfigByIssuer issuer
+  let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
+      tryFind found@(Just _) _ = pure found
+      tryFind Nothing oldIssuer = (uref,) <$$> getUser uref
+        where
+          uref = SAML.UserRef oldIssuer subject
+  foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
+
+-- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
+-- the old IdP is not needed any more next time.
+moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
+moveUserToNewIssuer oldUserRef newUserRef uid = do
+  wrapMonadClient $ Data.insertSAMLUser newUserRef uid
+  Intra.setBrigUserUserRef uid newUserRef
+  wrapMonadClient $ Data.deleteSAMLUser oldUserRef
+
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
   SAML.AccessDenied reasons -> do
@@ -316,25 +336,37 @@ verdictHandlerResultCore bindCky = \case
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCass <- getUser userref
+      viaSparCassandra <- getUser userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
-
-      case (viaBindCookie, viaSparCass) of
+      viaSparCassandraOldIssuer <-
+        if isJust viaSparCassandra
+          then pure Nothing
+          else findUserWithOldIssuer userref
+      case (viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
-        -- SSO reauthentication
-        (Nothing, Just uid) -> pure uid
+        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        -- If the user is only found under an old (previous) issuer, move it here.
+        (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
+        -- SSO re-authentication (the most common case).
+        (Nothing, Just uid, _) -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
-        (Just uid, Nothing) -> bindUser uid userref
-        (Just uid, Just uid')
+        (Just uid, Nothing, Nothing) -> bindUser uid userref
+        (Just uid, Just uid', Nothing)
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
           -- Attempt to use ssoid for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
+        -- same two cases as above, but between last login and bind there was an issuer update.
+        (Just uid, Nothing, Just (oldUserRef, uid'))
+          | uid == uid' -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
+          | otherwise -> throwSpar SparBindUserRefTaken
+        (Just _, Just _, Just _) ->
+          -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
+          error "impossible."
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
     mcky :: Maybe SetCookie <- Intra.ssoLogin uid
     -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)

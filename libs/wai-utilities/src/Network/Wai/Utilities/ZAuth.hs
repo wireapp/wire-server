@@ -121,7 +121,7 @@ infixr 3 .&>
 -- between the zauth ACL and / or API handlers should yield an opaque 403
 -- error, in order not to leak such details to clients on public API endpoints.
 zheader :: (HasHeaders r, FromByteString a) => HeaderName -> Predicate r Error a
-zheader = fmap (result (const $ Fail accessDenied) Okay) . header
+zheader = fmap (result (Fail . const accessDenied) Okay) . header
 
 accessDenied :: Error
 accessDenied = setMessage "Access denied" (err status403)

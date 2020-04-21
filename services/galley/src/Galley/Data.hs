@@ -331,13 +331,8 @@ teamCreationTime t =
 
 teamBinding :: MonadClient m => TeamId -> m (Maybe TeamBinding)
 teamBinding t =
-  checkBinding . fmap runIdentity
+  fmap (fromMaybe NonBinding . runIdentity)
     <$> retry x1 (query1 Cql.selectTeamBinding (params Quorum (Identity t)))
-  where
-    checkBinding :: Maybe (Maybe TeamBinding) -> Maybe TeamBinding
-    checkBinding (Just (Just Binding)) = Just Binding
-    checkBinding (Just _) = Just NonBinding
-    checkBinding Nothing = Nothing
 
 createTeam ::
   MonadClient m =>

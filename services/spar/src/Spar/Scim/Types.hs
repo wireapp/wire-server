@@ -52,9 +52,11 @@ import Data.Misc (PlainTextPassword)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant
+import Servant.API.Generic ((:-), ToServantApi)
 import Spar.API.Util
 import Spar.Types
 import Web.Scim.AttrName (AttrName (..))
+import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.Group as Scim.Group
 import qualified Web.Scim.Class.User as Scim.User
@@ -65,7 +67,6 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Server as Scim
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -284,8 +285,25 @@ instance ToJSON ScimTokenList where
 -- Servant APIs
 
 type APIScim =
-  OmitDocs :> "v2" :> Scim.SiteAPI SparTag
+  OmitDocs :> "v2" :> ScimSiteAPI SparTag
     :<|> "auth-tokens" :> APIScimToken
+
+type ScimSiteAPI tag = ToServantApi (ScimSite tag)
+
+-- | This is similar to 'Scim.Site', but does not include the 'Scim.GroupAPI',
+-- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
+data ScimSite tag route
+  = ScimSite
+      { config ::
+          route
+            :- ToServantApi Scim.Meta.ConfigSite,
+        users ::
+          route
+            :- Header "Authorization" (Scim.Auth.AuthData tag)
+            :> "Users"
+            :> ToServantApi (Scim.User.UserSite tag)
+      }
+  deriving (Generic)
 
 type APIScimToken =
   Header "Z-User" UserId :> APIScimTokenCreate
