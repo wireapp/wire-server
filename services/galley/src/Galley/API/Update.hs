@@ -911,6 +911,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
  where
   fetchLimitedUserList tid uListInFilter = do
     -- TODO: This is still really confusing... needs some rethinking and refactoring!
+    -- TODO: nub of size of the list of report missing + rcps must be < truncation limit
     limit <- fromIntegral . fromRange <$> truncationLimit
 
     -- Get the users in the filter
