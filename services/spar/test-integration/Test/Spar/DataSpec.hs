@@ -199,6 +199,16 @@ spec = do
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
+      describe "{set,clear}ReplacedBy" $ do
+        it "handle non-existent idps gradefully" $ do
+          idp1 <- makeTestIdP
+          idp2 <- makeTestIdP
+          runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
+          idp1' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          liftIO $ idp1' `shouldBe` Nothing
+          runSparCass (Data.clearReplacedBy (Data.Replaced (idp1 ^. idpId)))
+          idp2' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          liftIO $ idp2' `shouldBe` Nothing
 
 testSPStoreID ::
   forall m (a :: Type).
