@@ -25,6 +25,7 @@ import API.Util
 import qualified API.Util as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
+import qualified Brig.Types as Brig
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
@@ -48,7 +49,7 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
-import Gundeck.Types.Notification
+import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -58,7 +59,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers (test)
-import TestSetup (TestM, TestSetup, tsCannon, tsGConf, tsGalley)
+import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
 tests :: IO TestSetup -> TestTree
@@ -1005,15 +1006,14 @@ testUpdateTeam = do
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
 
-testTeamAddRemoveMemberAboveThresholdNoEvents :: TestM ()
+testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
   c <- view tsCannon
   maxTeamSize <- fromIntegral <$> view (tsGConf . optSettings . setMaxTeamSize)
   (owner, tid) <- Util.createBindingTeam
-  _member1 <- addTeamMemberAndExpectEvent True tid owner
-  _member2 <- addTeamMemberAndExpectEvent True tid owner
+  member1 <- addTeamMemberAndExpectEvent True tid owner
 
-  -- Now last fill the team, -1
+  -- Now last fill the team, -2
   let perms = Util.symmPermissions [CreateConversation]
   replicateM_ (maxTeamSize - 4) $ do
     rand <- newTeamMember' perms <$> Util.randomUser
@@ -1022,7 +1022,20 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     -- count towards the truncation limit
     Util.addTeamMemberInternal tid rand
 
+  extern <- Util.randomUser
+
   modifyTeamDataAndExpectEvent True tid owner
+  -- Let's create and remove a member
+  member2 <- do
+    temp <- addTeamMemberAndExpectEvent True tid owner
+    Util.connectUsers extern (list1 temp [])
+    removeTeamMemberAndExpectEvent True owner tid temp [extern]
+    addTeamMemberAndExpectEvent True tid owner
+  modifyUserProfileAndExpectEvent True owner [member1, member2]
+
+  -- Let's connect an external to test the different behavior
+  Util.connectUsers extern (list1 owner [member1, member2])
+
   _memLastWithFanout <- addTeamMemberAndExpectEvent True tid owner
 
   -- We should really wait until we see that the team is of full size
@@ -1036,11 +1049,13 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   _memFirstWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
   -- Team updates are not propagated
   modifyTeamDataAndExpectEvent False tid owner
+  -- User event updates are not propagated in the team
+  modifyUserProfileAndExpectEvent False owner [member1, member2]
+  -- Let us remove 1 member that exceeds the limit, verify that team users
+  -- do not get the deletion event but the connections do!
+  removeTeamMemberAndExpectEvent False owner tid member2 [extern]
 
   -- TODO:
-  -- Test conversation removal
-  -- Test user update
-  -- Test user removal
   -- Test team deletion (should contain only conv. removal and user.deletion for non team members)
 
   --   let newOpts = opts & Opt.optSettings . Opt.setTruncationLimit .~ Just (unsafeRange 1)
@@ -1049,7 +1064,27 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   -- withSettingsOverrides newOpts $ do
   ensureQueueEmpty
  where
-  modifyTeamDataAndExpectEvent :: Bool -> TeamId -> UserId -> TestM ()
+  modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
+  modifyUserProfileAndExpectEvent expect target listeners = do
+    c <- view tsCannon
+    b <- view tsBrig
+    WS.bracketRN c listeners $ \wsListeners -> do
+      -- Do something
+      let u = Brig.UserUpdate (Just $ Brig.Name "name") Nothing Nothing Nothing
+      put
+        ( b
+            . paths ["self"]
+            . zUser target
+            . zConn "conn"
+            . json u
+        )
+        !!! const 200
+        === statusCode
+      if expect
+        then mapM_ (checkUserUpdateEvent target) wsListeners
+        else WS.assertNoEvent timeout wsListeners
+
+  modifyTeamDataAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM ()
   modifyTeamDataAndExpectEvent expect tid origin = do
     c <- view tsCannon
     g <- view tsGalley
@@ -1069,7 +1104,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         then checkTeamUpdateEvent tid u wsOrigin
         else WS.assertNoEvent timeout [wsOrigin]
 
-  addTeamMemberAndExpectEvent :: Bool -> TeamId -> UserId -> TestM UserId
+  addTeamMemberAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM UserId
   addTeamMemberAndExpectEvent expect tid origin = do
     c <- view tsCannon
     let perms = Util.symmPermissions [CreateConversation]
@@ -1080,6 +1115,29 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         then checkTeamMemberJoin tid (member ^. userId) wsOrigin
         else WS.assertNoEvent timeout [wsOrigin]
     return (member ^. userId)
+
+  removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
+  removeTeamMemberAndExpectEvent expect owner tid victim others = do
+    c <- view tsCannon
+    g <- view tsGalley
+    WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
+      delete
+        ( g
+            . paths ["teams", toByteString' tid, "members", toByteString' victim]
+            . zUser owner
+            . zConn "conn"
+            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+        )
+        !!! const 202
+        === statusCode
+      if expect
+        then checkTeamMemberLeave tid victim wsOwner
+        else WS.assertNoEvent timeout [wsOwner]
+
+      -- User deletion events
+      mapM_ (checkUserDeleteEvent victim) wsOthers
+
+      Util.ensureDeletedState True owner victim
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
@@ -1168,6 +1226,14 @@ testUpdateTeamStatus = do
       !!! do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
+
+checkUserUpdateEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
+checkUserUpdateEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
+  let j = Object $ List1.head (ntfPayload notif)
+  let etype = j ^? key "type" . _String
+  let euser = j ^?! key "user" ^? key "id" . _String
+  etype @?= Just "user.update"
+  euser @?= Just (UUID.toText (toUUID uid))
 
 checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
