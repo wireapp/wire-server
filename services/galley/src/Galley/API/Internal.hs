@@ -39,6 +39,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.Types as Data
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types (ConvType (..), evtFrom)
@@ -55,9 +56,9 @@ rmUserH (user ::: conn) = do
 rmUser :: UserId -> Maybe ConnId -> Galley ()
 rmUser user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
-  Data.ResultSet tids <- Data.teamIdsFrom user Nothing (rcast n)
+  tids <- Data.teamIdsForPagination user Nothing (rcast n)
   leaveTeams tids
-  Data.ResultSet cids <- Data.conversationIdsFrom user Nothing (rcast n)
+  cids <- Data.conversationIdsForPagination user Nothing (rcast n)
   let u = list1 user []
   leaveConversations u cids
   Data.eraseClients user
@@ -65,8 +66,7 @@ rmUser user conn = do
     leaveTeams tids = for_ (result tids) $ \tid -> do
       mems <- Data.teamMembersMaybeTruncated tid
       uncheckedDeleteTeamMember user conn tid user mems
-      when (hasMore tids) $
-        leaveTeams =<< liftClient (nextPage tids)
+      leaveTeams =<< liftClient (nextPage tids)
     leaveConversations :: List1 UserId -> Page OpaqueConvId -> Galley ()
     leaveConversations u ids = do
       (localConvIds, remoteConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId (result ids)
@@ -84,14 +84,14 @@ rmUser user conn = do
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
-              (Intra.newPushLimited False (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPushLimited Data.ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
       for_
         (List1 <$> nonEmpty (catMaybes pp))
         Intra.push
-      when (hasMore ids) $
+      unless (null $ result ids) $
         leaveConversations u =<< liftClient (nextPage ids)
 
 deleteLoop :: Galley ()

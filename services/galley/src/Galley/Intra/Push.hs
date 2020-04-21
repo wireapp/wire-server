@@ -66,6 +66,7 @@ import qualified Data.Text.Lazy as LT
 import Galley.App
 import Galley.Options
 import Galley.Types
+import qualified Galley.Data.Types as Data
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
@@ -108,28 +109,28 @@ data Push
         pushOrigin :: UserId,
         pushRecipients :: List1 Recipient,
         pushJson :: Object,
-        pushRecipientListTooLargeToFanout :: Bool
+        pushRecipientListType :: Data.ListType
       }
 
 makeLenses ''Push
 
-newPush1Limited :: Bool -> UserId -> PushEvent -> List1 Recipient -> Push
-newPush1Limited recipientListIncomplete from e rr =
+newPush1Limited :: Data.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1Limited recipientListType from e rr =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
-      pushRecipientListTooLargeToFanout = recipientListIncomplete,
+      pushRecipientListType = recipientListType,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
     }
 
-newPushLimited :: Bool -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLimited :: Data.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPushLimited _ _ _ [] = Nothing
-newPushLimited b u e (r : rr) = Just $ newPush1Limited b u e (list1 r rr)
+newPushLimited t u e (r : rr) = Just $ newPush1Limited t u e (list1 r rr)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
@@ -181,7 +182,7 @@ pushInternal ps = do
 
     -- Ensure that under no circumstances we exceed the threshold
     removeIfLargeFanout limit = filter
-        (\p -> (not $ pushRecipientListTooLargeToFanout p)
+        (\p -> (pushRecipientListType p == Data.ListComplete)
         && (length (pushRecipients p) <= (fromIntegral $ fromRange limit)))
 
 -----------------------------------------------------------------------------
