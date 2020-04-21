@@ -41,7 +41,7 @@ partitionMappedOrLocalIds = foldMap $ \case
 
 data IdMapping a = IdMapping
   { idMappingLocal :: Id (Mapped a),
-    idMappingGlobal :: Qualified (Id a)
+    idMappingGlobal :: Qualified (Id (Remote a))
   }
   deriving (Show)
 
