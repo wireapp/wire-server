@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -35,9 +34,6 @@ import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
 import Data.Swagger hiding (Header (..))
--- NB: this package depends on both types-common, swagger2, so there is no away around this name
--- clash other than -XPackageImports.
-
 import qualified Data.Swagger.SchemaOptions as Swagger
 import Data.UUID (UUID)
 import qualified Data.X509 as X509

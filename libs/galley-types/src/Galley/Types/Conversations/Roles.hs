@@ -120,10 +120,6 @@ instance ToJSON ConversationRolesList where
       [ "conversation_roles" .= r
       ]
 
-instance FromJSON ConversationRolesList where
-  parseJSON = withObject "conversation-roles-list" $ \o ->
-    ConversationRolesList <$> o .: "convesation_roles"
-
 -- RoleNames with `wire_` prefix are reserved
 -- and cannot be created by externals. Therefore, never
 -- expose this constructor outside of this module.

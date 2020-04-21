@@ -37,9 +37,6 @@ import Spar.Scim (APIScim)
 import Spar.Types
 import qualified URI.ByteString as URI
 
--- NB: this package depends on both types-common, swagger2, so there is no away around this name
--- clash other than -XPackageImports.
-
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
 

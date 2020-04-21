@@ -239,8 +239,8 @@ data NewConv
         newConvTeam :: !(Maybe ConvTeamInfo),
         newConvMessageTimer :: !(Maybe Milliseconds),
         newConvReceiptMode :: !(Maybe ReceiptMode),
+        -- | Every member except for the creator will have this role
         newConvUsersRole :: !RoleName
-        -- Every member except for the creator will have this role
       }
 
 deriving instance Eq NewConv
@@ -379,7 +379,7 @@ newtype Accept
 
 -- Members ------------------------------------------------------------------
 
--- The semantics of the possible different values is entirely up to clients,
+-- | The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
@@ -418,7 +418,7 @@ data OtherMember
 instance Ord OtherMember where
   compare a b = compare (omId a) (omId b)
 
--- Inbound self member updates.  This is what galley expects on its endpoint.  See also
+-- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
 -- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
 data MemberUpdate
   = MemberUpdate
@@ -439,7 +439,7 @@ deriving instance Eq MemberUpdate
 
 deriving instance Show MemberUpdate
 
--- Inbound other member updates.  This is what galley expects on its endpoint.  See also
+-- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
 -- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
 data OtherMemberUpdate
   = OtherMemberUpdate
@@ -453,7 +453,8 @@ deriving instance Show OtherMemberUpdate
 data Invite
   = Invite
       { invUsers :: !(List1 OpaqueUserId),
-        invRoleName :: !RoleName -- This role name is to be applied to all users
+        -- | This role name is to be applied to all users
+        invRoleName :: !RoleName
       }
 
 newInvite :: List1 OpaqueUserId -> Invite
@@ -528,7 +529,7 @@ newtype SimpleMembers
       }
   deriving (Eq, Show, Generic)
 
--- This datatype replaces the old `Members` datatype,
+-- | This datatype replaces the old `Members` datatype,
 -- which has been replaced by `SimpleMembers`. This is
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
@@ -548,14 +549,16 @@ data Connect
       }
   deriving (Eq, Show, Generic)
 
--- Outbound member updates. When a user A acts upon a user B,
+-- | Outbound member updates. When a user A acts upon a user B,
 -- then a user event is generated where B's user ID is set
 -- as misTarget.
 -- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData
   = MemberUpdateData
-      { misTarget :: !(Maybe UserId), -- Target user of this action
+      { -- | Target user of this action, should not be optional anymore.
+        -- <https://github.com/zinfra/backend-issues/issues/1309>
+        misTarget :: !(Maybe UserId),
         misOtrMuted :: !(Maybe Bool),
         misOtrMutedStatus :: !(Maybe MutedStatus),
         misOtrMutedRef :: !(Maybe Text),
@@ -1088,7 +1091,7 @@ instance ToJSON OtherMemberUpdate where
 instance FromJSON MemberUpdateData where
   parseJSON = withObject "member-update event data" $ \m ->
     MemberUpdateData <$> m .:? "target"
-      -- NOTE: ^-- This is really not a maybe and should
+      -- NOTE: This is really not a maybe and should
       --       be made compulsory 28 days after the next
       --       release to prod to guaratee that no events
       --       out there do not contain id.

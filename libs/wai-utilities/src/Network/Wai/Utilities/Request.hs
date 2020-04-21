@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -17,8 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-{-# OPTIONS -Wno-orphans #-}
--- for "instance HasRequest Request" :(
+-- orphan instance for "instance HasRequest Request" :(
 
 module Network.Wai.Utilities.Request where
 

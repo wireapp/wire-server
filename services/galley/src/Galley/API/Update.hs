@@ -62,6 +62,7 @@ import Data.Code
 import Data.Id
 import Data.IdMapping
 import Data.List (delete)
+import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -801,16 +802,11 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   mems <- checkedMemberAddSize xs
   now <- liftIO getCurrentTime
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+  let allMembers = nubOrdOn memId (toList mm <> others)
+  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
-  where
-    allMembers new = foldl' fn new others
-      where
-        fn acc m
-          | any ((== memId m) . memId) acc = acc
-          | otherwise = m : acc
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
 ensureGroupConv c = case Data.convType c of
