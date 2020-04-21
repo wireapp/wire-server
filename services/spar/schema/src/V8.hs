@@ -25,9 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 8 "Keep track of old issuers in the idp table" $ do
+migration = Migration 8 "Keep track of old issuers, replacement idps in the idp table" $ do
   void $
     schema'
       [r|
-        ALTER TABLE idp ADD old_issuers list<text>;
+        ALTER TABLE idp ADD (old_issuers list<text>, replaced_by uuid);
       |]

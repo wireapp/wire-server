@@ -104,7 +104,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 9
+schemaVersion = 8
 
 ----------------------------------------------------------------------
 -- helpers
