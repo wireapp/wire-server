@@ -430,7 +430,7 @@ newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHold
 -- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
 -- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
 -- database content.
--- | TODO: We should do a DB scan and check whether this is _ever_ the case. This logic could
+-- TODO: We should do a DB scan and check whether this is _ever_ the case. This logic could
 -- be applied to anything that we store in Cassandra
 newTeamMemberRaw ::
   MonadThrow m =>
