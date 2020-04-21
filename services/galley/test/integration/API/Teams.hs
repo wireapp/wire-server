@@ -1066,8 +1066,12 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   WS.bracketR c owner $ \wsOwner -> WS.assertNoEvent (1 # Second) [wsOwner]
   _memWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
 
+  -- Add extern to a team conversation
+  cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+  Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
+
   -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
-  deleteTeam tid owner [] extern
+  deleteTeam tid owner [] [cid1] extern
 
   ensureQueueEmpty
  where
@@ -1146,8 +1150,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
 
       Util.ensureDeletedState True owner victim
 
-  deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> UserId -> TestM ()
-  deleteTeam tid owner otherRealUsersInTeam extern = do
+  deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [ConvId] -> UserId -> TestM ()
+  deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
     c <- view tsCannon
     g <- view tsGalley
     void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
@@ -1164,6 +1168,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       -- Ensure users are marked as deleted; since we already
       -- received the event, should _really_ be deleted
       for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
+
+      mapM_ (flip checkConvDeleteEvent wsExtern) teamCidsThatExternBelongsTo
 
     -- ensure the team has a deleted status
     void $ retryWhileN 10 ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
