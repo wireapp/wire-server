@@ -207,12 +207,14 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
   let matchPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle^2",
-                ES.FieldName "normalized"
+              [ ES.FieldName "handle.prefix^2",
+                ES.FieldName "normalized.prefix",
+                ES.FieldName "handle^4",
+                ES.FieldName "normalized^3"
               ]
               (ES.QueryString term')
           )
-            { ES.multiMatchQueryType = Just ES.MultiMatchBestFields,
+            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase,
               ES.multiMatchQueryOperator = ES.And
             }
       query =
@@ -501,21 +503,91 @@ userDoc iu =
       udColourId = _iuColourId iu
     }
 
--- | Name is set to not be indexed, as the search is meant to happen on the normalized name.
+-- | This mapping defines how elasticsearch will treat each field in a document. Here
+-- is how it treats each field:
+-- name: Not indexed, as it is only meant to be shown to user, for querying we use
+--       normalized
+-- team: Used to ensure only teammates can find each other
+-- accent_id: Not indexed, we cannot search by this.
+-- normalized: This is transliterated version of the name to ASCII Latin characters,
+--             this is used for searching by name
+-- handle: Used for searching by handle
+-- normalized.prefix: Used for searching by name prefix
+-- handle.prefix: Used for searching by handle prefix
+--
+-- The prefix fields use "autocomplete" analyzer for indexing and "standard" analyzer
+-- for searching. The "autocomplete" analyzer uses "edge_ngram" filter, this indexes
+-- the handles and normalized names by prefixes. For example: "alice" will be indexed
+-- as "a", "al", "ali", "alic" and "alice". While searching for say "ali", we do not
+-- want to again use the "autocomplete" analyzer, otherwise we would get a match for
+-- "a", "al" and "ali" each, this skews the scoring in elasticsearch a lot and exact
+-- matches get pushed behind actual matches. Using the standard analyzer while
+-- searching ensures ES will look only "ali".
 indexMapping :: Value
 indexMapping =
   object
     [ "properties"
         .= object
-          [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True, mpAnalyzer = Just "autocomplete"}, -- normalized user name
-            "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False, mpAnalyzer = Nothing},
-            "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True, mpAnalyzer = Just "autocomplete"},
-            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True, mpAnalyzer = Nothing},
-            "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False, mpAnalyzer = Nothing}
+          [ "normalized" -- normalized user name
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList [("prefix", MappingField MPText "autocomplete" "standard")]
+                },
+            "name"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "handle"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList [("prefix", MappingField MPText "autocomplete" "standard")]
+                },
+            "team"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "accent_id"
+              .= MappingProperty
+                { mpType = MPByte,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                }
           ]
     ]
 
-data MappingProperty = MappingProperty {mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool, mpAnalyzer :: Maybe Text}
+data MappingProperty
+  = MappingProperty
+      { mpType :: MappingPropertyType,
+        mpStore :: Bool,
+        mpIndex :: Bool,
+        mpAnalyzer :: Maybe Text,
+        mpFields :: Map Text MappingField
+      }
+
+data MappingField
+  = MappingField
+      { mfType :: MappingPropertyType,
+        mfAnalyzer :: Text,
+        mfSearchAnalyzer :: Text
+      }
 
 data MappingPropertyType = MPText | MPKeyword | MPByte
 
@@ -527,12 +599,21 @@ instance ToJSON MappingProperty where
           "index" .= mpIndex mp
         ]
           <> ["analyzer" .= mpAnalyzer mp | isJust $ mpAnalyzer mp]
+          <> ["fields" .= mpFields mp | not . Map.null $ mpFields mp]
       )
 
 instance ToJSON MappingPropertyType where
   toJSON MPText = Aeson.String "text"
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
+
+instance ToJSON MappingField where
+  toJSON mf =
+    object
+      [ "type" .= mfType mf,
+        "analyzer" .= mfAnalyzer mf,
+        "search_analyzer" .= mfSearchAnalyzer mf
+      ]
 
 -- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
 --       yet this will require a data migration.
