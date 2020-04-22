@@ -143,17 +143,14 @@ currentTruncationLimit o = do
   let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
   unsafeRange (min maxTeamSize optTruncLimit)
 
--- Define some invariants:
--- Journal MUST be disabled if maxTeamSize > HardTruncationLimit
--- MaxConvSize MUST be < HardTruncationLimit
+-- Define some invariants for the options used
 validateOptions :: Logger.Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
-  let optTruncLimit = fromIntegral . fromRange $ currentTruncationLimit o
-  -- let _maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+      optTruncLimit = fromIntegral . fromRange $ currentTruncationLimit o
   when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
     if settings ^. setMaxTeamSize > hardLimit
-      then error "setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > 2000"
+      then error ("setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > " ++ show hardLimit)
       else Logger.warn l (msg $ val "Your journaling events may have some admin user ids missing. \
                                     \This is fine for testing purposes but NOT for production use!!")
   when (settings ^. setMaxConvSize > optTruncLimit) $
