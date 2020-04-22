@@ -205,7 +205,7 @@ testListTeamMembersDefaultLimit = do
   liftIO $
     assertBool
       "member list indicates that there are no more members"
-      (not $ listFromServer ^. teamMemberListHasMore)
+      (listFromServer ^. teamMemberListType == ListComplete)
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
@@ -219,7 +219,7 @@ testListTeamMembersTruncated = do
   liftIO $
     assertBool
       "member list does not indicate that there are more members"
-      (listFromServer ^. teamMemberListHasMore)
+      (listFromServer ^. teamMemberListType == ListTruncated)
 
 testListTeamMembersDefaultLimitByIds :: TestM ()
 testListTeamMembersDefaultLimitByIds = do
@@ -245,7 +245,7 @@ testListTeamMembersDefaultLimitByIds = do
       liftIO $
         assertBool
           "has_more is always false"
-          (not $ listFromServer ^. teamMemberListHasMore)
+          (listFromServer ^. teamMemberListType == ListComplete)
 
 testListTeamMembersTruncatedByIds :: TestM ()
 testListTeamMembersTruncatedByIds = do
@@ -266,7 +266,7 @@ testUncheckedListTeamMembers = do
   liftIO $
     assertBool
       "member list does not indicate that there are more members"
-      (listFromServer ^. teamMemberListHasMore)
+      (listFromServer ^. teamMemberListType == ListTruncated)
 
 testEnableSSOPerTeam :: TestM ()
 testEnableSSOPerTeam = do
@@ -1016,10 +1016,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   (owner, tid) <- Util.createBindingTeam
   member1 <- addTeamMemberAndExpectEvent True tid owner
   -- Now last fill the team until truncationSize - 2
-  let perms = Util.symmPermissions [CreateConversation]
-  replicateM_ (truncationLimit - 4) $ do
-    rand <- newTeamMember' perms <$> Util.randomUser
-    Util.addTeamMemberInternal tid rand
+
+  replicateM_ (truncationLimit - 4) $ Util.addUserToTeam owner tid
   extern <- Util.randomUser
   modifyTeamDataAndExpectEvent True tid owner
   -- Let's create and remove a member
@@ -1081,7 +1079,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           === statusCode
         if expect
           then mapM_ (checkUserUpdateEvent target) wsListeners
-          else WS.assertNoEvent timeout wsListeners
+          else WS.assertNoEvent (1 # Second) wsListeners
     modifyTeamDataAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM ()
     modifyTeamDataAndExpectEvent expect tid origin = do
       c <- view tsCannon
@@ -1100,18 +1098,17 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         -- Due to the fact that the team is too large, we expect no events!
         if expect
           then checkTeamUpdateEvent tid u wsOrigin
-          else WS.assertNoEvent timeout [wsOrigin]
+          else WS.assertNoEvent (1 # Second) [wsOrigin]
     addTeamMemberAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM UserId
     addTeamMemberAndExpectEvent expect tid origin = do
       c <- view tsCannon
-      let perms = Util.symmPermissions [CreateConversation]
-      member <- newTeamMember' perms <$> Util.randomUser
       WS.bracketR c origin $ \wsOrigin -> do
-        Util.addTeamMemberInternal tid member
+        member <- view userId <$> Util.addUserToTeam origin tid
+        refreshIndex
         if expect
-          then checkTeamMemberJoin tid (member ^. userId) wsOrigin
-          else WS.assertNoEvent timeout [wsOrigin]
-      return (member ^. userId)
+          then checkTeamMemberJoin tid member wsOrigin
+          else WS.assertNoEvent (1 # Second) [wsOrigin]
+        return member
     removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
     removeTeamMemberAndExpectEvent expect owner tid victim others = do
       c <- view tsCannon
@@ -1128,7 +1125,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           === statusCode
         if expect
           then checkTeamMemberLeave tid victim wsOwner
-          else WS.assertNoEvent timeout [wsOwner]
+          else WS.assertNoEvent (1 # Second) [wsOwner]
         -- User deletion events
         mapM_ (checkUserDeleteEvent victim) wsOthers
         Util.ensureDeletedState True owner victim
