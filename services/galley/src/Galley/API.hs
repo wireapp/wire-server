@@ -1153,7 +1153,7 @@ docs (_ ::: url) = do
 -- Right (OtrReportMissing (fromList [21c56f5c-8478-11ea-938e-b7f0a819ff2b]))
 --
 -- >>> run [("ignore_missing", Just "false"), ("report_missing", Just "21c56f5c-8478-11ea-938e-b7f0a819ff2b")]
--- Right OtrReportAllMissing
+-- Right OtrIgnoreAllMissing
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
   where
