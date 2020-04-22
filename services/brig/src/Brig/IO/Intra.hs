@@ -748,7 +748,7 @@ memberIsTeamOwner tid uid = do
       (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   pure $ responseStatus r /= status403
 
--- | Only works on 'BindingTeam's! This is now truncated.
+-- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
