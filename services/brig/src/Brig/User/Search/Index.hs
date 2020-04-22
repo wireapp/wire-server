@@ -214,7 +214,7 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
               ]
               (ES.QueryString term')
           )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase,
+            { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
       query =
