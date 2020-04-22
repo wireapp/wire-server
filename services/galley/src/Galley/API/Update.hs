@@ -895,14 +895,13 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
   limit <- fromIntegral . fromRange <$> truncationLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit)
-    $ throwM
-    $ broadcastLimitExceeded limit
+    $ throwM broadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
   tMembers <- fmap (view userId) <$> case val of
     OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
-    _ -> maybeFetchAllMembersInTeam limit tid
+    _ -> maybeFetchAllMembersInTeam tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
@@ -921,14 +920,12 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       -- Put them in a single list, and ensure it's smaller than the max size
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit)
-        $ throwM
-        $ broadcastLimitExceeded limit
+        $ throwM broadcastLimitExceeded
       Data.teamMembersLimited tid localUserIdsToLookup
-    maybeFetchAllMembersInTeam limit tid = do
+    maybeFetchAllMembersInTeam tid = do
       mems <- Data.teamMembersMaybeTruncated tid
       when (Data.teamMemberListType mems == Data.ListTruncated)
-        $ throwM
-        $ broadcastLimitExceeded limit
+        $ throwM broadcastLimitExceeded
       pure (Data.teamMembers mems)
 
 withValidOtrRecipients ::

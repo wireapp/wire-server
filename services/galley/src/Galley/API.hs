@@ -831,6 +831,7 @@ sitemap = do
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
     errorResponse Error.unknownClient
+    errorResponse Error.broadcastLimitExceeded
   ---
 
   -- This endpoint can lead to the following events being sent:
@@ -866,6 +867,7 @@ sitemap = do
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
     errorResponse Error.unknownClient
+    errorResponse Error.broadcastLimitExceeded
   ---
 
   -- This endpoint can lead to the following events being sent:
