@@ -892,13 +892,16 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-    -- In large teams, we need to make sure that we fetch only as
-    -- much as we need to; i.e., when in large teams a filter is needed
-    -- because we cannot fetch all members in a team. Currently, only `report_missing`
-    -- is allowed for such teams
+  limit <- fromIntegral . fromRange <$> truncationLimit
+  -- If we are going to fan this out to more than limit, we want to fail early
+  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit) $
+    throwM $ broadcastLimitExceeded limit
+  -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
+  -- is used and length `report_missing` < limit since we cannot fetch larger teams than
+  -- that.
   tMembers <- fmap (view userId) <$> case val of
-    OtrReportMissing us -> fetchLimitedUserList tid us
-    _                   -> tryToFetchAllMembersInTeam tid
+    OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
+    _                   -> maybeFetchAllMembersInTeam limit tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
@@ -909,29 +912,19 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
   let membs = Data.newMember <$> users
   handleOtrResponse usr clt rcps membs clts val now go
  where
-  fetchLimitedUserList tid uListInFilter = do
-    -- TODO: This is still really confusing... needs some rethinking and refactoring!
-    -- TODO: nub of size of the list of report missing + rcps must be < truncation limit
-    limit <- fromIntegral . fromRange <$> truncationLimit
-
-    -- Get the users in the filter
-    mappedOrLocalUserIdsInFilter <- traverse resolveOpaqueUserId (toList uListInFilter)
-    let (localUserIdsInFilter, _remoteUserIdsInFilter) = partitionMappedOrLocalIds mappedOrLocalUserIdsInFilter
-
-    -- Get the users in the recipient list
-    mappedOrLocalUserIdsInRcps <- traverse resolveOpaqueUserId <$> Map.keys $ userClientMap (otrRecipientsMap rcps)
-    let (localUserIdsInRcps, _remoteUserIdsInRcps) = partitionMappedOrLocalIds mappedOrLocalUserIdsInRcps
-
+  maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
+    -- Get the users in the filter (remote ids are not in a local team)
+    (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (toList uListInFilter)
+    -- Get the users in the recipient list (remote ids are not in a local team)
+    (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
     -- Put them in a single list, and ensure it's smaller than the max size
-    -- nub works in O(n^2), we may want to improve on this
-    let localUserIdsToLookup = nub $ localUserIdsInFilter ++ localUserIdsInRcps
+    let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
     unless (length localUserIdsToLookup <= limit) $
       throwM $ broadcastLimitExceeded limit
     mems <- Data.teamMembersLimited tid localUserIdsToLookup
     return mems
 
-  tryToFetchAllMembersInTeam tid = do
-    limit <- fromIntegral . fromRange <$> truncationLimit
+  maybeFetchAllMembersInTeam limit tid = do
     mems <- Data.teamMembersMaybeTruncated tid
     when (Data.teamMemberListType mems == Data.ListTruncated) $
       throwM $ broadcastLimitExceeded limit

@@ -42,7 +42,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.App as Galley
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options (optSettings, setFeatureFlags, setTruncationLimit, setMaxConvSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -109,6 +109,7 @@ tests s =
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
+      test s "post crypto broadcast message json - filtered only, too large team" postCryptoBroadcastMessageJsonFilteredTooLargeTeam,
       test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
       test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
       test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
@@ -1377,12 +1378,66 @@ postCryptoBroadcastMessageJson = do
         -- Alice's second client should get the broadcast
         void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
 
+postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: TestM ()
+postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
+  opts <- view tsGConf
+  g <- view tsCannon
+  c <- view tsCannon
+  -- Team1: alice, bob and 3 unnamed
+  (alice, tid) <- Util.createBindingTeam
+  bob <- view userId <$> Util.addUserToTeam alice tid
+  assertQueue "add bob" $ tUpdate 2 [alice]
+  refreshIndex
+  forM_ [3..5] $ \count -> do
+    void $ Util.addUserToTeam alice tid
+    assertQueue "add user" $ tUpdate count [alice]
+    refreshIndex
+  -- Team2: charlie
+  (charlie, _) <- Util.createBindingTeam
+  refreshIndex
+  ac <- Util.randomClient alice (someLastPrekeys !! 0)
+  bc <- Util.randomClient bob (someLastPrekeys !! 1)
+  cc <- Util.randomClient charlie (someLastPrekeys !! 2)
+  (dan, dc) <- randomUserWithClient (someLastPrekeys !! 3)
+  connectUsers alice (list1 charlie [dan])
+  -- A second client for Alice
+  ac2 <- randomClient alice (someLastPrekeys !! 4)
+  -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
+  let t = 1 # Second -- WS receive timeout
+  let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
+  WS.bracketRN c [bob, charlie, dan] $ \[wsB, wsC, wsD] ->
+    -- Alice's clients 1 and 2 listen to their own messages only
+    WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
+      WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
+        -- We change also max conv size due to the invariants that galley forces us to keep
+        let newOpts = opts & optSettings . setTruncationLimit .~ Just (unsafeRange 4)
+                           & optSettings . setMaxConvSize .~ 4
+        withSettingsOverrides newOpts $ do
+          -- Untargeted, Alice's team is too large
+          Util.postOtrBroadcastMessage' g Nothing id alice ac msg !!! do
+            const 400 === statusCode
+            const "too-many-users-to-broadcast" === Error.label . responseJsonUnsafeWithMsg "error label"
+          -- We target the message to the 4 users, that should be fine
+          let inbody = Just $ fmap makeIdOpaque [alice, bob, charlie, dan]
+          Util.postOtrBroadcastMessage' g inbody id alice ac msg !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+        -- Bob should get the broadcast (team member of alice)
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
+        -- Charlie should get the broadcast (contact of alice and user of teams feature)
+        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+        -- Dan should get the broadcast (contact of alice and not user of teams feature)
+        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
+        -- Alice's first client should not get the broadcast
+        assertNoMsg wsA1 (wsAssertOtr (selfConv alice) alice ac ac "ciphertext0")
+        -- Alice's second client should get the broadcast
+        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
+
 postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
 postCryptoBroadcastMessageJsonReportMissingBody = do
+  g <- view tsGalley
   (alice, tid) <- Util.createBindingTeam
-  liftIO $ print ("alice is: " ++ show alice)
   bob <- view userId <$> Util.addUserToTeam alice tid
-  liftIO $ print ("bot is: " ++ show bob)
   _bc <- Util.randomClient bob (someLastPrekeys !! 1) -- this is important!
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex
@@ -1390,7 +1445,7 @@ postCryptoBroadcastMessageJsonReportMissingBody = do
   let inbody = Just [makeIdOpaque bob] -- body triggers report
       inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
       msg = [(alice, ac, "ciphertext0")]
-  Util.postOtrBroadcastMessage' inbody inquery alice ac msg
+  Util.postOtrBroadcastMessage' g inbody inquery alice ac msg
     !!! const 412 === statusCode
 
 postCryptoBroadcastMessageJson2 :: TestM ()

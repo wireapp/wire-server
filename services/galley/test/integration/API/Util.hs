@@ -25,6 +25,8 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
 import Control.Retry (constantDelay, limitRetries, retrying)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Fail (MonadFail)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (_String, key)
 import qualified Data.ByteString.Base64 as B64
@@ -499,14 +501,16 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
+
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage = postOtrBroadcastMessage' Nothing
+postOtrBroadcastMessage req usrs clt rcps = do
+  g <- view tsGalley
+  postOtrBroadcastMessage' g Nothing req usrs clt rcps
 
 -- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
-postOtrBroadcastMessage' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage' reportMissingBody f u d rec = do
-  g <- view tsGalley
+postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
+postOtrBroadcastMessage' g reportMissingBody f u d rec = do
   post $
     g
       . f

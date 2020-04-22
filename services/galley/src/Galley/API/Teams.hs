@@ -201,7 +201,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
             if possiblyStaleSize == 0
               then 1
               else possiblyStaleSize
-      Journal.teamActivate tid size (Data.teamMembers mems) c teamCreationTime
+      Journal.teamActivate tid size mems c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -441,7 +441,7 @@ uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersMaybeTruncated tid
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : (Data.teamMembers mems))
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ mems { Data.teamMembers = (nmem ^. ntmNewTeamMember) : (Data.teamMembers mems) }
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -491,7 +491,7 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal team updatedMembers = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        Journal.teamUpdate tid size (Data.teamMembers updatedMembers)
+        Journal.teamUpdate tid size updatedMembers
     --
     updatePeers :: UserId -> Permissions -> Data.TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -548,9 +548,9 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
-      -- TODO LARGE TEAM JOURNAL
-      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) (Data.teamMembers mems))
+      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users. We remove
+      -- the extra added user to avoid an extra DB lookup
+      Journal.teamUpdate tid sizeAfterDelete $ mems { Data.teamMembers = filter (\u -> u ^. userId /= remove) (Data.teamMembers mems) }
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
