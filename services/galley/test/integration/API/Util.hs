@@ -1319,7 +1319,7 @@ postSSOUser name hasEmail ssoid teamid = do
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 
--- | This allows you to run requests against a brig instantiated using the given options.
+-- | This allows you to run requests against a galley instantiated using the given options.
 --   Note that ONLY 'galley' calls should occur within the provided action, calls to other
 --   services will fail.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
