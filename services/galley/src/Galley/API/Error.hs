@@ -124,7 +124,7 @@ broadcastLimitExceeded limit =
   Error
     status400
     "too-many-users-to-broadcast"
-    ("Can only accept process " <> cs (show limit) <> " in a request.")
+    ("Can only process up to " <> cs (show limit) <> " in a request on this endpoint.")
 
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
