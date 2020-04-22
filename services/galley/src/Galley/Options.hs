@@ -33,8 +33,10 @@ data Settings
         _setHttpPoolSize :: !Int,
         -- | Max number of members in a team. NOTE: This must be in sync with Brig
         _setMaxTeamSize :: !Word16,
-        -- | Max number of users to fetch when doing a DB lookup and max users to fanout
-        --   NOTE: This must be in sync with Brig
+        -- | Max number of team members users to fanout events to. For teams larger than
+        --   this value, team events and user updates will no longer be sent to team users.
+        --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
+        --   to tune mainly for testing purposes.
         _setTruncationLimit :: !(Maybe (Range 1 HardTruncationLimit Int32)),
         -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
         _setMaxConvSize :: !Word16,
