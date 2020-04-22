@@ -34,7 +34,6 @@ import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Galley.App
 import qualified Galley.Aws as Aws
-import qualified Galley.Data.Types as Data
 import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
@@ -47,19 +46,19 @@ import System.Logger.Message
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamActivate :: TeamId -> Natural -> Data.TeamMemberList -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
+teamActivate :: TeamId -> Natural -> TeamMemberList -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
 teamActivate tid teamSize mems cur time = do
-  when (Data.teamMemberListType mems == Data.ListTruncated)
+  when (mems ^. teamMemberListType == ListTruncated)
     $ Log.warn
     $ field "team" (toByteString tid) . msg (val "teamActivate: TeamMemberList is incomplete, you may not see all the admin users in team")
-  journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize (Data.teamMembers mems) cur) time
+  journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize (mems ^. teamMembers) cur) time
 
-teamUpdate :: TeamId -> Natural -> Data.TeamMemberList -> Galley ()
+teamUpdate :: TeamId -> Natural -> TeamMemberList -> Galley ()
 teamUpdate tid teamSize mems = do
-  when (Data.teamMemberListType mems == Data.ListTruncated)
+  when (mems ^. teamMemberListType == ListTruncated)
     $ Log.warn
     $ field "team" (toByteString tid) . msg (val "teamUpdate: TeamMemberList is incomplete, you may not see all the admin users in team")
-  journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize (Data.teamMembers mems) Nothing) Nothing
+  journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize (mems ^. teamMembers) Nothing) Nothing
 
 teamDelete :: TeamId -> Galley ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing

@@ -55,12 +55,13 @@ module Galley.Types.Teams
     teamMemberJson,
     canSeePermsOf,
     TeamMemberList,
+    ListType (..),
     notTeamMember,
     findTeamMember,
     isTeamMember,
     newTeamMemberList,
     teamMembers,
-    teamMemberListHasMore,
+    teamMemberListType,
     teamMemberListJson,
     TeamConversation,
     newTeamConversation,
@@ -236,10 +237,15 @@ data TeamMember
       }
   deriving (Eq, Ord, Show, Generic)
 
+data ListType
+  = ListComplete
+  | ListTruncated
+  deriving (Eq, Show, Generic)
+
 data TeamMemberList
   = TeamMemberList
       { _teamMembers :: [TeamMember],
-        _teamMemberListHasMore :: Bool
+        _teamMemberListType :: ListType
       }
   deriving (Generic)
 
@@ -414,6 +420,17 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
+-- This replaces the previous `hasMore` but has no boolean blindness. At the API level
+-- though we do want this to remain true/false
+instance ToJSON ListType where
+  toJSON ListComplete = Bool False
+  toJSON ListTruncated = Bool True
+
+instance FromJSON ListType where
+  parseJSON (Bool False) = pure ListComplete
+  parseJSON (Bool True) = pure ListTruncated
+  parseJSON bad = fail $ "ListType: " <> cs (encode bad)
+
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
@@ -446,7 +463,7 @@ newTeamMemberRaw uid perms Nothing Nothing lhStatus =
   pure $ TeamMember uid perms Nothing lhStatus
 newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-newTeamMemberList :: [TeamMember] -> Bool -> TeamMemberList
+newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
@@ -750,7 +767,7 @@ teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
 teamMemberListJson withPerms l =
   object
     [ "members" .= map (teamMemberJson withPerms) (_teamMembers l),
-      "hasMore" .= _teamMemberListHasMore l
+      "hasMore" .= _teamMemberListType l
     ]
 
 instance FromJSON TeamMember where

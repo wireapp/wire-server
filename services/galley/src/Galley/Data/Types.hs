@@ -29,8 +29,6 @@ module Galley.Data.Types
     toCode,
     generate,
     mkKey,
-    ListType (..),
-    TeamMemberList (..),
   )
 where
 
@@ -43,7 +41,6 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
 import Galley.Types (Access, AccessRole, ConvType (..), Member (..), ReceiptMode)
-import qualified Galley.Types.Teams as Teams
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
@@ -82,24 +79,6 @@ isConvDeleted = fromMaybe False . convDeleted
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
-
---------------------------------------------------------------------------------
-
--- | Internal teamMemberList type, corresponding to some state in Cassandra - used
--- mostly to avoid to boolean blindness until the very end (client facing API)
--- Should never be sent to users (and therefore doesn't have 'FromJSON' or
--- 'ToJSON' instances).
-data ListType
-  = ListComplete
-  | ListTruncated
-  deriving (Eq, Show)
-
-data TeamMemberList
-  = TeamMemberList
-      { teamMembers :: [Teams.TeamMember],
-        teamMemberListType :: ListType
-      }
-  deriving (Eq, Show, Generic)
 
 --------------------------------------------------------------------------------
 -- Code

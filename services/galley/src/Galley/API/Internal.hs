@@ -36,10 +36,10 @@ import Data.String.Conversions (cs)
 import Galley.API.Error (federationNotImplemented)
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
+import qualified Galley.Types.Teams as Teams
 import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Data.Types as Data
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types (ConvType (..), evtFrom)
@@ -84,7 +84,7 @@ rmUser user conn = do
           | isMember (makeIdOpaque user) (Data.convMembers c) -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
-              (Intra.newPush Data.ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPush Teams.ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

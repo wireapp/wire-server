@@ -33,7 +33,6 @@ import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as Data
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -179,7 +178,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
       (e, mm) <- Data.addMember now cid usr
       conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
-      for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
       return $ conv' {Data.convMembers = mems'}
   _ -> throwM $ invalidOp "accept: invalid conversation type"
@@ -302,6 +301,3 @@ canDeleteMember deleter deletee
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
-
-toTeamMemberList :: Data.TeamMemberList -> TeamMemberList
-toTeamMemberList tml = newTeamMemberList (Data.teamMembers tml) (Data.teamMemberListType tml == Data.ListTruncated)

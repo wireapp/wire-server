@@ -126,7 +126,7 @@ import Data.UUID.V4 (nextRandom)
 import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
-import Galley.Data.Types as Data hiding (teamMembers)
+import Galley.Data.Types as Data
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -240,18 +240,18 @@ teamConversationsForPagination tid start (fromRange -> max) =
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) max)
     Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
 
-teamMembersMaybeTruncated :: TeamId -> Galley Data.TeamMemberList
+teamMembersMaybeTruncated :: TeamId -> Galley TeamMemberList
 teamMembersMaybeTruncated t = truncationLimit >>= teamMembersWithLimit t
 
-teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m Data.TeamMemberList
+teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
 teamMembersWithLimit t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
   ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
   pure $
     if hasMore pageTuple
-      then Data.TeamMemberList ms ListTruncated
-      else Data.TeamMemberList ms ListComplete
+      then newTeamMemberList ms ListTruncated
+      else newTeamMemberList ms ListComplete
 
 -- This function has a bit of a difficult type to work with because we don't have a pure function of type
 -- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we

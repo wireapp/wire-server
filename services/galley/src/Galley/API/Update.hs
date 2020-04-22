@@ -76,7 +76,6 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
-import qualified Galley.Data.Types as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
@@ -249,7 +248,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       e <- Data.removeMembers conv usr (Local <$> list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -308,7 +307,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -540,7 +539,7 @@ removeMember zusr zcon cid victim = do
             Mapped _ -> do
               -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
-          for_ (newPush Data.ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+          for_ (newPush ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
           pure $ Updated event
@@ -673,7 +672,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush Data.ListComplete (evtFrom e) (ConvEvent e) [r]
+                newPush ListComplete (evtFrom e) (ConvEvent e) [r]
                   <&> set pushConn con
                   . set pushNativePriority (newOtrNativePriority msg)
                   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -702,7 +701,7 @@ updateConversationName zusr zcon cnv convRename = do
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -720,7 +719,7 @@ isTyping zusr zcon cnv typingData = do
     throwM convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -751,7 +750,7 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -787,7 +786,7 @@ rmBot zusr zcon b = do
       t <- liftIO getCurrentTime
       let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
       let e = Event MemberLeave (Data.convId c) zusr t evd
-      for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -805,7 +804,7 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   now <- liftIO getCurrentTime
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
   let allMembers = nubOrdOn memId (toList mm <> others)
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
@@ -862,7 +861,7 @@ processUpdateMemberEvent zusr zcon cid users target update = do
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
   let ms = applyMemUpdateChanges target up
-  for_ (newPush Data.ListComplete (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -924,9 +923,9 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       Data.teamMembersLimited tid localUserIdsToLookup
     maybeFetchAllMembersInTeam tid = do
       mems <- Data.teamMembersMaybeTruncated tid
-      when (Data.teamMemberListType mems == Data.ListTruncated)
+      when (mems ^. teamMemberListType  == ListTruncated)
         $ throwM broadcastLimitExceeded
-      pure (Data.teamMembers mems)
+      pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
   UserId ->

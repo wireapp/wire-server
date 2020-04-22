@@ -64,7 +64,6 @@ import qualified Data.Set as Set
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.App
-import qualified Galley.Data.Types as Data
 import Galley.Options
 import Galley.Types
 import qualified Galley.Types.Teams as Teams
@@ -109,12 +108,12 @@ data Push
         pushOrigin :: UserId,
         pushRecipients :: List1 Recipient,
         pushJson :: Object,
-        pushRecipientListType :: Data.ListType
+        pushRecipientListType :: Teams.ListType
       }
 
 makeLenses ''Push
 
-newPush1 :: Data.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
@@ -128,7 +127,7 @@ newPush1 recipientListType from e rr =
       pushRecipients = rr
     }
 
-newPush :: Data.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ _ [] = Nothing
 newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 
@@ -180,7 +179,7 @@ push ps = do
     removeIfLargeFanout limit =
       filter
         ( \p ->
-            (pushRecipientListType p == Data.ListComplete)
+            (pushRecipientListType p == Teams.ListComplete)
               && (length (pushRecipients p) <= (fromIntegral $ fromRange limit))
         )
 
