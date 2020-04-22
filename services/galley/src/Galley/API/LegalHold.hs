@@ -123,12 +123,12 @@ removeSettings' ::
   TeamId ->
   Galley ()
 removeSettings' tid = do
-  -- Loop through team members and run this continuation
-  Data.withTeamMembersWithChunks tid cont
+  -- Loop through team members and run this action
+  Data.withTeamMembersWithChunks tid action
   LegalHoldData.removeSettings tid
   where
-    cont :: [TeamMember] -> Galley ()
-    cont membs = do
+    action :: [TeamMember] -> Galley ()
+    action membs = do
         let zothers = map (view userId) membs
         let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
         Log.debug $

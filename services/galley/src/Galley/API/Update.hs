@@ -921,8 +921,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
     unless (length localUserIdsToLookup <= limit) $
       throwM $ broadcastLimitExceeded limit
-    mems <- Data.teamMembersLimited tid localUserIdsToLookup
-    return mems
+    Data.teamMembersLimited tid localUserIdsToLookup
 
   maybeFetchAllMembersInTeam limit tid = do
     mems <- Data.teamMembersMaybeTruncated tid

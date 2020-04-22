@@ -501,7 +501,6 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
-
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
 postOtrBroadcastMessage req usrs clt rcps = do

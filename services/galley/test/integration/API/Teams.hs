@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module API.Teams
-  ( tests
+  ( tests,
   )
 where
 
@@ -1020,9 +1020,6 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   let perms = Util.symmPermissions [CreateConversation]
   replicateM_ (truncationLimit - 4) $ do
     rand <- newTeamMember' perms <$> Util.randomUser
-    -- These do not create proper users in brig (missing teamID)
-    -- and thus do not count over the team limit, but they will
-    -- count towards the truncation limit
     Util.addTeamMemberInternal tid rand
 
   extern <- Util.randomUser

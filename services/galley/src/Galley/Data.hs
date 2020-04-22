@@ -150,7 +150,15 @@ import UnliftIO (async, mapConcurrently, wait)
 -- actually request for one additional element and drop the last value if
 -- necessary. This means however that 'nextPage' does not work properly as
 -- we would miss a value on every page size.
+-- Thus, and since we don't want to expose the ResultSet constructor
+-- because it gives access to `nextPage`, we give accessors to the results
+-- and a more typed `hasMore` (ResultSetComplete | ResultSetTruncated)
 newtype ResultSet a = ResultSet {page :: Page a}
+
+-- A more descriptive type than using a simple bool to represent `hasMore`
+data ResultSetType = ResultSetComplete
+                   | ResultSetTruncated
+                   deriving Eq
 
 resultSetType :: ResultSet a -> ResultSetType
 resultSetType rs =
@@ -160,11 +168,6 @@ resultSetType rs =
 
 resultSetResult :: ResultSet a -> [a]
 resultSetResult = result . page
-
--- A more descriptive type than using a simple bool to represent `hasMore`
-data ResultSetType = ResultSetComplete
-                   | ResultSetTruncated
-                   deriving Eq
 
 schemaVersion :: Int32
 schemaVersion = 37
@@ -238,30 +241,16 @@ teamConversationsForPagination tid start (fromRange -> max) =
     Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
 
 teamMembersMaybeTruncated :: TeamId -> Galley Data.TeamMemberList
-teamMembersMaybeTruncated t = do
-  (mems, truncated) <- teamMembers' t =<< truncationLimit
-  case truncated of
-    ResultSetTruncated -> return $ Data.TeamMemberList mems ListTruncated
-    ResultSetComplete  -> return $ Data.TeamMemberList mems ListComplete
+teamMembersMaybeTruncated t = truncationLimit >>= teamMembersWithLimit  t
 
 teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m Data.TeamMemberList
-teamMembersWithLimit t limit = do
-  (mems, truncated) <- teamMembers' t limit
-  case truncated of
-    ResultSetTruncated -> return $ Data.TeamMemberList mems ListTruncated
-    ResultSetComplete  -> return $ Data.TeamMemberList mems ListComplete
-
-teamMembers' :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m ([TeamMember], ResultSetType)
-teamMembers' t (fromRange -> limit) = do
+teamMembersWithLimit t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
   ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
-  pure (ms, toResultSetType pageTuple)
-  where
-    toResultSetType :: Page a -> ResultSetType
-    toResultSetType p = if hasMore p
-                          then ResultSetTruncated
-                          else ResultSetComplete
+  pure $ if hasMore pageTuple
+    then Data.TeamMemberList ms ListTruncated
+    else Data.TeamMemberList ms ListComplete
 
 -- This function has a bit of a difficult type to work with because we don't have a pure function of type
 -- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we
@@ -852,19 +841,19 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
 
--- | Invoke the given continuation 'k' with a list of TeamMemberRows IDs
+-- | Invoke the given action with a list of TeamMemberRows IDs
 -- which are looked up based on:
 withTeamMembersWithChunks ::
   TeamId ->
   ([TeamMember] -> Galley ()) ->
   Galley ()
-withTeamMembersWithChunks tid k = do
+withTeamMembersWithChunks tid action = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   handleMembers mems
  where
   handleMembers mems = do
     tMembers <- mapM newTeamMember' (result mems)
-    k tMembers
+    action tMembers
     unless (null $ result mems) $
       handleMembers =<< liftClient (nextPage mems)
 {-# INLINE withTeamMembersWithChunks #-}

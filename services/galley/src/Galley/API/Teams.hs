@@ -50,8 +50,6 @@ module Galley.API.Teams
     uncheckedDeleteTeamMember,
     withBindingTeam,
     userIsTeamOwnerH,
-
-    addTeamMemberUncheckedForTestsOnlyH,
   )
 where
 
@@ -65,7 +63,6 @@ import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import Data.Range as Range
 import Data.Set (fromList)
-import qualified Data.Json.Util as Util
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Galley.API.Error
@@ -190,7 +187,6 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
       -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
-      -- TODO LARGE TEAM JOURNAL
       mems <- Data.teamMembersMaybeTruncated tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
@@ -477,7 +473,6 @@ updateTeamMember zusr zcon tid targetMember = do
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
   -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
-  -- TODO LARGE TEAM JOURNAL
   updatedMembers <- Data.teamMembersMaybeTruncated tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
@@ -856,17 +851,3 @@ userIsTeamOwner :: TeamId -> UserId -> Galley Bool
 userIsTeamOwner tid uid = do
   let asking = uid
   isTeamOwner . fst <$> getTeamMember asking tid uid
-
-
--- | Use this for tests only when needed to create, from scratch, a VERY large team
---   These are not REAL users (exist only in Galley) so take that into account in your tests
-addTeamMemberUncheckedForTestsOnlyH :: UserId ::: TeamId ::: Range 1 2000 Int32 ::: JSON -> Galley Response
-addTeamMemberUncheckedForTestsOnlyH (zusr ::: tid ::: size ::: _) = do
-  now <- Util.toUTCTimeMillis <$> liftIO getCurrentTime
-  uids <- replicateM (fromIntegral $ fromRange size) (create (rolePermissions RoleMember) (zusr, now))
-  pure . json $ UserIdList uids
- where
-  create perms inviter = do
-    uid <- randomId
-    Data.addTeamMember tid $ newTeamMember uid perms (Just inviter)
-    return uid

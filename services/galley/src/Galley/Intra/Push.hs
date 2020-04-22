@@ -43,7 +43,7 @@ module Galley.Intra.Push
 
     -- * Re-Exports
     Gundeck.Route (..),
-    Gundeck.Priority (..)
+    Gundeck.Priority (..),
   )
 where
 
