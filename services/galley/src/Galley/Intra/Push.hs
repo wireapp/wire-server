@@ -64,9 +64,9 @@ import qualified Data.Set as Set
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Galley.App
+import qualified Galley.Data.Types as Data
 import Galley.Options
 import Galley.Types
-import qualified Galley.Data.Types as Data
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
@@ -176,11 +176,13 @@ push ps = do
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
-
     -- Ensure that under no circumstances we exceed the threshold
-    removeIfLargeFanout limit = filter
-        (\p -> (pushRecipientListType p == Data.ListComplete)
-        && (length (pushRecipients p) <= (fromIntegral $ fromRange limit)))
+    removeIfLargeFanout limit =
+      filter
+        ( \p ->
+            (pushRecipientListType p == Data.ListComplete)
+              && (length (pushRecipients p) <= (fromIntegral $ fromRange limit))
+        )
 
 -----------------------------------------------------------------------------
 -- Helpers

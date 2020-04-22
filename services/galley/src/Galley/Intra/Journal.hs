@@ -25,8 +25,8 @@ module Galley.Intra.Journal
 where
 
 import Control.Lens
-import qualified Data.Currency as Currency
 import Data.ByteString.Conversion
+import qualified Data.Currency as Currency
 import Data.Id
 import Data.Proto
 import Data.Proto.Id
@@ -34,13 +34,12 @@ import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Galley.App
 import qualified Galley.Aws as Aws
-import Galley.Types.Teams
 import qualified Galley.Data.Types as Data
+import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import qualified Proto.TeamEvents_Fields as T
-
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 
@@ -50,14 +49,16 @@ import System.Logger.Message
 
 teamActivate :: TeamId -> Natural -> Data.TeamMemberList -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
 teamActivate tid teamSize mems cur time = do
-  when (Data.teamMemberListType mems == Data.ListTruncated) $
-    Log.warn $ field "team" (toByteString tid) . msg (val "teamActivate: TeamMemberList is incomplete, you may not see all the admin users in team")
+  when (Data.teamMemberListType mems == Data.ListTruncated)
+    $ Log.warn
+    $ field "team" (toByteString tid) . msg (val "teamActivate: TeamMemberList is incomplete, you may not see all the admin users in team")
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize (Data.teamMembers mems) cur) time
 
 teamUpdate :: TeamId -> Natural -> Data.TeamMemberList -> Galley ()
 teamUpdate tid teamSize mems = do
-  when (Data.teamMemberListType mems == Data.ListTruncated) $
-    Log.warn $ field "team" (toByteString tid) . msg (val "teamUpdate: TeamMemberList is incomplete, you may not see all the admin users in team")
+  when (Data.teamMemberListType mems == Data.ListTruncated)
+    $ Log.warn
+    $ field "team" (toByteString tid) . msg (val "teamUpdate: TeamMemberList is incomplete, you may not see all the admin users in team")
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize (Data.teamMembers mems) Nothing) Nothing
 
 teamDelete :: TeamId -> Galley ()

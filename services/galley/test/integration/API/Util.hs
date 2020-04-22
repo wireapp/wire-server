@@ -24,9 +24,9 @@ import Brig.Types
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
-import Control.Retry (constantDelay, limitRetries, retrying)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
+import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (_String, key)
 import qualified Data.ByteString.Base64 as B64
@@ -48,22 +48,22 @@ import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
-import Galley.Types
-import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
+import Galley.Types
+import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Proto as Proto
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification hiding (target)
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
-import qualified Network.Wai.Test as WaiTest
 import Web.Cookie
 
 -------------------------------------------------------------------------------
@@ -151,7 +151,6 @@ createBindingTeamInternalWithCurrency name owner cur = do
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
       !!! const 200 === statusCode
   return tid
-
 
 getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
 getTeamInternal tid = do

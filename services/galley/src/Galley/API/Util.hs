@@ -32,8 +32,8 @@ import Data.Time
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Data.Types as Data
 import Galley.Data.Services (BotMember, newBotMember)
+import qualified Galley.Data.Types as Data
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User

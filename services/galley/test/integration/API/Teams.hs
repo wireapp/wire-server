@@ -42,7 +42,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.App as Galley
-import Galley.Options (optSettings, setFeatureFlags, setTruncationLimit, setMaxConvSize)
+import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setTruncationLimit)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -1015,15 +1015,12 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   let truncationLimit = fromIntegral . fromRange $ Galley.currentTruncationLimit o
   (owner, tid) <- Util.createBindingTeam
   member1 <- addTeamMemberAndExpectEvent True tid owner
-
   -- Now last fill the team until truncationSize - 2
   let perms = Util.symmPermissions [CreateConversation]
   replicateM_ (truncationLimit - 4) $ do
     rand <- newTeamMember' perms <$> Util.randomUser
     Util.addTeamMemberInternal tid rand
-
   extern <- Util.randomUser
-
   modifyTeamDataAndExpectEvent True tid owner
   -- Let's create and remove a member
   member2 <- do
@@ -1032,17 +1029,13 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     removeTeamMemberAndExpectEvent True owner tid temp [extern]
     addTeamMemberAndExpectEvent True tid owner
   modifyUserProfileAndExpectEvent True owner [member1, member2]
-
   -- Let's connect an external to test the different behavior
   Util.connectUsers extern (list1 owner [member1, member2])
-
   _memLastWithFanout <- addTeamMemberAndExpectEvent True tid owner
-
   -- We should really wait until we see that the team is of full size
   -- Due to the async nature of pushes, waiting even a second might not
   -- be enough...
   WS.bracketR c owner $ \wsOwner -> WS.assertNoEvent (1 # Second) [wsOwner]
-
   -- No events are now expected
 
   -- Team member added also not
@@ -1056,7 +1049,6 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   removeTeamMemberAndExpectEvent False owner tid member2 [extern]
   -- Now we are just on the limit, events are back!
   removeTeamMemberAndExpectEvent True owner tid member1 [extern]
-
   -- Let's go back to having a very large team
   _memLastWithFanout <- addTeamMemberAndExpectEvent True tid owner
   -- We should really wait until we see that the team is of full size
@@ -1064,115 +1056,106 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   -- be enough...
   WS.bracketR c owner $ \wsOwner -> WS.assertNoEvent (1 # Second) [wsOwner]
   _memWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
-
   -- Add extern to a team conversation
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
-
   -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
   deleteTeam tid owner [] [cid1] extern
-
   ensureQueueEmpty
- where
-  modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
-  modifyUserProfileAndExpectEvent expect target listeners = do
-    c <- view tsCannon
-    b <- view tsBrig
-    WS.bracketRN c listeners $ \wsListeners -> do
-      -- Do something
-      let u = Brig.UserUpdate (Just $ Brig.Name "name") Nothing Nothing Nothing
-      put
-        ( b
-            . paths ["self"]
-            . zUser target
-            . zConn "conn"
-            . json u
-        )
-        !!! const 200
-        === statusCode
-      if expect
-        then mapM_ (checkUserUpdateEvent target) wsListeners
-        else WS.assertNoEvent timeout wsListeners
-
-  modifyTeamDataAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM ()
-  modifyTeamDataAndExpectEvent expect tid origin = do
-    c <- view tsCannon
-    g <- view tsGalley
-    let u = newTeamUpdateData & nameUpdate .~ (Just $ unsafeRange "bar")
-    WS.bracketR c origin $ \wsOrigin -> do
-      put
-        ( g
-            . paths ["teams", toByteString' tid]
-            . zUser origin
-            . zConn "conn"
-            . json u
-        )
-        !!! const 200
-        === statusCode
-      -- Due to the fact that the team is too large, we expect no events!
-      if expect
-        then checkTeamUpdateEvent tid u wsOrigin
-        else WS.assertNoEvent timeout [wsOrigin]
-
-  addTeamMemberAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM UserId
-  addTeamMemberAndExpectEvent expect tid origin = do
-    c <- view tsCannon
-    let perms = Util.symmPermissions [CreateConversation]
-    member <- newTeamMember' perms <$> Util.randomUser
-    WS.bracketR c origin $ \wsOrigin -> do
-      Util.addTeamMemberInternal tid member
-      if expect
-        then checkTeamMemberJoin tid (member ^. userId) wsOrigin
-        else WS.assertNoEvent timeout [wsOrigin]
-    return (member ^. userId)
-
-  removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
-  removeTeamMemberAndExpectEvent expect owner tid victim others = do
-    c <- view tsCannon
-    g <- view tsGalley
-    WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
-      delete
-        ( g
-            . paths ["teams", toByteString' tid, "members", toByteString' victim]
-            . zUser owner
-            . zConn "conn"
-            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
-        )
-        !!! const 202
-        === statusCode
-      if expect
-        then checkTeamMemberLeave tid victim wsOwner
-        else WS.assertNoEvent timeout [wsOwner]
-
-      -- User deletion events
-      mapM_ (checkUserDeleteEvent victim) wsOthers
-
-      Util.ensureDeletedState True owner victim
-
-  deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [ConvId] -> UserId -> TestM ()
-  deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
-    c <- view tsCannon
-    g <- view tsGalley
-    void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
-      delete
-        ( g
-            . paths ["teams", toByteString' tid]
-            . zUser owner
-            . zConn "conn"
-            . json (newTeamDeleteData (Just Util.defPassword))
-        )
-        !!! const 202 === statusCode
-
-      for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
-      -- Ensure users are marked as deleted; since we already
-      -- received the event, should _really_ be deleted
-      for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
-
-      mapM_ (flip checkConvDeleteEvent wsExtern) teamCidsThatExternBelongsTo
-
-    -- ensure the team has a deleted status
-    void $ retryWhileN 10 ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
-                          (getTeamInternal tid)
+  where
+    modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
+    modifyUserProfileAndExpectEvent expect target listeners = do
+      c <- view tsCannon
+      b <- view tsBrig
+      WS.bracketRN c listeners $ \wsListeners -> do
+        -- Do something
+        let u = Brig.UserUpdate (Just $ Brig.Name "name") Nothing Nothing Nothing
+        put
+          ( b
+              . paths ["self"]
+              . zUser target
+              . zConn "conn"
+              . json u
+          )
+          !!! const 200
+          === statusCode
+        if expect
+          then mapM_ (checkUserUpdateEvent target) wsListeners
+          else WS.assertNoEvent timeout wsListeners
+    modifyTeamDataAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM ()
+    modifyTeamDataAndExpectEvent expect tid origin = do
+      c <- view tsCannon
+      g <- view tsGalley
+      let u = newTeamUpdateData & nameUpdate .~ (Just $ unsafeRange "bar")
+      WS.bracketR c origin $ \wsOrigin -> do
+        put
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser origin
+              . zConn "conn"
+              . json u
+          )
+          !!! const 200
+          === statusCode
+        -- Due to the fact that the team is too large, we expect no events!
+        if expect
+          then checkTeamUpdateEvent tid u wsOrigin
+          else WS.assertNoEvent timeout [wsOrigin]
+    addTeamMemberAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM UserId
+    addTeamMemberAndExpectEvent expect tid origin = do
+      c <- view tsCannon
+      let perms = Util.symmPermissions [CreateConversation]
+      member <- newTeamMember' perms <$> Util.randomUser
+      WS.bracketR c origin $ \wsOrigin -> do
+        Util.addTeamMemberInternal tid member
+        if expect
+          then checkTeamMemberJoin tid (member ^. userId) wsOrigin
+          else WS.assertNoEvent timeout [wsOrigin]
+      return (member ^. userId)
+    removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
+    removeTeamMemberAndExpectEvent expect owner tid victim others = do
+      c <- view tsCannon
+      g <- view tsGalley
+      WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
+        delete
+          ( g
+              . paths ["teams", toByteString' tid, "members", toByteString' victim]
+              . zUser owner
+              . zConn "conn"
+              . json (newTeamMemberDeleteData (Just $ Util.defPassword))
+          )
+          !!! const 202
+          === statusCode
+        if expect
+          then checkTeamMemberLeave tid victim wsOwner
+          else WS.assertNoEvent timeout [wsOwner]
+        -- User deletion events
+        mapM_ (checkUserDeleteEvent victim) wsOthers
+        Util.ensureDeletedState True owner victim
+    deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [ConvId] -> UserId -> TestM ()
+    deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
+      c <- view tsCannon
+      g <- view tsGalley
+      void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
+        delete
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser owner
+              . zConn "conn"
+              . json (newTeamDeleteData (Just Util.defPassword))
+          )
+          !!! const 202 === statusCode
+        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
+        -- Ensure users are marked as deleted; since we already
+        -- received the event, should _really_ be deleted
+        for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
+        mapM_ (flip checkConvDeleteEvent wsExtern) teamCidsThatExternBelongsTo
+      -- ensure the team has a deleted status
+      void $
+        retryWhileN
+          10
+          ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
+          (getTeamInternal tid)
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
@@ -1296,11 +1279,11 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
-      let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= TeamUpdate
-      e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdTeamUpdate upd)
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= TeamUpdate
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Just (EdTeamUpdate upd)
 
 checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
 checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
@@ -1385,7 +1368,7 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
   bob <- view userId <$> Util.addUserToTeam alice tid
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex
-  forM_ [3..5] $ \count -> do
+  forM_ [3 .. 5] $ \count -> do
     void $ Util.addUserToTeam alice tid
     assertQueue "add user" $ tUpdate count [alice]
     refreshIndex
@@ -1407,8 +1390,9 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         -- We change also max conv size due to the invariants that galley forces us to keep
-        let newOpts = opts & optSettings . setTruncationLimit .~ Just (unsafeRange 4)
-                           & optSettings . setMaxConvSize .~ 4
+        let newOpts =
+              opts & optSettings . setTruncationLimit .~ Just (unsafeRange 4)
+                & optSettings . setMaxConvSize .~ 4
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
           Util.postOtrBroadcastMessage' g Nothing id alice ac msg !!! do
@@ -1679,8 +1663,8 @@ testFeatureFlags = do
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
-      let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= MemberJoin
-      e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdMemberJoin usr)
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= MemberJoin
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Just (EdMemberJoin usr)

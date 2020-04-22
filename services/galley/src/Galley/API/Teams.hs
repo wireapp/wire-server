@@ -437,7 +437,7 @@ uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersMaybeTruncated tid
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ mems { Data.teamMembers = (nmem ^. ntmNewTeamMember) : (Data.teamMembers mems) }
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ mems {Data.teamMembers = (nmem ^. ntmNewTeamMember) : (Data.teamMembers mems)}
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -500,7 +500,6 @@ updateTeamMember zusr zcon tid targetMember = do
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPush (Data.teamMemberListType updatedMembers) zusr (TeamEvent ePriv) $ privilegedRecipients
-
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
@@ -545,7 +544,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
       deleteUser remove
       -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users. We remove
       -- the extra added user to avoid an extra DB lookup
-      Journal.teamUpdate tid sizeAfterDelete $ mems { Data.teamMembers = filter (\u -> u ^. userId /= remove) (Data.teamMembers mems) }
+      Journal.teamUpdate tid sizeAfterDelete $ mems {Data.teamMembers = filter (\u -> u ^. userId /= remove) (Data.teamMembers mems)}
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
@@ -580,7 +579,6 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
           -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
           unless (c ^. managedConversation || Data.teamMemberListType mems == Data.ListTruncated) $
             pushEvent tmids edata now dc
-
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       let (bots, users) = botsAndUsers (Data.convMembers dc)
@@ -714,7 +712,7 @@ addTeamMemberInternal tid origin originConn newMem memList = do
   return sizeBeforeAdd
   where
     recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : Data.teamMembers memList))
-    recipients Nothing n  = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (Data.teamMembers memList))
+    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (Data.teamMembers memList))
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
 finishCreateTeam team owner others zcon = do

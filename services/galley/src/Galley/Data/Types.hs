@@ -84,14 +84,15 @@ selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
 
 --------------------------------------------------------------------------------
+
 -- | Internal teamMemberList type, corresponding to some state in Cassandra - used
 -- mostly to avoid to boolean blindness until the very end (client facing API)
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
 -- 'ToJSON' instances).
-
-data ListType = ListComplete
-              | ListTruncated
-              deriving (Eq, Show)
+data ListType
+  = ListComplete
+  | ListTruncated
+  deriving (Eq, Show)
 
 data TeamMemberList
   = TeamMemberList

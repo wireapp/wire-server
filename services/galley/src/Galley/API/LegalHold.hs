@@ -129,14 +129,13 @@ removeSettings' tid = do
   where
     action :: [TeamMember] -> Galley ()
     action membs = do
-        let zothers = map (view userId) membs
-        let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-        Log.debug $
-          Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-             . Log.field "action" (Log.val "LegalHold.removeSettings'")
-        -- I picked this number by fair dice roll, feel free to change it :P
-        pooledMapConcurrentlyN_ 8 removeLHForUser lhMembers
-
+      let zothers = map (view userId) membs
+      let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
+      Log.debug $
+        Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+          . Log.field "action" (Log.val "LegalHold.removeSettings'")
+      -- I picked this number by fair dice roll, feel free to change it :P
+      pooledMapConcurrentlyN_ 8 removeLHForUser lhMembers
     removeLHForUser :: TeamMember -> Galley ()
     removeLHForUser member = do
       let uid = member ^. Team.userId

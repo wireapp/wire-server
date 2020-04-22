@@ -22,7 +22,6 @@ module Galley.Data
     ResultSetType (..),
     resultSetType,
     resultSetResult,
-
     schemaVersion,
 
     -- * Teams
@@ -156,9 +155,10 @@ import UnliftIO (async, mapConcurrently, wait)
 newtype ResultSet a = ResultSet {page :: Page a}
 
 -- A more descriptive type than using a simple bool to represent `hasMore`
-data ResultSetType = ResultSetComplete
-                   | ResultSetTruncated
-                   deriving Eq
+data ResultSetType
+  = ResultSetComplete
+  | ResultSetTruncated
+  deriving (Eq)
 
 resultSetType :: ResultSet a -> ResultSetType
 resultSetType rs =
@@ -241,16 +241,17 @@ teamConversationsForPagination tid start (fromRange -> max) =
     Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
 
 teamMembersMaybeTruncated :: TeamId -> Galley Data.TeamMemberList
-teamMembersMaybeTruncated t = truncationLimit >>= teamMembersWithLimit  t
+teamMembersMaybeTruncated t = truncationLimit >>= teamMembersWithLimit t
 
 teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m Data.TeamMemberList
 teamMembersWithLimit t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
   ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
-  pure $ if hasMore pageTuple
-    then Data.TeamMemberList ms ListTruncated
-    else Data.TeamMemberList ms ListComplete
+  pure $
+    if hasMore pageTuple
+      then Data.TeamMemberList ms ListTruncated
+      else Data.TeamMemberList ms ListComplete
 
 -- This function has a bit of a difficult type to work with because we don't have a pure function of type
 -- (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMember so we
@@ -267,12 +268,12 @@ teamMembersCollectedWithPagination :: TeamId -> Galley [TeamMember]
 teamMembersCollectedWithPagination tid = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   collectTeamMembersPaginated [] mems
- where
-  collectTeamMembersPaginated acc mems = do
-    tMembers <- mapM newTeamMember' (result mems)
-    if (null $ result mems)
-      then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
-      else return (tMembers ++ acc)
+  where
+    collectTeamMembersPaginated acc mems = do
+      tMembers <- mapM newTeamMember' (result mems)
+      if (null $ result mems)
+        then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
+        else return (tMembers ++ acc)
 
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
@@ -341,17 +342,16 @@ deleteTeam tid = do
   cnvs <- teamConversationsForPagination tid Nothing (unsafeRange 2000)
   removeConvs cnvs
   retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
- where
-  removeConvs cnvs = do
-    for_ (result cnvs) $ removeTeamConv tid . view conversationId
-    unless (null $ result cnvs) $
-      removeConvs =<< liftClient (nextPage cnvs)
-
-  removeTeamMembers mems = do
-    tMembers <- mapM newTeamMember' (result mems)
-    for_ tMembers $ removeTeamMember tid . view userId
-    unless (null $ result mems) $
-      removeTeamMembers =<< liftClient (nextPage mems)
+  where
+    removeConvs cnvs = do
+      for_ (result cnvs) $ removeTeamConv tid . view conversationId
+      unless (null $ result cnvs) $
+        removeConvs =<< liftClient (nextPage cnvs)
+    removeTeamMembers mems = do
+      tMembers <- mapM newTeamMember' (result mems)
+      for_ tMembers $ removeTeamMember tid . view userId
+      unless (null $ result mems) $
+        removeTeamMembers =<< liftClient (nextPage mems)
 
 -- TODO: delete service_whitelist records that mention this team
 
@@ -489,7 +489,8 @@ conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -
 conversationIdsOf usr (fromList . fromRange -> cids) =
   map runIdentity <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
-createConversation :: MonadClient m =>
+createConversation ::
+  MonadClient m =>
   UserId ->
   Maybe (Range 1 256 Text) ->
   [Access] ->
@@ -543,7 +544,8 @@ createConnectConversation a b name conn = do
   let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
   return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
-createOne2OneConversation :: MonadClient m =>
+createOne2OneConversation ::
+  MonadClient m =>
   U.UUID U.V4 ->
   U.UUID U.V4 ->
   Maybe (Range 1 256 Text) ->
@@ -850,10 +852,10 @@ withTeamMembersWithChunks ::
 withTeamMembersWithChunks tid action = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   handleMembers mems
- where
-  handleMembers mems = do
-    tMembers <- mapM newTeamMember' (result mems)
-    action tMembers
-    unless (null $ result mems) $
-      handleMembers =<< liftClient (nextPage mems)
+  where
+    handleMembers mems = do
+      tMembers <- mapM newTeamMember' (result mems)
+      action tMembers
+      unless (null $ result mems) $
+        handleMembers =<< liftClient (nextPage mems)
 {-# INLINE withTeamMembersWithChunks #-}

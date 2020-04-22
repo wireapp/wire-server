@@ -66,8 +66,8 @@ import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Data.Range
+import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
@@ -75,8 +75,8 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Data.Types as Data
 import Galley.Data.Services as Data
+import qualified Galley.Data.Types as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
@@ -894,14 +894,15 @@ withValidOtrBroadcastRecipients ::
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> truncationLimit
   -- If we are going to fan this out to more than limit, we want to fail early
-  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit) $
-    throwM $ broadcastLimitExceeded limit
+  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit)
+    $ throwM
+    $ broadcastLimitExceeded limit
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
   tMembers <- fmap (view userId) <$> case val of
     OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
-    _                   -> maybeFetchAllMembersInTeam limit tid
+    _ -> maybeFetchAllMembersInTeam limit tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
@@ -911,23 +912,24 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       else Data.lookupClients users
   let membs = Data.newMember <$> users
   handleOtrResponse usr clt rcps membs clts val now go
- where
-  maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
-    -- Get the users in the filter (remote ids are not in a local team)
-    (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (toList uListInFilter)
-    -- Get the users in the recipient list (remote ids are not in a local team)
-    (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
-    -- Put them in a single list, and ensure it's smaller than the max size
-    let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
-    unless (length localUserIdsToLookup <= limit) $
-      throwM $ broadcastLimitExceeded limit
-    Data.teamMembersLimited tid localUserIdsToLookup
-
-  maybeFetchAllMembersInTeam limit tid = do
-    mems <- Data.teamMembersMaybeTruncated tid
-    when (Data.teamMemberListType mems == Data.ListTruncated) $
-      throwM $ broadcastLimitExceeded limit
-    pure (Data.teamMembers mems)
+  where
+    maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
+      -- Get the users in the filter (remote ids are not in a local team)
+      (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (toList uListInFilter)
+      -- Get the users in the recipient list (remote ids are not in a local team)
+      (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
+      -- Put them in a single list, and ensure it's smaller than the max size
+      let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
+      unless (length localUserIdsToLookup <= limit)
+        $ throwM
+        $ broadcastLimitExceeded limit
+      Data.teamMembersLimited tid localUserIdsToLookup
+    maybeFetchAllMembersInTeam limit tid = do
+      mems <- Data.teamMembersMaybeTruncated tid
+      when (Data.teamMemberListType mems == Data.ListTruncated)
+        $ throwM
+        $ broadcastLimitExceeded limit
+      pure (Data.teamMembers mems)
 
 withValidOtrRecipients ::
   UserId ->

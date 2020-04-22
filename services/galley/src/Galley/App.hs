@@ -47,9 +47,8 @@ module Galley.App
     fromOptionalJsonBody,
     fromProtoBody,
     initExtEnv,
-
     truncationLimit,
-    currentTruncationLimit
+    currentTruncationLimit,
   )
 where
 
@@ -75,8 +74,8 @@ import Data.Text (unpack)
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
-import qualified Galley.Types.Teams as Teams
 import qualified Galley.Queue as Q
+import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -151,14 +150,20 @@ validateOptions l o = do
   when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
     if settings ^. setMaxTeamSize > hardLimit
       then error ("setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > " ++ show hardLimit)
-      else Logger.warn l (msg $ val "Your journaling events may have some admin user ids missing. \
-                                    \This is fine for testing purposes but NOT for production use!!")
+      else
+        Logger.warn
+          l
+          ( msg $
+              val
+                "Your journaling events may have some admin user ids missing. \
+                \This is fine for testing purposes but NOT for production use!!"
+          )
   when (settings ^. setMaxConvSize > optTruncLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optTruncLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
- where
-  hardLimit = fromIntegral $ fromRange (unsafeRange Teams.hardTruncationLimit :: Range 1 Teams.HardTruncationLimit Int32)
+  where
+    hardLimit = fromIntegral $ fromRange (unsafeRange Teams.hardTruncationLimit :: Range 1 Teams.HardTruncationLimit Int32)
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
