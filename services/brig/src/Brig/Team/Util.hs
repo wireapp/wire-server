@@ -27,34 +27,6 @@ import qualified Data.Set as Set
 import Galley.Types.Teams
 import Imports
 
--- | Every team must have at least one owner with an email address for billing and
--- administration.  'TeamOwnershipStatus' distinguishes all the relevant cases.
-data TeamOwnershipStatus
-  = IsOnlyTeamOwnerWithEmail
-  | IsOneOfManyTeamOwnersWithEmail
-  | IsTeamOwnerWithoutEmail
-  | IsNotTeamOwner
-  deriving (Eq, Show, Bounded, Enum)
-
-teamOwnershipStatus :: UserId -> TeamId -> AppIO TeamOwnershipStatus
-teamOwnershipStatus uid tid = compute <$> Intra.getTeamOwnersWithEmail tid
-  where
-    compute :: [(TeamMember, Bool)] -> TeamOwnershipStatus
-    compute owners = search (getuid <$> owners) (getuid <$> ownersWithEmail)
-      where
-        ownersWithEmail = filter (^. _2) owners
-        getuid = (^. _1 . userId)
-    search :: [UserId] -> [UserId] -> TeamOwnershipStatus
-    search [] [] = IsNotTeamOwner -- this shouldn't happen, but we don't handle that here.
-    search (Set.fromList -> owners) (Set.fromList -> ownersWithEmail) =
-      case (uid `Set.member` owners, uid `Set.member` ownersWithEmail) of
-        (False, _) -> IsNotTeamOwner
-        (True, False) -> IsTeamOwnerWithoutEmail
-        (True, True) ->
-          if Set.null (Set.delete uid ownersWithEmail)
-            then IsOnlyTeamOwnerWithEmail
-            else IsOneOfManyTeamOwnersWithEmail
-
 ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error AppIO ()
 ensurePermissions u t perms = do
   m <- lift $ Intra.getTeamMember u t

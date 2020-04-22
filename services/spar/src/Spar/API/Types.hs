@@ -37,9 +37,6 @@ import Spar.Scim (APIScim)
 import Spar.Types
 import qualified URI.ByteString as URI
 
--- NB: this package depends on both types-common, swagger2, so there is no away around this name
--- clash other than -XPackageImports.
-
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
 
@@ -150,6 +147,7 @@ type APIIDP =
     :<|> Header "Z-User" UserId :> IdpGetRaw
     :<|> Header "Z-User" UserId :> IdpGetAll
     :<|> Header "Z-User" UserId :> IdpCreate
+    :<|> Header "Z-User" UserId :> IdpUpdate
     :<|> Header "Z-User" UserId :> IdpDelete
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
@@ -158,9 +156,21 @@ type IdpGet = Capture "id" SAML.IdPId :> Get '[JSON] IdP
 
 type IdpGetAll = Get '[JSON] IdPList
 
-type IdpCreate = ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo :> PostCreated '[JSON] IdP
+-- | See also: 'validateNewIdP', 'idpCreate', 'idpCreateXML'.
+type IdpCreate =
+  ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
+    :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
+    :> PostCreated '[JSON] IdP
 
-type IdpDelete = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpUpdate =
+  ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
+    :> Capture "id" SAML.IdPId
+    :> Put '[JSON] IdP
+
+type IdpDelete =
+  Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "purge" Bool
+    :> DeleteNoContent '[JSON] NoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs

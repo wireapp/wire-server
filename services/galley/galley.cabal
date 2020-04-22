@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 43845fb31cb219d0f684627a7703c5421330c9db89dcfe4cd56001d1262e1d4f
+-- hash: 18586f67f515873a79fe475566800f7eeb40fbba695e5c2c6b3cd23062400772
 
 name:           galley
 version:        0.83.0
@@ -53,6 +53,7 @@ library
       Galley.Intra.Journal
       Galley.Intra.Push
       Galley.Intra.Spar
+      Galley.Intra.Team
       Galley.Intra.User
       Galley.Intra.Util
       Galley.Options
@@ -118,6 +119,7 @@ library
     , safe-exceptions >=0.1
     , semigroups >=0.12
     , servant
+    , servant-server
     , servant-swagger
     , singletons >=1.0
     , split >=0.2
@@ -208,6 +210,7 @@ executable galley-integration
     , cassandra-util
     , cereal
     , containers
+    , cookie
     , currency-codes
     , data-default-class
     , data-timeout
@@ -261,48 +264,6 @@ executable galley-integration
     , warp
     , warp-tls >=3.2
     , yaml
-  default-language: Haskell2010
-
-executable galley-journaler
-  main-is: Main.hs
-  other-modules:
-      Journal
-      Options
-      Paths_galley
-  hs-source-dirs:
-      journaler/src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
-  build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , amazonka
-    , amazonka-sqs
-    , base
-    , bytestring
-    , bytestring-conversion
-    , cassandra-util
-    , extended
-    , galley
-    , galley-types
-    , http-client
-    , http-client-openssl
-    , imports
-    , lens
-    , mtl
-    , optparse-applicative
-    , proto-lens
-    , proto-lens-protoc
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , ssl-util
-    , text
-    , time
-    , tinylog
-    , types-common
-    , types-common-journal
-    , unliftio
-    , uuid
   default-language: Haskell2010
 
 executable galley-schema

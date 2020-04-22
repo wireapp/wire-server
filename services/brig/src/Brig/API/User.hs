@@ -101,7 +101,6 @@ import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
-import qualified Brig.Team.Util as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
@@ -113,6 +112,7 @@ import Brig.User.Event
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
+import qualified Brig.User.Search.Index as Index
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
@@ -128,7 +128,6 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>))
 import Data.Misc (PlainTextPassword (..))
-import qualified Data.Range as Range
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -257,27 +256,17 @@ createUser new@NewUser {..} = do
         inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
         case (inv, Team.inIdentity <$> inv) of
           (Just invite, Just em)
-            | e == userEmailKey em ->
-              ensureMemberCanJoin (Team.iiTeam ii)
-                >> (return $ Just (invite, ii, Team.iiTeam ii))
+            | e == userEmailKey em -> do
+              _ <- ensureMemberCanJoin (Team.iiTeam ii)
+              return $ Just (invite, ii, Team.iiTeam ii)
           _ -> throwE InvalidInvitationCode
       Nothing -> throwE InvalidInvitationCode
+    ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError AppIO ()
     ensureMemberCanJoin tid = do
-      -- TODO: the logic in this block is mixing 'setMaxTeamSize' (the maximum number of
-      -- members suppored for teams) with 'HardTruncationLimit' (the maximum number of members
-      -- that can be efficiently retrieved from the database and passed to clients).  the
-      -- straight-forward solution here would be to keep track of the team size in galley in a
-      -- more efficient way and return it on a different end-point.  for now, the
-      -- implementation enforces that the maximum configured team size never exceeds the
-      -- hard-coded truncation limit (which is silly, but works, since larger values don't
-      -- work).
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      case Range.checked maxSize of
-        Nothing -> throwE TooManyTeamMembers
-        Just rangedSize -> do
-          teamSize <- lift $ Intra.getTruncatedTeamSize tid rangedSize
-          when (Team.isBiggerThanLimit teamSize) $
-            throwE TooManyTeamMembers
+      (TeamSize teamSize) <- Index.teamSize tid
+      when (teamSize >= maxSize) $
+        throwE TooManyTeamMembers
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
@@ -737,6 +726,9 @@ mkPasswordResetKey ident = case ident of
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
 --
+-- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- delete them in the team settings.  This protects teams against orphanhood.
+--
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
@@ -745,20 +737,17 @@ deleteUser uid pwd = do
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
       Deleted -> return Nothing
-      Suspended -> ensureNotOnlyOwner account >> go a
-      Active -> ensureNotOnlyOwner account >> go a
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
       Ephemeral -> go a
   where
-    ensureNotOnlyOwner :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
-    ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
-      Nothing -> pure ()
-      Just tid -> do
-        ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
-        case ownerSituation of
-          Team.IsOnlyTeamOwnerWithEmail -> throwE DeleteUserOnlyOwner
-          Team.IsOneOfManyTeamOwnersWithEmail -> pure ()
-          Team.IsTeamOwnerWithoutEmail -> pure ()
-          Team.IsNotTeamOwner -> pure ()
+    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- lift $ Intra.memberIsTeamOwner tid uid
+          when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
@@ -823,9 +812,10 @@ verifyDeleteUser d = do
   for_ account $ lift . deleteAccount
   lift $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@.  Team users can be
--- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
--- in the team.
+-- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
+-- via deleting self.
+-- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
+-- other owner left.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user

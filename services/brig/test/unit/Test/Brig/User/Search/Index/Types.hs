@@ -42,8 +42,8 @@ tests =
       testCase "aeson half-roundtrip: UserDoc" $
         assertEqual
           "failed"
-          (fromJust . decode @Value . encode $ userDoc1)
-          (fromJust . decode @Value $ userDoc1ByteString),
+          (toJSON userDoc1)
+          userDoc1Value,
       testCase "IndexUser to UserDoc" $
         assertEqual
           "failed"
@@ -61,6 +61,9 @@ userDoc1 =
       udHandle = Just . fromJust . parseHandle $ "phoompy",
       udColourId = Just . ColourId $ 32
     }
+
+userDoc1Value :: Value
+userDoc1Value = fromJust (decode userDoc1ByteString)
 
 userDoc1ByteString :: LByteString
 userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\"}"

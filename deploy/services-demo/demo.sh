@@ -60,6 +60,7 @@ function check_secrets() {
     fi
     if [[ ! -f ${SCRIPT_DIR}/resources/zauth/privkeys.txt || ! -f ${SCRIPT_DIR}/resources/zauth/pubkeys.txt ]]; then
         echo "Generate private and public keys (used both by brig and nginz)..."
+        mkdir -p ${SCRIPT_DIR}/resources/zauth/
         TMP_KEYS=$(mktemp "/tmp/demo.keys.XXXXXXXXXXX")
         run_zauth -m gen-keypair -i 1 > $TMP_KEYS
         cat $TMP_KEYS | sed -n 's/public: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/pubkeys.txt

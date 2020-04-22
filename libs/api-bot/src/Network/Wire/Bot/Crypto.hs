@@ -141,6 +141,7 @@ encryptMessage clt cnv msg =
     <*> pure False -- Transient?
     <*> pure Nothing -- Priority
     <*> pure Nothing -- Extra data distributed to all recipients
+    <*> pure Nothing
 
 decryptMessage :: BotClient -> ConvEvent OtrMessage -> BotSession ByteString
 decryptMessage clt e = do

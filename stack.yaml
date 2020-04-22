@@ -59,7 +59,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be  # master (Mar 25, 2020)
+  commit: 80ecd2e7e01d5c1c17303e81f75fd37e41ee3da4  # master (Apr 16, 2020)
 - git: https://github.com/wireapp/hscim
   commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6  # master (Mar 27, 2020)
 - ormolu-0.0.3.1
@@ -90,8 +90,8 @@ extra-deps:
 - git: https://github.com/wireapp/hspec-wai
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
-- git: https://github.com/bitemyapp/bloodhound
-  commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+- git: https://github.com/wireapp/bloodhound
+  commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81  # https://github.com/wireapp/bloodhound/tree/feature/count-with-ES-5.2
 
 # amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # Therefore we pin an unreleased commit directly.

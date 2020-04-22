@@ -1,5 +1,0 @@
-Package: galley-journaler
-Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Maintainer: Wire Swiss GmbH <backend@wire.com>
-Architecture: amd64
-Description: Journaler script for team events

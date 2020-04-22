@@ -1,8 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-missing-methods
-    -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -72,6 +71,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
+import Servant.Server.Generic (AsServerT)
 import Spar.App (Env (..), Spar (..))
 import Spar.Error
   ( SparCustomError (SparScimError),
@@ -83,7 +83,8 @@ import Spar.Scim.Auth
 import Spar.Scim.Types
 import Spar.Scim.User
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
-import qualified Web.Scim.Class.Group as Scim.Group
+import qualified Web.Scim.Class.Auth as Scim.Auth
+import qualified Web.Scim.Class.User as Scim.User
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Server as Scim
@@ -97,12 +98,12 @@ configuration = Scim.Meta.empty
 
 apiScim :: ServerT APIScim Spar
 apiScim =
-  hoistScim (toServant (Scim.siteServer configuration))
+  hoistScim (toServant (server configuration))
     :<|> apiScimToken
   where
     hoistScim =
       hoistServer
-        (Proxy @(Scim.SiteAPI SparTag))
+        (Proxy @(ScimSiteAPI SparTag))
         (wrapScimErrors . Scim.fromScimHandler (throwSpar . SparScimError))
     -- Wrap /all/ errors into the format required by SCIM, even server exceptions that have
     -- nothing to do with SCIM.
@@ -133,12 +134,18 @@ apiScim =
         -- No exceptions! Good.
         Right (Right x) -> pure $ Right x
 
-----------------------------------------------------------------------------
--- Orphan instances
-
-instance Scim.Group.GroupDB SparTag Spar
-
--- TODO
+-- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
+-- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
+server ::
+  forall tag m.
+  (Scim.User.UserDB tag m, Scim.Auth.AuthDB tag m) =>
+  Scim.Meta.Configuration ->
+  ScimSite tag (AsServerT (Scim.ScimHandler m))
+server conf =
+  ScimSite
+    { config = toServant $ Scim.configServer conf,
+      users = \authData -> toServant (Scim.userServer @tag authData)
+    }
 
 ----------------------------------------------------------------------------
 -- Utilities

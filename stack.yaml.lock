@@ -29,18 +29,18 @@ packages:
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
     cabal-file:
-      size: 8017
-      sha256: d65ad9f5d25e5ac40afeb6de695b9fc8fc9e1220c04ac59f506dcfad23d62524
+      size: 8428
+      sha256: fe2cb8e7ce1a52a945af37523411732004952ceedddaeb10927722c46c96aa9e
     name: saml2-web-sso
     version: '0.18'
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
-      size: 4593
-      sha256: 127f0e4c67697f8eed57b9675cca6bfaff7ac028d7c0907a110f2974a66b017f
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+      size: 4678
+      sha256: 4762eec362681b6bb26651d14d070d6c4da7d3dea1e9d2f166ae082d514d108d
+    commit: 80ecd2e7e01d5c1c17303e81f75fd37e41ee3da4
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 54cc6b14a1bcc27aec630ccdaaf45a4ed9efe0be
+    commit: 80ecd2e7e01d5c1c17303e81f75fd37e41ee3da4
 - completed:
     cabal-file:
       size: 9076
@@ -159,14 +159,14 @@ packages:
       sha256: ab576560da2c4a87de631543f22e00cfec4ce545554220e4cf1033816b7695cd
     name: bloodhound
     version: 0.17.0.0
-    git: https://github.com/bitemyapp/bloodhound
+    git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4116
-      sha256: 75111095142cc0f7bce196bc89c7494ba0576d0f63039a4953de6cda73ac38ba
-    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+      sha256: 74670e260cdbf4c4f433de921c746d0ba0347e66153a72745f87b84261c2787b
+    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
   original:
-    git: https://github.com/bitemyapp/bloodhound
-    commit: c6233c493b1a7c3df8099872bbc1f66c5f25d95f
+    git: https://github.com/wireapp/bloodhound
+    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
 - completed:
     size: 11137527
     subdir: amazonka

@@ -31,7 +31,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Lens ((^.), view)
+import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -341,6 +341,8 @@ postCryptoMessage5 = do
   -- Report missing clients of a specific user only
   postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv m
     !!! const 201 === statusCode
+  postOtrMessage' (Just [makeIdOpaque bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
+    !!! const 201 === statusCode
   _rs <-
     postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv []
       <!! const 412 === statusCode
@@ -445,18 +447,13 @@ postConvertTeamConv = do
   c <- view tsCannon
   -- Create a team conversation with team-alice, team-bob, activated-eve
   -- Non-activated mallory can join
-  alice <- randomUser
-  tid <- createTeamInternal "foo" alice
-  assertQueue "create team" tActivate
-  let p1 = symmPermissions [Teams.DoNotUseDeprecatedAddRemoveConvMember]
-  bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser
-  addTeamMemberInternal tid bobMem
-  let bob = bobMem ^. Teams.userId
+  (alice, tid) <- createBindingTeam
+  bob <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (bob) join" $ tUpdate 2 [alice]
-  daveMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser
-  addTeamMemberInternal tid daveMem
-  let dave = daveMem ^. Teams.userId
+  refreshIndex
+  dave <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (dave) join" $ tUpdate 3 [alice]
+  refreshIndex
   eve <- randomUser
   connectUsers alice (singleton eve)
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]

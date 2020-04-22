@@ -30,6 +30,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
+    setBrigUserUserRef,
     setBrigUserRichInfo,
     checkHandleAvailable,
     bindBrigUser,
@@ -65,6 +66,7 @@ import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Web.Cookie
 
 ----------------------------------------------------------------------
@@ -274,6 +276,22 @@ setBrigUserManagedBy buid managedBy = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
 
+-- | Set user's UserSSOId.
+setBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
+setBrigUserUserRef buid uref = do
+  resp <-
+    call $
+      method PUT
+        . paths ["i", "users", toByteString' buid, "sso-id"]
+        . json (toUserSSOId uref)
+  let sCode = statusCode resp
+  if  | sCode < 300 ->
+        pure ()
+      | inRange (400, 499) sCode ->
+        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set UserSSOId failed"
+      | otherwise ->
+        throwSpar . SparBrigError . cs $ "set UserSSOId failed with status " <> show sCode
+
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
 setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
@@ -326,6 +344,8 @@ checkHandleAvailable hnd buid = do
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
+--
+-- See also: 'setBrigUserUserRef'.
 bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
 bindBrigUser uid (toUserSSOId -> ussoid) = do
   resp <-
@@ -359,23 +379,11 @@ getBrigUserTeam buid = do
   usr <- getBrigUser buid
   pure $ userTeam =<< usr
 
--- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
--- 'SparNotTeamOwner'; otherwise, return.
-assertIsTeamOwner :: (HasCallStack, MonadSparToBrig m) => UserId -> TeamId -> m ()
-assertIsTeamOwner buid tid = do
-  self <- maybe (throwSpar SparNotInTeam) pure =<< getBrigUser buid
-  when (userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
-  resp :: Response (Maybe LBS) <-
-    call $
-      method GET
-        . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
-  when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
-
 -- | Get the team that the user is an owner of.
 --
 -- Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam ::
-  (HasCallStack, SAML.SP m, MonadSparToBrig m) =>
+  (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) =>
   Maybe UserId ->
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
@@ -383,7 +391,7 @@ getZUsrOwnedTeam (Just uid) = do
   usr <- getBrigUser uid
   case userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ assertIsTeamOwner uid teamid
+    Just teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::

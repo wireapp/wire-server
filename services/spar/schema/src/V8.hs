@@ -15,22 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Roundtrip where
+module V8
+  ( migration,
+  )
+where
 
-import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
-import Data.Aeson.Types (parseEither)
+import Cassandra.Schema
 import Imports
-import Test.Tasty (TestTree)
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
-import Type.Reflection (typeRep)
+import Text.RawString.QQ
 
-testRoundTrip ::
-  forall a.
-  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
-  TestTree
-testRoundTrip = testProperty msg trip
-  where
-    msg = show (typeRep @a)
-    trip (v :: a) =
-      counterexample (show $ toJSON v) $
-        Right v === (parseEither parseJSON . toJSON) v
+migration :: Migration
+migration = Migration 8 "Keep track of old issuers, replacement idps in the idp table" $ do
+  void $
+    schema'
+      [r|
+        ALTER TABLE idp ADD (old_issuers list<text>, replaced_by uuid);
+      |]

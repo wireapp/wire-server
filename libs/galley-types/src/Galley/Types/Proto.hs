@@ -50,6 +50,7 @@ module Galley.Types.Proto
     newOtrMessageNativePriority,
     newOtrMessageData,
     newOtrMessageTransient,
+    newOtrMessageReportMissing,
     toNewOtrMessage,
   )
 where
@@ -227,7 +228,8 @@ data NewOtrMessage
         _newOtrNativePush :: !(Optional 3 (Value Bool)),
         _newOtrData :: !(Optional 4 (Value ByteString)),
         _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
-        _newOtrTransient :: !(Optional 6 (Value Bool))
+        _newOtrTransient :: !(Optional 6 (Value Bool)),
+        _newOtrReportMissing :: !(Repeated 7 (Message UserId))
       }
   deriving (Eq, Show, Generic)
 
@@ -243,7 +245,8 @@ newOtrMessage c us =
       _newOtrNativePush = putField Nothing,
       _newOtrData = putField Nothing,
       _newOtrNativePriority = putField Nothing,
-      _newOtrTransient = putField Nothing
+      _newOtrTransient = putField Nothing,
+      _newOtrReportMissing = putField []
     }
 
 newOtrMessageSender :: Functor f => (ClientId -> f ClientId) -> NewOtrMessage -> f NewOtrMessage
@@ -268,6 +271,9 @@ newOtrMessageData f c = (\x -> c {_newOtrData = x}) <$> field f (_newOtrData c)
 newOtrMessageNativePriority :: Functor f => (Maybe Priority -> f (Maybe Priority)) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> field f (_newOtrNativePriority c)
 
+newOtrMessageReportMissing :: Functor f => ([UserId] -> f [UserId]) -> NewOtrMessage -> f NewOtrMessage
+newOtrMessageReportMissing f c = (\x -> c {_newOtrReportMissing = x}) <$> field f (_newOtrReportMissing c)
+
 toNewOtrMessage :: NewOtrMessage -> Galley.NewOtrMessage
 toNewOtrMessage msg =
   Galley.NewOtrMessage
@@ -276,8 +282,13 @@ toNewOtrMessage msg =
       Galley.newOtrNativePush = view newOtrMessageNativePush msg,
       Galley.newOtrTransient = view newOtrMessageTransient msg,
       Galley.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg
+      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
+      Galley.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
     }
+
+toReportMissing :: [UserId] -> Maybe [Id.OpaqueUserId]
+toReportMissing [] = Nothing
+toReportMissing us = Just $ view userId <$> us
 
 -- Utilities ----------------------------------------------------------------
 

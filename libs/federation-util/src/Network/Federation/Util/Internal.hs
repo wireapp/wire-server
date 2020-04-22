@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
---
+
 -- Parts of this code, namely functions srvLookup'' and orderSrvResult,
 -- which were taken from http://hackage.haskell.org/package/pontarius-xmpp
 -- are also licensed under the three-clause BSD license:

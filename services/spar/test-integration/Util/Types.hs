@@ -42,6 +42,7 @@ import Bilge
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens (makeLenses)
+import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.TH
@@ -60,6 +61,9 @@ type GalleyReq = Request -> Request
 type SparReq = Request -> Request
 
 type TestSpar = ReaderT TestEnv IO
+
+instance MonadRandom TestSpar where
+  getRandomBytes = lift . getRandomBytes
 
 -- | See 'mkEnv' about what's in here.
 data TestEnv
