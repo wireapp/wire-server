@@ -24,6 +24,7 @@ module Galley.API.LegalHold
     requestDeviceH,
     approveDeviceH,
     disableForUserH,
+    isLegalHoldEnabled,
   )
 where
 
@@ -123,7 +124,7 @@ removeSettings' ::
   TeamId ->
   Galley ()
 removeSettings' tid = do
-  -- Loop through team members and run this action
+  -- Loop through team members and run this action.
   Data.withTeamMembersWithChunks tid action
   LegalHoldData.removeSettings tid
   where

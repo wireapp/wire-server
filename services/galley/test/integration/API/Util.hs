@@ -82,6 +82,17 @@ createBindingTeam = do
   refreshIndex
   pure (ownerid, tid)
 
+createBindingTeamWithMembers :: HasCallStack => Int -> TestM (TeamId, UserId, [UserId])
+createBindingTeamWithMembers numUsers = do
+  (owner, tid) <- createBindingTeam
+  members <- forM [2..numUsers] $ \n -> do
+    mem <- addUserToTeam owner tid
+    SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
+    refreshIndex
+    return $ view Galley.Types.Teams.userId $ mem
+
+  return (tid, owner, members)
+
 getTeams :: UserId -> TestM TeamList
 getTeams u = do
   g <- view tsGalley

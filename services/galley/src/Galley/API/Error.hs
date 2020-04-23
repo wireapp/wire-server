@@ -141,6 +141,9 @@ invalidActions = Error status403 "invalid-actions" "The specified actions are in
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
 
+tooManyTeamMembersOnTeamWithLegalhold :: Error
+tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team legalhold service is enabled."
+
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
@@ -167,6 +170,9 @@ invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot u
 
 codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+
+cannotEnableLegalHoldServiceLargeTeam :: Error
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"

@@ -423,6 +423,8 @@ addTeamMember zusr zcon tid nmem = do
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   memList <- Data.teamMembersForFanout tid
+  -- FUTUREWORK: We cannot enable legalhold on large teams right now
+  ensureNotTooLargeForLegalHold tid memList
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -435,6 +437,8 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
+  -- FUTUREWORK: We cannot enable legalhold on large teams right now
+  ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
@@ -694,6 +698,16 @@ ensureNotTooLarge tid = do
     throwM tooManyTeamMembers
   return $ TeamSize size
 
+-- FUTUREWORK: Large teams cannot have legalhold enabled
+ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
+ensureNotTooLargeForLegalHold tid mems = do
+  limit <- fromIntegral . fromRange <$> fanoutLimit
+  -- Teams larger than fanout limit cannot use legalhold
+  when (length (mems ^. teamMembers) >= limit) $ do
+    lhEnabled <- isLegalHoldEnabled tid
+    when lhEnabled
+      $ throwM tooManyTeamMembersOnTeamWithLegalhold
+
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn newMem memList = do
   let new = newMem ^. ntmNewTeamMember
@@ -835,8 +849,16 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
         throwM legalHoldFeatureFlagNotEnabled
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
     LegalHoldDisabled -> removeSettings' tid
-    LegalHoldEnabled -> pure ()
+    -- FUTUREWORK: We cannot enable legalhold on large teams right now
+    LegalHoldEnabled -> ensureTeamNotTooLargeForLegalHold
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+ where
+  ensureTeamNotTooLargeForLegalHold = do
+    (TeamSize size) <- BrigTeam.getSize tid
+    limit <- fromIntegral . fromRange <$> fanoutLimit
+    -- Teams larger than fanout limit cannot use legalhold
+    when (size > limit)
+      $ throwM cannotEnableLegalHoldServiceLargeTeam
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do
