@@ -39,7 +39,7 @@ module Galley.Data
     teamMember,
     withTeamMembersWithChunks,
     teamMembersWithLimit,
-    teamMembersMaybeTruncated,
+    teamMembersForFanout,
     teamMembersCollectedWithPagination,
     teamMembersLimited,
     userTeams,
@@ -240,8 +240,8 @@ teamConversationsForPagination tid start (fromRange -> max) =
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) max)
     Nothing -> paginate Cql.selectTeamConvs (paramsP Quorum (Identity tid) max)
 
-teamMembersMaybeTruncated :: TeamId -> Galley TeamMemberList
-teamMembersMaybeTruncated t = truncationLimit >>= teamMembersWithLimit t
+teamMembersForFanout :: TeamId -> Galley TeamMemberList
+teamMembersForFanout t = fanoutLimit >>= teamMembersWithLimit t
 
 teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
 teamMembersWithLimit t (fromRange -> limit) = do

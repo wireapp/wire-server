@@ -42,7 +42,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.App as Galley
-import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setTruncationLimit)
+import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -1012,12 +1012,12 @@ testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
   o <- view tsGConf
   c <- view tsCannon
-  let truncationLimit = fromIntegral . fromRange $ Galley.currentTruncationLimit o
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (owner, tid) <- Util.createBindingTeam
   member1 <- addTeamMemberAndExpectEvent True tid owner
   -- Now last fill the team until truncationSize - 2
 
-  replicateM_ (truncationLimit - 4) $ Util.addUserToTeam owner tid
+  replicateM_ (fanoutLimit - 4) $ Util.addUserToTeam owner tid
   extern <- Util.randomUser
   modifyTeamDataAndExpectEvent True tid owner
   -- Let's create and remove a member
@@ -1388,7 +1388,7 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         -- We change also max conv size due to the invariants that galley forces us to keep
         let newOpts =
-              opts & optSettings . setTruncationLimit .~ Just (unsafeRange 4)
+              opts & optSettings . setMaxFanoutSize .~ Just (unsafeRange 4)
                 & optSettings . setMaxConvSize .~ 4
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large

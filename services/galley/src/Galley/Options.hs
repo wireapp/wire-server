@@ -21,7 +21,7 @@ import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Misc
 import Data.Range
-import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit)
+import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit, hardTruncationLimit)
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -37,7 +37,7 @@ data Settings
         --   this value, team events and user updates will no longer be sent to team users.
         --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
         --   to tune mainly for testing purposes.
-        _setTruncationLimit :: !(Maybe (Range 1 HardTruncationLimit Int32)),
+        _setMaxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
         -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
         _setMaxConvSize :: !Word16,
         -- | Whether to call Brig for device listing
@@ -66,8 +66,8 @@ defConcurrentDeletionEvents = 128
 defDeleteConvThrottleMillis :: Int
 defDeleteConvThrottleMillis = 20
 
-defTruncationLimit :: Range 1 HardTruncationLimit Int32
-defTruncationLimit = unsafeRange 2000
+defFanoutLimit :: Range 1 HardTruncationLimit Int32
+defFanoutLimit = unsafeRange hardTruncationLimit
 
 defEnableFederation :: Bool
 defEnableFederation = False

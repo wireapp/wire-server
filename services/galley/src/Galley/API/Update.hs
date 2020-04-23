@@ -891,10 +891,10 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-  limit <- fromIntegral . fromRange <$> truncationLimit
+  limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
-  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit) $
-    throwM broadcastLimitExceeded
+  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit)
+    $ throwM broadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -918,13 +918,13 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
       -- Put them in a single list, and ensure it's smaller than the max size
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
-      unless (length localUserIdsToLookup <= limit) $
-        throwM broadcastLimitExceeded
+      unless (length localUserIdsToLookup <= limit)
+        $ throwM broadcastLimitExceeded
       Data.teamMembersLimited tid localUserIdsToLookup
     maybeFetchAllMembersInTeam tid = do
-      mems <- Data.teamMembersMaybeTruncated tid
-      when (mems ^. teamMemberListType == ListTruncated) $
-        throwM broadcastLimitExceeded
+      mems <- Data.teamMembersForFanout tid
+      when (mems ^. teamMemberListType  == ListTruncated)
+        $ throwM broadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::

@@ -124,7 +124,7 @@ createTeamGroupConv zusr zcon tinfo body = do
     if cnvManaged tinfo
       then do
         -- ConvMaxSize MUST be < than hardlimit so the conv size check is enough
-        maybeAllMembers <- Data.teamMembersMaybeTruncated convTeam
+        maybeAllMembers <- Data.teamMembersForFanout convTeam
         let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
         checkedConvSize otherConvMems
       else do

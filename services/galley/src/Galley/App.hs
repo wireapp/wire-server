@@ -47,8 +47,8 @@ module Galley.App
     fromOptionalJsonBody,
     fromProtoBody,
     initExtEnv,
-    truncationLimit,
-    currentTruncationLimit,
+    fanoutLimit,
+    currentFanoutLimit,
   )
 where
 
@@ -133,23 +133,23 @@ newtype Galley a
       MonadClient
     )
 
-truncationLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
-truncationLimit = view options >>= return . currentTruncationLimit
+fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
+fanoutLimit = view options >>= return . currentFanoutLimit
 
-currentTruncationLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
-currentTruncationLimit o = do
-  let optTruncLimit = fromIntegral . fromRange $ fromMaybe defTruncationLimit (o ^. optSettings ^. setTruncationLimit)
+currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
+currentFanoutLimit o = do
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. optSettings ^. setMaxFanoutSize)
   let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
-  unsafeRange (min maxTeamSize optTruncLimit)
+  unsafeRange (min maxTeamSize optFanoutLimit)
 
 -- Define some invariants for the options used
 validateOptions :: Logger.Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
-      optTruncLimit = fromIntegral . fromRange $ currentTruncationLimit o
-  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optTruncLimit)) $
+      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
+  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optFanoutLimit)) $
     if settings ^. setMaxTeamSize > hardLimit
-      then error ("setMaxTeamSize cannot be > setTruncationLimit if journal is enabled and setMaxTeamSize > " ++ show hardLimit)
+      then error ("setMaxTeamSize cannot be > setMaxFanoutSize if journal is enabled and setMaxTeamSize > " ++ show hardLimit)
       else
         Logger.warn
           l
@@ -158,9 +158,9 @@ validateOptions l o = do
                 "Your journaling events may have some admin user ids missing. \
                 \This is fine for testing purposes but NOT for production use!!"
           )
-  when (settings ^. setMaxConvSize > optTruncLimit) $
+  when (settings ^. setMaxConvSize > optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
-  when (settings ^. setMaxTeamSize < optTruncLimit) $
+  when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
   where
     hardLimit = fromIntegral $ fromRange (unsafeRange Teams.hardTruncationLimit :: Range 1 Teams.HardTruncationLimit Int32)

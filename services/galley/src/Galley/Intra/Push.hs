@@ -145,7 +145,7 @@ pushSome (x : xs) = push (list1 x xs)
 -- more than 128 recipients.
 push :: List1 Push -> Galley ()
 push ps = do
-  limit <- truncationLimit
+  limit <- fanoutLimit
   -- Do not fan out for very large teams
   let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"

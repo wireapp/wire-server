@@ -186,8 +186,8 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
-      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
-      mems <- Data.teamMembersMaybeTruncated tid
+      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
+      mems <- Data.teamMembersForFanout tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -224,7 +224,7 @@ updateTeam zusr zcon tid updateData = do
   void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  memList <- Data.teamMembersMaybeTruncated tid
+  memList <- Data.teamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   push1 $ newPush1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
@@ -422,7 +422,7 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
-  memList <- Data.teamMembersMaybeTruncated tid
+  memList <- Data.teamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -434,7 +434,7 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- Data.teamMembersMaybeTruncated tid
+  mems <- Data.teamMembersForFanout tid
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
@@ -471,8 +471,8 @@ updateTeamMember zusr zcon tid targetMember = do
         $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users
-  updatedMembers <- Data.teamMembersMaybeTruncated tid
+  -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
+  updatedMembers <- Data.teamMembersForFanout tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
@@ -527,7 +527,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   removeMembership <- Data.teamMember tid remove
-  mems <- Data.teamMembersMaybeTruncated tid
+  mems <- Data.teamMembersForFanout tid
   if team ^. teamBinding == Binding && isJust removeMembership
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
@@ -541,7 +541,7 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      -- When journaling is enabled, we are guaranteed that teamMembersMaybeTruncated returns all users. We remove
+      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users. We remove
       -- the extra added user to avoid an extra DB lookup
       Journal.teamUpdate tid sizeAfterDelete $ newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
       pure TeamMemberDeleteAccepted
@@ -743,7 +743,7 @@ getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers :: UserId -> Galley TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
-  Data.teamMembersMaybeTruncated tid
+  Data.teamMembersForFanout tid
 
 -- Public endpoints for feature checks
 
