@@ -94,8 +94,8 @@ data CreateUserError
   | DuplicateUserKey UserKey
   | BlacklistedUserKey UserKey
   | TooManyTeamMembers
-  | ExternalPreconditionFailed Wai.Error
-    -- | Some precondition on another Wire service failed. We propagate this error.
+  | -- | Some precondition on another Wire service failed. We propagate this error.
+    ExternalPreconditionFailed Wai.Error
 
 data InvitationError
   = InviteeEmailExists UserId
