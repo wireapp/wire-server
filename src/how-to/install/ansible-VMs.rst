@@ -47,11 +47,26 @@ Copy the example hosts file::
 
 -  Edit the hosts.ini, setting the permanent IPs of the hosts you are
    setting up wire on.
--  replace the ``ansible_host`` values (``X.X.X.X``) with the IPs that
-   you can reach by SSH. these are the 'internal' addresses of the
-   machines, not what a client will be connecting to.
--  replace the ``ip`` values (``Y.Y.Y.Y``) with the IPs which you wish
-   kubernetes to provide services to clients on.
+-  On each of the lines declaring a database service node (
+   lines in the ``[all]`` section beginning with cassandra, elasticsearch,
+   or minio) replace the ``ansible_host`` values (``X.X.X.X``) with the
+   IPs of the nodes that you can connect to via SSH. these are the
+   'internal' addresses of the machines, not what a client will be
+   connecting to.
+-  On each of the lines declaring a kubernetes node (lines in the ``[all]``
+   section starting with 'kubenode') replace the ``ip`` values
+   (``Y.Y.Y.Y``) with the IPs which you wish kubernetes to provide
+   services to clients on, and replace the ``ansible_host`` values
+   (``X.X.X.X``) with the IPs of the nodes that you can connect to via
+   SSH. If the IP you want to provide services on is the same IP that
+   you use to connect, remove the ``ip=Y.Y.Y.Y`` completely.
+-  On each of the lines declaring an ``etcd`` node (lines in the ``[all]``
+   section starting with etcd), use the same values as you used on the
+   coresponding kubenode lines in the prior step.
+-  If you are deploying Restund for voice/video services then on each of the
+   lines declaring a ``restund`` node (lines in the ``[all]`` section
+   beginning with restund), replace the ``ansible_host`` values (``X.X.X.X``)
+   with the IPs of the nodes that you can connect to via SSH.
 
 There are more settings in this file that we will set in later steps.
 
@@ -85,7 +100,9 @@ You can install kubernetes, cassandra, restund, etc in any order.
 Installing kubernetes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Kubernetes is installed via ansible. To install kubernetes:
+Kubernetes is installed via ansible.
+
+To install kubernetes:
 
 From ``wire-server-deploy/ansible``::
 
@@ -108,20 +125,27 @@ should give output similar to this::
 Cassandra
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  Set variables in the hosts.ini file under ``[cassandra:vars]``. Most
-   defaults should be fine, except maybe for the cluster name and the
-   network interface to use:
+-  If you would like to change the name of the cluster, in your
+   'hosts.ini' file, in the ``[cassandra:vars]`` section, uncomment
+   the line that changes 'cassandra_clustername', and change default
+   to be the name you want the cluster to have.
+-  If you want cassandra nodes to talk to each other on a specific
+   network interface, rather than the one you use to connect via SSH,
+   In your 'hosts.ini' file, in the ``[all:vars]`` section,
+   uncomment, and set 'cassandra_network_interface' to the name of
+   the ethernet interface you want cassandra nodes to talk to each
+   other on. For example:
 
 .. code:: ini
 
    [cassandra:vars]
-   ## set to True if using AWS
-   is_aws_environment = False
    # cassandra_clustername: default
 
    [all:vars]
+   ## set to True if using AWS
+   is_aws_environment = False
    ## Set the network interface name for cassandra to bind to if you have more than one network interface
-   # cassandra_network_interface = eth0
+   cassandra_network_interface = eth0
 
 (see
 `defaults/main.yml <https://github.com/wireapp/ansible-cassandra/blob/master/defaults/main.yml>`__
@@ -136,9 +160,14 @@ for a full list of variables to change if necessary)
 ElasticSearch
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  In your 'hosts.ini' file, in the ``[all:vars]`` section, set
-   'elasticsearch_network_interface' to the name of the interface you
-   want elasticsearch nodes to talk to each other on. For example:
+-  In your 'hosts.ini' file, in the ``[all:vars]`` section, uncomment
+   and set 'elasticsearch_network_interface' to the name of the
+   interface you want elasticsearch nodes to talk to each other on.
+-  If you are performing an offline install, or for some other reason
+   are using an APT mirror other than the default to retrieve
+   elasticsearch-oss packages from, you need to specify that mirror
+   by setting 'es_apt_key' and 'es_apt_url' in the ``[all:vars]``
+   section of your hosts.ini file.
 
 .. code:: ini
 
@@ -146,16 +175,9 @@ ElasticSearch
    # default first interface on ubuntu on kvm:
    elasticsearch_network_interface=ens3
 
--  If you are performing an offline install, or for some other reason
-   are using an APT mirror to retrieve elasticsearch-oss packages from,
-   you need to specify that mirror. In the 'ELASTICSEARCH' section of
-   hosts.ini, add two lines forcing elasticsearch to use a given APT
-   mirror, with a given GPG key.
-
-.. code:: ini
-
-   es_apt_key = "https://<mymirror>/linux/ubuntu/gpg"
-   es_apt_url = "deb [trusted=yes] https://<mymirror>/apt bionic stable"
+   ## Set these in order to use an APT mirror other than the default.
+   # es_apt_key = "https://<mymirror>/linux/ubuntu/gpg"
+   # es_apt_url = "deb [trusted=yes] https://<mymirror>/apt bionic stable"
 
 -  Use poetry to run ansible, and deploy ElasticSearch:
 
@@ -171,14 +193,18 @@ Minio
    you want minio nodes to talk to each other on. The default from the
    playbook is not going to be correct for your machine. For example:
 
+-  In your 'hosts.ini' file, in the ``[minio:vars]`` section, ensure you
+   set minio_access_key and minio_secret key.
+
 .. code:: ini
+
+   [minio:vars]
+   minio_access_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
+   minio_secret_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
 
    [all:vars]
    # Default first interface on ubuntu on kvm:
    minio_network_interface=ens3
-
--  In your 'hosts.ini' file, in the ``[minio:vars]`` section, ensure you
-   set minio_access_key and minio_secret key.
 
 -  Use poetry to run ansible, and deploy Minio:
 
@@ -189,15 +215,10 @@ Minio
 Restund
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Set other variables in the hosts.ini file under ``[restund:vars]``. Most
-defaults should be fine, except for the network interfaces to use:
-
--  set ``ansible_host=X.X.X.X`` under the ``[all]`` section to the IP
-   for SSH access.
--  (recommended) set ``restund_network_interface =`` under the
-   ``[restund:vars]`` section to the interface name you wish the process
-   to use. Defaults to the default_ipv4_address, with a fallback to
-   ``eth0``.
+-  In your ``hosts.ini`` file, in the ``[restund:vars]`` section, set
+   the ``restund_network_interface`` to the name of the interface
+   you want restund to talk to clients on. This value defaults to the
+   ``default_ipv4_address``, with a fallback to ``eth0``.
 -  (optional) ``restund_peer_udp_advertise_addr=Y.Y.Y.Y``: set this to
    the IP to advertise for other restund servers if different than the
    ip on the 'restund_network_interface'. If using
@@ -244,12 +265,15 @@ IMPORTANT checks
 Installing helm charts - prerequisites
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``helm_external.yml`` playbook can be used locally to write or update the IPs of the
-databases into the ``values/cassandra-external/values.yaml`` file, and
-thus make them available for helm and the ``...-external`` charts (e.g.
-``cassandra-external``).
+The ``helm_external.yml`` playbook is used to write or update the IPs of the
+databases servers in the ``values/<database>-external/values.yaml`` files, and
+thus make them available for helm and the ``<database>-external`` charts (e.g.
+``cassandra-external``, ``elasticsearch-external``, etc).
 
-Ensure to define the following in your hosts.ini under ``[all:vars]``:
+Due to limitations in the playbook, make sure that you have defined the
+network interfaces for each of the database services in your hosts.ini,
+even if they are running on the same interface that you connect to via SSH.
+In your hosts.ini under ``[all:vars]``:
 
 .. code:: ini
 
@@ -257,13 +281,16 @@ Ensure to define the following in your hosts.ini under ``[all:vars]``:
    minio_network_interface = ...
    cassandra_network_interface = ...
    elasticsearch_network_interface = ...
+   # if you're using redis external...
    redis_network_interface = ...
 
 ::
 
+- Now run the helm_external.yml playbook, to populate network values for helm:
+
    poetry run ansible-playbook -i hosts.ini -vv --diff helm_external.yml
 
-Now you can install the helm charts.
+You can now can install the helm charts.
 
 Next steps for high-available production installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
