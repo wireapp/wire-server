@@ -46,7 +46,8 @@ tests opts mgr galley brig =
         test mgr "reindex" $ testReindex brig,
         test mgr "no match" $ testSearchNoMatch brig,
         test mgr "no extra results" $ testSearchNoExtraResults brig,
-        test mgr "order" $ testOrder brig,
+        test mgr "order-name" $ testOrderName brig,
+        test mgr "order-handle" $ testOrderHandle brig,
         test mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         test mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testGroup "team-members" $
@@ -154,22 +155,35 @@ testReindex brig = do
     delayed = liftIO $ threadDelay 10000
     mkRegularUser = randomUserWithHandle brig
 
-testOrder :: Brig -> Http ()
-testOrder brig = do
+testOrderName :: Brig -> Http ()
+testOrderName brig = do
+  searcher <- userId <$> randomUser brig
+  searchedWord <- randomHandle
+  nameMatch <- userId <$> createUser' True searchedWord brig
+  namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
+  refreshIndex brig
+  (Just resultUIds) <- fmap (map contactUserId . searchResults) <$> executeSearch brig searcher searchedWord
+  let expectedOrder = [nameMatch, namePrefixMatch]
+  liftIO $ do
+    assertEqual
+      "Expected order: name match, name prefix match"
+      expectedOrder
+      resultUIds
+
+testOrderHandle :: Brig -> Http ()
+testOrderHandle brig = do
   searcher <- userId <$> randomUser brig
   searchedWord <- randomHandle
   handleMatch <- userId <$> createUser' True "handle match" brig
   void $ putHandle brig handleMatch searchedWord
-  nameMatch <- userId <$> createUser' True searchedWord brig
   handlePrefixMatch <- userId <$> createUser' True "handle prefix match" brig
   void $ putHandle brig handlePrefixMatch (searchedWord <> "suffix")
-  namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
   (Just resultUIds) <- fmap (map contactUserId . searchResults) <$> executeSearch brig searcher searchedWord
-  let expectedOrder = [handleMatch, nameMatch, handlePrefixMatch, namePrefixMatch]
+  let expectedOrder = [handleMatch, handlePrefixMatch]
   liftIO $ do
     assertEqual
-      "Expected order: handle match, name match, handle prefix match, name prefix match"
+      "Expected order: handle match, handle prefix match"
       expectedOrder
       resultUIds
 
