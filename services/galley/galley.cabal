@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 18586f67f515873a79fe475566800f7eeb40fbba695e5c2c6b3cd23062400772
+-- hash: d02acd0cb99618ee34a4f0a042c8d08f8e5f95809320c74c1571f52d7700d842
 
 name:           galley
 version:        0.83.0
@@ -305,4 +305,33 @@ executable galley-schema
     , tinylog
   if flag(static)
     ld-options: -static
+  default-language: Haskell2010
+
+test-suite galley-types-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Galley.API
+      Paths_galley
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , containers
+    , extended
+    , galley
+    , galley-types
+    , http-types
+    , imports
+    , lens
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , tasty
+    , tasty-hunit
+    , types-common
+    , wai
+    , wai-predicates
   default-language: Haskell2010

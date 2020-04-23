@@ -49,7 +49,7 @@ tests =
           [ testGroup
               "Record Formats"
               [ testProperty "tinylog" tiny,
-                testProperty "svlogd" svlogd,
+                -- testProperty "svlogd" svlogd, -- TODO: https://github.com/zinfra/backend-issues/issues/777#issuecomment-614820431
                 testProperty "svlogd+tinylog" svTiny,
                 testProperty "nginz" nginz,
                 testProperty "socklog+svlogd" sockSv,
@@ -67,8 +67,8 @@ tests =
 tiny :: [ParseInput TinyLogRecord] -> Property
 tiny = run_prop tinyLogRecord
 
-svlogd :: [ParseInput (SvLogRecord Text)] -> Property
-svlogd = run_prop svLogRecord
+_svlogd :: [ParseInput (SvLogRecord Text)] -> Property
+_svlogd = run_prop svLogRecord
 
 svTiny :: [ParseInput (SvLogRecord TinyLogRecord)] -> Property
 svTiny = run_prop (svLogRecordWith tinyLogRecord)
