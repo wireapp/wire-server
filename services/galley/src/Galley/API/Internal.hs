@@ -36,13 +36,13 @@ import Data.String.Conversions (cs)
 import Galley.API.Error (federationNotImplemented)
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
-import qualified Galley.Types.Teams as Teams
 import Galley.API.Util (isMember, resolveOpaqueConvId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
 import qualified Galley.Queue as Q
 import Galley.Types (ConvType (..), evtFrom)
+import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (err, result)
