@@ -850,7 +850,7 @@ withTeamMembersWithChunks ::
   ([TeamMember] -> Galley ()) ->
   Galley ()
 withTeamMembersWithChunks tid action = do
-  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
+  mems <- teamMembersForPagination tid Nothing (unsafeRange hardTruncationLimit)
   handleMembers mems
   where
     handleMembers mems = do

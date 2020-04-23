@@ -267,7 +267,9 @@ createUser new@NewUser {..} = do
       (TeamSize teamSize) <- Index.teamSize tid
       when (teamSize >= maxSize) $
         throwE TooManyTeamMembers
-      canAdd <- lift $ Intra.checkaddTeamMemberPossible tid
+      -- FUTUREWORK: The above can easily be done/tested in the intra call.
+      --             Remove after the next release.
+      canAdd <- lift $ Intra.checkUserCanJoinTeam tid
       case canAdd of
         Just e -> throwE (ExternalPreconditionFailed e)
         Nothing -> pure ()

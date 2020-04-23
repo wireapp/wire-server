@@ -42,7 +42,7 @@ module Brig.IO.Intra
 
     -- * Teams
     addTeamMember,
-    checkaddTeamMemberPossible,
+    checkUserCanJoinTeam,
     createTeam,
     getTeamMember,
     getTeamMembers,
@@ -675,8 +675,8 @@ rmClient u c = do
 -- Team Management
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
-checkaddTeamMemberPossible :: TeamId -> AppIO (Maybe Wai.Error)
-checkaddTeamMemberPossible tid = do
+checkUserCanJoinTeam :: TeamId -> AppIO (Maybe Wai.Error)
+checkUserCanJoinTeam tid = do
   debug $
     remote "galley"
       . msg (val "Check if can add member to team")

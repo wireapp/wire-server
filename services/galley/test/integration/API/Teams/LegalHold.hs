@@ -529,6 +529,7 @@ testEnablePerTeamTooLarge = do
 
   LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+  -- You cannot enable legal hold on a team that is too large
   putEnabled' id tid LegalHoldEnabled !!! do
     const 403 === statusCode
     const (Just "too-large-team-for-legalhold") === fmap Error.label . responseJsonMaybe

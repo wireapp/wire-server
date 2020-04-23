@@ -699,11 +699,11 @@ ensureNotTooLarge tid = do
     throwM tooManyTeamMembers
   return $ TeamSize size
 
--- FUTUREWORK: Large teams cannot have legalhold enabled
+-- FUTUREWORK: Large teams cannot have legalhold enabled, needs rethinking
+--             due to the expensive operation of removing settings
 ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
 ensureNotTooLargeForLegalHold tid mems = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
-  -- Teams larger than fanout limit cannot use legalhold
   when (length (mems ^. teamMembers) >= limit) $ do
     lhEnabled <- isLegalHoldEnabled tid
     when lhEnabled
@@ -771,7 +771,6 @@ canUserJoinTeam tid = do
     checkTeamSize
  where
   checkTeamSize = do
-      -- TODO: Refactor
     (TeamSize size) <- BrigTeam.getSize tid
     limit <- fromIntegral . fromRange <$> fanoutLimit
     -- Teams larger than fanout limit cannot use legalhold
@@ -872,11 +871,9 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     LegalHoldEnabled -> checkTeamSize
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
  where
-  -- TODO: Refactor
   checkTeamSize = do
     (TeamSize size) <- BrigTeam.getSize tid
     limit <- fromIntegral . fromRange <$> fanoutLimit
-    -- Teams larger than fanout limit cannot use legalhold
     when (size > limit) $ do
       throwM cannotEnableLegalHoldServiceLargeTeam
 
