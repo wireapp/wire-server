@@ -331,7 +331,7 @@ notifyContacts events orig route conn = do
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     screenMemberList :: Maybe Team.TeamMemberList -> AppIO [UserId]
     screenMemberList (Just mems)
-      | not (mems ^. Team.teamMemberListHasMore) =
+      | mems ^. Team.teamMemberListType == Team.ListComplete =
         return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
     screenMemberList _ = return []
 
