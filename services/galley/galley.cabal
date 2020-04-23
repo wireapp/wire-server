@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4f79c4e80501e3070d1aa3baefb563efc7749550937ffeaebc65cd48a7b7cf21
+-- hash: d02acd0cb99618ee34a4f0a042c8d08f8e5f95809320c74c1571f52d7700d842
 
 name:           galley
 version:        0.83.0
@@ -307,22 +307,31 @@ executable galley-schema
     ld-options: -static
   default-language: Haskell2010
 
-test-suite doctests
+test-suite galley-types-tests
   type: exitcode-stdio-1.0
-  main-is: doctest.hs
+  main-is: Main.hs
   other-modules:
+      Test.Galley.API
       Paths_galley
   hs-source-dirs:
-      test
+      test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       base
-    , doctest
+    , containers
     , extended
     , galley
+    , galley-types
+    , http-types
     , imports
+    , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
     , ssl-util
+    , tasty
+    , tasty-hunit
+    , types-common
+    , wai
+    , wai-predicates
   default-language: Haskell2010

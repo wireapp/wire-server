@@ -99,15 +99,24 @@ library:
   - zauth
 
 tests:
-  doctests:
-    main: doctest.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
-    source-dirs:
-      - test
+  galley-types-tests:
+    main: Main.hs
+    source-dirs: test/unit
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
     dependencies:
-      - base
-      - doctest
-      - galley
+    - base
+    - containers
+    - galley
+    - galley-types
+    - http-types
+    - lens
+    - tasty
+    - tasty-hunit
+    - types-common
+    - wai
+    - wai-predicates
 
 executables:
   galley:

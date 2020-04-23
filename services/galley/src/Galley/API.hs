@@ -1124,36 +1124,6 @@ docs (_ ::: url) = do
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
 
--- | Parse ignore_missing, filter_missing query parameters.
---
--- >>> let run queryString = exec filterMissing (defaultRequest {queryString = queryString}) Left Right
---
--- >>> run [("ignore_missing", Just "true"), ("report_missing", Just "true")]
--- Right OtrIgnoreAllMissing
---
--- >>> run [("ignore_missing", Just "false"), ("report_missing", Just "true")]
--- Right OtrReportAllMissing
---
--- >>> run [("ignore_missing", Nothing), ("report_missing", Just "true")]
--- Right OtrReportAllMissing
---
--- >>> run [("report_missing", Just "true")]
--- Right OtrReportAllMissing
---
--- >>> run [("ignore_missing", Just "af5d99e4-8477-11ea-9a66-7b8304d416cd")]
--- Right (OtrIgnoreMissing (fromList [af5d99e4-8477-11ea-9a66-7b8304d416cd]))
---
--- >>> run [("ignore_missing", Just "af5d99e4-8477-11ea-9a66-7b8304d416cd"), ("report_missing", Just "21c56f5c-8478-11ea-938e-b7f0a819ff2b")]
--- Right (OtrIgnoreMissing (fromList [af5d99e4-8477-11ea-9a66-7b8304d416cd]))
---
--- >>> run [("report_missing", Just "af5d99e4-8477-11ea-9a66-7b8304d416cd,b11ec5b4-8477-11ea-9926-279424ad995e")]
--- Right (OtrReportMissing (fromList [af5d99e4-8477-11ea-9a66-7b8304d416cd,b11ec5b4-8477-11ea-9926-279424ad995e]))
---
--- >>> run [("report_missing", Just "21c56f5c-8478-11ea-938e-b7f0a819ff2b")]
--- Right (OtrReportMissing (fromList [21c56f5c-8478-11ea-938e-b7f0a819ff2b]))
---
--- >>> run [("ignore_missing", Just "false"), ("report_missing", Just "21c56f5c-8478-11ea-938e-b7f0a819ff2b")]
--- Right OtrIgnoreAllMissing
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
   where
