@@ -418,7 +418,7 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
     throwM (IndexError "Index already exists.")
   unless ex $ do
     let analyzer = Map.fromList [("autocomplete", ES.AnalyzerDefinition (Just (ES.Tokenizer "autocomplete")) [] [])]
-    let tokenizer = Map.fromList [("autocomplete", ES.TokenizerDefinitionEdgeNgram (ES.Ngram 1 30 [ES.TokenLetter, ES.TokenDigit]))]
+    let tokenizer = Map.fromList [("autocomplete", ES.TokenizerDefinitionEdgeNgram (ES.Ngram 1 30 [ES.TokenLetter, ES.TokenDigit, ES.TokenSymbol, ES.TokenPunctuation]))]
     let fullSettings = settings ++ [ES.AnalysisSetting (ES.Analysis analyzer tokenizer mempty mempty)]
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
@@ -535,7 +535,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "autocomplete" "standard")]
+                    Map.fromList [("prefix", MappingField MPText "autocomplete" "whitespace")]
                 },
             "name"
               .= MappingProperty
@@ -552,7 +552,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "autocomplete" "standard")]
+                    Map.fromList [("prefix", MappingField MPText "autocomplete" "whitespace")]
                 },
             "team"
               .= MappingProperty
