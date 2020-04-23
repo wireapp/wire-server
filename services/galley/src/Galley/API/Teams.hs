@@ -50,6 +50,7 @@ module Galley.API.Teams
     uncheckedDeleteTeamMember,
     withBindingTeam,
     userIsTeamOwnerH,
+    canUserJoinTeamH,
   )
 where
 
@@ -65,7 +66,7 @@ import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
-import Galley.API.Error
+import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Util
 import Galley.App
@@ -759,6 +760,24 @@ getBindingTeamMembers :: UserId -> Galley TeamMemberList
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
   Data.teamMembersForFanout tid
 
+canUserJoinTeamH :: TeamId -> Galley Response
+canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
+
+-- This could be extended for more checks, for now we test only legalhold
+canUserJoinTeam :: TeamId -> Galley ()
+canUserJoinTeam tid = do
+  lhEnabled <- isLegalHoldEnabled tid
+  when (lhEnabled) $
+    checkTeamSize
+ where
+  checkTeamSize = do
+      -- TODO: Refactor
+    (TeamSize size) <- BrigTeam.getSize tid
+    limit <- fromIntegral . fromRange <$> fanoutLimit
+    -- Teams larger than fanout limit cannot use legalhold
+    when (size >= limit) $ do
+      throwM tooManyTeamMembersOnTeamWithLegalhold
+
 -- Public endpoints for feature checks
 
 getSSOStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -850,15 +869,16 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
     LegalHoldDisabled -> removeSettings' tid
     -- FUTUREWORK: We cannot enable legalhold on large teams right now
-    LegalHoldEnabled -> ensureTeamNotTooLargeForLegalHold
+    LegalHoldEnabled -> checkTeamSize
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
  where
-  ensureTeamNotTooLargeForLegalHold = do
+  -- TODO: Refactor
+  checkTeamSize = do
     (TeamSize size) <- BrigTeam.getSize tid
     limit <- fromIntegral . fromRange <$> fanoutLimit
     -- Teams larger than fanout limit cannot use legalhold
-    when (size > limit)
-      $ throwM cannotEnableLegalHoldServiceLargeTeam
+    when (size > limit) $ do
+      throwM cannotEnableLegalHoldServiceLargeTeam
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

@@ -260,22 +260,12 @@ stdInvitationRequest e inviterName loc role =
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
+addUserToTeam' :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+addUserToTeam' u t = snd <$> addUserToTeamWithRole' Nothing u t
+
 addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
-  brig <- view tsBrig
-  inviteeEmail <- randomEmail
-  let name = Name $ fromEmail inviteeEmail
-  let invite = stdInvitationRequest inviteeEmail name Nothing role
-  invResponse <- postInvitation tid inviter invite
-  inv <- responseJsonError invResponse
-  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
-  rsp2 <-
-    post
-      ( brig . path "/register"
-          . contentJson
-          . body (acceptInviteBody name inviteeEmail inviteeCode)
-      )
-      <!! const 201 === statusCode
+  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid -- TODO: <!! const 201 === statusCode
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
@@ -284,6 +274,22 @@ addUserToTeamWithRole role inviter tid = do
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   pure mem
+
+addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
+addUserToTeamWithRole' role inviter tid = do
+  brig <- view tsBrig
+  inviteeEmail <- randomEmail
+  let name = Name $ fromEmail inviteeEmail
+  let invite = stdInvitationRequest inviteeEmail name Nothing role
+  invResponse <- postInvitation tid inviter invite
+  inv <- responseJsonError invResponse
+  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  r <- post
+    ( brig . path "/register"
+        . contentJson
+        . body (acceptInviteBody name inviteeEmail inviteeCode)
+    )
+  return (inv, r)
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do

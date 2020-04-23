@@ -42,6 +42,7 @@ module Brig.IO.Intra
 
     -- * Teams
     addTeamMember,
+    checkaddTeamMemberPossible,
     createTeam,
     getTeamMember,
     getTeamMembers,
@@ -92,6 +93,7 @@ import qualified Gundeck.Types.Push.V2 as Push
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding ((.=), name)
 
 -----------------------------------------------------------------------------
@@ -671,6 +673,23 @@ rmClient u c = do
 
 -------------------------------------------------------------------------------
 -- Team Management
+
+-- | Calls 'Galley.API.canUserJoinTeamH'.
+checkaddTeamMemberPossible :: TeamId -> AppIO (Maybe Wai.Error)
+checkaddTeamMemberPossible tid = do
+  debug $
+    remote "galley"
+      . msg (val "Check if can add member to team")
+  rs <- galleyRequest GET req
+  return $ case Bilge.statusCode rs of
+    200 -> Nothing
+    _   -> case decodeBody "galley" rs of
+      Just (e :: Wai.Error) -> return e
+      Nothing -> error ("Invalid response from galley: " <> show rs)
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "members", "check"]
+        . header "Content-Type" "application/json"
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool

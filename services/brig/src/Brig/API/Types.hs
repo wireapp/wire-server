@@ -41,6 +41,7 @@ import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
+import qualified Network.Wai.Utilities.Error as Wai
 import Imports
 
 -------------------------------------------------------------------------------
@@ -93,6 +94,8 @@ data CreateUserError
   | DuplicateUserKey UserKey
   | BlacklistedUserKey UserKey
   | TooManyTeamMembers
+  | ExternalPreconditionFailed Wai.Error
+    -- | Some precondition on another Wire service failed. We propagate this error.
 
 data InvitationError
   = InviteeEmailExists UserId

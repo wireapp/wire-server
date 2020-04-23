@@ -267,6 +267,10 @@ createUser new@NewUser {..} = do
       (TeamSize teamSize) <- Index.teamSize tid
       when (teamSize >= maxSize) $
         throwE TooManyTeamMembers
+      canAdd <- lift $ Intra.checkaddTeamMemberPossible tid
+      case canAdd of
+        Just e -> throwE (ExternalPreconditionFailed e)
+        Nothing -> pure ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid

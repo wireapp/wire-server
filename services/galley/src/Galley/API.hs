@@ -1061,6 +1061,9 @@ sitemap = do
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
+  get "/i/teams/:tid/members/check" (continue Teams.canUserJoinTeamH) $
+    capture "tid"
+
   -- Start of team features (internal); enabling this should only be
   -- possible internally. Viewing the status should be allowed
   -- for any admin

@@ -114,7 +114,8 @@ tests s =
       test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
-      test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus)
+      test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
+      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold)
       -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
       -- tested
 
@@ -531,6 +532,20 @@ testEnablePerTeamTooLarge = do
   putEnabled' id tid LegalHoldEnabled !!! do
     const 403 === statusCode
     const (Just "too-large-team-for-legalhold") === fmap Error.label . responseJsonMaybe
+
+testAddTeamUserTooLargeWithLegalhold :: TestM ()
+testAddTeamUserTooLargeWithLegalhold = do
+  o <- view tsGConf
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
+  (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
+  LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+  -- You can still enable for this team
+  putEnabled tid LegalHoldEnabled
+  -- But now Adding a user should now fail since the team is too large
+  addUserToTeam' owner tid !!! do
+    const 403 === statusCode
+    const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
