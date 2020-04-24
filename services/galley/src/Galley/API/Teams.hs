@@ -441,6 +441,8 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
+  -- FUTUREWORK: This takes a list of members for fanout, but it should really
+  --             use the hardlimit instead. We want to avoid double lookups though
   Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -490,6 +492,8 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal team updatedMembers = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
+        -- FUTUREWORK: This takes a list of members for fanout, but it should really
+        --             use the hardlimit instead. We want to avoid double lookups though
         Journal.teamUpdate tid size updatedMembers
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
@@ -546,8 +550,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users. We remove
-      -- the extra added user to avoid an extra DB lookup
+      -- FUTUREWORK: This takes a list of members for fanout, but it should really
+      --             use the hardlimit instead. We want to avoid double lookups though
       Journal.teamUpdate tid sizeAfterDelete $ newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
       pure TeamMemberDeleteAccepted
     else do
