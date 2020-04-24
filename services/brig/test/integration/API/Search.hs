@@ -158,7 +158,7 @@ testReindex brig = do
 testOrderName :: Brig -> Http ()
 testOrderName brig = do
   searcher <- userId <$> randomUser brig
-  searchedWord <- randomHandle
+  Name searchedWord <- randomNameWithMaxLen 122
   nameMatch <- userId <$> createUser' True searchedWord brig
   namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
@@ -229,7 +229,7 @@ testSearchOrderingAsTeamMemberExactMatch galley brig = do
 
 testSearchOrderingAsTeamMemberPrefixMatch :: Galley -> Brig -> Http ()
 testSearchOrderingAsTeamMemberPrefixMatch galley brig = do
-  searchedName <- randomName
+  searchedName <- randomNameWithMaxLen 122 -- 6 characters for "suffix"
   mapM_ (\(i :: Int) -> createUser' True (fromName searchedName <> Text.pack (show i)) brig) [0 .. 99]
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", Name $ fromName searchedName <> "suffix"]
   refreshIndex brig

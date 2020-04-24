@@ -602,7 +602,10 @@ randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   return (Text.pack (map chr nrs))
 
--- For testing purposes we restrict ourselves to code points in the
+randomName :: MonadIO m => m Name
+randomName = randomNameWithMaxLen 128
+
+-- | For testing purposes we restrict ourselves to code points in the
 -- Basic Multilingual Plane that are considered to be numbers, letters,
 -- punctuation or symbols and ensure the name starts with a "letter".
 -- That is in order for the name to be searchable at all, since the standard
@@ -611,10 +614,10 @@ randomHandle = liftIO $ do
 -- the standard tokenizer considers as word boundaries (or which are
 -- simply unassigned code points), yielding no tokens to match and thus
 -- no results in search queries.
-randomName :: MonadIO m => m Name
-randomName = liftIO $ do
-  len <- randomRIO (2, 128)
-  chars <- fill (len :: Word) []
+randomNameWithMaxLen :: MonadIO m => Word -> m Name
+randomNameWithMaxLen maxLen = liftIO $ do
+  len <- randomRIO (2, maxLen)
+  chars <- fill len []
   return $ Name (Text.pack chars)
   where
     fill 0 cs = return cs
