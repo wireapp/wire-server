@@ -259,6 +259,7 @@ executable galley-integration
     , uri-bytestring
     , uuid
     , wai
+    , wai-extra
     , wai-route
     , wai-utilities
     , warp

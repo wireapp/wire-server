@@ -58,6 +58,9 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
+selectTeamConvsFrom :: PrepQuery R (TeamId, OpaqueConvId) (ConvId, Bool)
+selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
+
 selectTeamMember ::
   PrepQuery R (TeamId, UserId)
     ( Permissions,
@@ -81,6 +84,21 @@ selectTeamMembers =
     select user, perms, invited_by, invited_at, legalhold_status
       from team_member
     where team = ? order by user
+    |]
+
+selectTeamMembersFrom ::
+  PrepQuery R (TeamId, UserId)
+    ( UserId,
+      Permissions,
+      Maybe UserId,
+      Maybe UTCTimeMillis,
+      Maybe UserLegalHoldStatus
+    )
+selectTeamMembersFrom =
+  [r|
+    select user, perms, invited_by, invited_at, legalhold_status
+      from team_member
+    where team = ? and user > ? order by user
     |]
 
 selectTeamMembers' ::

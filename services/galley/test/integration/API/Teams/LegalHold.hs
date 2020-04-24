@@ -51,11 +51,13 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy (Proxy))
+import Data.Range
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import GHC.Generics hiding (to)
 import GHC.TypeLits
 import Galley.API.Swagger (GalleyRoutes)
+import qualified Galley.App as Galley
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
 import Galley.External.LegalHoldService (validateServiceKey)
@@ -70,6 +72,7 @@ import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
+import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Response as Wai
 import Servant.Swagger (validateEveryToJSON)
 import System.Environment (withArgs)
@@ -108,9 +111,11 @@ tests s =
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings),
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam),
       test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam),
+      test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
-      test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus)
+      test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
+      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold)
       -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
       -- tested
 
@@ -516,6 +521,33 @@ testEnablePerTeam = do
         ViewLegalHoldServiceDisabled
         viewLHS
 
+testEnablePerTeamTooLarge :: TestM ()
+testEnablePerTeamTooLarge = do
+  o <- view tsGConf
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
+  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
+
+  LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+  -- You cannot enable legal hold on a team that is too large
+  putEnabled' id tid LegalHoldEnabled !!! do
+    const 403 === statusCode
+    const (Just "too-large-team-for-legalhold") === fmap Error.label . responseJsonMaybe
+
+testAddTeamUserTooLargeWithLegalhold :: TestM ()
+testAddTeamUserTooLargeWithLegalhold = do
+  o <- view tsGConf
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
+  (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
+  LegalHoldTeamConfig status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" status LegalHoldDisabled
+  -- You can still enable for this team
+  putEnabled tid LegalHoldEnabled
+  -- But now Adding a user should now fail since the team is too large
+  addUserToTeam' owner tid !!! do
+    const 403 === statusCode
+    const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
+
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
   member <- randomUser
@@ -590,13 +622,15 @@ renewToken tok = do
       . expect2xx
 
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
-putEnabled tid enabled = do
+putEnabled tid enabled = void $ putEnabled' expect2xx tid enabled
+
+putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) ->TeamId -> LegalHoldStatus -> TestM ResponseLBS
+putEnabled' extra tid enabled = do
   g <- view tsGalley
-  void . put $
-    g
+  put $ g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . json (LegalHoldTeamConfig enabled)
-      . expect2xx
+      . extra
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings uid tid new =

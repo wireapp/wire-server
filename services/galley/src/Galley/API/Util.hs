@@ -178,7 +178,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
       (e, mm) <- Data.addMember now cid usr
       conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
       return $ conv' {Data.convMembers = mems'}
   _ -> throwM $ invalidOp "accept: invalid conversation type"

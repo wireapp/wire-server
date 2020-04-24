@@ -27,7 +27,6 @@ module Galley.API.Query
   )
 where
 
-import Cassandra (hasMore, result)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
@@ -89,8 +88,8 @@ getConversationIdsH (zusr ::: start ::: size ::: _) = do
 
 getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (ConversationList OpaqueConvId)
 getConversationIds zusr start size = do
-  Data.ResultSet ids <- Data.conversationIdsFrom zusr start size
-  pure $ ConversationList (result ids) (hasMore ids)
+  ids <- Data.conversationIdsFrom zusr start size
+  pure $ ConversationList (Data.resultSetResult ids) (Data.resultSetType ids == Data.ResultSetTruncated)
 
 getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
 getConversationsH (zusr ::: range ::: size ::: _) =
@@ -168,11 +167,11 @@ withConvIds ::
   Galley a
 withConvIds usr range size k = case range of
   Nothing -> do
-    Data.ResultSet r <- Data.conversationIdsFrom usr Nothing (rcast size)
-    k (hasMore r) (result r)
+    r <- Data.conversationIdsFrom usr Nothing (rcast size)
+    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Right c) -> do
-    Data.ResultSet r <- Data.conversationIdsFrom usr (Just c) (rcast size)
-    k (hasMore r) (result r)
+    r <- Data.conversationIdsFrom usr (Just c) (rcast size)
+    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Left cc) -> do
     ids <- Data.conversationIdsOf usr cc
     k False ids
