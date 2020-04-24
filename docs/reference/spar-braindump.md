@@ -38,14 +38,15 @@ export ADMIN_ID=...
 export METADATA_FILE=...
 ```
 
-then you need to do:
+copy these two files to one of your spar instances:
+
+- `.../wire-server/deploy/services-demo/register_idp_internal.sh`
+- `${METADATA_FILE}`
+
+...  and ssh into it.  then:
 
 ```sh
-./khan.me scp upload -e prod -r spar -s .../wire-server/deploy/services-demo/register_idp_internal.sh -d ./register.sh
-./khan.me scp upload -e prod -r spar -s ${METADATA_FILE} -d ./metadata.xml
-./khan.me ssh -e prod -r spar
-export TEAM_OWNER_ID=...
-./register.sh metadata.xml $TEAM_OWNER_ID
+./register_idp_internal.sh metadata.xml ${TEAM_OWNER_ID}
 ```
 
 the output contains the a json object representing the idp.  construct
