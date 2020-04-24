@@ -62,6 +62,90 @@ using this idp.  see
 [here](https://support.wire.com/hc/en-us/articles/360000954617-Login-with-SSO)
 on how to use the login code.
 
+
+### updating an idp via curl
+
+Your IdP metadata may change over time (eg., because a certificate
+expires, or because you change vendor and all the metadata looks
+completely different), these changes need to be updated in wire.  We
+offer two options to do that.
+
+Like when creating your first IdP, for both options you need define a
+few things:
+
+```
+# user id of an admin of the team (or the creator from the team info
+# in the backoffice, if you only have the team id).
+export ADMIN_ID=...
+
+# path of the xml metadata file (if you only have the url, curl it)
+export METADATA_FILE=...
+
+# The ID of the IdP you want to update (login code without the `wire-`
+# prefix, which is a UUIDv4):
+export IDP_ID=...
+```
+
+Copy the new metadata file to one of your spar instances.
+
+Ssh into it.
+
+#### Update the existing IdP in-place
+
+```shell
+curl -v
+     -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/xml' \
+     -d@"${METADATA_FILE}"
+```
+
+Effects:
+
+- You keep the login code, no visible changes for your users.
+- The old IdP becomes immediately unaccessible.  It will disappear
+  from team-settings, and users will have no way of using it for
+  authentication.
+- If the has no account on the new IdP, she won't be able to login.
+- If a user has an account on the new IdP, *but not with exactly the
+  same user name* (SAML NameID), she will not be logged in to their
+  old account.  Instead, depending on your setup, a second account is
+  created for them, or they are blocked (both not what you want).
+
+#### Create a second IdP, and mark it as replacing the old one.
+
+```shell
+curl -v
+     -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/xml' \
+     -d@"${METADATA_FILE}"
+```
+
+Effects:
+
+- The new IdP will have a new login code.  Users need to be invited to
+  use this new login code.
+- If they use the old login code, they can keep using the old IdP as
+  long as it is still running as before.  (This option is good for
+  smooth transitions from one IdP to the other.)
+- If they use the new login code, they will be automatically moved
+  from the old IdP to the new one.  After that, they won't be able to
+  use the old one any more.
+- If a user logs into the team for the first time using the old login
+  code, no user will be created.  The old IdP is marked as "replaced",
+  and wire only authenticates existing users with it.
+- This doesn't currently work if you are using SCIM for provisioning,
+  because SCIM requires you to have exactly one IdP configured in your
+  wire team.  (Internal details:
+  https://github.com/zinfra/backend-issues/issues/1365,
+  https://github.com/zinfra/backend-issues/issues/1377).
+- If you go to team settings, you will see the old IdP and the new
+  one, and there is currently no way to distinguish between replaced
+  and active IdPs.  (Internal details:
+  https://github.com/wireapp/wire-team-settings/issues/3465).
+
+
 ### setting a default SSO code
 
 To avoid having to give users the login code, a backend can also provide a default code on the endpoint `/sso/settings`.
