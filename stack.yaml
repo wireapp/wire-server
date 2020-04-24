@@ -91,7 +91,7 @@ extra-deps:
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 - git: https://github.com/wireapp/bloodhound
-  commit: bfcd25aeed88ccd1186453513a2c0577641d8a71  # https://github.com/wireapp/bloodhound/tree/feature/edge_ngram_analyzer
+  commit: beec73eed282e35f56b80a1283d5ef4c19685957 # https://github.com/wireapp/bloodhound/tree/feature/count-with-ES-5.2
 
 # amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # Therefore we pin an unreleased commit directly.

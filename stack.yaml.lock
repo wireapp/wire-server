@@ -162,11 +162,11 @@ packages:
     git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4116
-      sha256: fedff7ce9b13f0a57c9178e4f5db404ac1b0468fae68530264673bedc8ba7f35
-    commit: bfcd25aeed88ccd1186453513a2c0577641d8a71
+      sha256: 3a96402efddba6238a465ce0ac87106df697ace3ffbc2e5c5f7068b0cac8a8a7
+    commit: beec73eed282e35f56b80a1283d5ef4c19685957
   original:
     git: https://github.com/wireapp/bloodhound
-    commit: bfcd25aeed88ccd1186453513a2c0577641d8a71
+    commit: beec73eed282e35f56b80a1283d5ef4c19685957
 - completed:
     size: 11137527
     subdir: amazonka

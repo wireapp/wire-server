@@ -417,9 +417,7 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
-    let analyzer = Map.fromList [("autocomplete", ES.AnalyzerDefinition (Just (ES.Tokenizer "autocomplete")) [] [])]
-    let tokenizer = Map.fromList [("autocomplete", ES.TokenizerDefinitionEdgeNgram (ES.Ngram 1 30 [ES.TokenLetter, ES.TokenDigit, ES.TokenSymbol, ES.TokenPunctuation]))]
-    let fullSettings = settings ++ [ES.AnalysisSetting (ES.Analysis analyzer tokenizer mempty mempty)]
+    let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
@@ -428,6 +426,20 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
         ES.putMapping idx (ES.MappingName "user") indexMapping
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
+
+analysisSettings :: ES.Analysis
+analysisSettings =
+  let analyzerDef =
+        Map.fromList
+          [ ("prefix_index", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "edge_ngram_1_30"] []),
+            ("prefix_search", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "truncate_30"] [])
+          ]
+      filterDef =
+        Map.fromList
+          [ ("edge_ngram_1_30", ES.TokenFilterDefinitionEdgeNgram (ES.NgramFilter 1 30) Nothing),
+            ("truncate_30", ES.TokenFilterTruncate 30)
+          ]
+   in ES.Analysis analyzerDef mempty filterDef mempty
 
 updateMapping :: MonadIndexIO m => m ()
 updateMapping = liftIndexIO $ do
@@ -535,7 +547,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "autocomplete" "whitespace")]
+                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
                 },
             "name"
               .= MappingProperty
@@ -552,7 +564,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "autocomplete" "whitespace")]
+                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
                 },
             "team"
               .= MappingProperty
