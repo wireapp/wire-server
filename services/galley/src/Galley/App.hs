@@ -153,8 +153,8 @@ validateOptions l o = do
           ( msg .
               val $
                 "Your journaling events for teams larger than " <> toByteString' optFanoutLimit <>
-                "may have some admin user ids missing. \
-                \This is fine for testing purposes but NOT for production use!!"
+                " may have some admin user ids missing. \
+                \ This is fine for testing purposes but NOT for production use!!"
           )
   when (settings ^. setMaxConvSize > optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
