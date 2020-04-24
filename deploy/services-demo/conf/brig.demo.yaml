@@ -102,7 +102,6 @@ optSettings:
   setActivationTimeout: 1209600     # 1 day
   setTeamInvitationTimeout: 1814400 # 21 days
   setUserMaxConnections: 1000
-  setCookieDomain: localhost
   setCookieInsecure: false
   setUserCookieRenewAge: 1209600 # 14 days
   setUserCookieLimit: 32
