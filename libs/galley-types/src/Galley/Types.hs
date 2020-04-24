@@ -334,6 +334,7 @@ data OtrFilterMissing
   | -- | Complain only about missing
     --      recipients who /are/ on this list
     OtrReportMissing (Set OpaqueUserId)
+  deriving (Eq, Show, Generic)
 
 data NewOtrMessage
   = NewOtrMessage
