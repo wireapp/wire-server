@@ -528,17 +528,17 @@ userDoc iu =
 -- handle.prefix: Used for searching by handle prefix
 --
 -- The prefix fields use "prefix_index" analyzer for indexing and "prefix_search"
--- analyzer for searching. The "prefix" analyzer uses "edge_ngram" filter, this
+-- analyzer for searching. The "prefix_search" analyzer uses "edge_ngram" filter, this
 -- indexes the handles and normalized names by prefixes. For example: "alice" will be
 -- indexed as "a", "al", "ali", "alic" and "alice". While searching for say "ali", we
 -- do not want to again use the "prefix" analyzer, otherwise we would get a match for
 -- "a", "al" and "ali" each, this skews the scoring in elasticsearch a lot and exact
--- matches get pushed behind actual matches.
+-- matches get pushed behind prefix matches.
 --
 -- The "prefix_index" analyzer is defined as a combination of the "whitespace"
--- tokenizer and "edge_1_30" filter. The edge_1_30 filter generates tokens of from
--- length 1 to 30 and the whitespace tokenizer ensures words separated by whitespaces
--- are tokeinzed separately. So, tokens for "Alice Charlie" would be:
+-- tokenizer and "edge_ngram_1_30" filter. The edge_ngram_1_30 filter generates tokens
+-- of from length 1 to 30 and the whitespace tokenizer ensures words separated by
+-- whitespaces are tokeinzed separately. So, tokens for "Alice Charlie" would be:
 -- ["a", "al", "ali", "alic", "alice", "c", "ch", "cha", "char", "charl", "charlie"]
 -- This makes searching for somebody by just their last or middle name possible.
 -- Additionally one could look for "ali char" and still expect to find "Alice Charlie"
