@@ -26,6 +26,10 @@ module TestSetup
     tsManager,
     tsGalley,
     tsBrig,
+    tsFederatedBrig1,
+    tsFederatedBrig2,
+    tsFederator1,
+    tsFederator2,
     tsCannon,
     tsAwsEnv,
     tsMaxConvSize,
@@ -52,13 +56,20 @@ type BrigR = Request -> Request
 
 type CannonR = Request -> Request
 
+-- TODO: federatedBackend1 and federatedBackend2 should probably not be here,
+-- but be in Galley configuration. move them out once we have supported to add
+-- known backends to galley.
 data IntegrationConfig
   = IntegrationConfig
       -- internal endpoints
       { galley :: Endpoint,
         brig :: Endpoint,
         cannon :: Endpoint,
-        provider :: LegalHoldConfig
+        provider :: LegalHoldConfig,
+        federatedBrig1 :: Endpoint, -- An escape hatch into brig on the other side. Dirty. to create users!
+        federatedBrig2 :: Endpoint, -- An escape hatch into brig on the other side. Dirty. to create users!
+        federator1 :: Endpoint, -- A backend that we federate with
+        federator2 :: Endpoint -- another backend that we federate with
       }
   deriving (Show, Generic)
 
@@ -87,7 +98,11 @@ data TestSetup
         _tsCannon :: CannonR,
         _tsAwsEnv :: Maybe Aws.Env,
         _tsMaxConvSize :: Word16,
-        _tsCass :: Cql.ClientState
+        _tsCass :: Cql.ClientState,
+        _tsFederatedBrig1 :: BrigR,
+        _tsFederatedBrig2 :: BrigR,
+        _tsFederator1 :: Request -> Request,
+        _tsFederator2 :: Request -> Request
       }
 
 makeLenses ''TestSetup

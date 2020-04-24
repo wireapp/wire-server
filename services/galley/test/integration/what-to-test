@@ -1,0 +1,7 @@
+For federation, what do we want to test?
+
+Lets start with conversations:
+
+1. conversation list might have remote conversations
+2. I can list members of remote conversations
+2. I can talk to remote conversations
