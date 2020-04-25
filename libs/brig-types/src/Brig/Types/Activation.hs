@@ -32,28 +32,25 @@ import Data.Text.Ascii
 import Imports
 
 -- | An opaque identifier of a 'UserKey' awaiting activation.
-newtype ActivationKey
-  = ActivationKey
-      {fromActivationKey :: AsciiBase64Url}
+newtype ActivationKey = ActivationKey
+  {fromActivationKey :: AsciiBase64Url}
   deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 -- | A random code for use with an 'ActivationKey' that is usually transmitted
 -- out-of-band, e.g. via email or sms.
-newtype ActivationCode
-  = ActivationCode
-      {fromActivationCode :: AsciiBase64Url}
+newtype ActivationCode = ActivationCode
+  {fromActivationCode :: AsciiBase64Url}
   deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
 type ActivationPair = (ActivationKey, ActivationCode)
 
 -- | Data for an activation request.
-data Activate
-  = Activate
-      { activateTarget :: !ActivationTarget,
-        activateCode :: !ActivationCode,
-        activateDryrun :: !Bool
-      }
+data Activate = Activate
+  { activateTarget :: !ActivationTarget,
+    activateCode :: !ActivationCode,
+    activateDryrun :: !Bool
+  }
 
 -- | The target of an activation request.
 data ActivationTarget
@@ -70,23 +67,21 @@ instance ToByteString ActivationTarget where
   builder (ActivatePhone p) = builder p
 
 -- | Information returned as part of a successful activation.
-data ActivationResponse
-  = ActivationResponse
-      { -- | The activated / verified user identity.
-        activatedIdentity :: !UserIdentity,
-        -- | Whether this is the first verified identity of the account.
-        activatedFirst :: !Bool
-      }
+data ActivationResponse = ActivationResponse
+  { -- | The activated / verified user identity.
+    activatedIdentity :: !UserIdentity,
+    -- | Whether this is the first verified identity of the account.
+    activatedFirst :: !Bool
+  }
 
 -- | Payload for a request to (re-)send an activation code
 -- for a phone number or e-mail address. If a phone is used,
 -- one can also request a call instead of SMS.
-data SendActivationCode
-  = SendActivationCode
-      { saUserKey :: !(Either Email Phone),
-        saLocale :: !(Maybe Locale),
-        saCall :: !Bool
-      }
+data SendActivationCode = SendActivationCode
+  { saUserKey :: !(Either Email Phone),
+    saLocale :: !(Maybe Locale),
+    saCall :: !Bool
+  }
 
 -- * JSON Instances:
 

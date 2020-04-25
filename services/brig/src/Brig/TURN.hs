@@ -24,15 +24,14 @@ import Imports
 import OpenSSL.EVP.Digest (Digest)
 import System.Random.MWC (GenIO, createSystemRandom)
 
-data Env
-  = Env
-      { _turnServers :: List1 TurnURI,
-        _turnTokenTTL :: Word32,
-        _turnConfigTTL :: Word32,
-        _turnSecret :: ByteString,
-        _turnSHA512 :: Digest,
-        _turnPrng :: GenIO
-      }
+data Env = Env
+  { _turnServers :: List1 TurnURI,
+    _turnTokenTTL :: Word32,
+    _turnConfigTTL :: Word32,
+    _turnSecret :: ByteString,
+    _turnSHA512 :: Digest,
+    _turnPrng :: GenIO
+  }
 
 makeLenses ''Env
 

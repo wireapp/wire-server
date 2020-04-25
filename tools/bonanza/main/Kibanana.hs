@@ -42,13 +42,12 @@ import Network.HTTP.Client.TLS
 import Options.Applicative
 import Paths_bonanza (version)
 
-data Opts
-  = Opts
-      { url :: String,
-        maxBulkSize :: !Int,
-        maxBufferSize :: !Int,
-        concurrency :: !Int
-      }
+data Opts = Opts
+  { url :: String,
+    maxBulkSize :: !Int,
+    maxBufferSize :: !Int,
+    concurrency :: !Int
+  }
   deriving (Show)
 
 parseOpts :: Parser Opts

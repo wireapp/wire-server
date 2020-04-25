@@ -1196,6 +1196,7 @@ specSsoSettings = do
             Nothing -> Aeson.Null
             Just code -> Aeson.toJSON (SAML.fromIdPId code)
         ]
+
 -- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?

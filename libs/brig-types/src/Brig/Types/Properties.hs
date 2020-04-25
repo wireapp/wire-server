@@ -27,9 +27,8 @@ import Data.Hashable (Hashable)
 import Data.Text.Ascii
 import Imports
 
-newtype PropertyKey
-  = PropertyKey
-      {propertyKeyName :: AsciiPrintable}
+newtype PropertyKey = PropertyKey
+  {propertyKeyName :: AsciiPrintable}
   deriving
     ( Eq,
       Ord,
@@ -44,9 +43,8 @@ newtype PropertyKey
       Hashable
     )
 
-newtype PropertyValue
-  = PropertyValue
-      {propertyValueJson :: Value}
+newtype PropertyValue = PropertyValue
+  {propertyValueJson :: Value}
   deriving (Eq, Show, FromJSON, ToJSON, Generic, Hashable)
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]

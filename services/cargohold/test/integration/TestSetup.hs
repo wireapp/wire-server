@@ -36,11 +36,10 @@ type CargoHold = Request -> Request
 
 type TestSignature a = CargoHold -> Http a
 
-data TestSetup
-  = TestSetup
-      { _tsManager :: Manager,
-        _tsCargohold :: CargoHold
-      }
+data TestSetup = TestSetup
+  { _tsManager :: Manager,
+    _tsCargohold :: CargoHold
+  }
 
 makeLenses ''TestSetup
 

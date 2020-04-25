@@ -152,11 +152,10 @@ decryptMessage clt e = do
 -----------------------------------------------------------------------------
 -- Auxiliary Symmetric Encryption
 
-data SymmetricKeys
-  = SymmetricKeys
-      { symmetricEncKey :: !ByteString,
-        symmetricMacKey :: !ByteString
-      }
+data SymmetricKeys = SymmetricKeys
+  { symmetricEncKey :: !ByteString,
+    symmetricMacKey :: !ByteString
+  }
   deriving (Eq, Show)
 
 instance Serialize SymmetricKeys where

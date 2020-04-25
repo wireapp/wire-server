@@ -35,10 +35,9 @@ import Proxy.Env
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, info)
 
-newtype Proxy a
-  = Proxy
-      { unProxy :: ReaderT Env IO a
-      }
+newtype Proxy a = Proxy
+  { unProxy :: ReaderT Env IO a
+  }
   deriving
     ( Functor,
       Applicative,

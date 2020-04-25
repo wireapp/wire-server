@@ -56,13 +56,12 @@ import Network.Wire.Client.API.Push (EventType (..), eventTypeText)
 
 -- * Create Reports
 
-data Report
-  = Report
-      { reportTitle :: !Text,
-        reportDate :: !UTCTime,
-        reportSections :: [Section],
-        _data :: !Data
-      }
+data Report = Report
+  { reportTitle :: !Text,
+    reportDate :: !UTCTime,
+    reportSections :: [Section],
+    _data :: !Data
+  }
   deriving (Eq)
 
 -- | Create a 'Report' of the metrics in the given 'Section's.
@@ -90,13 +89,12 @@ createReport t m (SectionS (Endo f)) = do
 
 -- * Access Report Data
 
-data Data
-  = Data
-      { _counters :: HashMap Path Double,
-        _labels :: HashMap Path Text,
-        _histograms :: HashMap Path (Map Bucket Int),
-        _gauges :: HashMap Path Double
-      }
+data Data = Data
+  { _counters :: HashMap Path Double,
+    _labels :: HashMap Path Text,
+    _histograms :: HashMap Path (Map Bucket Int),
+    _gauges :: HashMap Path Double
+  }
   deriving (Eq)
 
 instance Semigroup Data where
@@ -124,11 +122,10 @@ reportBucket r p = fromMaybe mempty $ HashMap.lookup p (_histograms (_data r))
 
 newtype SectionS = SectionS (Endo [Section]) deriving (Semigroup, Monoid)
 
-data Section
-  = Section
-      { sectionName :: !Text,
-        sectionMetrics :: [Metric]
-      }
+data Section = Section
+  { sectionName :: !Text,
+    sectionMetrics :: [Metric]
+  }
   deriving (Eq)
 
 data Metric

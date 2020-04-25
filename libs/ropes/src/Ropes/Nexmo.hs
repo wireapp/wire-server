@@ -72,11 +72,10 @@ newtype ApiSecret = ApiSecret Text deriving (FromJSON)
 
 data Charset = GSM7 | GSM8 | UCS2 deriving (Eq, Show)
 
-data Credentials
-  = Credentials
-      { key :: ApiKey,
-        secret :: ApiSecret
-      }
+data Credentials = Credentials
+  { key :: ApiKey,
+    secret :: ApiSecret
+  }
 
 instance FromJSON Credentials where
   parseJSON = withObject "credentials" $ \o ->
@@ -87,13 +86,12 @@ instance FromJSON Credentials where
 
 newtype MessageId = MessageId {messageIdText :: Text} deriving (Eq, Show)
 
-data Message
-  = Message
-      { msgFrom :: !Text,
-        msgTo :: !Text,
-        msgText :: !Text,
-        msgType :: !Charset
-      }
+data Message = Message
+  { msgFrom :: !Text,
+    msgTo :: !Text,
+    msgText :: !Text,
+    msgType :: !Charset
+  }
   deriving (Eq, Show)
 
 newtype MessageResponse = MessageResponse {msgIds :: NonEmpty MessageId}
@@ -128,11 +126,10 @@ instance FromJSON MessageErrorStatus where
   parseJSON "20" = return MessageInvalidMessageClass
   parseJSON _ = return MessageOther
 
-data MessageErrorResponse
-  = MessageErrorResponse
-      { erStatus :: !MessageErrorStatus,
-        erErrorText :: !(Maybe Text)
-      }
+data MessageErrorResponse = MessageErrorResponse
+  { erStatus :: !MessageErrorStatus,
+    erErrorText :: !(Maybe Text)
+  }
   deriving (Eq, Show, Typeable)
 
 instance Exception MessageErrorResponse
@@ -190,14 +187,13 @@ parseMessageResponse = withObject "nexmo-response" $ \o -> do
 
 newtype CallId = CallId {callIdText :: Text} deriving (Eq, Show)
 
-data Call
-  = Call
-      { callFrom :: !(Maybe Text),
-        callTo :: !Text,
-        callText :: !Text,
-        callLang :: !(Maybe Text),
-        callRepeat :: !(Maybe Int)
-      }
+data Call = Call
+  { callFrom :: !(Maybe Text),
+    callTo :: !Text,
+    callText :: !Text,
+    callLang :: !(Maybe Text),
+    callRepeat :: !(Maybe Int)
+  }
 
 data CallErrorStatus
   = CallThrottled
@@ -220,11 +216,10 @@ instance FromJSON CallErrorStatus where
   parseJSON "17" = return CallUnroutable
   parseJSON _ = return CallOther
 
-data CallErrorResponse
-  = CallErrorResponse
-      { caStatus :: !CallErrorStatus,
-        caErrorText :: !(Maybe Text)
-      }
+data CallErrorResponse = CallErrorResponse
+  { caStatus :: !CallErrorStatus,
+    caErrorText :: !(Maybe Text)
+  }
   deriving (Eq, Show, Typeable)
 
 instance Exception CallErrorResponse
@@ -250,12 +245,11 @@ parseCallResponse _ = fail "Ropes.Nexmo: response should be an object"
 
 -- * Feedback related
 
-data Feedback
-  = Feedback
-      { feedbackId :: !(Either CallId MessageId),
-        feedbackTime :: !UTCTime,
-        feedbackDelivered :: !Bool
-      }
+data Feedback = Feedback
+  { feedbackId :: !(Either CallId MessageId),
+    feedbackTime :: !UTCTime,
+    feedbackDelivered :: !Bool
+  }
   deriving (Eq, Show)
 
 data FeedbackErrorResponse = FeedbackErrorResponse Text

@@ -41,12 +41,11 @@ import Options.Applicative hiding (action)
 import Paths_bonanza (version)
 import System.Clock
 
-data Opts
-  = Opts
-      { optKibanaType :: String,
-        optKibanaIndex :: String,
-        optNull :: Bool
-      }
+data Opts = Opts
+  { optKibanaType :: String,
+    optKibanaIndex :: String,
+    optNull :: Bool
+  }
   deriving (Show)
 
 parseOpts :: IO Opts

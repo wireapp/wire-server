@@ -51,13 +51,12 @@ import Imports
 
 -- AddBot ----------------------------------------------------------------------
 
-data AddBot
-  = AddBot
-      { _addBotService :: !ServiceRef,
-        _addBotConv :: !ConvId,
-        _addBotId :: !BotId,
-        _addBotClient :: !ClientId
-      }
+data AddBot = AddBot
+  { _addBotService :: !ServiceRef,
+    _addBotConv :: !ConvId,
+    _addBotId :: !BotId,
+    _addBotClient :: !ClientId
+  }
 
 makeLenses ''AddBot
 
@@ -82,11 +81,10 @@ instance ToJSON AddBot where
 
 -- RemoveBot ------------------------------------------------------------------
 
-data RemoveBot
-  = RemoveBot
-      { _rmBotConv :: !ConvId,
-        _rmBotId :: !BotId
-      }
+data RemoveBot = RemoveBot
+  { _rmBotConv :: !ConvId,
+    _rmBotId :: !BotId
+  }
 
 makeLenses ''RemoveBot
 
@@ -108,12 +106,11 @@ instance ToJSON RemoveBot where
 -- BotConvView -----------------------------------------------------------------
 
 -- | A conversation as seen by a bot.
-data BotConvView
-  = BotConvView
-      { _botConvId :: !ConvId,
-        _botConvName :: !(Maybe Text),
-        _botConvMembers :: ![OtherMember]
-      }
+data BotConvView = BotConvView
+  { _botConvId :: !ConvId,
+    _botConvName :: !(Maybe Text),
+    _botConvMembers :: ![OtherMember]
+  }
   deriving (Eq, Show)
 
 makeLenses ''BotConvView

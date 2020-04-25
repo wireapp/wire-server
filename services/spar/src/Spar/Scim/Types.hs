@@ -130,20 +130,17 @@ instance Scim.Auth.AuthTypes SparTag where
 --   where the instance typechecks, and non-injectivity errors are raised when checking the
 --   constraint that "calls" the instance.  :)
 
-newtype WrappedScimStoredUser tag
-  = WrappedScimStoredUser
-      {fromWrappedScimStoredUser :: Scim.User.StoredUser tag}
+newtype WrappedScimStoredUser tag = WrappedScimStoredUser
+  {fromWrappedScimStoredUser :: Scim.User.StoredUser tag}
 
 -- | See 'WrappedScimStoredUser'.
-newtype WrappedScimUser tag
-  = WrappedScimUser
-      {fromWrappedScimUser :: Scim.User.User tag}
+newtype WrappedScimUser tag = WrappedScimUser
+  {fromWrappedScimUser :: Scim.User.User tag}
 
 -- | Extra Wire-specific data contained in a SCIM user profile.
-data ScimUserExtra
-  = ScimUserExtra
-      { _sueRichInfo :: RichInfo
-      }
+data ScimUserExtra = ScimUserExtra
+  { _sueRichInfo :: RichInfo
+  }
   deriving (Eq, Show)
 
 makeLenses ''ScimUserExtra
@@ -193,20 +190,19 @@ instance Scim.Patchable ScimUserExtra where
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
-data ValidScimUser
-  = ValidScimUser
-      { _vsuUser :: Scim.User.User SparTag,
-        -- SAML SSO
+data ValidScimUser = ValidScimUser
+  { _vsuUser :: Scim.User.User SparTag,
+    -- SAML SSO
 
-        -- | (In the future, we may make this a 'Maybe' and allow for
-        -- SCIM users without a SAML SSO identity.)
-        _vsuSAMLUserRef :: SAML.UserRef,
-        _vsuIdp :: IdP,
-        -- mapping to 'Brig.User'
-        _vsuHandle :: Handle,
-        _vsuName :: Maybe Name,
-        _vsuRichInfo :: RichInfo
-      }
+    -- | (In the future, we may make this a 'Maybe' and allow for
+    -- SCIM users without a SAML SSO identity.)
+    _vsuSAMLUserRef :: SAML.UserRef,
+    _vsuIdp :: IdP,
+    -- mapping to 'Brig.User'
+    _vsuHandle :: Handle,
+    _vsuName :: Maybe Name,
+    _vsuRichInfo :: RichInfo
+  }
   deriving (Eq, Show)
 
 makeLenses ''ValidScimUser
@@ -215,13 +211,12 @@ makeLenses ''ValidScimUser
 -- Request and response types
 
 -- | Type used for request parameters to 'APIScimTokenCreate'.
-data CreateScimToken
-  = CreateScimToken
-      { -- | Token description (as memory aid for whoever is creating the token)
-        createScimTokenDescr :: !Text,
-        -- | User password, which we ask for because creating a token is a "powerful" operation
-        createScimTokenPassword :: !(Maybe PlainTextPassword)
-      }
+data CreateScimToken = CreateScimToken
+  { -- | Token description (as memory aid for whoever is creating the token)
+    createScimTokenDescr :: !Text,
+    -- | User password, which we ask for because creating a token is a "powerful" operation
+    createScimTokenPassword :: !(Maybe PlainTextPassword)
+  }
   deriving (Eq, Show)
 
 instance FromJSON CreateScimToken where
@@ -239,11 +234,10 @@ instance ToJSON CreateScimToken where
         # []
 
 -- | Type used for the response of 'APIScimTokenCreate'.
-data CreateScimTokenResponse
-  = CreateScimTokenResponse
-      { createScimTokenResponseToken :: ScimToken,
-        createScimTokenResponseInfo :: ScimTokenInfo
-      }
+data CreateScimTokenResponse = CreateScimTokenResponse
+  { createScimTokenResponseToken :: ScimToken,
+    createScimTokenResponseInfo :: ScimTokenInfo
+  }
   deriving (Eq, Show)
 
 -- Used for integration tests
@@ -264,10 +258,9 @@ instance ToJSON CreateScimTokenResponse where
 -- Wrapped into an object to allow extensibility later on.
 --
 -- We don't show tokens once they have been created – only their metadata.
-data ScimTokenList
-  = ScimTokenList
-      { scimTokenListTokens :: [ScimTokenInfo]
-      }
+data ScimTokenList = ScimTokenList
+  { scimTokenListTokens :: [ScimTokenInfo]
+  }
   deriving (Eq, Show)
 
 instance FromJSON ScimTokenList where
@@ -292,17 +285,16 @@ type ScimSiteAPI tag = ToServantApi (ScimSite tag)
 
 -- | This is similar to 'Scim.Site', but does not include the 'Scim.GroupAPI',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
-data ScimSite tag route
-  = ScimSite
-      { config ::
-          route
-            :- ToServantApi Scim.Meta.ConfigSite,
-        users ::
-          route
-            :- Header "Authorization" (Scim.Auth.AuthData tag)
-            :> "Users"
-            :> ToServantApi (Scim.User.UserSite tag)
-      }
+data ScimSite tag route = ScimSite
+  { config ::
+      route
+        :- ToServantApi Scim.Meta.ConfigSite,
+    users ::
+      route
+        :- Header "Authorization" (Scim.Auth.AuthData tag)
+        :> "Users"
+        :> ToServantApi (Scim.User.UserSite tag)
+  }
   deriving (Generic)
 
 type APIScimToken =

@@ -48,14 +48,13 @@ newtype KeyPairId = KeyPairId Text
 newtype Domain = Domain Text
   deriving (Eq, Show, ToByteString, Generic, FromJSON)
 
-data CloudFront
-  = CloudFront
-      { _baseUrl :: URI,
-        _keyPairId :: KeyPairId,
-        _ttl :: Word,
-        _clock :: IO POSIXTime,
-        _func :: ByteString -> IO ByteString
-      }
+data CloudFront = CloudFront
+  { _baseUrl :: URI,
+    _keyPairId :: KeyPairId,
+    _ttl :: Word,
+    _clock :: IO POSIXTime,
+    _func :: ByteString -> IO ByteString
+  }
 
 initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
 initCloudFront kfp kid ttl (Domain dom) =

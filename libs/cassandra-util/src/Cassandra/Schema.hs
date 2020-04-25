@@ -60,21 +60,19 @@ import Options.Applicative hiding (info)
 -- FUTUREWORK: We could use the System.Logger.Class here in the future, but we don't have a ReaderT IO here (yet)
 import qualified System.Logger as Log
 
-data Migration
-  = Migration
-      { migVersion :: Int32,
-        migText :: Text,
-        migAction :: Client ()
-      }
+data Migration = Migration
+  { migVersion :: Int32,
+    migText :: Text,
+    migAction :: Client ()
+  }
 
-data MigrationOpts
-  = MigrationOpts
-      { migHost :: String,
-        migPort :: Word16,
-        migKeyspace :: Text,
-        migRepl :: ReplicationStrategy,
-        migReset :: Bool
-      }
+data MigrationOpts = MigrationOpts
+  { migHost :: String,
+    migPort :: Word16,
+    migKeyspace :: Text,
+    migRepl :: ReplicationStrategy,
+    migReset :: Bool
+  }
   deriving (Eq, Show, Generic)
 
 data ReplicationStrategy

@@ -80,11 +80,10 @@ import qualified System.Logger as Log
 
 newtype NotifId = NotifId UUID deriving (Eq, Show)
 
-data Notification
-  = Notification
-      { notifId :: NotifId,
-        notifEvents :: [Event]
-      }
+data Notification = Notification
+  { notifId :: NotifId,
+    notifEvents :: [Event]
+  }
 
 awaitNotifications ::
   (MonadSession m, Functor m) =>
@@ -190,13 +189,12 @@ instance Show Event where
   show (EOtrMessage x) = "EOtrMessage: " ++ show x
 
 -- | An event in a 'Conversation'.
-data ConvEvent a
-  = ConvEvent
-      { convEvtConv :: !ConvId,
-        convEvtFrom :: !UserId,
-        convEvtTime :: !UTCTime,
-        convEvtData :: !a
-      }
+data ConvEvent a = ConvEvent
+  { convEvtConv :: !ConvId,
+    convEvtFrom :: !UserId,
+    convEvtTime :: !UTCTime,
+    convEvtData :: !a
+  }
   deriving (Eq, Show)
 
 data NoData = NoData deriving (Show)

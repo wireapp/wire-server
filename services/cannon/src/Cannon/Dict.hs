@@ -34,9 +34,8 @@ import Data.Vector ((!), Vector)
 import qualified Data.Vector as V
 import Imports hiding (lookup)
 
-newtype Dict a b
-  = Dict
-      {_map :: Vector (IORef (SizedHashMap a b))}
+newtype Dict a b = Dict
+  {_map :: Vector (IORef (SizedHashMap a b))}
 
 size :: MonadIO m => Dict a b -> m Int
 size d = liftIO $ sum <$> mapM (\r -> SHM.size <$> readIORef r) (_map d)

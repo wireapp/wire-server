@@ -75,10 +75,9 @@ import System.Random.MWC (GenIO, uniform)
 -----------------------------------------------------------------------------
 -- Key
 
-newtype Key
-  = Key
-      { _key :: (ByteString, ByteString)
-      }
+newtype Key = Key
+  { _key :: (ByteString, ByteString)
+  }
   deriving (Eq, Show, Hashable)
 
 mkKey :: UserId -> ConnId -> Key
@@ -96,11 +95,10 @@ keyConnBytes = snd . _key
 -----------------------------------------------------------------------------
 -- Websocket
 
-data Websocket
-  = Websocket
-      { connection :: Connection,
-        connIdent :: !Word
-      }
+data Websocket = Websocket
+  { connection :: Connection,
+    connIdent :: !Word
+  }
 
 mkWebSocket :: Connection -> WS Websocket
 mkWebSocket c = do
@@ -132,26 +130,24 @@ getTime (Clock r) = readIORef r
 -----------------------------------------------------------------------------
 -- WS Monad
 
-data Env
-  = Env
-      { externalHostname :: !ByteString,
-        portnum :: !Word16,
-        upstream :: !Request,
-        reqId :: !RequestId,
-        logg :: !Logger,
-        manager :: !Manager,
-        dict :: !(Dict Key Websocket),
-        rand :: !GenIO,
-        clock :: !Clock
-      }
+data Env = Env
+  { externalHostname :: !ByteString,
+    portnum :: !Word16,
+    upstream :: !Request,
+    reqId :: !RequestId,
+    logg :: !Logger,
+    manager :: !Manager,
+    dict :: !(Dict Key Websocket),
+    rand :: !GenIO,
+    clock :: !Clock
+  }
 
 setRequestId :: RequestId -> Env -> Env
 setRequestId rid e = e {reqId = rid}
 
-newtype WS a
-  = WS
-      { _conn :: ReaderT Env IO a
-      }
+newtype WS a = WS
+  { _conn :: ReaderT Env IO a
+  }
   deriving
     ( Functor,
       Applicative,

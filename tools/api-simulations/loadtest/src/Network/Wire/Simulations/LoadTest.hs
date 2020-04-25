@@ -183,15 +183,14 @@ runBot ls s@BotState {..} = do
       l <- between (assetMinSize ls) (assetMaxSize ls)
       return $ BS.replicate (fromIntegral l) 42
 
-data BotState
-  = BotState
-      { botClient :: !BotClient, -- "main" client (sends messages, etc)
-        botOtherClients :: ![BotClient], -- other clients (just sit around)
-        botConv :: !ConvId,
-        botConvMembers :: [Bot],
-        messagesLeft :: !Int,
-        assetsLeft :: !Int
-      }
+data BotState = BotState
+  { botClient :: !BotClient, -- "main" client (sends messages, etc)
+    botOtherClients :: ![BotClient], -- other clients (just sit around)
+    botConv :: !ConvId,
+    botConvMembers :: [Bot],
+    messagesLeft :: !Int,
+    assetsLeft :: !Int
+  }
   deriving (Eq)
 
 -------------------------------------------------------------------------------
@@ -199,28 +198,27 @@ data BotState
 
 data RampType = RampStep Int | RampTotal Int deriving (Eq, Show)
 
-data LoadTestSettings
-  = LoadTestSettings
-      { ltsBotNetSettings :: !BotNetSettings,
-        conversationRamp :: !(Maybe RampType),
-        conversationsTotal :: !Int,
-        conversationMinActiveMembers :: !Int,
-        conversationMaxActiveMembers :: !Int,
-        conversationMinPassiveMembers :: !Int,
-        conversationMaxPassiveMembers :: !Int,
-        clientsMin :: !Int,
-        clientsMax :: !Int,
-        messagesMin :: !Int,
-        messagesMax :: !Int,
-        messageMinLength :: !Int,
-        messageMaxLength :: !Int,
-        assetsMin :: !Int,
-        assetsMax :: !Int,
-        assetMinSize :: !Int,
-        assetMaxSize :: !Int,
-        stepDelay :: !Int,
-        parallelRequests :: !Int
-      }
+data LoadTestSettings = LoadTestSettings
+  { ltsBotNetSettings :: !BotNetSettings,
+    conversationRamp :: !(Maybe RampType),
+    conversationsTotal :: !Int,
+    conversationMinActiveMembers :: !Int,
+    conversationMaxActiveMembers :: !Int,
+    conversationMinPassiveMembers :: !Int,
+    conversationMaxPassiveMembers :: !Int,
+    clientsMin :: !Int,
+    clientsMax :: !Int,
+    messagesMin :: !Int,
+    messagesMax :: !Int,
+    messageMinLength :: !Int,
+    messageMaxLength :: !Int,
+    assetsMin :: !Int,
+    assetsMax :: !Int,
+    assetMinSize :: !Int,
+    assetMaxSize :: !Int,
+    stepDelay :: !Int,
+    parallelRequests :: !Int
+  }
   deriving (Eq, Show)
 
 -------------------------------------------------------------------------------

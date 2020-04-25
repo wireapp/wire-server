@@ -66,13 +66,12 @@ sendMemberWelcomeMail to tid teamName loc = do
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-data InvitationEmail
-  = InvitationEmail
-      { invTo :: !Email,
-        invTeamId :: !TeamId,
-        invInvCode :: !InvitationCode,
-        invInviter :: !Email
-      }
+data InvitationEmail = InvitationEmail
+  { invTo :: !Email,
+    invTeamId :: !TeamId,
+    invInvCode :: !InvitationCode,
+    invInviter :: !Email
+  }
 
 renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> Mail
 renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding =
@@ -107,12 +106,11 @@ renderInvitationUrl t tid (InvitationCode c) branding =
 -------------------------------------------------------------------------------
 -- Creator Welcome Email
 
-data CreatorWelcomeEmail
-  = CreatorWelcomeEmail
-      { cwTo :: !Email,
-        cwTid :: !TeamId,
-        cwTeamName :: !Text
-      }
+data CreatorWelcomeEmail = CreatorWelcomeEmail
+  { cwTo :: !Email,
+    cwTid :: !TeamId,
+    cwTeamName :: !Text
+  }
 
 renderCreatorWelcomeMail :: CreatorWelcomeEmail -> CreatorWelcomeEmailTemplate -> TemplateBranding -> Mail
 renderCreatorWelcomeMail CreatorWelcomeEmail {..} CreatorWelcomeEmailTemplate {..} branding =
@@ -139,12 +137,11 @@ renderCreatorWelcomeMail CreatorWelcomeEmail {..} CreatorWelcomeEmailTemplate {.
 -------------------------------------------------------------------------------
 -- Member Welcome Email
 
-data MemberWelcomeEmail
-  = MemberWelcomeEmail
-      { mwTo :: !Email,
-        mwTid :: !TeamId,
-        mwTeamName :: !Text
-      }
+data MemberWelcomeEmail = MemberWelcomeEmail
+  { mwTo :: !Email,
+    mwTid :: !TeamId,
+    mwTeamName :: !Text
+  }
 
 renderMemberWelcomeMail :: MemberWelcomeEmail -> MemberWelcomeEmailTemplate -> TemplateBranding -> Mail
 renderMemberWelcomeMail MemberWelcomeEmail {..} MemberWelcomeEmailTemplate {..} branding =

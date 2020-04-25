@@ -61,32 +61,29 @@ newtype SID = SID ByteString
 
 newtype AccessToken = AccessToken ByteString
 
-data Credentials
-  = Credentials
-      { sid :: SID,
-        token :: AccessToken
-      }
+data Credentials = Credentials
+  { sid :: SID,
+    token :: AccessToken
+  }
 
 instance FromJSON Credentials where
   parseJSON = withObject "credentials" $ \o ->
     Credentials <$> (SID . encodeUtf8 <$> o .: "sid")
       <*> (AccessToken . encodeUtf8 <$> o .: "token")
 
-data Message
-  = Message
-      { msgFrom :: !Text,
-        msgTo :: !Text,
-        msgText :: !Text
-      }
+data Message = Message
+  { msgFrom :: !Text,
+    msgTo :: !Text,
+    msgText :: !Text
+  }
   deriving (Eq, Show)
 
-data ErrorResponse
-  = ErrorResponse
-      { errStatus :: !Int,
-        errMessage :: !Text,
-        errCode :: !(Maybe Int),
-        errMoreInfo :: !(Maybe Text)
-      }
+data ErrorResponse = ErrorResponse
+  { errStatus :: !Int,
+    errMessage :: !Text,
+    errCode :: !(Maybe Int),
+    errMoreInfo :: !(Maybe Text)
+  }
   deriving (Eq, Show, Typeable)
 
 instance Exception ErrorResponse
@@ -103,10 +100,9 @@ newtype ParseError = ParseError String
 
 instance Exception ParseError
 
-data MessageResponse
-  = MessageResponse
-      { msgId :: !MessageId
-      }
+data MessageResponse = MessageResponse
+  { msgId :: !MessageId
+  }
 
 instance FromJSON MessageResponse where
   parseJSON = withObject "MessageResponse" $ \o ->
@@ -117,17 +113,15 @@ data LookupDetail
   | LookupCarrier
   deriving (Eq, Show)
 
-data LookupResult
-  = LookupResult
-      { lookupE164 :: !Text,
-        lookupCarrier :: !(Maybe CarrierInfo)
-      }
+data LookupResult = LookupResult
+  { lookupE164 :: !Text,
+    lookupCarrier :: !(Maybe CarrierInfo)
+  }
 
-data CarrierInfo
-  = CarrierInfo
-      { carrierName :: !(Maybe Text),
-        carrierType :: !(Maybe PhoneType)
-      }
+data CarrierInfo = CarrierInfo
+  { carrierName :: !(Maybe Text),
+    carrierType :: !(Maybe PhoneType)
+  }
 
 data PhoneType
   = Landline

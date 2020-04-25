@@ -77,10 +77,9 @@ import Test.QuickCheck (Gen, choose)
 
 -----------------------------------------------------------------------------
 
-newtype Range (n :: Nat) (m :: Nat) a
-  = Range
-      { fromRange :: a
-      }
+newtype Range (n :: Nat) (m :: Nat) a = Range
+  { fromRange :: a
+  }
   deriving (Eq, Ord, Show)
 
 instance NFData (Range n m a) where rnf (Range a) = seq a ()

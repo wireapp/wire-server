@@ -41,29 +41,27 @@ import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
-import qualified Network.Wai.Utilities.Error as Wai
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 
 -------------------------------------------------------------------------------
 -- Successes
 
-data CreateUserResult
-  = CreateUserResult
-      { -- | The newly created user account.
-        createdAccount :: !UserAccount,
-        -- | Activation data for the registered email address, if any.
-        createdEmailActivation :: !(Maybe Activation),
-        -- | Activation data for the registered phone number, if any.
-        createdPhoneActivation :: !(Maybe Activation),
-        -- | Info of a team just created/joined
-        createdUserTeam :: !(Maybe CreateUserTeam)
-      }
+data CreateUserResult = CreateUserResult
+  { -- | The newly created user account.
+    createdAccount :: !UserAccount,
+    -- | Activation data for the registered email address, if any.
+    createdEmailActivation :: !(Maybe Activation),
+    -- | Activation data for the registered phone number, if any.
+    createdPhoneActivation :: !(Maybe Activation),
+    -- | Info of a team just created/joined
+    createdUserTeam :: !(Maybe CreateUserTeam)
+  }
 
-data CreateUserTeam
-  = CreateUserTeam
-      { createdTeamId :: !TeamId,
-        createdTeamName :: !Text
-      }
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
 
 data ConnectionResult
   = ConnectionCreated !UserConnection

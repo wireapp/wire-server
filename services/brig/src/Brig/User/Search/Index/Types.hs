@@ -39,15 +39,14 @@ data IndexUpdate
 
 -- | Represents the ES *index*, ie. the attributes of a user searchable in ES.  See also:
 -- 'UserDoc'.
-data IndexUser
-  = IndexUser
-      { _iuUserId :: UserId,
-        _iuVersion :: IndexVersion,
-        _iuTeam :: Maybe TeamId,
-        _iuName :: Maybe Name,
-        _iuHandle :: Maybe Handle,
-        _iuColourId :: Maybe ColourId
-      }
+data IndexUser = IndexUser
+  { _iuUserId :: UserId,
+    _iuVersion :: IndexVersion,
+    _iuTeam :: Maybe TeamId,
+    _iuName :: Maybe Name,
+    _iuHandle :: Maybe Handle,
+    _iuColourId :: Maybe ColourId
+  }
 
 data IndexQuery r = IndexQuery Query Filter
 
@@ -67,15 +66,14 @@ newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
 -- If a user is not searchable, e.g. because the account got
 -- suspended, all fields except for the user id are set to 'Nothing' and
 -- consequently removed from the index.
-data UserDoc
-  = UserDoc
-      { udId :: UserId,
-        udTeam :: Maybe TeamId,
-        udName :: Maybe Name,
-        udNormalized :: Maybe Text,
-        udHandle :: Maybe Handle,
-        udColourId :: Maybe ColourId
-      }
+data UserDoc = UserDoc
+  { udId :: UserId,
+    udTeam :: Maybe TeamId,
+    udName :: Maybe Name,
+    udNormalized :: Maybe Text,
+    udHandle :: Maybe Handle,
+    udColourId :: Maybe ColourId
+  }
   deriving (Eq, Show)
 
 instance ToJSON UserDoc where

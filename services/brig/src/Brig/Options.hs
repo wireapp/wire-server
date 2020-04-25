@@ -39,10 +39,9 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
-newtype Timeout
-  = Timeout
-      { timeoutDiff :: NominalDiffTime
-      }
+newtype Timeout = Timeout
+  { timeoutDiff :: NominalDiffTime
+  }
   deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Read Timeout where
@@ -51,169 +50,157 @@ instance Read Timeout where
       [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
       _ -> []
 
-data ElasticSearchOpts
-  = ElasticSearchOpts
-      { -- | ElasticSearch URL
-        url :: !Text,
-        -- | The name of the ElasticSearch user index
-        index :: !Text
-      }
+data ElasticSearchOpts = ElasticSearchOpts
+  { -- | ElasticSearch URL
+    url :: !Text,
+    -- | The name of the ElasticSearch user index
+    index :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
 
-data AWSOpts
-  = AWSOpts
-      { -- | Event journal queue for user events
-        --   (e.g. user deletion)
-        userJournalQueue :: !(Maybe Text),
-        -- | Dynamo table for storing prekey data
-        prekeyTable :: !Text,
-        -- | AWS SQS endpoint
-        sqsEndpoint :: !AWSEndpoint,
-        -- | DynamoDB endpoint
-        dynamoDBEndpoint :: !AWSEndpoint
-      }
+data AWSOpts = AWSOpts
+  { -- | Event journal queue for user events
+    --   (e.g. user deletion)
+    userJournalQueue :: !(Maybe Text),
+    -- | Dynamo table for storing prekey data
+    prekeyTable :: !Text,
+    -- | AWS SQS endpoint
+    sqsEndpoint :: !AWSEndpoint,
+    -- | DynamoDB endpoint
+    dynamoDBEndpoint :: !AWSEndpoint
+  }
   deriving (Show, Generic)
 
 instance FromJSON AWSOpts
 
-data EmailAWSOpts
-  = EmailAWSOpts
-      { -- | Event feedback queue for SES
-        --   (e.g. for email bounces and complaints)
-        sesQueue :: !Text,
-        -- | AWS SES endpoint
-        sesEndpoint :: !AWSEndpoint
-      }
+data EmailAWSOpts = EmailAWSOpts
+  { -- | Event feedback queue for SES
+    --   (e.g. for email bounces and complaints)
+    sesQueue :: !Text,
+    -- | AWS SES endpoint
+    sesEndpoint :: !AWSEndpoint
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailAWSOpts
 
-data EmailSMTPCredentials
-  = EmailSMTPCredentials
-      { -- | Username to authenticate
-        --   against the SMTP server
-        smtpUsername :: !Text,
-        -- | File containing password to
-        --   authenticate against the SMTP server
-        smtpPassword :: !FilePathSecrets
-      }
+data EmailSMTPCredentials = EmailSMTPCredentials
+  { -- | Username to authenticate
+    --   against the SMTP server
+    smtpUsername :: !Text,
+    -- | File containing password to
+    --   authenticate against the SMTP server
+    smtpPassword :: !FilePathSecrets
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPCredentials
 
-data EmailSMTPOpts
-  = EmailSMTPOpts
-      { -- | Hostname of the SMTP server to connect to
-        smtpEndpoint :: !Endpoint,
-        smtpCredentials :: !(Maybe EmailSMTPCredentials),
-        -- | Which type of connection to use
-        --   against the SMTP server {tls,ssl,plain}
-        smtpConnType :: !SMTPConnType
-      }
+data EmailSMTPOpts = EmailSMTPOpts
+  { -- | Hostname of the SMTP server to connect to
+    smtpEndpoint :: !Endpoint,
+    smtpCredentials :: !(Maybe EmailSMTPCredentials),
+    -- | Which type of connection to use
+    --   against the SMTP server {tls,ssl,plain}
+    smtpConnType :: !SMTPConnType
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
 
-data StompOpts
-  = StompOpts
-      { stompHost :: !Text,
-        stompPort :: !Int,
-        stompTls :: !Bool
-      }
+data StompOpts = StompOpts
+  { stompHost :: !Text,
+    stompPort :: !Int,
+    stompTls :: !Bool
+  }
   deriving (Show, Generic)
 
 instance FromJSON StompOpts
 
-data InternalEventsOpts
-  = InternalEventsOpts
-      { internalEventsQueue :: !Queue
-      }
+data InternalEventsOpts = InternalEventsOpts
+  { internalEventsQueue :: !Queue
+  }
   deriving (Show)
 
 instance FromJSON InternalEventsOpts where
   parseJSON = Y.withObject "InternalEventsOpts" $ \o ->
     InternalEventsOpts <$> parseJSON (Y.Object o)
 
-data EmailSMSGeneralOpts
-  = EmailSMSGeneralOpts
-      { -- | Email, SMS, ... template directory
-        templateDir :: !FilePath,
-        -- | Email sender address
-        emailSender :: !Email,
-        -- | Twilio sender identifier (number or
-        --   messaging service ID)
-        smsSender :: !Text,
-        -- | Customizable branding text for
-        --   emails/sms/calls
-        templateBranding :: !BrandingOpts
-      }
+data EmailSMSGeneralOpts = EmailSMSGeneralOpts
+  { -- | Email, SMS, ... template directory
+    templateDir :: !FilePath,
+    -- | Email sender address
+    emailSender :: !Email,
+    -- | Twilio sender identifier (number or
+    --   messaging service ID)
+    smsSender :: !Text,
+    -- | Customizable branding text for
+    --   emails/sms/calls
+    templateBranding :: !BrandingOpts
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
 
-data BrandingOpts
-  = BrandingOpts
-      { brand :: !Text,
-        brandUrl :: !Text,
-        brandLabelUrl :: !Text,
-        brandLogoUrl :: !Text,
-        brandService :: !Text,
-        copyright :: !Text,
-        misuse :: !Text,
-        legal :: !Text,
-        forgot :: !Text,
-        support :: !Text
-      }
+data BrandingOpts = BrandingOpts
+  { brand :: !Text,
+    brandUrl :: !Text,
+    brandLabelUrl :: !Text,
+    brandLogoUrl :: !Text,
+    brandService :: !Text,
+    copyright :: !Text,
+    misuse :: !Text,
+    legal :: !Text,
+    forgot :: !Text,
+    support :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON BrandingOpts
 
-data EmailUserOpts
-  = EmailUserOpts
-      { -- | Activation URL template
-        activationUrl :: !Text,
-        -- | SMS activation URL template
-        smsActivationUrl :: !Text,
-        -- | Password reset URL template
-        passwordResetUrl :: !Text,
-        -- | Deletion URL template
-        deletionUrl :: !Text
-      }
+data EmailUserOpts = EmailUserOpts
+  { -- | Activation URL template
+    activationUrl :: !Text,
+    -- | SMS activation URL template
+    smsActivationUrl :: !Text,
+    -- | Password reset URL template
+    passwordResetUrl :: !Text,
+    -- | Deletion URL template
+    deletionUrl :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailUserOpts
 
 -- | Provider settings
-data ProviderOpts
-  = ProviderOpts
-      { -- | Homepage URL
-        homeUrl :: !Text,
-        -- | Activation URL template
-        providerActivationUrl :: !Text,
-        -- | Approval URL template
-        approvalUrl :: !Text,
-        -- | Approval email recipient
-        approvalTo :: !Email,
-        -- | Password reset URL template
-        providerPwResetUrl :: !Text
-      }
+data ProviderOpts = ProviderOpts
+  { -- | Homepage URL
+    homeUrl :: !Text,
+    -- | Activation URL template
+    providerActivationUrl :: !Text,
+    -- | Approval URL template
+    approvalUrl :: !Text,
+    -- | Approval email recipient
+    approvalTo :: !Email,
+    -- | Password reset URL template
+    providerPwResetUrl :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON ProviderOpts
 
-data TeamOpts
-  = TeamOpts
-      { -- | Team Invitation URL template
-        tInvitationUrl :: !Text,
-        -- | Team Activation URL template
-        tActivationUrl :: !Text,
-        -- | Team Creator Welcome URL
-        tCreatorWelcomeUrl :: !Text,
-        -- | Team Member Welcome URL
-        tMemberWelcomeUrl :: !Text
-      }
+data TeamOpts = TeamOpts
+  { -- | Team Invitation URL template
+    tInvitationUrl :: !Text,
+    -- | Team Activation URL template
+    tActivationUrl :: !Text,
+    -- | Team Creator Welcome URL
+    tCreatorWelcomeUrl :: !Text,
+    -- | Team Member Welcome URL
+    tMemberWelcomeUrl :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON TeamOpts
@@ -228,14 +215,13 @@ instance FromJSON EmailOpts where
     EmailAWS <$> parseJSON o
       <|> EmailSMTP <$> parseJSON o
 
-data EmailSMSOpts
-  = EmailSMSOpts
-      { email :: !EmailOpts,
-        general :: !EmailSMSGeneralOpts,
-        user :: !EmailUserOpts,
-        provider :: !ProviderOpts,
-        team :: !TeamOpts
-      }
+data EmailSMSOpts = EmailSMSOpts
+  { email :: !EmailOpts,
+    general :: !EmailSMSGeneralOpts,
+    user :: !EmailUserOpts,
+    provider :: !ProviderOpts,
+    team :: !TeamOpts
+  }
   deriving (Show, Generic)
 
 instance FromJSON EmailSMSOpts
@@ -247,60 +233,56 @@ instance FromJSON EmailSMSOpts
 --
 -- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
 -- password policy.
-data LimitFailedLogins
-  = LimitFailedLogins
-      { -- | Time the user is blocked when retry limit is reached (in
-        -- seconds mostly for making it easier to write a fast-ish
-        -- integration test.)
-        timeout :: !Timeout,
-        -- | Maximum number of failed login attempts for one user.
-        retryLimit :: !Int
-      }
+data LimitFailedLogins = LimitFailedLogins
+  { -- | Time the user is blocked when retry limit is reached (in
+    -- seconds mostly for making it easier to write a fast-ish
+    -- integration test.)
+    timeout :: !Timeout,
+    -- | Maximum number of failed login attempts for one user.
+    retryLimit :: !Int
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON LimitFailedLogins
 
-data SuspendInactiveUsers
-  = SuspendInactiveUsers
-      { suspendTimeout :: !Timeout
-      }
+data SuspendInactiveUsers = SuspendInactiveUsers
+  { suspendTimeout :: !Timeout
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON SuspendInactiveUsers
 
 -- | ZAuth options
-data ZAuthOpts
-  = ZAuthOpts
-      { -- | Private key file
-        privateKeys :: !FilePath,
-        -- | Public key file
-        publicKeys :: !FilePath,
-        -- | Other settings
-        authSettings :: !ZAuth.Settings
-      }
+data ZAuthOpts = ZAuthOpts
+  { -- | Private key file
+    privateKeys :: !FilePath,
+    -- | Public key file
+    publicKeys :: !FilePath,
+    -- | Other settings
+    authSettings :: !ZAuth.Settings
+  }
   deriving (Show, Generic)
 
 instance FromJSON ZAuthOpts
 
 -- | TURN server options
-data TurnOpts
-  = TurnOpts
-      { -- | Line separated file with IP addresses of
-        --   available TURN servers supporting UDP
-        servers :: !FilePath,
-        -- | Line separated file with hostnames of all
-        --   available TURN servers with all protocols
-        --   and transports
-        serversV2 :: !FilePath,
-        -- | TURN shared secret file path
-        secret :: !FilePath,
-        -- | For how long TURN credentials should be
-        --   valid, in seconds
-        tokenTTL :: !Word32,
-        -- | How long until a new TURN configuration
-        --   should be fetched, in seconds
-        configTTL :: !Word32
-      }
+data TurnOpts = TurnOpts
+  { -- | Line separated file with IP addresses of
+    --   available TURN servers supporting UDP
+    servers :: !FilePath,
+    -- | Line separated file with hostnames of all
+    --   available TURN servers with all protocols
+    --   and transports
+    serversV2 :: !FilePath,
+    -- | TURN shared secret file path
+    secret :: !FilePath,
+    -- | For how long TURN credentials should be
+    --   valid, in seconds
+    tokenTTL :: !Word32,
+    -- | How long until a new TURN configuration
+    --   should be fetched, in seconds
+    configTTL :: !Word32
+  }
   deriving (Show, Generic)
 
 instance FromJSON TurnOpts
@@ -334,136 +316,134 @@ instance ToJSON EmailVisibility where
   toJSON EmailVisibleToSelf = "visible_to_self"
 
 -- | Options that are consumed on startup
-data Opts
-  = Opts
-      -- services
-      { -- | Host and port to bind to
-        brig :: !Endpoint,
-        -- | Cargohold address
-        cargohold :: !Endpoint,
-        -- | Galley address
-        galley :: !Endpoint,
-        -- | Gundeck address
-        gundeck :: !Endpoint,
-        -- external
+data Opts = Opts
+  -- services
+  { -- | Host and port to bind to
+    brig :: !Endpoint,
+    -- | Cargohold address
+    cargohold :: !Endpoint,
+    -- | Galley address
+    galley :: !Endpoint,
+    -- | Gundeck address
+    gundeck :: !Endpoint,
+    -- external
 
-        -- | Cassandra settings
-        cassandra :: !CassandraOpts,
-        -- | ElasticSearch settings
-        elasticsearch :: !ElasticSearchOpts,
-        -- | AWS settings
-        aws :: !AWSOpts,
-        -- | STOMP broker settings
-        stomp :: !(Maybe StompOpts),
-        -- Email & SMS
+    -- | Cassandra settings
+    cassandra :: !CassandraOpts,
+    -- | ElasticSearch settings
+    elasticsearch :: !ElasticSearchOpts,
+    -- | AWS settings
+    aws :: !AWSOpts,
+    -- | STOMP broker settings
+    stomp :: !(Maybe StompOpts),
+    -- Email & SMS
 
-        -- | Email and SMS settings
-        emailSMS :: !EmailSMSOpts,
-        -- ZAuth
+    -- | Email and SMS settings
+    emailSMS :: !EmailSMSOpts,
+    -- ZAuth
 
-        -- | ZAuth settings
-        zauth :: !ZAuthOpts,
-        -- Misc.
+    -- | ZAuth settings
+    zauth :: !ZAuthOpts,
+    -- Misc.
 
-        -- | Disco URL
-        discoUrl :: !(Maybe Text),
-        -- | GeoDB file path
-        geoDb :: !(Maybe FilePath),
-        -- | Event queue for
-        --   Brig-generated events (e.g.
-        --   user deletion)
-        internalEvents :: !InternalEventsOpts,
-        -- Logging
+    -- | Disco URL
+    discoUrl :: !(Maybe Text),
+    -- | GeoDB file path
+    geoDb :: !(Maybe FilePath),
+    -- | Event queue for
+    --   Brig-generated events (e.g.
+    --   user deletion)
+    internalEvents :: !InternalEventsOpts,
+    -- Logging
 
-        -- | Log level (Debug, Info, etc)
-        logLevel :: !Level,
-        -- | Use netstrings encoding (see
-        --   <http://cr.yp.to/proto/netstrings.txt>)
-        logNetStrings :: !(Maybe (Last Bool)),
-        -- | Logformat to use
-        -- TURN
-        logFormat :: !(Maybe (Last LogFormat)),
-        -- | TURN server settings
-        turn :: !TurnOpts,
-        -- Runtime settings
+    -- | Log level (Debug, Info, etc)
+    logLevel :: !Level,
+    -- | Use netstrings encoding (see
+    --   <http://cr.yp.to/proto/netstrings.txt>)
+    logNetStrings :: !(Maybe (Last Bool)),
+    -- | Logformat to use
+    -- TURN
+    logFormat :: !(Maybe (Last LogFormat)),
+    -- | TURN server settings
+    turn :: !TurnOpts,
+    -- Runtime settings
 
-        -- | Runtime settings
-        optSettings :: !Settings
-      }
+    -- | Runtime settings
+    optSettings :: !Settings
+  }
   deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
-data Settings
-  = Settings
-      { -- | Activation timeout, in seconds
-        setActivationTimeout :: !Timeout,
-        -- | Team invitation timeout, in seconds
-        setTeamInvitationTimeout :: !Timeout,
-        -- | Twilio credentials
-        setTwilio :: !FilePathSecrets,
-        -- | Nexmo credentials
-        setNexmo :: !FilePathSecrets,
-        -- | STOMP broker credentials
-        setStomp :: !(Maybe FilePathSecrets),
-        -- | Whitelist of allowed emails/phones
-        setWhitelist :: !(Maybe Whitelist),
-        -- | Max. number of sent/accepted
-        --   connections per user
-        setUserMaxConnections :: !Int64,
-        -- | Max. number of permanent clients per user
-        setUserMaxPermClients :: !(Maybe Int),
-        -- | The domain to restrict cookies to
-        setCookieDomain :: !Text,
-        -- | Whether to allow plain HTTP transmission
-        --   of cookies (for testing purposes only)
-        setCookieInsecure :: !Bool,
-        -- | Minimum age of a user cookie before
-        --   it is renewed during token refresh
-        setUserCookieRenewAge :: !Integer,
-        -- | Max. # of cookies per user and cookie type
-        setUserCookieLimit :: !Int,
-        -- | Throttling settings (not to be confused
-        -- with 'LoginRetryOpts')
-        setUserCookieThrottle :: !CookieThrottle,
-        -- | Block user from logging in
-        -- for m minutes after n failed
-        -- logins
-        setLimitFailedLogins :: !(Maybe LimitFailedLogins),
-        -- | If last cookie renewal is too long ago,
-        -- suspend the user.
-        setSuspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
-        -- | Max size of rich info (number of chars in
-        --   field names and values), should be in sync
-        --   with Spar
-        setRichInfoLimit :: !Int,
-        -- | Default locale to use
-        --   (e.g. when selecting templates)
-        setDefaultLocale :: !Locale,
-        -- | Max. # of members in a team.
-        --   NOTE: This must be in sync with galley
-        setMaxTeamSize :: !Word16,
-        -- | Max. # of members in a conversation.
-        --   NOTE: This must be in sync with galley
-        setMaxConvSize :: !Word16,
-        -- | Filter ONLY services with
-        --   the given provider id
-        setProviderSearchFilter :: !(Maybe ProviderId),
-        -- | Whether to expose user emails and to whom
-        setEmailVisibility :: !EmailVisibility,
-        setPropertyMaxKeyLen :: !(Maybe Int64),
-        setPropertyMaxValueLen :: !(Maybe Int64),
-        -- | How long, in milliseconds, to wait
-        -- in between processing delete events
-        -- from the internal delete queue
-        setDeleteThrottleMillis :: !(Maybe Int),
-        -- | When true, search only
-        -- returns users from the same team
-        setSearchSameTeamOnly :: !(Maybe Bool),
-        -- | When false, assume there are no other backends and IDs are always local.
-        -- This means we don't run any queries on federation-related tables and don't
-        -- make any calls to the federator service.
-        setEnableFederation :: !(Maybe Bool)
-      }
+data Settings = Settings
+  { -- | Activation timeout, in seconds
+    setActivationTimeout :: !Timeout,
+    -- | Team invitation timeout, in seconds
+    setTeamInvitationTimeout :: !Timeout,
+    -- | Twilio credentials
+    setTwilio :: !FilePathSecrets,
+    -- | Nexmo credentials
+    setNexmo :: !FilePathSecrets,
+    -- | STOMP broker credentials
+    setStomp :: !(Maybe FilePathSecrets),
+    -- | Whitelist of allowed emails/phones
+    setWhitelist :: !(Maybe Whitelist),
+    -- | Max. number of sent/accepted
+    --   connections per user
+    setUserMaxConnections :: !Int64,
+    -- | Max. number of permanent clients per user
+    setUserMaxPermClients :: !(Maybe Int),
+    -- | The domain to restrict cookies to
+    setCookieDomain :: !Text,
+    -- | Whether to allow plain HTTP transmission
+    --   of cookies (for testing purposes only)
+    setCookieInsecure :: !Bool,
+    -- | Minimum age of a user cookie before
+    --   it is renewed during token refresh
+    setUserCookieRenewAge :: !Integer,
+    -- | Max. # of cookies per user and cookie type
+    setUserCookieLimit :: !Int,
+    -- | Throttling settings (not to be confused
+    -- with 'LoginRetryOpts')
+    setUserCookieThrottle :: !CookieThrottle,
+    -- | Block user from logging in
+    -- for m minutes after n failed
+    -- logins
+    setLimitFailedLogins :: !(Maybe LimitFailedLogins),
+    -- | If last cookie renewal is too long ago,
+    -- suspend the user.
+    setSuspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
+    -- | Max size of rich info (number of chars in
+    --   field names and values), should be in sync
+    --   with Spar
+    setRichInfoLimit :: !Int,
+    -- | Default locale to use
+    --   (e.g. when selecting templates)
+    setDefaultLocale :: !Locale,
+    -- | Max. # of members in a team.
+    --   NOTE: This must be in sync with galley
+    setMaxTeamSize :: !Word16,
+    -- | Max. # of members in a conversation.
+    --   NOTE: This must be in sync with galley
+    setMaxConvSize :: !Word16,
+    -- | Filter ONLY services with
+    --   the given provider id
+    setProviderSearchFilter :: !(Maybe ProviderId),
+    -- | Whether to expose user emails and to whom
+    setEmailVisibility :: !EmailVisibility,
+    setPropertyMaxKeyLen :: !(Maybe Int64),
+    setPropertyMaxValueLen :: !(Maybe Int64),
+    -- | How long, in milliseconds, to wait
+    -- in between processing delete events
+    -- from the internal delete queue
+    setDeleteThrottleMillis :: !(Maybe Int),
+    -- | When true, search only
+    -- returns users from the same team
+    setSearchSameTeamOnly :: !(Maybe Bool),
+    -- | When false, assume there are no other backends and IDs are always local.
+    -- This means we don't run any queries on federation-related tables and don't
+    -- make any calls to the federator service.
+    setEnableFederation :: !(Maybe Bool)
+  }
   deriving (Show, Generic)
 
 defMaxKeyLen :: Int64

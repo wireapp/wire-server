@@ -48,11 +48,10 @@ data DeliveryFailure
   | DeliveryUnknownFailure !Text
   deriving (Eq, Show)
 
-data Event
-  = Event
-      { _evType :: !EventType,
-        _evEndpoint :: !EndpointArn
-      }
+data Event = Event
+  { _evType :: !EventType,
+    _evEndpoint :: !EndpointArn
+  }
   deriving (Show)
 
 makeLenses ''Event

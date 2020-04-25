@@ -48,21 +48,20 @@ import OpenSSL.Random (randBytes)
 -- | Internal conversation type, corresponding directly to database schema.
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
 -- 'ToJSON' instances).
-data Conversation
-  = Conversation
-      { convId :: ConvId,
-        convType :: ConvType,
-        convCreator :: UserId,
-        convName :: Maybe Text,
-        convAccess :: [Access],
-        convAccessRole :: AccessRole,
-        convMembers :: [Member],
-        convTeam :: Maybe TeamId,
-        convDeleted :: Maybe Bool,
-        -- | Global message timer
-        convMessageTimer :: Maybe Milliseconds,
-        convReceiptMode :: Maybe ReceiptMode
-      }
+data Conversation = Conversation
+  { convId :: ConvId,
+    convType :: ConvType,
+    convCreator :: UserId,
+    convName :: Maybe Text,
+    convAccess :: [Access],
+    convAccessRole :: AccessRole,
+    convMembers :: [Member],
+    convTeam :: Maybe TeamId,
+    convDeleted :: Maybe Bool,
+    -- | Global message timer
+    convMessageTimer :: Maybe Milliseconds,
+    convReceiptMode :: Maybe ReceiptMode
+  }
   deriving (Eq, Show, Generic)
 
 isSelfConv :: Conversation -> Bool
@@ -83,14 +82,13 @@ selfConv uid = Id (toUUID uid)
 --------------------------------------------------------------------------------
 -- Code
 
-data Code
-  = Code
-      { codeKey :: !Key,
-        codeValue :: !Value,
-        codeTTL :: !Timeout,
-        codeConversation :: !ConvId,
-        codeScope :: !Scope
-      }
+data Code = Code
+  { codeKey :: !Key,
+    codeValue :: !Value,
+    codeTTL :: !Timeout,
+    codeConversation :: !ConvId,
+    codeScope :: !Scope
+  }
   deriving (Eq, Show, Generic)
 
 data Scope = ReusableCode

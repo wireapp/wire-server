@@ -133,20 +133,19 @@ import qualified System.Random.MWC as MWC
 
 -- * BotNetEnv
 
-data BotNetEnv
-  = BotNetEnv
-      { botNetGen :: MWC.GenIO,
-        botNetMailboxes :: [Mailbox],
-        botNetSender :: Email,
-        botNetUsers :: Cache,
-        botNetServer :: Server,
-        botNetLogger :: Logger,
-        botNetAssert :: !Bool,
-        botNetSettings :: BotSettings,
-        botNetMetrics :: Metrics,
-        botNetReportDir :: Maybe FilePath,
-        botNetMailboxFolders :: [String]
-      }
+data BotNetEnv = BotNetEnv
+  { botNetGen :: MWC.GenIO,
+    botNetMailboxes :: [Mailbox],
+    botNetSender :: Email,
+    botNetUsers :: Cache,
+    botNetServer :: Server,
+    botNetLogger :: Logger,
+    botNetAssert :: !Bool,
+    botNetSettings :: BotSettings,
+    botNetMetrics :: Metrics,
+    botNetReportDir :: Maybe FilePath,
+    botNetMailboxFolders :: [String]
+  }
 
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
 newBotNetEnv manager logger o = do
@@ -322,25 +321,24 @@ runBotSession b (BotSession s) = liftBotNet $ runReaderT s b
 newtype BotTag = BotTag {unTag :: Text}
   deriving (Eq, Show, IsString)
 
-data Bot
-  = Bot
-      { botTag :: BotTag,
-        botSettings :: BotSettings,
-        botUser :: User,
-        -- TODO: Move into BotClient?
-        botAuth :: IORef (Auth, UTCTime),
-        botEvents :: TVar (Word16, [(UTCTime, Event)]),
-        botAsserts :: TQueue EventAssertion,
-        botBacklog :: TVar [EventAssertion],
-        botAssertCount :: TVar Word16,
-        botPushThread :: IORef (Maybe (Async ())),
-        botHeartThread :: IORef (Maybe (Async ())),
-        botAssertThread :: IORef (Maybe (Async ())),
-        botMetrics :: BotMetrics,
-        -- END TODO
-        botClients :: TVar [BotClient], -- TODO: IORef?
-        botPassphrase :: PlainTextPassword
-      }
+data Bot = Bot
+  { botTag :: BotTag,
+    botSettings :: BotSettings,
+    botUser :: User,
+    -- TODO: Move into BotClient?
+    botAuth :: IORef (Auth, UTCTime),
+    botEvents :: TVar (Word16, [(UTCTime, Event)]),
+    botAsserts :: TQueue EventAssertion,
+    botBacklog :: TVar [EventAssertion],
+    botAssertCount :: TVar Word16,
+    botPushThread :: IORef (Maybe (Async ())),
+    botHeartThread :: IORef (Maybe (Async ())),
+    botAssertThread :: IORef (Maybe (Async ())),
+    botMetrics :: BotMetrics,
+    -- END TODO
+    botClients :: TVar [BotClient], -- TODO: IORef?
+    botPassphrase :: PlainTextPassword
+  }
 
 instance Show Bot where
   showsPrec _ b =
@@ -356,13 +354,12 @@ instance Show Bot where
 instance Eq Bot where
   a == b = botId a == botId b
 
-data BotClient
-  = BotClient
-      { botClientId :: !ClientId,
-        botClientLabel :: !(Maybe Text),
-        botClientBox :: !Box,
-        botClientSessions :: !Clients -- TODO: Map UserId (Map ClientId Session)
-      }
+data BotClient = BotClient
+  { botClientId :: !ClientId,
+    botClientLabel :: !(Maybe Text),
+    botClientBox :: !Box,
+    botClientSessions :: !Clients -- TODO: Map UserId (Map ClientId Session)
+  }
 
 instance Eq BotClient where
   a == b = botClientId a == botClientId b
@@ -518,14 +515,13 @@ withCachedBot t f = do
 -------------------------------------------------------------------------------
 -- Assertions
 
-data EventAssertion
-  = EventAssertion
-      { _assertType :: !EventType,
-        _assertTime :: !UTCTime,
-        _assertPred :: Event -> Bool,
-        _assertOut :: !(Maybe (TMVar (Maybe Event))),
-        _assertStack :: !CallStack
-      }
+data EventAssertion = EventAssertion
+  { _assertType :: !EventType,
+    _assertTime :: !UTCTime,
+    _assertPred :: Event -> Bool,
+    _assertOut :: !(Maybe (TMVar (Maybe Event))),
+    _assertStack :: !CallStack
+  }
 
 whenAsserts :: MonadBotNet m => BotNet () -> m ()
 whenAsserts ma = liftBotNet $ do
@@ -890,13 +886,12 @@ decrBotsAlive :: MonadBotNet m => m ()
 decrBotsAlive = getMetrics >>= liftIO . Metrics.gaugeDecr Metrics.botsAlive
 
 -- Note: Separate TVars to avoid contention.
-data BotMetrics
-  = BotMetrics
-      { botEventsRcvd :: TVar (HashMap Metrics.Path Double),
-        botEventsAckd :: TVar (HashMap Metrics.Path Double),
-        botEventsIgnd :: TVar (HashMap Metrics.Path Double),
-        botEventsMssd :: TVar (HashMap Metrics.Path Double)
-      }
+data BotMetrics = BotMetrics
+  { botEventsRcvd :: TVar (HashMap Metrics.Path Double),
+    botEventsAckd :: TVar (HashMap Metrics.Path Double),
+    botEventsIgnd :: TVar (HashMap Metrics.Path Double),
+    botEventsMssd :: TVar (HashMap Metrics.Path Double)
+  }
 
 newBotMetrics :: IO BotMetrics
 newBotMetrics =

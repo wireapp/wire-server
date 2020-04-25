@@ -43,22 +43,21 @@ import Imports
 -- NewBotRequest
 
 -- | Request for a bot in a conversation.
-data NewBotRequest
-  = NewBotRequest
-      { -- | The user ID to use for the bot.
-        newBotId :: !BotId,
-        -- | The client ID to use for the bot.
-        newBotClient :: !ClientId,
-        -- | The origin (user) of the bot request.
-        newBotOrigin :: !BotUserView,
-        -- | The conversation as seen by the bot.
-        newBotConv :: !BotConvView,
-        -- | The API access token.
-        newBotToken :: !Text,
-        -- | The preferred locale (i.e. language) for the bot
-        -- to use.
-        newBotLocale :: !Locale
-      }
+data NewBotRequest = NewBotRequest
+  { -- | The user ID to use for the bot.
+    newBotId :: !BotId,
+    -- | The client ID to use for the bot.
+    newBotClient :: !ClientId,
+    -- | The origin (user) of the bot request.
+    newBotOrigin :: !BotUserView,
+    -- | The conversation as seen by the bot.
+    newBotConv :: !BotConvView,
+    -- | The API access token.
+    newBotToken :: !Text,
+    -- | The preferred locale (i.e. language) for the bot
+    -- to use.
+    newBotLocale :: !Locale
+  }
 
 instance FromJSON NewBotRequest where
   parseJSON = withObject "NewBotRequest" $ \o ->
@@ -86,14 +85,13 @@ instance ToJSON NewBotRequest where
 -- | Bot data provided by a service in response to a 'NewBotRequest'.
 -- The returned optional data overrides the defaults taken from
 -- the 'Service' definition.
-data NewBotResponse
-  = NewBotResponse
-      { rsNewBotPrekeys :: ![Prekey],
-        rsNewBotLastPrekey :: !LastPrekey,
-        rsNewBotName :: !(Maybe Name),
-        rsNewBotColour :: !(Maybe ColourId),
-        rsNewBotAssets :: !(Maybe [Asset])
-      }
+data NewBotResponse = NewBotResponse
+  { rsNewBotPrekeys :: ![Prekey],
+    rsNewBotLastPrekey :: !LastPrekey,
+    rsNewBotName :: !(Maybe Name),
+    rsNewBotColour :: !(Maybe ColourId),
+    rsNewBotAssets :: !(Maybe [Asset])
+  }
 
 instance FromJSON NewBotResponse where
   parseJSON = withObject "NewBotResponse" $ \o ->
@@ -116,14 +114,13 @@ instance ToJSON NewBotResponse where
 --------------------------------------------------------------------------------
 -- BotUserView
 
-data BotUserView
-  = BotUserView
-      { botUserViewId :: !UserId,
-        botUserViewName :: !Name,
-        botUserViewColour :: !ColourId,
-        botUserViewHandle :: !(Maybe Handle),
-        botUserViewTeam :: !(Maybe TeamId)
-      }
+data BotUserView = BotUserView
+  { botUserViewId :: !UserId,
+    botUserViewName :: !Name,
+    botUserViewColour :: !ColourId,
+    botUserViewHandle :: !(Maybe Handle),
+    botUserViewTeam :: !(Maybe TeamId)
+  }
   deriving (Eq, Show)
 
 instance FromJSON BotUserView where

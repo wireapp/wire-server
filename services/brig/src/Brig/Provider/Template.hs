@@ -39,55 +39,50 @@ import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 
-data ProviderTemplates
-  = ProviderTemplates
-      { activationEmail :: !ActivationEmailTemplate,
-        activationEmailUpdate :: !ActivationEmailTemplate,
-        approvalRequestEmail :: !ApprovalRequestEmailTemplate,
-        approvalConfirmEmail :: !ApprovalConfirmEmailTemplate,
-        passwordResetEmail :: !PasswordResetEmailTemplate
-      }
+data ProviderTemplates = ProviderTemplates
+  { activationEmail :: !ActivationEmailTemplate,
+    activationEmailUpdate :: !ActivationEmailTemplate,
+    approvalRequestEmail :: !ApprovalRequestEmailTemplate,
+    approvalConfirmEmail :: !ApprovalConfirmEmailTemplate,
+    passwordResetEmail :: !PasswordResetEmailTemplate
+  }
 
-data ActivationEmailTemplate
-  = ActivationEmailTemplate
-      { activationEmailUrl :: !Template,
-        activationEmailSubject :: !Template,
-        activationEmailBodyText :: !Template,
-        activationEmailBodyHtml :: !Template,
-        activationEmailSender :: !Email,
-        activationEmailSenderName :: !Text
-      }
+data ActivationEmailTemplate = ActivationEmailTemplate
+  { activationEmailUrl :: !Template,
+    activationEmailSubject :: !Template,
+    activationEmailBodyText :: !Template,
+    activationEmailBodyHtml :: !Template,
+    activationEmailSender :: !Email,
+    activationEmailSenderName :: !Text
+  }
 
-data ApprovalRequestEmailTemplate
-  = ApprovalRequestEmailTemplate
-      { approvalRequestEmailUrl :: !Template,
-        approvalRequestEmailSubject :: !Template,
-        approvalRequestEmailBodyText :: !Template,
-        approvalRequestEmailBodyHtml :: !Template,
-        approvalRequestEmailSender :: !Email,
-        approvalRequestEmailSenderName :: !Text,
-        approvalRequestEmailTo :: !Email
-      }
+data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
+  { approvalRequestEmailUrl :: !Template,
+    approvalRequestEmailSubject :: !Template,
+    approvalRequestEmailBodyText :: !Template,
+    approvalRequestEmailBodyHtml :: !Template,
+    approvalRequestEmailSender :: !Email,
+    approvalRequestEmailSenderName :: !Text,
+    approvalRequestEmailTo :: !Email
+  }
 
-data ApprovalConfirmEmailTemplate
-  = ApprovalConfirmEmailTemplate
-      { approvalConfirmEmailSubject :: !Template,
-        approvalConfirmEmailBodyText :: !Template,
-        approvalConfirmEmailBodyHtml :: !Template,
-        approvalConfirmEmailSender :: !Email,
-        approvalConfirmEmailSenderName :: !Text,
-        approvalConfirmEmailHomeUrl :: !HttpsUrl
-      }
+data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
+  { approvalConfirmEmailSubject :: !Template,
+    approvalConfirmEmailBodyText :: !Template,
+    approvalConfirmEmailBodyHtml :: !Template,
+    approvalConfirmEmailSender :: !Email,
+    approvalConfirmEmailSenderName :: !Text,
+    approvalConfirmEmailHomeUrl :: !HttpsUrl
+  }
 
-data PasswordResetEmailTemplate
-  = PasswordResetEmailTemplate
-      { passwordResetEmailUrl :: !Template,
-        passwordResetEmailSubject :: !Template,
-        passwordResetEmailBodyText :: !Template,
-        passwordResetEmailBodyHtml :: !Template,
-        passwordResetEmailSender :: !Email,
-        passwordResetEmailSenderName :: !Text
-      }
+data PasswordResetEmailTemplate = PasswordResetEmailTemplate
+  { passwordResetEmailUrl :: !Template,
+    passwordResetEmailSubject :: !Template,
+    passwordResetEmailBodyText :: !Template,
+    passwordResetEmailBodyHtml :: !Template,
+    passwordResetEmailSender :: !Email,
+    passwordResetEmailSenderName :: !Text
+  }
 
 -- TODO
 -- data NewServiceEmailTemplate = NewServiceEmailTemplate

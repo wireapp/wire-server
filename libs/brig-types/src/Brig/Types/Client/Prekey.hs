@@ -39,30 +39,26 @@ import Imports
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic)
 
-data Prekey
-  = Prekey
-      { prekeyId :: !PrekeyId,
-        prekeyKey :: !Text
-      }
+data Prekey = Prekey
+  { prekeyId :: !PrekeyId,
+    prekeyKey :: !Text
+  }
   deriving (Eq, Show, Generic)
 
-data PrekeyBundle
-  = PrekeyBundle
-      { prekeyUser :: !OpaqueUserId,
-        prekeyClients :: ![ClientPrekey]
-      }
+data PrekeyBundle = PrekeyBundle
+  { prekeyUser :: !OpaqueUserId,
+    prekeyClients :: ![ClientPrekey]
+  }
   deriving (Eq, Show, Generic)
 
-data ClientPrekey
-  = ClientPrekey
-      { prekeyClient :: !ClientId,
-        prekeyData :: !Prekey
-      }
+data ClientPrekey = ClientPrekey
+  { prekeyClient :: !ClientId,
+    prekeyData :: !Prekey
+  }
   deriving (Eq, Show, Generic)
 
-newtype LastPrekey
-  = LastPrekey
-      {unpackLastPrekey :: Prekey}
+newtype LastPrekey = LastPrekey
+  {unpackLastPrekey :: Prekey}
   deriving (Eq, Show, Generic)
 
 lastPrekey :: Text -> LastPrekey

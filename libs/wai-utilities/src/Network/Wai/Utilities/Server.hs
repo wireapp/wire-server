@@ -83,14 +83,13 @@ import qualified System.Posix.Signals as Sig
 --------------------------------------------------------------------------------
 -- Server Setup
 
-data Server
-  = Server
-      { serverHost :: String,
-        serverPort :: Word16,
-        serverLogger :: Logger,
-        serverMetrics :: Metrics,
-        serverTimeout :: Maybe Int
-      }
+data Server = Server
+  { serverHost :: String,
+    serverPort :: Word16,
+    serverLogger :: Logger,
+    serverMetrics :: Metrics,
+    serverTimeout :: Maybe Int
+  }
 
 defaultServer :: String -> Word16 -> Logger -> Metrics -> Server
 defaultServer h p l m = Server h p l m Nothing

@@ -59,24 +59,22 @@ instance Show Compression where
   show GZip = "gzip"
   show Snappy = "snappy"
 
-data CommonOpts
-  = CommonOpts
-      { parser :: !String,
-        geo :: [String],
-        geodat :: !FilePath,
-        anon :: [String],
-        quiet :: !Bool,
-        debug :: !Bool,
-        decomp :: !(Maybe Compression),
-        comp :: !(Maybe Compression)
-      }
+data CommonOpts = CommonOpts
+  { parser :: !String,
+    geo :: [String],
+    geodat :: !FilePath,
+    anon :: [String],
+    quiet :: !Bool,
+    debug :: !Bool,
+    decomp :: !(Maybe Compression),
+    comp :: !(Maybe Compression)
+  }
   deriving (Show)
 
-data KibanaOpts
-  = KibanaOpts
-      { print0 :: !Bool,
-        idxPrefix :: !Text
-      }
+data KibanaOpts = KibanaOpts
+  { print0 :: !Bool,
+    idxPrefix :: !Text
+  }
   deriving (Show)
 
 data Command

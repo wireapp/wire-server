@@ -58,10 +58,9 @@ import System.Logger.Class hiding (Error, info)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
 -- probably explain this here.
-newtype Gundeck a
-  = Gundeck
-      { unGundeck :: ReaderT Env Client a
-      }
+newtype Gundeck a = Gundeck
+  { unGundeck :: ReaderT Env Client a
+  }
   deriving
     ( Functor,
       Applicative,

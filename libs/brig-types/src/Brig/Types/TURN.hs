@@ -74,22 +74,20 @@ import Imports
 -- The \"ttl\" field is a proprietary extension
 --
 -- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/RTCPeerConnection#RTCConfiguration_dictionary
-data RTCConfiguration
-  = RTCConfiguration
-      { _rtcConfIceServers :: List1 RTCIceServer,
-        _rtcConfTTL :: Word32
-      }
+data RTCConfiguration = RTCConfiguration
+  { _rtcConfIceServers :: List1 RTCIceServer,
+    _rtcConfTTL :: Word32
+  }
   deriving (Show, Generic)
 
 -- | A configuration object resembling \"RTCIceServer\"
 --
 -- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer
-data RTCIceServer
-  = RTCIceServer
-      { _iceURLs :: List1 TurnURI,
-        _iceUsername :: TurnUsername,
-        _iceCredential :: AsciiBase64
-      }
+data RTCIceServer = RTCIceServer
+  { _iceURLs :: List1 TurnURI,
+    _iceUsername :: TurnUsername,
+    _iceCredential :: AsciiBase64
+  }
   deriving (Show, Generic)
 
 -- | TURN server URI as described in https://tools.ietf.org/html/rfc7065, minus ext
@@ -99,13 +97,12 @@ data RTCIceServer
 -- | scheme        = "turn" / "turns"
 -- | transport     = "udp" / "tcp" / transport-ext
 -- | transport-ext = 1*unreserved
-data TurnURI
-  = TurnURI
-      { _turiScheme :: Scheme,
-        _turiHost :: TurnHost,
-        _turiPort :: Port,
-        _turiTransport :: Maybe Transport
-      }
+data TurnURI = TurnURI
+  { _turiScheme :: Scheme,
+    _turiHost :: TurnHost,
+    _turiPort :: Port,
+    _turiTransport :: Maybe Transport
+  }
   deriving (Eq, Show, Generic)
 
 data Scheme
@@ -118,14 +115,13 @@ data Transport
   | TransportTCP
   deriving (Eq, Show, Generic, Enum, Bounded)
 
-data TurnUsername
-  = TurnUsername
-      { _tuExpiresAt :: POSIXTime,
-        _tuVersion :: Word,
-        _tuKeyindex :: Word32, -- seems to large, but uint32_t is used in C
-        _tuT :: Char, -- undocumented, always 's'
-        _tuRandom :: Text -- [a-z0-9]+
-      }
+data TurnUsername = TurnUsername
+  { _tuExpiresAt :: POSIXTime,
+    _tuVersion :: Word,
+    _tuKeyindex :: Word32, -- seems to large, but uint32_t is used in C
+    _tuT :: Char, -- undocumented, always 's'
+    _tuRandom :: Text -- [a-z0-9]+
+  }
   deriving (Show, Generic)
 
 rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration

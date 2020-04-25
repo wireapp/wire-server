@@ -132,38 +132,37 @@ schemaVersion = 58
 -------------------------------------------------------------------------------
 -- Environment
 
-data Env
-  = Env
-      { _cargohold :: RPC.Request,
-        _galley :: RPC.Request,
-        _gundeck :: RPC.Request,
-        _casClient :: Cas.ClientState,
-        _smtpEnv :: Maybe SMTP.SMTP,
-        _awsEnv :: AWS.Env,
-        _stompEnv :: Maybe Stomp.Env,
-        _metrics :: Metrics,
-        _applog :: Logger,
-        _internalEvents :: Queue,
-        _requestId :: RequestId,
-        _usrTemplates :: Localised UserTemplates,
-        _provTemplates :: Localised ProviderTemplates,
-        _tmTemplates :: Localised TeamTemplates,
-        _templateBranding :: TemplateBranding,
-        _httpManager :: Manager,
-        _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
-        _settings :: Settings,
-        _nexmoCreds :: Nexmo.Credentials,
-        _twilioCreds :: Twilio.Credentials,
-        _geoDb :: Maybe (IORef GeoIp.GeoDB),
-        _fsWatcher :: FS.WatchManager,
-        _turnEnv :: IORef TURN.Env,
-        _turnEnvV2 :: IORef TURN.Env,
-        _currentTime :: IO UTCTime,
-        _zauthEnv :: ZAuth.Env,
-        _digestSHA256 :: Digest,
-        _digestMD5 :: Digest,
-        _indexEnv :: IndexEnv
-      }
+data Env = Env
+  { _cargohold :: RPC.Request,
+    _galley :: RPC.Request,
+    _gundeck :: RPC.Request,
+    _casClient :: Cas.ClientState,
+    _smtpEnv :: Maybe SMTP.SMTP,
+    _awsEnv :: AWS.Env,
+    _stompEnv :: Maybe Stomp.Env,
+    _metrics :: Metrics,
+    _applog :: Logger,
+    _internalEvents :: Queue,
+    _requestId :: RequestId,
+    _usrTemplates :: Localised UserTemplates,
+    _provTemplates :: Localised ProviderTemplates,
+    _tmTemplates :: Localised TeamTemplates,
+    _templateBranding :: TemplateBranding,
+    _httpManager :: Manager,
+    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
+    _settings :: Settings,
+    _nexmoCreds :: Nexmo.Credentials,
+    _twilioCreds :: Twilio.Credentials,
+    _geoDb :: Maybe (IORef GeoIp.GeoDB),
+    _fsWatcher :: FS.WatchManager,
+    _turnEnv :: IORef TURN.Env,
+    _turnEnvV2 :: IORef TURN.Env,
+    _currentTime :: IO UTCTime,
+    _zauthEnv :: ZAuth.Env,
+    _digestSHA256 :: Digest,
+    _digestMD5 :: Digest,
+    _indexEnv :: IndexEnv
+  }
 
 makeLenses ''Env
 
@@ -413,10 +412,9 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-newtype AppT m a
-  = AppT
-      { unAppT :: ReaderT Env m a
-      }
+newtype AppT m a = AppT
+  { unAppT :: ReaderT Env m a
+  }
   deriving newtype
     ( Functor,
       Applicative,

@@ -34,11 +34,10 @@ import qualified Gundeck.Notification.Data as Data
 import Gundeck.Types.Notification
 import Imports hiding (getLast)
 
-data PaginateResult
-  = PaginateResult
-      { paginateResultGap :: Bool,
-        paginateResultPage :: QueuedNotificationList
-      }
+data PaginateResult = PaginateResult
+  { paginateResultGap :: Bool,
+    paginateResultPage :: QueuedNotificationList
+  }
 
 paginate :: UserId -> Maybe NotificationId -> Maybe ClientId -> Range 100 10000 Int32 -> Gundeck PaginateResult
 paginate uid since clt size = do

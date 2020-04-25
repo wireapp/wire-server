@@ -90,12 +90,11 @@ type Cannon = Http.Request -> Http.Request
 -----------------------------------------------------------------------------
 -- WebSockets
 
-data WebSocket
-  = WebSocket
-      { wsChan :: TChan Notification,
-        wsCloseLatch :: MVar (),
-        wsAppThread :: Async ()
-      }
+data WebSocket = WebSocket
+  { wsChan :: TChan Notification,
+    wsCloseLatch :: MVar (),
+    wsAppThread :: Async ()
+  }
 
 connect :: MonadIO m => Cannon -> UserId -> ConnId -> m WebSocket
 connect can uid cid = liftIO $ do
@@ -189,10 +188,9 @@ instance Show MatchFailure where
     Just (HUnitFailure _src msg) -> msg
     Nothing -> show ex
 
-newtype MatchTimeout
-  = MatchTimeout
-      { timeoutFailures :: [MatchFailure]
-      }
+newtype MatchTimeout = MatchTimeout
+  { timeoutFailures :: [MatchFailure]
+  }
   deriving (Typeable)
 
 instance Exception MatchTimeout
