@@ -52,12 +52,9 @@ formatc:
 # It's your own reponsibility to keep ormolu happy.
 .PHONY: add-license
 add-license:
-	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.hsc$$\|\.rs$$'); do \
-		echo "Adding license to $${file}."; \
-		licensure -i $${file}; \
-	done;
+	headroom run
 	@echo ""
-	@echo "you most probably want to run 'make formatf' now to keep ormolu happy"
+	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
 # Clean
 .PHONY: clean
