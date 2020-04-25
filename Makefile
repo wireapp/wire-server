@@ -52,7 +52,9 @@ formatc:
 # It's your own reponsibility to keep ormolu happy.
 .PHONY: add-license
 add-license:
-	headroom run
+	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hsc\?$$\|\.rs$$'); do \
+		headroom run --source-path $${file}; \
+	done;
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
