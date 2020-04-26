@@ -98,11 +98,11 @@ source $HOME/.cargo/env
 
 ## Formatting Haskell files
 
-You need `ormolu` on your PATH, get it with `stack install ormolu`
+You need [`ormolu`](https://github.com/tweag/ormolu) on your PATH, get it with `stack install ormolu`
 
 ## Generating license headers
 
-We use `headroom`, get it with `stack install headroom`
+We use [`headroom`](https://github.com/vaclavsvejcar/headroom), get it with `stack install headroom`
 
 ## makedeb
 
