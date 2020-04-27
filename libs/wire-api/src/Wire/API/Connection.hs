@@ -24,8 +24,8 @@
 -- | > docs/reference/user/connection.md {#RefConnection}
 --
 -- Types for connections between users.
-module Brig.Types.Connection
-  ( module Brig.Types.Connection,
+module Wire.API.Connection
+  ( module Wire.API.Connection,
     module C,
   )
 where

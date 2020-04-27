@@ -21,9 +21,9 @@ module Brig.Types
 where
 
 import Brig.Types.Activation as M
-import Brig.Types.Connection as M
 import Brig.Types.TURN as M
 import Brig.Types.Team as M
+import Wire.API.Connection as M
 import Wire.API.Properties as M
 import Wire.API.User as M
 import Wire.API.User.Client as M
