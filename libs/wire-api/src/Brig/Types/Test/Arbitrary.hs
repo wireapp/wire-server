@@ -32,9 +32,7 @@
 module Brig.Types.Test.Arbitrary where
 
 import Brig.Types.Activation
-import Brig.Types.Client.Prekey
 import Brig.Types.Code
-import Brig.Types.Intra
 import Brig.Types.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
@@ -69,6 +67,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
+import Wire.API.User.Client.Prekey
 
 newtype Octet = Octet {octet :: Word16}
   deriving (Eq, Show)
@@ -198,9 +197,6 @@ instance Arbitrary PasswordResetIdentity where
 
 instance Arbitrary AsciiBase64Url where
   arbitrary = encodeBase64Url <$> arbitrary
-
-instance Arbitrary ReAuthUser where
-  arbitrary = ReAuthUser <$> arbitrary
 
 instance Arbitrary DeleteUser where
   arbitrary = DeleteUser <$> arbitrary

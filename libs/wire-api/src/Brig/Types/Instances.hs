@@ -24,13 +24,13 @@ module Brig.Types.Instances
   )
 where
 
-import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Brig.Types.Team.LegalHold
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Imports
+import Wire.API.User.Client.Prekey
 
 instance Cql LegalHoldStatus where
   ctype = Tagged IntColumn

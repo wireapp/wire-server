@@ -20,7 +20,6 @@
 
 module Brig.Types.Team.LegalHold where
 
-import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Data.Aeson
 import Data.Id
@@ -29,6 +28,7 @@ import Data.LegalHold
 import Data.Misc
 import qualified Data.Text as T
 import Imports
+import Wire.API.User.Client.Prekey
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)

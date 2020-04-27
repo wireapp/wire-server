@@ -18,15 +18,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Move to Brig.Types.User.Client
-module Brig.Types.Client
-  ( module Brig.Types.Client,
+module Wire.API.User.Client
+  ( module Wire.API.User.Client,
     module C,
     module P,
   )
 where
 
-import Brig.Types.Client.Prekey as P
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
 import Data.Aeson
@@ -34,6 +32,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc (Location, PlainTextPassword (..))
 import Imports
+import Wire.API.User.Client.Prekey as P
 
 -- * Data Types:
 
