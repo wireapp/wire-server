@@ -22,9 +22,9 @@ where
 
 import Brig.Types.Activation as M
 import Brig.Types.Connection as M
-import Brig.Types.Properties as M
 import Brig.Types.Search as M
 import Brig.Types.TURN as M
 import Brig.Types.Team as M
+import Wire.API.Properties as M
 import Wire.API.User as M
 import Wire.API.User.Client as M
