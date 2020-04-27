@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.TURN
+module Wire.API.Calling.TURN
   ( RTCConfiguration,
     rtcConfiguration,
     rtcConfIceServers,
@@ -54,7 +54,6 @@ module Brig.Types.TURN
   )
 where
 
-import Brig.Types.TURN.Internal
 import Control.Lens hiding ((.=))
 import Data.Aeson hiding ((<?>))
 import Data.Aeson.Encoding (text)
@@ -68,6 +67,7 @@ import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
+import Wire.API.Calling.TURN.Internal
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --

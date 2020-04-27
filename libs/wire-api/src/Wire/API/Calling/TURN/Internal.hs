@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.TURN.Internal where
+module Wire.API.Calling.TURN.Internal where
 
 import Data.Aeson
 import qualified Data.ByteString.Conversion as BC

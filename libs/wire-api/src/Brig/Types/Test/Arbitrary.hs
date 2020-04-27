@@ -32,8 +32,6 @@
 module Brig.Types.Test.Arbitrary where
 
 import Brig.Types.Activation
-import Brig.Types.TURN
-import Brig.Types.TURN.Internal
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
 import Control.Lens hiding (elements)
@@ -63,6 +61,8 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
+import Wire.API.Calling.TURN
+import Wire.API.Calling.TURN.Internal
 import Wire.API.Conversation.Code as Code
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Wire.API.User
