@@ -93,13 +93,12 @@ sendTeamActivationMail to name pair loc team = do
 -------------------------------------------------------------------------------
 -- New Client Email
 
-data NewClientEmail
-  = NewClientEmail
-      { nclLocale :: !Locale,
-        nclTo :: !Email,
-        nclName :: !Name,
-        nclClient :: !Client
-      }
+data NewClientEmail = NewClientEmail
+  { nclLocale :: !Locale,
+    nclTo :: !Email,
+    nclName :: !Name,
+    nclClient :: !Client
+  }
 
 renderNewClientEmail :: NewClientEmailTemplate -> NewClientEmail -> TemplateBranding -> Mail
 renderNewClientEmail NewClientEmailTemplate {..} NewClientEmail {..} branding =
@@ -130,13 +129,12 @@ renderNewClientEmail NewClientEmailTemplate {..} NewClientEmail {..} branding =
 -------------------------------------------------------------------------------
 -- Deletion Email
 
-data DeletionEmail
-  = DeletionEmail
-      { delTo :: !Email,
-        delName :: !Name,
-        delKey :: !Code.Key,
-        delCode :: !Code.Value
-      }
+data DeletionEmail = DeletionEmail
+  { delTo :: !Email,
+    delName :: !Name,
+    delKey :: !Code.Key,
+    delCode :: !Code.Value
+  }
 
 renderDeletionEmail :: DeletionEmailTemplate -> DeletionEmail -> TemplateBranding -> Mail
 renderDeletionEmail DeletionEmailTemplate {..} DeletionEmail {..} branding =
@@ -169,11 +167,10 @@ renderDeletionEmail DeletionEmailTemplate {..} DeletionEmail {..} branding =
 -------------------------------------------------------------------------------
 -- Verification Email
 
-data VerificationEmail
-  = VerificationEmail
-      { vfTo :: !Email,
-        vfPair :: !ActivationPair
-      }
+data VerificationEmail = VerificationEmail
+  { vfTo :: !Email,
+    vfPair :: !ActivationPair
+  }
 
 renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> TemplateBranding -> Mail
 renderVerificationMail VerificationEmail {..} VerificationEmailTemplate {..} branding =
@@ -202,12 +199,11 @@ renderVerificationMail VerificationEmail {..} VerificationEmailTemplate {..} bra
 -------------------------------------------------------------------------------
 -- Activation Email
 
-data ActivationEmail
-  = ActivationEmail
-      { acmTo :: !Email,
-        acmName :: !Name,
-        acmPair :: !ActivationPair
-      }
+data ActivationEmail = ActivationEmail
+  { acmTo :: !Email,
+    acmName :: !Name,
+    acmPair :: !ActivationPair
+  }
 
 renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> TemplateBranding -> Mail
 renderActivationMail ActivationEmail {..} ActivationEmailTemplate {..} branding =
@@ -246,13 +242,12 @@ renderActivationUrl t (ActivationKey k, ActivationCode c) branding =
 -------------------------------------------------------------------------------
 -- Team Activation Email
 
-data TeamActivationEmail
-  = TeamActivationEmail
-      { tacmTo :: !Email,
-        tacmName :: !Name,
-        tacmTeamName :: !Text,
-        tacmPair :: !ActivationPair
-      }
+data TeamActivationEmail = TeamActivationEmail
+  { tacmTo :: !Email,
+    tacmName :: !Name,
+    tacmTeamName :: !Text,
+    tacmPair :: !ActivationPair
+  }
 
 renderTeamActivationMail :: TeamActivationEmail -> TeamActivationEmailTemplate -> TemplateBranding -> Mail
 renderTeamActivationMail TeamActivationEmail {..} TeamActivationEmailTemplate {..} branding =
@@ -282,11 +277,10 @@ renderTeamActivationMail TeamActivationEmail {..} TeamActivationEmailTemplate {.
 -------------------------------------------------------------------------------
 -- Password Reset Email
 
-data PasswordResetEmail
-  = PasswordResetEmail
-      { pwrTo :: !Email,
-        pwrPair :: !PasswordResetPair
-      }
+data PasswordResetEmail = PasswordResetEmail
+  { pwrTo :: !Email,
+    pwrPair :: !PasswordResetPair
+  }
 
 renderPwResetMail :: PasswordResetEmail -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
 renderPwResetMail PasswordResetEmail {..} PasswordResetEmailTemplate {..} branding =

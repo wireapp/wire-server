@@ -62,9 +62,8 @@ import qualified System.Logger as Logger
 -------------------------------------------------------------------------------
 -- Config
 
-newtype AccessKeyId
-  = AccessKeyId
-      {unKey :: ByteString}
+newtype AccessKeyId = AccessKeyId
+  {unKey :: ByteString}
   deriving (Eq, Show)
 
 instance FromJSON AccessKeyId where
@@ -72,9 +71,8 @@ instance FromJSON AccessKeyId where
     withText "Aws.AccessKeyId" $
       pure . AccessKeyId . encodeUtf8
 
-newtype SecretAccessKey
-  = SecretAccessKey
-      {unSecret :: ByteString}
+newtype SecretAccessKey = SecretAccessKey
+  {unSecret :: ByteString}
   deriving (Eq)
 
 instance Show SecretAccessKey where
@@ -90,12 +88,11 @@ data Auth
   | TempAuth (IORef Configuration)
 
 -- | An environment for executing AWS requests. See 'sendRequest'.
-data Env
-  = Env
-      { _auth :: !Auth,
-        -- | Get the HTTP 'Manager' used by an 'Env'ironment.
-        getManager :: !Manager
-      }
+data Env = Env
+  { _auth :: !Auth,
+    -- | Get the HTTP 'Manager' used by an 'Env'ironment.
+    getManager :: !Manager
+  }
 
 -- | If credentials are supplied to this function, they are used to create the 'Env'
 -- | Otherwise, it tries to discover AWS credentials by calling the underlying
@@ -183,13 +180,12 @@ awsLog lgr l m = Logger.log lgr (level l) (Logger.msg m)
     level Aws.Warning = Logger.Warn
     level Aws.Error = Logger.Error
 
-data TempCredentials
-  = TempCredentials
-      { _tmpKey :: AccessKeyId,
-        _tmpSecret :: SecretAccessKey,
-        _tmpToken :: SessionToken,
-        _tmpExpiry :: Maybe UTCTime
-      }
+data TempCredentials = TempCredentials
+  { _tmpKey :: AccessKeyId,
+    _tmpSecret :: SecretAccessKey,
+    _tmpToken :: SessionToken,
+    _tmpExpiry :: Maybe UTCTime
+  }
 
 newtype SessionToken = SessionToken ByteString
 

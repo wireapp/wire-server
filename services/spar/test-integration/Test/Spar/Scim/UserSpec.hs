@@ -45,6 +45,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import Spar.Types (IdP)
+import qualified Text.XML.DSig as SAML
 import Util
 import qualified Web.Scim.Class.User as ScimC.User
 import qualified Web.Scim.Class.User as Scim.UserC
@@ -307,13 +308,13 @@ testRichInfoAssocList =
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-  (_ownerid, teamid, idp) <- registerTestIdP
+  (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
   (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID) <-
     randomScimUserWithSubject
   let uref = SAML.UserRef tenant subj
       subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
       tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-  !(Just !uid) <- createViaSaml idp uref
+  !(Just !uid) <- createViaSaml idp privCreds uref
   samlUserShouldSatisfy uref isJust
   deleteViaBrig uid
   samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
@@ -335,29 +336,29 @@ testScimCreateVsUserRef = do
   let uref' = SAML.UserRef tenant' subj'
       subj' = either (error . show) id $ SAML.mkNameID uname' Nothing Nothing Nothing
       tenant' = idp ^. SAML.idpMetadata . SAML.edIssuer
-  createViaSamlFails idp uref'
+  createViaSamlFails idp privCreds uref'
   where
     samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
-    createViaSamlResp :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ResponseLBS
-    createViaSamlResp idp (SAML.UserRef _ subj) = do
-      (privCreds, authnReq) <- negotiateAuthnRequest idp
+    createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
+      authnReq <- negotiateAuthnRequest idp
       spmeta <- getTestSPMetadata
       authnResp <-
         runSimpleSP $
           SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
       submitAuthnResponse authnResp <!! const 200 === statusCode
-    createViaSamlFails :: HasCallStack => IdP -> SAML.UserRef -> TestSpar ()
-    createViaSamlFails idp uref = do
-      resp <- createViaSamlResp idp uref
+    createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
+    createViaSamlFails idp privCreds uref = do
+      resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:error:forbidden</title>"
-    createViaSaml :: HasCallStack => IdP -> SAML.UserRef -> TestSpar (Maybe UserId)
-    createViaSaml idp uref = do
-      resp <- createViaSamlResp idp uref
+    createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml idp privCreds uref = do
+      resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:success</title>"
@@ -422,8 +423,8 @@ testFindProvisionedUser = do
 -- want to 'crash' for those cases apparently.
 testSsoUsersWithoutHandleSilentlyIgnored :: TestSpar ()
 testSsoUsersWithoutHandleSilentlyIgnored = do
-  ((_, teamid, idp)) <- registerTestIdP
-  member <- loginSsoUserFirstTime idp
+  (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  member <- loginSsoUserFirstTime idp privCreds
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
   Just brigUser <- runSpar $ Intra.getBrigUser member
@@ -435,8 +436,8 @@ testSsoUsersWithoutHandleSilentlyIgnored = do
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
 testFindNonProvisionedUser = do
-  ((_, teamid, idp)) <- registerTestIdP
-  member <- loginSsoUserFirstTime idp
+  (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  member <- loginSsoUserFirstTime idp privCreds
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
   handle'@(Handle handle) <- nextHandle

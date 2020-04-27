@@ -135,12 +135,11 @@ instance Serialize BotMessage where
       2 -> BotAssetMessage <$> get
       _ -> fail $ "Unexpected message type: " ++ show t
 
-data AssetInfo
-  = AssetInfo
-      { assetInfoKey :: !AssetKey,
-        assetInfoToken :: !(Maybe AssetToken),
-        assetInfoKeys :: !SymmetricKeys
-      }
+data AssetInfo = AssetInfo
+  { assetInfoKey :: !AssetKey,
+    assetInfoToken :: !(Maybe AssetToken),
+    assetInfoKeys :: !SymmetricKeys
+  }
   deriving (Eq, Show)
 
 instance Serialize AssetInfo where

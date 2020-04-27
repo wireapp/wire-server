@@ -29,9 +29,8 @@ import qualified Statistics.Sample as Stats
 --------------------------------------------------------------------------------
 -- Quantitive Limiting
 
-newtype CookieLimit
-  = CookieLimit
-      {cookieLimitTotal :: Int}
+newtype CookieLimit = CookieLimit
+  {cookieLimitTotal :: Int}
 
 -- | Limit the given list of cookies, returning those excess
 -- cookies which should be evicted. Based on the following order
@@ -73,9 +72,8 @@ data CookieThrottle
 newtype StdDev = StdDev Double
   deriving (Eq, Ord, Show, Generic)
 
-newtype RetryAfter
-  = RetryAfter
-      {retryAfterSeconds :: Int64}
+newtype RetryAfter = RetryAfter
+  {retryAfterSeconds :: Int64}
   deriving (Eq, Show)
 
 instance FromJSON StdDev

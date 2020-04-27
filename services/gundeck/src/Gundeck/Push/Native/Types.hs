@@ -48,13 +48,12 @@ import Gundeck.Types.Push.V2 (PushToken)
 import Imports
 
 -- | Native push address information of a device.
-data Address
-  = Address
-      { _addrUser :: !UserId,
-        _addrEndpoint :: !EndpointArn,
-        _addrConn :: !ConnId,
-        _addrPushToken :: !PushToken
-      }
+data Address = Address
+  { _addrUser :: !UserId,
+    _addrEndpoint :: !EndpointArn,
+    _addrConn :: !ConnId,
+    _addrPushToken :: !PushToken
+  }
   deriving (Eq, Ord)
 
 makeLenses ''Address
@@ -104,9 +103,8 @@ data Failure
   | PushException !SomeException
   deriving (Show)
 
-data NativePush
-  = NativePush
-      { npNotificationid :: NotificationId,
-        npPriority :: Priority,
-        npApsData :: Maybe ApsData
-      }
+data NativePush = NativePush
+  { npNotificationid :: NotificationId,
+    npPriority :: Priority,
+    npApsData :: Maybe ApsData
+  }

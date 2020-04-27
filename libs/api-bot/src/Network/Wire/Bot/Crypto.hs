@@ -141,6 +141,7 @@ encryptMessage clt cnv msg =
     <*> pure False -- Transient?
     <*> pure Nothing -- Priority
     <*> pure Nothing -- Extra data distributed to all recipients
+    <*> pure Nothing
 
 decryptMessage :: BotClient -> ConvEvent OtrMessage -> BotSession ByteString
 decryptMessage clt e = do
@@ -151,11 +152,10 @@ decryptMessage clt e = do
 -----------------------------------------------------------------------------
 -- Auxiliary Symmetric Encryption
 
-data SymmetricKeys
-  = SymmetricKeys
-      { symmetricEncKey :: !ByteString,
-        symmetricMacKey :: !ByteString
-      }
+data SymmetricKeys = SymmetricKeys
+  { symmetricEncKey :: !ByteString,
+    symmetricMacKey :: !ByteString
+  }
   deriving (Eq, Show)
 
 instance Serialize SymmetricKeys where

@@ -28,9 +28,6 @@ module Galley.API.Swagger
   )
 where
 
--- NB: this package depends on both types-common, swagger2, so there is no away around this name
--- clash other than -XPackageImports.
-
 import Brig.Types.Client.Prekey (LastPrekey, Prekey, PrekeyId)
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold

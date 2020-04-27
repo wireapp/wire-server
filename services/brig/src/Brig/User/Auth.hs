@@ -69,11 +69,10 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 
-data Access u
-  = Access
-      { accessToken :: !AccessToken,
-        accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
-      }
+data Access u = Access
+  { accessToken :: !AccessToken,
+    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
+  }
 
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
 sendLoginCode phone call force = do

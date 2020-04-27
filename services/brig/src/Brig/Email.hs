@@ -91,11 +91,10 @@ validateEmail (fromEmail -> e) =
 -- Unique Keys
 
 -- | An 'EmailKey' is an 'Email' in a form that serves as a unique lookup key.
-data EmailKey
-  = EmailKey
-      { emailKeyUniq :: !Text,
-        emailKeyOrig :: !Email
-      }
+data EmailKey = EmailKey
+  { emailKeyUniq :: !Text,
+    emailKeyOrig :: !Email
+  }
 
 instance Show EmailKey where
   showsPrec _ = shows . emailKeyUniq

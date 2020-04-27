@@ -44,11 +44,10 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 
-data IntegrationConfig
-  = IntegrationConfig
-      -- internal endpoint
-      { cargohold :: Endpoint
-      }
+data IntegrationConfig = IntegrationConfig
+  -- internal endpoint
+  { cargohold :: Endpoint
+  }
   deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig

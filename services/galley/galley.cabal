@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f9b73dc91aaa155bf8b00144f15d626fe9b79885c56a796a1171182756d06366
+-- hash: d02acd0cb99618ee34a4f0a042c8d08f8e5f95809320c74c1571f52d7700d842
 
 name:           galley
 version:        0.83.0
@@ -119,6 +119,7 @@ library
     , safe-exceptions >=0.1
     , semigroups >=0.12
     , servant
+    , servant-server
     , servant-swagger
     , singletons >=1.0
     , split >=0.2
@@ -258,6 +259,7 @@ executable galley-integration
     , uri-bytestring
     , uuid
     , wai
+    , wai-extra
     , wai-route
     , wai-utilities
     , warp
@@ -304,4 +306,33 @@ executable galley-schema
     , tinylog
   if flag(static)
     ld-options: -static
+  default-language: Haskell2010
+
+test-suite galley-types-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Galley.API
+      Paths_galley
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , containers
+    , extended
+    , galley
+    , galley-types
+    , http-types
+    , imports
+    , lens
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , tasty
+    , tasty-hunit
+    , types-common
+    , wai
+    , wai-predicates
   default-language: Haskell2010

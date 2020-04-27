@@ -32,11 +32,10 @@ import Data.Id
 import Gundeck.Types.Notification
 import Imports
 
-data PushTarget
-  = PushTarget
-      { ptUserId :: !UserId,
-        ptConnId :: !ConnId
-      }
+data PushTarget = PushTarget
+  { ptUserId :: !UserId,
+    ptConnId :: !ConnId
+  }
   deriving
     ( Eq,
       Ord,
@@ -51,10 +50,9 @@ instance FromJSON PushTarget where
 instance ToJSON PushTarget where
   toJSON (PushTarget u c) = object ["user_id" .= u, "conn_id" .= c]
 
-newtype BulkPushRequest
-  = BulkPushRequest
-      { fromBulkPushRequest :: [(Notification, [PushTarget])]
-      }
+newtype BulkPushRequest = BulkPushRequest
+  { fromBulkPushRequest :: [(Notification, [PushTarget])]
+  }
   deriving
     ( Eq,
       Show,
@@ -78,10 +76,9 @@ data PushStatus = PushStatusOk | PushStatusGone
 
 $(deriveJSON (defaultOptions {constructorTagModifier = camelTo2 '_'}) ''PushStatus)
 
-newtype BulkPushResponse
-  = BulkPushResponse
-      { fromBulkPushResponse :: [(NotificationId, PushTarget, PushStatus)]
-      }
+newtype BulkPushResponse = BulkPushResponse
+  { fromBulkPushResponse :: [(NotificationId, PushTarget, PushStatus)]
+  }
   deriving
     ( Eq,
       Show,

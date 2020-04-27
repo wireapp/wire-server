@@ -32,23 +32,22 @@ import Servant.API
 import Servant.API.Generic
 import Test.QuickCheck
 
-data API route
-  = API
-      { _gapiSearch ::
-          route
-            :- "i"
-            :> "search"
-            -- QUESTION: what exactly should the query be? text + domain?
-            :> QueryParam' [Required, Strict] "q" (Qualified Handle)
-            :> Get '[JSON] FUser,
-        _gapiPrekeys ::
-          route
-            :- "i"
-            :> "users"
-            :> Capture "fqu" (Qualified UserId)
-            :> "prekeys"
-            :> Get '[JSON] PrekeyBundle
-      }
+data API route = API
+  { _gapiSearch ::
+      route
+        :- "i"
+        :> "search"
+        -- QUESTION: what exactly should the query be? text + domain?
+        :> QueryParam' [Required, Strict] "q" (Qualified Handle)
+        :> Get '[JSON] FUser,
+    _gapiPrekeys ::
+      route
+        :- "i"
+        :> "users"
+        :> Capture "fqu" (Qualified UserId)
+        :> "prekeys"
+        :> Get '[JSON] PrekeyBundle
+  }
   deriving (Generic)
 
 -- curl http://localhost:8097/i/search?q=wef@a.com; curl http://localhost:8097/i/users/`uuid`@example.com/prekeys
@@ -59,11 +58,10 @@ data API route
 -- TODO: the client ids in the 'PrekeyBundle' aren't really needed here.  do we want to make a
 -- new type for that, then?
 
-data FUser
-  = FUser
-      { _fuGlobalHandle :: !(Qualified Handle),
-        _fuFQU :: !(Qualified UserId)
-      }
+data FUser = FUser
+  { _fuGlobalHandle :: !(Qualified Handle),
+    _fuFQU :: !(Qualified UserId)
+  }
   deriving (Eq, Show, Generic)
 
 deriveJSON (wireJsonOptions "_fu") ''FUser

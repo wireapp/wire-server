@@ -1,10 +1,64 @@
-# [fragments that must make it into the notes for next release]
+# 2020-04-21
+
+## New Features
+
+* Allow for `report_missing` in `NewOtrMessage`. (#1056, #1062)
+* List team members by UserId (#1048)
+* Support idp update.  (#1065 for issuer, #1026 for everything else)
+* Support synchronous purge-deletion of idps (via query param).  (#1068)
+
+## Bug fixes
+
+* Test that custom backend domains are case-insensitive (#1051)
+* Swagger improvements. (#1059, #1054)
+
+## Internal Changes
+
+* Count team members using es (#1046)
+* Make delete or downgrade team owners scale (#1029)
+* services-demo/demo.sh: mkdir zauth (if not exists) (#1055)
+* Use fork of bloodhound to support ES 5.2 (#1050)
+
+
+# 2020-04-15
 
 ## Upgrade steps (IMPORTANT)
 
-1. Update mapping in ElasticSearch (see ./docs/reference/elastic-search.md)
-2. Do upgrade brig and the other services as usual
-3. Run migrate data in ElasticSearch (see ./docs/reference/elastic-search.md)
+1. Update mapping in ElasticSearch (see [./docs/reference/elastic-search.md](./docs/reference/elastic-search.md))
+2. Upgrade brig and the other services as usual
+3. Migrate data in ElasticSearch (see [./docs/reference/elastic-search.md](./docs/reference/elastic-search.md))
+
+## New features
+
+* Allow `brig-index create` to set ES index settings (#1023)
+* Extended team invitations to have name and phone number (#1032)
+* Allow team members to be searched by teammates. (#964)
+* Better defaults for maxKeyLen and maxValueLen (#1034)
+
+## Bug Fixes
+
+* Fix swagger (#1012, #1031)
+* Custom backend lookup by domain is now case-insensitive (#1013)
+
+## Internal Changes
+
+* Federation: resolve opaque IDs at the edges of galley (#1008)
+* Qualify all API imports in Galley (#1006)
+* types-common: write unit tests for Data.Qualified (#1011)
+* Remove subv4 (#1003)
+* Add federation feature flag to brig and galley (#1014)
+* Add hie.yaml (#1024)
+* Improve reproducibility of builds (#1027)
+* Update types of some brig endpoints to be federation-aware (#1013)
+* Bump to lts-14.27 (#1030)
+* Add comments about which endpoints send which events to clients (#1025)
+* Minimize dependencies of all brig binaries (#1035)
+* Federation: Use status 403 for 'not implemented' (#1036)
+* Add endpoint to count team members using ES (#1022)
+* Rename brig's userName to userDisplayName to avoid confusion (#1039)
+* Upgrade to restund 0.4.14 (#1043)
+* Add license headers to all files (#980, #1045)
+* Federation: Link related issue IDs (#1041)
 
 # 2020-03-10
 

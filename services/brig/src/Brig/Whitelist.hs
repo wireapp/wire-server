@@ -38,15 +38,14 @@ import Imports
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
-data Whitelist
-  = Whitelist
-      { -- | Service URL
-        whitelistUrl :: !Text,
-        -- | Username
-        whitelistUser :: !Text,
-        -- | Password
-        whitelistPass :: !Text
-      }
+data Whitelist = Whitelist
+  { -- | Service URL
+    whitelistUrl :: !Text,
+    -- | Username
+    whitelistUser :: !Text,
+    -- | Password
+    whitelistPass :: !Text
+  }
   deriving (Show, Generic)
 
 instance FromJSON Whitelist

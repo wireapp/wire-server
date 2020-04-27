@@ -45,14 +45,13 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 
-data IntegrationConfig
-  = IntegrationConfig
-      -- internal endpoints
-      { gundeck :: Endpoint,
-        cannon :: Endpoint,
-        cannon2 :: Endpoint,
-        brig :: Endpoint
-      }
+data IntegrationConfig = IntegrationConfig
+  -- internal endpoints
+  { gundeck :: Endpoint,
+    cannon :: Endpoint,
+    cannon2 :: Endpoint,
+    brig :: Endpoint
+  }
   deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig

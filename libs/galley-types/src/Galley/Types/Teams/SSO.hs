@@ -38,10 +38,9 @@ instance FromJSON SSOStatus where
     "disabled" -> pure SSODisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-data SSOTeamConfig
-  = SSOTeamConfig
-      { ssoTeamConfigStatus :: !SSOStatus
-      }
+data SSOTeamConfig = SSOTeamConfig
+  { ssoTeamConfigStatus :: !SSOStatus
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON SSOTeamConfig where

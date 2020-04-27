@@ -33,11 +33,10 @@ import Imports
 -- ServiceRef -----------------------------------------------------------------
 
 -- | A fully-qualified reference to a service.
-data ServiceRef
-  = ServiceRef
-      { _serviceRefId :: !ServiceId,
-        _serviceRefProvider :: !ProviderId
-      }
+data ServiceRef = ServiceRef
+  { _serviceRefId :: !ServiceId,
+    _serviceRefProvider :: !ProviderId
+  }
   deriving (Ord, Eq, Show, Generic)
 
 makeLenses ''ServiceRef
@@ -66,14 +65,13 @@ newtype ServiceToken = ServiceToken AsciiBase64Url
 deriving instance Cql ServiceToken
 
 -- | Service connection information that is needed by galley.
-data Service
-  = Service
-      { _serviceRef :: !ServiceRef,
-        _serviceUrl :: !HttpsUrl,
-        _serviceToken :: !ServiceToken,
-        _serviceFingerprints :: ![Fingerprint Rsa],
-        _serviceEnabled :: !Bool
-      }
+data Service = Service
+  { _serviceRef :: !ServiceRef,
+    _serviceUrl :: !HttpsUrl,
+    _serviceToken :: !ServiceToken,
+    _serviceFingerprints :: ![Fingerprint Rsa],
+    _serviceEnabled :: !Bool
+  }
 
 makeLenses ''Service
 

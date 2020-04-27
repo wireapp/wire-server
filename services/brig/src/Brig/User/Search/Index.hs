@@ -95,14 +95,13 @@ import System.Logger.Class
 --------------------------------------------------------------------------------
 -- IndexIO Monad
 
-data IndexEnv
-  = IndexEnv
-      { idxMetrics :: Metrics,
-        idxLogger :: Logger,
-        idxElastic :: ES.BHEnv,
-        idxRequest :: Maybe RequestId,
-        idxName :: ES.IndexName
-      }
+data IndexEnv = IndexEnv
+  { idxMetrics :: Metrics,
+    idxLogger :: Logger,
+    idxElastic :: ES.BHEnv,
+    idxRequest :: Maybe RequestId,
+    idxName :: ES.IndexName
+  }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
   deriving

@@ -63,15 +63,14 @@ import Imports
 -- NewProvider
 
 -- | Input data for registering a new provider.
-data NewProvider
-  = NewProvider
-      { newProviderName :: !Name,
-        newProviderEmail :: !Email,
-        newProviderUrl :: !HttpsUrl,
-        newProviderDescr :: !(Range 1 1024 Text),
-        -- | If none provided, a password is generated.
-        newProviderPassword :: !(Maybe PlainTextPassword)
-      }
+data NewProvider = NewProvider
+  { newProviderName :: !Name,
+    newProviderEmail :: !Email,
+    newProviderUrl :: !HttpsUrl,
+    newProviderDescr :: !(Range 1 1024 Text),
+    -- | If none provided, a password is generated.
+    newProviderPassword :: !(Maybe PlainTextPassword)
+  }
 
 instance FromJSON NewProvider where
   parseJSON = withObject "NewProvider" $ \o ->
@@ -92,13 +91,12 @@ instance ToJSON NewProvider where
         # []
 
 -- | Response data upon registering a new provider.
-data NewProviderResponse
-  = NewProviderResponse
-      { rsNewProviderId :: !ProviderId,
-        -- | The generated password, if none was provided
-        -- in the 'NewProvider' request.
-        rsNewProviderPassword :: !(Maybe PlainTextPassword)
-      }
+data NewProviderResponse = NewProviderResponse
+  { rsNewProviderId :: !ProviderId,
+    -- | The generated password, if none was provided
+    -- in the 'NewProvider' request.
+    rsNewProviderPassword :: !(Maybe PlainTextPassword)
+  }
 
 instance FromJSON NewProviderResponse where
   parseJSON = withObject "NewProviderResponse" $ \o ->
@@ -116,14 +114,13 @@ instance ToJSON NewProviderResponse where
 -- Provider
 
 -- | Full provider definition as seen by a verified provider itself.
-data Provider
-  = Provider
-      { providerId :: !ProviderId,
-        providerName :: !Name,
-        providerEmail :: !Email,
-        providerUrl :: !HttpsUrl,
-        providerDescr :: !Text
-      }
+data Provider = Provider
+  { providerId :: !ProviderId,
+    providerName :: !Name,
+    providerEmail :: !Email,
+    providerUrl :: !HttpsUrl,
+    providerDescr :: !Text
+  }
   deriving (Eq, Show)
 
 instance FromJSON Provider where
@@ -157,12 +154,11 @@ newtype ProviderProfile = ProviderProfile Provider
 -- UpdateProvider
 
 -- | Input data for updating general provider information.
-data UpdateProvider
-  = UpdateProvider
-      { updateProviderName :: !(Maybe Name),
-        updateProviderUrl :: !(Maybe HttpsUrl),
-        updateProviderDescr :: !(Maybe Text)
-      }
+data UpdateProvider = UpdateProvider
+  { updateProviderName :: !(Maybe Name),
+    updateProviderUrl :: !(Maybe HttpsUrl),
+    updateProviderDescr :: !(Maybe Text)
+  }
   deriving (Eq, Show)
 
 instance FromJSON UpdateProvider where
@@ -184,9 +180,8 @@ instance ToJSON UpdateProvider where
 
 -- | Successful response upon activating an email address (or possibly phone
 -- number in the future) of a provider.
-newtype ProviderActivationResponse
-  = ProviderActivationResponse
-      {activatedProviderIdentity :: Email}
+newtype ProviderActivationResponse = ProviderActivationResponse
+  {activatedProviderIdentity :: Email}
   deriving (Eq, Show)
 
 instance FromJSON ProviderActivationResponse where
@@ -201,11 +196,10 @@ instance ToJSON ProviderActivationResponse where
 -- ProviderLogin
 
 -- | Input data for a provider login request.
-data ProviderLogin
-  = ProviderLogin
-      { providerLoginEmail :: !Email,
-        providerLoginPassword :: !PlainTextPassword
-      }
+data ProviderLogin = ProviderLogin
+  { providerLoginEmail :: !Email,
+    providerLoginPassword :: !PlainTextPassword
+  }
 
 instance FromJSON ProviderLogin where
   parseJSON = withObject "ProviderLogin" $ \o ->
@@ -223,9 +217,8 @@ instance ToJSON ProviderLogin where
 -- DeleteProvider
 
 -- | Input data for a provider deletion request.
-newtype DeleteProvider
-  = DeleteProvider
-      {deleteProviderPassword :: PlainTextPassword}
+newtype DeleteProvider = DeleteProvider
+  {deleteProviderPassword :: PlainTextPassword}
 
 instance FromJSON DeleteProvider where
   parseJSON = withObject "DeleteProvider" $ \o ->
@@ -246,21 +239,19 @@ newtype PasswordReset = PasswordReset {nprEmail :: Email}
 deriveJSON toJSONFieldName ''PasswordReset
 
 -- | The payload for completing a password reset.
-data CompletePasswordReset
-  = CompletePasswordReset
-      { cpwrKey :: !Code.Key,
-        cpwrCode :: !Code.Value,
-        cpwrPassword :: !PlainTextPassword
-      }
+data CompletePasswordReset = CompletePasswordReset
+  { cpwrKey :: !Code.Key,
+    cpwrCode :: !Code.Value,
+    cpwrPassword :: !PlainTextPassword
+  }
 
 deriveJSON toJSONFieldName ''CompletePasswordReset
 
 -- | The payload for changing a password.
-data PasswordChange
-  = PasswordChange
-      { cpOldPassword :: !PlainTextPassword,
-        cpNewPassword :: !PlainTextPassword
-      }
+data PasswordChange = PasswordChange
+  { cpOldPassword :: !PlainTextPassword,
+    cpNewPassword :: !PlainTextPassword
+  }
 
 deriveJSON toJSONFieldName ''PasswordChange
 
@@ -281,9 +272,8 @@ queryAllTags :: LTE m n => Tag.MatchAll -> Maybe (QueryAllTags m n)
 queryAllTags = fmap QueryAllTags . Range.checked . Tag.matchAllSet
 
 -- | Bounded logical disjunction of 'm' to 'n' 'QueryAllTags'.
-newtype QueryAnyTags (m :: Nat) (n :: Nat)
-  = QueryAnyTags
-      {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
+newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
+  {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
   deriving (Eq, Show, Ord)
 
 -- | QueryAny ::= QueryAll { "," QueryAll }
@@ -305,9 +295,8 @@ instance ToByteString (QueryAnyTags m n) where
       . queryAnyTagsRange
 
 -- | Bounded logical conjunction of 'm' to 'n' 'ServiceTag's to match.
-newtype QueryAllTags (m :: Nat) (n :: Nat)
-  = QueryAllTags
-      {queryAllTagsRange :: Range m n (Set ServiceTag)}
+newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
+  {queryAllTagsRange :: Range m n (Set ServiceTag)}
   deriving (Eq, Show, Ord)
 
 -- | QueryAll ::= tag { "." tag }
@@ -378,12 +367,11 @@ instance ToJSON ServiceKeyType where
 -- identity of the remote peer in every established TLS connection
 -- towards the service (i.e. public key pinning to prevent MITM attacks
 -- with forged certificates).
-data ServiceKey
-  = ServiceKey
-      { serviceKeyType :: !ServiceKeyType,
-        serviceKeySize :: !Int32,
-        serviceKeyPEM :: !ServiceKeyPEM
-      }
+data ServiceKey = ServiceKey
+  { serviceKeyType :: !ServiceKeyType,
+    serviceKeySize :: !Int32,
+    serviceKeyPEM :: !ServiceKeyPEM
+  }
   deriving (Eq, Show)
 
 instance FromJSON ServiceKey where
@@ -404,17 +392,16 @@ instance ToJSON ServiceKey where
 -- NewService
 
 -- | Input data for registering a new service.
-data NewService
-  = NewService
-      { newServiceName :: !Name,
-        newServiceSummary :: !(Range 1 128 Text),
-        newServiceDescr :: !(Range 1 1024 Text),
-        newServiceUrl :: !HttpsUrl,
-        newServiceKey :: !ServiceKeyPEM,
-        newServiceToken :: !(Maybe ServiceToken),
-        newServiceAssets :: [Asset],
-        newServiceTags :: Range 1 3 (Set ServiceTag)
-      }
+data NewService = NewService
+  { newServiceName :: !Name,
+    newServiceSummary :: !(Range 1 128 Text),
+    newServiceDescr :: !(Range 1 1024 Text),
+    newServiceUrl :: !HttpsUrl,
+    newServiceKey :: !ServiceKeyPEM,
+    newServiceToken :: !(Maybe ServiceToken),
+    newServiceAssets :: [Asset],
+    newServiceTags :: Range 1 3 (Set ServiceTag)
+  }
 
 instance FromJSON NewService where
   parseJSON = withObject "NewService" $ \o ->
@@ -441,14 +428,13 @@ instance ToJSON NewService where
         # []
 
 -- | Response data upon adding a new service.
-data NewServiceResponse
-  = NewServiceResponse
-      { rsNewServiceId :: !ServiceId,
-        -- | The generated bearer token that we will use for
-        -- authenticating requests towards the service, if none was
-        -- provided in the 'NewService' request.
-        rsNewServiceToken :: !(Maybe ServiceToken)
-      }
+data NewServiceResponse = NewServiceResponse
+  { rsNewServiceId :: !ServiceId,
+    -- | The generated bearer token that we will use for
+    -- authenticating requests towards the service, if none was
+    -- provided in the 'NewService' request.
+    rsNewServiceToken :: !(Maybe ServiceToken)
+  }
 
 instance FromJSON NewServiceResponse where
   parseJSON = withObject "NewServiceResponse" $ \o ->
@@ -466,19 +452,18 @@ instance ToJSON NewServiceResponse where
 -- Service
 
 -- | Full service definition as seen by the provider.
-data Service
-  = Service
-      { serviceId :: !ServiceId,
-        serviceName :: !Name,
-        serviceSummary :: !Text,
-        serviceDescr :: !Text,
-        serviceUrl :: !HttpsUrl,
-        serviceTokens :: !(List1 ServiceToken),
-        serviceKeys :: !(List1 ServiceKey),
-        serviceAssets :: ![Asset],
-        serviceTags :: !(Set ServiceTag),
-        serviceEnabled :: !Bool
-      }
+data Service = Service
+  { serviceId :: !ServiceId,
+    serviceName :: !Name,
+    serviceSummary :: !Text,
+    serviceDescr :: !Text,
+    serviceUrl :: !HttpsUrl,
+    serviceTokens :: !(List1 ServiceToken),
+    serviceKeys :: !(List1 ServiceKey),
+    serviceAssets :: ![Asset],
+    serviceTags :: !(Set ServiceTag),
+    serviceEnabled :: !Bool
+  }
 
 instance FromJSON Service where
   parseJSON = withObject "Service" $ \o ->
@@ -512,17 +497,16 @@ instance ToJSON Service where
 -- ServiceProfile
 
 -- | Public profile of a service as seen by users.
-data ServiceProfile
-  = ServiceProfile
-      { serviceProfileId :: !ServiceId,
-        serviceProfileProvider :: !ProviderId,
-        serviceProfileName :: !Name,
-        serviceProfileSummary :: !Text,
-        serviceProfileDescr :: !Text,
-        serviceProfileAssets :: ![Asset],
-        serviceProfileTags :: !(Set ServiceTag),
-        serviceProfileEnabled :: !Bool
-      }
+data ServiceProfile = ServiceProfile
+  { serviceProfileId :: !ServiceId,
+    serviceProfileProvider :: !ProviderId,
+    serviceProfileName :: !Name,
+    serviceProfileSummary :: !Text,
+    serviceProfileDescr :: !Text,
+    serviceProfileAssets :: ![Asset],
+    serviceProfileTags :: !(Set ServiceTag),
+    serviceProfileEnabled :: !Bool
+  }
   deriving (Eq, Show)
 
 instance FromJSON ServiceProfile where
@@ -552,11 +536,10 @@ instance ToJSON ServiceProfile where
 --------------------------------------------------------------------------------
 -- ServiceProfilePage
 
-data ServiceProfilePage
-  = ServiceProfilePage
-      { serviceProfilePageHasMore :: !Bool,
-        serviceProfilePageResults :: ![ServiceProfile]
-      }
+data ServiceProfilePage = ServiceProfilePage
+  { serviceProfilePageHasMore :: !Bool,
+    serviceProfilePageResults :: ![ServiceProfile]
+  }
   deriving (Eq, Show)
 
 instance FromJSON ServiceProfilePage where
@@ -575,14 +558,13 @@ instance ToJSON ServiceProfilePage where
 -- UpdateService
 
 -- | Update service profile information.
-data UpdateService
-  = UpdateService
-      { updateServiceName :: !(Maybe Name),
-        updateServiceSummary :: !(Maybe (Range 1 128 Text)),
-        updateServiceDescr :: !(Maybe (Range 1 1024 Text)),
-        updateServiceAssets :: !(Maybe [Asset]),
-        updateServiceTags :: !(Maybe (Range 1 3 (Set ServiceTag)))
-      }
+data UpdateService = UpdateService
+  { updateServiceName :: !(Maybe Name),
+    updateServiceSummary :: !(Maybe (Range 1 128 Text)),
+    updateServiceDescr :: !(Maybe (Range 1 1024 Text)),
+    updateServiceAssets :: !(Maybe [Asset]),
+    updateServiceTags :: !(Maybe (Range 1 3 (Set ServiceTag)))
+  }
 
 instance FromJSON UpdateService where
   parseJSON = withObject "UpdateService" $ \o ->
@@ -607,14 +589,13 @@ instance ToJSON UpdateService where
 
 -- | Update service connection information.
 -- This operation requires re-authentication via password.
-data UpdateServiceConn
-  = UpdateServiceConn
-      { updateServiceConnPassword :: !PlainTextPassword,
-        updateServiceConnUrl :: !(Maybe HttpsUrl),
-        updateServiceConnKeys :: !(Maybe (Range 1 2 [ServiceKeyPEM])),
-        updateServiceConnTokens :: !(Maybe (Range 1 2 [ServiceToken])),
-        updateServiceConnEnabled :: !(Maybe Bool)
-      }
+data UpdateServiceConn = UpdateServiceConn
+  { updateServiceConnPassword :: !PlainTextPassword,
+    updateServiceConnUrl :: !(Maybe HttpsUrl),
+    updateServiceConnKeys :: !(Maybe (Range 1 2 [ServiceKeyPEM])),
+    updateServiceConnTokens :: !(Maybe (Range 1 2 [ServiceToken])),
+    updateServiceConnEnabled :: !(Maybe Bool)
+  }
 
 mkUpdateServiceConn :: PlainTextPassword -> UpdateServiceConn
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
@@ -641,9 +622,8 @@ instance ToJSON UpdateServiceConn where
 -- DeleteService
 
 -- | Input data for a service deletion request.
-newtype DeleteService
-  = DeleteService
-      {deleteServicePassword :: PlainTextPassword}
+newtype DeleteService = DeleteService
+  {deleteServicePassword :: PlainTextPassword}
 
 instance FromJSON DeleteService where
   parseJSON = withObject "DeleteService" $ \o ->
@@ -658,12 +638,11 @@ instance ToJSON DeleteService where
 --------------------------------------------------------------------------------
 -- UpdateServiceWhitelist
 
-data UpdateServiceWhitelist
-  = UpdateServiceWhitelist
-      { updateServiceWhitelistProvider :: !ProviderId,
-        updateServiceWhitelistService :: !ServiceId,
-        updateServiceWhitelistStatus :: !Bool
-      }
+data UpdateServiceWhitelist = UpdateServiceWhitelist
+  { updateServiceWhitelistProvider :: !ProviderId,
+    updateServiceWhitelistService :: !ServiceId,
+    updateServiceWhitelistStatus :: !Bool
+  }
   deriving (Eq, Show)
 
 instance FromJSON UpdateServiceWhitelist where
@@ -684,12 +663,11 @@ instance ToJSON UpdateServiceWhitelist where
 -- AddBot
 
 -- | Input data for adding a bot to a conversation.
-data AddBot
-  = AddBot
-      { addBotProvider :: !ProviderId,
-        addBotService :: !ServiceId,
-        addBotLocale :: !(Maybe Locale)
-      }
+data AddBot = AddBot
+  { addBotProvider :: !ProviderId,
+    addBotService :: !ServiceId,
+    addBotLocale :: !(Maybe Locale)
+  }
 
 instance FromJSON AddBot where
   parseJSON = withObject "NewBot" $ \o ->
@@ -705,15 +683,14 @@ instance ToJSON AddBot where
         # "locale" .= addBotLocale n
         # []
 
-data AddBotResponse
-  = AddBotResponse
-      { rsAddBotId :: !BotId,
-        rsAddBotClient :: !ClientId,
-        rsAddBotName :: !Name,
-        rsAddBotColour :: !ColourId,
-        rsAddBotAssets :: ![Asset],
-        rsAddBotEvent :: !Event
-      }
+data AddBotResponse = AddBotResponse
+  { rsAddBotId :: !BotId,
+    rsAddBotClient :: !ClientId,
+    rsAddBotName :: !Name,
+    rsAddBotColour :: !ColourId,
+    rsAddBotAssets :: ![Asset],
+    rsAddBotEvent :: !Event
+  }
 
 instance FromJSON AddBotResponse where
   parseJSON = withObject "AddBotResponse" $ \o ->
@@ -740,10 +717,9 @@ instance ToJSON AddBotResponse where
 
 -- (There is no request payload for bot removal)
 
-newtype RemoveBotResponse
-  = RemoveBotResponse
-      { rsRemoveBotEvent :: Event
-      }
+newtype RemoveBotResponse = RemoveBotResponse
+  { rsRemoveBotEvent :: Event
+  }
 
 instance FromJSON RemoveBotResponse where
   parseJSON = withObject "RemoveBotResponse" $ \o ->
@@ -758,10 +734,9 @@ instance ToJSON RemoveBotResponse where
 --------------------------------------------------------------------------------
 -- UpdateBotPrekeys
 
-newtype UpdateBotPrekeys
-  = UpdateBotPrekeys
-      { updateBotPrekeyList :: [Prekey]
-      }
+newtype UpdateBotPrekeys = UpdateBotPrekeys
+  { updateBotPrekeyList :: [Prekey]
+  }
 
 instance FromJSON UpdateBotPrekeys where
   parseJSON = withObject "UpdateBotPrekeys" $ \o ->

@@ -42,6 +42,7 @@ import Bilge
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens (makeLenses)
+import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.TH
@@ -61,29 +62,30 @@ type SparReq = Request -> Request
 
 type TestSpar = ReaderT TestEnv IO
 
+instance MonadRandom TestSpar where
+  getRandomBytes = lift . getRandomBytes
+
 -- | See 'mkEnv' about what's in here.
-data TestEnv
-  = TestEnv
-      { _teMgr :: Manager,
-        _teCql :: Cas.ClientState,
-        _teBrig :: BrigReq,
-        _teGalley :: GalleyReq,
-        _teSpar :: SparReq,
-        _teSparEnv :: Spar.Env,
-        -- | spar config
-        _teOpts :: Opts,
-        -- | integration test config
-        _teTstOpts :: IntegrationConfig
-      }
+data TestEnv = TestEnv
+  { _teMgr :: Manager,
+    _teCql :: Cas.ClientState,
+    _teBrig :: BrigReq,
+    _teGalley :: GalleyReq,
+    _teSpar :: SparReq,
+    _teSparEnv :: Spar.Env,
+    -- | spar config
+    _teOpts :: Opts,
+    -- | integration test config
+    _teTstOpts :: IntegrationConfig
+  }
 
 type Select = TestEnv -> (Request -> Request)
 
-data IntegrationConfig
-  = IntegrationConfig
-      { cfgBrig :: Endpoint,
-        cfgGalley :: Endpoint,
-        cfgSpar :: Endpoint
-      }
+data IntegrationConfig = IntegrationConfig
+  { cfgBrig :: Endpoint,
+    cfgGalley :: Endpoint,
+    cfgSpar :: Endpoint
+  }
   deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig

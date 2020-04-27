@@ -39,13 +39,12 @@ import Data.HashMap.Strict (fromList)
 import qualified Data.Text as T
 import Imports hiding (isDigit)
 
-data TinyLogRecord
-  = TinyLogRecord
-      { tDate :: !(Maybe Text),
-        tLevel :: !Char,
-        tFields :: [(Text, Text)],
-        tMessage :: !Text
-      }
+data TinyLogRecord = TinyLogRecord
+  { tDate :: !(Maybe Text),
+    tLevel :: !Char,
+    tFields :: [(Text, Text)],
+    tMessage :: !Text
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent TinyLogRecord where

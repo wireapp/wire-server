@@ -56,9 +56,8 @@ instance ToJSON AccountStatus where
   toJSON Deleted = String "deleted"
   toJSON Ephemeral = String "ephemeral"
 
-newtype AccountStatusUpdate
-  = AccountStatusUpdate
-      {suStatus :: AccountStatus}
+newtype AccountStatusUpdate = AccountStatusUpdate
+  {suStatus :: AccountStatus}
   deriving (Generic)
 
 instance FromJSON AccountStatusUpdate where
@@ -71,12 +70,11 @@ instance ToJSON AccountStatusUpdate where
 -------------------------------------------------------------------------------
 -- ConnectionStatus
 
-data ConnectionStatus
-  = ConnectionStatus
-      { csFrom :: !UserId,
-        csTo :: !UserId,
-        csStatus :: !Relation
-      }
+data ConnectionStatus = ConnectionStatus
+  { csFrom :: !UserId,
+    csTo :: !UserId,
+    csStatus :: !Relation
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON ConnectionStatus where
@@ -99,11 +97,10 @@ instance ToJSON ConnectionStatus where
 -- | A UserAccount is targeted to be used by our \"backoffice\" and represents
 -- all the data related to a user in our system, regardless of whether they
 -- are active or not, their status, etc.
-data UserAccount
-  = UserAccount
-      { accountUser :: !User,
-        accountStatus :: !AccountStatus
-      }
+data UserAccount = UserAccount
+  { accountUser :: !User,
+    accountStatus :: !AccountStatus
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON UserAccount where
@@ -123,10 +120,9 @@ instance ToJSON UserAccount where
 
 -- | Set of user ids, can be used for different purposes (e.g., used on the internal
 -- APIs for auto-connections, listing user's clients)
-data UserSet
-  = UserSet
-      { usUsrs :: !(Set UserId)
-      }
+data UserSet = UserSet
+  { usUsrs :: !(Set UserId)
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON UserSet where
@@ -144,9 +140,8 @@ instance ToJSON UserSet where
 
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
-newtype ReAuthUser
-  = ReAuthUser
-      {reAuthPassword :: Maybe PlainTextPassword}
+newtype ReAuthUser = ReAuthUser
+  {reAuthPassword :: Maybe PlainTextPassword}
   deriving (Eq, Show, Generic)
 
 instance FromJSON ReAuthUser where

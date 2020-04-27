@@ -42,6 +42,7 @@ module Brig.IO.Intra
 
     -- * Teams
     addTeamMember,
+    checkUserCanJoinTeam,
     createTeam,
     getTeamMember,
     getTeamMembers,
@@ -71,7 +72,6 @@ import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
 import Control.Lens ((.~), (?~), (^.), view)
-import Control.Lens.Prism (_Just)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -93,6 +93,7 @@ import qualified Gundeck.Types.Push.V2 as Push
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding ((.=), name)
 
 -----------------------------------------------------------------------------
@@ -199,6 +200,7 @@ dispatchNotifications orig conn e = case e of
   UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
   UserUpdated {..}
+    -- This relies on the fact that we never change the locale AND something else.
     | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
     | otherwise -> notifyContacts event orig Push.RouteDirect conn
   UserActivated {} -> notifySelf event orig Push.RouteAny conn
@@ -327,9 +329,13 @@ notifyContacts events orig route conn = do
     contacts :: AppIO [UserId]
     contacts = lookupContactList orig
     teamContacts :: AppIO [UserId]
-    teamContacts = getUids <$> getTeamContacts orig
-    getUids :: Maybe Team.TeamMemberList -> [UserId]
-    getUids = fmap (view Team.userId) . view (_Just . Team.teamMembers)
+    teamContacts = screenMemberList =<< getTeamContacts orig
+    -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
+    screenMemberList :: Maybe Team.TeamMemberList -> AppIO [UserId]
+    screenMemberList (Just mems)
+      | mems ^. Team.teamMemberListType == Team.ListComplete =
+        return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
+    screenMemberList _ = return []
 
 -- Event Serialisation:
 
@@ -668,6 +674,23 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
+-- | Calls 'Galley.API.canUserJoinTeamH'.
+checkUserCanJoinTeam :: TeamId -> AppIO (Maybe Wai.Error)
+checkUserCanJoinTeam tid = do
+  debug $
+    remote "galley"
+      . msg (val "Check if can add member to team")
+  rs <- galleyRequest GET req
+  return $ case Bilge.statusCode rs of
+    200 -> Nothing
+    _ -> case decodeBody "galley" rs of
+      Just (e :: Wai.Error) -> return e
+      Nothing -> error ("Invalid response from galley: " <> show rs)
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "members", "check"]
+        . header "Content-Type" "application/json"
+
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
 addTeamMember u tid (minvmeta, role) = do
@@ -745,7 +768,7 @@ memberIsTeamOwner tid uid = do
       (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   pure $ responseStatus r /= status403
 
--- | Only works on 'BindingTeam's!
+-- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)

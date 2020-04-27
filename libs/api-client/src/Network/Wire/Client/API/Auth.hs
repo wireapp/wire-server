@@ -47,11 +47,10 @@ import Web.Cookie (parseSetCookie)
 
 newtype AuthCookie = AuthCookie Cookie
 
-data Auth
-  = Auth
-      { authCookie :: !AuthCookie,
-        authToken :: !AccessToken
-      }
+data Auth = Auth
+  { authCookie :: !AuthCookie,
+    authToken :: !AccessToken
+  }
 
 -------------------------------------------------------------------------------
 -- Unauthenticated

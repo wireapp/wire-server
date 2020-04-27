@@ -128,12 +128,11 @@ endMultipartBody = byteString "\r\n--frontier--\r\n"
 -- AssetHeaders
 
 -- | Headers provided during upload.
-data AssetHeaders
-  = AssetHeaders
-      { hdrType :: MIME.Type,
-        hdrLength :: Word,
-        hdrMD5 :: Digest MD5
-      }
+data AssetHeaders = AssetHeaders
+  { hdrType :: MIME.Type,
+    hdrLength :: Word,
+    hdrMD5 :: Digest MD5
+  }
 
 mkHeaders :: MIME.Type -> LByteString -> AssetHeaders
 mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
@@ -174,11 +173,10 @@ assetExpiringSeconds :: NominalDiffTime
 assetExpiringSeconds = 365 * 24 * 3600 -- 365 days
 
 -- | Settings provided during upload.
-data AssetSettings
-  = AssetSettings
-      { _setAssetPublic :: Bool,
-        _setAssetRetention :: Maybe AssetRetention
-      }
+data AssetSettings = AssetSettings
+  { _setAssetPublic :: Bool,
+    _setAssetRetention :: Maybe AssetRetention
+  }
 
 makeLenses ''AssetSettings
 
@@ -243,9 +241,8 @@ newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
   deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
 
 -- | A newly (re)generated token for an existing asset.
-newtype NewAssetToken
-  = NewAssetToken
-      {newAssetToken :: AssetToken}
+newtype NewAssetToken = NewAssetToken
+  {newAssetToken :: AssetToken}
 
 instance FromJSON NewAssetToken where
   parseJSON = withObject "NewAssetToken" $ \o ->
@@ -302,12 +299,11 @@ instance FromJSON AssetKey where
 -- Asset
 
 -- | A newly uploaded asset.
-data Asset
-  = Asset
-      { _assetKey :: AssetKey,
-        _assetExpires :: Maybe UTCTime,
-        _assetToken :: Maybe AssetToken
-      }
+data Asset = Asset
+  { _assetKey :: AssetKey,
+    _assetExpires :: Maybe UTCTime,
+    _assetToken :: Maybe AssetToken
+  }
 
 makeLenses ''Asset
 

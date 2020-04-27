@@ -86,10 +86,9 @@ newtype Histogram = Histogram P.Histogram
 -- NOTE: Until all metrics are fully migrated to Prometheus this should be a valid
 -- name according to collectd; e.g. @net.resources./teams/invitations/info@
 -- All names are converted into valid prometheus names when needed via 'toInfo'
-newtype Path
-  = Path
-      { _path :: Text
-      }
+newtype Path = Path
+  { _path :: Text
+  }
   deriving (Eq, Show, Hashable, Semigroup, Monoid)
 
 -- | Create a path
@@ -97,12 +96,11 @@ path :: Text -> Path
 path = Path
 
 -- | Opaque storage of metrics
-data Metrics
-  = Metrics
-      { counters :: IORef (HashMap Path Counter),
-        gauges :: IORef (HashMap Path Gauge),
-        histograms :: IORef (HashMap Path Histogram)
-      }
+data Metrics = Metrics
+  { counters :: IORef (HashMap Path Counter),
+    gauges :: IORef (HashMap Path Gauge),
+    histograms :: IORef (HashMap Path Histogram)
+  }
   deriving (Generic)
 
 -- Initialize an empty set of metrics
@@ -253,11 +251,10 @@ type Bucket = Double
 type Buckets = [Bucket]
 
 -- | Describes a histogram metric
-data HistogramInfo
-  = HistogramInfo
-      { hiPath :: Path,
-        hiBuckets :: Buckets
-      }
+data HistogramInfo = HistogramInfo
+  { hiPath :: Path,
+    hiBuckets :: Buckets
+  }
   deriving (Eq, Show)
 
 type RangeStart = Double

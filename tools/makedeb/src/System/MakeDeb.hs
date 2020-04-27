@@ -36,15 +36,14 @@ import Options.Applicative
 import Shelly
 import System.MakeDeb.FileUtils
 
-data MakeDebOpts
-  = MakeDebOpts
-      { name :: !Text,
-        version :: !Text,
-        build :: !Text,
-        arch :: !Text,
-        deb :: !FilePath,
-        out :: !FilePath
-      }
+data MakeDebOpts = MakeDebOpts
+  { name :: !Text,
+    version :: !Text,
+    build :: !Text,
+    arch :: !Text,
+    deb :: !FilePath,
+    out :: !FilePath
+  }
   deriving (Eq, Show)
 
 options :: Parser MakeDebOpts

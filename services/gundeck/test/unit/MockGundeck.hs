@@ -81,29 +81,26 @@ import Test.QuickCheck.Instances ()
 -- code, so in the end it is more awkward than nice.
 type Payload = List1 Aeson.Object
 
-data ClientInfo
-  = ClientInfo
-      { _ciNativeAddress :: Maybe (Address, Bool {- reachable -}),
-        _ciWSReachable :: Bool
-      }
+data ClientInfo = ClientInfo
+  { _ciNativeAddress :: Maybe (Address, Bool {- reachable -}),
+    _ciWSReachable :: Bool
+  }
   deriving (Eq, Show)
 
-newtype MockEnv
-  = MockEnv
-      { _meClientInfos :: Map UserId (Map ClientId ClientInfo)
-      }
+newtype MockEnv = MockEnv
+  { _meClientInfos :: Map UserId (Map ClientId ClientInfo)
+  }
   deriving (Eq, Show)
 
-data MockState
-  = MockState
-      { -- | A record of notifications that have been pushed via websockets.
-        _msWSQueue :: NotifQueue,
-        -- | A record of notifications that have been pushed via native push.
-        _msNativeQueue :: NotifQueue,
-        -- | Non-transient notifications that are stored in the database first thing before
-        -- delivery (so clients can always come back and pick them up later until they expire).
-        _msCassQueue :: NotifQueue
-      }
+data MockState = MockState
+  { -- | A record of notifications that have been pushed via websockets.
+    _msWSQueue :: NotifQueue,
+    -- | A record of notifications that have been pushed via native push.
+    _msNativeQueue :: NotifQueue,
+    -- | Non-transient notifications that are stored in the database first thing before
+    -- delivery (so clients can always come back and pick them up later until they expire).
+    _msCassQueue :: NotifQueue
+  }
   deriving (Eq)
 
 -- | For each client we store the set of notifications they are scheduled to receive.  Notification
@@ -401,9 +398,8 @@ shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) 
 ----------------------------------------------------------------------
 -- monad type and instances
 
-newtype MockGundeck a
-  = MockGundeck
-      {fromMockGundeck :: ReaderT MockEnv (StateT MockState (RandT StdGen Identity)) a}
+newtype MockGundeck a = MockGundeck
+  {fromMockGundeck :: ReaderT MockEnv (StateT MockState (RandT StdGen Identity)) a}
   deriving (Functor, Applicative, Monad, MonadReader MockEnv, MonadState MockState, MonadRandom)
 
 runMockGundeck :: MockEnv -> MockGundeck a -> (a, MockState)

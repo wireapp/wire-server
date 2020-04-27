@@ -56,14 +56,12 @@ data Failure
 
 instance Exception Failure
 
-newtype Env
-  = Env
-      {verifyFns :: Vector (Signature -> Strict.ByteString -> IO Bool)}
+newtype Env = Env
+  {verifyFns :: Vector (Signature -> Strict.ByteString -> IO Bool)}
 
-newtype Validate a
-  = Validate
-      { valid :: ExceptT Failure (ReaderT Env IO) a
-      }
+newtype Validate a = Validate
+  { valid :: ExceptT Failure (ReaderT Env IO) a
+  }
   deriving
     ( Functor,
       Applicative,

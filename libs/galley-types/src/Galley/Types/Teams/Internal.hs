@@ -36,24 +36,22 @@ data TeamBinding
   | NonBinding
   deriving (Eq, Show, Generic)
 
-data Team
-  = Team
-      { _teamId :: TeamId,
-        _teamCreator :: UserId,
-        _teamName :: Text,
-        _teamIcon :: Text,
-        _teamIconKey :: Maybe Text,
-        _teamBinding :: TeamBinding
-      }
+data Team = Team
+  { _teamId :: TeamId,
+    _teamCreator :: UserId,
+    _teamName :: Text,
+    _teamIcon :: Text,
+    _teamIconKey :: Maybe Text,
+    _teamBinding :: TeamBinding
+  }
   deriving (Eq, Show, Generic)
 
-data NewTeam a
-  = NewTeam
-      { _newTeamName :: Range 1 256 Text,
-        _newTeamIcon :: Range 1 256 Text,
-        _newTeamIconKey :: Maybe (Range 1 256 Text),
-        _newTeamMembers :: Maybe a
-      }
+data NewTeam a = NewTeam
+  { _newTeamName :: Range 1 256 Text,
+    _newTeamIcon :: Range 1 256 Text,
+    _newTeamIconKey :: Maybe (Range 1 256 Text),
+    _newTeamMembers :: Maybe a
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON TeamBinding where

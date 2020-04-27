@@ -24,6 +24,8 @@ import Brig.Types
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Fail (MonadFail)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (_String, key)
@@ -46,6 +48,8 @@ import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import qualified Galley.Options as Opts
+import qualified Galley.Run as Run
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Proto as Proto
@@ -54,6 +58,7 @@ import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification hiding (target)
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
@@ -76,6 +81,17 @@ createBindingTeam = do
   SQS.assertQueue "create team" SQS.tActivate
   refreshIndex
   pure (ownerid, tid)
+
+createBindingTeamWithMembers :: HasCallStack => Int -> TestM (TeamId, UserId, [UserId])
+createBindingTeamWithMembers numUsers = do
+  (owner, tid) <- createBindingTeam
+  members <- forM [2 .. numUsers] $ \n -> do
+    mem <- addUserToTeam owner tid
+    SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
+    refreshIndex
+    return $ view Galley.Types.Teams.userId $ mem
+
+  return (tid, owner, members)
 
 getTeams :: UserId -> TestM TeamList
 getTeams u = do
@@ -147,6 +163,12 @@ createBindingTeamInternalWithCurrency name owner cur = do
       !!! const 200 === statusCode
   return tid
 
+getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
+getTeamInternal tid = do
+  g <- view tsGalley
+  r <- get (g . paths ["i/teams", toByteString' tid]) <!! const 200 === statusCode
+  responseJsonError r
+
 getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
   g <- view tsGalley
@@ -178,6 +200,31 @@ getTeamMembersInternalTruncated tid n = do
       === statusCode
   responseJsonError r
 
+bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
+bulkGetTeamMembers usr tid uids = do
+  g <- view tsGalley
+  r <-
+    post
+      ( g
+          . paths ["teams", toByteString' tid, "get-members-by-ids-using-post"]
+          . zUser usr
+          . json (UserIdList uids)
+      )
+      <!! const 200
+      === statusCode
+  responseJsonError r
+
+bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
+bulkGetTeamMembersTruncated usr tid uids trnc = do
+  g <- view tsGalley
+  post
+    ( g
+        . paths ["teams", toByteString' tid, "get-members-by-ids-using-post"]
+        . zUser usr
+        . queryItem "maxResults" (C.pack $ show trnc)
+        . json (UserIdList uids)
+    )
+
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember usr tid mid = do
   g <- view tsGalley
@@ -198,11 +245,13 @@ addTeamMember usr tid mem = do
     !!! const 200 === statusCode
 
 addTeamMemberInternal :: HasCallStack => TeamId -> TeamMember -> TestM ()
-addTeamMemberInternal tid mem = do
+addTeamMemberInternal tid mem = addTeamMemberInternal' tid mem !!! const 200 === statusCode
+
+addTeamMemberInternal' :: HasCallStack => TeamId -> TeamMember -> TestM ResponseLBS
+addTeamMemberInternal' tid mem = do
   g <- view tsGalley
   let payload = json (newNewTeamMember mem)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
-    !!! const 200 === statusCode
 
 stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
 stdInvitationRequest e inviterName loc role =
@@ -211,22 +260,12 @@ stdInvitationRequest e inviterName loc role =
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
+addUserToTeam' :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+addUserToTeam' u t = snd <$> addUserToTeamWithRole' Nothing u t
+
 addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
-  brig <- view tsBrig
-  inviteeEmail <- randomEmail
-  let name = Name $ fromEmail inviteeEmail
-  let invite = stdInvitationRequest inviteeEmail name Nothing role
-  invResponse <- postInvitation tid inviter invite
-  inv <- responseJsonError invResponse
-  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
-  rsp2 <-
-    post
-      ( brig . path "/register"
-          . contentJson
-          . body (acceptInviteBody name inviteeEmail inviteeCode)
-      )
-      <!! const 201 === statusCode
+  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid -- TODO: <!! const 201 === statusCode
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
@@ -235,6 +274,23 @@ addUserToTeamWithRole role inviter tid = do
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   pure mem
+
+addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
+addUserToTeamWithRole' role inviter tid = do
+  brig <- view tsBrig
+  inviteeEmail <- randomEmail
+  let name = Name $ fromEmail inviteeEmail
+  let invite = stdInvitationRequest inviteeEmail name Nothing role
+  invResponse <- postInvitation tid inviter invite
+  inv <- responseJsonError invResponse
+  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  r <-
+    post
+      ( brig . path "/register"
+          . contentJson
+          . body (acceptInviteBody name inviteeEmail inviteeCode)
+      )
+  return (inv, r)
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
@@ -441,7 +497,17 @@ postOtrMessage ::
   ConvId ->
   [(UserId, ClientId, Text)] ->
   TestM ResponseLBS
-postOtrMessage f u d c rec = do
+postOtrMessage = postOtrMessage' Nothing
+
+postOtrMessage' ::
+  Maybe [OpaqueUserId] ->
+  (Request -> Request) ->
+  UserId ->
+  ClientId ->
+  ConvId ->
+  [(UserId, ClientId, Text)] ->
+  TestM ResponseLBS
+postOtrMessage' reportMissing f u d c rec = do
   g <- view tsGalley
   post $
     g
@@ -450,11 +516,17 @@ postOtrMessage f u d c rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec)
+      . json (mkOtrPayload d rec reportMissing)
 
+-- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
-postOtrBroadcastMessage f u d rec = do
+postOtrBroadcastMessage req usrs clt rcps = do
   g <- view tsGalley
+  postOtrBroadcastMessage' g Nothing req usrs clt rcps
+
+-- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
+postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
+postOtrBroadcastMessage' g reportMissingBody f u d rec = do
   post $
     g
       . f
@@ -462,14 +534,15 @@ postOtrBroadcastMessage f u d rec = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (mkOtrPayload d rec)
+      . json (mkOtrPayload d rec reportMissingBody)
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Value
-mkOtrPayload sender rec =
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [OpaqueUserId] -> Value
+mkOtrPayload sender rec reportMissingBody =
   object
     [ "sender" .= sender,
       "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec),
-      "data" .= Just ("data" :: Text)
+      "data" .= Just ("data" :: Text),
+      "report_missing" .= reportMissingBody
     ]
 
 mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
@@ -481,7 +554,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage u d c rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec Nothing)
    in post $
         g
           . paths ["conversations", toByteString' c, "otr", "messages"]
@@ -492,11 +565,15 @@ postProtoOtrMessage u d c rec = do
           . bytes m
 
 postProtoOtrBroadcast :: UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrBroadcast u d rec = do
+postProtoOtrBroadcast = postProtoOtrBroadcast' Nothing id
+
+postProtoOtrBroadcast' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrBroadcast' reportMissing modif u d rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
    in post $
         g
+          . modif
           . paths ["broadcast", "otr", "messages"]
           . zUser u
           . zConn "conn"
@@ -504,11 +581,14 @@ postProtoOtrBroadcast u d rec = do
           . contentProtobuf
           . bytes m
 
-mkOtrProtoMessage :: ClientId -> OtrRecipients -> Proto.NewOtrMessage
-mkOtrProtoMessage sender rec =
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [OpaqueUserId] -> Proto.NewOtrMessage
+mkOtrProtoMessage sender rec reportMissing =
   let rcps = Proto.fromOtrRecipients rec
       sndr = Proto.fromClientId sender
-   in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
+      rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
+   in Proto.newOtrMessage sndr rcps
+        & Proto.newOtrMessageData ?~ "data"
+        & Proto.newOtrMessageReportMissing .~ rmis
 
 getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvs u r s = do
@@ -1258,3 +1338,11 @@ postSSOUser name hasEmail ssoid teamid = do
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
+
+-- | This allows you to run requests against a galley instantiated using the given options.
+--   Note that ONLY 'galley' calls should occur within the provided action, calls to other
+--   services will fail.
+withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides opts action = liftIO $ do
+  (galleyApp, _) <- Run.mkApp opts
+  WaiTest.runSession action galleyApp

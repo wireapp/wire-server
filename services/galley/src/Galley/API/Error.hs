@@ -26,7 +26,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
 import Galley.Types.Conversations.Roles (Action)
-import Galley.Types.Teams (IsPerm)
+import Galley.Types.Teams (IsPerm, hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -112,6 +112,20 @@ actionDenied a =
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
+bulkGetMemberLimitExceeded :: Error
+bulkGetMemberLimitExceeded =
+  Error
+    status400
+    "too-many-uids"
+    ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
+
+broadcastLimitExceeded :: Error
+broadcastLimitExceeded =
+  Error
+    status400
+    "too-many-users-to-broadcast"
+    ("Too many users to fan out the broadcast event to.")
+
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 
@@ -126,6 +140,9 @@ invalidActions = Error status403 "invalid-actions" "The specified actions are in
 
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
+
+tooManyTeamMembersOnTeamWithLegalhold :: Error
+tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team legalhold service is enabled."
 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
@@ -153,6 +170,9 @@ invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot u
 
 codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+
+cannotEnableLegalHoldServiceLargeTeam :: Error
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"

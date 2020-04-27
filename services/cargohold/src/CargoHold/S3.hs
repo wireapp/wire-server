@@ -98,12 +98,11 @@ newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
 
 -- | Asset metadata tracked in S3.
-data S3AssetMeta
-  = S3AssetMeta
-      { v3AssetOwner :: V3.Principal,
-        v3AssetToken :: Maybe V3.AssetToken,
-        v3AssetType :: MIME.Type
-      }
+data S3AssetMeta = S3AssetMeta
+  { v3AssetOwner :: V3.Principal,
+    v3AssetToken :: Maybe V3.AssetToken,
+    v3AssetType :: MIME.Type
+  }
 
 uploadV3 ::
   V3.Principal ->
@@ -221,41 +220,39 @@ newtype S3ChunkNr = S3ChunkNr Word
 newtype S3ETag = S3ETag {s3ETag :: Text}
   deriving (Eq, Show, ToByteString, FromByteString)
 
-data S3Resumable
-  = S3Resumable
-      { -- | The resumable asset key.
-        resumableKey :: S3ResumableKey,
-        -- | The final asset key.
-        resumableAsset :: V3.AssetKey,
-        -- | The creator (i.e. owner).
-        resumableOwner :: V3.Principal,
-        -- | Size of each chunk.
-        resumableChunkSize :: V3.ChunkSize,
-        -- | Size of the final asset.
-        resumableTotalSize :: V3.TotalSize,
-        -- | MIME type of the final asset.
-        resumableType :: MIME.Type,
-        -- | Token of the final asset.
-        resumableToken :: Maybe V3.AssetToken,
-        -- | Expiry of the resumable upload.
-        resumableExpires :: UTCTime,
-        -- | S3 multipart upload ID, if any.
-        resumableUploadId :: Maybe Text,
-        resumableChunks :: Seq S3Chunk
-      }
+data S3Resumable = S3Resumable
+  { -- | The resumable asset key.
+    resumableKey :: S3ResumableKey,
+    -- | The final asset key.
+    resumableAsset :: V3.AssetKey,
+    -- | The creator (i.e. owner).
+    resumableOwner :: V3.Principal,
+    -- | Size of each chunk.
+    resumableChunkSize :: V3.ChunkSize,
+    -- | Size of the final asset.
+    resumableTotalSize :: V3.TotalSize,
+    -- | MIME type of the final asset.
+    resumableType :: MIME.Type,
+    -- | Token of the final asset.
+    resumableToken :: Maybe V3.AssetToken,
+    -- | Expiry of the resumable upload.
+    resumableExpires :: UTCTime,
+    -- | S3 multipart upload ID, if any.
+    resumableUploadId :: Maybe Text,
+    resumableChunks :: Seq S3Chunk
+  }
   deriving (Show)
 
-data S3Chunk
-  = S3Chunk
-      { -- | Sequence nr.
-        chunkNr :: S3ChunkNr,
-        -- | Offset of the first byte.
-        chunkOffset :: V3.Offset,
-        -- | (Actual) Size of the chunk.
-        chunkSize :: Word,
-        -- | S3 ETag.
-        chunkETag :: S3ETag
-      }
+data S3Chunk = S3Chunk
+  { -- | Sequence nr.
+    chunkNr :: S3ChunkNr,
+    -- | Offset of the first byte.
+    chunkOffset :: V3.Offset,
+    -- | (Actual) Size of the chunk.
+    chunkSize :: Word,
+    -- | S3 ETag.
+    chunkETag :: S3ETag
+  }
   deriving (Show)
 
 mkChunkNr :: S3Resumable -> V3.Offset -> S3ChunkNr
@@ -770,11 +767,10 @@ newtype HeadObjectX = HeadObjectX HeadObject
 headObjectX :: Text -> Text -> HeadObjectX
 headObjectX bucket key = HeadObjectX (headObject bucket key)
 
-data HeadObjectResponseX
-  = HeadObjectResponseX
-      { horxContentType :: Maybe ByteString,
-        horxMetadata :: Maybe ObjectMetadata
-      }
+data HeadObjectResponseX = HeadObjectResponseX
+  { horxContentType :: Maybe ByteString,
+    horxMetadata :: Maybe ObjectMetadata
+  }
 
 instance ResponseConsumer HeadObjectX HeadObjectResponseX where
   type ResponseMetadata HeadObjectResponseX = S3Metadata
@@ -795,24 +791,21 @@ instance SignQuery HeadObjectX where
 -- have our own minimal implementation. This should no longer be necessary
 -- once cargohold is migrated to use 'amazonka'.
 
-data ListParts
-  = ListParts
-      { lpUploadId :: Text,
-        lpBucket :: Text,
-        lpObject :: Text
-      }
+data ListParts = ListParts
+  { lpUploadId :: Text,
+    lpBucket :: Text,
+    lpObject :: Text
+  }
 
-newtype ListPartsResponse
-  = ListPartsResponse
-      { lprsParts :: Maybe [PartInfo]
-      }
+newtype ListPartsResponse = ListPartsResponse
+  { lprsParts :: Maybe [PartInfo]
+  }
 
-data PartInfo
-  = PartInfo
-      { piNr :: Word,
-        piETag :: Text,
-        piSize :: Word
-      }
+data PartInfo = PartInfo
+  { piNr :: Word,
+    piETag :: Text,
+    piSize :: Word
+  }
 
 instance SignQuery ListParts where
   type ServiceConfiguration ListParts = S3Configuration

@@ -47,6 +47,8 @@ module Galley.App
     fromOptionalJsonBody,
     fromProtoBody,
     initExtEnv,
+    fanoutLimit,
+    currentFanoutLimit,
   )
 where
 
@@ -66,12 +68,14 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import qualified Data.ProtocolBuffers as Proto
+import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
 import qualified Galley.Queue as Q
+import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -89,34 +93,31 @@ data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
 
 -- | Main application environment.
-data Env
-  = Env
-      { _reqId :: RequestId,
-        _monitor :: Metrics,
-        _options :: Opts,
-        _applog :: Logger,
-        _manager :: Manager,
-        _cstate :: ClientState,
-        _deleteQueue :: Q.Queue DeleteItem,
-        _extEnv :: ExtEnv,
-        _aEnv :: Maybe Aws.Env
-      }
+data Env = Env
+  { _reqId :: RequestId,
+    _monitor :: Metrics,
+    _options :: Opts,
+    _applog :: Logger,
+    _manager :: Manager,
+    _cstate :: ClientState,
+    _deleteQueue :: Q.Queue DeleteItem,
+    _extEnv :: ExtEnv,
+    _aEnv :: Maybe Aws.Env
+  }
 
 -- | Environment specific to the communication with external
 -- service providers.
-data ExtEnv
-  = ExtEnv
-      { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-      }
+data ExtEnv = ExtEnv
+  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
+  }
 
 makeLenses ''Env
 
 makeLenses ''ExtEnv
 
-newtype Galley a
-  = Galley
-      { unGalley :: ReaderT Env Client a
-      }
+newtype Galley a = Galley
+  { unGalley :: ReaderT Env Client a
+  }
   deriving
     ( Functor,
       Applicative,
@@ -128,6 +129,34 @@ newtype Galley a
       MonadReader Env,
       MonadClient
     )
+
+fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
+fanoutLimit = view options >>= return . currentFanoutLimit
+
+currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
+currentFanoutLimit o = do
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. optSettings ^. setMaxFanoutSize)
+  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+  unsafeRange (min maxTeamSize optFanoutLimit)
+
+-- Define some invariants for the options used
+validateOptions :: Logger.Logger -> Opts -> IO ()
+validateOptions l o = do
+  let settings = view optSettings o
+      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
+  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optFanoutLimit)) $
+    Logger.warn
+      l
+      ( msg
+          . val
+          $ "Your journaling events for teams larger than " <> toByteString' optFanoutLimit
+            <> " may have some admin user ids missing. \
+               \ This is fine for testing purposes but NOT for production use!!"
+      )
+  when (settings ^. setMaxConvSize > optFanoutLimit) $
+    error "setMaxConvSize cannot be > setTruncationLimit"
+  when (settings ^. setMaxTeamSize < optFanoutLimit) $
+    error "setMaxTeamSize cannot be < setTruncationLimit"
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
@@ -152,6 +181,7 @@ createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager o
+  validateOptions l o
   Env def m o l mgr <$> initCassandra o l
     <*> Q.new 16000
     <*> initExtEnv
@@ -216,7 +246,7 @@ initExtEnv = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-runGalley :: Env -> Request -> Galley ResponseReceived -> IO ResponseReceived
+runGalley :: Env -> Request -> Galley a -> IO a
 runGalley e r m =
   let e' = reqId .~ lookupReqId r $ e
    in evalGalley e' m

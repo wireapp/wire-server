@@ -26,12 +26,11 @@ import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Network.HTTP.Types
 
-data Error
-  = Error
-      { code :: !Status,
-        label :: !LText,
-        message :: !LText
-      }
+data Error = Error
+  { code :: !Status,
+    label :: !LText,
+    message :: !LText
+  }
   deriving (Show, Typeable)
 
 instance Exception Error

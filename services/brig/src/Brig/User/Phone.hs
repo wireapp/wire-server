@@ -91,11 +91,10 @@ sendLoginCall to c loc = do
 -------------------------------------------------------------------------------
 -- Activation SMS
 
-data ActivationSms
-  = ActivationSms
-      { actSmsTo :: !Phone,
-        actSmsCode :: !ActivationCode
-      }
+data ActivationSms = ActivationSms
+  { actSmsTo :: !Phone,
+    actSmsCode :: !ActivationCode
+  }
 
 renderActivationSms :: ActivationSms -> ActivationSmsTemplate -> TemplateBranding -> SMSMessage
 renderActivationSms ActivationSms {..} (ActivationSmsTemplate url t from) branding =
@@ -109,11 +108,10 @@ renderActivationSms ActivationSms {..} (ActivationSmsTemplate url t from) brandi
 -------------------------------------------------------------------------------
 -- Password Reset SMS
 
-data PasswordResetSms
-  = PasswordResetSms
-      { pwrSmsTo :: !Phone,
-        pwrSmsCode :: !PasswordResetCode
-      }
+data PasswordResetSms = PasswordResetSms
+  { pwrSmsTo :: !Phone,
+    pwrSmsCode :: !PasswordResetCode
+  }
 
 renderPasswordResetSms :: PasswordResetSms -> PasswordResetSmsTemplate -> TemplateBranding -> SMSMessage
 renderPasswordResetSms PasswordResetSms {..} (PasswordResetSmsTemplate t from) branding =
@@ -125,11 +123,10 @@ renderPasswordResetSms PasswordResetSms {..} (PasswordResetSmsTemplate t from) b
 -------------------------------------------------------------------------------
 -- Login SMS
 
-data LoginSms
-  = LoginSms
-      { loginSmsTo :: !Phone,
-        loginSmsCode :: !LoginCode
-      }
+data LoginSms = LoginSms
+  { loginSmsTo :: !Phone,
+    loginSmsCode :: !LoginCode
+  }
 
 renderLoginSms :: LoginSms -> LoginSmsTemplate -> TemplateBranding -> SMSMessage
 renderLoginSms LoginSms {..} (LoginSmsTemplate url t from) branding =
@@ -142,12 +139,11 @@ renderLoginSms LoginSms {..} (LoginSmsTemplate url t from) branding =
 -------------------------------------------------------------------------------
 -- Deletion SMS
 
-data DeletionSms
-  = DeletionSms
-      { delSmsTo :: !Phone,
-        delSmsKey :: !Code.Key,
-        delSmsCode :: !Code.Value
-      }
+data DeletionSms = DeletionSms
+  { delSmsTo :: !Phone,
+    delSmsKey :: !Code.Key,
+    delSmsCode :: !Code.Value
+  }
 
 renderDeletionSms :: DeletionSms -> DeletionSmsTemplate -> TemplateBranding -> SMSMessage
 renderDeletionSms DeletionSms {..} (DeletionSmsTemplate url txt from) branding =
@@ -163,11 +159,10 @@ renderDeletionSms DeletionSms {..} (DeletionSmsTemplate url txt from) branding =
 -------------------------------------------------------------------------------
 -- Activation Call
 
-data ActivationCall
-  = ActivationCall
-      { actCallTo :: !Phone,
-        actCallCode :: !ActivationCode
-      }
+data ActivationCall = ActivationCall
+  { actCallTo :: !Phone,
+    actCallCode :: !ActivationCode
+  }
 
 renderActivationCall :: ActivationCall -> ActivationCallTemplate -> Locale -> TemplateBranding -> Nexmo.Call
 renderActivationCall ActivationCall {..} (ActivationCallTemplate t) loc branding =
@@ -184,11 +179,10 @@ renderActivationCall ActivationCall {..} (ActivationCallTemplate t) loc branding
 -------------------------------------------------------------------------------
 -- Login Call
 
-data LoginCall
-  = LoginCall
-      { loginCallTo :: !Phone,
-        loginCallCode :: !LoginCode
-      }
+data LoginCall = LoginCall
+  { loginCallTo :: !Phone,
+    loginCallCode :: !LoginCode
+  }
 
 renderLoginCall :: LoginCall -> LoginCallTemplate -> Locale -> TemplateBranding -> Nexmo.Call
 renderLoginCall LoginCall {..} (LoginCallTemplate t) loc branding =

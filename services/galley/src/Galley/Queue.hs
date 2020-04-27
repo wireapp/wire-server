@@ -30,11 +30,10 @@ import qualified Control.Concurrent.STM as Stm
 import Imports
 import Numeric.Natural (Natural)
 
-data Queue a
-  = Queue
-      { _len :: Stm.TVar Word,
-        _queue :: Stm.TBQueue a
-      }
+data Queue a = Queue
+  { _len :: Stm.TVar Word,
+    _queue :: Stm.TBQueue a
+  }
 
 new :: MonadIO m => Natural -> m (Queue a)
 new n = liftIO $ Queue <$> Stm.newTVarIO 0 <*> Stm.newTBQueueIO n

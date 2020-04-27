@@ -62,9 +62,11 @@ import Data.Code
 import Data.Id
 import Data.IdMapping
 import Data.List (delete)
+import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import qualified Data.Map.Strict as Map
+import Data.Range
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
@@ -246,7 +248,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       e <- Data.removeMembers conv usr (Local <$> list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -305,7 +307,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(ConversationMessageTime
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -537,7 +539,7 @@ removeMember zusr zcon cid victim = do
             Mapped _ -> do
               -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
               pure ()
-          for_ (newPush (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+          for_ (newPush ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
           pure $ Updated event
@@ -566,7 +568,8 @@ handleOtrResult = \case
 postBotMessageH :: BotId ::: ConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postBotMessage zbot zcnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postBotMessage zbot zcnv val' message
 
 postBotMessage :: BotId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
@@ -575,12 +578,14 @@ postBotMessage zbot zcnv val message = do
 postProtoOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
 postOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
 postOtrMessage :: UserId -> ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
@@ -589,18 +594,28 @@ postOtrMessage zusr zcon cnv val message =
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  handleOtrResult <$> postOtrBroadcast zusr zcon val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH :: UserId ::: ConnId ::: OtrFilterMissing ::: JsonRequest NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   message <- fromJsonBody req
-  handleOtrResult <$> postOtrBroadcast zusr zcon val message
+  let val' = allowOtrFilterMissingInBody val message
+  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast :: UserId -> ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postOtrBroadcast zusr zcon val message =
   postNewOtrBroadcast zusr (Just zcon) val message
 
 -- internal OTR helpers
+
+-- This is a work-around for the fact that we sometimes want to send larger lists of user ids
+-- in the filter query than fits the url length limit.  for details, see
+-- https://github.com/zinfra/backend-issues/issues/1248
+allowOtrFilterMissingInBody :: OtrFilterMissing -> NewOtrMessage -> OtrFilterMissing
+allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrepmiss of
+  Nothing -> val
+  Just uids -> OtrReportMissing $ Set.fromList uids
 
 -- | bots are not supported on broadcast
 postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
@@ -657,7 +672,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush (evtFrom e) (ConvEvent e) [r]
+                newPush ListComplete (evtFrom e) (ConvEvent e) [r]
                   <&> set pushConn con
                   . set pushNativePriority (newOtrNativePriority msg)
                   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -686,7 +701,7 @@ updateConversationName zusr zcon cnv convRename = do
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -704,7 +719,7 @@ isTyping zusr zcon cnv typingData = do
     throwM convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -735,7 +750,7 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -771,7 +786,7 @@ rmBot zusr zcon b = do
       t <- liftIO getCurrentTime
       let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
       let e = Event MemberLeave (Data.convId c) zusr t evd
-      for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -788,16 +803,11 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   mems <- checkedMemberAddSize xs
   now <- liftIO getCurrentTime
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+  let allMembers = nubOrdOn memId (toList mm <> others)
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
-  where
-    allMembers new = foldl' fn new others
-      where
-        fn acc m
-          | any ((== memId m) . memId) acc = acc
-          | otherwise = m : acc
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
 ensureGroupConv c = case Data.convType c of
@@ -851,7 +861,7 @@ processUpdateMemberEvent zusr zcon cid users target update = do
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
   let ms = applyMemUpdateChanges target up
-  for_ (newPush (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -881,7 +891,16 @@ withValidOtrBroadcastRecipients ::
   ([(Member, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
-  tMembers <- fmap (view userId) <$> Data.teamMembersUnsafeForLargeTeams tid
+  limit <- fromIntegral . fromRange <$> fanoutLimit
+  -- If we are going to fan this out to more than limit, we want to fail early
+  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit) $
+    throwM broadcastLimitExceeded
+  -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
+  -- is used and length `report_missing` < limit since we cannot fetch larger teams than
+  -- that.
+  tMembers <- fmap (view userId) <$> case val of
+    OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
+    _ -> maybeFetchAllMembersInTeam tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing
@@ -891,6 +910,22 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       else Data.lookupClients users
   let membs = Data.newMember <$> users
   handleOtrResponse usr clt rcps membs clts val now go
+  where
+    maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
+      -- Get the users in the filter (remote ids are not in a local team)
+      (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (toList uListInFilter)
+      -- Get the users in the recipient list (remote ids are not in a local team)
+      (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
+      -- Put them in a single list, and ensure it's smaller than the max size
+      let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
+      unless (length localUserIdsToLookup <= limit) $
+        throwM broadcastLimitExceeded
+      Data.teamMembersLimited tid localUserIdsToLookup
+    maybeFetchAllMembersInTeam tid = do
+      mems <- Data.teamMembersForFanout tid
+      when (mems ^. teamMemberListType == ListTruncated) $
+        throwM broadcastLimitExceeded
+      pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
   UserId ->

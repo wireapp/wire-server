@@ -31,15 +31,13 @@ import qualified Data.Set as Set
 import Imports
 import System.CryptoBox (Session)
 
-data Clients
-  = Clients
-      { members :: TVar (Map ConvId (Set UserId)),
-        sessions :: TVar Sessions
-      }
+data Clients = Clients
+  { members :: TVar (Map ConvId (Set UserId)),
+    sessions :: TVar Sessions
+  }
 
-newtype Sessions
-  = Sessions
-      {clients :: Map UserId (Map ClientId Session)}
+newtype Sessions = Sessions
+  {clients :: Map UserId (Map ClientId Session)}
 
 empty :: IO Clients
 empty = Clients <$> newTVarIO Map.empty <*> newTVarIO (Sessions Map.empty)

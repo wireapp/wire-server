@@ -39,6 +39,7 @@ module Spar.Data
     insertSAMLUser,
     getSAMLUser,
     getSAMLAnyUserByIssuer,
+    getSAMLSomeUsersByIssuer,
     deleteSAMLUsersByIssuer,
     deleteSAMLUser,
 
@@ -48,6 +49,10 @@ module Spar.Data
 
     -- * IDPs
     storeIdPConfig,
+    Replaced (..),
+    Replacing (..),
+    setReplacedBy,
+    clearReplacedBy,
     getIdPConfig,
     getIdPConfigByIssuer,
     getIdPIdByIssuer,
@@ -100,7 +105,7 @@ import qualified Web.Scim.Class.User as ScimC.User
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 7
+schemaVersion = 8
 
 ----------------------------------------------------------------------
 -- helpers
@@ -108,12 +113,11 @@ schemaVersion = 7
 -- | Carry some time constants we do not want to pull from Options, IO, respectively.  This way the
 -- functions in this module need fewer effects.  See 'wrapMonadClientWithEnv' (as opposed to
 -- 'wrapMonadClient' where we don't need an 'Env').
-data Env
-  = Env
-      { dataEnvNow :: UTCTime,
-        dataEnvMaxTTLAuthRequests :: TTL "authreq",
-        dataEnvMaxTTLAssertions :: TTL "authresp"
-      }
+data Env = Env
+  { dataEnvNow :: UTCTime,
+    dataEnvMaxTTLAuthRequests :: TTL "authreq",
+    dataEnvMaxTTLAssertions :: TTL "authresp"
+  }
   deriving (Eq, Show)
 
 mkEnv :: Opts -> UTCTime -> Env
@@ -254,7 +258,7 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
--- | We only need to know if it's none or more, so this function returns the first one.
+-- | Sometimes we only need to know if it's none or more, so this function returns the first one.
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
 getSAMLAnyUserByIssuer issuer =
   runIdentity
@@ -262,6 +266,16 @@ getSAMLAnyUserByIssuer issuer =
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
+
+-- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
+-- IdP, and if we don't get all users we just try again when we're done with these.
+getSAMLSomeUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m [(SAML.UserRef, UserId)]
+getSAMLSomeUsersByIssuer issuer =
+  (_1 %~ SAML.UserRef issuer)
+    <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
+  where
+    sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
+    sel = "SELECT sso_id, uid FROM user WHERE issuer = ? LIMIT 2000"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser (SAML.UserRef tenant subject) =
@@ -315,12 +329,15 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
+-- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
+-- legitimate reason to store an IdP that has already been replaced.  and for updating an old
+-- one, call 'markReplacedIdP'.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPConfig TeamId ->
+  IdP ->
   m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
@@ -333,7 +350,9 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiOldIssuers,
+      idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
@@ -343,15 +362,42 @@ storeIdPConfig idp = retry x5 . batch $ do
   addPrepQuery
     byTeam
     ( idp ^. SAML.idpId,
-      idp ^. SAML.idpExtraInfo
+      idp ^. SAML.idpExtraInfo . wiTeam
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
+
+newtype Replaced = Replaced SAML.IdPId
+
+newtype Replacing = Replacing SAML.IdPId
+
+-- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
+setReplacedBy ::
+  (HasCallStack, MonadClient m) =>
+  Replaced ->
+  Replacing ->
+  m ()
+setReplacedBy (Replaced old) (Replacing new) = do
+  retry x5 . write ins $ params Quorum (new, old)
+  where
+    ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
+    ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?"
+
+-- | See also: 'setReplacedBy'.
+clearReplacedBy ::
+  (HasCallStack, MonadClient m) =>
+  Replaced ->
+  m ()
+clearReplacedBy (Replaced old) = do
+  retry x5 . write ins $ params Quorum (Identity old)
+  where
+    ins :: PrepQuery W (Identity SAML.IdPId) ()
+    ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
 
 getIdPConfig ::
   forall m.
@@ -370,13 +416,16 @@ getIdPConfig idpid =
         certsHead,
         certsTail,
         -- extras
-        _idpExtraInfo
+        teamId,
+        oldIssuers,
+        replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
+            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>

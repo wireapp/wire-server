@@ -44,9 +44,8 @@ newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
-newtype Timeout
-  = Timeout
-      {timeoutDiffTime :: NominalDiffTime}
+newtype Timeout = Timeout
+  {timeoutDiffTime :: NominalDiffTime}
   deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
 
 -- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
@@ -76,11 +75,10 @@ deriving instance Cql Value
 -- be a "value" but since we use "key" and "code" already in quite a few place in the API
 -- (but without a type, using plain fields). This will make it easier to re-use a key/value
 -- pair in the API, keeping "code" in the JSON for backwards compatibility
-data KeyValuePair
-  = KeyValuePair
-      { kcKey :: !Key,
-        kcCode :: !Value
-      }
+data KeyValuePair = KeyValuePair
+  { kcKey :: !Key,
+    kcCode :: !Value
+  }
   deriving (Eq, Generic, Show)
 
 deriveJSON toJSONFieldName ''KeyValuePair

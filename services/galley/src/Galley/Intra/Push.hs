@@ -84,11 +84,10 @@ pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 
-data Recipient
-  = Recipient
-      { _recipientUserId :: UserId,
-        _recipientClients :: RecipientClients
-      }
+data Recipient = Recipient
+  { _recipientUserId :: UserId,
+    _recipientClients :: RecipientClients
+  }
 
 makeLenses ''Recipient
 
@@ -98,36 +97,37 @@ recipient m = Recipient (memId m) RecipientClientsAll
 userRecipient :: UserId -> Recipient
 userRecipient u = Recipient u RecipientClientsAll
 
-data Push
-  = Push
-      { _pushConn :: Maybe ConnId,
-        _pushTransient :: Bool,
-        _pushRoute :: Gundeck.Route,
-        _pushNativePriority :: Maybe Gundeck.Priority,
-        _pushAsync :: Bool,
-        pushOrigin :: UserId,
-        pushRecipients :: List1 Recipient,
-        pushJson :: Object
-      }
+data Push = Push
+  { _pushConn :: Maybe ConnId,
+    _pushTransient :: Bool,
+    _pushRoute :: Gundeck.Route,
+    _pushNativePriority :: Maybe Gundeck.Priority,
+    _pushAsync :: Bool,
+    pushOrigin :: UserId,
+    pushRecipients :: List1 Recipient,
+    pushJson :: Object,
+    pushRecipientListType :: Teams.ListType
+  }
 
 makeLenses ''Push
 
-newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
-newPush1 from e rr =
+newPush1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = Gundeck.RouteAny,
       _pushNativePriority = Nothing,
       _pushAsync = False,
+      pushRecipientListType = recipientListType,
       pushJson = pushEventJson e,
       pushOrigin = from,
       pushRecipients = rr
     }
 
-newPush :: UserId -> PushEvent -> [Recipient] -> Maybe Push
-newPush _ _ [] = Nothing
-newPush u e (r : rr) = Just $ newPush1 u e (list1 r rr)
+newPush :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush _ _ _ [] = Nothing
+newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
@@ -143,7 +143,9 @@ pushSome (x : xs) = push (list1 x xs)
 -- more than 128 recipients.
 push :: List1 Push -> Galley ()
 push ps = do
-  let (async, sync) = partition _pushAsync (toList ps)
+  limit <- fanoutLimit
+  -- Do not fan out for very large teams
+  let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
   void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
   return ()
@@ -171,6 +173,13 @@ push ps = do
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
+    -- Ensure that under no circumstances we exceed the threshold
+    removeIfLargeFanout limit =
+      filter
+        ( \p ->
+            (pushRecipientListType p == Teams.ListComplete)
+              && (length (pushRecipients p) <= (fromIntegral $ fromRange limit))
+        )
 
 -----------------------------------------------------------------------------
 -- Helpers

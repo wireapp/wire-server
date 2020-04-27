@@ -59,22 +59,20 @@ data Command
   | Migrate ElasticSettings CassandraSettings
   deriving (Show)
 
-data ElasticSettings
-  = ElasticSettings
-      { _esServer :: URIRef Absolute,
-        _esIndex :: ES.IndexName,
-        _esIndexShardCount :: Int,
-        _esIndexReplicas :: ES.ReplicaCount,
-        _esIndexRefreshInterval :: NominalDiffTime
-      }
+data ElasticSettings = ElasticSettings
+  { _esServer :: URIRef Absolute,
+    _esIndex :: ES.IndexName,
+    _esIndexShardCount :: Int,
+    _esIndexReplicas :: ES.ReplicaCount,
+    _esIndexRefreshInterval :: NominalDiffTime
+  }
   deriving (Show)
 
-data CassandraSettings
-  = CassandraSettings
-      { _cHost :: String,
-        _cPort :: Word16,
-        _cKeyspace :: C.Keyspace
-      }
+data CassandraSettings = CassandraSettings
+  { _cHost :: String,
+    _cPort :: Word16,
+    _cKeyspace :: C.Keyspace
+  }
   deriving (Show)
 
 makeLenses ''ElasticSettings

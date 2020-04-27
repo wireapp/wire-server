@@ -51,12 +51,11 @@ import Network.BSD (getHostName)
 import Network.Socket
 import System.IO.Unsafe (unsafePerformIO)
 
-data BulkAction
-  = Index
-      { _index :: !IndexName,
-        _type :: !Text,
-        _id :: !(Maybe Text)
-      }
+data BulkAction = Index
+  { _index :: !IndexName,
+    _type :: !Text,
+    _id :: !(Maybe Text)
+  }
   deriving (Eq, Show)
 
 instance ToJSON BulkAction where
@@ -74,13 +73,12 @@ newtype IndexName = IndexName Text
 
 instance ToJSON IndexName
 
-data KibanaEvent
-  = KibanaEvent
-      { esTimestamp :: !ZonedTime,
-        esOrigin :: !Host,
-        esTags :: !Tags,
-        esMessage :: !Text
-      }
+data KibanaEvent = KibanaEvent
+  { esTimestamp :: !ZonedTime,
+    esOrigin :: !Host,
+    esTags :: !Tags,
+    esMessage :: !Text
+  }
   deriving (Eq, Show, Generic)
 
 deriving instance Eq ZonedTime

@@ -78,6 +78,7 @@ testMetricsEndpoint brig = do
     parseCount endpoint =
       manyTill anyChar (string ("http_request_duration_seconds_count{handler=\"" <> endpoint <> "\",method=\"GET\",status_code=\"200\"} "))
         *> decimal
+
 -- FUTUREWORK: check whether prometheus metrics are correct regarding timings:
 
 -- Do we have a bug here?

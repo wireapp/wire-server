@@ -58,20 +58,18 @@ import System.Random.MWC (GenIO)
 -----------------------------------------------------------------------------
 -- Cannon monad
 
-data Env
-  = Env
-      { mon :: !Metrics,
-        opts :: !Opts,
-        applog :: !Logger,
-        dict :: !(Dict Key Websocket),
-        reqId :: !RequestId,
-        env :: !WS.Env
-      }
+data Env = Env
+  { mon :: !Metrics,
+    opts :: !Opts,
+    applog :: !Logger,
+    dict :: !(Dict Key Websocket),
+    reqId :: !RequestId,
+    env :: !WS.Env
+  }
 
-newtype Cannon a
-  = Cannon
-      { unCannon :: ReaderT Env IO a
-      }
+newtype Cannon a = Cannon
+  { unCannon :: ReaderT Env IO a
+  }
   deriving
     ( Functor,
       Applicative,

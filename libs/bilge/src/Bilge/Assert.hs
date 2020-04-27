@@ -65,10 +65,9 @@ instance Contains a => Contains (Maybe a) where
 
 -- | A 'Writer' monad containing the list of assertions as predicate
 -- functions of a 'Response'.
-newtype Assertions a
-  = Assertions
-      { _assertions :: Writer [Response (Maybe Lazy.ByteString) -> Maybe String] a
-      }
+newtype Assertions a = Assertions
+  { _assertions :: Writer [Response (Maybe Lazy.ByteString) -> Maybe String] a
+  }
   deriving (Functor, Applicative, Monad)
 
 -- | Given an IO action to get a 'Response' and a set of assertions,

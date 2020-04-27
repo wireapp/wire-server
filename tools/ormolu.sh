@@ -70,7 +70,7 @@ echo "language extensions: $LANGUAGE_EXTS"
 
 FAILURES=0
 
-for hsfile in $(git grep -L "LANGUAGE CPP" | grep '\.hs$'); do
+for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
     ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || FAILED=1
     if [ "$FAILED" == "1" ]; then

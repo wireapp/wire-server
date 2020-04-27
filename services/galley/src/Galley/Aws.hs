@@ -71,19 +71,17 @@ deriving instance Typeable Error
 
 instance Exception Error
 
-data Env
-  = Env
-      { _awsEnv :: !AWS.Env,
-        _logger :: !Logger,
-        _eventQueue :: !QueueUrl
-      }
+data Env = Env
+  { _awsEnv :: !AWS.Env,
+    _logger :: !Logger,
+    _eventQueue :: !QueueUrl
+  }
 
 makeLenses ''Env
 
-newtype Amazon a
-  = Amazon
-      { unAmazon :: ReaderT Env (ResourceT IO) a
-      }
+newtype Amazon a = Amazon
+  { unAmazon :: ReaderT Env (ResourceT IO) a
+  }
   deriving
     ( Functor,
       Applicative,

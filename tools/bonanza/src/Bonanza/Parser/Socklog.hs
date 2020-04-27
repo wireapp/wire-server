@@ -43,13 +43,12 @@ import qualified Data.Text.Lazy.Builder.Int as T
 import Data.Time (UTCTime)
 import Imports
 
-data SockLogRecord a
-  = SockLogRecord
-      { sockTime :: !UTCTime,
-        sockOrigin :: Maybe Host,
-        sockTags :: [(Text, Text)],
-        sockMessage :: !a
-      }
+data SockLogRecord a = SockLogRecord
+  { sockTime :: !UTCTime,
+    sockOrigin :: Maybe Host,
+    sockTags :: [(Text, Text)],
+    sockMessage :: !a
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent a => ToLogEvent (SockLogRecord a) where
