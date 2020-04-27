@@ -52,11 +52,10 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 ----------------------------------------------------------------------
 -- OPTIONALLY QUALIFIED
 
-data OptionallyQualified a
-  = OptionallyQualified
-      { _oqLocalPart :: a,
-        _oqDomain :: Maybe Domain
-      }
+data OptionallyQualified a = OptionallyQualified
+  { _oqLocalPart :: a,
+    _oqDomain :: Maybe Domain
+  }
   deriving (Eq, Show)
 
 unqualified :: a -> OptionallyQualified a
@@ -89,11 +88,10 @@ instance FromByteString (OptionallyQualified Handle) where
 ----------------------------------------------------------------------
 -- QUALIFIED
 
-data Qualified a
-  = Qualified
-      { _qLocalPart :: a,
-        _qDomain :: Domain
-      }
+data Qualified a = Qualified
+  { _qLocalPart :: a,
+    _qDomain :: Domain
+  }
   deriving (Eq, Show, Generic)
 
 renderQualified :: (a -> Text) -> Qualified a -> Text

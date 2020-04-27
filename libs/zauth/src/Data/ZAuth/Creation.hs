@@ -60,17 +60,15 @@ import Imports
 import Sodium.Crypto.Sign
 import System.Random.MWC
 
-data Env
-  = Env
-      { keyIdx :: Int,
-        zSign :: Vector (Strict.ByteString -> IO Signature),
-        randGen :: GenIO
-      }
+data Env = Env
+  { keyIdx :: Int,
+    zSign :: Vector (Strict.ByteString -> IO Signature),
+    randGen :: GenIO
+  }
 
-newtype Create a
-  = Create
-      { zauth :: ReaderT Env IO a
-      }
+newtype Create a = Create
+  { zauth :: ReaderT Env IO a
+  }
   deriving
     ( Functor,
       Applicative,

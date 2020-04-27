@@ -683,7 +683,7 @@ checkUserCanJoinTeam tid = do
   rs <- galleyRequest GET req
   return $ case Bilge.statusCode rs of
     200 -> Nothing
-    _   -> case decodeBody "galley" rs of
+    _ -> case decodeBody "galley" rs of
       Just (e :: Wai.Error) -> return e
       Nothing -> error ("Invalid response from galley: " <> show rs)
   where

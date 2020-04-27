@@ -710,8 +710,8 @@ ensureNotTooLargeForLegalHold tid mems = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   when (length (mems ^. teamMembers) >= limit) $ do
     lhEnabled <- isLegalHoldEnabled tid
-    when lhEnabled
-      $ throwM tooManyTeamMembersOnTeamWithLegalhold
+    when lhEnabled $
+      throwM tooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn newMem memList = do
@@ -773,13 +773,13 @@ canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabled tid
   when (lhEnabled) $
     checkTeamSize
- where
-  checkTeamSize = do
-    (TeamSize size) <- BrigTeam.getSize tid
-    limit <- fromIntegral . fromRange <$> fanoutLimit
-    -- Teams larger than fanout limit cannot use legalhold
-    when (size >= limit) $ do
-      throwM tooManyTeamMembersOnTeamWithLegalhold
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      -- Teams larger than fanout limit cannot use legalhold
+      when (size >= limit) $ do
+        throwM tooManyTeamMembersOnTeamWithLegalhold
 
 -- Public endpoints for feature checks
 
@@ -874,12 +874,12 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     -- FUTUREWORK: We cannot enable legalhold on large teams right now
     LegalHoldEnabled -> checkTeamSize
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
- where
-  checkTeamSize = do
-    (TeamSize size) <- BrigTeam.getSize tid
-    limit <- fromIntegral . fromRange <$> fanoutLimit
-    when (size > limit) $ do
-      throwM cannotEnableLegalHoldServiceLargeTeam
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      when (size > limit) $ do
+        throwM cannotEnableLegalHoldServiceLargeTeam
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

@@ -239,8 +239,7 @@ validateServiceKey pem = liftIO $
 -- it's error-prone useless extra work to parse and render them from JSON over and over again.
 -- We'll just wrap them with this to give some level of typesafety and a reasonable JSON
 -- instance
-newtype OpaqueAuthToken
-  = OpaqueAuthToken
-      { opaqueAuthTokenToText :: Text
-      }
+newtype OpaqueAuthToken = OpaqueAuthToken
+  { opaqueAuthTokenToText :: Text
+  }
   deriving newtype (Eq, Show, FromJSON, ToJSON, ToByteString)

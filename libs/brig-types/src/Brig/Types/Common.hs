@@ -43,9 +43,8 @@ import Imports
 -- Name
 
 -- | Usually called display name.
-newtype Name
-  = Name
-      {fromName :: Text}
+newtype Name = Name
+  {fromName :: Text}
   deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString, Generic)
 
 instance FromJSON Name where
@@ -66,11 +65,10 @@ defaultAccentId = ColourId 0
 -- Email
 
 -- FUTUREWORK: replace this type with 'EmailAddress'
-data Email
-  = Email
-      { emailLocal :: !Text,
-        emailDomain :: !Text
-      }
+data Email = Email
+  { emailLocal :: !Text,
+    emailDomain :: !Text
+  }
   deriving (Eq, Ord, Generic)
 
 instance Show Email where
@@ -133,9 +131,8 @@ instance ToByteString Phone where
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout
 -- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout
-  = PhoneBudgetTimeout
-      {phoneBudgetTimeout :: NominalDiffTime}
+newtype PhoneBudgetTimeout = PhoneBudgetTimeout
+  {phoneBudgetTimeout :: NominalDiffTime}
   deriving (Eq, Show, Generic)
 
 instance FromJSON PhoneBudgetTimeout where
@@ -184,11 +181,10 @@ instance FromByteString PhonePrefix where
 instance ToByteString PhonePrefix where
   builder = builder . fromPhonePrefix
 
-data ExcludedPrefix
-  = ExcludedPrefix
-      { phonePrefix :: PhonePrefix,
-        comment :: Text
-      }
+data ExcludedPrefix = ExcludedPrefix
+  { phonePrefix :: PhonePrefix,
+    comment :: Text
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON ExcludedPrefix where
@@ -265,14 +261,13 @@ ssoIdentity _ = Nothing
 --
 -- TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
 -- move there.
-data UserSSOId
-  = UserSSOId
-      { -- | An XML blob pointing to the identity provider that can confirm
-        -- user's identity.
-        userSSOIdTenant :: Text,
-        -- | An XML blob specifying the user's ID on the identity provider's side.
-        userSSOIdSubject :: Text
-      }
+data UserSSOId = UserSSOId
+  { -- | An XML blob pointing to the identity provider that can confirm
+    -- user's identity.
+    userSSOIdTenant :: Text,
+    -- | An XML blob specifying the user's ID on the identity provider's side.
+    userSSOIdSubject :: Text
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON UserSSOId where
@@ -291,11 +286,10 @@ data AssetSize = AssetComplete | AssetPreview
   deriving (Eq, Show, Enum, Bounded, Generic)
 
 -- Note: Intended to be turned into a sum type to add further asset types.
-data Asset
-  = ImageAsset
-      { assetKey :: !Text,
-        assetSize :: !(Maybe AssetSize)
-      }
+data Asset = ImageAsset
+  { assetKey :: !Text,
+    assetSize :: !(Maybe AssetSize)
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON AssetSize where
@@ -357,11 +351,10 @@ parseCountry = hush . parseOnly countryParser
 -----------------------------------------------------------------------------
 -- Locale
 
-data Locale
-  = Locale
-      { lLanguage :: !Language,
-        lCountry :: !(Maybe Country)
-      }
+data Locale = Locale
+  { lLanguage :: !Language,
+    lCountry :: !(Maybe Country)
+  }
   deriving (Eq, Ord, Generic)
 
 locToText :: Locale -> Text
@@ -437,4 +430,5 @@ instance ToJSON ManagedBy where
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
+
 -- NB: when adding new types, please add a roundtrip test to "Test.Brig.Types.Common"

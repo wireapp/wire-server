@@ -56,20 +56,6 @@ packages:
     git: https://github.com/wireapp/hscim
     commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6
 - completed:
-    hackage: ormolu-0.0.3.1@sha256:d8ae7f63b4ae0d55ad21f189652b9b912de118eeb671af1e7a2e7173231535df,7980
-    pantry-tree:
-      size: 64583
-      sha256: aafd93fb839fda7b294a199048817517337df5e59258034006dfd1d7bb992af7
-  original:
-    hackage: ormolu-0.0.3.1
-- completed:
-    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
-    pantry-tree:
-      size: 18102
-      sha256: 3749da93f98300b35fe20e4947478a9ec081405e700e48d9d1998718c55e7eb2
-  original:
-    hackage: ghc-lib-parser-8.8.2.20200205@sha256:343f889f7b29f5ec07cf0d18d2a53f250fa5c002b6468a6a05b385d0191b8d34,8408
-- completed:
     cabal-file:
       size: 912
       sha256: 71d9fd9fd55cfb7b549eb2cecfb5258171be14669f990e4d05c6b3508dd5878b
@@ -552,6 +538,20 @@ packages:
       sha256: d98288879d370d53e741f0dafaad96de2a58f84556ce4a835322d4029e529b9d
   original:
     hackage: wai-route-0.4.0
+- completed:
+    hackage: ormolu-0.0.5.0@sha256:e5f49c51c6ebd8b3cd16113e585312de7315c1e1561fbb599988cebc61c14f4e,7956
+    pantry-tree:
+      size: 66187
+      sha256: fd591a96bb129610f89d23d2986b1b11dad8c1c41e23ea1c6f03340b7265b617
+  original:
+    hackage: ormolu-0.0.5.0
+- completed:
+    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
+    pantry-tree:
+      size: 19497
+      sha256: b11275740480138dd1fce4a22a2aa8835cddfecaa8da58a153f130b4575f9df5
+  original:
+    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
 snapshots:
 - completed:
     size: 524996

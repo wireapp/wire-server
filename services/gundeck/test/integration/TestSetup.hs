@@ -45,10 +45,9 @@ import qualified System.Logger as Log
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, testCase)
 
-newtype TestM a
-  = TestM
-      { runTestM :: ReaderT TestSetup (HttpT IO) a
-      }
+newtype TestM a = TestM
+  { runTestM :: ReaderT TestSetup (HttpT IO) a
+  }
   deriving
     ( Functor,
       Applicative,
@@ -69,16 +68,15 @@ newtype CannonR = CannonR {runCannonR :: Request -> Request}
 
 newtype GundeckR = GundeckR {runGundeckR :: Request -> Request}
 
-data TestSetup
-  = TestSetup
-      { _tsManager :: Manager,
-        _tsGundeck :: GundeckR,
-        _tsCannon :: CannonR,
-        _tsCannon2 :: CannonR,
-        _tsBrig :: BrigR,
-        _tsCass :: Cql.ClientState,
-        _tsLogger :: Log.Logger
-      }
+data TestSetup = TestSetup
+  { _tsManager :: Manager,
+    _tsGundeck :: GundeckR,
+    _tsCannon :: CannonR,
+    _tsCannon2 :: CannonR,
+    _tsBrig :: BrigR,
+    _tsCass :: Cql.ClientState,
+    _tsLogger :: Log.Logger
+  }
 
 makeLenses ''TestSetup
 

@@ -72,16 +72,15 @@ import Web.Cookie (SetCookie, renderSetCookie)
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
 
-data Env
-  = Env
-      { sparCtxOpts :: Opts,
-        sparCtxLogger :: Log.Logger,
-        sparCtxCas :: Cas.ClientState,
-        sparCtxHttpManager :: Bilge.Manager,
-        sparCtxHttpBrig :: Bilge.Request,
-        sparCtxHttpGalley :: Bilge.Request,
-        sparCtxRequestId :: RequestId
-      }
+data Env = Env
+  { sparCtxOpts :: Opts,
+    sparCtxLogger :: Log.Logger,
+    sparCtxCas :: Cas.ClientState,
+    sparCtxHttpManager :: Bilge.Manager,
+    sparCtxHttpBrig :: Bilge.Request,
+    sparCtxHttpGalley :: Bilge.Request,
+    sparCtxRequestId :: RequestId
+  }
 
 instance HasConfig Spar where
   getConfig = asks (saml . sparCtxOpts)

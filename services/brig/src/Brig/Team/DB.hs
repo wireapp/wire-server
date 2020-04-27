@@ -61,12 +61,11 @@ mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
 mkInvitationId :: IO InvitationId
 mkInvitationId = Id <$> nextRandom
 
-data InvitationInfo
-  = InvitationInfo
-      { iiCode :: InvitationCode,
-        iiTeam :: TeamId,
-        iiInvId :: InvitationId
-      }
+data InvitationInfo = InvitationInfo
+  { iiCode :: InvitationCode,
+    iiTeam :: TeamId,
+    iiInvId :: InvitationId
+  }
   deriving (Eq, Show)
 
 insertInvitation ::

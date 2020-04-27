@@ -76,21 +76,19 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 
-data Env
-  = Env
-      { _logger :: !Logger,
-        _sesQueue :: !(Maybe Text),
-        _userJournalQueue :: !(Maybe Text),
-        _prekeyTable :: !Text,
-        _amazonkaEnv :: !AWS.Env
-      }
+data Env = Env
+  { _logger :: !Logger,
+    _sesQueue :: !(Maybe Text),
+    _userJournalQueue :: !(Maybe Text),
+    _prekeyTable :: !Text,
+    _amazonkaEnv :: !AWS.Env
+  }
 
 makeLenses ''Env
 
-newtype Amazon a
-  = Amazon
-      { unAmazon :: ReaderT Env (ResourceT IO) a
-      }
+newtype Amazon a = Amazon
+  { unAmazon :: ReaderT Env (ResourceT IO) a
+  }
   deriving
     ( Functor,
       Applicative,

@@ -35,10 +35,9 @@ newtype Username = Username Text
 
 newtype Password = Password Text
 
-data SMTP
-  = SMTP
-      { _pool :: !(Pool SMTP.SMTPConnection)
-      }
+data SMTP = SMTP
+  { _pool :: !(Pool SMTP.SMTPConnection)
+  }
 
 data SMTPConnType
   = Plain

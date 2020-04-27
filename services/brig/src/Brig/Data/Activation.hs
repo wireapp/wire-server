@@ -50,13 +50,12 @@ import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Text.Printf (printf)
 
 --  | The information associated with the pending activation of a 'UserKey'.
-data Activation
-  = Activation
-      { -- | An opaque key for the original 'UserKey' pending activation.
-        activationKey :: !ActivationKey,
-        -- | The confidential activation code.
-        activationCode :: !ActivationCode
-      }
+data Activation = Activation
+  { -- | An opaque key for the original 'UserKey' pending activation.
+    activationKey :: !ActivationKey,
+    -- | The confidential activation code.
+    activationCode :: !ActivationCode
+  }
   deriving (Eq)
 
 data ActivationError

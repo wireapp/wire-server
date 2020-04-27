@@ -37,12 +37,11 @@ import System.IO (hPutStrLn, stderr)
 import URI.ByteString
 import Util.Options.Common
 
-data AWSEndpoint
-  = AWSEndpoint
-      { _awsHost :: !ByteString,
-        _awsSecure :: !Bool,
-        _awsPort :: !Int
-      }
+data AWSEndpoint = AWSEndpoint
+  { _awsHost :: !ByteString,
+    _awsSecure :: !Bool,
+    _awsPort :: !Int
+  }
   deriving (Eq, Show)
 
 instance FromByteString AWSEndpoint where
@@ -77,22 +76,20 @@ urlPort u = do
 
 makeLenses ''AWSEndpoint
 
-data Endpoint
-  = Endpoint
-      { _epHost :: !Text,
-        _epPort :: !Word16
-      }
+data Endpoint = Endpoint
+  { _epHost :: !Text,
+    _epPort :: !Word16
+  }
   deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Endpoint
 
 makeLenses ''Endpoint
 
-data CassandraOpts
-  = CassandraOpts
-      { _casEndpoint :: !Endpoint,
-        _casKeyspace :: !Text
-      }
+data CassandraOpts = CassandraOpts
+  { _casEndpoint :: !Endpoint,
+    _casKeyspace :: !Text
+  }
   deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''CassandraOpts

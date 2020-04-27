@@ -77,16 +77,15 @@ import Text.Printf (printf)
 --------------------------------------------------------------------------------
 -- Code
 
-data Code
-  = Code
-      { codeKey :: !Key,
-        codeScope :: !Scope,
-        codeValue :: !Value,
-        codeRetries :: !Retries,
-        codeTTL :: !Timeout,
-        codeFor :: !CodeFor,
-        codeAccount :: !(Maybe UUID)
-      }
+data Code = Code
+  { codeKey :: !Key,
+    codeScope :: !Scope,
+    codeValue :: !Value,
+    codeRetries :: !Retries,
+    codeTTL :: !Timeout,
+    codeFor :: !CodeFor,
+    codeAccount :: !(Maybe UUID)
+  }
   deriving (Eq, Show)
 
 data CodeFor
@@ -145,12 +144,11 @@ instance Cql Retries where
 -- | A contextual string that is hashed into the key to yield distinct keys in
 -- different contexts for the same email address or phone number.
 -- TODO: newtype KeyContext = KeyContext ByteString
-data Gen
-  = Gen
-      { genFor :: !CodeFor,
-        genKey :: !Key, -- Note [Unique keys]
-        genValue :: IO Value
-      }
+data Gen = Gen
+  { genFor :: !CodeFor,
+    genKey :: !Key, -- Note [Unique keys]
+    genValue :: IO Value
+  }
 
 -- | Initialise a 'Code' 'Gen'erator for a given natural key.
 mkGen :: MonadIO m => CodeFor -> m Gen

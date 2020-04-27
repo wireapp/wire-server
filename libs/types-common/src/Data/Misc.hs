@@ -96,10 +96,9 @@ instance Read IpAddr where
 
 instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
-newtype Port
-  = Port
-      { portNumber :: Word16
-      }
+newtype Port = Port
+  { portNumber :: Word16
+  }
   deriving (Eq, Ord, Show, Real, Enum, Num, Integral, NFData, Generic)
 
 instance Read Port where
@@ -123,11 +122,10 @@ instance FromJSON Port where
 --------------------------------------------------------------------------------
 -- Location
 
-data Location
-  = Location
-      { _latitude :: !Double,
-        _longitude :: !Double
-      }
+data Location = Location
+  { _latitude :: !Double,
+    _longitude :: !Double
+  }
   deriving (Eq, Ord, Generic)
 
 instance Show Location where
@@ -177,10 +175,9 @@ instance Cql Longitude where
 --------------------------------------------------------------------------------
 -- Time
 
-newtype Milliseconds
-  = Ms
-      { ms :: Word64
-      }
+newtype Milliseconds = Ms
+  { ms :: Word64
+  }
   deriving (Eq, Ord, Show, Num, Generic)
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
@@ -207,10 +204,9 @@ instance Cql Milliseconds where
 --------------------------------------------------------------------------------
 -- HttpsUrl
 
-newtype HttpsUrl
-  = HttpsUrl
-      { httpsUrl :: URIRef Absolute
-      }
+newtype HttpsUrl = HttpsUrl
+  { httpsUrl :: URIRef Absolute
+  }
   deriving (Eq, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
@@ -249,10 +245,9 @@ instance Cql HttpsUrl where
 -- Tag for Rsa encoded fingerprints
 data Rsa
 
-newtype Fingerprint a
-  = Fingerprint
-      { fingerprintBytes :: ByteString
-      }
+newtype Fingerprint a = Fingerprint
+  { fingerprintBytes :: ByteString
+  }
   deriving (Eq, Show, FromByteString, ToByteString, NFData, Generic)
 
 instance FromJSON (Fingerprint Rsa) where
@@ -273,9 +268,8 @@ instance Cql (Fingerprint a) where
 --------------------------------------------------------------------------------
 -- Password
 
-newtype PlainTextPassword
-  = PlainTextPassword
-      {fromPlainTextPassword :: Text}
+newtype PlainTextPassword = PlainTextPassword
+  {fromPlainTextPassword :: Text}
   deriving (Eq, ToJSON, Generic)
 
 instance Show PlainTextPassword where

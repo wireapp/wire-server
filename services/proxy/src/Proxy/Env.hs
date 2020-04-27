@@ -40,16 +40,15 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Proxy.Options
 import qualified System.Logger.Extended as Logger
 
-data Env
-  = Env
-      { _reqId :: !RequestId,
-        _monitor :: !Metrics,
-        _options :: !Opts,
-        _applog :: !Logger.Logger,
-        _manager :: !Manager,
-        _secrets :: !Config,
-        _loader :: !ThreadId
-      }
+data Env = Env
+  { _reqId :: !RequestId,
+    _monitor :: !Metrics,
+    _options :: !Opts,
+    _applog :: !Logger.Logger,
+    _manager :: !Manager,
+    _secrets :: !Config,
+    _loader :: !ThreadId
+  }
 
 makeLenses ''Env
 

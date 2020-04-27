@@ -578,13 +578,12 @@ assertHandleNotUsedElsewhere hndl uid = do
     assertHandleUnused' "userName does not match UserId" hndl uid
 
 -- | The information needed to synthesize a Scim user.
-data NeededInfo
-  = NeededInfo
-      { neededHandle :: Handle,
-        neededName :: Name,
-        neededExternalId :: Text,
-        neededRichInfo :: RichInfo
-      }
+data NeededInfo = NeededInfo
+  { neededHandle :: Handle,
+    neededName :: Name,
+    neededExternalId :: Text,
+    neededRichInfo :: RichInfo
+  }
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
 synthesizeScimUser info =
@@ -632,6 +631,7 @@ getOrCreateScimUser stiTeam brigUser = do
         . toExternalId
     toScimStoredUser'' uid = lift . lift . toScimStoredUser uid
     insertScimUser' uid = lift . lift . wrapMonadClient . Data.insertScimUser uid
+
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

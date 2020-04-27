@@ -39,11 +39,10 @@ partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
 
-data IdMapping a
-  = IdMapping
-      { idMappingLocal :: Id (Mapped a),
-        idMappingGlobal :: Qualified (Id a)
-      }
+data IdMapping a = IdMapping
+  { idMappingLocal :: Id (Mapped a),
+    idMappingGlobal :: Qualified (Id a)
+  }
   deriving (Show)
 
 ----------------------------------------------------------------------

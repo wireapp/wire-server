@@ -191,6 +191,7 @@ import UnliftIO.IO hiding (Handle, getMonotonicTime)
 import UnliftIO.IORef
 import UnliftIO.MVar
 import UnliftIO.STM
+import qualified Prelude as P
 import Prelude
   ( ($!),
     Bounded (..),
@@ -235,7 +236,6 @@ import Prelude
     subtract,
     undefined,
   )
-import qualified Prelude as P
 
 ----------------------------------------------------------------------------
 -- Type aliases

@@ -68,12 +68,11 @@ data UserEvent
   | UserLegalHoldEnabled !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
 
-data ConnectionEvent
-  = ConnectionUpdated
-      { ucConn :: !UserConnection,
-        ucPrev :: !(Maybe Relation),
-        ucName :: !(Maybe Name)
-      }
+data ConnectionEvent = ConnectionUpdated
+  { ucConn :: !UserConnection,
+    ucPrev :: !(Maybe Relation),
+    ucName :: !(Maybe Name)
+  }
 
 data PropertyEvent
   = PropertySet !UserId !PropertyKey !PropertyValue
@@ -84,12 +83,11 @@ data ClientEvent
   = ClientAdded !UserId !Client
   | ClientRemoved !UserId !Client
 
-data LegalHoldClientRequestedData
-  = LegalHoldClientRequestedData
-      { lhcTargetUser :: !UserId,
-        lhcLastPrekey :: !LastPrekey,
-        lhcClientId :: !ClientId
-      }
+data LegalHoldClientRequestedData = LegalHoldClientRequestedData
+  { lhcTargetUser :: !UserId,
+    lhcLastPrekey :: !LastPrekey,
+    lhcClientId :: !ClientId
+  }
   deriving stock (Show)
 
 emailRemoved :: UserId -> Email -> UserEvent

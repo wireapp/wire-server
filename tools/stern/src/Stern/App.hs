@@ -55,18 +55,17 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 
-data Env
-  = Env
-      { _brig :: !Bilge.Request,
-        _galley :: !Bilge.Request,
-        _gundeck :: !Bilge.Request,
-        _ibis :: !Bilge.Request,
-        _galeb :: !Bilge.Request,
-        _applog :: !Logger,
-        _metrics :: !Metrics.Metrics,
-        _requestId :: !Bilge.RequestId,
-        _httpManager :: !Bilge.Manager
-      }
+data Env = Env
+  { _brig :: !Bilge.Request,
+    _galley :: !Bilge.Request,
+    _gundeck :: !Bilge.Request,
+    _ibis :: !Bilge.Request,
+    _galeb :: !Bilge.Request,
+    _applog :: !Logger,
+    _metrics :: !Metrics.Metrics,
+    _requestId :: !Bilge.RequestId,
+    _httpManager :: !Bilge.Manager
+  }
 
 makeLenses ''Env
 

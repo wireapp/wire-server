@@ -158,14 +158,13 @@ tests mbConf p db b c g = do
 ----------------------------------------------------------------------------
 -- Config
 
-data Config
-  = Config
-      { privateKey :: FilePath,
-        publicKey :: FilePath,
-        cert :: FilePath,
-        botHost :: Text,
-        botPort :: Int
-      }
+data Config = Config
+  { privateKey :: FilePath,
+    publicKey :: FilePath,
+    cert :: FilePath,
+    botHost :: Text,
+    botPort :: Int
+  }
   deriving (Show, Generic)
 
 instance FromJSON Config
@@ -1605,17 +1604,16 @@ runService config mkApp go = do
       $ mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
-data TestBot
-  = TestBot
-      { testBotId :: !BotId,
-        testBotClient :: !ClientId,
-        testBotConv :: !Ext.BotConvView,
-        testBotToken :: !Text,
-        testBotLastPrekey :: !LastPrekey,
-        testBotPrekeys :: ![Prekey],
-        testBotLocale :: !Locale,
-        testBotOrigin :: !Ext.BotUserView
-      }
+data TestBot = TestBot
+  { testBotId :: !BotId,
+    testBotClient :: !ClientId,
+    testBotConv :: !Ext.BotConvView,
+    testBotToken :: !Text,
+    testBotLastPrekey :: !LastPrekey,
+    testBotPrekeys :: ![Prekey],
+    testBotLocale :: !Locale,
+    testBotOrigin :: !Ext.BotUserView
+  }
   deriving (Eq, Show)
 
 data TestBotEvent

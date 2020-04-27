@@ -62,7 +62,9 @@ selectTeamConvsFrom :: PrepQuery R (TeamId, OpaqueConvId) (ConvId, Bool)
 selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
 
 selectTeamMember ::
-  PrepQuery R (TeamId, UserId)
+  PrepQuery
+    R
+    (TeamId, UserId)
     ( Permissions,
       Maybe UserId,
       Maybe UTCTimeMillis,
@@ -72,7 +74,9 @@ selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from 
 
 -- | This query fetches **all** members of a team, it should always be paginated
 selectTeamMembers ::
-  PrepQuery R (Identity TeamId)
+  PrepQuery
+    R
+    (Identity TeamId)
     ( UserId,
       Permissions,
       Maybe UserId,
@@ -87,7 +91,9 @@ selectTeamMembers =
     |]
 
 selectTeamMembersFrom ::
-  PrepQuery R (TeamId, UserId)
+  PrepQuery
+    R
+    (TeamId, UserId)
     ( UserId,
       Permissions,
       Maybe UserId,
@@ -102,7 +108,9 @@ selectTeamMembersFrom =
     |]
 
 selectTeamMembers' ::
-  PrepQuery R (TeamId, [UserId])
+  PrepQuery
+    R
+    (TeamId, [UserId])
     ( UserId,
       Permissions,
       Maybe UserId,

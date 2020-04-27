@@ -693,6 +693,7 @@ testDeleteUserSSO brig galley = do
   -- delete second owner now, we don't enforce existence of emails in the backend
   updatePermissions user3 tid (creator', Team.rolePermissions Team.RoleMember) galley
   deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
+
 -- TODO:
 -- add sso service.  (we'll need a name for that now.)
 -- brig needs to notify the sso service about deletions!

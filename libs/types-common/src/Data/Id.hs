@@ -122,10 +122,9 @@ data NoId = NoId deriving (Eq, Show, Generic)
 
 instance NFData NoId where rnf a = seq a ()
 
-newtype Id a
-  = Id
-      { toUUID :: UUID
-      }
+newtype Id a = Id
+  { toUUID :: UUID
+  }
   deriving (Eq, Ord, NFData, Hashable, Generic)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
@@ -208,10 +207,9 @@ instance Arbitrary (Id a) where
 -- encryption, but there are still situations in which 'ClientId' is not applicable (See also:
 -- 'Presence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
 -- places.
-newtype ConnId
-  = ConnId
-      { fromConnId :: ByteString
-      }
+newtype ConnId = ConnId
+  { fromConnId :: ByteString
+  }
   deriving
     ( Eq,
       Ord,
@@ -235,10 +233,9 @@ instance FromJSON ConnId where
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
 -- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
 -- lives as long as the device is registered.  See also: 'ConnId'.
-newtype ClientId
-  = ClientId
-      { client :: Text
-      }
+newtype ClientId = ClientId
+  { client :: Text
+  }
   deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey, Generic)
 
 newClientId :: Word64 -> ClientId
@@ -275,9 +272,8 @@ instance DecodeWire ClientId where
 
 -- BotId -----------------------------------------------------------------------
 
-newtype BotId
-  = BotId
-      {botUserId :: UserId}
+newtype BotId = BotId
+  {botUserId :: UserId}
   deriving
     ( Eq,
       Ord,
@@ -303,10 +299,9 @@ instance Arbitrary BotId where
 
 -- RequestId -------------------------------------------------------------------
 
-newtype RequestId
-  = RequestId
-      { unRequestId :: ByteString
-      }
+newtype RequestId = RequestId
+  { unRequestId :: ByteString
+  }
   deriving
     ( Eq,
       Show,

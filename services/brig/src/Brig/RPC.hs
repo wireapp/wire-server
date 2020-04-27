@@ -89,11 +89,10 @@ serviceRequest nm svc m r = do
     rpc' nm service (method m . r)
 
 -- | Failed to parse a response from another service.
-data ParseException
-  = ParseException
-      { _parseExceptionRemote :: !Text,
-        _parseExceptionMsg :: String
-      }
+data ParseException = ParseException
+  { _parseExceptionRemote :: !Text,
+    _parseExceptionMsg :: String
+  }
 
 instance Show ParseException where
   show (ParseException r m) =

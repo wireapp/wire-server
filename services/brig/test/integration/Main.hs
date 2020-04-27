@@ -55,17 +55,16 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 
-data Config
-  = Config
-      -- internal endpoints
-      { brig :: Endpoint,
-        cannon :: Endpoint,
-        cargohold :: Endpoint,
-        galley :: Endpoint,
-        nginz :: Endpoint,
-        -- external provider
-        provider :: Provider.Config
-      }
+data Config = Config
+  -- internal endpoints
+  { brig :: Endpoint,
+    cannon :: Endpoint,
+    cargohold :: Endpoint,
+    galley :: Endpoint,
+    nginz :: Endpoint,
+    -- external provider
+    provider :: Provider.Config
+  }
   deriving (Show, Generic)
 
 instance FromJSON Config

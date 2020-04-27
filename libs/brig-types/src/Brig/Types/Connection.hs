@@ -65,60 +65,54 @@ data Relation
 --
 -- Connection states have a direction -- e.g. if A sends a connection request to B, we'll
 -- create connections (A, B, Sent) and (B, A, Pending).
-data UserConnection
-  = UserConnection
-      { ucFrom :: !UserId,
-        ucTo :: !UserId,
-        ucStatus :: !Relation,
-        -- | When 'ucStatus' was last changed
-        ucLastUpdate :: !UTCTimeMillis,
-        ucMessage :: !(Maybe Message),
-        ucConvId :: !(Maybe ConvId)
-      }
+data UserConnection = UserConnection
+  { ucFrom :: !UserId,
+    ucTo :: !UserId,
+    ucStatus :: !Relation,
+    -- | When 'ucStatus' was last changed
+    ucLastUpdate :: !UTCTimeMillis,
+    ucMessage :: !(Maybe Message),
+    ucConvId :: !(Maybe ConvId)
+  }
   deriving (Eq, Show, Generic)
 
 -- | Payload type for a connection request from one user to another.
-data ConnectionRequest
-  = ConnectionRequest
-      { -- | Connection recipient
-        crUser :: !OpaqueUserId,
-        -- | Name of the conversation to be created
-        crName :: !Text,
-        -- | Initial message
-        crMessage :: !Message
-      }
+data ConnectionRequest = ConnectionRequest
+  { -- | Connection recipient
+    crUser :: !OpaqueUserId,
+    -- | Name of the conversation to be created
+    crName :: !Text,
+    -- | Initial message
+    crMessage :: !Message
+  }
   deriving (Eq, Show, Generic)
 
 -- | Payload type for "please change the status of this connection".
-data ConnectionUpdate
-  = ConnectionUpdate
-      { cuStatus :: !Relation
-      }
+data ConnectionUpdate = ConnectionUpdate
+  { cuStatus :: !Relation
+  }
   deriving (Eq, Show, Generic)
 
 -- | Response type for endpoints returning lists of connections.
-data UserConnectionList
-  = UserConnectionList
-      { clConnections :: [UserConnection],
-        -- | Pagination flag ("we have more results")
-        clHasMore :: !Bool
-      }
+data UserConnectionList = UserConnectionList
+  { clConnections :: [UserConnection],
+    -- | Pagination flag ("we have more results")
+    clHasMore :: !Bool
+  }
   deriving (Eq, Show, Generic)
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
 -- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
 -- 'Accepted' state.
-data UserIds
-  = UserIds
-      {cUsers :: [UserId]}
+data UserIds = UserIds
+  {cUsers :: [UserId]}
   deriving (Eq, Show, Generic)
 
 -- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
-data ConnectionsStatusRequest
-  = ConnectionsStatusRequest
-      { csrFrom :: ![UserId],
-        csrTo :: ![UserId]
-      }
+data ConnectionsStatusRequest = ConnectionsStatusRequest
+  { csrFrom :: ![UserId],
+    csrTo :: ![UserId]
+  }
   deriving (Eq, Show, Generic)
 
 ----------------------------------------------------------------------------

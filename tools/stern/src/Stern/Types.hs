@@ -45,19 +45,17 @@ instance ToJSON TeamMemberInfo where
           $ M.insert "can_view_billing" (Bool (hasPermission m GetBilling))
           $ o
 
-data TeamInfo
-  = TeamInfo
-      { tiData :: TeamData,
-        tiMembers :: [TeamMemberInfo]
-      }
+data TeamInfo = TeamInfo
+  { tiData :: TeamData,
+    tiMembers :: [TeamMemberInfo]
+  }
 
-data TeamAdminInfo
-  = TeamAdminInfo
-      { taData :: TeamData,
-        taOwners :: [TeamMemberInfo],
-        taAdmins :: [TeamMemberInfo],
-        taMembers :: Int
-      }
+data TeamAdminInfo = TeamAdminInfo
+  { taData :: TeamData,
+    taOwners :: [TeamMemberInfo],
+    taAdmins :: [TeamMemberInfo],
+    taMembers :: Int
+  }
 
 toAdminInfo :: TeamInfo -> TeamAdminInfo
 toAdminInfo (TeamInfo d members) =
@@ -91,10 +89,9 @@ instance ToJSON TeamAdminInfo where
         "total_members" .= m
       ]
 
-newtype UserProperties
-  = UserProperties
-      { unUserProperties :: M.HashMap PropertyKey PropertyValue
-      }
+newtype UserProperties = UserProperties
+  { unUserProperties :: M.HashMap PropertyKey PropertyValue
+  }
   deriving (Eq, Show, ToJSON)
 
 -- | NOTE: The following datatypes are defined by services used only internally at Wire
@@ -108,53 +105,48 @@ newtype UserProperties
 -- Note that we define them simply as JSON objects since we use them as a read-only and all info is to
 -- be displayed to clients. Thus, it seems harmless (and easier) to just consume the whole object and
 -- simply use whatever galeb's JSON object looks like
-newtype ConsentLog
-  = ConsentLog
-      { unConsentLog :: Object
-      }
+newtype ConsentLog = ConsentLog
+  { unConsentLog :: Object
+  }
   deriving (Eq, Show, ToJSON, FromJSON)
 
-newtype ConsentValue
-  = ConsentValue
-      { unConsentValue :: Object
-      }
+newtype ConsentValue = ConsentValue
+  { unConsentValue :: Object
+  }
   deriving (Eq, Show, ToJSON, FromJSON)
 
-newtype MarketoResult
-  = MarketoResult
-      { unMarketoResult :: Object
-      }
+newtype MarketoResult = MarketoResult
+  { unMarketoResult :: Object
+  }
   deriving (Eq, Show, ToJSON, FromJSON)
 
 newtype InvoiceId = InvoiceId {unInvoiceId :: Text}
   deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON)
 
-data TeamBillingInfo
-  = TeamBillingInfo
-      { tbiFirstname :: Text,
-        tbiLastname :: Text,
-        tbiStreet :: Text,
-        tbiZip :: Text,
-        tbiCity :: Text,
-        tbiCountry :: Text,
-        tbiCompany :: Maybe Text,
-        tbiState :: Maybe Text
-      }
+data TeamBillingInfo = TeamBillingInfo
+  { tbiFirstname :: Text,
+    tbiLastname :: Text,
+    tbiStreet :: Text,
+    tbiZip :: Text,
+    tbiCity :: Text,
+    tbiCountry :: Text,
+    tbiCompany :: Maybe Text,
+    tbiState :: Maybe Text
+  }
   deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfo
 
-data TeamBillingInfoUpdate
-  = TeamBillingInfoUpdate
-      { tbiuFirstname :: Maybe (Range 1 256 Text),
-        tbiuLastname :: Maybe (Range 1 256 Text),
-        tbiuStreet :: Maybe (Range 1 256 Text),
-        tbiuZip :: Maybe (Range 1 16 Text),
-        tbiuCity :: Maybe (Range 1 256 Text),
-        tbiuCountry :: Maybe (Range 1 256 Text),
-        tbiuCompany :: Maybe (Range 1 256 Text),
-        tbiuState :: Maybe (Range 1 256 Text)
-      }
+data TeamBillingInfoUpdate = TeamBillingInfoUpdate
+  { tbiuFirstname :: Maybe (Range 1 256 Text),
+    tbiuLastname :: Maybe (Range 1 256 Text),
+    tbiuStreet :: Maybe (Range 1 256 Text),
+    tbiuZip :: Maybe (Range 1 16 Text),
+    tbiuCity :: Maybe (Range 1 256 Text),
+    tbiuCountry :: Maybe (Range 1 256 Text),
+    tbiuCompany :: Maybe (Range 1 256 Text),
+    tbiuState :: Maybe (Range 1 256 Text)
+  }
   deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate

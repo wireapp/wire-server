@@ -624,10 +624,11 @@ renewToken tok = do
 putEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
 putEnabled tid enabled = void $ putEnabled' expect2xx tid enabled
 
-putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) ->TeamId -> LegalHoldStatus -> TestM ResponseLBS
+putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> LegalHoldStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- view tsGalley
-  put $ g
+  put $
+    g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . json (LegalHoldTeamConfig enabled)
       . extra
@@ -878,12 +879,11 @@ data ClientEvent
   | ClientRemoved !ClientId
   deriving (Generic)
 
-data LegalHoldClientRequestedData
-  = LegalHoldClientRequestedData
-      { lhcTargetUser :: !UserId,
-        lhcLastPrekey :: !LastPrekey,
-        lhcClientId :: !ClientId
-      }
+data LegalHoldClientRequestedData = LegalHoldClientRequestedData
+  { lhcTargetUser :: !UserId,
+    lhcLastPrekey :: !LastPrekey,
+    lhcClientId :: !ClientId
+  }
   deriving stock (Show)
 
 instance FromJSON ClientEvent where

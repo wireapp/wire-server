@@ -32,12 +32,11 @@ import Numeric.Natural (Natural)
 import qualified System.Logger as Logger
 import System.Logger.Class (MonadLogger (..))
 
-data Migration
-  = Migration
-      { version :: MigrationVersion,
-        text :: Text,
-        action :: MigrationActionT IO ()
-      }
+data Migration = Migration
+  { version :: MigrationVersion,
+    text :: Text,
+    action :: MigrationActionT IO ()
+  }
 
 newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
   deriving (Show, Eq, Ord)
@@ -48,8 +47,7 @@ instance ToJSON MigrationVersion where
 instance FromJSON MigrationVersion where
   parseJSON = withObject "MigrationVersion" $ \o -> MigrationVersion <$> o .: "migration_version"
 
-newtype MigrationActionT m a
-  = MigrationActionT {unMigrationAction :: ReaderT Env m a}
+newtype MigrationActionT m a = MigrationActionT {unMigrationAction :: ReaderT Env m a}
   deriving
     ( Functor,
       Applicative,
@@ -80,14 +78,13 @@ instance MonadIO m => Search.MonadIndexIO (MigrationActionT m) where
 instance MonadIO m => ES.MonadBH (MigrationActionT m) where
   getBHEnv = bhEnv <$> ask
 
-data Env
-  = Env
-      { bhEnv :: ES.BHEnv,
-        cassandraClientState :: C.ClientState,
-        logger :: Logger.Logger,
-        metrics :: Metrics,
-        searchIndex :: ES.IndexName
-      }
+data Env = Env
+  { bhEnv :: ES.BHEnv,
+    cassandraClientState :: C.ClientState,
+    logger :: Logger.Logger,
+    metrics :: Metrics,
+    searchIndex :: ES.IndexName
+  }
 
 runMigrationAction :: Env -> MigrationActionT m a -> m a
 runMigrationAction env action =

@@ -44,21 +44,20 @@ import Options.Applicative
 -------------------------------------------------------------------------------
 -- BotNetSettings
 
-data BotNetSettings
-  = BotNetSettings
-      { setBotNetApiHost :: !ByteString,
-        setBotNetApiPort :: !Word16,
-        setBotNetApiWsHost :: !(Maybe ByteString),
-        setBotNetApiWsPort :: !(Maybe Word16),
-        setBotNetApiSSL :: !Bool,
-        setBotNetAssert :: !Bool,
-        setBotNetMailboxConfig :: !(Maybe FilePath),
-        setBotNetSender :: !Email,
-        setBotNetUsersFile :: !(Maybe FilePath),
-        setBotNetReportDir :: !(Maybe FilePath),
-        setBotNetBotSettings :: !BotSettings,
-        setBotNetMailboxFolders :: ![String]
-      }
+data BotNetSettings = BotNetSettings
+  { setBotNetApiHost :: !ByteString,
+    setBotNetApiPort :: !Word16,
+    setBotNetApiWsHost :: !(Maybe ByteString),
+    setBotNetApiWsPort :: !(Maybe Word16),
+    setBotNetApiSSL :: !Bool,
+    setBotNetAssert :: !Bool,
+    setBotNetMailboxConfig :: !(Maybe FilePath),
+    setBotNetSender :: !Email,
+    setBotNetUsersFile :: !(Maybe FilePath),
+    setBotNetReportDir :: !(Maybe FilePath),
+    setBotNetBotSettings :: !BotSettings,
+    setBotNetMailboxFolders :: ![String]
+  }
   deriving (Eq, Show)
 
 botNetSettingsParser :: Parser BotNetSettings
@@ -164,13 +163,12 @@ mailboxFoldersOption =
 -------------------------------------------------------------------------------
 -- BotSettings
 
-data BotSettings
-  = BotSettings
-      { _botMaxEvents :: Word16,
-        _botEventTimeout :: NominalDiffTime,
-        _botMaxAsserts :: Word16,
-        _botAssertTimeout :: NominalDiffTime
-      }
+data BotSettings = BotSettings
+  { _botMaxEvents :: Word16,
+    _botEventTimeout :: NominalDiffTime,
+    _botMaxAsserts :: Word16,
+    _botAssertTimeout :: NominalDiffTime
+  }
   deriving (Eq, Show)
 
 defBotSettings :: BotSettings

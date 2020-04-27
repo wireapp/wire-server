@@ -54,13 +54,12 @@ sendActivationMail name email key code update = do
     selectTemplate True = activationEmailUpdate
     selectTemplate False = activationEmail
 
-data ActivationEmail
-  = ActivationEmail
-      { acmTo :: !Email,
-        acmName :: !Name,
-        acmKey :: !Code.Key,
-        acmCode :: !Code.Value
-      }
+data ActivationEmail = ActivationEmail
+  { acmTo :: !Email,
+    acmName :: !Name,
+    acmKey :: !Code.Key,
+    acmCode :: !Code.Value
+  }
 
 renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> TemplateBranding -> Mail
 renderActivationMail ActivationEmail {..} ActivationEmailTemplate {..} branding =
@@ -104,15 +103,14 @@ sendApprovalRequestMail name email url descr key val = do
   let mail = ApprovalRequestEmail email name url descr key val
   sendMail $ renderApprovalRequestMail mail tpl branding
 
-data ApprovalRequestEmail
-  = ApprovalRequestEmail
-      { aprTo :: !Email,
-        aprName :: !Name,
-        aprUrl :: !HttpsUrl,
-        aprDescr :: !Text,
-        aprKey :: !Code.Key,
-        aprCode :: !Code.Value
-      }
+data ApprovalRequestEmail = ApprovalRequestEmail
+  { aprTo :: !Email,
+    aprName :: !Name,
+    aprUrl :: !HttpsUrl,
+    aprDescr :: !Text,
+    aprKey :: !Code.Key,
+    aprCode :: !Code.Value
+  }
 
 renderApprovalRequestMail :: ApprovalRequestEmail -> ApprovalRequestEmailTemplate -> TemplateBranding -> Mail
 renderApprovalRequestMail ApprovalRequestEmail {..} ApprovalRequestEmailTemplate {..} branding =
@@ -156,11 +154,10 @@ sendApprovalConfirmMail name email = do
   let mail = ApprovalConfirmEmail email name
   sendMail $ renderApprovalConfirmMail mail tpl branding
 
-data ApprovalConfirmEmail
-  = ApprovalConfirmEmail
-      { apcTo :: !Email,
-        apcName :: !Name
-      }
+data ApprovalConfirmEmail = ApprovalConfirmEmail
+  { apcTo :: !Email,
+    apcName :: !Name
+  }
 
 renderApprovalConfirmMail :: ApprovalConfirmEmail -> ApprovalConfirmEmailTemplate -> TemplateBranding -> Mail
 renderApprovalConfirmMail ApprovalConfirmEmail {..} ApprovalConfirmEmailTemplate {..} branding =
@@ -193,12 +190,11 @@ sendPasswordResetMail to key code = do
   let mail = PasswordResetEmail to key code
   sendMail $ renderPwResetMail mail tpl branding
 
-data PasswordResetEmail
-  = PasswordResetEmail
-      { pwrTo :: !Email,
-        pwrKey :: !Code.Key,
-        pwrCode :: !Code.Value
-      }
+data PasswordResetEmail = PasswordResetEmail
+  { pwrTo :: !Email,
+    pwrKey :: !Code.Key,
+    pwrCode :: !Code.Value
+  }
 
 renderPwResetMail :: PasswordResetEmail -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
 renderPwResetMail PasswordResetEmail {..} PasswordResetEmailTemplate {..} branding =

@@ -52,12 +52,11 @@ import Imports
 -- ResumableSettings
 
 -- | Settings for initiating a resumable upload.
-data ResumableSettings
-  = ResumableSettings
-      { _setResumableRetention :: AssetRetention,
-        _setResumablePublic :: Bool,
-        _setResumableType :: MIME.Type
-      }
+data ResumableSettings = ResumableSettings
+  { _setResumableRetention :: AssetRetention,
+    _setResumablePublic :: Bool,
+    _setResumableType :: MIME.Type
+  }
   deriving (Show)
 
 makeLenses ''ResumableSettings
@@ -89,9 +88,8 @@ parseMime v =
 --------------------------------------------------------------------------------
 -- ResumableAsset
 
-newtype TotalSize
-  = TotalSize
-      {totalSizeBytes :: Word}
+newtype TotalSize = TotalSize
+  {totalSizeBytes :: Word}
   deriving
     ( Eq,
       Show,
@@ -106,9 +104,8 @@ newtype TotalSize
       ToByteString
     )
 
-newtype ChunkSize
-  = ChunkSize
-      {chunkSizeBytes :: Word}
+newtype ChunkSize = ChunkSize
+  {chunkSizeBytes :: Word}
   deriving
     ( Eq,
       Show,
@@ -123,9 +120,8 @@ newtype ChunkSize
       ToByteString
     )
 
-newtype Offset
-  = Offset
-      {offsetBytes :: Word}
+newtype Offset = Offset
+  {offsetBytes :: Word}
   deriving
     ( Eq,
       Show,
@@ -140,12 +136,11 @@ newtype Offset
       ToByteString
     )
 
-data ResumableAsset
-  = ResumableAsset
-      { _resumableAsset :: Asset,
-        _resumableExpires :: UTCTime,
-        _resumableChunkSize :: ChunkSize
-      }
+data ResumableAsset = ResumableAsset
+  { _resumableAsset :: Asset,
+    _resumableExpires :: UTCTime,
+    _resumableChunkSize :: ChunkSize
+  }
 
 makeLenses ''ResumableAsset
 

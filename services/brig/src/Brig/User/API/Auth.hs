@@ -292,7 +292,9 @@ renew = \case
 tokenRequest ::
   forall r.
   (HasCookies r, HasHeaders r, HasQuery r) =>
-  Predicate r P.Error
+  Predicate
+    r
+    P.Error
     ( Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
         ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
     )

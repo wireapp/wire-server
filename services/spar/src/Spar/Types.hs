@@ -71,18 +71,17 @@ setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
 
-data WireIdP
-  = WireIdP
-      { _wiTeam :: TeamId,
-        -- | list of issuer names that this idp has replaced, most recent first.  this is used
-        -- for finding users that are still stored under the old issuer, see
-        -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
-        _wiOldIssuers :: [SAML.Issuer],
-        -- | the issuer that has replaced this one.  this is set iff a new issuer is created
-        -- with the @"replaces"@ query parameter, and it is used to decide whether users not
-        -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-        _wiReplacedBy :: Maybe SAML.IdPId
-      }
+data WireIdP = WireIdP
+  { _wiTeam :: TeamId,
+    -- | list of issuer names that this idp has replaced, most recent first.  this is used
+    -- for finding users that are still stored under the old issuer, see
+    -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
+    _wiOldIssuers :: [SAML.Issuer],
+    -- | the issuer that has replaced this one.  this is set iff a new issuer is created
+    -- with the @"replaces"@ query parameter, and it is used to decide whether users not
+    -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
+    _wiReplacedBy :: Maybe SAML.IdPId
+  }
   deriving (Eq, Show, Generic)
 
 makeLenses ''WireIdP
@@ -91,10 +90,9 @@ deriveJSON deriveJSONOptions ''WireIdP
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
-data IdPList
-  = IdPList
-      { _idplProviders :: [IdP]
-      }
+data IdPList = IdPList
+  { _idplProviders :: [IdP]
+  }
   deriving (Eq, Show, Generic)
 
 makeLenses ''IdPList
@@ -147,20 +145,19 @@ newtype ScimToken = ScimToken {fromScimToken :: Text}
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
 -- | Metadata that we store about each token.
-data ScimTokenInfo
-  = ScimTokenInfo
-      { -- | Which team can be managed with the token
-        stiTeam :: !TeamId,
-        -- | Token ID, can be used to eg. delete the token
-        stiId :: !ScimTokenId,
-        -- | Time of token creation
-        stiCreatedAt :: !UTCTime,
-        -- | IdP that created users will "belong" to
-        stiIdP :: !(Maybe IdPId),
-        -- | Free-form token description, can be set
-        --   by the token creator as a mental aid
-        stiDescr :: !Text
-      }
+data ScimTokenInfo = ScimTokenInfo
+  { -- | Which team can be managed with the token
+    stiTeam :: !TeamId,
+    -- | Token ID, can be used to eg. delete the token
+    stiId :: !ScimTokenId,
+    -- | Time of token creation
+    stiCreatedAt :: !UTCTime,
+    -- | IdP that created users will "belong" to
+    stiIdP :: !(Maybe IdPId),
+    -- | Free-form token description, can be set
+    --   by the token creator as a mental aid
+    stiDescr :: !Text
+  }
   deriving (Eq, Show)
 
 instance FromHttpApiData ScimToken where
@@ -231,36 +228,34 @@ substituteVar' var val = ST.intercalate val . ST.splitOn var
 
 type Opts = Opts' DerivedOpts
 
-data Opts' a
-  = Opts
-      { saml :: !SAML.Config,
-        brig :: !Endpoint,
-        galley :: !Endpoint,
-        cassandra :: !CassandraOpts,
-        maxttlAuthreq :: !(TTL "authreq"),
-        maxttlAuthresp :: !(TTL "authresp"),
-        -- | The maximum number of SCIM tokens that we will allow teams to have.
-        maxScimTokens :: !Int,
-        -- | The maximum size of rich info. Should be in sync with 'Brig.Types.richInfoLimit'.
-        richInfoLimit :: !Int,
-        -- | Wire/AWS specific; optional; used to discover Cassandra instance
-        -- IPs using describe-instances.
-        discoUrl :: !(Maybe Text),
-        logNetStrings :: !(Maybe (Last Bool)),
-        logFormat :: !(Maybe (Last LogFormat)),
-        -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
-        derivedOpts :: !a
-      }
+data Opts' a = Opts
+  { saml :: !SAML.Config,
+    brig :: !Endpoint,
+    galley :: !Endpoint,
+    cassandra :: !CassandraOpts,
+    maxttlAuthreq :: !(TTL "authreq"),
+    maxttlAuthresp :: !(TTL "authresp"),
+    -- | The maximum number of SCIM tokens that we will allow teams to have.
+    maxScimTokens :: !Int,
+    -- | The maximum size of rich info. Should be in sync with 'Brig.Types.richInfoLimit'.
+    richInfoLimit :: !Int,
+    -- | Wire/AWS specific; optional; used to discover Cassandra instance
+    -- IPs using describe-instances.
+    discoUrl :: !(Maybe Text),
+    logNetStrings :: !(Maybe (Last Bool)),
+    logFormat :: !(Maybe (Last LogFormat)),
+    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
+    derivedOpts :: !a
+  }
   deriving (Functor, Show, Generic)
 
 instance FromJSON (Opts' (Maybe ()))
 
-data DerivedOpts
-  = DerivedOpts
-      { derivedOptsBindCookiePath :: !SBS,
-        derivedOptsBindCookieDomain :: !SBS,
-        derivedOptsScimBaseURI :: !URI
-      }
+data DerivedOpts = DerivedOpts
+  { derivedOptsBindCookiePath :: !SBS,
+    derivedOptsBindCookieDomain :: !SBS,
+    derivedOptsScimBaseURI :: !URI
+  }
   deriving (Show, Generic)
 
 -- | (seconds)
@@ -282,10 +277,9 @@ ttlToNominalDiffTime (TTL i32) = fromIntegral i32
 maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 
-data SsoSettings
-  = SsoSettings
-      { defaultSsoCode :: !(Maybe IdPId)
-      }
+data SsoSettings = SsoSettings
+  { defaultSsoCode :: !(Maybe IdPId)
+  }
   deriving (Generic, Show)
 
 instance FromJSON SsoSettings where

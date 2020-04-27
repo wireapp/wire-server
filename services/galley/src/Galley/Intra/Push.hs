@@ -84,11 +84,10 @@ pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 
-data Recipient
-  = Recipient
-      { _recipientUserId :: UserId,
-        _recipientClients :: RecipientClients
-      }
+data Recipient = Recipient
+  { _recipientUserId :: UserId,
+    _recipientClients :: RecipientClients
+  }
 
 makeLenses ''Recipient
 
@@ -98,18 +97,17 @@ recipient m = Recipient (memId m) RecipientClientsAll
 userRecipient :: UserId -> Recipient
 userRecipient u = Recipient u RecipientClientsAll
 
-data Push
-  = Push
-      { _pushConn :: Maybe ConnId,
-        _pushTransient :: Bool,
-        _pushRoute :: Gundeck.Route,
-        _pushNativePriority :: Maybe Gundeck.Priority,
-        _pushAsync :: Bool,
-        pushOrigin :: UserId,
-        pushRecipients :: List1 Recipient,
-        pushJson :: Object,
-        pushRecipientListType :: Teams.ListType
-      }
+data Push = Push
+  { _pushConn :: Maybe ConnId,
+    _pushTransient :: Bool,
+    _pushRoute :: Gundeck.Route,
+    _pushNativePriority :: Maybe Gundeck.Priority,
+    _pushAsync :: Bool,
+    pushOrigin :: UserId,
+    pushRecipients :: List1 Recipient,
+    pushJson :: Object,
+    pushRecipientListType :: Teams.ListType
+  }
 
 makeLenses ''Push
 

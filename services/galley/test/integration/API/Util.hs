@@ -85,7 +85,7 @@ createBindingTeam = do
 createBindingTeamWithMembers :: HasCallStack => Int -> TestM (TeamId, UserId, [UserId])
 createBindingTeamWithMembers numUsers = do
   (owner, tid) <- createBindingTeam
-  members <- forM [2..numUsers] $ \n -> do
+  members <- forM [2 .. numUsers] $ \n -> do
     mem <- addUserToTeam owner tid
     SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
     refreshIndex
@@ -284,11 +284,12 @@ addUserToTeamWithRole' role inviter tid = do
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)
-  r <- post
-    ( brig . path "/register"
-        . contentJson
-        . body (acceptInviteBody name inviteeEmail inviteeCode)
-    )
+  r <-
+    post
+      ( brig . path "/register"
+          . contentJson
+          . body (acceptInviteBody name inviteeEmail inviteeCode)
+      )
   return (inv, r)
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
