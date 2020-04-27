@@ -30,7 +30,6 @@ module Wire.API.User
   )
 where
 
-import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Control.Monad.Fail (MonadFail)
 import Data.Aeson
@@ -54,6 +53,7 @@ import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 import Imports
+import Wire.API.Activation (ActivationCode)
 import qualified Wire.API.Conversation.Code as Code
 import Wire.API.User.Auth (CookieLabel)
 

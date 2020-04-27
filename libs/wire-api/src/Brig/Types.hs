@@ -20,8 +20,8 @@ module Brig.Types
   )
 where
 
-import Brig.Types.Activation as M
 import Brig.Types.Team as M
+import Wire.API.Activation as M
 import Wire.API.Calling.TURN as M
 import Wire.API.Connection as M
 import Wire.API.Properties as M

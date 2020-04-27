@@ -18,8 +18,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Activation
-  ( module Brig.Types.Activation,
+-- TODO Brig.Types.User.Activation?
+module Wire.API.Activation
+  ( module Wire.API.Activation,
     module C,
   )
 where
