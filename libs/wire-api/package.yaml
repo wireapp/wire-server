@@ -9,7 +9,10 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
+- cryptonite >=0.11
 - imports
+- memory >=0.11
+- mime >=0.4
 library:
   source-dirs: src
   dependencies:
@@ -19,15 +22,29 @@ library:
   - base64-bytestring >=1.0
   - bytestring >=0.9
   - bytestring-conversion >=0.2
+  - case-insensitive
   - cassandra-util
   - containers >=0.5
   - currency-codes >=2.0
   - data-default >=0.5
   - errors
+  - extra
   - exceptions >=0.10.0
   - hashable
+  - hostname-validate
+  - iproute >=1.5
+  - iso3166-country-codes >=0.2
+  - iso639 >=0.1
   - lens >=4.12
+  - lens-aeson
+  - network-uri >=2.6
+  - pem >=0.2
   - protobuf >=0.2
+  - QuickCheck >=2.9
+  - quickcheck-instances >=0.3.16
+  - random
+  - safe >=0.3
+  - singletons >=2.0
   - string-conversions
   - swagger >=0.1
   - text >=0.11
