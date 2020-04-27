@@ -24,8 +24,8 @@
 -- | Types for the (internal) provider API.
 --
 -- TODO: Lenses & proper export list
-module Brig.Types.Provider
-  ( module Brig.Types.Provider,
+module Wire.API.Service.Provider
+  ( module Wire.API.Service.Provider,
 
     -- * Re-exports
     module Common,
@@ -36,8 +36,6 @@ module Brig.Types.Provider
 where
 
 import Brig.Types.Common as Common
-import Brig.Types.Provider.Tag (ServiceTag (..))
-import qualified Brig.Types.Provider.Tag as Tag
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.ByteString.Builder as BB
@@ -57,6 +55,8 @@ import Galley.Types (Event)
 import Galley.Types.Bot (ServiceToken (..))
 import Imports
 import Wire.API.Conversation.Code as Code
+import Wire.API.Service.Provider.Tag (ServiceTag (..))
+import qualified Wire.API.Service.Provider.Tag as Tag
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------

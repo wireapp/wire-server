@@ -17,8 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Provider.External
-  ( module Brig.Types.Provider.External,
+module Wire.API.Service.Provider.External
+  ( module Wire.API.Service.Provider.External,
     BotUserView (..),
 
     -- * Re-exports

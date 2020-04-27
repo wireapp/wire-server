@@ -32,7 +32,6 @@
 module Brig.Types.Test.Arbitrary where
 
 import Brig.Types.Activation
-import Brig.Types.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.Team.Invitation
@@ -65,6 +64,7 @@ import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
 import Wire.API.Conversation.Code as Code
+import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
