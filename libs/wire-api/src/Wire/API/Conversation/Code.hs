@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Types for verification codes.
-module Brig.Types.Code
+module Wire.API.Conversation.Code
   ( -- * re-exports
     Key (..),
     Value (..),

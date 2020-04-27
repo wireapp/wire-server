@@ -32,14 +32,11 @@
 module Brig.Types.Test.Arbitrary where
 
 import Brig.Types.Activation
-import Brig.Types.Code
 import Brig.Types.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold
-import Brig.Types.User
-import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
 import qualified Data.ByteString.Char8 as BS
 import Data.Currency
@@ -67,6 +64,9 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
+import Wire.API.Conversation.Code as Code
+import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
 
 newtype Octet = Octet {octet :: Word16}
@@ -372,7 +372,7 @@ instance Arbitrary VerifyDeleteUser where
 instance Arbitrary Key where
   arbitrary = Key <$> genRangeAsciiBase64Url @20 @20
 
-instance Arbitrary Brig.Types.Code.Value where
+instance Arbitrary Code.Value where
   arbitrary = Value <$> genRangeAsciiBase64Url @6 @20
 
 instance Arbitrary Locale where

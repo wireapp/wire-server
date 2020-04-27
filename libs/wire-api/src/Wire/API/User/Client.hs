@@ -26,12 +26,12 @@ module Wire.API.User.Client
 where
 
 import Brig.Types.Common as C
-import Brig.Types.User.Auth (CookieLabel)
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc (Location, PlainTextPassword (..))
 import Imports
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as P
 
 -- * Data Types:

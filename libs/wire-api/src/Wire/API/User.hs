@@ -24,16 +24,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.User
-  ( module Brig.Types.User,
+module Wire.API.User
+  ( module Wire.API.User,
     module C,
   )
 where
 
 import Brig.Types.Activation (ActivationCode)
-import qualified Brig.Types.Code as Code
 import Brig.Types.Common as C
-import Brig.Types.User.Auth (CookieLabel)
 import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -56,6 +54,8 @@ import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 import Imports
+import qualified Wire.API.Conversation.Code as Code
+import Wire.API.User.Auth (CookieLabel)
 
 -----------------------------------------------------------------------------
 -- User Attributes

@@ -26,5 +26,5 @@ import Brig.Types.Properties as M
 import Brig.Types.Search as M
 import Brig.Types.TURN as M
 import Brig.Types.Team as M
-import Brig.Types.User as M
+import Wire.API.User as M
 import Wire.API.User.Client as M

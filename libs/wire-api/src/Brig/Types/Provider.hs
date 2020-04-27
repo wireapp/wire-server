@@ -35,7 +35,6 @@ module Brig.Types.Provider
   )
 where
 
-import Brig.Types.Code as Code
 import Brig.Types.Common as Common
 import Brig.Types.Provider.Tag (ServiceTag (..))
 import qualified Brig.Types.Provider.Tag as Tag
@@ -57,6 +56,7 @@ import qualified Data.Text.Encoding as Text
 import Galley.Types (Event)
 import Galley.Types.Bot (ServiceToken (..))
 import Imports
+import Wire.API.Conversation.Code as Code
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------
