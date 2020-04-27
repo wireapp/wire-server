@@ -20,7 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.Types.V3.Resumable
+module Wire.API.Asset.V3.Resumable
   ( ResumableSettings,
     mkResumableSettings,
     setResumableType,
@@ -37,7 +37,6 @@ module CargoHold.Types.V3.Resumable
   )
 where
 
-import CargoHold.Types.V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (makeLenses)
@@ -47,6 +46,7 @@ import Data.ByteString.Conversion
 import Data.Json.Util ((#), toUTCTimeMillis)
 import Data.Time.Clock
 import Imports
+import Wire.API.Asset.V3
 
 --------------------------------------------------------------------------------
 -- ResumableSettings
