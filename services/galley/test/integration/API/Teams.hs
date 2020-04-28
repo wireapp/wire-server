@@ -108,6 +108,7 @@ tests s =
       test s "update team status" testUpdateTeamStatus,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
+      test s "send billing events to owners even in large teams" testBillingInLargeTeam,
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
       test s "post crypto broadcast message json - filtered only, too large team" postCryptoBroadcastMessageJsonFilteredTooLargeTeam,
       test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
@@ -1153,6 +1154,24 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           10
           ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
           (getTeamInternal tid)
+
+testBillingInLargeTeam :: TestM ()
+testBillingInLargeTeam = do
+  (owner, team) <- Util.createBindingTeam
+  refreshIndex
+  o <- view tsGConf
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimit o
+  void $
+    foldM
+      ( \billingMembers n -> do
+          newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) owner team
+          let allBillingMembers = newBillingMemberId : billingMembers
+          assertQueue "Add lots of billingMembers" $ tUpdate (n + 1) allBillingMembers
+          refreshIndex
+          pure allBillingMembers
+      )
+      [owner]
+      [1 .. (fanoutLimit + 1)]
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
