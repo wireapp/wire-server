@@ -24,12 +24,12 @@ module Brig.Types.Instances
   )
 where
 
-import Brig.Types.Team.LegalHold
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Imports
 import Wire.API.Service.Provider
 import Wire.API.Service.Provider.Tag
+import Wire.API.Team.LegalHold
 import Wire.API.User.Client.Prekey
 
 instance Cql LegalHoldStatus where

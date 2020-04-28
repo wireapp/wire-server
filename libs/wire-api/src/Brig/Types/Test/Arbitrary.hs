@@ -31,8 +31,6 @@
 
 module Brig.Types.Test.Arbitrary where
 
-import Brig.Types.Team.Invitation
-import Brig.Types.Team.LegalHold
 import Control.Lens hiding (elements)
 import qualified Data.ByteString.Char8 as BS
 import Data.Currency
@@ -65,6 +63,8 @@ import Wire.API.Calling.TURN
 import Wire.API.Calling.TURN.Internal
 import Wire.API.Conversation.Code as Code
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
+import Wire.API.Team.Invitation
+import Wire.API.Team.LegalHold
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
