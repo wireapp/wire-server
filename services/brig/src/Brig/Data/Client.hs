@@ -307,9 +307,10 @@ withOptLock u c ma = go (10 :: Int)
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
     reportFailureAndLogError :: AppIO ()
     reportFailureAndLogError = do
-      Log.err $ Log.field "user" (toByteString' u)
-              . Log.field "client" (toByteString' c)
-              . msg (val "PreKeys: Optimistic lock failed")
+      Log.err $
+        Log.field "user" (toByteString' u)
+          . Log.field "client" (toByteString' c)
+          . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
     execDyn :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
     execDyn cnv mkCmd = do
@@ -330,8 +331,7 @@ withOptLock u c ma = go (10 :: Int)
             run = execCatch e cmd >>= either handleErr (return . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
-
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
-                Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
-                return Nothing
+              Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
+              return Nothing
             handleErr _ = return Nothing
