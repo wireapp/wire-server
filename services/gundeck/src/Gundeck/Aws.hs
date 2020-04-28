@@ -441,6 +441,7 @@ listen callback = do
   forever $ handleAny unexpectedError $ do
     msgs <- view rmrsMessages <$> send (receive url)
     void $ mapConcurrently (onMessage url) msgs
+    threadDelay 1000000
   where
     receive url =
       SQS.receiveMessage url

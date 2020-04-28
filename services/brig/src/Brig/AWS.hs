@@ -173,10 +173,10 @@ instance Exception Error
 -- SQS
 
 listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
-listen url callback = do
-  forever $ handleAny unexpectedError $ do
-    msgs <- view rmrsMessages <$> send receive
-    void $ mapConcurrently onMessage msgs
+listen url callback = forever $ handleAny unexpectedError $ do
+  msgs <- view rmrsMessages <$> send receive
+  void $ mapConcurrently onMessage msgs
+  threadDelay 1000000
   where
     receive =
       SQS.receiveMessage url
@@ -193,12 +193,12 @@ listen url callback = do
       err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
       threadDelay 3000000
 
-enqueueStandard :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
-enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req =
