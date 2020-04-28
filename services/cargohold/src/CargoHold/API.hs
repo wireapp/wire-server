@@ -51,20 +51,17 @@ import URI.ByteString
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
+  sitemapPublic
+  apiDocs
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
-  get
-    "/assets/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) [] sitemap
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
+
+sitemapPublic :: Routes Doc.ApiBuilder Handler ()
+sitemapPublic = do
   ---------------------------------------------------------------------------
   -- User API
 
-  --- Simple (one-step) Upload
+  -- Simple (one-step) Upload
 
   post "/assets/v3" (continue uploadAssetV3) $
     header "Z-User"
@@ -76,22 +73,26 @@ sitemap = do
     Doc.errorResponse Error.assetTooLarge
     Doc.errorResponse Error.invalidLength
     Doc.response 201 "Asset posted" Doc.end
-  -- Resumable (multi-step) Upload
-  -- TODO: swagger doc
 
+  --- Resumable (multi-step) Upload
+
+  -- TODO: swagger doc
   options "/assets/v3/resumable" (continue resumableOptionsV3) $
     header "Z-User"
+
   -- TODO (Compliance): Require and check Tus-Resumable header
   -- against supported version(s).
   post "/assets/v3/resumable" (continue createResumableV3) $
     header "Z-User"
       .&. header "Upload-Length"
       .&. jsonRequest @V3.ResumableSettings
+
   -- TODO (Compliance): Require and check Tus-Resumable header
   -- against supported version(s).
   head "/assets/v3/resumable/:key" (continue statusResumableV3) $
     header "Z-User"
       .&. capture "key"
+
   -- TODO (Compliance): Require and check Tus-Resumable header
   -- against supported version(s).
   patch "/assets/v3/resumable/:key" (continue uploadResumableV3) $
@@ -101,6 +102,7 @@ sitemap = do
       .&. contentType "application" "offset+octet-stream"
       .&. capture "key"
       .&. request
+
   --- Download
 
   get "/assets/v3/:key" (continue downloadAssetV3) $
@@ -116,6 +118,7 @@ sitemap = do
       Doc.optional
     Doc.errorResponse Error.assetNotFound
     Doc.response 302 "Asset found" Doc.end
+
   --- Token Management
 
   post "/assets/v3/:key/token" (continue renewTokenV3) $
@@ -128,6 +131,7 @@ sitemap = do
     Doc.response 200 "Asset token renewed" Doc.end
     Doc.errorResponse Error.assetNotFound
     Doc.errorResponse Error.unauthorised
+
   delete "/assets/v3/:key/token" (continue deleteTokenV3) $
     header "Z-User"
       .&. capture "key"
@@ -137,6 +141,7 @@ sitemap = do
     Doc.parameter Doc.Path "key" Doc.bytes' $
       Doc.description "Asset key"
     Doc.response 200 "Asset token deleted" Doc.end
+
   --- Deletion
 
   delete "/assets/v3/:key" (continue deleteAssetV3) $
@@ -149,6 +154,7 @@ sitemap = do
     Doc.response 200 "Asset deleted" Doc.end
     Doc.errorResponse Error.assetNotFound
     Doc.errorResponse Error.unauthorised
+
   ---------------------------------------------------------------------------
   -- Provider API
 
@@ -157,15 +163,18 @@ sitemap = do
       .&> contentType "multipart" "mixed"
       .&> zauthProviderId
       .&. request
+
   get "/provider/assets/:key" (continue providerDownloadV3) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. capture "key"
       .&. opt (header "Asset-Token" .|. query "asset_token")
+
   delete "/provider/assets/:key" (continue providerDeleteV3) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. capture "key"
+
   ---------------------------------------------------------------------------
   -- Bot API
 
@@ -174,29 +183,45 @@ sitemap = do
       .&> contentType "multipart" "mixed"
       .&> zauthBotId
       .&. request
+
   get "/bot/assets/:key" (continue botDownloadV3) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. capture "key"
       .&. opt (header "Asset-Token" .|. query "asset_token")
+
   delete "/bot/assets/:key" (continue botDeleteV3) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. capture "key"
+
   -- Legacy
 
   get "/assets/:id" (continue legacyDownloadPlain) $
     header "Z-User"
       .&. param "conv_id"
       .&. capture "id"
+
   get "/conversations/:cnv/assets/:id" (continue legacyDownloadPlain) $
     header "Z-User"
       .&. capture "cnv"
       .&. capture "id"
+
   get "/conversations/:cnv/otr/assets/:id" (continue legacyDownloadOtr) $
     header "Z-User"
       .&. capture "cnv"
       .&. capture "id"
+
+apiDocs :: Routes Doc.ApiBuilder Handler ()
+apiDocs = do
+  get
+    "/assets/api-docs"
+    ( \(_ ::: url) k ->
+        let doc = mkSwaggerApi (decodeLatin1 url) [] sitemapPublic
+         in k $ json doc
+    )
+    $ accept "application" "json"
+      .&. query "base_url"
 
 -----------------------------------------------------------------------------
 -- User API Handlers
