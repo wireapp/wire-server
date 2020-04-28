@@ -23,7 +23,7 @@ import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
 import qualified Data.ByteString.Base64 as B64
-import Data.ByteString.Lazy (toStrict)
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.ProtoLens.Encoding
@@ -101,10 +101,13 @@ tUpdate :: HasCallStack => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> I
 tUpdate c uids l (Just e) = do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
   assertEqual (l <> ": count") c (e ^. eventData . memberCount)
+  let maybeBillingUserIds = map (UUID.fromByteString . fromStrict) (e ^. eventData . billingUser)
+  assertBool "Invalid UUID found" (all isJust maybeBillingUserIds)
+  let billingUserIds = catMaybes maybeBillingUserIds
   assertEqual
     (l <> ": billing users")
-    (Set.fromList $ toStrict . UUID.toByteString . toUUID <$> uids)
-    (Set.fromList $ e ^. eventData . billingUser)
+    (Set.fromList $ toUUID <$> uids)
+    (Set.fromList $ billingUserIds)
 tUpdate _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
 ensureNoMessages :: HasCallStack => Amazon ()
