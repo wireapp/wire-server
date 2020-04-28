@@ -725,7 +725,7 @@ addTeamMemberInternal tid origin originConn newMem memList = do
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
-  let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
+  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   return sizeBeforeAdd
   where
@@ -738,7 +738,7 @@ finishCreateTeam team owner others zcon = do
   for_ (owner : others) $
     Data.addTeamMember (team ^. teamId)
   now <- liftIO getCurrentTime
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
+  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
   push1 $ newPush1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
   pure (team ^. teamId)
