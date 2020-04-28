@@ -28,14 +28,12 @@ module Wire.API.Service.Provider
   ( module Wire.API.Service.Provider,
 
     -- * Re-exports
-    module Common,
     HttpsUrl (..),
     ServiceToken (..),
     ServiceTag (..),
   )
 where
 
-import Brig.Types.Common as Common
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.ByteString.Builder as BB
@@ -58,6 +56,8 @@ import Wire.API.Conversation.Code as Code
 import Wire.API.Service.Provider.Tag (ServiceTag (..))
 import qualified Wire.API.Service.Provider.Tag as Tag
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 
 --------------------------------------------------------------------------------
 -- NewProvider

@@ -22,7 +22,6 @@
 
 module Wire.API.User.Auth where
 
-import Brig.Types.Common
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
@@ -33,6 +32,7 @@ import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import Wire.API.Conversation.Code
+import Wire.API.User.Identity
 
 -----------------------------------------------------------------------------
 -- Login / Authentication

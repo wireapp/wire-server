@@ -26,11 +26,9 @@
 
 module Wire.API.User
   ( module Wire.API.User,
-    module C,
   )
 where
 
-import Brig.Types.Common as C
 import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -56,6 +54,8 @@ import Imports
 import Wire.API.Activation (ActivationCode)
 import qualified Wire.API.Conversation.Code as Code
 import Wire.API.User.Auth (CookieLabel)
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 
 -----------------------------------------------------------------------------
 -- User Attributes

@@ -68,6 +68,8 @@ import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKe
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 
 newtype Octet = Octet {octet :: Word16}
   deriving (Eq, Show)

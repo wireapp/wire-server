@@ -26,11 +26,9 @@
 -- Types for connections between users.
 module Wire.API.Connection
   ( module Wire.API.Connection,
-    module C,
   )
 where
 
-import Brig.Types.Common as C
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString (takeByteString)
@@ -40,6 +38,7 @@ import Data.Json.Util
 import Data.Range
 import Data.Text as Text
 import Imports
+import Wire.API.User.Profile ()
 
 -- | Initial message sent along with a connection request. 1-256 characters.
 --

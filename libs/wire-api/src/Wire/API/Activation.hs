@@ -18,19 +18,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO Brig.Types.User.Activation?
+-- TODO Wire.API.User.Activation?
 module Wire.API.Activation
   ( module Wire.API.Activation,
-    module C,
   )
 where
 
-import Brig.Types.Common as C
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Json.Util ((#))
 import Data.Text.Ascii
 import Imports
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 
 -- | An opaque identifier of a 'UserKey' awaiting activation.
 newtype ActivationKey = ActivationKey
