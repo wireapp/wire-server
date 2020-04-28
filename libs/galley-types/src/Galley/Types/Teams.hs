@@ -149,13 +149,12 @@ import GHC.TypeLits
 import Galley.Types.Teams.Internal
 import Imports
 
-data Event
-  = Event
-      { _eventType :: EventType,
-        _eventTeam :: TeamId,
-        _eventTime :: UTCTime,
-        _eventData :: Maybe EventData
-      }
+data Event = Event
+  { _eventType :: EventType,
+    _eventTeam :: TeamId,
+    _eventTime :: UTCTime,
+    _eventData :: Maybe EventData
+  }
   deriving (Eq, Generic)
 
 -- Note [whitelist events]
@@ -213,28 +212,25 @@ data EventData
   | EdConvDelete ConvId
   deriving (Eq, Show, Generic)
 
-data TeamUpdateData
-  = TeamUpdateData
-      { _nameUpdate :: Maybe (Range 1 256 Text),
-        _iconUpdate :: Maybe (Range 1 256 Text),
-        _iconKeyUpdate :: Maybe (Range 1 256 Text)
-      }
+data TeamUpdateData = TeamUpdateData
+  { _nameUpdate :: Maybe (Range 1 256 Text),
+    _iconUpdate :: Maybe (Range 1 256 Text),
+    _iconKeyUpdate :: Maybe (Range 1 256 Text)
+  }
   deriving (Eq, Show, Generic)
 
-data TeamList
-  = TeamList
-      { _teamListTeams :: [Team],
-        _teamListHasMore :: Bool
-      }
+data TeamList = TeamList
+  { _teamListTeams :: [Team],
+    _teamListHasMore :: Bool
+  }
   deriving (Show, Generic)
 
-data TeamMember
-  = TeamMember
-      { _userId :: UserId,
-        _permissions :: Permissions,
-        _invitation :: Maybe (UserId, UTCTimeMillis),
-        _legalHoldStatus :: UserLegalHoldStatus
-      }
+data TeamMember = TeamMember
+  { _userId :: UserId,
+    _permissions :: Permissions,
+    _invitation :: Maybe (UserId, UTCTimeMillis),
+    _legalHoldStatus :: UserLegalHoldStatus
+  }
   deriving (Eq, Ord, Show, Generic)
 
 data ListType
@@ -242,11 +238,10 @@ data ListType
   | ListTruncated
   deriving (Eq, Show, Generic)
 
-data TeamMemberList
-  = TeamMemberList
-      { _teamMembers :: [TeamMember],
-        _teamMemberListType :: ListType
-      }
+data TeamMemberList = TeamMemberList
+  { _teamMembers :: [TeamMember],
+    _teamMemberListType :: ListType
+  }
   deriving (Generic)
 
 type HardTruncationLimit = (2000 :: Nat)
@@ -254,22 +249,19 @@ type HardTruncationLimit = (2000 :: Nat)
 hardTruncationLimit :: Integral a => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
 
-data TeamConversation
-  = TeamConversation
-      { _conversationId :: ConvId,
-        _managedConversation :: Bool
-      }
+data TeamConversation = TeamConversation
+  { _conversationId :: ConvId,
+    _managedConversation :: Bool
+  }
 
-newtype TeamConversationList
-  = TeamConversationList
-      { _teamConversations :: [TeamConversation]
-      }
+newtype TeamConversationList = TeamConversationList
+  { _teamConversations :: [TeamConversation]
+  }
 
-data Permissions
-  = Permissions
-      { _self :: Set Perm,
-        _copy :: Set Perm
-      }
+data Permissions = Permissions
+  { _self :: Set Perm,
+    _copy :: Set Perm
+  }
   deriving (Eq, Ord, Show, Generic)
 
 -- | Team-level permission.  Analog to conversation-level 'Action'.
@@ -351,32 +343,27 @@ newtype BindingNewTeam = BindingNewTeam (NewTeam ())
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
   deriving (Eq, Show, Generic)
 
-newtype NewTeamMember
-  = NewTeamMember
-      { _ntmNewTeamMember :: TeamMember
-      }
+newtype NewTeamMember = NewTeamMember
+  { _ntmNewTeamMember :: TeamMember
+  }
 
-newtype TeamMemberDeleteData
-  = TeamMemberDeleteData
-      { _tmdAuthPassword :: Maybe PlainTextPassword
-      }
+newtype TeamMemberDeleteData = TeamMemberDeleteData
+  { _tmdAuthPassword :: Maybe PlainTextPassword
+  }
 
-newtype TeamDeleteData
-  = TeamDeleteData
-      { _tdAuthPassword :: Maybe PlainTextPassword
-      }
+newtype TeamDeleteData = TeamDeleteData
+  { _tdAuthPassword :: Maybe PlainTextPassword
+  }
 
 -- This is the cassandra timestamp of writetime(binding)
-newtype TeamCreationTime
-  = TeamCreationTime
-      { _tcTime :: Int64
-      }
+newtype TeamCreationTime = TeamCreationTime
+  { _tcTime :: Int64
+  }
 
-data FeatureFlags
-  = FeatureFlags
-      { _flagSSO :: !FeatureSSO,
-        _flagLegalHold :: !FeatureLegalHold
-      }
+data FeatureFlags = FeatureFlags
+  { _flagSSO :: !FeatureSSO,
+    _flagLegalHold :: !FeatureLegalHold
+  }
   deriving (Eq, Show, Generic)
 
 data FeatureSSO
@@ -541,11 +528,10 @@ data HiddenPerm
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | See Note [hidden team roles]
-data HiddenPermissions
-  = HiddenPermissions
-      { _hself :: Set HiddenPerm,
-        _hcopy :: Set HiddenPerm
-      }
+data HiddenPermissions = HiddenPermissions
+  { _hself :: Set HiddenPerm,
+    _hcopy :: Set HiddenPerm
+  }
   deriving (Eq, Ord, Show)
 
 makeLenses ''HiddenPermissions

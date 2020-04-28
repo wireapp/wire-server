@@ -441,6 +441,8 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
+  -- FUTUREWORK: This takes a list of members for fanout, but it should really
+  --             use the hardlimit instead. We want to avoid double lookups though
   Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -490,6 +492,8 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal team updatedMembers = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
+        -- FUTUREWORK: This takes a list of members for fanout, but it should really
+        --             use the hardlimit instead. We want to avoid double lookups though
         Journal.teamUpdate tid size updatedMembers
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
@@ -546,8 +550,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users. We remove
-      -- the extra added user to avoid an extra DB lookup
+      -- FUTUREWORK: This takes a list of members for fanout, but it should really
+      --             use the hardlimit instead. We want to avoid double lookups though
       Journal.teamUpdate tid sizeAfterDelete $ newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
       pure TeamMemberDeleteAccepted
     else do
@@ -706,8 +710,8 @@ ensureNotTooLargeForLegalHold tid mems = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   when (length (mems ^. teamMembers) >= limit) $ do
     lhEnabled <- isLegalHoldEnabled tid
-    when lhEnabled
-      $ throwM tooManyTeamMembersOnTeamWithLegalhold
+    when lhEnabled $
+      throwM tooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn newMem memList = do
@@ -769,13 +773,13 @@ canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabled tid
   when (lhEnabled) $
     checkTeamSize
- where
-  checkTeamSize = do
-    (TeamSize size) <- BrigTeam.getSize tid
-    limit <- fromIntegral . fromRange <$> fanoutLimit
-    -- Teams larger than fanout limit cannot use legalhold
-    when (size >= limit) $ do
-      throwM tooManyTeamMembersOnTeamWithLegalhold
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      -- Teams larger than fanout limit cannot use legalhold
+      when (size >= limit) $ do
+        throwM tooManyTeamMembersOnTeamWithLegalhold
 
 -- Public endpoints for feature checks
 
@@ -870,12 +874,12 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     -- FUTUREWORK: We cannot enable legalhold on large teams right now
     LegalHoldEnabled -> checkTeamSize
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
- where
-  checkTeamSize = do
-    (TeamSize size) <- BrigTeam.getSize tid
-    limit <- fromIntegral . fromRange <$> fanoutLimit
-    when (size > limit) $ do
-      throwM cannotEnableLegalHoldServiceLargeTeam
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      when (size > limit) $ do
+        throwM cannotEnableLegalHoldServiceLargeTeam
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

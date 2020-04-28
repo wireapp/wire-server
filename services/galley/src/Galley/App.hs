@@ -93,34 +93,31 @@ data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
 
 -- | Main application environment.
-data Env
-  = Env
-      { _reqId :: RequestId,
-        _monitor :: Metrics,
-        _options :: Opts,
-        _applog :: Logger,
-        _manager :: Manager,
-        _cstate :: ClientState,
-        _deleteQueue :: Q.Queue DeleteItem,
-        _extEnv :: ExtEnv,
-        _aEnv :: Maybe Aws.Env
-      }
+data Env = Env
+  { _reqId :: RequestId,
+    _monitor :: Metrics,
+    _options :: Opts,
+    _applog :: Logger,
+    _manager :: Manager,
+    _cstate :: ClientState,
+    _deleteQueue :: Q.Queue DeleteItem,
+    _extEnv :: ExtEnv,
+    _aEnv :: Maybe Aws.Env
+  }
 
 -- | Environment specific to the communication with external
 -- service providers.
-data ExtEnv
-  = ExtEnv
-      { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-      }
+data ExtEnv = ExtEnv
+  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
+  }
 
 makeLenses ''Env
 
 makeLenses ''ExtEnv
 
-newtype Galley a
-  = Galley
-      { unGalley :: ReaderT Env Client a
-      }
+newtype Galley a = Galley
+  { unGalley :: ReaderT Env Client a
+  }
   deriving
     ( Functor,
       Applicative,
@@ -148,22 +145,18 @@ validateOptions l o = do
   let settings = view optSettings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
   when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optFanoutLimit)) $
-    if settings ^. setMaxTeamSize > hardLimit
-      then error ("setMaxTeamSize cannot be > setMaxFanoutSize if journal is enabled and setMaxTeamSize > " ++ show hardLimit)
-      else
-        Logger.warn
-          l
-          ( msg $
-              val
-                "Your journaling events may have some admin user ids missing. \
-                \This is fine for testing purposes but NOT for production use!!"
-          )
+    Logger.warn
+      l
+      ( msg
+          . val
+          $ "Your journaling events for teams larger than " <> toByteString' optFanoutLimit
+            <> " may have some admin user ids missing. \
+               \ This is fine for testing purposes but NOT for production use!!"
+      )
   when (settings ^. setMaxConvSize > optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-  where
-    hardLimit = fromIntegral $ fromRange (unsafeRange Teams.hardTruncationLimit :: Range 1 Teams.HardTruncationLimit Int32)
 
 instance MonadUnliftIO Galley where
   askUnliftIO =

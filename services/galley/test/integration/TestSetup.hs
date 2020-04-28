@@ -52,48 +52,44 @@ type BrigR = Request -> Request
 
 type CannonR = Request -> Request
 
-data IntegrationConfig
-  = IntegrationConfig
-      -- internal endpoints
-      { galley :: Endpoint,
-        brig :: Endpoint,
-        cannon :: Endpoint,
-        provider :: LegalHoldConfig
-      }
+data IntegrationConfig = IntegrationConfig
+  -- internal endpoints
+  { galley :: Endpoint,
+    brig :: Endpoint,
+    cannon :: Endpoint,
+    provider :: LegalHoldConfig
+  }
   deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig
 
 -- FUTUREWORK: reduce duplication (copied from brig/Provider.hs)
-data LegalHoldConfig
-  = LegalHoldConfig
-      { privateKey :: FilePath,
-        publicKey :: FilePath,
-        cert :: FilePath,
-        botHost :: Text,
-        botPort :: Int
-      }
+data LegalHoldConfig = LegalHoldConfig
+  { privateKey :: FilePath,
+    publicKey :: FilePath,
+    cert :: FilePath,
+    botHost :: Text,
+    botPort :: Int
+  }
   deriving (Show, Generic)
 
 instance FromJSON LegalHoldConfig
 
-data TestSetup
-  = TestSetup
-      { _tsGConf :: Opts,
-        _tsIConf :: IntegrationConfig,
-        _tsManager :: Manager,
-        _tsGalley :: GalleyR,
-        _tsBrig :: BrigR,
-        _tsCannon :: CannonR,
-        _tsAwsEnv :: Maybe Aws.Env,
-        _tsMaxConvSize :: Word16,
-        _tsCass :: Cql.ClientState
-      }
+data TestSetup = TestSetup
+  { _tsGConf :: Opts,
+    _tsIConf :: IntegrationConfig,
+    _tsManager :: Manager,
+    _tsGalley :: GalleyR,
+    _tsBrig :: BrigR,
+    _tsCannon :: CannonR,
+    _tsAwsEnv :: Maybe Aws.Env,
+    _tsMaxConvSize :: Word16,
+    _tsCass :: Cql.ClientState
+  }
 
 makeLenses ''TestSetup
 
-newtype TestM a
-  = TestM {runTestM :: ReaderT TestSetup IO a}
+newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
   deriving
     ( Functor,
       Applicative,

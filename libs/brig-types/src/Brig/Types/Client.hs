@@ -67,17 +67,16 @@ data ClientClass
   | LegalHoldClient -- see Note [LegalHold]
   deriving (Eq, Ord, Show)
 
-data NewClient
-  = NewClient
-      { newClientPrekeys :: [Prekey],
-        newClientLastKey :: !LastPrekey,
-        newClientType :: !ClientType,
-        newClientLabel :: !(Maybe Text),
-        newClientClass :: !(Maybe ClientClass),
-        newClientCookie :: !(Maybe CookieLabel),
-        newClientPassword :: !(Maybe PlainTextPassword),
-        newClientModel :: !(Maybe Text)
-      }
+data NewClient = NewClient
+  { newClientPrekeys :: [Prekey],
+    newClientLastKey :: !LastPrekey,
+    newClientType :: !ClientType,
+    newClientLabel :: !(Maybe Text),
+    newClientClass :: !(Maybe ClientClass),
+    newClientCookie :: !(Maybe CookieLabel),
+    newClientPassword :: !(Maybe PlainTextPassword),
+    newClientModel :: !(Maybe Text)
+  }
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -92,38 +91,34 @@ newClient t k =
       newClientModel = Nothing
     }
 
-data Client
-  = Client
-      { clientId :: !ClientId,
-        clientType :: !ClientType,
-        clientTime :: !UTCTimeMillis,
-        clientClass :: !(Maybe ClientClass),
-        clientLabel :: !(Maybe Text),
-        clientCookie :: !(Maybe CookieLabel),
-        clientLocation :: !(Maybe Location),
-        clientModel :: !(Maybe Text)
-      }
+data Client = Client
+  { clientId :: !ClientId,
+    clientType :: !ClientType,
+    clientTime :: !UTCTimeMillis,
+    clientClass :: !(Maybe ClientClass),
+    clientLabel :: !(Maybe Text),
+    clientCookie :: !(Maybe CookieLabel),
+    clientLocation :: !(Maybe Location),
+    clientModel :: !(Maybe Text)
+  }
   deriving (Eq, Show, Generic)
 
-data PubClient
-  = PubClient
-      { pubClientId :: !ClientId,
-        pubClientClass :: !(Maybe ClientClass)
-      }
+data PubClient = PubClient
+  { pubClientId :: !ClientId,
+    pubClientClass :: !(Maybe ClientClass)
+  }
   deriving (Eq, Show, Generic)
 
-newtype RmClient
-  = RmClient
-      { rmPassword :: Maybe PlainTextPassword
-      }
+newtype RmClient = RmClient
+  { rmPassword :: Maybe PlainTextPassword
+  }
   deriving (Generic)
 
-data UpdateClient
-  = UpdateClient
-      { updateClientPrekeys :: ![Prekey],
-        updateClientLastKey :: !(Maybe LastPrekey),
-        updateClientLabel :: !(Maybe Text)
-      }
+data UpdateClient = UpdateClient
+  { updateClientPrekeys :: ![Prekey],
+    updateClientLastKey :: !(Maybe LastPrekey),
+    updateClientLabel :: !(Maybe Text)
+  }
   deriving (Generic)
 
 -- * JSON instances:

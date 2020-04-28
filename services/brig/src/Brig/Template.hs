@@ -58,11 +58,10 @@ import System.IO.Error (isDoesNotExistError)
 type TemplateBranding = Text -> Text
 
 -- | Localised templates.
-data Localised a
-  = Localised
-      { locDefault :: !(Locale, a),
-        locOther :: !(Map Locale a)
-      }
+data Localised a = Localised
+  { locDefault :: !(Locale, a),
+    locOther :: !(Map Locale a)
+  }
 
 readLocalesDir ::
   -- | Default locale.

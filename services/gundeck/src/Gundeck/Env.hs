@@ -39,19 +39,18 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import qualified System.Logger.Extended as Logger
 import Util.Options
 
-data Env
-  = Env
-      { _reqId :: !RequestId,
-        _monitor :: !Metrics,
-        _options :: !Opts,
-        _applog :: !Logger.Logger,
-        _manager :: !Manager,
-        _cstate :: !ClientState,
-        _rstate :: !Redis.Pool,
-        _awsEnv :: !Aws.Env,
-        _time :: !(IO Milliseconds),
-        _threadBudgetState :: !(Maybe ThreadBudgetState)
-      }
+data Env = Env
+  { _reqId :: !RequestId,
+    _monitor :: !Metrics,
+    _options :: !Opts,
+    _applog :: !Logger.Logger,
+    _manager :: !Manager,
+    _cstate :: !ClientState,
+    _rstate :: !Redis.Pool,
+    _awsEnv :: !Aws.Env,
+    _time :: !(IO Milliseconds),
+    _threadBudgetState :: !(Maybe ThreadBudgetState)
+  }
 
 makeLenses ''Env
 

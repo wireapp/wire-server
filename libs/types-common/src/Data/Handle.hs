@@ -41,9 +41,8 @@ import Util.Attoparsec (takeUpToWhile)
 -- Handle
 
 -- | Also called username.
-newtype Handle
-  = Handle
-      {fromHandle :: Text}
+newtype Handle = Handle
+  {fromHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
 

@@ -50,6 +50,7 @@ spec = describe "metrics" . it "works" $ do
                 "status_code=",
                 "le="
               ]
+
 {- sample value:
  # HELP http_request_duration_seconds The HTTP request latencies in seconds.
  # TYPE http_request_duration_seconds histogram

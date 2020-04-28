@@ -52,20 +52,18 @@ import Network.HTTP.Types.Method
 data CommonLogField = CEmpty | CField !TagValue
   deriving (Eq, Show)
 
-data CommonLogRecord
-  = CommonLogRecord
-      { cTime :: !UTCTime,
-        cFields :: [(Text, TagValue)],
-        cRequest :: !HttpRequest
-      }
+data CommonLogRecord = CommonLogRecord
+  { cTime :: !UTCTime,
+    cFields :: [(Text, TagValue)],
+    cRequest :: !HttpRequest
+  }
   deriving (Eq, Show)
 
-data HttpRequest
-  = HttpRequest
-      { httpMethod :: !StdMethod,
-        httpPath :: !Text,
-        httpQuery :: Maybe Text
-      }
+data HttpRequest = HttpRequest
+  { httpMethod :: !StdMethod,
+    httpPath :: !Text,
+    httpQuery :: Maybe Text
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent CommonLogRecord where

@@ -201,14 +201,13 @@ bulkSend' uri (encode -> jsbody) = do
 -- | NOTE: 'PushTarget's may occur several times both in the "lost" and in the "delivered" list.
 -- This happens iff there are several 'Notifcation's for the same 'PushTarget', and some of them are
 -- delivered while others aren't.
-data FlowBack
-  = FlowBack
-      { -- | list of cannons that failed to respond with status 200
-        flowBackBadCannons :: [(URI, SomeException)],
-        -- | 401 inside the body (for one presence)
-        flowBackLostPrcs :: [PushTarget],
-        flowBackDelivered :: [(NotificationId, PushTarget)]
-      }
+data FlowBack = FlowBack
+  { -- | list of cannons that failed to respond with status 200
+    flowBackBadCannons :: [(URI, SomeException)],
+    -- | 401 inside the body (for one presence)
+    flowBackLostPrcs :: [PushTarget],
+    flowBackDelivered :: [(NotificationId, PushTarget)]
+  }
 
 flowBack :: [(URI, Either SomeException BulkPushResponse)] -> FlowBack
 flowBack rawresps = FlowBack broken gone delivered

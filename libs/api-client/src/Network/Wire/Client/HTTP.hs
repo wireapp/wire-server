@@ -43,12 +43,11 @@ import Network.Wire.Client.Monad
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception (throwIO)
 
-data Error
-  = Error
-      { code :: Int,
-        label :: Text,
-        message :: Text
-      }
+data Error = Error
+  { code :: Int,
+    label :: Text,
+    message :: Text
+  }
   deriving (Show)
 
 instance FromJSON Error where

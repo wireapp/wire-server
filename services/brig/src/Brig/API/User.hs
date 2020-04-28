@@ -238,7 +238,9 @@ createUser new@NewUser {..} = do
     handleTeam ::
       Maybe NewTeamUser ->
       Maybe UserKey ->
-      ExceptT CreateUserError AppIO
+      ExceptT
+        CreateUserError
+        AppIO
         ( Maybe BindingNewTeamUser,
           Maybe (Team.Invitation, Team.InvitationInfo),
           Maybe TeamId

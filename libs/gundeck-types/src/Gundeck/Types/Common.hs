@@ -27,10 +27,9 @@ import qualified Data.Text as Text
 import Imports
 import qualified Network.URI as Net
 
-newtype CannonId
-  = CannonId
-      { cannonId :: Text
-      }
+newtype CannonId = CannonId
+  { cannonId :: Text
+  }
   deriving
     ( Eq,
       Ord,
@@ -41,10 +40,9 @@ newtype CannonId
       ToByteString
     )
 
-newtype URI
-  = URI
-      { fromURI :: Net.URI
-      }
+newtype URI = URI
+  { fromURI :: Net.URI
+  }
   deriving (Eq, Ord, Show)
 
 instance FromJSON URI where

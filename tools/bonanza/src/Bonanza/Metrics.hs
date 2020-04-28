@@ -35,14 +35,13 @@ import Data.Time
 import Imports
 import System.IO
 
-data Stats
-  = Stats
-      { sBytesIn :: !Int64,
-        sBytesOut :: !Int64,
-        sCPUTime :: !DiffTime,
-        sWallTime :: !NominalDiffTime,
-        sEventsIn :: !Int64
-      }
+data Stats = Stats
+  { sBytesIn :: !Int64,
+    sBytesOut :: !Int64,
+    sCPUTime :: !DiffTime,
+    sWallTime :: !NominalDiffTime,
+    sEventsIn :: !Int64
+  }
   deriving (Eq, Show)
 
 dumpStderr :: Stats -> IO ()

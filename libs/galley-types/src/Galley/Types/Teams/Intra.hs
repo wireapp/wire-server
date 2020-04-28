@@ -51,12 +51,11 @@ instance FromJSON TeamStatus where
   parseJSON (String "pending_active") = pure PendingActive
   parseJSON other = fail $ "Unknown TeamStatus: " <> show other
 
-data TeamData
-  = TeamData
-      { tdTeam :: !Team,
-        tdStatus :: !TeamStatus,
-        tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
-      }
+data TeamData = TeamData
+  { tdTeam :: !Team,
+    tdStatus :: !TeamStatus,
+    tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON TeamData where
@@ -73,12 +72,11 @@ instance FromJSON TeamData where
       <*> o .: "status"
       <*> o .:? "status_time"
 
-data TeamStatusUpdate
-  = TeamStatusUpdate
-      { tuStatus :: !TeamStatus,
-        tuCurrency :: !(Maybe Currency.Alpha)
-        -- TODO: Remove Currency selection once billing supports currency changes after team creation
-      }
+data TeamStatusUpdate = TeamStatusUpdate
+  { tuStatus :: !TeamStatus,
+    tuCurrency :: !(Maybe Currency.Alpha)
+    -- TODO: Remove Currency selection once billing supports currency changes after team creation
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON TeamStatusUpdate where
@@ -93,9 +91,8 @@ instance ToJSON TeamStatusUpdate where
         "currency" .= tuCurrency s
       ]
 
-newtype TeamName
-  = TeamName
-      {tnName :: Text}
+newtype TeamName = TeamName
+  {tnName :: Text}
   deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamName

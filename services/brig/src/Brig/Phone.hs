@@ -60,12 +60,11 @@ import System.Logger.Message (field, msg, val, (~~))
 -------------------------------------------------------------------------------
 -- Sending SMS and Voice Calls
 
-data SMSMessage
-  = SMSMessage
-      { smsFrom :: !Text,
-        smsTo :: !Text,
-        smsText :: !Text
-      }
+data SMSMessage = SMSMessage
+  { smsFrom :: !Text,
+    smsTo :: !Text,
+    smsText :: !Text
+  }
 
 data PhoneException
   = PhoneNumberUnreachable
@@ -269,13 +268,12 @@ withCallBudget phone go = do
 --------------------------------------------------------------------------------
 -- Unique Keys
 
-data PhoneKey
-  = PhoneKey
-      { -- | canonical form of 'phoneKeyOrig', without whitespace.
-        phoneKeyUniq :: !Text,
-        -- | phone number with whitespace.
-        phoneKeyOrig :: !Phone
-      }
+data PhoneKey = PhoneKey
+  { -- | canonical form of 'phoneKeyOrig', without whitespace.
+    phoneKeyUniq :: !Text,
+    -- | phone number with whitespace.
+    phoneKeyOrig :: !Phone
+  }
 
 instance Show PhoneKey where
   showsPrec _ = shows . phoneKeyUniq

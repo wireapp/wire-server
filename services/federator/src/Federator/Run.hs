@@ -88,10 +88,9 @@ closeEnv e = do
 
 -- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.
-newtype AppT m a
-  = AppT
-      { unAppT :: ReaderT Env m a
-      }
+newtype AppT m a = AppT
+  { unAppT :: ReaderT Env m a
+  }
   deriving
     ( Functor,
       Applicative,

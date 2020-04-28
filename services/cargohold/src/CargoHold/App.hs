@@ -77,26 +77,24 @@ import Util.Options
 -------------------------------------------------------------------------------
 -- Environment
 
-data Env
-  = Env
-      { _aws :: AwsEnv,
-        _metrics :: Metrics,
-        _appLogger :: Logger,
-        _httpManager :: Manager,
-        _requestId :: RequestId,
-        _settings :: Opt.Settings
-      }
+data Env = Env
+  { _aws :: AwsEnv,
+    _metrics :: Metrics,
+    _appLogger :: Logger,
+    _httpManager :: Manager,
+    _requestId :: RequestId,
+    _settings :: Opt.Settings
+  }
 
-data AwsEnv
-  = AwsEnv
-      { awsEnv :: Aws.Env,
-        -- | Needed for presigned, S3 requests (Only works with GET)
-        s3UriOnly :: Aws.S3Configuration Aws.UriOnlyQuery,
-        -- | For all other requests
-        s3Config :: Aws.S3Configuration Aws.NormalQuery,
-        s3Bucket :: Text,
-        cloudFront :: Maybe CloudFront
-      }
+data AwsEnv = AwsEnv
+  { awsEnv :: Aws.Env,
+    -- | Needed for presigned, S3 requests (Only works with GET)
+    s3UriOnly :: Aws.S3Configuration Aws.UriOnlyQuery,
+    -- | For all other requests
+    s3Config :: Aws.S3Configuration Aws.NormalQuery,
+    s3Bucket :: Text,
+    cloudFront :: Maybe CloudFront
+  }
 
 makeLenses ''Env
 

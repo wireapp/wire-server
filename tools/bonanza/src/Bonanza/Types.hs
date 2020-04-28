@@ -59,13 +59,12 @@ import Data.Time
 import Imports hiding (stripPrefix)
 
 -- | Canonical representation of a log record / event
-data LogEvent
-  = LogEvent
-      { _logTime :: Maybe UTCTime,
-        _logOrigin :: Maybe Host,
-        _logTags :: !Tags,
-        _logMessage :: Maybe Text
-      }
+data LogEvent = LogEvent
+  { _logTime :: Maybe UTCTime,
+    _logOrigin :: Maybe Host,
+    _logTags :: !Tags,
+    _logMessage :: Maybe Text
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON LogEvent where
@@ -131,12 +130,11 @@ instance FromJSON Host where
   parseJSON (String t) = pure $ Host t
   parseJSON _ = mzero
 
-data Geo
-  = Geo
-      { geoCountry :: Maybe Text,
-        geoCity :: Maybe Text,
-        geoLocation :: !Coordinate
-      }
+data Geo = Geo
+  { geoCountry :: Maybe Text,
+    geoCity :: Maybe Text,
+    geoLocation :: !Coordinate
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON Geo where
@@ -153,11 +151,10 @@ instance FromJSON Geo where
         { Aeson.omitNothingFields = True
         }
 
-data Coordinate
-  = Coordinate
-      { lat :: !Double,
-        lon :: !Double
-      }
+data Coordinate = Coordinate
+  { lat :: !Double,
+    lon :: !Double
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON Coordinate

@@ -28,10 +28,9 @@ import qualified Data.List.NonEmpty as N
 import qualified Data.Vector as V
 import Imports
 
-newtype List1 a
-  = List1
-      { toNonEmpty :: NonEmpty a
-      }
+newtype List1 a = List1
+  { toNonEmpty :: NonEmpty a
+  }
   deriving
     ( Monad,
       Functor,

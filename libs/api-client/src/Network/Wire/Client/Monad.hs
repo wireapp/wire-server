@@ -39,11 +39,10 @@ import Network.HTTP.Types
 import qualified System.Logger as Logger
 import System.Logger.Class
 
-data Env
-  = Env
-      { clientServer :: Server,
-        clientLogger :: Logger
-      }
+data Env = Env
+  { clientServer :: Server,
+    clientLogger :: Logger
+  }
 
 newtype Client a = Client (ReaderT Env IO a)
   deriving
@@ -58,15 +57,14 @@ newtype Client a = Client (ReaderT Env IO a)
       MonadMask
     )
 
-data Server
-  = Server
-      { serverHost :: ByteString,
-        serverPort :: Word16,
-        serverWsHost :: Maybe ByteString,
-        serverWsPort :: Maybe Word16,
-        serverSSL :: Bool,
-        serverManager :: Manager
-      }
+data Server = Server
+  { serverHost :: ByteString,
+    serverPort :: Word16,
+    serverWsHost :: Maybe ByteString,
+    serverWsPort :: Maybe Word16,
+    serverSSL :: Bool,
+    serverManager :: Manager
+  }
 
 class (MonadHttp m, MonadLogger m, MonadIO m) => MonadClient m where
   getServer :: m Server

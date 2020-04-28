@@ -106,31 +106,28 @@ instance Exception Error
 
 newtype QueueUrl = QueueUrl Text deriving (Show)
 
-data Env
-  = Env
-      { _awsEnv :: !AWS.Env,
-        _logger :: !Logger,
-        _eventQueue :: !QueueUrl,
-        _region :: !Region,
-        _account :: !Account
-      }
+data Env = Env
+  { _awsEnv :: !AWS.Env,
+    _logger :: !Logger,
+    _eventQueue :: !QueueUrl,
+    _region :: !Region,
+    _account :: !Account
+  }
 
-data SNSEndpoint
-  = SNSEndpoint
-      { _endpointToken :: !Push.Token,
-        _endpointEnabled :: !Bool,
-        _endpointUsers :: !(Set UserId)
-      }
+data SNSEndpoint = SNSEndpoint
+  { _endpointToken :: !Push.Token,
+    _endpointEnabled :: !Bool,
+    _endpointUsers :: !(Set UserId)
+  }
   deriving (Show)
 
 makeLenses ''Env
 
 makeLenses ''SNSEndpoint
 
-newtype Amazon a
-  = Amazon
-      { unAmazon :: ReaderT Env (ResourceT IO) a
-      }
+newtype Amazon a = Amazon
+  { unAmazon :: ReaderT Env (ResourceT IO) a
+  }
   deriving
     ( Functor,
       Applicative,
@@ -348,10 +345,9 @@ data PublishError
   | InvalidEndpoint !EndpointArn
   | PayloadTooLarge !EndpointArn
 
-newtype Attributes
-  = Attributes
-      { setAttributes :: Endo (HashMap Text SNS.MessageAttributeValue)
-      }
+newtype Attributes = Attributes
+  { setAttributes :: Endo (HashMap Text SNS.MessageAttributeValue)
+  }
   deriving (Semigroup, Monoid)
 
 -- Note [VoIP TTLs]

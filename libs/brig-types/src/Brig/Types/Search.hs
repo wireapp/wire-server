@@ -24,24 +24,22 @@ import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Imports
 
-data SearchResult a
-  = SearchResult
-      { searchFound :: Int,
-        searchReturned :: Int,
-        searchTook :: Int,
-        searchResults :: [a]
-      }
+data SearchResult a = SearchResult
+  { searchFound :: Int,
+    searchReturned :: Int,
+    searchTook :: Int,
+    searchResults :: [a]
+  }
   deriving (Show)
 
 -- | This is a subset of 'User' and json instances should reflect that.
-data Contact
-  = Contact
-      { contactUserId :: UserId,
-        contactName :: Text,
-        contactColorId :: Maybe Int,
-        contactHandle :: Maybe Text,
-        contactTeam :: Maybe TeamId
-      }
+data Contact = Contact
+  { contactUserId :: UserId,
+    contactName :: Text,
+    contactColorId :: Maybe Int,
+    contactHandle :: Maybe Text,
+    contactTeam :: Maybe TeamId
+  }
   deriving (Show)
 
 data TeamSearchInfo

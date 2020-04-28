@@ -47,13 +47,12 @@ import Network.HaskellNet.IMAP.Connection
 import Network.HaskellNet.IMAP.SSL
 import Network.Wire.Client.API.User
 
-data MailboxSettings
-  = MailboxSettings
-      { mailboxHost :: String,
-        mailboxUser :: Email,
-        mailboxPassword :: String,
-        mailboxConnections :: Int
-      }
+data MailboxSettings = MailboxSettings
+  { mailboxHost :: String,
+    mailboxUser :: Email,
+    mailboxPassword :: String,
+    mailboxConnections :: Int
+  }
 
 instance FromJSON MailboxSettings where
   parseJSON = withObject "mailbox-settings" $ \o ->
@@ -62,11 +61,10 @@ instance FromJSON MailboxSettings where
       <*> o .: "pass"
       <*> o .: "conn"
 
-data Mailbox
-  = Mailbox
-      { mailboxSettings :: MailboxSettings,
-        mailboxPool :: Pool IMAPConnection
-      }
+data Mailbox = Mailbox
+  { mailboxSettings :: MailboxSettings,
+    mailboxPool :: Pool IMAPConnection
+  }
 
 data MailException
   = -- | Missing e-mail headers needed for automation.

@@ -32,11 +32,10 @@ import Cassandra
 import Data.Time.Clock
 import Imports
 
-data Budget
-  = Budget
-      { budgetTimeout :: !NominalDiffTime,
-        budgetValue :: !Int32
-      }
+data Budget = Budget
+  { budgetTimeout :: !NominalDiffTime,
+    budgetValue :: !Int32
+  }
   deriving (Eq, Show, Generic)
 
 data Budgeted a

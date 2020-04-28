@@ -34,13 +34,12 @@ import Imports
 
 -- <timestamp> <syslog_identifier>[<pid>]: <... message ...>
 
-data JournaldLogRecord a
-  = JournaldLogRecord
-      { jdTime :: !(Maybe UTCTime),
-        jdProcess :: Text,
-        jdPid :: Int,
-        jdMessage :: !a
-      }
+data JournaldLogRecord a = JournaldLogRecord
+  { jdTime :: !(Maybe UTCTime),
+    jdProcess :: Text,
+    jdPid :: Int,
+    jdMessage :: !a
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent a => ToLogEvent (JournaldLogRecord a) where
