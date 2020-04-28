@@ -1127,16 +1127,18 @@ randomClient uid lk = do
 
 ensureDeletedState :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
 ensureDeletedState check from u = do
+  state <- getDeletedState from u
+  liftIO $ assertEqual "Unxpected deleted state" state (Just check)
+
+getDeletedState :: HasCallStack => UserId -> UserId -> TestM (Maybe Bool)
+getDeletedState from u = do
   b <- view tsBrig
-  get
+  fmap profileDeleted . responseJsonMaybe <$> get
     ( b
         . paths ["users", toByteString' u]
         . zUser from
         . zConn "conn"
     )
-    !!! const (Just check)
-    === fmap profileDeleted
-    . responseJsonMaybe
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do

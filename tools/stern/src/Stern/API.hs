@@ -33,7 +33,6 @@ import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens ((^.))
 import Control.Monad (liftM, void, when)
-import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
@@ -228,6 +227,22 @@ sitemap = do
       Doc.optional
     Doc.response 200 "Account deleted" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+  delete "/teams/:tid" (continue deleteTeam) $
+    capture "tid"
+      .&. query "email"
+  document "DELETE" "deleteTeam" $ do
+    summary "Delete a team (irrevocable!) You can only delete teams with 1 user!"
+    Doc.notes "Email the userId's (to prevent copy/paste mistakes)"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.parameter Doc.Query "email" Doc.string' $ do
+      Doc.description "Matching verified remaining user address"
+    Doc.response 202 "Team scheduled for deletion" Doc.end
+    Doc.response 404 "No such user with that email" (Doc.model Doc.errorModel)
+    Doc.response 404 "No such binding team" (Doc.model Doc.errorModel)
+    Doc.response 403 "Only teams with 1 user can be deleted" (Doc.model Doc.errorModel)
+    Doc.response 404 "Binding team mismatch" (Doc.model Doc.errorModel)
+
   head "/users/blacklist" (continue isUserKeyBlacklisted) $
     (query "email" ||| phoneParam)
   document "HEAD" "checkBlacklistStatus" $ do
@@ -474,6 +489,24 @@ deleteUser (uid ::: emailOrPhone) = do
   where
     checkUUID u = userId u == uid
 
+deleteTeam :: TeamId ::: Email -> Handler Response
+deleteTeam (givenTid ::: email) = do
+  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
+  userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
+  when (givenTid /= userTid) $
+    throwE bindingTeamMismatch
+  tInfo <- Intra.getTeamInfo givenTid
+  unless ((length (tiMembers tInfo)) == 1) $
+    throwE wrongMemberCount
+  void $ Intra.deleteBindingTeam givenTid
+  return $ setStatus status202 empty
+  where
+    handleNoUser = ifNothing (Error status404 "no-user" "No such user with that email")
+    handleNoTeam = ifNothing (Error status404 "no-binding-team" "No such binding team")
+
+    wrongMemberCount = Error status403 "wrong-member-count" "Only teams with 1 user can be deleted"
+    bindingTeamMismatch = Error status404 "binding-team-mismatch" "Binding team mismatch"
+
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do
   bl <- Intra.isBlacklisted emailOrPhone
@@ -627,7 +660,7 @@ groupByStatus conns =
     byStatus s = length . filter ((==) s . ucStatus)
 
 ifNothing :: Error -> Maybe a -> Handler a
-ifNothing e = maybe (throwM e) return
+ifNothing e = maybe (throwE e) return
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (Error status404 "no-user" "No such user")
