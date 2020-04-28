@@ -38,7 +38,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime)
+import Brig.App (AppIO, awsEnv, currentTime, metrics)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -58,6 +58,7 @@ import qualified Data.HashMap.Strict as Map
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List.Split (chunksOf)
+import qualified Data.Metrics as Metrics
 import Data.Misc
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -273,8 +274,8 @@ withOptLock u c ma = go (10 :: Int)
       a <- ma
       r <- execDyn return (put v)
       case r of
-        Nothing | n > 0 -> go (n - 1)
-        Nothing -> logFailure >> return a
+        Nothing | n > 0 -> reportAttemptFailure >> go (n - 1)
+        Nothing -> reportFailureAndLogError >> return a
         Just _ -> return a
     version :: AWS.GetItemResponse -> Maybe Word32
     version v = conv =<< Map.lookup ddbVersion (view AWS.girsItem v)
@@ -301,22 +302,36 @@ withOptLock u c ma = go (10 :: Int)
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
-    logFailure :: AppIO ()
-    logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
+    reportAttemptFailure :: AppIO ()
+    reportAttemptFailure =
+      Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
+    reportFailureAndLogError :: AppIO ()
+    reportFailureAndLogError = do
+      Log.err $
+        Log.field "user" (toByteString' u)
+          . Log.field "client" (toByteString' c)
+          . msg (val "PreKeys: Optimistic lock failed")
+      Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
     execDyn :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
-      execDyn' e cnv cmd
+      m <- view metrics
+      execDyn' e m cnv cmd
       where
         execDyn' ::
           (AWS.AWSRequest r, MonadUnliftIO m, MonadMask m, MonadIO m, Typeable m) =>
           AWS.Env ->
+          Metrics.Metrics ->
           (AWS.Rs r -> Maybe a) ->
           r ->
           m (Maybe a)
-        execDyn' e conv cmd = recovering policy handlers (const run)
+        execDyn' e m conv cmd = recovering policy handlers (const run)
           where
-            run = execCatch e cmd >>= return . either (const Nothing) conv
+            run = execCatch e cmd >>= either handleErr (return . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
+            handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
+              Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
+              return Nothing
+            handleErr _ = return Nothing
