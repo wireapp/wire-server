@@ -274,7 +274,7 @@ withOptLock u c ma = go (10 :: Int)
       a <- ma
       r <- execDyn return (put v)
       case r of
-        Nothing | n > 0 -> reportFailureAndMaybeLog n >> go (n - 1)
+        Nothing | n > 0 -> reportAttemptFailure >> go (n - 1)
         Nothing -> reportFailureAndLogError >> return a
         Just _ -> return a
     version :: AWS.GetItemResponse -> Maybe Word32
@@ -302,14 +302,8 @@ withOptLock u c ma = go (10 :: Int)
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
-    reportFailureAndMaybeLog :: Int -> AppIO ()
-    reportFailureAndMaybeLog n = do
-      -- Start logging after 5 failures
-      when (n <= 5) $
-        Log.warn $ Log.field "user" (toByteString' u)
-                 . Log.field "client" (toByteString' c)
-                 . Log.field "attempts_left" (toByteString' n)
-                 . msg (val "PreKeys: Optimistic lock grab attempt failed")
+    reportAttemptFailure :: AppIO ()
+    reportAttemptFailure =
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
     reportFailureAndLogError :: AppIO ()
     reportFailureAndLogError = do
