@@ -15,12 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Types
-  ( module G,
+module Wire.API.Push
+  ( module V2,
   )
 where
 
-import Gundeck.Types.Event as G
-import Gundeck.Types.Notification as G
-import Gundeck.Types.Presence as G
-import Gundeck.Types.Push as G
+import Wire.API.Push.V2 as V2

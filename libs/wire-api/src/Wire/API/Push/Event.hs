@@ -17,13 +17,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Types.Event where
+-- FUTUREWORK:
+-- I'm not sure why PushRemove is in a module called Event and where exactly it's
+-- used. We should clean up the Event/Push/Notification types to make it clearer
+-- what's going on.
+module Wire.API.Push.Event where
 
 import Data.Aeson
 import qualified Data.HashMap.Strict as M
 import Data.Json.Util
-import Gundeck.Types.Push
 import Imports
+import Wire.API.Push
 
 newtype PushRemove = PushRemove PushToken
   deriving (Eq, Show)

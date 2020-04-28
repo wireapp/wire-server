@@ -18,18 +18,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Types.Presence
-  ( module Gundeck.Types.Presence,
-    module Common,
+module Wire.API.Presence
+  ( module Wire.API.Presence,
   )
 where
 
 import Data.Aeson
+import Data.Attoparsec.ByteString (takeByteString)
+import qualified Data.ByteString.Char8 as Bytes
+import Data.ByteString.Conversion (FromByteString (parser), ToByteString (builder))
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
-import Gundeck.Types.Common as Common
+import qualified Data.Text as Text
 import Imports
+import qualified Network.URI as Net
 
 -- | This is created in gundeck by cannon every time the client opens a new websocket connection.
 -- (That's why we always have a 'ConnId' from the most recent connection by that client.)
@@ -68,3 +71,23 @@ instance FromJSON Presence where
       <*> o .:? "client_id"
       <*> o .:? "created_at" .!= 0
       <*> pure ""
+
+newtype URI = URI
+  { fromURI :: Net.URI
+  }
+  deriving (Eq, Ord, Show)
+
+instance FromJSON URI where
+  parseJSON = withText "URI" (parse . Text.unpack)
+
+instance ToJSON URI where
+  toJSON uri = String $ Text.pack (show (fromURI uri))
+
+instance ToByteString URI where
+  builder = builder . show . fromURI
+
+instance FromByteString URI where
+  parser = takeByteString >>= parse . Bytes.unpack
+
+parse :: Monad m => String -> m URI
+parse = maybe (fail "Invalid URI") (return . URI) . Net.parseURI

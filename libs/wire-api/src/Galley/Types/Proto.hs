@@ -64,8 +64,8 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
 import qualified Galley.Types as Galley
-import qualified Gundeck.Types.Push as Gundeck
 import Imports
+import qualified Wire.API.Push as Gundeck
 
 -- UserId -------------------------------------------------------------------
 

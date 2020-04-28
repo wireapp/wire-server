@@ -95,9 +95,9 @@ import Data.Time
 import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
-import Gundeck.Types.Push (Priority)
 import Imports
 import URI.ByteString
+import Wire.API.Push (Priority)
 
 -- Conversations ------------------------------------------------------------
 
