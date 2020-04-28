@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.API.Auth
-  ( routes,
+  ( routesPublic,
+    routesInternal,
   )
 where
 
@@ -51,8 +52,8 @@ import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-routes :: Routes Doc.ApiBuilder Handler ()
-routes = do
+routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic = do
   post "/access" (continue renewH) $
     accept "application" "json"
       .&. tokenRequest
@@ -74,7 +75,6 @@ routes = do
       Doc.description "The access-token as query parameter."
       Doc.optional
     Doc.errorResponse badCredentials
-  --
 
   post "/login/send" (continue sendLoginCodeH) $
     jsonRequest @SendLoginCode
@@ -91,7 +91,6 @@ routes = do
     Doc.errorResponse invalidPhone
     Doc.errorResponse passwordExists
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
-  --
 
   post "/login" (continue loginH) $
     jsonRequest @Login
@@ -111,7 +110,6 @@ routes = do
     Doc.errorResponse accountSuspended
     Doc.errorResponse accountPending
     Doc.errorResponse loginsTooFrequent
-  --
 
   post "/access/logout" (continue logoutH) $
     accept "application" "json" .&. tokenRequest
@@ -130,7 +128,6 @@ routes = do
       Doc.description "The access-token as query parameter."
       Doc.optional
     Doc.errorResponse badCredentials
-  --
 
   get "/cookies" (continue listCookiesH) $
     header "Z-User"
@@ -142,7 +139,6 @@ routes = do
     Doc.parameter Doc.Query "labels" Doc.bytes' $ do
       Doc.description "Filter by label (comma-separated list)"
       Doc.optional
-  --
 
   post "/cookies/remove" (continue rmCookiesH) $
     header "Z-User"
@@ -151,19 +147,23 @@ routes = do
     Doc.summary "Revoke stored cookies."
     Doc.body (Doc.ref Doc.removeCookies) Doc.end
     Doc.errorResponse badCredentials
-  -- Internal
 
+routesInternal :: Routes Doc.ApiBuilder Handler ()
+routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
   post "/i/legalhold-login" (continue legalHoldLoginH) $
     jsonRequest @LegalHoldLogin
       .&. accept "application" "json"
+
   post "/i/sso-login" (continue ssoLoginH) $
     jsonRequest @SsoLogin
       .&. def False (query "persist")
       .&. accept "application" "json"
+
   get "/i/users/login-code" (continue getLoginCodeH) $
     accept "application" "json"
       .&. param "phone"
+
   get "/i/users/:uid/reauthenticate" (continue reAuthUserH) $
     capture "uid"
       .&. jsonRequest @ReAuthUser
