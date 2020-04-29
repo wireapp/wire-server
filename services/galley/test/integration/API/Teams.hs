@@ -563,7 +563,7 @@ testRemoveBindingTeamOwner = do
   Util.waitForUserDeletion ownerA
   refreshIndex
   check tid ownerB ownerWithoutEmail (Just $ Util.defPassword) Nothing
-  assertQueue "Remove ownerWithoutEmail" $ tUpdate 2 [ownerB]
+  assertQueue "Remove ownerWithoutEmail" $ tUpdateUncertainCount [2, 3] [ownerB]
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
