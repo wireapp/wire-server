@@ -1166,7 +1166,8 @@ testBillingInLargeTeam = do
       ( \billingMembers n -> do
           newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) owner team
           let allBillingMembers = newBillingMemberId : billingMembers
-          assertQueue "Add lots of billingMembers" $ tUpdate (n + 1) allBillingMembers
+          assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
+            tUpdate (n + 1) allBillingMembers
           refreshIndex
           pure allBillingMembers
       )
