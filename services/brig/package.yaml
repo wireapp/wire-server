@@ -267,3 +267,24 @@ executables:
     - imports
     - optparse-applicative >=0.10
     - types-common
+  brig-email-scraper:
+    main: Main.hs
+    source-dirs: email-scraper/src
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N1
+    - -with-rtsopts=-T
+    - -rtsopts
+    dependencies:
+    - base
+    - brig-types
+    - cassandra-util >=0.12
+    - directory >=1.3
+    - extended
+    - lens
+    - optparse-applicative >=0.10
+    - raw-strings-qq >=1.0
+    - imports
+    - text
+    - tinylog
+    - types-common
