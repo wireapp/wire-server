@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Bot.Service
+module Wire.API.Service
   ( ServiceToken (..),
     ServiceRef,
     newServiceRef,
@@ -35,4 +35,4 @@ module Galley.Types.Bot.Service
   )
 where
 
-import Galley.Types.Bot.Service.Internal
+import Wire.API.Service.Internal

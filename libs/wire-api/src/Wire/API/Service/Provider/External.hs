@@ -34,8 +34,8 @@ import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
-import Galley.Types.Bot
 import Imports
+import Wire.API.Service.Bot
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile
 

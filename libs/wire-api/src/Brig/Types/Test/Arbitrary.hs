@@ -49,7 +49,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)
 import GHC.TypeLits
 import Galley.Types
-import Galley.Types.Bot.Service.Internal
 import Imports
 import qualified System.Random
 import Test.QuickCheck
@@ -60,6 +59,7 @@ import Wire.API.Activation
 import Wire.API.Calling.TURN
 import Wire.API.Calling.TURN.Internal
 import Wire.API.Conversation.Code as Code
+import Wire.API.Service.Internal
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Wire.API.Team
 import Wire.API.Team.Internal

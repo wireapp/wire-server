@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Bot
+module Wire.API.Service.Bot
   ( AddBot,
     addBot,
     addBotService,
@@ -46,8 +46,8 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Galley.Types (OtherMember (..))
-import Galley.Types.Bot.Service as Service
 import Imports
+import Wire.API.Service as Service
 
 -- AddBot ----------------------------------------------------------------------
 

@@ -48,10 +48,10 @@ import Data.Range
 import qualified Data.Text as Text
 import Data.Text.Ascii
 import Data.UUID (UUID)
-import Galley.Types.Bot (ServiceRef)
 import Imports
 import Wire.API.Activation (ActivationCode)
 import qualified Wire.API.Conversation.Code as Code
+import Wire.API.Service.Bot (ServiceRef)
 import Wire.API.Team hiding (userId)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity

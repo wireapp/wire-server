@@ -93,11 +93,11 @@ import Data.Misc
 import qualified Data.Text.Encoding as T
 import Data.Time
 import Data.UUID (toASCIIBytes)
-import Galley.Types.Bot.Service (ServiceRef)
 import Galley.Types.Conversations.Roles
 import Imports
 import URI.ByteString
 import Wire.API.Push (Priority)
+import Wire.API.Service (ServiceRef)
 
 -- Conversations ------------------------------------------------------------
 

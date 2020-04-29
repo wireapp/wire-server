@@ -50,9 +50,9 @@ import qualified Data.Set as Set
 import Data.Singletons.TypeLits
 import qualified Data.Text.Encoding as Text
 import Galley.Types (Event)
-import Galley.Types.Bot (ServiceToken (..))
 import Imports
 import Wire.API.Conversation.Code as Code
+import Wire.API.Service.Bot (ServiceToken (..))
 import Wire.API.Service.Provider.Tag (ServiceTag (..))
 import qualified Wire.API.Service.Provider.Tag as Tag
 import Wire.API.User.Client.Prekey
