@@ -17,28 +17,26 @@ main = do
   casClient <- initCassandra l (s^.setCasBrig)
   C.runClient casClient $ do
     page1 <- scanForIndex 2500
-    go 0 page1
+    go (s^.setDomains) 0 page1
   where
     desc = header   "list-emails-with-domain"
         <> progDesc "User script"
         <> fullDesc
 
-    go n page = do
+    go domains n page = do
       let result = C.result page
           newCount = n + length result
-      mapM_ printIfMatchesDomain result
+      mapM_ (printIfMatchesDomain domains) result
       putStrLn $ "Scanned " ++ show newCount
       when (C.hasMore page) $ do
         nextPage <- C.liftClient (C.nextPage page)
-        go newCount nextPage
+        go domains newCount nextPage
 
-interestingDomains :: [Maybe Text]
-interestingDomains = map Just ["example.com"]
-
-printIfMatchesDomain :: MonadIO m => UserRow -> m ()
-printIfMatchesDomain (_     , Nothing    , _    , _         ) = pure ()
-printIfMatchesDomain (userId, Just mEmail, mTeam, mActivated) = do
+printIfMatchesDomain :: MonadIO m => [Text] -> UserRow -> m ()
+printIfMatchesDomain _       (_     , Nothing    , _    , _         ) = pure ()
+printIfMatchesDomain domains (userId, Just mEmail, mTeam, mActivated) = do
   let email = parseEmail mEmail
+  let interestingDomains = map Just domains
   if (emailDomain <$> email) `elem` interestingDomains
     then print (userId, pretty email, pretty mTeam, pretty mActivated)
     else pure ()
