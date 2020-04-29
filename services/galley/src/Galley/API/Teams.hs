@@ -538,9 +538,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  removeMembership <- Data.teamMember tid remove
   mems <- Data.teamMembersForFanout tid
-  if team ^. teamBinding == Binding && isJust removeMembership
+  if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
