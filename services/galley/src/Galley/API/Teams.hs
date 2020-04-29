@@ -466,16 +466,16 @@ updateTeamMember zusr zcon tid targetMember = do
       >>= permissionCheck SetMemberPermissions
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  Data.teamMember tid targetId >>= \case
-    Nothing -> do
+  previousMember <- Data.teamMember tid targetId >>= \case
+    Nothing ->
       -- target user must be in same team
       throwM teamMemberNotFound
-    Just previousMember -> do
-      when (downgradesOwner previousMember targetPermissions)
-        $
-        -- owner can be downgraded IFF it can be deleted
-        unless (canDeleteMember user previousMember)
-        $ throwM accessDenied
+    Just previousMember -> pure previousMember
+  when
+    ( downgradesOwner previousMember targetPermissions
+        && not (canDowngradeOwner user previousMember)
+    )
+    $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
   -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
@@ -483,6 +483,9 @@ updateTeamMember zusr zcon tid targetMember = do
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
+    -- owner can be downgraded IFF they can be deleted
+    canDowngradeOwner = canDeleteMember
+    --
     downgradesOwner :: TeamMember -> Permissions -> Bool
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
