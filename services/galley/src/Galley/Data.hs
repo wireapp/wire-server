@@ -29,6 +29,9 @@ module Galley.Data
     updateTeamMember,
     createTeam,
     removeTeamMember,
+    addBillingTeamMember,
+    listBillingTeamMembers,
+    deleteBillingTeamMember,
     team,
     Galley.Data.teamName,
     teamConversation,
@@ -380,6 +383,20 @@ removeTeamMember t m =
     setConsistency Quorum
     addPrepQuery Cql.deleteTeamMember (t, m)
     addPrepQuery Cql.deleteUserTeam (m, t)
+    addPrepQuery Cql.deleteBillingTeamMember (t, m)
+
+addBillingTeamMember :: MonadClient m => TeamId -> UserId -> m ()
+addBillingTeamMember tid uid =
+  retry x5 $ write Cql.insertBillingTeamMember (params Quorum (tid, uid))
+
+listBillingTeamMembers :: MonadClient m => TeamId -> m [UserId]
+listBillingTeamMembers tid =
+  fmap runIdentity
+    <$> (retry x1 $ query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
+
+deleteBillingTeamMember :: MonadClient m => TeamId -> UserId -> m ()
+deleteBillingTeamMember tid uid =
+  retry x5 $ write Cql.deleteBillingTeamMember (params Quorum (tid, uid))
 
 removeTeamConv :: MonadClient m => TeamId -> ConvId -> m ()
 removeTeamConv tid cid = do

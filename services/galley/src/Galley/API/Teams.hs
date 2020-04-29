@@ -187,8 +187,6 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
-      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
-      mems <- Data.teamMembersForFanout tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -198,7 +196,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
             if possiblyStaleSize == 0
               then 1
               else possiblyStaleSize
-      Journal.teamActivate tid size mems c teamCreationTime
+      Journal.teamActivate tid size c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -441,9 +439,8 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  -- FUTUREWORK: This takes a list of members for fanout, but it should really
-  --             use the hardlimit instead. We want to avoid double lookups though
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- Data.listBillingTeamMembers tid
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -478,12 +475,18 @@ updateTeamMember zusr zcon tid targetMember = do
     $ throwM accessDenied
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
+  -- When member is a new billing team member, add them to the billing_team_member table
+  when (not (isBillingMember previousMember) && isBillingMember targetMember) $
+    Data.addBillingTeamMember tid targetId
+  when (isBillingMember previousMember && not (isBillingMember targetMember)) $
+    Data.deleteBillingTeamMember tid targetId
+  updateJournal team
   updatedMembers <- Data.teamMembersForFanout tid
-  updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
-    -- owner can be downgraded IFF they can be deleted
+    isBillingMember :: TeamMember -> Bool
+    isBillingMember = flip hasPermission SetBilling
+    --
     canDowngradeOwner = canDeleteMember
     --
     downgradesOwner :: TeamMember -> Permissions -> Bool
@@ -491,13 +494,12 @@ updateTeamMember zusr zcon tid targetMember = do
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
     --
-    updateJournal :: Team -> TeamMemberList -> Galley ()
-    updateJournal team updatedMembers = do
+    updateJournal :: Team -> Galley ()
+    updateJournal team = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        -- FUTUREWORK: This takes a list of members for fanout, but it should really
-        --             use the hardlimit instead. We want to avoid double lookups though
-        Journal.teamUpdate tid size updatedMembers
+        billingUserIds <- Data.listBillingTeamMembers tid
+        Journal.teamUpdate tid size billingUserIds
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -551,10 +553,11 @@ deleteTeamMember zusr zcon tid remove mBody = do
             if sizeBeforeDelete == 0
               then 0
               else sizeBeforeDelete - 1
+      billingUsers <- Data.listBillingTeamMembers tid
+      -- 'deleteUser' deletes asynchronously, so we have to proactively filter out the removed
+      let billingUsersWithoutDeleted = filter (/= remove) billingUsers
       deleteUser remove
-      -- FUTUREWORK: This takes a list of members for fanout, but it should really
-      --             use the hardlimit instead. We want to avoid double lookups though
-      Journal.teamUpdate tid sizeAfterDelete $ newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
+      Journal.teamUpdate tid sizeAfterDelete billingUsersWithoutDeleted
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
@@ -723,6 +726,8 @@ addTeamMemberInternal tid origin originConn newMem memList = do
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
   Data.addTeamMember tid new
+  when (hasPermission new SetBilling) $
+    Data.addBillingTeamMember tid (new ^. userId)
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
@@ -739,6 +744,7 @@ finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $
     Data.addTeamMember (team ^. teamId)
+  Data.addBillingTeamMember (team ^. teamId) (owner ^. userId)
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others

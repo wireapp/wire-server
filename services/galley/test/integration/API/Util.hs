@@ -21,6 +21,7 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import Brig.Types.Intra (UserAccount)
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
@@ -64,6 +65,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import UnliftIO.Timeout
 import Web.Cookie
 
 -------------------------------------------------------------------------------
@@ -1346,3 +1348,19 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (galleyApp, _) <- Run.mkApp opts
   WaiTest.runSession action galleyApp
+
+waitForUserDeletion :: UserId -> TestM ()
+waitForUserDeletion uid = do
+  maybeTimedOut <- timeout 1000000 $ loop
+  case maybeTimedOut of
+    Nothing -> liftIO $ assertFailure "Timed out waiting for user deletion"
+    _ -> pure ()
+  where
+    loop = do
+      brig <- view tsBrig
+      res <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid))
+      liftIO $ assertEqual "Expected 200" 200 (statusCode res)
+      let Just (accounts :: [UserAccount]) = responseJsonMaybe res
+      case accounts of
+        [] -> pure ()
+        _ -> loop

@@ -531,26 +531,39 @@ testRemoveBindingTeamMember ownerHasPassword = do
 testRemoveBindingTeamOwner :: TestM ()
 testRemoveBindingTeamOwner = do
   (ownerA, tid) <- Util.createBindingTeam
+  refreshIndex
   ownerB <-
     view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) ownerA tid
+  assertQueue "Add owner" $ tUpdate 2 [ownerA, ownerB]
+  refreshIndex
   ownerWithoutEmail <- do
     -- users must have a 'UserIdentity', or @get /i/users@ won't find it, so we use
     -- 'UserSSOId'.
     mem <- Util.addUserToTeamWithSSO False tid
+    refreshIndex
+    assertQueue "Add user with SSO" $ tUpdate 3 [ownerA, ownerB]
     Util.makeOwner ownerA mem tid
     pure $ view userId mem
+  assertQueue "Promote user to owner" $ tUpdate 3 [ownerA, ownerB, ownerWithoutEmail]
   admin <-
     view userId <$> Util.addUserToTeamWithRole (Just RoleAdmin) ownerA tid
+  assertQueue "Add admin" $ tUpdate 4 [ownerA, ownerB, ownerWithoutEmail]
+  refreshIndex
   -- non-owner can NOT delete owner
   check tid admin ownerWithoutEmail (Just $ Util.defPassword) (Just "access-denied")
+  assertQueueEmpty
   -- owners can NOT delete themselves
   check tid ownerA ownerA (Just $ Util.defPassword) (Just "access-denied")
+  assertQueueEmpty
   check tid ownerWithoutEmail ownerWithoutEmail Nothing (Just "access-denied")
+  assertQueueEmpty
   -- owners can delete other owners (no matter who has emails)
   check tid ownerWithoutEmail ownerA Nothing Nothing
+  assertQueue "Remove ownerA" $ tUpdate 3 [ownerB, ownerWithoutEmail]
+  Util.waitForUserDeletion ownerA
+  refreshIndex
   check tid ownerB ownerWithoutEmail (Just $ Util.defPassword) Nothing
-  --
-  ensureQueueEmpty
+  assertQueue "Remove ownerWithoutEmail" $ tUpdate 2 [ownerB]
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
@@ -1197,6 +1210,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure noPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure noPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  assertQueue "Member demoted" $ tUpdate 2 [owner]
   -- owner can promote non-owner
   let promoteMember = newNewTeamMember (member & permissions .~ fullPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
@@ -1207,6 +1221,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure fullPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure fullPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  assertQueue "Member promoted to owner" $ tUpdate 2 [owner, member ^. userId]
   -- owner can **NOT** demote herself, even when another owner exists
   updateTeamMember g tid owner demoteOwner !!! do
     const 403 === statusCode
@@ -1220,7 +1235,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid owner wsOwner (pure (rolePermissions RoleAdmin))
     checkTeamMemberUpdateEvent tid owner wsMember (pure (rolePermissions RoleAdmin))
     WS.assertNoEvent timeout [wsOwner, wsMember]
-  assertQueueEmpty
+  assertQueue "Owner demoted" $ tUpdate 2 [member ^. userId]
   where
     updateTeamMember g tid zusr change =
       put
