@@ -25,15 +25,9 @@
 module Wire.API.User.Identity where
 
 import Control.Applicative (optional)
-import Control.Error (hush)
 import Data.Aeson hiding ((<?>))
-import qualified Data.Aeson.Types as Json
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import Data.ISO3166_CountryCodes
-import Data.Json.Util ((#))
-import Data.LanguageCodes
-import Data.Range
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
