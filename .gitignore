@@ -84,3 +84,5 @@ deploy/dockerephemeral/build/smtp/
 
 # Generated hie.yaml
 hie.yaml
+
+fonts export-ignore
