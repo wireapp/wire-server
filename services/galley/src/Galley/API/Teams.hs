@@ -171,6 +171,7 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
+  Data.addBillingTeamMember tid (owner ^. userId)
   pure tid
 
 updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
@@ -441,6 +442,13 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
+  let new = nmem ^. ntmNewTeamMember
+
+  -- This has to only be done for binding teams, it is assumed here as this function is
+  -- supposed to be called only for binding teams
+  when (hasPermission new SetBilling) $
+    Data.addBillingTeamMember tid (new ^. userId)
+
   billingUserIds <- Data.listBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
@@ -458,11 +466,13 @@ updateTeamMember zusr zcon tid targetMember = do
   Log.debug $
     Log.field "targets" (toByteString targetId)
       . Log.field "action" (Log.val "Teams.updateTeamMember")
+
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   user <-
     Data.teamMember tid zusr
       >>= permissionCheck SetMemberPermissions
+
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   previousMember <- Data.teamMember tid targetId >>= \case
@@ -475,13 +485,26 @@ updateTeamMember zusr zcon tid targetMember = do
         && not (canDowngradeOwner user previousMember)
     )
     $ throwM accessDenied
+
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
-  -- When member is a new billing team member, add them to the billing_team_member table
-  when (not (isBillingMember previousMember) && isBillingMember targetMember) $
-    Data.addBillingTeamMember tid targetId
-  when (isBillingMember previousMember && not (isBillingMember targetMember)) $
-    Data.deleteBillingTeamMember tid targetId
+
+  -- Manage billing member data
+  when (team ^. teamBinding == Binding) $ do
+    -- add new billing member, if applicable
+    let isNewBillingMember =
+          not (isBillingMember previousMember)
+            && isBillingMember targetMember
+    when isNewBillingMember $
+      Data.addBillingTeamMember tid targetId
+
+    -- remove old billing member, if applicable
+    let isNotBillingMemberAnymore =
+          isBillingMember previousMember
+            && not (isBillingMember targetMember)
+    when isNotBillingMemberAnymore $
+      Data.deleteBillingTeamMember tid targetId
+
   updateJournal team
   updatedMembers <- Data.teamMembersForFanout tid
   updatePeers targetId targetPermissions updatedMembers
@@ -728,8 +751,6 @@ addTeamMemberInternal tid origin originConn newMem memList = do
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
   Data.addTeamMember tid new
-  when (hasPermission new SetBilling) $
-    Data.addBillingTeamMember tid (new ^. userId)
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
@@ -746,7 +767,6 @@ finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $
     Data.addTeamMember (team ^. teamId)
-  Data.addBillingTeamMember (team ^. teamId) (owner ^. userId)
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
