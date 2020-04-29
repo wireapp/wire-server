@@ -1053,6 +1053,8 @@ sitemap = do
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
+  delete "/i/teams/:tid" (continue Teams.internalDeleteBindingTeamWithOneMemberH) $
+    capture "tid"
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
     capture "uid"
   get "/i/users/:uid/team" (continue Teams.getBindingTeamIdH) $

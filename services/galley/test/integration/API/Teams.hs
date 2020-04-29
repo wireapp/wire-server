@@ -100,6 +100,7 @@ tests s =
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
       test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember),
       test s "delete non-binding team" testDeleteTeam,
+      test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       test s "delete team conversation" testDeleteTeamConv,
@@ -831,6 +832,67 @@ testDeleteTeam = do
         const 200 === statusCode
         const (Just Null) === responseJsonMaybe
   assertQueueEmpty
+
+testDeleteBindingTeamSingleMember :: TestM ()
+testDeleteBindingTeamSingleMember = do
+  g <- view tsGalley
+  c <- view tsCannon
+  (owner, tid) <- Util.createBindingTeam
+  other <- Util.addUserToTeam owner tid
+  ensureQueueEmpty
+  refreshIndex
+  -- Useful for tests
+  extern <- Util.randomUser
+  delete
+    ( g
+        . paths ["/i/teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamDeleteData (Just $ Util.defPassword))
+    )
+    !!! do
+      const 403 === statusCode
+      const "not-one-member-team" === (Error.label . responseJsonUnsafeWithMsg "error label when deleting a team")
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "members", toByteString' (other ^. userId)]
+        . zUser owner
+        . zConn "conn"
+        . json
+          ( newTeamMemberDeleteData (Just Util.defPassword)
+          )
+    )
+    !!! const 202
+    === statusCode
+  assertQueue "team member leave 1" $ tUpdate 1 [owner]
+  -- Async things are hard...
+  void $
+    retryWhileN
+      10
+      (/= Just True)
+      (getDeletedState extern (other ^. userId))
+
+  void $ WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
+    delete
+      ( g
+          . paths ["/i/teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+      )
+      !!! const 202
+      === statusCode
+    checkUserDeleteEvent owner wsOwner
+
+    WS.assertNoEvent (1 # Second) [wsExtern]
+    -- Note that given the async nature of team deletion, we may
+    -- have other events in the queue (such as TEAM_UPDATE)
+    tryAssertQueue 10 "team delete, should be there" tDelete
+
+  Util.ensureDeletedState True extern owner
+  -- Ensure users are marked as deleted; since we already
+  -- received the event, should _really_ be deleted
+  -- Let's clean the queue, just in case
+  ensureQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do

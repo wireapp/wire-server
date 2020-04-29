@@ -35,6 +35,7 @@ module Stern.Intra
     changeEmail,
     changePhone,
     deleteAccount,
+    deleteBindingTeam,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,
@@ -262,6 +263,19 @@ deleteAccount uid = do
       b
       ( method DELETE
           . paths ["/i/users", toByteString' uid]
+          . expect2xx
+      )
+
+deleteBindingTeam :: TeamId -> Handler ()
+deleteBindingTeam tid = do
+  info $ msg "Deleting team"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . paths ["/i/teams", toByteString' tid]
           . expect2xx
       )
 
