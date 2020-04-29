@@ -232,7 +232,7 @@ sitemap = do
       .&. query "email"
   document "DELETE" "deleteTeam" $ do
     summary "Delete a team (irrevocable!) You can only delete teams with 1 user!"
-    Doc.notes "Email the userId's (to prevent copy/paste mistakes)"
+    Doc.notes "The email address of the user must be provided to prevent copy/paste mistakes"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.parameter Doc.Query "email" Doc.string' $ do
