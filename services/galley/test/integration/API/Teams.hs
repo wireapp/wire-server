@@ -1177,10 +1177,10 @@ testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser
-  member <- newTeamMember' (rolePermissions RoleAdmin) <$> Util.randomUser
-  Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
+  (owner, tid) <- Util.createBindingTeam
+  member <- Util.addUserToTeamWithRole (Just RoleAdmin) owner tid
+  assertQueue "add member" $ tUpdate 2 [owner]
+  refreshIndex
   -- non-owner can **NOT** demote owner
   let demoteOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
   updateTeamMember g tid (member ^. userId) demoteOwner !!! do
