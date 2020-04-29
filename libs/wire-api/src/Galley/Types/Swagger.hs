@@ -22,8 +22,8 @@ module Galley.Types.Swagger where
 import Data.Aeson (encode)
 import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api as Swagger
-import Galley.Types (Access)
 import Imports
+import Wire.API.Conversation (Access)
 import qualified Wire.Swagger as Swagger
 
 galleyModels :: [Model]

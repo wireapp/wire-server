@@ -45,8 +45,8 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
-import Galley.Types (OtherMember (..))
 import Imports
+import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.Service as Service
 
 -- AddBot ----------------------------------------------------------------------

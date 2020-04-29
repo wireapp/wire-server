@@ -22,7 +22,51 @@ module Wire.API.Conversation.Code
     Value (..),
     Timeout (..),
     KeyValuePair (..),
+
+    -- * content
+    ConversationCode (..),
+    mkConversationCode,
   )
 where
 
-import Data.Code
+import Control.Lens ((.~))
+import Data.Aeson ((.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSON))
+import qualified Data.Aeson as JSON
+import Data.ByteString.Conversion (toByteString')
+import Data.Code as Code
+import Data.Json.Util ((#))
+import Data.Misc (HttpsUrl (HttpsUrl))
+import Imports
+import qualified URI.ByteString as URI
+
+data ConversationCode = ConversationCode
+  { conversationKey :: !Code.Key,
+    conversationCode :: !Code.Value,
+    conversationUri :: !(Maybe HttpsUrl)
+  }
+  deriving (Eq, Show, Generic)
+
+mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
+mkConversationCode k v (HttpsUrl prefix) =
+  ConversationCode
+    { conversationKey = k,
+      conversationCode = v,
+      conversationUri = Just (HttpsUrl link)
+    }
+  where
+    q = [("key", toByteString' k), ("code", toByteString' v)]
+    link = prefix & (URI.queryL . URI.queryPairsL) .~ q
+
+instance ToJSON ConversationCode where
+  toJSON j =
+    JSON.object $
+      "key" .= conversationKey j
+        # "code" .= conversationCode j
+        # "uri" .= conversationUri j
+        # []
+
+instance FromJSON ConversationCode where
+  parseJSON = JSON.withObject "join" $ \o ->
+    ConversationCode <$> o .: "key"
+      <*> o .: "code"
+      <*> o .:? "uri"

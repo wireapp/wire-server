@@ -22,7 +22,7 @@
 
 -- | This module contains the analog of some of the team-level roles & permissions types in
 -- "Wire.API.Team".
-module Galley.Types.Conversations.Roles
+module Wire.API.Conversation.Role
   ( ConversationRole,
     convRoleWireAdmin,
     convRoleWireMember,

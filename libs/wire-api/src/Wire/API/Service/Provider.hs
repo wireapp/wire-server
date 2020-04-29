@@ -49,9 +49,9 @@ import qualified Data.Range as Range
 import qualified Data.Set as Set
 import Data.Singletons.TypeLits
 import qualified Data.Text.Encoding as Text
-import Galley.Types (Event)
 import Imports
 import Wire.API.Conversation.Code as Code
+import Wire.API.Conversation.Event (Event)
 import Wire.API.Service.Bot (ServiceToken (..))
 import Wire.API.Service.Provider.Tag (ServiceTag (..))
 import qualified Wire.API.Service.Provider.Tag as Tag

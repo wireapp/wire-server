@@ -63,8 +63,8 @@ import Data.ProtocolBuffers
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
-import qualified Galley.Types as Galley
 import Imports
+import qualified Wire.API.Message as Msg
 import qualified Wire.API.Push as Gundeck
 
 -- UserId -------------------------------------------------------------------
@@ -161,9 +161,9 @@ userEntryId f c = (\x -> c {_userId = x}) <$> field f (_userId c)
 userEntryClients :: Functor f => ([ClientEntry] -> f [ClientEntry]) -> UserEntry -> f UserEntry
 userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 
-toOtrRecipients :: [UserEntry] -> Galley.OtrRecipients
+toOtrRecipients :: [UserEntry] -> Msg.OtrRecipients
 toOtrRecipients =
-  Galley.OtrRecipients . Galley.UserClientMap
+  Msg.OtrRecipients . Msg.UserClientMap
     . foldl' userEntries mempty
   where
     userEntries acc x =
@@ -176,9 +176,9 @@ toOtrRecipients =
           t = toBase64Text $ view clientEntryMessage x
        in Map.insert c t acc
 
-fromOtrRecipients :: Galley.OtrRecipients -> [UserEntry]
+fromOtrRecipients :: Msg.OtrRecipients -> [UserEntry]
 fromOtrRecipients rcps =
-  let m = Galley.userClientMap (Galley.otrRecipientsMap rcps)
+  let m = Msg.userClientMap (Msg.otrRecipientsMap rcps)
    in map mkProtoRecipient (Map.toList m)
   where
     mkProtoRecipient (usr, clts) =
@@ -269,16 +269,16 @@ newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> fiel
 newOtrMessageReportMissing :: Functor f => ([UserId] -> f [UserId]) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageReportMissing f c = (\x -> c {_newOtrReportMissing = x}) <$> field f (_newOtrReportMissing c)
 
-toNewOtrMessage :: NewOtrMessage -> Galley.NewOtrMessage
+toNewOtrMessage :: NewOtrMessage -> Msg.NewOtrMessage
 toNewOtrMessage msg =
-  Galley.NewOtrMessage
-    { Galley.newOtrSender = toClientId (view newOtrMessageSender msg),
-      Galley.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
-      Galley.newOtrNativePush = view newOtrMessageNativePush msg,
-      Galley.newOtrTransient = view newOtrMessageTransient msg,
-      Galley.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
-      Galley.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
+  Msg.NewOtrMessage
+    { Msg.newOtrSender = toClientId (view newOtrMessageSender msg),
+      Msg.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
+      Msg.newOtrNativePush = view newOtrMessageNativePush msg,
+      Msg.newOtrTransient = view newOtrMessageTransient msg,
+      Msg.newOtrData = toBase64Text <$> view newOtrMessageData msg,
+      Msg.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
+      Msg.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
     }
 
 toReportMissing :: [UserId] -> Maybe [Id.OpaqueUserId]
