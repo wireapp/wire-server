@@ -1133,12 +1133,13 @@ ensureDeletedState check from u = do
 getDeletedState :: HasCallStack => UserId -> UserId -> TestM (Maybe Bool)
 getDeletedState from u = do
   b <- view tsBrig
-  fmap profileDeleted . responseJsonMaybe <$> get
-    ( b
-        . paths ["users", toByteString' u]
-        . zUser from
-        . zConn "conn"
-    )
+  fmap profileDeleted . responseJsonMaybe
+    <$> get
+      ( b
+          . paths ["users", toByteString' u]
+          . zUser from
+          . zConn "conn"
+      )
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do

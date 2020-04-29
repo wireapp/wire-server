@@ -265,8 +265,8 @@ internalDeleteBindingTeamWithOneMember tid = do
     throwM noBindingTeam
   mems <- Data.teamMembersWithLimit tid (unsafeRange 2)
   case mems ^. teamMembers of
-    (mem:[]) -> queueTeamDeletion tid (mem ^. userId) Nothing
-    _        -> throwM notAOneMemberTeam
+    (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
+    _ -> throwM notAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
@@ -907,8 +907,8 @@ userIsTeamOwner tid uid = do
 -- Queues a team for async deletion
 queueTeamDeletion :: TeamId -> UserId -> Maybe ConnId -> Galley ()
 queueTeamDeletion tid zusr zcon = do
-      q <- view deleteQueue
-      ok <- Q.tryPush q (TeamItem tid zusr zcon)
-      if ok
-        then pure ()
-        else throwM deleteQueueFull
+  q <- view deleteQueue
+  ok <- Q.tryPush q (TeamItem tid zusr zcon)
+  if ok
+    then pure ()
+    else throwM deleteQueueFull

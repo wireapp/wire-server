@@ -503,7 +503,6 @@ deleteTeam (givenTid ::: email) = do
   where
     handleNoUser = ifNothing (Error status404 "no-user" "No such user with that email")
     handleNoTeam = ifNothing (Error status404 "no-binding-team" "No such binding team")
-
     wrongMemberCount = Error status403 "wrong-member-count" "Only teams with 1 user can be deleted"
     bindingTeamMismatch = Error status404 "binding-team-mismatch" "Binding team mismatch"
 
