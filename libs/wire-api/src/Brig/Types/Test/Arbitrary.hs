@@ -50,8 +50,6 @@ import Data.UUID (nil)
 import GHC.TypeLits
 import Galley.Types
 import Galley.Types.Bot.Service.Internal
-import Galley.Types.Teams
-import Galley.Types.Teams.Internal
 import Imports
 import qualified System.Random
 import Test.QuickCheck
@@ -63,6 +61,8 @@ import Wire.API.Calling.TURN
 import Wire.API.Calling.TURN.Internal
 import Wire.API.Conversation.Code as Code
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
+import Wire.API.Team
+import Wire.API.Team.Internal
 import Wire.API.Team.Invitation
 import Wire.API.Team.LegalHold
 import Wire.API.User

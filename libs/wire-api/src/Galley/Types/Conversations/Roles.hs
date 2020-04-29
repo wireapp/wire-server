@@ -21,7 +21,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | This module contains the analog of some of the team-level roles & permissions types in
--- "Galley.Types.Teams".
+-- "Wire.API.Team".
 module Galley.Types.Conversations.Roles
   ( ConversationRole,
     convRoleWireAdmin,

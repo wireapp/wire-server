@@ -23,7 +23,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Teams.Internal where
+module Wire.API.Team.Internal where
 
 import Data.Aeson
 import Data.Id (TeamId, UserId)

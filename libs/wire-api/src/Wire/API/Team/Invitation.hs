@@ -22,8 +22,8 @@ module Wire.API.Team.Invitation where
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Galley.Types.Teams
 import Imports
+import Wire.API.Team
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 

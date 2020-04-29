@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Teams.SSO where
+module Wire.API.Team.SSO where
 
 import Data.Aeson
 import Data.Json.Util
