@@ -102,19 +102,6 @@ module Wire.API.Team
     NewTeamMember,
     newNewTeamMember,
     ntmNewTeamMember,
-    Event,
-    newEvent,
-    eventType,
-    eventTime,
-    eventTeam,
-    eventData,
-    EventType (..),
-    EventData (..),
-    TeamUpdateData,
-    newTeamUpdateData,
-    nameUpdate,
-    iconUpdate,
-    iconKeyUpdate,
     TeamMemberDeleteData,
     tmdAuthPassword,
     newTeamMemberDeleteData,
@@ -134,7 +121,6 @@ import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Pair, Parser)
 import Data.Bits ((.|.), testBit)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
@@ -144,80 +130,9 @@ import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import Data.Time (UTCTime)
 import GHC.TypeLits
 import Imports
 import Wire.API.Team.Internal
-
-data Event = Event
-  { _eventType :: EventType,
-    _eventTeam :: TeamId,
-    _eventTime :: UTCTime,
-    _eventData :: Maybe EventData
-  }
-  deriving (Eq, Generic)
-
--- Note [whitelist events]
--- ~~~~~~~~~~~~~~~
---
--- When a service is put off the whitelist, we want to notify users about
--- this so that they would be able to update their whitelists in real time
--- (or at least this could be useful for the team admin console). For this
--- we might eventually have events 'ServiceWhitelistAdd' and
--- 'ServiceWhitelistRemove'.
---
--- However, they're not really necessary for clients, and currently
--- implementing them is problematic. There are three choices and all are
--- bad:
---
---   1. If we decide to send them to all users, this would be an expensive
---      operation – especially once we have bigger teams. We can send these
---      events asynchonously, but it's still somewhat painful.
---
---   2. If we decide to only send them to e.g. team admins, now we have to
---      figure out who *are* team admins, and currently the backend doesn't
---      have a notion of a team admin at all. See Note [team roles].
---
---   3. We could create a new permission (e.g. "CanWhitelistServices") and
---      only send the event to users with this permission, because
---      presumably only they care about it. However, we can't do this
---      either, because adding new permissions is tricky.
---      See Note [team roles] again.
---
--- So, we don't send these events at all. An implementation was done, but
--- then removed in commit b4d777ede1c7f73e42b2e1bc356ce7346e0355bc.
---
--- It's also unclear whether these event types belong in Brig or in Galley;
--- arguably the code would be simpler if they were in Brig, so we should
--- think about that if we want to get them in.
-
-data EventType
-  = TeamCreate
-  | TeamDelete
-  | TeamUpdate
-  | MemberJoin
-  | MemberLeave
-  | MemberUpdate
-  | ConvCreate
-  | ConvDelete
-  deriving (Eq, Show, Generic)
-
-data EventData
-  = EdTeamCreate Team
-  | EdTeamUpdate TeamUpdateData
-  | EdMemberJoin UserId
-  | EdMemberLeave UserId
-  | EdMemberUpdate UserId (Maybe Permissions)
-  | EdConvCreate ConvId
-  | EdConvDelete ConvId
-  deriving (Eq, Show, Generic)
-
-data TeamUpdateData = TeamUpdateData
-  { _nameUpdate :: Maybe (Range 1 256 Text),
-    _iconUpdate :: Maybe (Range 1 256 Text),
-    _iconKeyUpdate :: Maybe (Range 1 256 Text)
-  }
-  deriving (Eq, Show, Generic)
 
 data TeamList = TeamList
   { _teamListTeams :: [Team],
@@ -465,12 +380,6 @@ newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
 
-newEvent :: EventType -> TeamId -> UTCTime -> Event
-newEvent typ tid tme = Event typ tid tme Nothing
-
-newTeamUpdateData :: TeamUpdateData
-newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
-
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
@@ -494,10 +403,6 @@ makeLenses ''Permissions
 makeLenses ''NewTeam
 
 makeLenses ''NewTeamMember
-
-makeLenses ''Event
-
-makeLenses ''TeamUpdateData
 
 makeLenses ''TeamMemberDeleteData
 
@@ -840,108 +745,6 @@ instance ToJSON NewTeamMember where
 instance FromJSON NewTeamMember where
   parseJSON = withObject "add team member" $ \o ->
     NewTeamMember <$> o .: "member"
-
-instance ToJSON EventType where
-  toJSON TeamCreate = String "team.create"
-  toJSON TeamDelete = String "team.delete"
-  toJSON TeamUpdate = String "team.update"
-  toJSON MemberJoin = String "team.member-join"
-  toJSON MemberUpdate = String "team.member-update"
-  toJSON MemberLeave = String "team.member-leave"
-  toJSON ConvCreate = String "team.conversation-create"
-  toJSON ConvDelete = String "team.conversation-delete"
-
-instance FromJSON EventType where
-  parseJSON (String "team.create") = pure TeamCreate
-  parseJSON (String "team.delete") = pure TeamDelete
-  parseJSON (String "team.update") = pure TeamUpdate
-  parseJSON (String "team.member-join") = pure MemberJoin
-  parseJSON (String "team.member-update") = pure MemberUpdate
-  parseJSON (String "team.member-leave") = pure MemberLeave
-  parseJSON (String "team.conversation-create") = pure ConvCreate
-  parseJSON (String "team.conversation-delete") = pure ConvDelete
-  parseJSON other = fail $ "Unknown event type: " <> show other
-
-instance ToJSON Event where
-  toJSON = Object . toJSONObject
-
-instance ToJSONObject Event where
-  toJSONObject e =
-    HashMap.fromList
-      [ "type" .= _eventType e,
-        "team" .= _eventTeam e,
-        "time" .= _eventTime e,
-        "data" .= _eventData e
-      ]
-
-instance FromJSON Event where
-  parseJSON = withObject "event" $ \o -> do
-    ty <- o .: "type"
-    dt <- o .:? "data"
-    Event ty <$> o .: "team"
-      <*> o .: "time"
-      <*> parseEventData ty dt
-
-instance ToJSON EventData where
-  toJSON (EdTeamCreate tem) = toJSON tem
-  toJSON (EdMemberJoin usr) = object ["user" .= usr]
-  toJSON (EdMemberUpdate usr mPerm) =
-    object $
-      "user" .= usr
-        # "permissions" .= mPerm
-        # []
-  toJSON (EdMemberLeave usr) = object ["user" .= usr]
-  toJSON (EdConvCreate cnv) = object ["conv" .= cnv]
-  toJSON (EdConvDelete cnv) = object ["conv" .= cnv]
-  toJSON (EdTeamUpdate upd) = toJSON upd
-
-parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
-parseEventData MemberJoin Nothing = fail "missing event data for type 'team.member-join'"
-parseEventData MemberJoin (Just j) = do
-  let f o = Just . EdMemberJoin <$> o .: "user"
-  withObject "member join data" f j
-parseEventData MemberUpdate Nothing = fail "missing event data for type 'team.member-update"
-parseEventData MemberUpdate (Just j) = do
-  let f o = Just <$> (EdMemberUpdate <$> o .: "user" <*> o .:? "permissions")
-  withObject "member update data" f j
-parseEventData MemberLeave Nothing = fail "missing event data for type 'team.member-leave'"
-parseEventData MemberLeave (Just j) = do
-  let f o = Just . EdMemberLeave <$> o .: "user"
-  withObject "member leave data" f j
-parseEventData ConvCreate Nothing = fail "missing event data for type 'team.conversation-create"
-parseEventData ConvCreate (Just j) = do
-  let f o = Just . EdConvCreate <$> o .: "conv"
-  withObject "conversation create data" f j
-parseEventData ConvDelete Nothing = fail "missing event data for type 'team.conversation-delete"
-parseEventData ConvDelete (Just j) = do
-  let f o = Just . EdConvDelete <$> o .: "conv"
-  withObject "conversation delete data" f j
-parseEventData TeamCreate Nothing = fail "missing event data for type 'team.create'"
-parseEventData TeamCreate (Just j) = Just . EdTeamCreate <$> parseJSON j
-parseEventData TeamUpdate Nothing = fail "missing event data for type 'team.update'"
-parseEventData TeamUpdate (Just j) = Just . EdTeamUpdate <$> parseJSON j
-parseEventData _ Nothing = pure Nothing
-parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
-
-instance ToJSON TeamUpdateData where
-  toJSON u =
-    object $
-      "name" .= _nameUpdate u
-        # "icon" .= _iconUpdate u
-        # "icon_key" .= _iconKeyUpdate u
-        # []
-
-instance FromJSON TeamUpdateData where
-  parseJSON = withObject "team update data" $ \o -> do
-    name <- o .:? "name"
-    icon <- o .:? "icon"
-    icon_key <- o .:? "icon_key"
-    when (isNothing name && isNothing icon && isNothing icon_key) $
-      fail "TeamUpdateData: no update data specified"
-    either fail pure $
-      TeamUpdateData <$> maybe (pure Nothing) (fmap Just . checkedEitherMsg "name") name
-        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon") icon
-        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
 
 instance FromJSON TeamMemberDeleteData where
   parseJSON = withObject "team-member-delete-data" $ \o ->
