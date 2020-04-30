@@ -46,8 +46,10 @@ sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
   post "/i/push/:user/:conn" (continue pushH) $
     capture "user" .&. capture "conn" .&. request
+
   post "/i/bulkpush" (continue bulkpushH) $
     request
+
   head "/i/presences/:uid/:conn" (continue checkPresenceH) $
     param "uid" .&. param "conn"
 

@@ -78,6 +78,7 @@ sitemap = do
       .&. capture "uid"
       .&. opt zauthConnId
       .&. jsonRequest @UserSet
+
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
@@ -87,6 +88,7 @@ sitemap = do
   put "/i/self/email" (continue changeSelfEmailNoSendH) $
     zauthUserId
       .&. jsonRequest @EmailUpdate
+
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -99,64 +101,83 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
+
+  -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
+  -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
+  -- different.
   get "/i/users" (continue listActivatedAccountsH) $
-    -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
-    -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
-    -- different.
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
+
   get "/i/users" (continue listAccountsByIdentityH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
+
   put "/i/users/:uid/status" (continue changeAccountStatusH) $
     capture "uid"
       .&. jsonRequest @AccountStatusUpdate
+
   get "/i/users/:uid/status" (continue getAccountStatusH) $
     accept "application" "json"
       .&. capture "uid"
+
   get "/i/users/:uid/contacts" (continue getContactListH) $
     accept "application" "json"
       .&. capture "uid"
+
   get "/i/users/activation-code" (continue getActivationCodeH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
+
   get "/i/users/password-reset-code" (continue getPasswordResetCodeH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
+
   -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to target user
   post "/i/users/revoke-identity" (continue revokeIdentityH) $
     param "email" ||| param "phone"
+
   head "/i/users/blacklist" (continue checkBlacklistH) $
     param "email" ||| param "phone"
+
   delete "/i/users/blacklist" (continue deleteFromBlacklistH) $
     param "email" ||| param "phone"
+
   post "/i/users/blacklist" (continue addBlacklistH) $
     param "email" ||| param "phone"
+
   -- given a phone number (or phone number prefix), see whether
   -- it is blocked via a prefix (and if so, via which specific prefix)
   get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixesH) $
     capture "prefix"
+
   delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefixH) $
     capture "prefix"
+
   post "/i/users/phone-prefixes" (continue addPhonePrefixH) $
     accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
+
   put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @UserSSOId
+
   put "/i/users/:uid/managed-by" (continue updateManagedByH) $
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @ManagedByUpdate
+
   put "/i/users/:uid/rich-info" (continue updateRichInfoH) $
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @RichInfoUpdate
+
   post "/i/clients" (continue internalListClientsH) $
     accept "application" "json"
       .&. jsonRequest @UserSet
+
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to the user
   -- - ClientRemoved event to the user, if removing old clients due to max number of clients
@@ -166,12 +187,14 @@ sitemap = do
       .&. jsonRequest @NewClient
       .&. opt zauthConnId
       .&. accept "application" "json"
+
   -- This endpoint can lead to the following events being sent:
   -- - LegalHoldClientRequested event to contacts of the user
   post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequestedH) $
     capture "uid"
       .&. jsonRequest @LegalHoldClientRequest
       .&. accept "application" "json"
+
   -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to the user
   -- - UserLegalHoldDisabled event to contacts of the user

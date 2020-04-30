@@ -48,6 +48,7 @@ import Network.Wai.Utilities.Swagger
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
   -- Push API -----------------------------------------------------------
+
   post "/push/tokens" (continue addTokenH) $
     header "Z-User"
       .&. header "Z-Connection"
@@ -60,6 +61,7 @@ sitemap = do
     returns (ref Model.pushToken)
     response 201 "Push token registered" end
     response 404 "App does not exist" end
+
   delete "/push/tokens/:pid" (continue deleteTokenH) $
     header "Z-User"
       .&. param "pid"
@@ -70,6 +72,7 @@ sitemap = do
       description "The push token to delete"
     response 204 "Push token unregistered" end
     response 404 "Push token does not exist" end
+
   get "/push/tokens" (continue listTokensH) $
     header "Z-User"
       .&. accept "application" "json"
@@ -79,6 +82,7 @@ sitemap = do
     response 200 "Object containing list of push tokens" end
 
   -- Notification API --------------------------------------------------------
+
   get "/notifications" (continue paginateH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -99,6 +103,7 @@ sitemap = do
     returns (ref Model.notificationList)
     response 200 "Notification list" end
     errorResponse' notificationNotFound Model.notificationList
+
   get "/notifications/:id" (continue getByIdH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -114,6 +119,7 @@ sitemap = do
     returns (ref Model.notification)
     response 200 "Notification found" end
     errorResponse notificationNotFound
+
   get "/notifications/last" (continue getLastH) $
     accept "application" "json"
       .&. header "Z-User"

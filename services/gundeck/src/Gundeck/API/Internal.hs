@@ -35,22 +35,29 @@ import Network.Wai.Utilities
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
   -- Push API -----------------------------------------------------------
+
   post "/i/push/v2" (continue pushH) $
     request .&. accept "application" "json"
 
   -- Presence API ----------------------------------------------------------
+
   get "/i/presences/:uid" (continue Presence.list) $
     param "uid" .&. accept "application" "json"
+
   get "/i/presences" (continue Presence.listAll) $
     param "ids" .&. accept "application" "json"
+
   post "/i/presences" (continue Presence.add) $
     request .&. accept "application" "json"
+
   delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
     param "uid" .&. param "did" .&. param "cannon"
 
   -- User-Client API -------------------------------------------------------
+
   delete "/i/clients/:cid" (continue unregisterClientH) $
     header "Z-User" .&. param "cid"
+
   delete "/i/user" (continue removeUserH) $
     header "Z-User"
 
