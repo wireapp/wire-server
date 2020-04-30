@@ -208,8 +208,6 @@ newtype Accept = Accept
   }
   deriving (Eq, Show, Generic)
 
--- Members ------------------------------------------------------------------
-
 data Invite = Invite
   { invUsers :: !(List1 OpaqueUserId),
     -- | This role name is to be applied to all users
