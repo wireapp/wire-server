@@ -65,7 +65,6 @@ import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
 import Imports
 import qualified Wire.API.Message as Msg
-import qualified Wire.API.Push as Gundeck
 
 -- UserId -------------------------------------------------------------------
 
@@ -207,13 +206,13 @@ instance Bounded Priority where
   minBound = LowPriority
   maxBound = HighPriority
 
-toPriority :: Priority -> Gundeck.Priority
-toPriority LowPriority = Gundeck.LowPriority
-toPriority HighPriority = Gundeck.HighPriority
+toPriority :: Priority -> Msg.Priority
+toPriority LowPriority = Msg.LowPriority
+toPriority HighPriority = Msg.HighPriority
 
-fromPriority :: Gundeck.Priority -> Priority
-fromPriority Gundeck.LowPriority = LowPriority
-fromPriority Gundeck.HighPriority = HighPriority
+fromPriority :: Msg.Priority -> Priority
+fromPriority Msg.LowPriority = LowPriority
+fromPriority Msg.HighPriority = HighPriority
 
 -- NewOtrMessage ------------------------------------------------------------
 

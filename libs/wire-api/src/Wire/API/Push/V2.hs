@@ -80,6 +80,7 @@ import Data.Range
 import qualified Data.Range as Range
 import qualified Data.Set as Set
 import Imports
+import Wire.API.Message (Priority (HighPriority))
 
 -----------------------------------------------------------------------------
 -- Route
@@ -213,33 +214,6 @@ instance FromJSON ApsData where
       <*> o .:? "sound"
       <*> o .:? "preference"
       <*> o .:? "badge" .!= True
-
------------------------------------------------------------------------------
--- Priority
-
--- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
--- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
--- not used anywhere, consider removing the entire type, or just the unused constructor.
---
--- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
--- A1 and A2:
---
--- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
--- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
---
--- see also: 'Wire.API.Message.Proto.Priority'.
-data Priority = LowPriority | HighPriority
-  deriving (Eq, Show, Ord, Enum)
-
-instance ToJSON Priority where
-  toJSON LowPriority = String "low"
-  toJSON HighPriority = String "high"
-
-instance FromJSON Priority where
-  parseJSON = withText "Priority" $ \case
-    "low" -> pure LowPriority
-    "high" -> pure HighPriority
-    x -> fail $ "Invalid push priority: " ++ show x
 
 -----------------------------------------------------------------------------
 -- Push

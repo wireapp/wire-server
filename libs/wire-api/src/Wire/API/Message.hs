@@ -23,17 +23,22 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Message
-  ( -- * Galley conversation types
+  ( -- * Message
     NewOtrMessage (..),
-    ClientMismatch (..),
+
+    -- * Priority
+    Priority (..),
+
+    -- * Recipients
     OtrRecipients (..),
     foldrOtrRecipients,
-    OtrFilterMissing (..),
-
-    -- * Other galley types
     UserClientMap (..),
     UserClients (..),
     filterClients,
+
+    -- * Filter
+    OtrFilterMissing (..),
+    ClientMismatch (..),
   )
 where
 
@@ -46,55 +51,9 @@ import qualified Data.Text.Encoding as T
 import Data.Time
 import Data.UUID (toASCIIBytes)
 import Imports
-import Wire.API.Push (Priority)
 
-newtype UserClientMap a = UserClientMap
-  { userClientMap :: Map OpaqueUserId (Map ClientId a)
-  }
-  deriving
-    ( Eq,
-      Show,
-      Functor,
-      Foldable,
-      Semigroup,
-      Monoid,
-      Traversable
-    )
-
-newtype OtrRecipients = OtrRecipients
-  { otrRecipientsMap :: UserClientMap Text
-  }
-  deriving
-    ( Eq,
-      Show,
-      ToJSON,
-      FromJSON,
-      Semigroup,
-      Monoid
-    )
-
-foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
-foldrOtrRecipients f a =
-  Map.foldrWithKey go a
-    . userClientMap
-    . otrRecipientsMap
-  where
-    go u cs acc = Map.foldrWithKey (f u) acc cs
-
--- | A setting for choosing what to do when a message has not been encrypted
--- for all recipients.
-data OtrFilterMissing
-  = -- | Pretend everything is okay
-    OtrIgnoreAllMissing
-  | -- | Complain (default)
-    OtrReportAllMissing
-  | -- | Complain only about missing
-    --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set OpaqueUserId)
-  | -- | Complain only about missing
-    --      recipients who /are/ on this list
-    OtrReportMissing (Set OpaqueUserId)
-  deriving (Eq, Show, Generic)
+-----------------------------------------------------------------------------
+-- Message
 
 data NewOtrMessage = NewOtrMessage
   { newOtrSender :: !ClientId,
@@ -109,6 +68,93 @@ data NewOtrMessage = NewOtrMessage
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the
     -- body field length, because it'd be just a boolean; (2) less network consumption.
   }
+  deriving (Show)
+
+instance ToJSON NewOtrMessage where
+  toJSON otr =
+    object $
+      "sender" .= newOtrSender otr
+        # "recipients" .= newOtrRecipients otr
+        # "native_push" .= newOtrNativePush otr
+        # "transient" .= newOtrTransient otr
+        # "native_priority" .= newOtrNativePriority otr
+        # "data" .= newOtrData otr
+        # "report_missing" .= newOtrReportMissing otr
+        # []
+
+instance FromJSON NewOtrMessage where
+  parseJSON = withObject "new-otr-message" $ \o ->
+    NewOtrMessage <$> o .: "sender"
+      <*> o .: "recipients"
+      <*> o .:? "native_push" .!= True
+      <*> o .:? "transient" .!= False
+      <*> o .:? "native_priority"
+      <*> o .:? "data"
+      <*> o .:? "report_missing"
+
+-----------------------------------------------------------------------------
+-- Priority
+
+-- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
+-- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
+-- not used anywhere, consider removing the entire type, or just the unused constructor.
+--
+-- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
+-- A1 and A2:
+--
+-- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
+-- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
+--
+-- see also: 'Wire.API.Message.Proto.Priority'.
+data Priority = LowPriority | HighPriority
+  deriving (Eq, Show, Ord, Enum)
+
+instance ToJSON Priority where
+  toJSON LowPriority = String "low"
+  toJSON HighPriority = String "high"
+
+instance FromJSON Priority where
+  parseJSON = withText "Priority" $ \case
+    "low" -> pure LowPriority
+    "high" -> pure HighPriority
+    x -> fail $ "Invalid push priority: " ++ show x
+
+-----------------------------------------------------------------------------
+-- Recipients
+
+newtype OtrRecipients = OtrRecipients
+  { otrRecipientsMap :: UserClientMap Text
+  }
+  deriving
+    ( Eq,
+      Show,
+      ToJSON,
+      FromJSON,
+      Semigroup,
+      Monoid
+    )
+
+-- TODO: move to somewhere like User.Client?
+newtype UserClientMap a = UserClientMap
+  { userClientMap :: Map OpaqueUserId (Map ClientId a)
+  }
+  deriving
+    ( Eq,
+      Show,
+      Functor,
+      Foldable,
+      Semigroup,
+      Monoid,
+      Traversable
+    )
+
+foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients f a =
+  Map.foldrWithKey go a
+    . userClientMap
+    . otrRecipientsMap
+  where
+    go u cs acc = Map.foldrWithKey (f u) acc cs
 
 newtype UserClients = UserClients
   { userClients :: Map OpaqueUserId (Set ClientId)
@@ -117,50 +163,6 @@ newtype UserClients = UserClients
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
-
-data ClientMismatch = ClientMismatch
-  { cmismatchTime :: !UTCTime,
-    -- | Clients that the message /should/ have been encrypted for, but wasn't.
-    missingClients :: !UserClients,
-    -- | Clients that the message /should not/ have been encrypted for, but was.
-    redundantClients :: !UserClients,
-    deletedClients :: !UserClients
-  }
-  deriving (Eq, Show, Generic)
-
--- Instances ----------------------------------------------------------------
-
--- JSON
-
-instance ToJSON UserClients where
-  toJSON =
-    toJSON . Map.foldrWithKey' fn Map.empty . userClients
-    where
-      fn u c m =
-        let k = T.decodeLatin1 (toASCIIBytes (toUUID u))
-         in Map.insert k c m
-
-instance FromJSON UserClients where
-  parseJSON =
-    withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
-    where
-      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
-
-instance ToJSON ClientMismatch where
-  toJSON m =
-    object
-      [ "time" .= toUTCTimeMillis (cmismatchTime m),
-        "missing" .= missingClients m,
-        "redundant" .= redundantClients m,
-        "deleted" .= deletedClients m
-      ]
-
-instance FromJSON ClientMismatch where
-  parseJSON = withObject "ClientMismatch" $ \o ->
-    ClientMismatch <$> o .: "time"
-      <*> o .: "missing"
-      <*> o .: "redundant"
-      <*> o .: "deleted"
 
 instance ToJSON a => ToJSON (UserClientMap a) where
   toJSON = toJSON . Map.foldrWithKey' f Map.empty . userClientMap
@@ -185,24 +187,60 @@ instance FromJSON a => FromJSON (UserClientMap a) where
         t <- parseJSON v
         return (Map.insert c t m)
 
-instance ToJSON NewOtrMessage where
-  toJSON otr =
-    object $
-      "sender" .= newOtrSender otr
-        # "recipients" .= newOtrRecipients otr
-        # "native_push" .= newOtrNativePush otr
-        # "transient" .= newOtrTransient otr
-        # "native_priority" .= newOtrNativePriority otr
-        # "data" .= newOtrData otr
-        # "report_missing" .= newOtrReportMissing otr
-        # []
+instance ToJSON UserClients where
+  toJSON =
+    toJSON . Map.foldrWithKey' fn Map.empty . userClients
+    where
+      fn u c m =
+        let k = T.decodeLatin1 (toASCIIBytes (toUUID u))
+         in Map.insert k c m
 
-instance FromJSON NewOtrMessage where
-  parseJSON = withObject "new-otr-message" $ \o ->
-    NewOtrMessage <$> o .: "sender"
-      <*> o .: "recipients"
-      <*> o .:? "native_push" .!= True
-      <*> o .:? "transient" .!= False
-      <*> o .:? "native_priority"
-      <*> o .:? "data"
-      <*> o .:? "report_missing"
+instance FromJSON UserClients where
+  parseJSON =
+    withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
+    where
+      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+
+-----------------------------------------------------------------------------
+-- Filter
+
+-- | A setting for choosing what to do when a message has not been encrypted
+-- for all recipients.
+data OtrFilterMissing
+  = -- | Pretend everything is okay
+    OtrIgnoreAllMissing
+  | -- | Complain (default)
+    OtrReportAllMissing
+  | -- | Complain only about missing
+    --      recipients who are /not/ on this list
+    OtrIgnoreMissing (Set OpaqueUserId)
+  | -- | Complain only about missing
+    --      recipients who /are/ on this list
+    OtrReportMissing (Set OpaqueUserId)
+  deriving (Eq, Show, Generic)
+
+data ClientMismatch = ClientMismatch
+  { cmismatchTime :: !UTCTime,
+    -- | Clients that the message /should/ have been encrypted for, but wasn't.
+    missingClients :: !UserClients,
+    -- | Clients that the message /should not/ have been encrypted for, but was.
+    redundantClients :: !UserClients,
+    deletedClients :: !UserClients
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ClientMismatch where
+  toJSON m =
+    object
+      [ "time" .= toUTCTimeMillis (cmismatchTime m),
+        "missing" .= missingClients m,
+        "redundant" .= redundantClients m,
+        "deleted" .= deletedClients m
+      ]
+
+instance FromJSON ClientMismatch where
+  parseJSON = withObject "ClientMismatch" $ \o ->
+    ClientMismatch <$> o .: "time"
+      <*> o .: "missing"
+      <*> o .: "redundant"
+      <*> o .: "deleted"
