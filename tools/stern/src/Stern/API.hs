@@ -84,7 +84,7 @@ sitemap = do
   routes
   apiDocs
 
-routes :: Routes Docs.ApiBuilder Handler ()
+routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   -- Begin Internal
 
