@@ -6,7 +6,7 @@ source-paths:
 excluded-paths:
 - '\.stack-work'
 template-paths:
-- headroom-templates
+- tools/headroom-templates
 variables:
   organization: Wire Swiss GmbH
   email: opensource@wire.com
