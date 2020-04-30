@@ -25,6 +25,7 @@ where
 
 import qualified Brig.AWS as AWS
 import Brig.App
+import Brig.Options
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types
 import Control.Exception (ErrorCall (..))
@@ -37,7 +38,7 @@ import qualified Data.Text.Encoding as T
 import Imports
 import Network.AWS.SQS (smrsMD5OfMessageBody)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
-import System.Logger.Class as Log
+import System.Logger.Class as Log hiding (settings)
 
 -- Note [queue refactoring]
 -- ~~~~~~~~~~~~~~~~
@@ -103,4 +104,5 @@ listen (StompQueue queue) callback =
       throwM (ErrorCall "The server couldn't access a queue")
 listen (SqsQueue queue) callback = do
   env <- ask
-  AWS.execute (env ^. awsEnv) $ AWS.listen queue (runAppT env . callback)
+  throttleMillis <- fromMaybe defSqsThrottleMillis <$> view (settings . sqsThrottleMillis)
+  AWS.execute (env ^. awsEnv) $ AWS.listen throttleMillis queue (runAppT env . callback)

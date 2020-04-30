@@ -55,7 +55,7 @@ import Data.Aeson hiding ((.=))
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.UUID
+import Data.UUID hiding (null)
 import Data.Yaml (FromJSON (..))
 import Imports hiding (group)
 import Network.AWS (AWSRequest, Rs)
@@ -172,11 +172,12 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- SQS
 
-listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
-listen url callback = forever $ handleAny unexpectedError $ do
+listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
+listen throttleMillis url callback = forever $ handleAny unexpectedError $ do
   msgs <- view rmrsMessages <$> send receive
   void $ mapConcurrently onMessage msgs
-  threadDelay 1000000
+  when (null msgs) $
+    threadDelay (1000 * throttleMillis)
   where
     receive =
       SQS.receiveMessage url
