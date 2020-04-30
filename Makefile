@@ -52,6 +52,8 @@ formatc:
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
 add-license:
+	# Check headroom is installed. If not, please run 'stack install headroom'
+	command -v headroom
 	headroom run
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
