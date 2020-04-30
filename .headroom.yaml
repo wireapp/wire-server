@@ -15,7 +15,9 @@ variables:
 license-headers:
   haskell:
     file-extensions: ["hs", "hsc"]
+    # after pragmas, to make Ormolu happy
     put-after: ["^{-#"]
+    # but before the module header (or comment) in any case
     put-before: ["^module", "^-- \\|"]
     margin-after: 1
     margin-before: 1
