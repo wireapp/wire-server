@@ -2,6 +2,8 @@ run-mode: replace
 source-paths:
 - libs
 - services
+excluded-paths:
+- '\.stack-work'
 template-paths:
 - headroom-templates
 variables:
