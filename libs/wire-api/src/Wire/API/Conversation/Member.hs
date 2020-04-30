@@ -23,13 +23,17 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Conversation.Member
-  ( Member (..),
+  ( MutedStatus (..),
     ConvMembers (..),
+
+    -- * Member
+    Member (..),
     OtherMember (..),
+
+    -- * Member Update
     MemberUpdate (..),
     memberUpdate,
     OtherMemberUpdate (..),
-    MutedStatus (..),
   )
 where
 
@@ -40,7 +44,10 @@ import Imports
 import Wire.API.Conversation.Role
 import Wire.API.Service (ServiceRef)
 
--- Conversations ------------------------------------------------------------
+-- | The semantics of the possible different values is entirely up to clients,
+-- the server will not interpret this value in any way.
+newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
+  deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
 data ConvMembers = ConvMembers
   { cmSelf :: !Member,
@@ -48,12 +55,23 @@ data ConvMembers = ConvMembers
   }
   deriving (Eq, Show)
 
--- Members ------------------------------------------------------------------
+instance ToJSON ConvMembers where
+  toJSON mm =
+    object
+      [ "self" .= cmSelf mm,
+        "others" .= cmOthers mm
+      ]
 
--- | The semantics of the possible different values is entirely up to clients,
--- the server will not interpret this value in any way.
-newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
-  deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
+instance FromJSON ConvMembers where
+  parseJSON =
+    withObject
+      "conv-members"
+      ( \o ->
+          ConvMembers <$> o .: "self"
+            <*> o .: "others"
+      )
+
+-- Members ------------------------------------------------------------------
 
 data Member = Member
   { memId :: !UserId,
@@ -80,39 +98,39 @@ data OtherMember = OtherMember
 instance Ord OtherMember where
   compare a b = compare (omId a) (omId b)
 
--- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
--- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
-data MemberUpdate = MemberUpdate
-  { mupOtrMute :: !(Maybe Bool),
-    mupOtrMuteStatus :: !(Maybe MutedStatus),
-    mupOtrMuteRef :: !(Maybe Text),
-    mupOtrArchive :: !(Maybe Bool),
-    mupOtrArchiveRef :: !(Maybe Text),
-    mupHidden :: !(Maybe Bool),
-    mupHiddenRef :: !(Maybe Text),
-    mupConvRoleName :: !(Maybe RoleName)
-  }
+instance ToJSON Member where
+  toJSON m =
+    object
+      [ "id" .= memId m,
+        "service" .= memService m,
+        -- Remove ...
+        "status" .= (0 :: Int),
+        "status_ref" .= ("0.0" :: Text),
+        "status_time" .= ("1970-01-01T00:00:00.000Z" :: Text),
+        -- ... until here
 
-memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+        "otr_muted" .= memOtrMuted m,
+        "otr_muted_status" .= memOtrMutedStatus m,
+        "otr_muted_ref" .= memOtrMutedRef m,
+        "otr_archived" .= memOtrArchived m,
+        "otr_archived_ref" .= memOtrArchivedRef m,
+        "hidden" .= memHidden m,
+        "hidden_ref" .= memHiddenRef m,
+        "conversation_role" .= memConvRoleName m
+      ]
 
-deriving instance Eq MemberUpdate
-
-deriving instance Show MemberUpdate
-
--- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
--- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
-data OtherMemberUpdate = OtherMemberUpdate
-  { omuConvRoleName :: !(Maybe RoleName)
-  }
-
-deriving instance Eq OtherMemberUpdate
-
-deriving instance Show OtherMemberUpdate
-
--- Instances ----------------------------------------------------------------
-
--- JSON
+instance FromJSON Member where
+  parseJSON = withObject "member object" $ \o ->
+    Member <$> o .: "id"
+      <*> o .:? "service"
+      <*> o .:? "otr_muted" .!= False
+      <*> o .:? "otr_muted_status"
+      <*> o .:? "otr_muted_ref"
+      <*> o .:? "otr_archived" .!= False
+      <*> o .:? "otr_archived_ref"
+      <*> o .:? "hidden" .!= False
+      <*> o .:? "hidden_ref"
+      <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 instance ToJSON OtherMember where
   toJSON m =
@@ -129,21 +147,31 @@ instance FromJSON OtherMember where
       <*> o .:? "service"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
-instance ToJSON ConvMembers where
-  toJSON mm =
-    object
-      [ "self" .= cmSelf mm,
-        "others" .= cmOthers mm
-      ]
+-- Member Updates -----------------------------------------------------------
 
-instance FromJSON ConvMembers where
-  parseJSON =
-    withObject
-      "conv-members"
-      ( \o ->
-          ConvMembers <$> o .: "self"
-            <*> o .: "others"
-      )
+-- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
+-- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
+data MemberUpdate = MemberUpdate
+  { mupOtrMute :: !(Maybe Bool),
+    mupOtrMuteStatus :: !(Maybe MutedStatus),
+    mupOtrMuteRef :: !(Maybe Text),
+    mupOtrArchive :: !(Maybe Bool),
+    mupOtrArchiveRef :: !(Maybe Text),
+    mupHidden :: !(Maybe Bool),
+    mupHiddenRef :: !(Maybe Text),
+    mupConvRoleName :: !(Maybe RoleName)
+  }
+  deriving stock (Eq, Show)
+
+memberUpdate :: MemberUpdate
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
+-- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
+data OtherMemberUpdate = OtherMemberUpdate
+  { omuConvRoleName :: !(Maybe RoleName)
+  }
+  deriving stock (Eq, Show)
 
 instance FromJSON MemberUpdate where
   parseJSON = withObject "member-update object" $ \m -> do
@@ -195,37 +223,3 @@ instance ToJSON OtherMemberUpdate where
     object $
       "conversation_role" .= omuConvRoleName m
         # []
-
-instance ToJSON Member where
-  toJSON m =
-    object
-      [ "id" .= memId m,
-        "service" .= memService m,
-        -- Remove ...
-        "status" .= (0 :: Int),
-        "status_ref" .= ("0.0" :: Text),
-        "status_time" .= ("1970-01-01T00:00:00.000Z" :: Text),
-        -- ... until here
-
-        "otr_muted" .= memOtrMuted m,
-        "otr_muted_status" .= memOtrMutedStatus m,
-        "otr_muted_ref" .= memOtrMutedRef m,
-        "otr_archived" .= memOtrArchived m,
-        "otr_archived_ref" .= memOtrArchivedRef m,
-        "hidden" .= memHidden m,
-        "hidden_ref" .= memHiddenRef m,
-        "conversation_role" .= memConvRoleName m
-      ]
-
-instance FromJSON Member where
-  parseJSON = withObject "member object" $ \o ->
-    Member <$> o .: "id"
-      <*> o .:? "service"
-      <*> o .:? "otr_muted" .!= False
-      <*> o .:? "otr_muted_status"
-      <*> o .:? "otr_muted_ref"
-      <*> o .:? "otr_archived" .!= False
-      <*> o .:? "otr_archived_ref"
-      <*> o .:? "hidden" .!= False
-      <*> o .:? "hidden_ref"
-      <*> o .:? "conversation_role" .!= roleNameWireAdmin

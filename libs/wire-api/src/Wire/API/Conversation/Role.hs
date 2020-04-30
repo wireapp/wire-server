@@ -23,19 +23,22 @@
 -- | This module contains the analog of some of the team-level roles & permissions types in
 -- "Wire.API.Team".
 module Wire.API.Conversation.Role
-  ( ConversationRole,
-    convRoleWireAdmin,
-    convRoleWireMember,
-    wireConvRoles,
-    RoleName,
-    roleNameWireAdmin,
-    roleNameWireMember,
-    wireConvRoleNames,
+  ( -- * Action
     Action (..),
     Actions (..),
+
+    -- * Role
+    ConversationRole,
+    wireConvRoles,
+    convRoleWireAdmin,
+    convRoleWireMember,
     ConversationRolesList (..),
-    isActionAllowed,
-    roleNameToActions,
+
+    -- * RoleName
+    RoleName,
+    wireConvRoleNames,
+    roleNameWireAdmin,
+    roleNameWireMember,
   )
 where
 
@@ -47,8 +50,10 @@ import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
 import qualified Data.Set as Set
-import qualified Data.Text as T
 import Imports
+
+--------------------------------------------------------------------------------
+-- Action
 
 -- | These conversation-level permissions.  Analogous to the team-level permissions called
 -- 'Perm' (or 'Permissions').
@@ -71,6 +76,12 @@ newtype Actions = Actions
   }
   deriving (Eq, Ord, Show, Generic)
 
+allActions :: Actions
+allActions = Actions $ Set.fromList [minBound .. maxBound]
+
+--------------------------------------------------------------------------------
+-- Role
+
 -- | A conversation role is associated to a user in the scope of a conversation and implies
 -- with a set of 'Action's.  Conversation-level analog to what 'Role' is on the team-level.
 --
@@ -83,14 +94,14 @@ data ConversationRole
   | ConvRoleCustom RoleName Actions
   deriving (Eq, Show)
 
--- Given an action and a RoleName, three possible outcomes:
--- Just True:  Yes, the action is allowed
--- Just False: No, the action is not allowed
--- Nothing:    Not enough information, this is a custom role
-isActionAllowed :: Action -> RoleName -> Maybe Bool
-isActionAllowed action rn
-  | isCustomRoleName rn = Nothing
-  | otherwise = pure $ maybe False (action `elem`) (roleNameToActions rn)
+wireConvRoles :: [ConversationRole]
+wireConvRoles = [ConvRoleWireAdmin, ConvRoleWireMember]
+
+convRoleWireAdmin :: ConversationRole
+convRoleWireAdmin = ConvRoleWireAdmin
+
+convRoleWireMember :: ConversationRole
+convRoleWireMember = ConvRoleWireMember
 
 instance ToJSON ConversationRole where
   toJSON cr =
@@ -118,6 +129,9 @@ instance ToJSON ConversationRolesList where
       [ "conversation_roles" .= r
       ]
 
+--------------------------------------------------------------------------------
+-- RoleName
+
 -- RoleNames with `wire_` prefix are reserved
 -- and cannot be created by externals. Therefore, never
 -- expose this constructor outside of this module.
@@ -134,12 +148,6 @@ instance FromJSON RoleName where
     withText "RoleName" $
       maybe (fail "Invalid RoleName") pure . parseRoleName
 
-wireConvRoles :: [ConversationRole]
-wireConvRoles =
-  [ ConvRoleWireAdmin,
-    ConvRoleWireMember
-  ]
-
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
 
@@ -149,20 +157,6 @@ roleNameWireAdmin = RoleName "wire_admin"
 roleNameWireMember :: RoleName
 roleNameWireMember = RoleName "wire_member"
 
-convRoleWireAdmin :: ConversationRole
-convRoleWireAdmin = ConvRoleWireAdmin
-
-convRoleWireMember :: ConversationRole
-convRoleWireMember = ConvRoleWireMember
-
--- | This is how the definition of the convRoleCustom constructor
---   should look like. We comment this out due to the fact that we
---   do not want to use this yet and want to avoid `Defined but not
---   used warnings`
--- convRoleCustom :: RoleName -> Actions -> Maybe ConversationRole
--- convRoleCustom r a
---     | isCustomRoleName r = Just (ConvRoleCustom r a)
---     | otherwise          = Nothing
 parseRoleName :: Text -> Maybe RoleName
 parseRoleName t
   | isValidRoleName t = Just (RoleName t)
@@ -180,9 +174,8 @@ isValidRoleName =
         *> endOfInput
     chars = inClass "a-z0-9_"
 
---  * Custom RoleNames _must not_ start with `wire_`
-isCustomRoleName :: RoleName -> Bool
-isCustomRoleName (RoleName r) = isValidRoleName r && (not $ "wire_" `T.isPrefixOf` r)
+--------------------------------------------------------------------------------
+-- helpers (used in JSON instances)
 
 roleToRoleName :: ConversationRole -> RoleName
 roleToRoleName ConvRoleWireAdmin = roleNameWireAdmin
@@ -194,12 +187,6 @@ toConvRole (RoleName "wire_admin") _ = Just ConvRoleWireAdmin
 toConvRole (RoleName "wire_member") _ = Just ConvRoleWireMember
 toConvRole x (Just as) = Just (ConvRoleCustom x as)
 toConvRole _ _ = Nothing
-
-roleNameToActions :: RoleName -> Maybe (Set Action)
-roleNameToActions r = roleActions <$> toConvRole r Nothing
-
-allActions :: Actions
-allActions = Actions $ Set.fromList [minBound .. maxBound]
 
 roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin = allowedActions allActions

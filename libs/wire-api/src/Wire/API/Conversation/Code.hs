@@ -33,6 +33,7 @@ import Control.Lens ((.~))
 import Data.Aeson ((.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson as JSON
 import Data.ByteString.Conversion (toByteString')
+-- FUTUREWORK: move content of Data.Code here?
 import Data.Code as Code
 import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl (HttpsUrl))
