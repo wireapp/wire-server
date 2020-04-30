@@ -149,7 +149,7 @@ validateOptions l o = do
       l
       ( msg
           . val
-          $ "Your journaling events for teams larger than " <> toByteString' optFanoutLimit
+          $ "You're journaling events for teams larger than " <> toByteString' optFanoutLimit
             <> " may have some admin user ids missing. \
                \ This is fine for testing purposes but NOT for production use!!"
       )
