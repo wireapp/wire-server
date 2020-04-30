@@ -27,7 +27,7 @@ import Data.LegalHold
 import Data.Misc
 import qualified Data.Text as T
 import Imports
-import Wire.API.Provider
+import Wire.API.Service.Provider
 import Wire.API.User.Client.Prekey
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled

@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Provider.Service
+module Wire.API.Service
   ( ServiceToken (..),
     ServiceRef,
     newServiceRef,
@@ -35,4 +35,4 @@ module Wire.API.Provider.Service
   )
 where
 
-import Wire.API.Provider.Service.Internal
+import Wire.API.Service.Internal

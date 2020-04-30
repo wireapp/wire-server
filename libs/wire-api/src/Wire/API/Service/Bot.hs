@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Provider.Bot
+module Wire.API.Service.Bot
   ( AddBot,
     addBot,
     addBotService,
@@ -47,7 +47,7 @@ import Data.Id
 import Data.Json.Util ((#))
 import Imports
 import Wire.API.Conversation.Member (OtherMember (..))
-import Wire.API.Provider.Service as Service
+import Wire.API.Service as Service
 
 -- AddBot ----------------------------------------------------------------------
 

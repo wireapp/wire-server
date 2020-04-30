@@ -17,8 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Provider.External
-  ( module Wire.API.Provider.External,
+module Wire.API.Service.Provider.External
+  ( module Wire.API.Service.Provider.External,
     BotUserView (..),
 
     -- * Re-exports
@@ -35,7 +35,7 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import Wire.API.Provider.Bot
+import Wire.API.Service.Bot
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile
 
