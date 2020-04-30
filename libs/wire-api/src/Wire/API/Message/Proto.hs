@@ -20,7 +20,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- FUTUREWORK: generate this file
-module Wire.API.Push.Proto
+module Wire.API.Message.Proto
   ( UserId,
     userId,
     fromUserId,
@@ -198,7 +198,7 @@ instance Decode Priority
 instance Enum Priority where
   toEnum 1 = LowPriority
   toEnum 2 = HighPriority
-  toEnum x = error $ "Wire.API.Push.Proto.Priority: invalid enum value: " ++ show x
+  toEnum x = error $ "Wire.API.Message.Proto.Priority: invalid enum value: " ++ show x
 
   fromEnum LowPriority = 1
   fromEnum HighPriority = 2

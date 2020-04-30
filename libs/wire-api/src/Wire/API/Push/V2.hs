@@ -227,7 +227,7 @@ instance FromJSON ApsData where
 -- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
 -- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
 --
--- see also: 'Wire.API.Push.Proto.Priority'.
+-- see also: 'Wire.API.Message.Proto.Priority'.
 data Priority = LowPriority | HighPriority
   deriving (Eq, Show, Ord, Enum)
 
