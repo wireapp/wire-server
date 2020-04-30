@@ -90,15 +90,9 @@ Copy the new metadata file to one of your spar instances.
 
 Ssh into it.
 
-#### Update the existing IdP in-place
+There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
 
-```shell
-curl -v
-     -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
-     -H"Z-User: ${ADMIN_ID}" \
-     -H'Content-type: application/xml' \
-     -d@"${METADATA_FILE}"
-```
+#### Option 1: Update the existing IdP in-place
 
 Effects:
 
@@ -112,15 +106,15 @@ Effects:
   old account.  Instead, depending on your setup, a second account is
   created for them, or they are blocked (both not what you want).
 
-#### Create a second IdP, and mark it as replacing the old one.
-
 ```shell
 curl -v
-     -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
+     -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
      -H'Content-type: application/xml' \
      -d@"${METADATA_FILE}"
 ```
+
+#### Option 2: Create a second IdP, and mark it as replacing the old one.
 
 Effects:
 
@@ -145,6 +139,13 @@ Effects:
   and active IdPs.  (Internal details:
   https://github.com/wireapp/wire-team-settings/issues/3465).
 
+```shell
+curl -v
+     -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/xml' \
+     -d@"${METADATA_FILE}"
+```
 
 ### setting a default SSO code
 
