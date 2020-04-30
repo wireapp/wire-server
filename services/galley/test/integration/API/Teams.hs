@@ -1180,12 +1180,12 @@ testBillingInLargeTeam = do
           newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) owner team
           let allBillingMembers = newBillingMemberId : billingMembers
           assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
-            tUpdate (n + 1) allBillingMembers
+            tUpdate n allBillingMembers
           refreshIndex
           pure allBillingMembers
       )
       [owner]
-      [1 .. (fanoutLimit + 1)]
+      [2 .. (fanoutLimit + 1)]
 
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
