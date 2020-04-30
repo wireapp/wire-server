@@ -42,7 +42,7 @@ import Data.Id
 import Data.Json.Util
 import Imports
 import Wire.API.Conversation.Role
-import Wire.API.Service (ServiceRef)
+import Wire.API.Provider.Service (ServiceRef)
 
 -- | The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.

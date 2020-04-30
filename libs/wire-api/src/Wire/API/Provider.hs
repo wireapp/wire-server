@@ -24,8 +24,8 @@
 -- | Types for the (internal) provider API.
 --
 -- TODO: Lenses & proper export list
-module Wire.API.Service.Provider
-  ( module Wire.API.Service.Provider,
+module Wire.API.Provider
+  ( module Wire.API.Provider,
 
     -- * Re-exports
     HttpsUrl (..),
@@ -52,9 +52,9 @@ import qualified Data.Text.Encoding as Text
 import Imports
 import Wire.API.Conversation.Code as Code
 import Wire.API.Conversation.Event (Event)
-import Wire.API.Service.Bot (ServiceToken (..))
-import Wire.API.Service.Provider.Tag (ServiceTag (..))
-import qualified Wire.API.Service.Provider.Tag as Tag
+import Wire.API.Provider.Bot (ServiceToken (..))
+import Wire.API.Provider.Tag (ServiceTag (..))
+import qualified Wire.API.Provider.Tag as Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile

@@ -59,8 +59,8 @@ import Wire.API.Call.TURN
 import Wire.API.Call.TURN.Host
 import Wire.API.Conversation.Code as Code
 import Wire.API.CustomBackend
-import Wire.API.Service.Internal
-import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
+import Wire.API.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
+import Wire.API.Provider.Service.Internal
 import Wire.API.Team
 import Wire.API.Team.Internal
 import Wire.API.Team.Invitation
