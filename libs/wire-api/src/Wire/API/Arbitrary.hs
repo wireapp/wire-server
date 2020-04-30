@@ -29,7 +29,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Test.Arbitrary where
+module Wire.API.Arbitrary where
 
 import Control.Lens hiding (elements)
 import qualified Data.ByteString.Char8 as BS
