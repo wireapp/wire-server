@@ -25,7 +25,7 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
-import Control.Lens ((^.))
+import Control.Lens ((^.), view)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Misc (portNumber)
@@ -36,6 +36,7 @@ import qualified Galley.App as App
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
+import qualified Galley.Queue as Q
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
@@ -60,7 +61,7 @@ run o = do
         l
         (e ^. monitor)
   deleteQueueThread <- Async.async $ evalGalley e Internal.deleteLoop
-  refreshMetricsThread <- Async.async $ evalGalley e Internal.refreshMetrics
+  refreshMetricsThread <- Async.async $ evalGalley e refreshMetrics
   runSettingsWithShutdown s app 5 `finally` do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
@@ -92,3 +93,12 @@ mkApp o = do
         . catchErrors l [Right m]
         . GZip.gunzip
         . GZip.gzip GZip.def
+
+refreshMetrics :: Galley ()
+refreshMetrics = do
+  m <- view monitor
+  q <- view deleteQueue
+  Internal.safeForever "refreshMetrics" $ do
+    n <- Q.len q
+    M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
+    threadDelay 1000000

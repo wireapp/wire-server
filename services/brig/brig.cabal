@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d75605e990ced662e68a90ee59831680ff15d186c31a1e37c95f7783cb96b1b
+-- hash: a8d3cb29aca1a7d407be53e4acec83f17751e3f6854ab32b04540306e60c311e
 
 name:           brig
 version:        1.35.0
@@ -24,7 +24,9 @@ library
       Brig.API.Connection
       Brig.API.Error
       Brig.API.Handler
+      Brig.API.Internal
       Brig.API.Properties
+      Brig.API.Public
       Brig.API.Types
       Brig.API.User
       Brig.API.Util

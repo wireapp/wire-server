@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.API.Search
-  ( routes,
+  ( routesPublic,
+    routesInternal,
   )
 where
 
@@ -39,8 +40,8 @@ import Network.Wai.Routing
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 
-routes :: Routes Doc.ApiBuilder Handler ()
-routes = do
+routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic = do
   get "/search/contacts" (continue searchH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -55,19 +56,22 @@ routes = do
       Doc.optional
     Doc.returns (Doc.ref Doc.searchResult)
     Doc.response 200 "The search result." Doc.end
-  --
 
+routesInternal :: Routes a Handler ()
+routesInternal = do
   -- make index updates visible (e.g. for integration testing)
   post
     "/i/index/refresh"
     (continue (const $ lift refreshIndex *> pure empty))
     true
+
   -- reindex from Cassandra (e.g. integration testing -- prefer the
   -- `brig-index` executable for actual operations!)
   post
     "/i/index/reindex"
     (continue . const $ lift reindexAll *> pure empty)
     true
+
   -- forcefully reindex from Cassandra, even if nothing has changed
   -- (e.g. integration testing -- prefer the `brig-index` executable
   -- for actual operations!)
