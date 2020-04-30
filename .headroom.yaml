@@ -2,6 +2,7 @@ run-mode: replace
 source-paths:
 - libs
 - services
+- tools
 excluded-paths:
 - '\.stack-work'
 template-paths:
