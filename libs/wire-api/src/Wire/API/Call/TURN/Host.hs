@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Calling.TURN.Host where
+module Wire.API.Call.TURN.Host where
 
 import Data.Aeson
 import qualified Data.ByteString.Conversion as BC

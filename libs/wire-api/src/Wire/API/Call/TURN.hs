@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Calling.TURN
+module Wire.API.Call.TURN
   ( RTCConfiguration,
     rtcConfiguration,
     rtcConfIceServers,
@@ -67,7 +67,7 @@ import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.Calling.TURN.Host
+import Wire.API.Call.TURN.Host
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
