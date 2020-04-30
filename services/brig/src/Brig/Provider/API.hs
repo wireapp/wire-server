@@ -296,7 +296,7 @@ routesPublic = do
       .&> zauth ZAuthBot
       .&> capture "uid"
 
-routesInternal :: Routes Doc.ApiBuilder Handler ()
+routesInternal :: Routes a Handler ()
 routesInternal = do
   get "/i/provider/activation-code" (continue getActivationCodeH) $
     accept "application" "json"

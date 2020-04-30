@@ -44,6 +44,9 @@ import qualified System.Logger.Class as LC
 
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
+  get "/i/status" (continue (const $ return empty)) true
+  head "/i/status" (continue (const $ return empty)) true
+
   post "/i/push/:user/:conn" (continue pushH) $
     capture "user" .&. capture "conn" .&. request
 

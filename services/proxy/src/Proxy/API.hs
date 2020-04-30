@@ -31,5 +31,9 @@ import Proxy.Proxy (Proxy)
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
   Public.sitemap e
+  routesInternal
+
+routesInternal :: Routes a Proxy ()
+routesInternal = do
   head "/i/status" (continue $ const (return empty)) true
   get "/i/status" (continue $ const (return empty)) true

@@ -21,19 +21,21 @@ module Gundeck.API.Internal
 where
 
 import Data.Id
-import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Gundeck.Client as Client
 import Gundeck.Monad
 import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Push as Push
-import Imports
+import Imports hiding (head)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 
-sitemap :: Routes ApiBuilder Gundeck ()
+sitemap :: Routes a Gundeck ()
 sitemap = do
+  head "/i/status" (continue $ const (return empty)) true
+  get "/i/status" (continue $ const (return empty)) true
+
   -- Push API -----------------------------------------------------------
 
   post "/i/push/v2" (continue pushH) $

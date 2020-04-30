@@ -148,7 +148,7 @@ routesPublic = do
     Doc.body (Doc.ref Doc.removeCookies) Doc.end
     Doc.errorResponse badCredentials
 
-routesInternal :: Routes Doc.ApiBuilder Handler ()
+routesInternal :: Routes a Handler ()
 routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
   post "/i/legalhold-login" (continue legalHoldLoginH) $

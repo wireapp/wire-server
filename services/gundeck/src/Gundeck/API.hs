@@ -20,19 +20,14 @@ module Gundeck.API
   )
 where
 
-import Data.Swagger.Build.Api hiding (Response, def, min)
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Gundeck.API.Internal as Internal
 import qualified Gundeck.API.Public as Public
-import Gundeck.Monad
-import Imports hiding (head)
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Gundeck.Monad (Gundeck)
+import Network.Wai.Routing (Routes)
 
-sitemap :: Routes ApiBuilder Gundeck ()
+sitemap :: Routes Doc.ApiBuilder Gundeck ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
   Internal.sitemap
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true

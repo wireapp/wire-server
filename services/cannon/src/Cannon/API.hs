@@ -22,17 +22,12 @@ where
 
 import qualified Cannon.API.Internal as Internal
 import qualified Cannon.API.Public as Public
-import Cannon.Types
-import Data.Swagger.Build.Api
-import Imports hiding (head)
-import Network.Wai.Predicate
-import Network.Wai.Routing
-import Network.Wai.Utilities
+import Cannon.Types (Cannon)
+import qualified Data.Swagger.Build.Api as Doc
+import Network.Wai.Routing (Routes)
 
-sitemap :: Routes ApiBuilder Cannon ()
+sitemap :: Routes Doc.ApiBuilder Cannon ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
   Internal.sitemap
-  get "/i/status" (continue (const $ return empty)) true
-  head "/i/status" (continue (const $ return empty)) true

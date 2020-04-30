@@ -25,15 +25,10 @@ import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.Options (Opts)
 import qualified Data.Swagger.Build.Api as Doc
-import Imports hiding (head)
-import Network.Wai.Predicate
-import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Network.Wai.Routing (Routes)
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
   Public.sitemap o
   Public.apiDocs o
   Internal.sitemap
-  get "/i/status" (continue $ const $ return empty) true
-  head "/i/status" (continue $ const $ return empty) true

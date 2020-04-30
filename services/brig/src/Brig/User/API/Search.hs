@@ -57,7 +57,7 @@ routesPublic = do
     Doc.returns (Doc.ref Doc.searchResult)
     Doc.response 200 "The search result." Doc.end
 
-routesInternal :: Routes Doc.ApiBuilder Handler ()
+routesInternal :: Routes a Handler ()
 routesInternal = do
   -- make index updates visible (e.g. for integration testing)
   post

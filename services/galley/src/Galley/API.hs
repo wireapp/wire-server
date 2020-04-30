@@ -20,20 +20,15 @@ module Galley.API
   )
 where
 
-import Data.Swagger.Build.Api hiding (Response, def, min)
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.API.Internal as Internal
 import qualified Galley.API.Public as Public
-import Galley.App
-import Imports hiding (head)
-import Network.Wai.Predicate
-import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Galley.App (Galley)
+import Network.Wai.Routing (Routes)
 
-sitemap :: Routes ApiBuilder Galley ()
+sitemap :: Routes Doc.ApiBuilder Galley ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
   Public.apiDocsTeamsLegalhold
   Internal.sitemap
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true

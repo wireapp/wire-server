@@ -33,7 +33,6 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1 (List1), list1)
 import Data.Range
 import Data.String.Conversions (cs)
-import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -62,8 +61,11 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import System.Logger.Class hiding (Path)
 
-sitemap :: Routes ApiBuilder Galley ()
+sitemap :: Routes a Galley ()
 sitemap = do
+  head "/i/status" (continue $ const (return empty)) true
+  get "/i/status" (continue $ const (return empty)) true
+
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $

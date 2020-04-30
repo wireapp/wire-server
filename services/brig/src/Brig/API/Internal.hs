@@ -49,7 +49,6 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>))
 import qualified Data.Set as Set
-import qualified Data.Swagger.Build.Api as Doc
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
 import Network.HTTP.Types.Status
@@ -63,8 +62,11 @@ import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 ---------------------------------------------------------------------------
 -- Sitemap
 
-sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap :: Routes a Handler ()
 sitemap = do
+  get "/i/status" (continue $ const $ return empty) true
+  head "/i/status" (continue $ const $ return empty) true
+
   -- This endpoint can lead to the following events being sent:
   -- - ConnectionUpdated event to the user and all users connecting with
   -- - ConvCreate event to the user for each connect conversation that did not exist before

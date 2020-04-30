@@ -141,7 +141,7 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.errorResponse invalidInvitationCode
 
-routesInternal :: Routes Doc.ApiBuilder Handler ()
+routesInternal :: Routes a Handler ()
 routesInternal = do
   get "/i/teams/invitation-code" (continue getInvitationCodeH) $
     accept "application" "json"

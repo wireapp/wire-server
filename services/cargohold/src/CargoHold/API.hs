@@ -32,5 +32,9 @@ sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
+  routesInternal
+
+routesInternal :: Routes a Handler ()
+routesInternal = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
