@@ -446,6 +446,11 @@ data Settings = Settings
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
+    -- When using real SQS from AWS, throttling isn't needed as much, since using
+    --   SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
+    -- ensures that there is only one request every 20 seconds.
+    -- However, that parameter is not honoured when using fake-sqs
+    -- (where throttling can thus make sense)
     setSqsThrottleMillis :: !(Maybe Int)
   }
   deriving (Show, Generic)

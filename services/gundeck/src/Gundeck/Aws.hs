@@ -435,13 +435,14 @@ publish arn txt attrs = do
 --------------------------------------------------------------------------------
 -- Feedback
 
-listen :: (Event -> IO ()) -> Amazon ()
-listen callback = do
+listen :: Int -> (Event -> IO ()) -> Amazon ()
+listen throttleMillis callback = do
   QueueUrl url <- view eventQueue
   forever $ handleAny unexpectedError $ do
     msgs <- view rmrsMessages <$> send (receive url)
     void $ mapConcurrently (onMessage url) msgs
-    threadDelay 1000000
+    when (null msgs) $
+      threadDelay (1000 * throttleMillis)
   where
     receive url =
       SQS.receiveMessage url
