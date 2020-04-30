@@ -36,7 +36,7 @@ import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
+import Test.Tasty.QuickCheck as QuickCheck
 
 -- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
@@ -72,7 +72,7 @@ tests =
       testRoundTrip @SSOTeamConfig,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
-      testCase "{} is a valid TeamMemberDeleteData" $ do
+      testCase "{} is a valid TeamMemberDeleteData" $
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
 
@@ -86,7 +86,7 @@ instance Show TeamMemberDeleteData where
   show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
 
 instance Arbitrary SSOStatus where
-  arbitrary = Test.Tasty.QuickCheck.elements [minBound ..]
+  arbitrary = QuickCheck.elements [SSOEnabled, SSODisabled]
 
 instance Arbitrary SSOTeamConfig where
   arbitrary = SSOTeamConfig <$> arbitrary
@@ -94,5 +94,27 @@ instance Arbitrary SSOTeamConfig where
 instance Arbitrary FeatureFlags where
   arbitrary =
     FeatureFlags
-      <$> Test.Tasty.QuickCheck.elements [minBound ..]
-      <*> Test.Tasty.QuickCheck.elements [minBound ..]
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary FeatureIndexedBillingTeamMembers where
+  arbitrary =
+    oneof
+      [ pure FeatureIndexedBillingTeamMembersEnabled,
+        pure FeatureIndexedBillingTeamMembersDisabled
+      ]
+
+instance Arbitrary FeatureLegalHold where
+  arbitrary =
+    QuickCheck.elements
+      [ FeatureLegalHoldDisabledByDefault,
+        FeatureLegalHoldDisabledPermanently
+      ]
+
+instance Arbitrary FeatureSSO where
+  arbitrary =
+    QuickCheck.elements
+      [ FeatureSSOEnabledByDefault,
+        FeatureSSODisabledByDefault
+      ]

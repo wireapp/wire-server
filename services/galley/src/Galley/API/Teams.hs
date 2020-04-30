@@ -449,8 +449,7 @@ uncheckedAddTeamMember tid nmem = do
   when (hasPermission new SetBilling) $
     Data.addBillingTeamMember tid (new ^. userId)
 
-  billingUserIds <- Data.listBillingTeamMembers tid
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -505,8 +504,8 @@ updateTeamMember zusr zcon tid targetMember = do
     when isNotBillingMemberAnymore $
       Data.deleteBillingTeamMember tid targetId
 
-  updateJournal team
   updatedMembers <- Data.teamMembersForFanout tid
+  updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
     isBillingMember :: TeamMember -> Bool
@@ -519,12 +518,11 @@ updateTeamMember zusr zcon tid targetMember = do
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
     --
-    updateJournal :: Team -> Galley ()
-    updateJournal team = do
+    updateJournal :: Team -> TeamMemberList -> Galley ()
+    updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        billingUserIds <- Data.listBillingTeamMembers tid
-        Journal.teamUpdate tid size billingUserIds
+        Journal.teamUpdate tid size (Just mems)
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -578,11 +576,9 @@ deleteTeamMember zusr zcon tid remove mBody = do
             if sizeBeforeDelete == 0
               then 0
               else sizeBeforeDelete - 1
-      billingUsers <- Data.listBillingTeamMembers tid
-      -- 'deleteUser' deletes asynchronously, so we have to proactively filter out the removed
-      let billingUsersWithoutDeleted = filter (/= remove) billingUsers
       deleteUser remove
-      Journal.teamUpdate tid sizeAfterDelete billingUsersWithoutDeleted
+      let memsWithoutDeleted = newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
+      Journal.teamUpdate tid sizeAfterDelete (Just memsWithoutDeleted)
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems

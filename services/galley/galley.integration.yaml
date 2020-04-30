@@ -33,6 +33,7 @@ settings:
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: disabled-by-default
+    indexedBillingTeamMembers: enabled
 
 logLevel: Info
 logNetStrings: false
