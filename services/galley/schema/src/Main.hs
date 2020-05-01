@@ -40,6 +40,7 @@ import qualified V34
 import qualified V35
 import qualified V36
 import qualified V37
+import qualified V39
 
 main :: IO ()
 main = do
@@ -65,9 +66,10 @@ main = do
       V34.migration,
       V35.migration, -- This should safe to do now
       V36.migration,
-      V37.migration
+      V37.migration,
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
+      V39.migration
     ]
     `finally` Log.close l
   where

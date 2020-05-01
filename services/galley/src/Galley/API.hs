@@ -44,6 +44,7 @@ import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Swagger as Model
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
 import qualified Galley.Types.Teams.Swagger as TeamsModel
 import Imports hiding (head)
@@ -1081,6 +1082,13 @@ sitemap = do
   put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternalH) $
     capture "tid"
       .&. jsonRequest @SSOTeamConfig
+      .&. accept "application" "json"
+  get "/i/teams/:tid/features/search-visibility" (continue Teams.getCustomSearchVisibilityStatusInternalH) $
+    capture "tid"
+      .&. accept "application" "json"
+  put "/i/teams/:tid/features/search-visibility" (continue Teams.setCustomSearchVisibilityStatusInternalH) $
+    capture "tid"
+      .&. jsonRequest @CustomSearchVisibilityTeamConfig
       .&. accept "application" "json"
   -- End of team features
 

@@ -39,8 +39,10 @@ module Galley.Types.Teams
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
+    flagCustomSearchVisibility,
     FeatureSSO (..),
     FeatureLegalHold (..),
+    FeatureCustomSearchVisibility (..),
     TeamList,
     newTeamList,
     teamListTeams,
@@ -362,7 +364,8 @@ newtype TeamCreationTime = TeamCreationTime
 
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
-    _flagLegalHold :: !FeatureLegalHold
+    _flagLegalHold :: !FeatureLegalHold,
+    _flagCustomSearchVisibility :: !FeatureCustomSearchVisibility
   }
   deriving (Eq, Show, Generic)
 
@@ -376,17 +379,24 @@ data FeatureLegalHold
   | FeatureLegalHoldDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+data FeatureCustomSearchVisibility
+  = FeatureCustomSearchVisibilityEnabledByDefault
+  | FeatureCustomSearchVisibilityDisabledByDefault
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
     FeatureFlags
-      <$> (obj .: "sso")
-      <*> (obj .: "legalhold")
+      <$> obj .: "sso"
+      <*> obj .: "legalhold"
+      <*> obj .: "custom-search-visibility"
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold) =
+  toJSON (FeatureFlags sso legalhold searchVisibility) =
     object $
       [ "sso" .= sso,
-        "legalhold" .= legalhold
+        "legalhold" .= legalhold,
+        "custom-search-visibility" .= searchVisibility
       ]
 
 instance FromJSON FeatureSSO where
@@ -407,8 +417,17 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
+instance FromJSON FeatureCustomSearchVisibility where
+  parseJSON (String "enabled-by-default") = pure FeatureCustomSearchVisibilityEnabledByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureCustomSearchVisibilityDisabledByDefault
+  parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
+
+instance ToJSON FeatureCustomSearchVisibility where
+  toJSON FeatureCustomSearchVisibilityEnabledByDefault = String "enabled-by-default"
+  toJSON FeatureCustomSearchVisibilityDisabledByDefault = String "disabled-by-default"
+
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
--- though we do want this to remain true/false
+-- though we do want this to remain true/false due to backwards compatibility reasons
 instance ToJSON ListType where
   toJSON ListComplete = Bool False
   toJSON ListTruncated = Bool True
@@ -524,6 +543,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
+  | ViewCustomSearchVisibility -- (change is only allowed via customer support backoffice)
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -552,7 +572,8 @@ hiddenPermissionsFromPermissions =
           (roleHiddenPerms RoleMember <>) $
             Set.fromList
               [ ChangeLegalHoldTeamSettings,
-                ChangeLegalHoldUserSettings
+                ChangeLegalHoldUserSettings,
+                ViewCustomSearchVisibility
               ]
         roleHiddenPerms RoleMember =
           (roleHiddenPerms RoleExternalPartner <>) $

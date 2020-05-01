@@ -30,6 +30,7 @@ import Galley.Types
 import Galley.Types.Bot ()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
 import Imports
 
@@ -135,6 +136,18 @@ instance Cql SSOStatus where
 
   toCql SSODisabled = CqlInt 0
   toCql SSOEnabled = CqlInt 1
+
+instance Cql CustomSearchVisibilityStatus where
+  ctype = Tagged IntColumn
+
+  fromCql (CqlInt n) = case n of
+    0 -> pure $ CustomSearchVisibilityDisabled
+    1 -> pure $ CustomSearchVisibilityEnabled
+    _ -> fail "fromCql: Invalid CustomSearchVisibilityStatus"
+  fromCql _ = fail "fromCql: CustomSearchVisibilityStatus: CqlInt expected"
+
+  toCql CustomSearchVisibilityDisabled = CqlInt 0
+  toCql CustomSearchVisibilityEnabled = CqlInt 1
 
 instance Cql Domain where
   ctype = Tagged TextColumn

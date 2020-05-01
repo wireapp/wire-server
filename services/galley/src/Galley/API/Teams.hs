@@ -44,6 +44,9 @@ module Galley.API.Teams
     getLegalholdStatusH,
     getLegalholdStatusInternalH,
     setLegalholdStatusInternalH,
+    getCustomSearchVisibilityStatusH,
+    setCustomSearchVisibilityStatusInternalH,
+    getCustomSearchVisibilityStatusInternalH,
     uncheckedAddTeamMemberH,
     uncheckedGetTeamMemberH,
     uncheckedGetTeamMembersH,
@@ -72,6 +75,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.SSO as SSOData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.Types as Data
@@ -89,6 +93,7 @@ import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -803,6 +808,16 @@ getLegalholdStatus uid tid = do
   void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
 
+getCustomSearchVisibilityStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
+getCustomSearchVisibilityStatusH (uid ::: tid ::: _) =
+  json <$> getCustomSearchVisibilityStatus uid tid
+
+getCustomSearchVisibilityStatus :: UserId -> TeamId -> Galley CustomSearchVisibilityTeamConfig
+getCustomSearchVisibilityStatus uid tid = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewCustomSearchVisibility zusrMembership
+  getCustomSearchVisibilityStatusInternal tid
+
 -- Enable / Disable team features
 -- These endpoints are internal only and  meant to be called
 -- only from authorized personnel (e.g., from a backoffice tool)
@@ -880,6 +895,35 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
       limit <- fromIntegral . fromRange <$> fanoutLimit
       when (size > limit) $ do
         throwM cannotEnableLegalHoldServiceLargeTeam
+
+-- | Get Search visibility status for a team.
+getCustomSearchVisibilityStatusInternalH :: TeamId ::: JSON -> Galley Response
+getCustomSearchVisibilityStatusInternalH (tid ::: _) = do
+  json <$> getCustomSearchVisibilityStatusInternal tid
+
+getCustomSearchVisibilityStatusInternal :: TeamId -> Galley CustomSearchVisibilityTeamConfig
+getCustomSearchVisibilityStatusInternal tid = do
+  -- TODO: This is just redundant given there is a decent default
+  defConfig <- do
+    featureCustomSearchVisibility <- view (options . optSettings . setFeatureFlags . flagCustomSearchVisibility)
+    pure . CustomSearchVisibilityTeamConfig $ case featureCustomSearchVisibility of
+      FeatureCustomSearchVisibilityEnabledByDefault -> CustomSearchVisibilityEnabled
+      FeatureCustomSearchVisibilityDisabledByDefault -> CustomSearchVisibilityDisabled
+  customSearchVisibilityStatusTeamConfig <- SearchVisibilityData.getSearchVisibilityTeamConfig tid
+  pure . fromMaybe defConfig $ customSearchVisibilityStatusTeamConfig
+
+-- | Enable or disable custom search visibility for a team.
+setCustomSearchVisibilityStatusInternalH :: TeamId ::: JsonRequest CustomSearchVisibilityTeamConfig ::: JSON -> Galley Response
+setCustomSearchVisibilityStatusInternalH (tid ::: req ::: _) = do
+  setCustomSearchVisibilityStatusInternal tid =<< fromJsonBody req
+  pure noContent
+
+setCustomSearchVisibilityStatusInternal :: TeamId -> CustomSearchVisibilityTeamConfig -> Galley ()
+setCustomSearchVisibilityStatusInternal tid customSearchTeamConfig = do
+  case customSearchVisibilityTeamConfigStatus customSearchTeamConfig of
+    CustomSearchVisibilityDisabled -> error "Need to remove the option at the team level"
+    CustomSearchVisibilityEnabled -> pure () -- This allows the option to be set at the team level
+  SearchVisibilityData.setSearchVisibilityTeamConfig tid customSearchTeamConfig
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

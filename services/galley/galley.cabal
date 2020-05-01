@@ -288,6 +288,7 @@ executable galley-schema
       V35
       V36
       V37
+      V39
       Paths_galley
   hs-source-dirs:
       schema/src
