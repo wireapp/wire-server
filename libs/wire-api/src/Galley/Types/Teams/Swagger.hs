@@ -34,15 +34,16 @@ teamsModels =
     newNonBindingTeam,
     newTeamMember,
     permissions,
+    teamMemberDelete,
+    teamDelete,
+    update,
+    -- TODO: where is 'event' actually used? try removing it.
     event,
     memberEvent,
     convEvent,
     updateEvent,
     member,
-    conversation,
-    update,
-    teamMemberDelete,
-    teamDelete
+    conversation
   ]
 
 team :: Model
@@ -175,6 +176,8 @@ event = defineModel "TeamEvent" $ do
     description "team ID"
   property "time" dateTime' $
     description "date and time this event occurred"
+  -- This doesn't really seem to work in swagger-ui.
+  -- The children/subTypes are not displayed.
   children
     "type"
     [ memberEvent,

@@ -397,16 +397,6 @@ sitemap = do
     returns (ref Model.ssoTeamConfig)
     response 200 "SSO status" end
 
-  get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
-  document "GET" "getCustomBackendByDomain" $ do
-    summary "Shows information about custom backends related to a given email domain"
-    parameter Path "domain" string' $
-      description "URL-encoded email domain"
-    returns (ref Model.customBackend)
-    response 200 "Custom backend" end
-
   -- Bot API ------------------------------------------------------------
 
   get "/bot/conversation" (continue Query.getBotConversationH) $
@@ -707,27 +697,6 @@ sitemap = do
     errorResponse Error.invalidOne2OneOp
     errorResponse Error.invalidConnectOp
 
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/conversations/:cnv/members" (continue Update.addMembersH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Invite
-  document "POST" "addMembers" $ do
-    summary "Add users to an existing conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Model.invite) $
-      description "JSON body"
-    returns (ref Model.event)
-    response 200 "Members added" end
-    response 204 "No change" end
-    errorResponse Error.convNotFound
-    errorResponse (Error.invalidOp "Conversation type does not allow adding members")
-    errorResponse Error.notConnected
-    errorResponse Error.convAccessDenied
-
   get "/conversations/:cnv/self" (continue Query.getSelfH) $
     zauthUserId
       .&. capture "cnv"
@@ -755,6 +724,27 @@ sitemap = do
     errorResponse Error.convNotFound
 
   -- This endpoint can lead to the following events being sent:
+  -- - MemberJoin event to members
+  post "/conversations/:cnv/members" (continue Update.addMembersH) $
+    zauthUserId
+      .&. zauthConnId
+      .&. capture "cnv"
+      .&. jsonRequest @Invite
+  document "POST" "addMembers" $ do
+    summary "Add users to an existing conversation"
+    parameter Path "cnv" bytes' $
+      description "Conversation ID"
+    body (ref Model.invite) $
+      description "JSON body"
+    returns (ref Model.event)
+    response 200 "Members added" end
+    response 204 "No change" end
+    errorResponse Error.convNotFound
+    errorResponse (Error.invalidOp "Conversation type does not allow adding members")
+    errorResponse Error.notConnected
+    errorResponse Error.convAccessDenied
+
+  -- This endpoint can lead to the following events being sent:
   -- - MemberStateUpdate event to members
   put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
     zauthUserId
@@ -776,21 +766,6 @@ sitemap = do
     errorResponse Error.invalidTargetUserOp
 
   -- This endpoint can lead to the following events being sent:
-  -- - Typing event to members
-  post "/conversations/:cnv/typing" (continue Update.isTypingH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @TypingData
-  document "POST" "isTyping" $ do
-    summary "Sending typing notifications"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Model.typing) $
-      description "JSON body"
-    errorResponse Error.convNotFound
-
-  -- This endpoint can lead to the following events being sent:
   -- - MemberLeave event to members
   delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
     zauthUserId
@@ -808,6 +783,21 @@ sitemap = do
     response 204 "No change" end
     errorResponse Error.convNotFound
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
+
+  -- This endpoint can lead to the following events being sent:
+  -- - Typing event to members
+  post "/conversations/:cnv/typing" (continue Update.isTypingH) $
+    zauthUserId
+      .&. zauthConnId
+      .&. capture "cnv"
+      .&. jsonRequest @TypingData
+  document "POST" "isTyping" $ do
+    summary "Sending typing notifications"
+    parameter Path "cnv" bytes' $
+      description "Conversation ID"
+    body (ref Model.typing) $
+      description "JSON body"
+    errorResponse Error.convNotFound
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients
@@ -957,6 +947,18 @@ sitemap = do
     errorResponse Error.unknownClient
     errorResponse Error.broadcastLimitExceeded
 
+  -- Custom Backend API -------------------------------------------------
+
+  get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
+    capture "domain"
+      .&. accept "application" "json"
+  document "GET" "getCustomBackendByDomain" $ do
+    summary "Shows information about custom backends related to a given email domain"
+    parameter Path "domain" string' $
+      description "URL-encoded email domain"
+    returns (ref Model.customBackend)
+    response 200 "Custom backend" end
+
 apiDocs :: Routes ApiBuilder Galley ()
 apiDocs = do
   get "/conversations/api-docs" (continue docs) $
@@ -970,6 +972,8 @@ docs (_ ::: url) = do
   let models = Model.galleyModels ++ TeamsModel.teamsModels
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
+
+-- FUTUREWORK: /teams/api-docs does not get queried by zwagger-ui
 
 -- |
 -- I (Tiago) added servant-based swagger docs here because

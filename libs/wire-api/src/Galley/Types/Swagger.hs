@@ -26,47 +26,60 @@ import Imports
 import Wire.API.Conversation (Access)
 import qualified Wire.Swagger as Swagger
 
+-- TODO(wire-api): check if all models are used
 galleyModels :: [Model]
 galleyModels =
-  [ connect,
-    connectEvent,
-    conversation,
+  [ conversation,
     conversations,
     conversationIds,
     conversationMembers,
+    otherMember,
+    member,
+    serviceRef,
     conversationUpdateName,
     conversationAccessUpdate,
     conversationReceiptModeUpdate,
     conversationMessageTimerUpdate,
     conversationCode,
-    conversationNameUpdateEvent,
     conversationRole,
     conversationRolesList,
-    errorObj,
-    event,
     invite,
-    member,
-    memberEvent,
     memberUpdate,
-    memberUpdateData,
-    memberUpdateEvent,
-    members,
+    otherMemberUpdate,
     newConversation,
-    otherMember,
+    teamInfo,
     typing,
-    typingEvent,
-    otrMessage,
     newOtrMessage,
     otrRecipients,
     otrClientMap,
+    clientMismatch,
     userClients,
     userIdList,
-    clientMismatch,
-    serviceRef,
-    teamInfo,
     legalHoldTeamConfig,
     ssoTeamConfig,
-    customBackend
+    customBackend,
+    --
+    event,
+    memberUpdateEvent,
+    memberUpdateData,
+    connectEvent,
+    connect,
+    conversationNameUpdateEvent,
+    memberEvent,
+    members,
+    typingEvent,
+    -- FUTUREWORK:
+    -- The following events are used as children/subTypes of 'event',
+    -- but have not been added to the list of models here.
+    -- We should probably add them, but I don't want to do it as part
+    -- of the current refactoring I'm doing.
+    -- otrMessageEvent
+    -- conversationAccessUpdateEvent,
+    -- conversationReceiptModeUpdateEvent,
+    -- conversationMessageTimerUpdateEvent,
+    -- conversationCodeUpdateEvent,
+    -- conversationCodeDeleteEvent
+    otrMessage -- used in otrMessageEvent
   ]
 
 event :: Model
@@ -80,6 +93,8 @@ event = defineModel "Event" $ do
     description "User ID"
   property "time" dateTime' $
     description "Date and time this event occurred"
+  -- This doesn't really seem to work in swagger-ui.
+  -- The children/subTypes are not displayed.
   children
     "type"
     [ memberEvent,
