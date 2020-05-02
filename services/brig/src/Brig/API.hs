@@ -1267,10 +1267,7 @@ listUsers self = \case
     byIds resolvedUserIds
   Right hs -> do
     us <- getIds (fromList hs)
-    sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-    if sameTeamSearchOnly
-      then filterSameTeamOnly =<< byIds us
-      else byIds us
+    filterSearchResults self =<< byIds us
   where
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
@@ -1279,12 +1276,6 @@ listUsers self = \case
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       pure (Local <$> localUsers)
-    filterSameTeamOnly :: [UserProfile] -> Handler [UserProfile]
-    filterSameTeamOnly us = do
-      selfTeam <- lift $ Data.lookupUserTeam self
-      return $ case selfTeam of
-        Just team -> filter (\x -> profileTeam x == Just team) us
-        Nothing -> us
     byIds :: [MappedOrLocalId Id.U] -> Handler [UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
@@ -1430,10 +1421,16 @@ checkHandlesH (_ ::: _ ::: req) = do
   return $ json free
 
 getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
-getHandleInfoH (_ ::: _ ::: h) = do
-  owner <- lift $ API.lookupHandle h
-  return $ case owner of
-    Just u -> json (UserHandleInfo u)
+getHandleInfoH (_ ::: self ::: h) = do
+  ownerProfile <- do
+    -- FUTUREWORK(federation, #1268): resolve qualified handles, too
+    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle h)
+    case maybeOwnerId of
+      Just ownerId -> lift $ API.lookupProfile self ownerId
+      Nothing      -> return Nothing
+  owner <- filterSearchResults self (maybeToList ownerProfile)
+  return $ case listToMaybe owner of
+    Just u -> json (UserHandleInfo $ profileId u)
     Nothing -> setStatus status404 empty
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
@@ -1698,3 +1695,15 @@ validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
+
+-- Checks search permissions and filters accordingly
+filterSearchResults :: UserId -> [UserProfile] -> Handler [UserProfile]
+filterSearchResults from us = do
+  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
+  if sameTeamSearchOnly
+    then do
+      selfTeam <- lift $ Data.lookupUserTeam from
+      return $ case selfTeam of
+        Just team -> filter (\x -> profileTeam x == Just team) us
+        Nothing -> us
+    else return us

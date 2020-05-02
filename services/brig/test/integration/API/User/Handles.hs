@@ -173,8 +173,13 @@ testHandleQuery opts brig galley = do
   get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
     const 200 === statusCode
     const (Just (Handle h4)) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
+  get (brig . paths ["users", "handles", toByteString' h4] . zUser uid3) !!! do
+    const 200 === statusCode
+    const (Just (UserHandleInfo uid4)) === responseJsonMaybe
+  -- Usually, you can search outside your team but not if this config option is set
   let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
   withSettingsOverrides newOpts $ do
-    -- Usually, you can search outside your team but not if this config option is set
     get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
+      const 404 === statusCode
+    get (brig . paths ["users", "handles", toByteString' h4] . zUser uid3) !!! do
       const 404 === statusCode
