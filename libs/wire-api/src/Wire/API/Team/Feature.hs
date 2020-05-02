@@ -29,7 +29,11 @@ module Wire.API.Team.Feature
     LegalHoldTeamConfig (..),
     LegalHoldStatus (..),
 
-    -- * other
+    -- * SSOTeamConfig
+    SSOTeamConfig (..),
+    SSOStatus (..),
+
+    -- * FeatureFlags
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
@@ -76,7 +80,39 @@ instance FromJSON LegalHoldStatus where
     "disabled" -> pure LegalHoldDisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
 
--------------
+--------------------------------------------------------------------------------
+-- SSOTeamConfig
+
+data SSOTeamConfig = SSOTeamConfig
+  { ssoTeamConfigStatus :: !SSOStatus
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON SSOTeamConfig where
+  toJSON s =
+    object $
+      "status" .= ssoTeamConfigStatus s
+        # []
+
+instance FromJSON SSOTeamConfig where
+  parseJSON = withObject "SSOTeamConfig" $ \o ->
+    SSOTeamConfig <$> o .: "status"
+
+data SSOStatus = SSODisabled | SSOEnabled
+  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+
+instance ToJSON SSOStatus where
+  toJSON SSOEnabled = "enabled"
+  toJSON SSODisabled = "disabled"
+
+instance FromJSON SSOStatus where
+  parseJSON = withText "SSOStatus" $ \case
+    "enabled" -> pure SSOEnabled
+    "disabled" -> pure SSODisabled
+    x -> fail $ "unexpected status type: " <> T.unpack x
+
+--------------------------------------------------------------------------------
+-- FeatureFlags
 
 data FeatureSSO
   = FeatureSSOEnabledByDefault
@@ -92,8 +128,6 @@ instance FromJSON FeatureSSO where
   parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
   parseJSON bad = fail $ "FeatureSSO: " <> cs (encode bad)
 
-------------------------------------------------------------
-
 data FeatureLegalHold
   = FeatureLegalHoldDisabledPermanently
   | FeatureLegalHoldDisabledByDefault
@@ -107,8 +141,6 @@ instance FromJSON FeatureLegalHold where
   parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
   parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
   parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
-
-------------------------------------------------------------
 
 -- TODO: keep in galley-types?
 data FeatureFlags = FeatureFlags
