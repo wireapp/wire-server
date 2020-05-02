@@ -25,8 +25,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team
-  ( Team,
-    TeamBinding (..),
+  ( -- * Team
+    Team (..),
     newTeam,
     teamId,
     teamCreator,
@@ -34,17 +34,35 @@ module Wire.API.Team
     teamIcon,
     teamIconKey,
     teamBinding,
-    TeamCreationTime (..),
-    tcTime,
+    TeamBinding (..),
+
+    -- * TeamList
+    TeamList (..),
+    newTeamList,
+    teamListTeams,
+    teamListHasMore,
+
+    -- * NewTeam
+    BindingNewTeam (..),
+    NonBindingNewTeam (..),
+    NewTeam (..),
+    newNewTeam,
+    newTeamName,
+    newTeamIcon,
+    newTeamIconKey,
+    newTeamMembers,
+
+    -- * TeamDeleteData
+    TeamDeleteData (..),
+    newTeamDeleteData,
+    tdAuthPassword,
+
+    -- * Re-exports
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
     FeatureSSO (..),
     FeatureLegalHold (..),
-    TeamList,
-    newTeamList,
-    teamListTeams,
-    teamListHasMore,
     TeamMember,
     newTeamMember,
     userId,
@@ -81,23 +99,12 @@ module Wire.API.Team
     defaultRole,
     rolePermissions,
     permissionsRole,
-    BindingNewTeam (..),
-    NonBindingNewTeam (..),
-    NewTeam,
-    newNewTeam,
-    newTeamName,
-    newTeamIcon,
-    newTeamIconKey,
-    newTeamMembers,
     NewTeamMember,
     newNewTeamMember,
     ntmNewTeamMember,
     TeamMemberDeleteData,
     tmdAuthPassword,
     newTeamMemberDeleteData,
-    TeamDeleteData,
-    tdAuthPassword,
-    newTeamDeleteData,
     HardTruncationLimit,
     hardTruncationLimit,
   )
@@ -113,9 +120,61 @@ import Data.Range
 import Imports
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
-import Wire.API.Team.Internal
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+
+--------------------------------------------------------------------------------
+-- Team
+
+data Team = Team
+  { _teamId :: TeamId,
+    _teamCreator :: UserId,
+    _teamName :: Text,
+    _teamIcon :: Text,
+    _teamIconKey :: Maybe Text,
+    _teamBinding :: TeamBinding
+  }
+  deriving (Eq, Show, Generic)
+
+newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
+newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
+
+instance ToJSON Team where
+  toJSON t =
+    object $
+      "id" .= _teamId t
+        # "creator" .= _teamCreator t
+        # "name" .= _teamName t
+        # "icon" .= _teamIcon t
+        # "icon_key" .= _teamIconKey t
+        # "binding" .= _teamBinding t
+        # []
+
+instance FromJSON Team where
+  parseJSON = withObject "team" $ \o -> do
+    Team <$> o .: "id"
+      <*> o .: "creator"
+      <*> o .: "name"
+      <*> o .: "icon"
+      <*> o .:? "icon_key"
+      <*> o .:? "binding" .!= NonBinding
+
+data TeamBinding
+  = Binding
+  | NonBinding
+  deriving (Eq, Show, Generic)
+
+instance ToJSON TeamBinding where
+  toJSON Binding = Bool True
+  toJSON NonBinding = Bool False
+
+instance FromJSON TeamBinding where
+  parseJSON (Bool True) = pure Binding
+  parseJSON (Bool False) = pure NonBinding
+  parseJSON other = fail $ "Unknown binding type: " <> show other
+
+--------------------------------------------------------------------------------
+-- TeamList
 
 data TeamList = TeamList
   { _teamListTeams :: [Team],
@@ -123,43 +182,8 @@ data TeamList = TeamList
   }
   deriving (Show, Generic)
 
-newtype BindingNewTeam = BindingNewTeam (NewTeam ())
-  deriving (Eq, Show, Generic)
-
--- | FUTUREWORK: this is dead code!  remove!
-newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
-  deriving (Eq, Show, Generic)
-
-newtype TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword
-  }
-
--- This is the cassandra timestamp of writetime(binding)
-newtype TeamCreationTime = TeamCreationTime
-  { _tcTime :: Int64
-  }
-
-newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
-newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
-
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
-
-newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
-newNewTeam nme ico = NewTeam nme ico Nothing Nothing
-
-newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
-newTeamDeleteData = TeamDeleteData
-
-makeLenses ''Team
-
-makeLenses ''TeamList
-
-makeLenses ''NewTeam
-
-makeLenses ''TeamDeleteData
-
-makeLenses ''TeamCreationTime
 
 instance ToJSON TeamList where
   toJSON t =
@@ -173,6 +197,15 @@ instance FromJSON TeamList where
     TeamList <$> o .: "teams"
       <*> o .: "has_more"
 
+--------------------------------------------------------------------------------
+-- NewTeam
+
+newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+  deriving (Eq, Show, Generic)
+
+instance ToJSON BindingNewTeam where
+  toJSON (BindingNewTeam t) = object $ newTeamJson t
+
 newTeamJson :: NewTeam a -> [Pair]
 newTeamJson (NewTeam n i ik _) =
   "name" .= fromRange n
@@ -180,8 +213,11 @@ newTeamJson (NewTeam n i ik _) =
     # "icon_key" .= (fromRange <$> ik)
     # []
 
-instance ToJSON BindingNewTeam where
-  toJSON (BindingNewTeam t) = object $ newTeamJson t
+deriving instance FromJSON BindingNewTeam
+
+-- | FUTUREWORK: this is dead code!  remove!
+newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
+  deriving (Eq, Show, Generic)
 
 instance ToJSON NonBindingNewTeam where
   toJSON (NonBindingNewTeam t) =
@@ -189,9 +225,40 @@ instance ToJSON NonBindingNewTeam where
       "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
-deriving instance FromJSON BindingNewTeam
-
 deriving instance FromJSON NonBindingNewTeam
+
+data NewTeam a = NewTeam
+  { _newTeamName :: Range 1 256 Text,
+    _newTeamIcon :: Range 1 256 Text,
+    _newTeamIconKey :: Maybe (Range 1 256 Text),
+    _newTeamMembers :: Maybe a
+  }
+  deriving (Eq, Show, Generic)
+
+newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
+newNewTeam nme ico = NewTeam nme ico Nothing Nothing
+
+instance (FromJSON a) => FromJSON (NewTeam a) where
+  parseJSON = withObject "new-team" $ \o -> do
+    name <- o .: "name"
+    icon <- o .: "icon"
+    key <- o .:? "icon_key"
+    mems <- o .:? "members"
+    either fail pure $
+      NewTeam <$> checkedEitherMsg "name" name
+        <*> checkedEitherMsg "icon" icon
+        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
+        <*> pure mems
+
+--------------------------------------------------------------------------------
+-- TeamDeleteData
+
+newtype TeamDeleteData = TeamDeleteData
+  { _tdAuthPassword :: Maybe PlainTextPassword
+  }
+
+newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
+newTeamDeleteData = TeamDeleteData
 
 instance FromJSON TeamDeleteData where
   parseJSON = withObject "team-delete-data" $ \o ->
@@ -202,3 +269,8 @@ instance ToJSON TeamDeleteData where
     object
       [ "password" .= _tdAuthPassword tdd
       ]
+
+makeLenses ''Team
+makeLenses ''TeamList
+makeLenses ''NewTeam
+makeLenses ''TeamDeleteData

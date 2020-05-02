@@ -62,7 +62,6 @@ import Wire.API.CustomBackend
 import Wire.API.Service.Internal
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Wire.API.Team
-import Wire.API.Team.Internal
 import Wire.API.Team.Invitation
 import Wire.API.Team.LegalHold
 import Wire.API.User
