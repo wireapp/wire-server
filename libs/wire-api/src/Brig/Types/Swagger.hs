@@ -62,7 +62,7 @@ brigModels =
     verifyDelete,
     -- Login / Authentication
     sendLoginCode,
-    pendingLoginError,
+    pendingLoginError, -- couldn't find a corresponding type
     loginCodeResponse,
     login,
     removeCookies,
@@ -73,9 +73,9 @@ brigModels =
     updateClient,
     deleteClient,
     client,
-    pubClient,
     sigkeys,
     location,
+    pubClient,
     -- Prekeys
     prekeyBundle,
     clientPrekey,
@@ -83,10 +83,6 @@ brigModels =
     -- Properties
     propertyValue,
     propertyDictionary,
-    -- Onboarding
-    addressBook,
-    card,
-    match,
     -- Search
     searchResult,
     searchContact,
@@ -96,10 +92,7 @@ brigModels =
     teamInvitationRequest,
     -- TURN
     rtcConfiguration,
-    rtcIceServer,
-    -- Re-Exports
-    Galley.newBindingTeam,
-    Galley.serviceRef
+    rtcIceServer
   ]
 
 -------------------------------------------------------------------------------
@@ -830,37 +823,6 @@ propertyDictionary :: Model
 propertyDictionary =
   defineModel "PropertyDictionary" $
     description "A JSON object with properties as attribute/value pairs."
-
------------------------------------------------------------------------------
--- Onboarding
-
-addressBook :: Model
-addressBook = defineModel "AddressBook" $ do
-  description "Address book of a user"
-  property "cards" (array (ref card)) $
-    description "List of cards"
-
-card :: Model
-card = defineModel "Card" $ do
-  description "A contact's card"
-  property "contact" (array string') $
-    description
-      "List of base64-encoded SHA-256 of a normalised \
-      \email address or phone number"
-  property "card_id" string' $ do
-    description "Unique card identifier, defined by clients."
-    optional
-
-match :: Model
-match = defineModel "Match" $ do
-  description "A user that got auto-connected as a result of the upload."
-  property "id" string' $
-    description "Matched user ID"
-  property "card_id" string' $ do
-    description "DEPRECATED! Use cards instead."
-    optional
-  property "cards" (array string') $
-    description "List of card ids for this match."
 
 --------------------------------------------------------------------------------
 -- Search
