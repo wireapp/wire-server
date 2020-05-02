@@ -57,7 +57,8 @@ import Data.Json.Util
 import Data.Range
 import Data.Time (UTCTime)
 import Imports
-import Wire.API.Team
+import Wire.API.Team (Team)
+import Wire.API.Team.Permission (Permissions)
 
 --------------------------------------------------------------------------------
 -- Event

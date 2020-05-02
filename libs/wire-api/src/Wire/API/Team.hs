@@ -98,8 +98,6 @@ module Wire.API.Team
     intToPerms,
     Role (..),
     defaultRole,
-    rolePermissions,
-    permissionsRole,
     NewTeamMember,
     newNewTeamMember,
     ntmNewTeamMember,
@@ -123,6 +121,7 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import Wire.API.Team.Role
 
 --------------------------------------------------------------------------------
 -- Team

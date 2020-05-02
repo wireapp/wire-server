@@ -28,7 +28,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Imports
-import Wire.API.Team
+import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 

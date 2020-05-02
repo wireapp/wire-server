@@ -52,7 +52,7 @@ import Imports
 import Wire.API.Activation (ActivationCode)
 import qualified Wire.API.Conversation.Code as Code
 import Wire.API.Service.Bot (ServiceRef)
-import Wire.API.Team hiding (userId)
+import Wire.API.Team (BindingNewTeam)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile

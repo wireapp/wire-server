@@ -25,22 +25,21 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team.Permission
-  ( Permissions,
+  ( -- * Permissions
+    Permissions,
     self,
     copy,
     newPermissions,
     fullPermissions,
     noPermissions,
     serviceWhitelistPermissions,
+
+    -- * Permissions
     Perm (..),
-    permToInt,
     permsToInt,
-    intToPerm,
     intToPerms,
-    Role (..),
-    defaultRole,
-    rolePermissions,
-    permissionsRole,
+    permToInt,
+    intToPerm,
   )
 where
 
@@ -50,9 +49,11 @@ import Control.Lens ((^.), makeLenses)
 import Data.Aeson
 import Data.Bits ((.|.), testBit)
 import Data.Json.Util
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Imports
+
+--------------------------------------------------------------------------------
+-- Permissions
 
 data Permissions = Permissions
   { _self :: Set Perm,
@@ -60,79 +61,20 @@ data Permissions = Permissions
   }
   deriving (Eq, Ord, Show, Generic)
 
--- | Team-level permission.  Analog to conversation-level 'Action'.
-data Perm
-  = CreateConversation
-  | DoNotUseDeprecatedDeleteConversation -- NOTE: This gets now overruled by conv level checks
-  | AddTeamMember
-  | RemoveTeamMember
-  | DoNotUseDeprecatedAddRemoveConvMember -- NOTE: This gets now overruled by conv level checks
-  | DoNotUseDeprecatedModifyConvName -- NOTE: This gets now overruled by conv level checks
-  | GetBilling
-  | SetBilling
-  | SetTeamData
-  | GetMemberPermissions
-  | SetMemberPermissions
-  | GetTeamConversations
-  | DeleteTeam
-  -- FUTUREWORK: make the verbs in the roles more consistent
-  -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
-  -- If you ever think about adding a new permission flag,
-  -- read Note [team roles] first.
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+instance ToJSON Permissions where
+  toJSON p =
+    object $
+      "self" .= permsToInt (_self p)
+        # "copy" .= permsToInt (_copy p)
+        # []
 
--- | Team-level role.  Analog to conversation-level 'ConversationRole'.
-data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
-  deriving (Eq, Show, Enum, Bounded, Generic)
-
-defaultRole :: Role
-defaultRole = RoleMember
-
-rolePermissions :: Role -> Permissions
-rolePermissions role = Permissions p p where p = rolePerms role
-
-permissionsRole :: Permissions -> Maybe Role
-permissionsRole (Permissions p p') | p /= p' = Nothing
-permissionsRole (Permissions p _) = permsRole p
-  where
-    permsRole :: Set Perm -> Maybe Role
-    permsRole perms =
-      Maybe.listToMaybe
-        [role | role <- [minBound ..], rolePerms role == perms]
-
--- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
--- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
-rolePerms :: Role -> Set Perm
-rolePerms RoleOwner =
-  rolePerms RoleAdmin
-    <> Set.fromList
-      [ GetBilling,
-        SetBilling,
-        DeleteTeam
-      ]
-rolePerms RoleAdmin =
-  rolePerms RoleMember
-    <> Set.fromList
-      [ AddTeamMember,
-        RemoveTeamMember,
-        SetTeamData,
-        SetMemberPermissions
-      ]
-rolePerms RoleMember =
-  rolePerms RoleExternalPartner
-    <> Set.fromList
-      [ DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedModifyConvName,
-        GetMemberPermissions
-      ]
-rolePerms RoleExternalPartner =
-  Set.fromList
-    [ CreateConversation,
-      GetTeamConversations
-    ]
-
-makeLenses ''Permissions
+instance FromJSON Permissions where
+  parseJSON = withObject "permissions" $ \o -> do
+    s <- intToPerms <$> o .: "self"
+    d <- intToPerms <$> o .: "copy"
+    case newPermissions s d of
+      Nothing -> fail "invalid permissions"
+      Just ps -> pure ps
 
 newPermissions ::
   -- | User's permissions
@@ -162,42 +104,37 @@ serviceWhitelistPermissions =
       SetTeamData
     ]
 
--- Note [team roles]
--- ~~~~~~~~~~~~
---
--- Client apps have a notion of *team roles*. They are defined as sets of
--- permissions:
---
---     member =
---         {AddRemoveConvMember, Create/DeleteConversation,
---         GetMemberPermissions, GetTeamConversations}
---
---     admin = member +
---         {Add/RemoveTeamMember, SetMemberPermissions, SetTeamData}
---
---     owner = admin +
---         {DeleteTeam, Get/SetBilling}
---
--- For instance, here: https://github.com/wireapp/wire-webapp/blob/dev/app/script/team/TeamPermission.js
---
--- Whenever a user has one of those specific sets of permissions, they are
--- considered a member/admin/owner and the client treats them accordingly
--- (e.g. for an admin it might show a certain button, while for an ordinary
--- user it won't).
---
--- On the backend, however, we don't have such a notion. Instead we have
--- granular (in fact, probably *too* granular) permission masks. Look at
--- 'Perm' and 'Permissions'.
---
--- Admins as a concept don't exist at all, and team owners are defined as
--- "full bitmask". When we do checks like "the backend must not let the last
--- team owner leave the team", this is what we test for. We also never test
--- for "team admin", and instead look at specific permissions.
---
--- Creating a new permission flag is thus very tricky, because if we decide
--- that all team admins must have this new permission, we will have to
--- identify all existing team admins. And if it turns out that some users
--- don't fit into one of those three team roles, we're screwed.
+--------------------------------------------------------------------------------
+-- Perm
+
+-- | Team-level permission.  Analog to conversation-level 'Action'.
+data Perm
+  = CreateConversation
+  | DoNotUseDeprecatedDeleteConversation -- NOTE: This gets now overruled by conv level checks
+  | AddTeamMember
+  | RemoveTeamMember
+  | DoNotUseDeprecatedAddRemoveConvMember -- NOTE: This gets now overruled by conv level checks
+  | DoNotUseDeprecatedModifyConvName -- NOTE: This gets now overruled by conv level checks
+  | GetBilling
+  | SetBilling
+  | SetTeamData
+  | GetMemberPermissions
+  | SetMemberPermissions
+  | GetTeamConversations
+  | DeleteTeam
+  -- FUTUREWORK: make the verbs in the roles more consistent
+  -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
+  -- If you ever think about adding a new permission flag,
+  -- read Note [team roles] first.
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+permsToInt :: Set Perm -> Word64
+permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
+
+intToPerms :: Word64 -> Set Perm
+intToPerms n =
+  let perms = [2 ^ i | i <- [0 .. 62], n `testBit` i]
+   in Set.fromList (mapMaybe intToPerm perms)
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation = 0x0001
@@ -230,63 +167,9 @@ intToPerm 0x0800 = Just DeleteTeam
 intToPerm 0x1000 = Just SetMemberPermissions
 intToPerm _ = Nothing
 
-intToPerms :: Word64 -> Set Perm
-intToPerms n =
-  let perms = [2 ^ i | i <- [0 .. 62], n `testBit` i]
-   in Set.fromList (mapMaybe intToPerm perms)
+makeLenses ''Permissions
 
-permsToInt :: Set Perm -> Word64
-permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
-
-instance ToJSON Permissions where
-  toJSON p =
-    object $
-      "self" .= permsToInt (_self p)
-        # "copy" .= permsToInt (_copy p)
-        # []
-
-instance FromJSON Permissions where
-  parseJSON = withObject "permissions" $ \o -> do
-    s <- intToPerms <$> o .: "self"
-    d <- intToPerms <$> o .: "copy"
-    case newPermissions s d of
-      Nothing -> fail "invalid permissions"
-      Just ps -> pure ps
-
-instance ToJSON Role where
-  toJSON RoleOwner = "owner"
-  toJSON RoleAdmin = "admin"
-  toJSON RoleMember = "member"
-  toJSON RoleExternalPartner = "partner"
-
-instance FromJSON Role where
-  parseJSON = withText "Role" $ \case
-    "owner" -> pure RoleOwner
-    "admin" -> pure RoleAdmin
-    "member" -> pure RoleMember
-    "partner" -> pure RoleExternalPartner
-    "collaborator" -> pure RoleExternalPartner
-    -- 'collaborator' was used for a short period of time on staging.  if you are
-    -- wondering about this, it's probably safe to remove.
-    -- ~fisx, Wed Jan 23 16:38:52 CET 2019
-    bad -> fail $ "not a role: " <> show bad
-
-instance Cql.Cql Role where
-  ctype = Cql.Tagged Cql.IntColumn
-
-  toCql RoleOwner = Cql.CqlInt 1
-  toCql RoleAdmin = Cql.CqlInt 2
-  toCql RoleMember = Cql.CqlInt 3
-  toCql RoleExternalPartner = Cql.CqlInt 4
-
-  fromCql (Cql.CqlInt i) = case i of
-    1 -> return RoleOwner
-    2 -> return RoleAdmin
-    3 -> return RoleMember
-    4 -> return RoleExternalPartner
-    n -> fail $ "Unexpected Role value: " ++ show n
-  fromCql _ = fail "Role value: int expected"
-
+-- TODO: remove?
 instance Cql.Cql Permissions where
   ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
 
