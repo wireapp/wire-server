@@ -25,10 +25,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team.Conversation
-  ( TeamConversation,
+  ( -- * TeamConversation
+    TeamConversation,
     newTeamConversation,
     conversationId,
     managedConversation,
+
+    -- * TeamConversationList
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
@@ -40,24 +43,16 @@ import Data.Aeson
 import Data.Id (ConvId)
 import Imports
 
+--------------------------------------------------------------------------------
+-- TeamConversation
+
 data TeamConversation = TeamConversation
   { _conversationId :: ConvId,
     _managedConversation :: Bool
   }
 
-newtype TeamConversationList = TeamConversationList
-  { _teamConversations :: [TeamConversation]
-  }
-
 newTeamConversation :: ConvId -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
-
-newTeamConversationList :: [TeamConversation] -> TeamConversationList
-newTeamConversationList = TeamConversationList
-
-makeLenses ''TeamConversation
-
-makeLenses ''TeamConversationList
 
 instance ToJSON TeamConversation where
   toJSON t =
@@ -70,9 +65,22 @@ instance FromJSON TeamConversation where
   parseJSON = withObject "team conversation" $ \o ->
     TeamConversation <$> o .: "conversation" <*> o .: "managed"
 
+--------------------------------------------------------------------------------
+-- TeamConversationList
+
+newtype TeamConversationList = TeamConversationList
+  { _teamConversations :: [TeamConversation]
+  }
+
+newTeamConversationList :: [TeamConversation] -> TeamConversationList
+newTeamConversationList = TeamConversationList
+
 instance ToJSON TeamConversationList where
   toJSON t = object ["conversations" .= _teamConversations t]
 
 instance FromJSON TeamConversationList where
   parseJSON = withObject "team conversation list" $ \o -> do
     TeamConversationList <$> o .: "conversations"
+
+makeLenses ''TeamConversation
+makeLenses ''TeamConversationList
