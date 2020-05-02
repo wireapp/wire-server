@@ -25,27 +25,34 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team.Member
-  ( TeamMember,
+  ( -- * TeamMember
+    TeamMember,
     newTeamMember,
     userId,
     permissions,
     invitation,
     legalHoldStatus,
     teamMemberJson,
+
+    -- * TeamMemberList
     TeamMemberList,
-    ListType (..),
     newTeamMemberList,
     teamMembers,
     teamMemberListType,
+    HardTruncationLimit,
+    hardTruncationLimit,
+    ListType (..),
     teamMemberListJson,
+
+    -- * NewTeamMember
     NewTeamMember,
     newNewTeamMember,
     ntmNewTeamMember,
+
+    -- * TeamMemberDeleteData
     TeamMemberDeleteData,
-    tmdAuthPassword,
     newTeamMemberDeleteData,
-    HardTruncationLimit,
-    hardTruncationLimit,
+    tmdAuthPassword,
   )
 where
 
@@ -62,6 +69,9 @@ import GHC.TypeLits
 import Imports
 import Wire.API.Team.Permission (Permissions)
 
+--------------------------------------------------------------------------------
+-- TeamMember
+
 data TeamMember = TeamMember
   { _userId :: UserId,
     _permissions :: Permissions,
@@ -70,41 +80,6 @@ data TeamMember = TeamMember
   }
   deriving (Eq, Ord, Show, Generic)
 
-data ListType
-  = ListComplete
-  | ListTruncated
-  deriving (Eq, Show, Generic)
-
--- This replaces the previous `hasMore` but has no boolean blindness. At the API level
--- though we do want this to remain true/false
-instance ToJSON ListType where
-  toJSON ListComplete = Bool False
-  toJSON ListTruncated = Bool True
-
-instance FromJSON ListType where
-  parseJSON (Bool False) = pure ListComplete
-  parseJSON (Bool True) = pure ListTruncated
-  parseJSON bad = fail $ "ListType: " <> cs (encode bad)
-
-data TeamMemberList = TeamMemberList
-  { _teamMembers :: [TeamMember],
-    _teamMemberListType :: ListType
-  }
-  deriving (Generic)
-
-type HardTruncationLimit = (2000 :: Nat)
-
-hardTruncationLimit :: Integral a => a
-hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
-
-newtype NewTeamMember = NewTeamMember
-  { _ntmNewTeamMember :: TeamMember
-  }
-
-newtype TeamMemberDeleteData = TeamMemberDeleteData
-  { _tmdAuthPassword :: Maybe PlainTextPassword
-  }
-
 newTeamMember ::
   UserId ->
   Permissions ->
@@ -112,25 +87,11 @@ newTeamMember ::
   TeamMember
 newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
-newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
-newTeamMemberList = TeamMemberList
-
-newNewTeamMember :: TeamMember -> NewTeamMember
-newNewTeamMember = NewTeamMember
-
-newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
-newTeamMemberDeleteData = TeamMemberDeleteData
-
-makeLenses ''TeamMember
-
-makeLenses ''TeamMemberList
-
-makeLenses ''NewTeamMember
-
-makeLenses ''TeamMemberDeleteData
-
 instance ToJSON TeamMember where
   toJSON = teamMemberJson (const True)
+
+instance FromJSON TeamMember where
+  parseJSON = parseTeamMember
 
 -- | Show 'Permissions' conditionally.  The condition takes the member that will receive the result
 -- into account.  See 'canSeePermsOf'.
@@ -164,6 +125,28 @@ parseTeamMember = withObject "team-member" $ \o ->
         (Nothing, Nothing) -> pure $ Nothing
         _ -> fail "created_by, created_at"
 
+--------------------------------------------------------------------------------
+-- TeamMemberList
+
+data TeamMemberList = TeamMemberList
+  { _teamMembers :: [TeamMember],
+    _teamMemberListType :: ListType
+  }
+  deriving (Generic)
+
+newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
+newTeamMemberList = TeamMemberList
+
+type HardTruncationLimit = (2000 :: Nat)
+
+hardTruncationLimit :: Integral a => a
+hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
+
+data ListType
+  = ListComplete
+  | ListTruncated
+  deriving (Eq, Show, Generic)
+
 instance ToJSON TeamMemberList where
   toJSON = teamMemberListJson (const True)
 
@@ -175,12 +158,30 @@ teamMemberListJson withPerms l =
       "hasMore" .= _teamMemberListType l
     ]
 
-instance FromJSON TeamMember where
-  parseJSON = parseTeamMember
-
 instance FromJSON TeamMemberList where
   parseJSON = withObject "team member list" $ \o ->
     TeamMemberList <$> o .: "members" <*> o .: "hasMore"
+
+-- This replaces the previous `hasMore` but has no boolean blindness. At the API level
+-- though we do want this to remain true/false
+instance ToJSON ListType where
+  toJSON ListComplete = Bool False
+  toJSON ListTruncated = Bool True
+
+instance FromJSON ListType where
+  parseJSON (Bool False) = pure ListComplete
+  parseJSON (Bool True) = pure ListTruncated
+  parseJSON bad = fail $ "ListType: " <> cs (encode bad)
+
+--------------------------------------------------------------------------------
+-- NewTeamMember
+
+newtype NewTeamMember = NewTeamMember
+  { _ntmNewTeamMember :: TeamMember
+  }
+
+newNewTeamMember :: TeamMember -> NewTeamMember
+newNewTeamMember = NewTeamMember
 
 instance ToJSON NewTeamMember where
   toJSON t = object ["member" .= _ntmNewTeamMember t]
@@ -188,6 +189,16 @@ instance ToJSON NewTeamMember where
 instance FromJSON NewTeamMember where
   parseJSON = withObject "add team member" $ \o ->
     NewTeamMember <$> o .: "member"
+
+--------------------------------------------------------------------------------
+-- TeamMemberDeleteData
+
+newtype TeamMemberDeleteData = TeamMemberDeleteData
+  { _tmdAuthPassword :: Maybe PlainTextPassword
+  }
+
+newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
+newTeamMemberDeleteData = TeamMemberDeleteData
 
 instance FromJSON TeamMemberDeleteData where
   parseJSON = withObject "team-member-delete-data" $ \o ->
@@ -198,3 +209,8 @@ instance ToJSON TeamMemberDeleteData where
     object
       [ "password" .= _tmdAuthPassword tmd
       ]
+
+makeLenses ''TeamMember
+makeLenses ''TeamMemberList
+makeLenses ''NewTeamMember
+makeLenses ''TeamMemberDeleteData
