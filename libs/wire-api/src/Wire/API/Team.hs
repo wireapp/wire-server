@@ -57,6 +57,12 @@ module Wire.API.Team
     newTeamDeleteData,
     tdAuthPassword,
 
+    -- * Swagger
+    modelTeam,
+    modelTeamList,
+    modelNewNonBindingTeam,
+    modelTeamDelete,
+
     -- * Re-exports
     -- TODO: remove them?
     FeatureFlags (..),
@@ -116,6 +122,8 @@ import Data.Id (TeamId, UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
@@ -138,6 +146,23 @@ data Team = Team
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
+
+modelTeam :: Doc.Model
+modelTeam = Doc.defineModel "Team" $ do
+  Doc.description "Team information"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "team ID"
+  Doc.property "creator" Doc.bytes' $
+    Doc.description "team creator's user ID"
+  Doc.property "name" Doc.string' $
+    Doc.description "team name"
+  Doc.property "icon" Doc.string' $
+    Doc.description "team icon (asset ID)"
+  Doc.property "icon_key" Doc.string' $ do
+    Doc.description "team icon asset key"
+    Doc.optional
+  Doc.property "binding" Doc.bool' $
+    Doc.description "user binding team"
 
 instance ToJSON Team where
   toJSON t =
@@ -185,6 +210,14 @@ data TeamList = TeamList
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
+modelTeamList :: Doc.Model
+modelTeamList = Doc.defineModel "TeamList" $ do
+  Doc.description "list of teams"
+  Doc.property "teams" (Doc.unique $ Doc.array (Doc.ref modelTeam)) $
+    Doc.description "the Doc.array of teams"
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "if more teams are available"
+
 instance ToJSON TeamList where
   toJSON t =
     object $
@@ -203,6 +236,17 @@ instance FromJSON TeamList where
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
   deriving (Eq, Show, Generic)
 
+modelNewBindingTeam :: Doc.Model
+modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
+  Doc.description "Required data when creating new teams"
+  Doc.property "name" Doc.string' $
+    Doc.description "team name"
+  Doc.property "icon" Doc.string' $
+    Doc.description "team icon (asset ID)"
+  Doc.property "icon_key" Doc.string' $ do
+    Doc.description "team icon asset key"
+    Doc.optional
+
 instance ToJSON BindingNewTeam where
   toJSON (BindingNewTeam t) = object $ newTeamJson t
 
@@ -218,6 +262,20 @@ deriving instance FromJSON BindingNewTeam
 -- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
   deriving (Eq, Show, Generic)
+
+modelNewNonBindingTeam :: Doc.Model
+modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
+  Doc.description "Required data when creating new regular teams"
+  Doc.property "name" Doc.string' $
+    Doc.description "team name"
+  Doc.property "icon" Doc.string' $
+    Doc.description "team icon (asset ID)"
+  Doc.property "icon_key" Doc.string' $ do
+    Doc.description "team icon asset key"
+    Doc.optional
+  Doc.property "members" (Doc.unique $ Doc.array (Doc.ref modelTeamMember)) $ do
+    Doc.description "initial team member ids (between 1 and 127)"
+    Doc.optional
 
 instance ToJSON NonBindingNewTeam where
   toJSON (NonBindingNewTeam t) =
@@ -259,6 +317,12 @@ newtype TeamDeleteData = TeamDeleteData
 
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = TeamDeleteData
+
+modelTeamDelete :: Doc.Model
+modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
+  Doc.description "Data for a team deletion request in case of binding teams."
+  Doc.property "password" Doc.string' $
+    Doc.description "The account password to authorise the deletion."
 
 instance FromJSON TeamDeleteData where
   parseJSON = withObject "team-delete-data" $ \o ->

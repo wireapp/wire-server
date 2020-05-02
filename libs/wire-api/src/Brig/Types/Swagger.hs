@@ -253,7 +253,7 @@ newUser = defineModel "NewUser" $ do
   property "team_code" string' $ do
     description "Team invitation code. Mutually exclusive with team|invitation_code"
     optional
-  property "team" (ref Galley.newBindingTeam) $ do
+  property "team" (ref Galley.modelNewBindingTeam) $ do
     description "New team information. Mutually exclusive with team_code|invitation_code"
     optional
 

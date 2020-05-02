@@ -35,12 +35,17 @@ module Wire.API.Team.Conversation
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
+
+    -- * Swagger
+    modelTeamConversation,
+    modelTeamConversationList,
   )
 where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id (ConvId)
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 --------------------------------------------------------------------------------
@@ -53,6 +58,14 @@ data TeamConversation = TeamConversation
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
+
+modelTeamConversation :: Doc.Model
+modelTeamConversation = Doc.defineModel "TeamConversation" $ do
+  Doc.description "team conversation data"
+  Doc.property "conversation" Doc.bytes' $
+    Doc.description "conversation ID"
+  Doc.property "managed" Doc.bool' $
+    Doc.description "Indicates if this is a managed team conversation."
 
 instance ToJSON TeamConversation where
   toJSON t =
@@ -74,6 +87,12 @@ newtype TeamConversationList = TeamConversationList
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
+
+modelTeamConversationList :: Doc.Model
+modelTeamConversationList = Doc.defineModel "TeamConversationListList" $ do
+  Doc.description "list of team conversations"
+  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelTeamConversation)) $
+    Doc.description "the array of team conversations"
 
 instance ToJSON TeamConversationList where
   toJSON t = object ["conversations" .= _teamConversations t]

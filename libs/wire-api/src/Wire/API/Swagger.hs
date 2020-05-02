@@ -22,6 +22,12 @@ module Wire.API.Swagger where
 import Data.Swagger.Build.Api (Model)
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Push.Token as Push.Token
+import qualified Wire.API.Team as Team
+import qualified Wire.API.Team.Conversation as Team.Conversation
+import qualified Wire.API.Team.Feature as Team.Feature
+import qualified Wire.API.Team.Member as Team.Member
+import qualified Wire.API.Team.Permission as Team.Permission
+import qualified Wire.API.Team.Role as Team.Role
 
 models :: [Model]
 models =
@@ -29,5 +35,19 @@ models =
     Push.Token.modelPushTokenList,
     Notification.modelEvent,
     Notification.modelNotification,
-    Notification.modelNotificationList
+    Notification.modelNotificationList,
+    Team.modelTeam,
+    Team.modelTeamList,
+    Team.Member.modelTeamMember,
+    Team.Member.modelTeamMemberList,
+    Team.ConversationmodelTeamConversation,
+    Team.ConversationmodelTeamConversationList,
+    Team.modelNewBindingTeam,
+    Team.modelNewNonBindingTeam,
+    Team.Member.modelNewTeamMember,
+    Team.Permission.modelPermissions,
+    -- TODO
+    Team.modelTeamMemberDelete,
+    Team.modelTeamDelete,
+    Team.modelUpdate
   ]

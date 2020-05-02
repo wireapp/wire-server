@@ -40,6 +40,9 @@ module Wire.API.Team.Permission
     intToPerms,
     permToInt,
     intToPerm,
+
+    -- * Swagger
+    modelPermissions,
   )
 where
 
@@ -50,6 +53,7 @@ import Data.Aeson
 import Data.Bits ((.|.), testBit)
 import Data.Json.Util
 import qualified Data.Set as Set
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 --------------------------------------------------------------------------------
@@ -60,6 +64,17 @@ data Permissions = Permissions
     _copy :: Set Perm
   }
   deriving (Eq, Ord, Show, Generic)
+
+modelPermissions :: Doc.Model
+modelPermissions = Doc.defineModel "Permissions" $ do
+  Doc.description
+    "Permissions constrain possible member actions.\
+    \ The currently defined permissions can be found in: \
+    \ https://github.com/wireapp/wire-server/blob/develop/libs/galley-types/src/Galley/Types/Teams.hs#L247"
+  Doc.property "self" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
+    Doc.description "The permissions bitmask which applies to this user"
+  Doc.property "copy" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
+    Doc.description "The permissions bitmask which this user can assign to others"
 
 instance ToJSON Permissions where
   toJSON p =

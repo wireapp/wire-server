@@ -53,6 +53,12 @@ module Wire.API.Team.Member
     TeamMemberDeleteData,
     newTeamMemberDeleteData,
     tmdAuthPassword,
+
+    -- * Swagger
+    modelTeamMember,
+    modelTeamMemberList,
+    modelNewTeamMember,
+    modelTeamMemberDelete,
   )
 where
 
@@ -61,13 +67,14 @@ import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Id (UserId)
 import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), typeUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.String.Conversions (cs)
+import qualified Data.Swagger.Build.Api as Doc
 import GHC.TypeLits
 import Imports
-import Wire.API.Team.Permission (Permissions)
+import Wire.API.Team.Permission (Permissions, modelPermissions)
 
 --------------------------------------------------------------------------------
 -- TeamMember
@@ -86,6 +93,29 @@ newTeamMember ::
   Maybe (UserId, UTCTimeMillis) ->
   TeamMember
 newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
+
+modelTeamMember :: Doc.Model
+modelTeamMember = Doc.defineModel "TeamMember" $ do
+  Doc.description "team member data"
+  Doc.property "user" Doc.bytes' $
+    Doc.description "user ID"
+  Doc.property "permissions" (Doc.ref modelPermissions) $ do
+    Doc.description
+      "The permissions this user has in the given team \
+      \ (only visible with permission `GetMemberPermissions`)."
+    Doc.optional -- not optional in the type, but in the json instance.  (in
+    -- servant, we could probably just add a helper type for this.)
+    -- TODO: even without servant, it would be nicer to introduce
+    -- a type with optional permissions.
+  Doc.property "created_at" Doc.dateTime' $ do
+    Doc.description "Timestamp of invitation creation.  Requires created_by."
+    Doc.optional
+  Doc.property "created_by" Doc.bytes' $ do
+    Doc.description "ID of the inviting user.  Requires created_at."
+    Doc.optional
+  Doc.property "legalhold_status" typeUserLegalHoldStatus $ do
+    Doc.description "The state of Legal Hold compliance for the member"
+    Doc.optional
 
 instance ToJSON TeamMember where
   toJSON = teamMemberJson (const True)
@@ -137,15 +167,13 @@ data TeamMemberList = TeamMemberList
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
-type HardTruncationLimit = (2000 :: Nat)
-
-hardTruncationLimit :: Integral a => a
-hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
-
-data ListType
-  = ListComplete
-  | ListTruncated
-  deriving (Eq, Show, Generic)
+modelTeamMemberList :: Doc.Model
+modelTeamMemberList = Doc.defineModel "TeamMemberList" $ do
+  Doc.description "list of team member"
+  Doc.property "members" (Doc.unique $ Doc.array (Doc.ref modelTeamMember)) $
+    Doc.description "the array of team members"
+  Doc.property "hasMore" Doc.bool' $
+    Doc.description "true if 'members' doesn't contain all team members"
 
 instance ToJSON TeamMemberList where
   toJSON = teamMemberListJson (const True)
@@ -161,6 +189,16 @@ teamMemberListJson withPerms l =
 instance FromJSON TeamMemberList where
   parseJSON = withObject "team member list" $ \o ->
     TeamMemberList <$> o .: "members" <*> o .: "hasMore"
+
+type HardTruncationLimit = (2000 :: Nat)
+
+hardTruncationLimit :: Integral a => a
+hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
+
+data ListType
+  = ListComplete
+  | ListTruncated
+  deriving (Eq, Show, Generic)
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
@@ -183,6 +221,12 @@ newtype NewTeamMember = NewTeamMember
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
 
+modelNewTeamMember :: Doc.Model
+modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
+  Doc.description "Required data when creating new team members"
+  Doc.property "member" (Doc.ref modelTeamMember) $
+    Doc.description "the team member to add"
+
 instance ToJSON NewTeamMember where
   toJSON t = object ["member" .= _ntmNewTeamMember t]
 
@@ -199,6 +243,12 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
+
+modelTeamMemberDelete :: Doc.Model
+modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
+  Doc.description "Data for a team member deletion request in case of binding teams."
+  Doc.property "password" Doc.string' $
+    Doc.description "The account password to authorise the deletion."
 
 instance FromJSON TeamMemberDeleteData where
   parseJSON = withObject "team-member-delete-data" $ \o ->
