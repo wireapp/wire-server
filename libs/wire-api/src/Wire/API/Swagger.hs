@@ -20,10 +20,14 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
+import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Push.Token as Push.Token
 
 models :: [Model]
 models =
   [ Push.Token.modelPushToken,
-    Push.Token.modelPushTokenList
+    Push.Token.modelPushTokenList,
+    Notification.modelEvent,
+    Notification.modelNotification,
+    Notification.modelNotificationList
   ]

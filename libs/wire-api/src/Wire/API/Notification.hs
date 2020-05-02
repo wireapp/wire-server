@@ -32,6 +32,11 @@ module Wire.API.Notification
     queuedNotifications,
     queuedHasMore,
     queuedTime,
+
+    -- * Swagger
+    modelEvent,
+    modelNotification,
+    modelNotificationList,
   )
 where
 
@@ -41,12 +46,19 @@ import Data.Aeson ((.!=), (.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSO
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
 
 type NotificationId = Id QueuedNotification
 
 type Event = JSON.Object
+
+modelEvent :: Doc.Model
+modelEvent = Doc.defineModel "NotificationEvent" $ do
+  Doc.description "A single event"
+  Doc.property "type" Doc.string' $
+    Doc.description "Event type"
 
 --------------------------------------------------------------------------------
 -- QueuedNotification
@@ -62,6 +74,26 @@ queuedNotification = QueuedNotification
 
 makeLenses ''QueuedNotification
 
+modelNotification :: Doc.Model
+modelNotification = Doc.defineModel "Notification" $ do
+  Doc.description "A single notification"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "Notification ID"
+  Doc.property "payload" (Doc.array (Doc.ref modelEvent)) $
+    Doc.description "List of events"
+
+instance ToJSON QueuedNotification where
+  toJSON (QueuedNotification i p) =
+    JSON.object
+      [ "id" .= i,
+        "payload" .= p
+      ]
+
+instance FromJSON QueuedNotification where
+  parseJSON = JSON.withObject "QueuedNotification" $ \o ->
+    QueuedNotification <$> o .: "id"
+      <*> o .: "payload"
+
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
     _queuedHasMore :: !Bool,
@@ -73,23 +105,13 @@ queuedNotificationList = QueuedNotificationList
 
 makeLenses ''QueuedNotificationList
 
-instance FromJSON QueuedNotification where
-  parseJSON = JSON.withObject "QueuedNotification" $ \o ->
-    QueuedNotification <$> o .: "id"
-      <*> o .: "payload"
-
-instance ToJSON QueuedNotification where
-  toJSON (QueuedNotification i p) =
-    JSON.object
-      [ "id" .= i,
-        "payload" .= p
-      ]
-
-instance FromJSON QueuedNotificationList where
-  parseJSON = JSON.withObject "QueuedNotificationList" $ \o ->
-    QueuedNotificationList <$> o .: "notifications"
-      <*> o .:? "has_more" .!= False
-      <*> o .:? "time"
+modelNotificationList :: Doc.Model
+modelNotificationList = Doc.defineModel "NotificationList" $ do
+  Doc.description "Zero or more notifications"
+  Doc.property "notifications" (Doc.array (Doc.ref modelNotification)) $
+    Doc.description "Notifications"
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Whether there are still more notifications."
 
 instance ToJSON QueuedNotificationList where
   toJSON (QueuedNotificationList ns more t) =
@@ -99,3 +121,9 @@ instance ToJSON QueuedNotificationList where
           # "time" .= t
           # []
       )
+
+instance FromJSON QueuedNotificationList where
+  parseJSON = JSON.withObject "QueuedNotificationList" $ \o ->
+    QueuedNotificationList <$> o .: "notifications"
+      <*> o .:? "has_more" .!= False
+      <*> o .:? "time"
