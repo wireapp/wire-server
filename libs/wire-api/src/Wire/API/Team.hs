@@ -106,11 +106,12 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types (Pair)
-import Data.Id (ConvId, TeamId, UserId)
+import Data.Id (TeamId, UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Imports
+import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Internal
 import Wire.API.Team.Member
@@ -121,15 +122,6 @@ data TeamList = TeamList
     _teamListHasMore :: Bool
   }
   deriving (Show, Generic)
-
-data TeamConversation = TeamConversation
-  { _conversationId :: ConvId,
-    _managedConversation :: Bool
-  }
-
-newtype TeamConversationList = TeamConversationList
-  { _teamConversations :: [TeamConversation]
-  }
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
   deriving (Eq, Show, Generic)
@@ -153,12 +145,6 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamConversation :: ConvId -> Bool -> TeamConversation
-newTeamConversation = TeamConversation
-
-newTeamConversationList :: [TeamConversation] -> TeamConversationList
-newTeamConversationList = TeamConversationList
-
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
@@ -168,10 +154,6 @@ newTeamDeleteData = TeamDeleteData
 makeLenses ''Team
 
 makeLenses ''TeamList
-
-makeLenses ''TeamConversation
-
-makeLenses ''TeamConversationList
 
 makeLenses ''NewTeam
 
@@ -190,24 +172,6 @@ instance FromJSON TeamList where
   parseJSON = withObject "teamlist" $ \o -> do
     TeamList <$> o .: "teams"
       <*> o .: "has_more"
-
-instance ToJSON TeamConversation where
-  toJSON t =
-    object
-      [ "conversation" .= _conversationId t,
-        "managed" .= _managedConversation t
-      ]
-
-instance FromJSON TeamConversation where
-  parseJSON = withObject "team conversation" $ \o ->
-    TeamConversation <$> o .: "conversation" <*> o .: "managed"
-
-instance ToJSON TeamConversationList where
-  toJSON t = object ["conversations" .= _teamConversations t]
-
-instance FromJSON TeamConversationList where
-  parseJSON = withObject "team conversation list" $ \o -> do
-    TeamConversationList <$> o .: "conversations"
 
 newTeamJson :: NewTeam a -> [Pair]
 newTeamJson (NewTeam n i ik _) =
