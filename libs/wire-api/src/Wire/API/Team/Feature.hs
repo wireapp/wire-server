@@ -25,7 +25,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team.Feature
-  ( FeatureFlags (..),
+  ( -- * LegalHoldTeamConfig
+    LegalHoldTeamConfig (..),
+    LegalHoldStatus (..),
+
+    -- * other
+    FeatureFlags (..),
     flagSSO,
     flagLegalHold,
     FeatureSSO (..),
@@ -35,8 +40,43 @@ where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
+import Data.Json.Util ((#))
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Imports
+
+--------------------------------------------------------------------------------
+-- LegalHoldTeamConfig
+
+data LegalHoldTeamConfig = LegalHoldTeamConfig
+  { legalHoldTeamConfigStatus :: !LegalHoldStatus
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON LegalHoldTeamConfig where
+  toJSON s =
+    object $
+      "status" .= legalHoldTeamConfigStatus s
+        # []
+
+instance FromJSON LegalHoldTeamConfig where
+  parseJSON = withObject "LegalHoldTeamConfig" $ \o ->
+    LegalHoldTeamConfig <$> o .: "status"
+
+data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
+  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+
+instance ToJSON LegalHoldStatus where
+  toJSON LegalHoldEnabled = "enabled"
+  toJSON LegalHoldDisabled = "disabled"
+
+instance FromJSON LegalHoldStatus where
+  parseJSON = withText "LegalHoldStatus" $ \case
+    "enabled" -> pure LegalHoldEnabled
+    "disabled" -> pure LegalHoldDisabled
+    x -> fail $ "unexpected status type: " <> T.unpack x
+
+-------------
 
 data FeatureSSO
   = FeatureSSOEnabledByDefault

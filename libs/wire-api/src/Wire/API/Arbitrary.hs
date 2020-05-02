@@ -62,8 +62,10 @@ import Wire.API.CustomBackend
 import Wire.API.Service.Internal
 import Wire.API.Service.Provider (ServiceKey (..), ServiceKeyPEM (..), ServiceKeyType (..), UpdateServiceWhitelist (..))
 import Wire.API.Team
+import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.LegalHold
+import Wire.API.Team.LegalHold.External
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
@@ -474,9 +476,6 @@ instance Arbitrary LegalHoldTeamConfig where
 
 instance Arbitrary NewLegalHoldService where
   arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary LegalHoldService where
-  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary ViewLegalHoldService where
   arbitrary =

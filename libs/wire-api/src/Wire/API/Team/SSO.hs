@@ -25,6 +25,7 @@ import Data.Json.Util
 import qualified Data.Text as T
 import Imports
 
+-- TODO move to Team.Feature
 data SSOStatus = SSODisabled | SSOEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 

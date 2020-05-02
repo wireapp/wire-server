@@ -58,6 +58,7 @@ module Wire.API.Team
     tdAuthPassword,
 
     -- * Re-exports
+    -- TODO: remove them?
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
