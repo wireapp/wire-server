@@ -24,45 +24,10 @@ import Imports
 
 gundeckModels :: [Model]
 gundeckModels =
-  [ pushTokenList,
-    pushToken,
-    notificationList,
+  [ notificationList,
     notification,
     event
   ]
-
--------------------------------------------------------------------------------
--- Push Models
-
-pushTransport :: DataType
-pushTransport =
-  string $
-    enum
-      [ "GCM",
-        "APNS",
-        "APNS_SANDBOX",
-        "APNS_VOIP",
-        "APNS_VOIP_SANDBOX"
-      ]
-
-pushToken :: Model
-pushToken = defineModel "PushToken" $ do
-  description "Native Push Token"
-  property "transport" pushTransport $
-    description "Transport"
-  property "app" string' $
-    description "Application"
-  property "token" bytes' $
-    description "Access Token"
-  property "client" bytes' $ do
-    description "Client ID"
-    optional
-
-pushTokenList :: Model
-pushTokenList = defineModel "PushTokenList" $ do
-  description "List of Native Push Tokens"
-  property "tokens" (array (ref pushToken)) $
-    description "Push tokens"
 
 -------------------------------------------------------------------------------
 -- Notification Models

@@ -33,6 +33,10 @@ module Wire.API.Push.V2.Token
     tokenClient,
     token,
     PushTokenList (..),
+
+    -- * Swagger
+    modelPushToken,
+    modelPushTokenList,
   )
 where
 
@@ -42,6 +46,7 @@ import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 -----------------------------------------------------------------------------
@@ -54,6 +59,17 @@ data Transport
   | APNSVoIP
   | APNSVoIPSandbox
   deriving (Eq, Ord, Show, Bounded, Enum)
+
+modelTransport :: Doc.DataType
+modelTransport =
+  Doc.string $
+    Doc.enum
+      [ "GCM",
+        "APNS",
+        "APNS_SANDBOX",
+        "APNS_VOIP",
+        "APNS_VOIP_SANDBOX"
+      ]
 
 instance ToJSON Transport where
   toJSON GCM = "GCM"
@@ -106,6 +122,19 @@ makeLenses ''PushToken
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
 pushToken tp an tk cl = PushToken tp an tk cl
 
+modelPushToken :: Doc.Model
+modelPushToken = Doc.defineModel "PushToken" $ do
+  Doc.description "Native Push Token"
+  Doc.property "transport" modelTransport $
+    Doc.description "Transport"
+  Doc.property "app" Doc.string' $
+    Doc.description "Application"
+  Doc.property "token" Doc.bytes' $
+    Doc.description "Access Token"
+  Doc.property "client" Doc.bytes' $ do
+    Doc.description "Client ID"
+    Doc.optional
+
 instance ToJSON PushToken where
   toJSON p =
     object $
@@ -126,6 +155,12 @@ newtype PushTokenList = PushTokenList
   { pushTokens :: [PushToken]
   }
   deriving (Eq, Show)
+
+modelPushTokenList :: Doc.Model
+modelPushTokenList = Doc.defineModel "PushTokenList" $ do
+  Doc.description "List of Native Push Tokens"
+  Doc.property "tokens" (Doc.array (Doc.ref modelPushToken)) $
+    Doc.description "Push tokens"
 
 instance ToJSON PushTokenList where
   toJSON (PushTokenList t) = object ["tokens" .= t]
