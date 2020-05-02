@@ -93,40 +93,6 @@ instance FromJSON Event where
       <*> o .: "time"
       <*> parseEventData ty dt
 
--- Note [whitelist events]
--- ~~~~~~~~~~~~~~~
---
--- When a service is put off the whitelist, we want to notify users about
--- this so that they would be able to update their whitelists in real time
--- (or at least this could be useful for the team admin console). For this
--- we might eventually have events 'ServiceWhitelistAdd' and
--- 'ServiceWhitelistRemove'.
---
--- However, they're not really necessary for clients, and currently
--- implementing them is problematic. There are three choices and all are
--- bad:
---
---   1. If we decide to send them to all users, this would be an expensive
---      operation – especially once we have bigger teams. We can send these
---      events asynchonously, but it's still somewhat painful.
---
---   2. If we decide to only send them to e.g. team admins, now we have to
---      figure out who *are* team admins, and currently the backend doesn't
---      have a notion of a team admin at all. See Note [team roles].
---
---   3. We could create a new permission (e.g. "CanWhitelistServices") and
---      only send the event to users with this permission, because
---      presumably only they care about it. However, we can't do this
---      either, because adding new permissions is tricky.
---      See Note [team roles] again.
---
--- So, we don't send these events at all. An implementation was done, but
--- then removed in commit b4d777ede1c7f73e42b2e1bc356ce7346e0355bc.
---
--- It's also unclear whether these event types belong in Brig or in Galley;
--- arguably the code would be simpler if they were in Brig, so we should
--- think about that if we want to get them in.
-
 --------------------------------------------------------------------------------
 -- EventType
 
