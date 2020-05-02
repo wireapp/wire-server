@@ -23,7 +23,7 @@
 
 -- | Types for the (internal) provider API.
 --
--- TODO: Lenses & proper export list
+-- FUTUREWORK: Deduplicate with 'Wire.API.User'?
 module Wire.API.Service.Provider
   ( module Wire.API.Service.Provider,
 

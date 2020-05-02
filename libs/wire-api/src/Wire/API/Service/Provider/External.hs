@@ -114,6 +114,7 @@ instance ToJSON NewBotResponse where
 --------------------------------------------------------------------------------
 -- BotUserView
 
+-- TODO: move next to BotConvView?
 data BotUserView = BotUserView
   { botUserViewId :: !UserId,
     botUserViewName :: !Name,

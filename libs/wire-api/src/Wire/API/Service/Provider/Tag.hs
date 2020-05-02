@@ -148,6 +148,8 @@ instance ToJSON ServiceTag where
 
 --------------------------------------------------------------------------------
 -- ServiceTag Matchers
+--
+-- TODO: remove some of the functionality?
 
 -- | Logical disjunction of 'MatchAllTags' to match.
 newtype MatchAny = MatchAny

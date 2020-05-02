@@ -64,6 +64,8 @@ newtype ServiceToken = ServiceToken AsciiBase64Url
 
 deriving instance Cql ServiceToken
 
+-- TODO: remove!
+
 -- | Service connection information that is needed by galley.
 data Service = Service
   { _serviceRef :: !ServiceRef,
