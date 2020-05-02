@@ -973,6 +973,16 @@ sitemap = do
       description "Team ID"
     returns (ref Model.ssoTeamConfig)
     response 200 "SSO status" end
+  get "/teams/:tid/features/search-visibility" (continue Teams.getCustomSearchVisibilityStatusH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getCustomSearchVisibilityStatus" $ do
+    summary "Shows whether Custom Search Visibility feature is enabled for team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref Model.searchVisibilityTeamConfig)
+    response 200 "Search Visibility status" end
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
@@ -982,6 +992,29 @@ sitemap = do
       description "URL-encoded email domain"
     returns (ref Model.customBackend)
     response 200 "Custom backend" end
+  get "/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getSearchVisibility" $ do
+    summary "Shows the value for search visibility"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref Model.searchVisibility)
+    response 200 "Search visibility" end
+  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
+    zauthUserId
+      .&. capture "tid"
+      .&. jsonRequest @SearchVisibility
+      .&. accept "application" "json"
+  document "POST" "setSearchVisibility" $ do
+    summary "Sets the search visibility for the whole team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    body (ref Model.searchVisibility) $
+      description "Search visibility to be set"
+    response 200 "Search visibility set" end
+    errorResponse Error.customSearchVisibilityNotEnabled
   -- internal
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -1127,6 +1160,13 @@ sitemap = do
       .&. jsonRequest @CustomBackend
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
+      .&. accept "application" "json"
+  get "/i/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityInternalH) $
+    capture "tid"
+      .&. accept "application" "json"
+  put "/i/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityInternalH) $
+    capture "tid"
+      .&. jsonRequest @SearchVisibility
       .&. accept "application" "json"
 
 type JSON = Media "application" "json"

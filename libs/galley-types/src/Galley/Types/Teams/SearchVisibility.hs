@@ -30,8 +30,8 @@ data CustomSearchVisibilityType =
   -- ^ Team users can only be found by handle.
   --   Non team users can be found by anyone, by name or handle.
   | SearchVisibilityTeamOnlyByName
-  -- ^ Team users can only be found by handle.
-  --   Team users in teams with this setting cannot find consumers.
+  -- ^ Team users in teams with this setting cannot find consumers by name.
+  --   Team users in teams with this setting cannot be found
   --   Everyone can be found by handle(?)
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
@@ -44,6 +44,21 @@ instance FromJSON CustomSearchVisibilityType where
     "standard" -> pure SearchVisibilityStandard
     "team-only-by-name" -> pure SearchVisibilityTeamOnlyByName
     x -> fail $ "unexpected status type: " <> T.unpack x
+
+newtype SearchVisibility = SearchVisibility { searchVisibility :: CustomSearchVisibilityType }
+  deriving stock (Eq, Show, Ord, Bounded, Generic)
+
+instance ToJSON SearchVisibility where
+  toJSON s =
+    object $
+      "search_visibility" .= searchVisibility s
+        # []
+
+instance FromJSON SearchVisibility where
+  parseJSON = withObject "SearchVisibility" $ \o ->
+    SearchVisibility <$> o .: "search_visibility"
+
+-- Status of the feature
 
 data CustomSearchVisibilityStatus = CustomSearchVisibilityDisabled | CustomSearchVisibilityEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)

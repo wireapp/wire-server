@@ -217,6 +217,9 @@ disableSsoNotImplemented =
     \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."
 
+customSearchVisibilityNotEnabled :: Error
+customSearchVisibilityNotEnabled = Error status403 "custom-search-visibility-not-enabled" "custom search is not available for this team"
+
 customBackendNotFound :: Domain -> Error
 customBackendNotFound domain =
   Error

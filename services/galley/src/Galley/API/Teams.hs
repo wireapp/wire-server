@@ -47,6 +47,10 @@ module Galley.API.Teams
     getCustomSearchVisibilityStatusH,
     setCustomSearchVisibilityStatusInternalH,
     getCustomSearchVisibilityStatusInternalH,
+    getSearchVisibilityH,
+    setSearchVisibilityH,
+    getSearchVisibilityInternalH,
+    setSearchVisibilityInternalH,
     uncheckedAddTeamMemberH,
     uncheckedGetTeamMemberH,
     uncheckedGetTeamMembersH,
@@ -643,6 +647,20 @@ deleteTeamConversation zusr zcon tid cid = do
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
 
+-- | Modify and get visibility type for a team
+getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
+getSearchVisibilityH (uid ::: tid ::: _) = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewCustomSearchVisibility zusrMembership
+  json <$> getSearchVisibilityInternal tid
+
+setSearchVisibilityH :: UserId ::: TeamId ::: JsonRequest SearchVisibility ::: JSON -> Galley Response
+setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewCustomSearchVisibility zusrMembership
+  setSearchVisibilityInternal tid =<< fromJsonBody req
+  pure noContent
+
 -- Internal -----------------------------------------------------------------
 
 -- | Invoke the given continuation 'k' with a list of team IDs
@@ -815,7 +833,7 @@ getCustomSearchVisibilityStatusH (uid ::: tid ::: _) =
 getCustomSearchVisibilityStatus :: UserId -> TeamId -> Galley CustomSearchVisibilityTeamConfig
 getCustomSearchVisibilityStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  void $ permissionCheck ViewCustomSearchVisibility zusrMembership
+  void $ permissionCheck ViewCustomSearchVisibilityStatus zusrMembership
   getCustomSearchVisibilityStatusInternal tid
 
 -- Enable / Disable team features
@@ -921,9 +939,29 @@ setCustomSearchVisibilityStatusInternalH (tid ::: req ::: _) = do
 setCustomSearchVisibilityStatusInternal :: TeamId -> CustomSearchVisibilityTeamConfig -> Galley ()
 setCustomSearchVisibilityStatusInternal tid customSearchTeamConfig = do
   case customSearchVisibilityTeamConfigStatus customSearchTeamConfig of
-    CustomSearchVisibilityDisabled -> error "Need to remove the option at the team level"
+    CustomSearchVisibilityDisabled -> SearchVisibilityData.resetSearchVisibility tid
     CustomSearchVisibilityEnabled -> pure () -- This allows the option to be set at the team level
   SearchVisibilityData.setSearchVisibilityTeamConfig tid customSearchTeamConfig
+
+-- | Modify and get visibility type for a team (internal, no user permission checks)
+getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
+getSearchVisibilityInternalH (tid ::: _) =
+  json <$> getSearchVisibilityInternal tid
+
+getSearchVisibilityInternal :: TeamId -> Galley SearchVisibility
+getSearchVisibilityInternal = SearchVisibilityData.getSearchVisibility
+
+setSearchVisibilityInternalH :: TeamId ::: JsonRequest SearchVisibility ::: JSON -> Galley Response
+setSearchVisibilityInternalH (tid ::: req ::: _) = do
+  setSearchVisibilityInternal tid =<< fromJsonBody req
+  pure noContent
+
+setSearchVisibilityInternal :: TeamId -> SearchVisibility -> Galley ()
+setSearchVisibilityInternal tid searchVisibility = do
+  CustomSearchVisibilityTeamConfig status <- getCustomSearchVisibilityStatusInternal tid
+  unless (status == CustomSearchVisibilityEnabled) $
+    throwM customSearchVisibilityNotEnabled
+  SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do

@@ -70,6 +70,7 @@ tests =
       testRoundTrip @ApproveLegalHoldForUserRequest,
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
+      -- TODO: Add roundtrip tests for Search
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
@@ -95,4 +96,5 @@ instance Arbitrary FeatureFlags where
   arbitrary =
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
+      <*> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]

@@ -384,19 +384,20 @@ data FeatureCustomSearchVisibility
   | FeatureCustomSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+-- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
     FeatureFlags
       <$> obj .: "sso"
       <*> obj .: "legalhold"
-      <*> obj .: "custom-search-visibility"
+      <*> obj .: "customSearchVisibility"
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold searchVisibility) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
-        "custom-search-visibility" .= searchVisibility
+        "customSearchVisibility" .= searchVisibility
       ]
 
 instance FromJSON FeatureSSO where
@@ -543,7 +544,9 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
-  | ViewCustomSearchVisibility -- (change is only allowed via customer support backoffice)
+  | ViewCustomSearchVisibilityStatus -- (change is only allowed via customer support backoffice)
+  | ChangeCustomSearchVisibility
+  | ViewCustomSearchVisibility
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -573,7 +576,7 @@ hiddenPermissionsFromPermissions =
             Set.fromList
               [ ChangeLegalHoldTeamSettings,
                 ChangeLegalHoldUserSettings,
-                ViewCustomSearchVisibility
+                ChangeCustomSearchVisibility
               ]
         roleHiddenPerms RoleMember =
           (roleHiddenPerms RoleExternalPartner <>) $
@@ -582,7 +585,9 @@ hiddenPermissionsFromPermissions =
           Set.fromList
             [ ViewLegalHoldTeamSettings,
               ViewLegalHoldUserSettings,
-              ViewSSOTeamSettings
+              ViewSSOTeamSettings,
+              ViewCustomSearchVisibilityStatus,
+              ViewCustomSearchVisibility
             ]
 
 -- | See Note [hidden team roles]

@@ -379,13 +379,21 @@ updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
 
-selectCustomVisibilityTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe CustomSearchVisibilityStatus))
-selectCustomVisibilityTeamConfig =
+selectCustomSearchVisibilityTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe CustomSearchVisibilityStatus))
+selectCustomSearchVisibilityTeamConfig =
   "select search_visibility_status from team_features where team_id = ?"
 
 updateCustomSearchVisibilityTeamConfig :: PrepQuery W (CustomSearchVisibilityStatus, TeamId) ()
 updateCustomSearchVisibilityTeamConfig =
   "update team_features set search_visibility_status = ? where team_id = ?"
+
+selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe CustomSearchVisibilityType))
+selectSearchVisibility =
+  "select search_visibility from team where team_id = ?"
+
+updateSearchVisibility :: PrepQuery W (CustomSearchVisibilityType, TeamId) ()
+updateSearchVisibility =
+  "update team set search_visibility = ? where team_id = ?"
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =

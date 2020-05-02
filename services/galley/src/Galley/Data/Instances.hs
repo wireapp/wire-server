@@ -149,6 +149,18 @@ instance Cql CustomSearchVisibilityStatus where
   toCql CustomSearchVisibilityDisabled = CqlInt 0
   toCql CustomSearchVisibilityEnabled = CqlInt 1
 
+instance Cql CustomSearchVisibilityType where
+  ctype = Tagged IntColumn
+
+  fromCql (CqlInt n) = case n of
+    0 -> pure $ SearchVisibilityStandard
+    1 -> pure $ SearchVisibilityTeamOnlyByName
+    _ -> fail "fromCql: Invalid CustomSearchVisibilityType"
+  fromCql _ = fail "fromCql: CustomSearchVisibilityType: CqlInt expected"
+
+  toCql SearchVisibilityStandard = CqlInt 0
+  toCql SearchVisibilityTeamOnlyByName = CqlInt 1
+
 instance Cql Domain where
   ctype = Tagged TextColumn
   toCql = CqlText . domainText

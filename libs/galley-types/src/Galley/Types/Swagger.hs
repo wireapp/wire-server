@@ -66,6 +66,8 @@ galleyModels =
     teamInfo,
     legalHoldTeamConfig,
     ssoTeamConfig,
+    searchVisibilityTeamConfig,
+    searchVisibility,
     customBackend
   ]
 
@@ -564,6 +566,11 @@ ssoTeamConfig = defineModel "SSOTeamConfig" $ do
   description "Configuration of SSO feature for team"
   property "status" featureStatus $ description "status"
 
+searchVisibilityTeamConfig :: Model
+searchVisibilityTeamConfig = defineModel "SearchVisibilityTeamConfig" $ do
+  description "Configuration of Search Visibility feature for team"
+  property "status" featureStatus $ description "status"
+
 featureStatus :: DataType
 featureStatus =
   string $
@@ -571,6 +578,19 @@ featureStatus =
       [ "enabled",
         "disabled"
       ]
+
+searchVisibilityType :: DataType
+searchVisibilityType =
+  string $
+    enum
+      [ "standard",
+        "team-only-by-name"
+      ]
+
+searchVisibility :: Model
+searchVisibility = defineModel "SearchVisibility" $ do
+  description "Search visibility value for the team"
+  property "search_visibility" searchVisibilityType $ description "value of visibility"
 
 customBackend :: Model
 customBackend = defineModel "CustomBackend" $ do
