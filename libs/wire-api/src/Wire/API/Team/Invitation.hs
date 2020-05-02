@@ -17,7 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Team.Invitation where
+module Wire.API.Team.Invitation
+  ( InvitationRequest (..),
+    Invitation (..),
+    InvitationList (..),
+  )
+where
 
 import Data.Aeson
 import Data.Id
@@ -26,6 +31,9 @@ import Imports
 import Wire.API.Team
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+
+--------------------------------------------------------------------------------
+-- InvitationRequest
 
 data InvitationRequest = InvitationRequest
   { irEmail :: !Email,
@@ -36,6 +44,29 @@ data InvitationRequest = InvitationRequest
     irPhone :: !(Maybe Phone)
   }
   deriving (Eq, Show)
+
+instance ToJSON InvitationRequest where
+  toJSON i =
+    object $
+      [ "email" .= irEmail i,
+        "inviter_name" .= irName i,
+        "locale" .= irLocale i,
+        "role" .= irRole i,
+        "name" .= irInviteeName i,
+        "phone" .= irPhone i
+      ]
+
+instance FromJSON InvitationRequest where
+  parseJSON = withObject "invitation-request" $ \o ->
+    InvitationRequest <$> o .: "email"
+      <*> o .: "inviter_name"
+      <*> o .:? "locale"
+      <*> o .:? "role"
+      <*> o .:? "name"
+      <*> o .:? "phone"
+
+--------------------------------------------------------------------------------
+-- Invitation
 
 data Invitation = Invitation
   { inTeam :: !TeamId,
@@ -51,30 +82,17 @@ data Invitation = Invitation
   }
   deriving (Eq, Show)
 
-data InvitationList = InvitationList
-  { ilInvitations :: [Invitation],
-    ilHasMore :: !Bool
-  }
-  deriving (Eq, Show)
-
-instance FromJSON InvitationRequest where
-  parseJSON = withObject "invitation-request" $ \o ->
-    InvitationRequest <$> o .: "email"
-      <*> o .: "inviter_name"
-      <*> o .:? "locale"
-      <*> o .:? "role"
-      <*> o .:? "name"
-      <*> o .:? "phone"
-
-instance ToJSON InvitationRequest where
+instance ToJSON Invitation where
   toJSON i =
     object $
-      [ "email" .= irEmail i,
-        "inviter_name" .= irName i,
-        "locale" .= irLocale i,
-        "role" .= irRole i,
-        "name" .= irInviteeName i,
-        "phone" .= irPhone i
+      [ "team" .= inTeam i,
+        "role" .= inRole i,
+        "id" .= inInvitation i,
+        "email" .= inIdentity i,
+        "created_at" .= inCreatedAt i,
+        "created_by" .= inCreatedBy i,
+        "name" .= inInviteeName i,
+        "phone" .= inPhone i
       ]
 
 instance FromJSON Invitation where
@@ -89,18 +107,14 @@ instance FromJSON Invitation where
       <*> o .:? "name"
       <*> o .:? "phone"
 
-instance ToJSON Invitation where
-  toJSON i =
-    object $
-      [ "team" .= inTeam i,
-        "role" .= inRole i,
-        "id" .= inInvitation i,
-        "email" .= inIdentity i,
-        "created_at" .= inCreatedAt i,
-        "created_by" .= inCreatedBy i,
-        "name" .= inInviteeName i,
-        "phone" .= inPhone i
-      ]
+--------------------------------------------------------------------------------
+-- InvitationList
+
+data InvitationList = InvitationList
+  { ilInvitations :: [Invitation],
+    ilHasMore :: !Bool
+  }
+  deriving (Eq, Show)
 
 instance ToJSON InvitationList where
   toJSON (InvitationList l m) =
