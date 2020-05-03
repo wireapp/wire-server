@@ -160,3 +160,8 @@ data SetSSOStatus = SetSSODisabled | SetSSOEnabled
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
 
 deriveJSON toJSONFieldName ''SetSSOStatus
+
+data SetCustomSearchVisibilityStatus = SetCustomSearchVisibilityDisabled | SetCustomSearchVisibilityEnabled
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
+
+deriveJSON toJSONFieldName ''SetCustomSearchVisibilityStatus
