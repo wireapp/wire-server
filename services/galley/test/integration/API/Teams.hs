@@ -302,9 +302,7 @@ testEnableSSOPerTeam = do
 
 testEnableCustomSearchVisibilityPerTeam :: TestM ()
 testEnableCustomSearchVisibilityPerTeam = do
-  owner <- Util.randomUser
-  tid <- Util.createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  (tid, owner, (member:_)) <- Util.createBindingTeamWithMembers 2
   let check :: HasCallStack => String -> CustomSearchVisibilityStatus -> TestM ()
       check msg enabledness = do
         CustomSearchVisibilityTeamConfig status <- responseJsonUnsafe <$> (getCustomSearchVisibilityEnabledInternal tid <!! testResponse 200 Nothing)
@@ -315,6 +313,10 @@ testEnableCustomSearchVisibilityPerTeam = do
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "custom-search-visibility-not-enabled" label
+  let getSearchVisibilityCheck :: HasCallStack => CustomSearchVisibilityType -> TestM ()
+      getSearchVisibilityCheck vis = getSearchVisibility owner tid !!! do
+        const 200 === statusCode
+        const (Just vis) === fmap searchVisibility . responseJsonUnsafe
   featureCustomSearchVisibility <- view (tsGConf . optSettings . setFeatureFlags . flagCustomSearchVisibility)
   case featureCustomSearchVisibility of
     FeatureCustomSearchVisibilityEnabledByDefault -> do
@@ -327,20 +329,16 @@ testEnableCustomSearchVisibilityPerTeam = do
 
   putCustomSearchVisibilityEnabledInternal tid CustomSearchVisibilityEnabled
   -- Nothing was set, default value
-  getSearchVisibility owner tid !!! do
-    const 200 === statusCode
-    const (Just (SearchVisibilityStandard)) === fmap searchVisibility . responseJsonUnsafe
+  getSearchVisibilityCheck SearchVisibilityStandard
   putSearchVisibility owner tid SearchVisibilityTeamOnlyByName !!! testResponse 204 Nothing
-  getSearchVisibility owner tid !!! do
-    const 200 === statusCode
-    const (Just (SearchVisibilityTeamOnlyByName)) === fmap searchVisibility . responseJsonUnsafe
+  -- Check only admins can change the setting
+  putSearchVisibility member tid SearchVisibilityTeamOnlyByName !!! testResponse 403 (Just "operation-denied")
+  getSearchVisibilityCheck SearchVisibilityTeamOnlyByName
+  -- Members can also see it?
+  getSearchVisibility member tid !!! testResponse 200 Nothing
   -- Once we disable it, it's back to the default value
   putCustomSearchVisibilityEnabledInternal tid CustomSearchVisibilityDisabled
-  getSearchVisibility owner tid !!! do
-    const 200 === statusCode
-    const (Just (SearchVisibilityStandard)) === fmap searchVisibility . responseJsonUnsafe
-
-  -- Check that only admins can change the setting
+  getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do

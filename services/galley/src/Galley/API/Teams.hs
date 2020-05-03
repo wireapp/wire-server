@@ -657,7 +657,7 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
 setSearchVisibilityH :: UserId ::: TeamId ::: JsonRequest SearchVisibility ::: JSON -> Galley Response
 setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
   zusrMembership <- Data.teamMember tid uid
-  void $ permissionCheck ViewCustomSearchVisibility zusrMembership
+  void $ permissionCheck ChangeCustomSearchVisibility zusrMembership
   setSearchVisibilityInternal tid =<< fromJsonBody req
   pure noContent
 
