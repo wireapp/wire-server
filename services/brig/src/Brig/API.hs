@@ -1709,10 +1709,17 @@ filterSearchResults (_fromUser, fromTeam) us = do
       return $ case fromTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
-    -- Is there any interesting setting at the team level?
-    else case fromTeam of
-      Just tid -> lift $ Intra.getTeamSearchVisibility tid >>= handleTeamVisibility . Team.searchVisibility
-      Nothing  -> return us
+    else do
+      -- Is there any interesting set at the team level on the target users?
+      profiles <- forM us $ \u -> case profileTeam u of
+        Just tid -> lift $ Intra.getTeamSearchVisibility tid >>= handleTeamVisibility u tid . Team.searchVisibility
+        Nothing  -> return $ Just u
+      return $ catMaybes profiles
   where
-    handleTeamVisibility Team.SearchVisibilityStandard = return us
-    handleTeamVisibility Team.SearchVisibilityTeamOnlyByName = error "handleHandleVisibility: Not implemented yet"
+    -- | With this setting, visibility by handle is OK
+    handleTeamVisibility u _   Team.SearchVisibilityStandard = return $ Just u
+    -- | With this setting, visibility by handle is OK only if in the same team
+    handleTeamVisibility u tid Team.SearchVisibilityOutsideTeamOutboundOnly =
+      return $ if fromTeam == Just tid
+        then Just u
+        else Nothing

@@ -102,5 +102,5 @@ search searcherId searchTerm maxResults = do
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
     handleTeamVisibility t Team.SearchVisibilityStandard = return $ Search.TeamAndNonMembers t
-    handleTeamVisibility _t Team.SearchVisibilityTeamOnlyByName = error "handleHandleVisibility: Not implemented yet"
+    handleTeamVisibility _t Team.SearchVisibilityOutsideTeamOutboundOnly = error "handleHandleVisibility: Not implemented yet"
 

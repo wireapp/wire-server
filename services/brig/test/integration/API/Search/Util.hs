@@ -52,26 +52,6 @@ reindex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig
 reindex brig =
   post (brig . path "/i/index/reindex") !!! const 200 === statusCode
 
-randomUserWithHandle :: HasCallStack => Brig -> Http User
-randomUserWithHandle brig = do
-  u <- randomUser brig
-  setRandomHandle brig u
-
-setRandomHandle :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> m User
-setRandomHandle brig user = do
-  h <- randomHandle
-  put
-    ( brig
-        . path "/self/handle"
-        . contentJson
-        . zUser (userId user)
-        . zConn "c"
-        . body (RequestBodyLBS . encode $ HandleUpdate h)
-    )
-    !!! const 200
-    === statusCode
-  return user {userHandle = Just (Handle h)}
-
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCanFind brig self expected q = do
   Just r <- (fmap . fmap) searchResults $ executeSearch brig self q

@@ -27,7 +27,8 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
-import Control.Lens hiding ((#))
+import Control.Lens hiding ((#), from)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -35,7 +36,8 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.UUID as UUID
-import Gundeck.Types.Notification
+import qualified Galley.Types.Teams.SearchVisibility as Team
+import Gundeck.Types.Notification hiding (target)
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
@@ -51,7 +53,9 @@ tests _cl _at conf p b c g =
     "handles"
     [ test p "handles/update" $ testHandleUpdate b c,
       test p "handles/race" $ testHandleRace b,
-      test p "handles/query" $ testHandleQuery conf b g
+      test p "handles/query" $ testHandleQuery conf b g,
+      test p "handles/query - custom-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b g,
+      test p "handles/query - custom-search-visibility SearchVisibilityOutsideTeamOutboundOnly" $ testHandleQuerySearchVisibilityOutsideTeamOutboundOnly conf b g
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -164,22 +168,62 @@ testHandleQuery opts brig galley = do
   checkHandles brig uid [hdl2, hdl, hdl3] 3 !!! do
     const 200 === statusCode
     const (Just [hdl2, hdl3]) === responseJsonMaybe
+
   -- Let's check for availability outside the team when an option is given
-  uid3 <- fst <$> createUserWithTeam brig galley
-  uid4 <- fst <$> createUserWithTeam brig galley
-  h4 <- randomHandle
-  putHandle brig uid4 h4 !!! statusCode === const 200
+  (_, user3, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 0
+  (_, user4, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 0
+
   -- Usually, you can search outside your team
-  get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
-    const 200 === statusCode
-    const (Just (Handle h4)) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
-  get (brig . paths ["users", "handles", toByteString' h4] . zUser uid3) !!! do
-    const 200 === statusCode
-    const (Just (UserHandleInfo uid4)) === responseJsonMaybe
+  assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
   let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
-  withSettingsOverrides newOpts $ do
-    get (brig . path "/users" . queryItem "handles" (toByteString' h4) . zUser uid3) !!! do
+  withSettingsOverrides newOpts $
+    assertCannotFind brig user3 user4
+
+testHandleQuerySearchVisibilityStandard :: Opt.Opts -> Brig -> Galley -> Http ()
+testHandleQuerySearchVisibilityStandard _opts brig galley = do
+  (_, owner1, (member1:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  extern <- randomUserWithHandle brig
+  -- Assert that everyone can find each other:
+  --   in the same or different team, by handle - direction does not matter
+  assertCanFind brig owner1 member1
+  assertCanFind brig owner1 owner2
+  assertCanFind brig owner2 owner1
+  assertCanFind brig extern owner1
+  assertCanFind brig owner1 extern
+
+testHandleQuerySearchVisibilityOutsideTeamOutboundOnly :: Opt.Opts -> Brig -> Galley -> Http ()
+testHandleQuerySearchVisibilityOutsideTeamOutboundOnly _opts brig galley = do
+  (tid1, owner1, (member1:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  extern <- randomUserWithHandle brig
+  setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
+  setTeamSearchVisibility galley tid1 Team.SearchVisibilityOutsideTeamOutboundOnly
+  -- Assert that tid1 users can find each other:
+  --   Users in other teams or non team members cannot find them
+  assertCanFind brig owner1 member1
+  assertCanFind brig owner1 owner2
+  assertCannotFind brig owner2 owner1
+  assertCannotFind brig extern owner1
+  assertCanFind brig owner1 extern
+
+assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertCanFind brig from target = do
+  liftIO $ assertBool "assertCanFind: Target must have a handle set" (isJust $ userHandle target)
+  let targetHandle = fromMaybe (error "Impossible") (userHandle target)
+  get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
+    const 200 === statusCode
+    const (userHandle target) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
+  get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+    const 200 === statusCode
+    const (Just (UserHandleInfo $ userId target)) === responseJsonMaybe
+
+assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertCannotFind brig from target = do
+    liftIO $ assertBool "assertCannotFind: Target must have a handle set" (isJust $ userHandle target)
+    let targetHandle = fromMaybe (error "Impossible") (userHandle target)
+    get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
       const 404 === statusCode
-    get (brig . paths ["users", "handles", toByteString' h4] . zUser uid3) !!! do
+    get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
       const 404 === statusCode

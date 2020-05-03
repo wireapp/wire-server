@@ -21,7 +21,8 @@ module API.Search
 where
 
 import API.Search.Util
-import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWithNames)
+import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWithNames, createPopulatedBindingTeamWithNamesAndHandles)
+import API.User.Util
 import Bilge
 import qualified Brig.Options as Opt
 import Brig.Types
@@ -43,13 +44,17 @@ tests opts mgr galley brig =
       [ test mgr "by-name" $ testSearchByName brig,
         test mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
-        testGroup "team-members" $
-          [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
-            test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
-            test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
-            test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
-            test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMemeber galley brig,
-            test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
+        testGroup "team-members"
+          [ testGroup "custom-search-visibility SearchVisibilityStandard"
+            [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
+              test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
+              test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
+              test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
+              test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMember galley brig
+            ],
+            testGroup "searchSameTeamOnly"
+            [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
+            ]
           ]
       ]
 
@@ -103,16 +108,20 @@ testReindex brig = do
 testSearchTeamMemberAsNonMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsNonMember galley brig = do
   nonTeamMember <- randomUser brig
-  (_, _, [teamMember]) <- createPopulatedBindingTeam brig galley 1
+  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   refreshIndex brig
+  let teamMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamMember)
   assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromName (userDisplayName teamMember))
+  assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromHandle teamMemberHandle)
 
 testSearchTeamMemberAsOtherMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsOtherMember galley brig = do
-  (_, _, [teamAMember]) <- createPopulatedBindingTeam brig galley 1
-  (_, _, [teamBMember]) <- createPopulatedBindingTeam brig galley 1
+  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   refreshIndex brig
   assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
+  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
+  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromHandle teamBMemberHandle)
 
 testSearchTeamMemberAsSameMember :: Galley -> Brig -> Http ()
 testSearchTeamMemberAsSameMember galley brig = do
@@ -127,8 +136,8 @@ testSeachNonMemberAsTeamMember galley brig = do
   refreshIndex brig
   assertCanFind brig (userId teamMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
 
-testSearchOrderingAsTeamMemeber :: Galley -> Brig -> Http ()
-testSearchOrderingAsTeamMemeber galley brig = do
+testSearchOrderingAsTeamMember :: Galley -> Brig -> Http ()
+testSearchOrderingAsTeamMember galley brig = do
   searchedName <- randomName
   nonTeamSearchee <- createUser' True (fromName searchedName) brig
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig galley [Name "Searcher", searchedName]

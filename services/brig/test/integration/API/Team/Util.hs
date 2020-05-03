@@ -17,6 +17,7 @@
 
 module API.Team.Util where
 
+import API.User.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Brig.Types.Activation
@@ -37,24 +38,34 @@ import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvManaged (..), NewCo
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 
+createPopulatedBindingTeamWithNamesAndHandles :: Brig -> Galley -> Int -> Http (TeamId, User, [User])
+createPopulatedBindingTeamWithNamesAndHandles brig galley numMembers = do
+  names <- forM [1 .. numMembers] $ \_ -> randomName
+  (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig galley names
+  membersWithHandle <- mapM (setRandomHandle brig) mems
+  ownerWithHandle <- setRandomHandle brig owner
+  return (tid, ownerWithHandle, membersWithHandle)
+
 createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
 createPopulatedBindingTeam brig galley numMembers = do
   names <- forM [1 .. numMembers] $ \_ -> randomName
-  createPopulatedBindingTeamWithNames brig galley names
+  (tid, owner, others) <- createPopulatedBindingTeamWithNames brig galley names
+  return (tid, userId owner, others)
 
-createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, UserId, [User])
+createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, User, [User])
 createPopulatedBindingTeamWithNames brig galley names = do
-  (inviter, tid) <- createUserWithTeam brig galley
+  (inviter, tid) <- createUserWithTeam' brig galley
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
     let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
-    inv <- responseJsonError =<< postInvitation brig tid inviter invite
+    inv <- responseJsonError =<< postInvitation brig tid (userId inviter) invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
       post
@@ -65,7 +76,7 @@ createPopulatedBindingTeamWithNames brig galley names = do
         <!! const 201 === statusCode
     let invitee :: User = responseJsonUnsafe rsp2
     do
-      let invmeta = Just (inviter, inCreatedAt inv)
+      let invmeta = Just (userId inviter, inCreatedAt inv)
       mem <- getTeamMember (userId invitee) tid galley
       liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
     do
@@ -93,6 +104,12 @@ createTeam u galley = do
 -- | NB: the created user is the team owner.
 createUserWithTeam :: Brig -> Galley -> Http (UserId, TeamId)
 createUserWithTeam brig galley = do
+  (user, tid) <- createUserWithTeam' brig galley
+  return (userId user, tid)
+
+-- | NB: the created user is the team owner.
+createUserWithTeam' :: Brig -> Galley -> Http (User, TeamId)
+createUserWithTeam' brig galley = do
   e <- randomEmail
   n <- randomName
   let p =
@@ -109,7 +126,7 @@ createUserWithTeam brig galley = do
   liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
-  return (userId user, tid)
+  return (user, tid)
 
 -- | Create a team member with given permissions.
 createTeamMember ::
@@ -385,3 +402,25 @@ isActivatedUser uid brig = do
 stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
 stdInvitationRequest e inviterName loc role =
   InvitationRequest e inviterName loc role Nothing Nothing
+
+setTeamCustomSearchVisibilityStatus :: HasCallStack => Galley -> TeamId -> Team.CustomSearchVisibilityStatus -> Http ()
+setTeamCustomSearchVisibilityStatus galley tid status =
+  put
+    ( galley
+        . paths ["i/teams", toByteString' tid, "features/custom-search-visibility"]
+        . contentJson
+        . body (RequestBodyLBS . encode $ Team.CustomSearchVisibilityTeamConfig status)
+    )
+    !!! do
+      const 204 === statusCode
+
+setTeamSearchVisibility :: HasCallStack => Galley -> TeamId -> Team.CustomSearchVisibilityType -> Http ()
+setTeamSearchVisibility galley tid typ =
+  put
+    ( galley
+        . paths ["i/teams", toByteString' tid, "search-visibility"]
+        . contentJson
+        . body (RequestBodyLBS . encode $ Team.SearchVisibility typ)
+    )
+    !!! do
+      const 204 === statusCode
