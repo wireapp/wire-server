@@ -37,6 +37,7 @@ import qualified Brig.Provider.API as Provider
 import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
+import qualified Brig.IO.Intra as Intra
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.Types.Swagger as Doc
@@ -71,6 +72,7 @@ import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types (UserClientMap (..), UserClients (..))
 import qualified Galley.Types.Swagger as Doc
 import qualified Galley.Types.Teams as Team
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -296,7 +298,7 @@ sitemap o = do
       Doc.description "User IDs of users to fetch"
       Doc.optional
     Doc.parameter Doc.Query "handles" Doc.string' $ do
-      Doc.description "Handles of users to fetch"
+      Doc.description "Handles of users to fetch, min 1 and max 4"
       Doc.optional
     Doc.returns (Doc.array (Doc.ref Doc.user))
     Doc.response 200 "List of users" Doc.end
@@ -1252,7 +1254,7 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1260,14 +1262,15 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [UserProfile]
 listUsers self = \case
   Left us -> do
     resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
     byIds resolvedUserIds
   Right hs -> do
-    us <- getIds (fromList hs)
-    filterSearchResults self =<< byIds us
+    us <- getIds (fromList $ fromRange hs)
+    selfTeam <- lift $ Data.lookupUserTeam self
+    filterSearchResults (self, selfTeam) =<< byIds us
   where
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
@@ -1428,7 +1431,8 @@ getHandleInfoH (_ ::: self ::: h) = do
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing      -> return Nothing
-  owner <- filterSearchResults self (maybeToList ownerProfile)
+  selfTeam <- lift $ Data.lookupUserTeam self
+  owner <- filterSearchResults (self, selfTeam) (maybeToList ownerProfile)
   return $ case listToMaybe owner of
     Just u -> json (UserHandleInfo $ profileId u)
     Nothing -> setStatus status404 empty
@@ -1697,13 +1701,18 @@ ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
 
 -- Checks search permissions and filters accordingly
-filterSearchResults :: UserId -> [UserProfile] -> Handler [UserProfile]
-filterSearchResults from us = do
+filterSearchResults :: (UserId, Maybe TeamId) -> [UserProfile] -> Handler [UserProfile]
+filterSearchResults (_fromUser, fromTeam) us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
-      selfTeam <- lift $ Data.lookupUserTeam from
-      return $ case selfTeam of
+      return $ case fromTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
-    else return us
+    -- Is there any interesting setting at the team level?
+    else case fromTeam of
+      Just tid -> lift $ Intra.getTeamSearchVisibility tid >>= handleTeamVisibility . Team.searchVisibility
+      Nothing  -> return us
+  where
+    handleTeamVisibility Team.SearchVisibilityStandard = return us
+    handleTeamVisibility Team.SearchVisibilityTeamOnlyByName = error "handleHandleVisibility: Not implemented yet"
