@@ -1,6 +1,6 @@
--- This file is part of the Wire Server implementation.
+-- {{ project }}
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) {{ year }} {{ organization }} <{{ email }}>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,21 +14,3 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Brig.API
-  ( sitemap,
-  )
-where
-
-import Brig.API.Handler (Handler)
-import qualified Brig.API.Internal as Internal
-import qualified Brig.API.Public as Public
-import Brig.Options (Opts)
-import qualified Data.Swagger.Build.Api as Doc
-import Network.Wai.Routing (Routes)
-
-sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
-sitemap o = do
-  Public.sitemap o
-  Public.apiDocs o
-  Internal.sitemap

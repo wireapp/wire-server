@@ -48,16 +48,15 @@ formatf:
 formatc:
 	./tools/ormolu.sh -c
 
-# For any Haskell or Rust file that doesn't mention AGPL yet, add a license header.
-# It's your own reponsibility to keep ormolu happy.
+# For any Haskell or Rust file, update or add a license header if necessary.
+# Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
 add-license:
-	for file in $$(git grep -L "GNU Affero General Public License" | grep '\.hs$$\|\.hsc$$\|\.rs$$'); do \
-		echo "Adding license to $${file}."; \
-		licensure -i $${file}; \
-	done;
+	# Check headroom is installed. If not, please run 'stack install headroom'
+	command -v headroom
+	headroom run
 	@echo ""
-	@echo "you most probably want to run 'make formatf' now to keep ormolu happy"
+	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
 # Clean
 .PHONY: clean
@@ -193,6 +192,11 @@ db-reset:
 libzauth:
 	$(MAKE) -C libs/libzauth install
 
+# Useful when using Haskell IDE Engine
+# https://github.com/haskell/haskell-ide-engine
+# requires 'yq' executable on your path.
+#
+# Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
 	./tools/gen-hie-yaml.sh > hie.yaml

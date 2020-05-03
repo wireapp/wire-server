@@ -1,0 +1,31 @@
+run-mode: replace
+source-paths:
+- libs
+- services
+- tools
+excluded-paths:
+- '\.stack-work'
+template-paths:
+- tools/headroom-templates
+variables:
+  organization: Wire Swiss GmbH
+  email: opensource@wire.com
+  project: This file is part of the Wire Server implementation.
+  year: '2020'
+license-headers:
+  haskell:
+    file-extensions: ["hs", "hsc"]
+    # after pragmas, to make Ormolu happy
+    put-after: ["^{-#"]
+    # but before the module header (or comment) in any case
+    put-before: ["^module", "^-- \\|"]
+    margin-after: 1
+    margin-before: 1
+    line-comment:
+      prefixed-by: "--"
+  rust:
+    file-extensions: ["rs"]
+    margin-after: 1
+    margin-before: 1
+    line-comment:
+      prefixed-by: "//"

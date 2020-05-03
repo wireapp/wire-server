@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 12c54fc2efdaff3aa94ed8303ee51512ef073dace8b07fdcccb287b331c5be16
+-- hash: cf92514a148e7a0f9327bc29c7bbcb31665e271b40f11984705b7491856d914e
 
 name:           gundeck
 version:        1.45.0
@@ -26,6 +26,8 @@ library
   exposed-modules:
       Gundeck.API
       Gundeck.API.Error
+      Gundeck.API.Internal
+      Gundeck.API.Public
       Gundeck.Aws
       Gundeck.Aws.Arn
       Gundeck.Aws.Sns

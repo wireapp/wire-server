@@ -33,7 +33,6 @@ import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens ((^.))
 import Control.Monad (liftM, void, when)
-import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (ByteString)
@@ -84,11 +83,16 @@ start o = do
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
-  ---------------------------------------------------------------------------
+  routes
+  apiDocs
+
+routes :: Routes Doc.ApiBuilder Handler ()
+routes = do
   -- Begin Internal
 
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
+
   -- End Internal
 
   post "/users/:uid/suspend" (continue suspendUser) $
@@ -99,6 +103,7 @@ sitemap = do
       Doc.description "User ID"
     Doc.response 200 "User successfully suspended" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
   post "/users/:uid/unsuspend" (continue unsuspendUser) $
     capture "uid"
   document "POST" "users/:uid/unsuspend" $ do
@@ -107,6 +112,7 @@ sitemap = do
       Doc.description "User ID"
     Doc.response 200 "User successfully unsuspended" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
   get "/users" (continue usersByEmail) $
     param "email"
   document "GET" "users" $ do
@@ -114,6 +120,7 @@ sitemap = do
     Doc.parameter Doc.Query "email" Doc.string' $
       Doc.description "Email address"
     Doc.response 200 "List of users" Doc.end
+
   get
     "/users"
     (continue usersByPhone)
@@ -123,6 +130,7 @@ sitemap = do
     Doc.parameter Doc.Query "phone" Doc.string' $
       Doc.description "Phone number"
     Doc.response 200 "List of users" Doc.end
+
   get "/users" (continue usersByIds) $
     param "ids"
   document "GET" "users" $ do
@@ -130,6 +138,7 @@ sitemap = do
     Doc.parameter Doc.Query "ids" Doc.string' $
       Doc.description "ID of the user"
     Doc.response 200 "List of users" Doc.end
+
   get "/users" (continue usersByHandles) $
     param "handles"
   document "GET" "users" $ do
@@ -137,6 +146,7 @@ sitemap = do
     Doc.parameter Doc.Query "handles" Doc.string' $
       Doc.description "Handle of the user"
     Doc.response 200 "List of users" Doc.end
+
   get "/users/:uid/connections" (continue userConnections) $
     capture "uid"
   document "GET" "users/:uid/connections" $ do
@@ -144,6 +154,7 @@ sitemap = do
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       description "User ID"
     Doc.response 200 "List of user's connections" Doc.end
+
   get "/users/connections" (continue usersConnections) $
     param "ids"
   document "GET" "users/connections" $ do
@@ -151,6 +162,7 @@ sitemap = do
     Doc.parameter Doc.Query "ids" Doc.string' $
       Doc.description "IDs of the users"
     Doc.response 200 "List of users connections" Doc.end
+
   get "/users/:uid/search" (continue searchOnBehalf) $
     capture "uid"
       .&. def "" (query "q")
@@ -166,6 +178,7 @@ sitemap = do
       description "Number of results to return"
       optional
     Doc.response 200 "List of users" Doc.end
+
   post "/users/revoke-identity" (continue revokeIdentity) $
     param "email" ||| phoneParam
   document "POST" "revokeIdentity" $ do
@@ -184,6 +197,7 @@ sitemap = do
       Doc.optional
     Doc.response 200 "Identity revoked or not verified / taken." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
   put "/users/:uid/email" (continue changeEmail) $
     contentType "application" "json"
       .&. capture "uid"
@@ -199,6 +213,7 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Change of email address initiated." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
   put "/users/:uid/phone" (continue changePhone) $
     contentType "application" "json"
       .&. capture "uid"
@@ -214,6 +229,7 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Change of phone number initiated." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
   delete "/users/:uid" (continue deleteUser) $
     capture "uid"
       .&. (query "email" ||| phoneParam)
@@ -230,6 +246,23 @@ sitemap = do
       Doc.optional
     Doc.response 200 "Account deleted" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+
+  delete "/teams/:tid" (continue deleteTeam) $
+    capture "tid"
+      .&. query "email"
+  document "DELETE" "deleteTeam" $ do
+    summary "Delete a team (irrevocable!) You can only delete teams with 1 user!"
+    Doc.notes "The email address of the user must be provided to prevent copy/paste mistakes"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.parameter Doc.Query "email" Doc.string' $ do
+      Doc.description "Matching verified remaining user address"
+    Doc.response 202 "Team scheduled for deletion" Doc.end
+    Doc.response 404 "No such user with that email" (Doc.model Doc.errorModel)
+    Doc.response 404 "No such binding team" (Doc.model Doc.errorModel)
+    Doc.response 403 "Only teams with 1 user can be deleted" (Doc.model Doc.errorModel)
+    Doc.response 404 "Binding team mismatch" (Doc.model Doc.errorModel)
+
   head "/users/blacklist" (continue isUserKeyBlacklisted) $
     (query "email" ||| phoneParam)
   document "HEAD" "checkBlacklistStatus" $ do
@@ -242,6 +275,7 @@ sitemap = do
       Doc.optional
     Doc.response 200 "The email/phone IS blacklisted" Doc.end
     Doc.response 404 "The email/phone is NOT blacklisted" Doc.end
+
   post "/users/blacklist" (continue addBlacklist) $
     (query "email" ||| phoneParam)
   document "POST" "addToBlacklist" $ do
@@ -253,6 +287,7 @@ sitemap = do
       Doc.description "A phone to add"
       Doc.optional
     Doc.response 200 "Operation succeeded" Doc.end
+
   delete "/users/blacklist" (continue deleteFromBlacklist) $
     (query "email" ||| phoneParam)
   document "DELETE" "deleteFromBlacklist" $ do
@@ -264,6 +299,7 @@ sitemap = do
       Doc.description "A phone to remove"
       Doc.optional
     Doc.response 200 "Operation succeeded" Doc.end
+
   get "/teams" (continue getTeamInfoByMemberEmail) $
     param "email"
   document "GET" "getTeamInfoByMemberEmail" $ do
@@ -271,6 +307,7 @@ sitemap = do
     Doc.parameter Doc.Query "email" Doc.string' $
       Doc.description "A verified email address"
     Doc.response 200 "Team Information" Doc.end
+
   get "/teams/:tid" (continue getTeamInfo) $
     capture "tid"
   document "GET" "getTeamInfo" $ do
@@ -278,6 +315,7 @@ sitemap = do
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.response 200 "Team Information" Doc.end
+
   get "/teams/:tid/admins" (continue getTeamAdminInfo) $
     capture "tid"
   document "GET" "getTeamAdminInfo" $ do
@@ -285,6 +323,7 @@ sitemap = do
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.response 200 "Team Information about Owners and Admins" Doc.end
+
   -- feature flags
 
   get "/teams/:tid/features/legalhold" (continue (liftM json . Intra.getLegalholdStatus)) $
@@ -296,6 +335,7 @@ sitemap = do
     Doc.returns Doc.docSetLegalHoldStatus
     Doc.response 200 "Legalhold status" Doc.end
     Doc.returns Doc.bool'
+
   put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
     contentType "application" "json"
       .&. capture "tid"
@@ -307,6 +347,7 @@ sitemap = do
     Doc.body Doc.docSetLegalHoldStatus $
       Doc.description "JSON body"
     Doc.response 200 "Legalhold status" Doc.end
+
   get "/teams/:tid/features/sso" (continue (liftM json . Intra.getSSOStatus)) $
     capture "tid"
   document "GET" "getSSOStatus" $ do
@@ -315,6 +356,7 @@ sitemap = do
       description "Team ID"
     Doc.returns Doc.docSetSSOStatus
     Doc.response 200 "SSO status" Doc.end
+
   put "/teams/:tid/features/sso" (continue setSSOStatus) $
     contentType "application" "json"
       .&. capture "tid"
@@ -326,6 +368,7 @@ sitemap = do
     Doc.body Doc.docSetSSOStatus $
       Doc.description "JSON body"
     Doc.response 200 "SSO status" Doc.end
+
   get "/teams/:tid/features/custom-search-visibility" (continue (liftM json . Intra.getCustomSearchVisibilityStatus)) $
     capture "tid"
   document "GET" "getCustomSearchVisibilityStatus" $ do
@@ -368,15 +411,6 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "SearchVisibility status set" Doc.end
 
-  --- Swagger ---
-  get
-    "/stern/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Doc.sternModels sitemap
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
   -- The following endpoint are only relevant internally at Wire
 
   get "/teams/:tid/invoices/:inr" (continue getTeamInvoice) $
@@ -391,6 +425,7 @@ sitemap = do
     Doc.parameter Doc.Path "inr" Doc.string' $
       Doc.description "Invoice Number"
     Doc.response 307 "Redirect to PDF download" Doc.end
+
   get "/teams/:tid/billing" (continue getTeamBillingInfo) $
     capture "tid"
   document "GET" "getTeamBillingInfo" $ do
@@ -401,6 +436,7 @@ sitemap = do
     Doc.response 200 "Team Billing Information" Doc.end
     Doc.response 404 "No team or no billing info for given team" Doc.end
     Doc.returns (Doc.ref Doc.teamBillingInfo)
+
   put "/teams/:tid/billing" (continue updateTeamBillingInfo) $
     contentType "application" "json"
       .&. capture "tid"
@@ -416,6 +452,7 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Updated Team Billing Information" Doc.end
     Doc.returns (Doc.ref Doc.teamBillingInfo)
+
   post "/teams/:tid/billing" (continue setTeamBillingInfo) $
     contentType "application" "json"
       .&. capture "tid"
@@ -433,6 +470,7 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Updated Team Billing Information" Doc.end
     Doc.returns (Doc.ref Doc.teamBillingInfo)
+
   get "/i/consent" (continue getConsentLog) $
     param "email"
   document "GET" "getConsentLog" $ do
@@ -442,6 +480,7 @@ sitemap = do
       Doc.description "An email address"
     Doc.response 200 "Consent Log" Doc.end
     Doc.response 403 "Access denied! There is a user with this email address" Doc.end
+
   get "/i/user/meta-info" (continue getUserData) $
     param "id"
   document "GET" "getUserMetaInfo" $ do
@@ -450,6 +489,17 @@ sitemap = do
     Doc.parameter Doc.Query "id" Doc.bytes' $ do
       Doc.description "A user's ID"
     Doc.response 200 "Meta Info" Doc.end
+
+apiDocs :: Routes a Handler ()
+apiDocs = do
+  get
+    "/stern/api-docs"
+    ( \(_ ::: url) k ->
+        let doc = mkSwaggerApi (decodeLatin1 url) Doc.sternModels routes
+         in k $ json doc
+    )
+    $ accept "application" "json"
+      .&. query "base_url"
 
 -----------------------------------------------------------------------------
 -- Handlers
@@ -517,6 +567,23 @@ deleteUser (uid ::: emailOrPhone) = do
     _ -> return $ setStatus status404 empty
   where
     checkUUID u = userId u == uid
+
+deleteTeam :: TeamId ::: Email -> Handler Response
+deleteTeam (givenTid ::: email) = do
+  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
+  userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
+  when (givenTid /= userTid) $
+    throwE bindingTeamMismatch
+  tInfo <- Intra.getTeamInfo givenTid
+  unless ((length (tiMembers tInfo)) == 1) $
+    throwE wrongMemberCount
+  void $ Intra.deleteBindingTeam givenTid
+  return $ setStatus status202 empty
+  where
+    handleNoUser = ifNothing (Error status404 "no-user" "No such user with that email")
+    handleNoTeam = ifNothing (Error status404 "no-binding-team" "No such binding team")
+    wrongMemberCount = Error status403 "wrong-member-count" "Only teams with 1 user can be deleted"
+    bindingTeamMismatch = Error status404 "binding-team-mismatch" "Binding team mismatch"
 
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do
@@ -681,7 +748,7 @@ groupByStatus conns =
     byStatus s = length . filter ((==) s . ucStatus)
 
 ifNothing :: Error -> Maybe a -> Handler a
-ifNothing e = maybe (throwM e) return
+ifNothing e = maybe (throwE e) return
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (Error status404 "no-user" "No such user")

@@ -23,7 +23,8 @@ module Test.Galley.API where
 
 import Data.Predicate (exec)
 import Data.Set hiding (drop)
-import Galley.API
+import Galley.API ()
+import Galley.API.Public (filterMissing)
 import Galley.Types
 import Imports
 import qualified Network.HTTP.Types as H

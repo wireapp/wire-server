@@ -109,6 +109,12 @@ actionDenied a =
     "action-denied"
     ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
+noBindingTeam :: Error
+noBindingTeam = Error status403 "no-binding-team" "Operation allowed only on binding teams."
+
+notAOneMemberTeam :: Error
+notAOneMemberTeam = Error status403 "not-one-member-team" "Can only delete teams with a single member."
+
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 

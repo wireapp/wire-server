@@ -51,10 +51,11 @@ run o = do
     Async.async
       $ runAppT e
       $ Queue.listen (e ^. internalEvents) Internal.onEvent
+  let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async
       $ AWS.execute (e ^. awsEnv)
-      $ AWS.listen q (runAppT e . SesNotification.onEvent)
+      $ AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
