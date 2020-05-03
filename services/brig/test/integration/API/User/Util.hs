@@ -17,6 +17,7 @@
 
 module API.User.Util where
 
+-- import API.Team.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.PasswordReset

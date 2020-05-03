@@ -21,14 +21,16 @@ module API.Search
 where
 
 import API.Search.Util
-import API.Team.Util (createPopulatedBindingTeam, createPopulatedBindingTeamWithNames, createPopulatedBindingTeamWithNamesAndHandles)
+import API.Team.Util
 import API.User.Util
 import Bilge
 import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Lens ((.~))
 import Data.Handle (fromHandle)
+import Data.Id
 import Data.List (elemIndex)
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import Network.HTTP.Client (Manager)
 import Test.Tasty
@@ -37,7 +39,8 @@ import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
-tests opts mgr galley brig =
+tests opts mgr galley brig = do
+  testSetupOutboundOnly <- runHttpT mgr $ prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests
   return $
     testGroup
       "search"
@@ -45,7 +48,7 @@ tests opts mgr galley brig =
         test mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
         testGroup "team-members"
-          [ testGroup "custom-search-visibility SearchVisibilityStandard"
+          [ testGroup "custom-search-visibility disabled OR SearchVisibilityStandard"
             [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
               test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
               test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
@@ -54,9 +57,26 @@ tests opts mgr galley brig =
             ],
             testGroup "searchSameTeamOnly"
             [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
+            ],
+            testGroup "custom-search-visibility SearchVisibilityOutsideTeamOutboundOnly"
+            [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
+              test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+              test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
+              test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
             ]
           ]
       ]
+ where
+  -- Since the tests are about querying only, we only need 1 creation
+  prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
+  prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests = do
+    (tidA, ownerA, (memberA:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+    setTeamCustomSearchVisibilityStatus galley tidA Team.CustomSearchVisibilityEnabled
+    setTeamSearchVisibility galley tidA Team.SearchVisibilityOutsideTeamOutboundOnly
+    (tidB, ownerB, (memberB:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+    regularUser <- randomUserWithHandle brig
+    refreshIndex brig
+    return ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do
@@ -156,3 +176,27 @@ testSearchSameTeamOnly opts galley brig = do
   let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
   withSettingsOverrides newOpts $ do
     assertCan'tFind brig (userId teamMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
+
+testSearchTeamMemberAsNonMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchTeamMemberAsNonMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
+  let teamAMemberHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAMember)
+  assertCan'tFind brig (userId nonTeamMember) (userId teamAMember) (fromName (userDisplayName teamAMember))
+  assertCan'tFind brig (userId nonTeamMember) (userId teamAMember) (fromHandle teamAMemberHandle)
+
+testSearchTeamMemberAsOtherMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchTeamMemberAsOtherMemberOutboundOnly brig ((_, _, teamAMember), (_, _, teamBMember), _) = do
+  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
+  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
+  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromHandle teamBMemberHandle)
+
+testSearchTeamMemberAsSameMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchTeamMemberAsSameMemberOutboundOnly brig ((_, teamAOwner, teamAMember), (_, _, _), _) = do
+  let teamAMemberHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAMember)
+  assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromName (userDisplayName teamAMember))
+  assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromHandle teamAMemberHandle)
+
+testSeachNonMemberAsTeamMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
+  let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
+  assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
+  assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromHandle teamMemberAHandle)

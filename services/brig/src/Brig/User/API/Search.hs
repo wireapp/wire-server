@@ -98,9 +98,9 @@ search searcherId searchTerm maxResults = do
             if sameTeamSearchOnly
               then return (Search.TeamOnly t)
               -- For team users, we need to check the visibility flag
-              else Intra.getTeamSearchVisibility t >>= handleTeamVisibility t . Team.searchVisibility
+              else Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t . Team.searchVisibility
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
-    handleTeamVisibility t Team.SearchVisibilityStandard = return $ Search.TeamAndNonMembers t
-    handleTeamVisibility _t Team.SearchVisibilityOutsideTeamOutboundOnly = error "handleHandleVisibility: Not implemented yet"
+    handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
+    handleTeamVisibility t Team.SearchVisibilityOutsideTeamOutboundOnly = Search.TeamOnly t
 

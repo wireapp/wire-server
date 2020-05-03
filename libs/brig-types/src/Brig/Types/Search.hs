@@ -46,6 +46,7 @@ data TeamSearchInfo
   = -- | When searching user is not part of a team.
     NoTeam
   | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
+    --   OR the search user belongs to a team with SearchVisibilityOutsideTeamOutboundOnly
     TeamOnly TeamId
   | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
     TeamAndNonMembers TeamId

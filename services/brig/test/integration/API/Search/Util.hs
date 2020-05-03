@@ -22,8 +22,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
-import Data.Aeson (decode, encode)
-import Data.Handle (Handle (Handle))
+import Data.Aeson (decode)
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Imports
