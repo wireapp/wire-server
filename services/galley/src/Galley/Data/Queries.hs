@@ -389,11 +389,11 @@ updateCustomSearchVisibilityTeamConfig =
 
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe CustomSearchVisibilityType))
 selectSearchVisibility =
-  "select search_visibility from team where team_id = ?"
+  "select search_visibility from team where team = ?"
 
 updateSearchVisibility :: PrepQuery W (CustomSearchVisibilityType, TeamId) ()
 updateSearchVisibility =
-  "update team set search_visibility = ? where team_id = ?"
+  "update team set search_visibility = ? where team = ?"
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =

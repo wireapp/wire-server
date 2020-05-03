@@ -973,7 +973,7 @@ sitemap = do
       description "Team ID"
     returns (ref Model.ssoTeamConfig)
     response 200 "SSO status" end
-  get "/teams/:tid/features/search-visibility" (continue Teams.getCustomSearchVisibilityStatusH) $
+  get "/teams/:tid/features/custom-search-visibility" (continue Teams.getCustomSearchVisibilityStatusH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -1013,7 +1013,7 @@ sitemap = do
       description "Team ID"
     body (ref Model.searchVisibility) $
       description "Search visibility to be set"
-    response 200 "Search visibility set" end
+    response 204 "Search visibility set" end
     errorResponse Error.customSearchVisibilityNotEnabled
   -- internal
 
@@ -1116,10 +1116,10 @@ sitemap = do
     capture "tid"
       .&. jsonRequest @SSOTeamConfig
       .&. accept "application" "json"
-  get "/i/teams/:tid/features/search-visibility" (continue Teams.getCustomSearchVisibilityStatusInternalH) $
+  get "/i/teams/:tid/features/custom-search-visibility" (continue Teams.getCustomSearchVisibilityStatusInternalH) $
     capture "tid"
       .&. accept "application" "json"
-  put "/i/teams/:tid/features/search-visibility" (continue Teams.setCustomSearchVisibilityStatusInternalH) $
+  put "/i/teams/:tid/features/custom-search-visibility" (continue Teams.setCustomSearchVisibilityStatusInternalH) $
     capture "tid"
       .&. jsonRequest @CustomSearchVisibilityTeamConfig
       .&. accept "application" "json"
