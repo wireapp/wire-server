@@ -173,7 +173,6 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
-  Data.addBillingTeamMember tid (owner ^. userId)
   pure tid
 
 updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
@@ -454,12 +453,6 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  let new = nmem ^. ntmNewTeamMember
-
-  -- This has to only be done for binding teams, it is assumed here as this function is
-  -- supposed to be called only for binding teams
-  when (hasPermission new SetBilling) $
-    Data.addBillingTeamMember tid (new ^. userId)
 
   Journal.teamUpdate tid (sizeBeforeAdd + 1) $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
 
@@ -500,28 +493,10 @@ updateTeamMember zusr zcon tid targetMember = do
   -- update target in Cassandra
   Data.updateTeamMember tid targetId targetPermissions
 
-  -- Manage billing member data
-  when (team ^. teamBinding == Binding) $ do
-    -- add new billing member, if applicable
-    let isNewBillingMember =
-          not (isBillingMember previousMember)
-            && isBillingMember targetMember
-    when isNewBillingMember $
-      Data.addBillingTeamMember tid targetId
-
-    -- remove old billing member, if applicable
-    let isNotBillingMemberAnymore =
-          isBillingMember previousMember
-            && not (isBillingMember targetMember)
-    when isNotBillingMemberAnymore $
-      Data.deleteBillingTeamMember tid targetId
-
   updatedMembers <- Data.teamMembersForFanout tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
-    isBillingMember :: TeamMember -> Bool
-    isBillingMember = flip hasPermission SetBilling
     --
     canDowngradeOwner = canDeleteMember
     --

@@ -29,9 +29,7 @@ module Galley.Data
     updateTeamMember,
     createTeam,
     removeTeamMember,
-    addBillingTeamMember,
     listBillingTeamMembers,
-    deleteBillingTeamMember,
     team,
     Galley.Data.teamName,
     teamConversation,
@@ -122,7 +120,7 @@ import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
 import Data.Range
-import qualified Data.Set
+import qualified Data.Set as Set
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
@@ -372,9 +370,18 @@ addTeamMember t m =
         m ^? invitation . _Just . _2
       )
     addPrepQuery Cql.insertUserTeam (m ^. userId, t)
+    when (m `hasPermission` SetBilling) $
+      addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
 updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()
-updateTeamMember t u p = retry x5 $ write Cql.updatePermissions (params Quorum (p, t, u))
+updateTeamMember t u p = do
+  retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery Cql.updatePermissions (p, t, u)
+    if (SetBilling `Set.member` (view self p))
+      then addPrepQuery Cql.insertBillingTeamMember (t, u)
+      else addPrepQuery Cql.deleteBillingTeamMember (t, u)
 
 removeTeamMember :: MonadClient m => TeamId -> UserId -> m ()
 removeTeamMember t m =
@@ -385,18 +392,10 @@ removeTeamMember t m =
     addPrepQuery Cql.deleteUserTeam (m, t)
     addPrepQuery Cql.deleteBillingTeamMember (t, m)
 
-addBillingTeamMember :: MonadClient m => TeamId -> UserId -> m ()
-addBillingTeamMember tid uid =
-  retry x5 $ write Cql.insertBillingTeamMember (params Quorum (tid, uid))
-
 listBillingTeamMembers :: MonadClient m => TeamId -> m [UserId]
 listBillingTeamMembers tid =
   fmap runIdentity
-    <$> (retry x1 $ query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
-
-deleteBillingTeamMember :: MonadClient m => TeamId -> UserId -> m ()
-deleteBillingTeamMember tid uid =
-  retry x5 $ write Cql.deleteBillingTeamMember (params Quorum (tid, uid))
+    <$> retry x1 (query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
 
 removeTeamConv :: MonadClient m => TeamId -> ConvId -> m ()
 removeTeamConv tid cid = do
@@ -586,7 +585,7 @@ createOne2OneConversation a b name ti = do
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
 
-updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
+updateConversationAccess :: MonadClient m => ConvId -> Set.Set Access -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
 
 updateConversationReceiptMode :: MonadClient m => ConvId -> ReceiptMode -> m ()
