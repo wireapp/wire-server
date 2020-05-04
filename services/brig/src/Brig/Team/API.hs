@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Team.API where
+module Brig.Team.API
+  ( routesPublic,
+    routesInternal,
+  )
+where
 
 import Brig.API.Error
 import Brig.API.Handler
@@ -56,8 +60,8 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-routes :: Routes Doc.ApiBuilder Handler ()
-routes = do
+routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -79,7 +83,6 @@ routes = do
     Doc.errorResponse invalidEmail
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse tooManyTeamInvitations
-  ---
 
   get "/teams/:tid/invitations" (continue listInvitationsH) $
     accept "application" "json"
@@ -99,7 +102,6 @@ routes = do
       Doc.optional
     Doc.returns (Doc.ref Doc.teamInvitationList)
     Doc.response 200 "List of sent invitations" Doc.end
-  ---
 
   get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
     accept "application" "json"
@@ -114,7 +116,6 @@ routes = do
       Doc.description "Team Invitation ID"
     Doc.returns (Doc.ref Doc.teamInvitation)
     Doc.response 200 "Invitation" Doc.end
-  ---
 
   delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
     accept "application" "json"
@@ -128,7 +129,6 @@ routes = do
     Doc.parameter Doc.Path "iid" Doc.bytes' $
       Doc.description "Team Invitation ID"
     Doc.response 200 "Invitation deleted." Doc.end
-  ---
 
   get "/teams/invitations/info" (continue getInvitationByCodeH) $
     accept "application" "json"
@@ -140,18 +140,22 @@ routes = do
     Doc.returns (Doc.ref Doc.teamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
     Doc.errorResponse invalidInvitationCode
-  --- Internal
 
+routesInternal :: Routes a Handler ()
+routesInternal = do
   get "/i/teams/invitation-code" (continue getInvitationCodeH) $
     accept "application" "json"
       .&. param "team"
       .&. param "invitation_id"
+
   post "/i/teams/:tid/suspend" (continue suspendTeamH) $
     accept "application" "json"
       .&. capture "tid"
+
   post "/i/teams/:tid/unsuspend" (continue unsuspendTeamH) $
     accept "application" "json"
       .&. capture "tid"
+
   get "/i/teams/:tid/size" (continue teamSizeH) $
     accept "application" "json"
       .&. capture "tid"

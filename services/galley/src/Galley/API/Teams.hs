@@ -51,6 +51,8 @@ module Galley.API.Teams
     withBindingTeam,
     userIsTeamOwnerH,
     canUserJoinTeamH,
+    internalDeleteBindingTeamWithOneMemberH,
+    internalDeleteBindingTeamWithOneMember,
   )
 where
 
@@ -245,22 +247,27 @@ deleteTeam zusr zcon tid mBody = do
     Deleted ->
       throwM teamNotFound
     PendingDelete ->
-      queueDelete
+      queueTeamDeletion tid zusr (Just zcon)
     _ -> do
       checkPermissions team
-      queueDelete
+      queueTeamDeletion tid zusr (Just zcon)
   where
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
-    queueDelete = do
-      q <- view deleteQueue
-      ok <- Q.tryPush q (TeamItem tid zusr (Just zcon))
-      if ok
-        then pure ()
-        else throwM deleteQueueFull
+
+-- This can be called by stern
+internalDeleteBindingTeamWithOneMember :: TeamId -> Galley ()
+internalDeleteBindingTeamWithOneMember tid = do
+  team <- Data.team tid
+  unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
+    throwM noBindingTeam
+  mems <- Data.teamMembersWithLimit tid (unsafeRange 2)
+  case mems ^. teamMembers of
+    (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
+    _ -> throwM notAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
@@ -387,6 +394,11 @@ getTeamMember zusr tid uid = do
       Data.teamMember tid uid >>= \case
         Nothing -> throwM teamMemberNotFound
         Just member -> pure (member, withPerms)
+
+internalDeleteBindingTeamWithOneMemberH :: TeamId -> Galley Response
+internalDeleteBindingTeamWithOneMemberH tid = do
+  internalDeleteBindingTeamWithOneMember tid
+  pure (empty & setStatus status202)
 
 uncheckedGetTeamMemberH :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
@@ -916,3 +928,12 @@ userIsTeamOwner :: TeamId -> UserId -> Galley Bool
 userIsTeamOwner tid uid = do
   let asking = uid
   isTeamOwner . fst <$> getTeamMember asking tid uid
+
+-- Queues a team for async deletion
+queueTeamDeletion :: TeamId -> UserId -> Maybe ConnId -> Galley ()
+queueTeamDeletion tid zusr zcon = do
+  q <- view deleteQueue
+  ok <- Q.tryPush q (TeamItem tid zusr zcon)
+  if ok
+    then pure ()
+    else throwM deleteQueueFull

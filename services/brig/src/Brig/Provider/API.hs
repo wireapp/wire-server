@@ -17,7 +17,8 @@
 
 module Brig.Provider.API
   ( -- * Main stuff
-    routes,
+    routesPublic,
+    routesInternal,
 
     -- * Event handlers
     finishDeleteService,
@@ -96,76 +97,92 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 
-routes :: Routes Doc.ApiBuilder Handler ()
-routes = do
-  -- Public API --------------------------------------------------------------
+routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic = do
+  -- Public API (Unauthenticated) --------------------------------------------
 
   post "/provider/register" (continue newAccountH) $
     accept "application" "json"
       .&> jsonRequest @NewProvider
+
   get "/provider/activate" (continue activateAccountKeyH) $
     accept "application" "json"
       .&> query "key"
       .&. query "code"
+
   get "/provider/approve" (continue approveAccountKeyH) $
     accept "application" "json"
       .&> query "key"
       .&. query "code"
+
   post "/provider/login" (continue loginH) $
     jsonRequest @ProviderLogin
+
   post "/provider/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
       .&> jsonRequest @PasswordReset
+
   post "/provider/password-reset/complete" (continue completePasswordResetH) $
     accept "application" "json"
       .&> jsonRequest @CompletePasswordReset
+
   -- Provider API ------------------------------------------------------------
 
   delete "/provider" (continue deleteAccountH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @DeleteProvider
+
   put "/provider" (continue updateAccountProfileH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @UpdateProvider
+
   put "/provider/email" (continue updateAccountEmailH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @EmailUpdate
+
   put "/provider/password" (continue updateAccountPasswordH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @PasswordChange
+
   get "/provider" (continue getAccountH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
+
   post "/provider/services" (continue addServiceH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @NewService
+
   get "/provider/services" (continue listServicesH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
+
   get "/provider/services/:sid" (continue getServiceH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
       .&. capture "sid"
+
   put "/provider/services/:sid" (continue updateServiceH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. capture "sid"
       .&. jsonRequest @UpdateService
+
   put "/provider/services/:sid/connection" (continue updateServiceConnH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. capture "sid"
       .&. jsonRequest @UpdateServiceConn
+
   -- TODO
   --     post "/provider/services/:sid/token" (continue genServiceTokenH) $
   --         accept "application" "json"
@@ -176,30 +193,36 @@ routes = do
       .&> zauthProviderId
       .&. capture "sid"
       .&. jsonRequest @DeleteService
+
   -- User API ----------------------------------------------------------------
 
   get "/providers/:pid" (continue getProviderProfileH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
+
   get "/providers/:pid/services" (continue listServiceProfilesH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
+
   get "/providers/:pid/services/:sid" (continue getServiceProfileH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
       .&. capture "sid"
+
   get "/services" (continue searchServiceProfilesH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> opt (query "tags")
       .&. opt (query "start")
       .&. def (unsafeRange 20) (query "size")
+
   get "/services/tags" (continue getServiceTagListH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
+
   get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
     accept "application" "json"
       .&> zauthUserId
@@ -207,6 +230,7 @@ routes = do
       .&. opt (query "prefix")
       .&. def True (query "filter_disabled")
       .&. def (unsafeRange 20) (query "size")
+
   post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
@@ -214,6 +238,7 @@ routes = do
       .&. zauthConnId
       .&. capture "tid"
       .&. jsonRequest @UpdateServiceWhitelist
+
   post "/conversations/:cnv/bots" (continue addBotH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
@@ -221,48 +246,58 @@ routes = do
       .&. zauthConnId
       .&. capture "cnv"
       .&. jsonRequest @AddBot
+
   delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
     zauth ZAuthAccess
       .&> zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
       .&. capture "bot"
+
   -- Bot API -----------------------------------------------------------------
 
   get "/bot/self" (continue botGetSelfH) $
     accept "application" "json"
       .&> zauth ZAuthBot
       .&> zauthBotId
+
   delete "/bot/self" (continue botDeleteSelfH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
+
   get "/bot/client/prekeys" (continue botListPrekeysH) $
     accept "application" "json"
       .&> zauth ZAuthBot
       .&> zauthBotId
+
   post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. jsonRequest @UpdateBotPrekeys
+
   get "/bot/client" (continue botGetClientH) $
     contentType "application" "json"
       .&> zauth ZAuthBot
       .&> zauthBotId
+
   post "/bot/users/prekeys" (continue botClaimUsersPrekeysH) $
     accept "application" "json"
       .&> zauth ZAuthBot
       .&> jsonRequest @UserClients
+
   get "/bot/users" (continue botListUserProfilesH) $
     accept "application" "json"
       .&> zauth ZAuthBot
       .&> query "ids"
+
   get "/bot/users/:uid/clients" (continue botGetUserClientsH) $
     accept "application" "json"
       .&> zauth ZAuthBot
       .&> capture "uid"
-  -- Internal API ------------------------------------------------------------
 
+routesInternal :: Routes a Handler ()
+routesInternal = do
   get "/i/provider/activation-code" (continue getActivationCodeH) $
     accept "application" "json"
       .&> param "email"
