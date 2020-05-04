@@ -21,7 +21,6 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Brig.Types.Intra (UserAccount)
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding ((#), (.=), from, to)
@@ -1352,18 +1351,16 @@ withSettingsOverrides opts action = liftIO $ do
   (galleyApp, _) <- Run.mkApp opts
   WaiTest.runSession action galleyApp
 
-waitForUserDeletion :: UserId -> TestM ()
-waitForUserDeletion uid = do
-  maybeTimedOut <- timeout 1000000 $ loop
+waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
+waitForMemberDeletion zusr tid uid = do
+  maybeTimedOut <- timeout 2000000 $ loop
   case maybeTimedOut of
-    Nothing -> liftIO $ assertFailure "Timed out waiting for user deletion"
+    Nothing -> liftIO $ assertFailure "Timed out waiting for member deletion"
     _ -> pure ()
   where
     loop = do
-      brig <- view tsBrig
-      res <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid))
-      liftIO $ assertEqual "Expected 200" 200 (statusCode res)
-      let Just (accounts :: [UserAccount]) = responseJsonMaybe res
-      case accounts of
-        [] -> pure ()
+      galley <- view tsGalley
+      res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
+      case statusCode res of
+        404 -> pure ()
         _ -> loop

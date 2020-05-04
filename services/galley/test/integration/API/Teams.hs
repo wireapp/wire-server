@@ -555,20 +555,20 @@ testRemoveBindingTeamOwner = do
   assertQueue "Add admin" $ tUpdate 4 [ownerA, ownerB, ownerWithoutEmail]
   refreshIndex
   -- non-owner can NOT delete owner
-  check tid admin ownerWithoutEmail (Just $ Util.defPassword) (Just "access-denied")
+  check tid admin ownerWithoutEmail (Just Util.defPassword) (Just "access-denied")
   assertQueueEmpty
   -- owners can NOT delete themselves
-  check tid ownerA ownerA (Just $ Util.defPassword) (Just "access-denied")
+  check tid ownerA ownerA (Just Util.defPassword) (Just "access-denied")
   assertQueueEmpty
   check tid ownerWithoutEmail ownerWithoutEmail Nothing (Just "access-denied")
   assertQueueEmpty
   -- owners can delete other owners (no matter who has emails)
   check tid ownerWithoutEmail ownerA Nothing Nothing
   assertQueue "Remove ownerA" $ tUpdate 3 [ownerB, ownerWithoutEmail]
-  Util.waitForUserDeletion ownerA
+  Util.waitForMemberDeletion ownerB tid ownerA
   refreshIndex
-  check tid ownerB ownerWithoutEmail (Just $ Util.defPassword) Nothing
-  assertQueue "Remove ownerWithoutEmail" $ tUpdateUncertainCount [2, 3] [ownerB]
+  check tid ownerB ownerWithoutEmail (Just Util.defPassword) Nothing
+  assertQueue ("Remove ownerWithoutEmail: " <> show ownerWithoutEmail <> ", ownerA: " <> show ownerA) $ tUpdateUncertainCount [2, 3] [ownerB]
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
@@ -580,13 +580,12 @@ testRemoveBindingTeamOwner = do
             . zConn "conn"
             . json (newTeamMemberDeleteData pass)
         )
-        !!! do
-          case maybeError of
-            Nothing ->
-              const 202 === statusCode
-            Just label -> do
-              const 403 === statusCode
-              const label === (Error.label . responseJsonUnsafeWithMsg "error label")
+        !!! case maybeError of
+          Nothing ->
+            const 202 === statusCode
+          Just label -> do
+            const 403 === statusCode
+            const label === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddTeamConvLegacy :: TestM ()
 testAddTeamConvLegacy = do
@@ -1316,7 +1315,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   -- indexed table
   withoutIndexedBillingTeamMembers $ deleteTeamMember g team firstOwner ownerFanoutPlusTwo !!! const 202 === statusCode
   ensureQueueEmpty
-  waitForUserDeletion ownerFanoutPlusTwo
+  Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
 
   ownerFanoutPlusFour <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add billing member to test deletion: " <> show ownerFanoutPlusFour) $
