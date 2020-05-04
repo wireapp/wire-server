@@ -45,7 +45,6 @@ module Wire.API.Conversation
     -- * invite
     Invite (..),
     newInvite,
-    Accept (..),
 
     -- * update
     ConversationRename (..),
@@ -71,7 +70,6 @@ import Data.Aeson.Types (Parser)
 import Data.Id
 import Data.Json.Util
 import Data.List1
-import Data.Misc
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -469,22 +467,6 @@ instance ToJSON Invite where
 instance FromJSON Invite where
   parseJSON = withObject "invite object" $ \o ->
     Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
-
--- | Request payload for accepting a 1-1 conversation.
-newtype Accept = Accept
-  { aUser :: UserId
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON Accept where
-  toJSON a =
-    object
-      [ "user" .= aUser a
-      ]
-
-instance FromJSON Accept where
-  parseJSON = withObject "accept" $ \o ->
-    Accept <$> o .: "user"
 
 --------------------------------------------------------------------------------
 -- update
