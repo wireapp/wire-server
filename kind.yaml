@@ -7,4 +7,5 @@ nodes:
     kind: InitConfiguration
     nodeRegistration:
       kubeletExtraArgs:
-        system-reserved: memory=4Gi
+        # IDK; I browse firefox whilst running this
+        system-reserved: memory=6Gi
